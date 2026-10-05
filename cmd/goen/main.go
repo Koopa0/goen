@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -716,6 +717,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	holds := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
+	d.run(func() { orderaccess.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
@@ -746,6 +748,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(staff.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicStaffEnrolment, d.notifier.SendStaffEnrolment)
 	outboxStore.HandleJSON(outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)

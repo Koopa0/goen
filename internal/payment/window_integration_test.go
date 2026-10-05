@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
 )
@@ -22,7 +23,7 @@ import (
 // only the way forward, once none can, and again once the sweeper cancelled it.
 func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 	gateway, calls := gatewayRecordingCalls(t, "cs_window_never_created")
-	h := payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	for _, tc := range []struct {
 		name      string
 		hold      time.Duration
@@ -48,6 +49,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				get := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay?cancelled=1", http.NoBody)
 				get.SetPathValue("number", number)
+				placedBy(t, get, number)
 				page := httptest.NewRecorder()
 				h.Page(page, get)
 				body := page.Body.String()
@@ -71,6 +73,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 
 				post := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 				post.SetPathValue("number", number)
+				placedBy(t, post, number)
 				refused := httptest.NewRecorder()
 				h.Start(refused, post)
 				if refused.Code != http.StatusConflict {
@@ -107,10 +110,11 @@ func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
 		_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":"open","url":%q}`, sessionID, destination)
 	}))
 	t.Cleanup(provider.Close)
-	h := payment.NewHandler(s, gatewayAt(t, provider.URL), alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gatewayAt(t, provider.URL), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 	get := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 	get.SetPathValue("number", number)
+	placedBy(t, get, number)
 	page := httptest.NewRecorder()
 	h.Page(page, get)
 	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `action="/orders/`+number+`/pay"`) {
@@ -119,6 +123,7 @@ func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
 
 	post := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 	post.SetPathValue("number", number)
+	placedBy(t, post, number)
 	resumed := httptest.NewRecorder()
 	h.Start(resumed, post)
 	if resumed.Code != http.StatusSeeOther || resumed.Header().Get("Location") != destination {

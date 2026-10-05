@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
@@ -20,9 +19,9 @@ import (
 
 var ErrTooLateToCorrect = errors.New("orders: this order has already shipped")
 
-// Delivery is the correction a staff member typed; which half applies follows
+// DeliveryCorrection is the correction a staff member typed; which half applies follows
 // from the ORDER's shipping method, never from the form.
-type Delivery struct {
+type DeliveryCorrection struct {
 	Email     string
 	Recipient string
 	Phone     string
@@ -46,7 +45,7 @@ func (e *DeliveryPostalError) Error() string {
 // CorrectDelivery changes private delivery data only when the order's surcharge
 // zone stands. The order lock serializes this decision with shipment and
 // cancellation.
-func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery) error {
+func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryCorrection) error {
 	after := map[string]any{"order_number": number}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCorrectDelivery, Table: "order_private_data",
@@ -81,7 +80,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 
 		n, err := q.UpdateOrderDelivery(ctx, db.UpdateOrderDeliveryParams{
 			OrderNumber: number,
-			Email:       text(addr.Email), RecipientName: text(addr.Name), Phone: text(addr.Phone),
+			Email:       text(addr.Email), RecipientName: text(addr.RecipientName), Phone: text(addr.Phone),
 			PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
 			PickupChain: string(addr.PickupChain), PickupStoreCode: addr.PickupStoreCode,
 			PickupStoreName: addr.PickupStoreName,
@@ -96,18 +95,18 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	})
 }
 
-func validatedDelivery(d *Delivery, to destination.Kind) (*cart.Address, error) {
-	addr := &cart.Address{
-		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
+func validatedDelivery(d *DeliveryCorrection, to destination.Kind) (*order.Delivery, error) {
+	addr := &order.Delivery{
+		To: to, Email: d.Email, RecipientName: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
 		PickupChain: d.PickupChain, PickupStoreCode: d.PickupStoreCode,
 		PickupStoreName: d.PickupStoreName,
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		for _, fieldErr := range errs {
-			if fieldErr.Field == "postal_code" {
-				return nil, &DeliveryPostalError{Key: fieldErr.MessageKey}
+		for _, refusal := range errs {
+			if refusal.Field == "postal_code" {
+				return nil, &DeliveryPostalError{Key: refusal.MessageKey}
 			}
 		}
 		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
@@ -119,7 +118,7 @@ func validatedDelivery(d *Delivery, to destination.Kind) (*cart.Address, error) 
 // checkDeliveryZone reads the saved postcode only after the order lock is held,
 // so a waiter compares against the correction before it and not an earlier
 // snapshot. A pickup order has no postcode and no zone to leave.
-func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *cart.Address) error {
+func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *order.Delivery) error {
 	if addr.To != destination.Address {
 		return nil
 	}
@@ -143,9 +142,9 @@ func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, ad
 	return nil
 }
 
-func deliveryFormOf(values func(string) string) *Delivery {
+func deliveryFormOf(values func(string) string) *DeliveryCorrection {
 	get := func(k string) string { return strings.TrimSpace(values(k)) }
-	return &Delivery{
+	return &DeliveryCorrection{
 		Email: get("email"), Recipient: get("recipient"), Phone: get("phone"),
 		PostalCode: get("postal_code"), City: get("city"),
 		District: get("district"), Street: get("street"),

@@ -308,11 +308,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
 	for i := range timeline {
-		entry, entryErr := timelineEntry(&timeline[i])
-		if entryErr != nil {
-			return admin.OrderView{}, entryErr
-		}
-		view.Timeline = append(view.Timeline, entry)
+		view.Timeline = append(view.Timeline, timelineEntry(&timeline[i]))
 	}
 	view.MailKept = outbox.Retain
 

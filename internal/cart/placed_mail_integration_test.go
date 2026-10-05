@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // TestCheckoutWritesWhatThePlacedLetterStillOwes is the producer half of the
@@ -21,8 +22,8 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	shipID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "placed-mail@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "placed-mail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -100,7 +101,7 @@ func placedOrderPayload(t *testing.T, number string) (payload email.OrderPlaced,
 		SELECT (SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
 		          FROM order_lines ol WHERE ol.order_id = o.id)
 		       - o.discount_cents + o.shipping_cents + o.tax_cents,
-		       order_amount_owed(o.id)
+		       order_amount_after_credit(o.id)
 		FROM orders o WHERE o.order_number = $1`, number).Scan(&total, &owed); err != nil {
 		t.Fatalf("read order totals for %s: %v", number, err)
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/web"
@@ -201,7 +202,7 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "registration-link")
 	s := account.NewStore(appPool)
-	carts := cart.NewHandler(cart.NewStore(appPool), slog.New(slog.DiscardHandler), false,
+	carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 	h := account.NewHandler(s, carts, slog.New(slog.DiscardHandler), false, nil)

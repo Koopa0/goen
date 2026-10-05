@@ -140,6 +140,11 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
+	// Each enrolment mails the account.
+	if retryAfter, allowed := h.limit.Allow("totp:" + u.ID); !allowed {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
 	secret, uri, err := h.store.Begin(r.Context(), u.ID, u.Email)
 	if err != nil {
 		if errors.Is(err, ErrDisabled) {
@@ -184,7 +189,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
-	if err := h.store.Confirm(r.Context(), u.ID, r.PostFormValue("code")); err != nil {
+	if err := h.store.Confirm(r.Context(), u.ID, r.PostFormValue("code"), r.PostFormValue("mailed_code")); err != nil {
 		switch {
 		case errors.Is(err, ErrSecretUnreadable):
 			h.logUnreadable(r)

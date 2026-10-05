@@ -31,6 +31,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -152,7 +154,7 @@ func checkoutQuote(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *cart.Address,
+	addr *order.Delivery,
 	couponCode string,
 ) cart.CheckoutQuoteID {
 	t.Helper()
@@ -172,7 +174,7 @@ func checkoutQuoteFacts(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *cart.Address,
+	addr *order.Delivery,
 	couponCode string,
 ) cart.CheckoutQuote {
 	t.Helper()
@@ -235,7 +237,7 @@ func placeOrder(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *cart.Address,
+	addr *order.Delivery,
 	couponCode string,
 	key string,
 ) (string, error) {
@@ -308,8 +310,8 @@ func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 		t.Fatalf("store role adds cart line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "role-quote@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "role-quote@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
@@ -330,8 +332,8 @@ func TestCompanyInvoiceSnapshotsTheRegisteredBuyerNotTheRecipient(t *testing.T) 
 		t.Fatalf("add company invoice line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "company-buyer@example.com", Name: "收件人李大華", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "company-buyer@example.com", RecipientName: "收件人李大華", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	inv := &cart.Invoice{
@@ -419,8 +421,8 @@ func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("lock inventory ledger: %v", lockErr)
 	}
 
-	addr := &cart.Address{
-		Email: "infra@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "infra@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	_, err = placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"),
@@ -473,8 +475,8 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("hold the last unit: %v", err)
 	}
 
-	addr := &cart.Address{
-		Email: "soldout@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "soldout@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shipID := shipVersionFor(t, "home_delivery")
@@ -529,8 +531,8 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 	shipID := shipVersionFor(t, "home_delivery")
 	key := checkoutAttemptKey("credit-race-" + uuid.NewString())
-	checkoutAddress := &cart.Address{
-		Email: "credit-race@example.com", Name: "王小明", Phone: "0912345678",
+	checkoutAddress := &order.Delivery{
+		Email: "credit-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 88 號",
 	}
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
@@ -564,7 +566,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 		t.Fatalf("post competing debit: %v", err)
 	}
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	done := make(chan error, 1)
@@ -636,9 +638,9 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "first-add-a-"+suffix, "first-add-b-"+suffix
-	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
-	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	type addResult struct {
 		code int
@@ -775,7 +777,7 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	const slug = "nimbus-buds-pro"
 	vid := nimbusVariant(t, "雲白")
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -813,7 +815,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 	const slug = "aurora-slate-11"
 	vid := soldOutAuroraVariant(t)
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -833,7 +835,7 @@ func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 
 func TestAddToCartRejectsAMismatchedBackSlug(t *testing.T) {
 	vid := variantOf(t, "nimbus-buds-pro", true)
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, "pixelight-9-pro", "1")
 	if res.Code != http.StatusSeeOther {
@@ -978,7 +980,7 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	vid := freshVariant(t, "stockfix-add-notice")
 	var slug string
@@ -1118,8 +1120,8 @@ func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "setqty-checkout@example.com", Name: "李大華", Phone: "0987654321",
+	addr := &order.Delivery{
+		Email: "setqty-checkout@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
 	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-1"); err != nil {
@@ -1130,7 +1132,7 @@ func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	// Each case makes the variant impossible to sell a different way; the line
 	// keeps its quantity and the visitor is told, not sent to a 500.
@@ -1226,7 +1228,7 @@ func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	vid := freshVariant(t, "stockfix-update-notice")
 	var wasStock, wasSafety int32
@@ -1354,8 +1356,8 @@ func TestPlaceOrderIsIdempotent(t *testing.T) {
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &cart.Address{
-		Email: "idem@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "idem@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	key := checkoutAttemptKey("idem-key-test-1")
@@ -1393,8 +1395,8 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	if err := s.Add(ctx, firstCart, freshVariant(t, "key-owner"), 1); err != nil {
 		t.Fatalf("add first cart: %v", err)
 	}
-	firstAddress := &cart.Address{
-		Email: "key-owner@example.com", Name: "王小明", Phone: "0912345678",
+	firstAddress := &order.Delivery{
+		Email: "key-owner@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	firstQuote := checkoutQuote(
@@ -1410,8 +1412,8 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	if err := s.Add(ctx, secondCart, freshVariant(t, "key-collision"), 1); err != nil {
 		t.Fatalf("add second cart: %v", err)
 	}
-	secondAddress := &cart.Address{
-		Email: "key-collision@example.com", Name: "李大華", Phone: "0987654321",
+	secondAddress := &order.Delivery{
+		Email: "key-collision@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 2 號",
 	}
 	secondQuote := checkoutQuote(
@@ -1455,8 +1457,8 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "empty@example.com", Name: "李大華", Phone: "0987654321",
+	addr := &order.Delivery{
+		Email: "empty@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
 	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "empties-cart-1"); err != nil {
@@ -1479,8 +1481,8 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "x@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "x@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	if _, err := s.PlaceOrder(
@@ -1501,8 +1503,8 @@ func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "x@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "x@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	if _, err := s.PlaceOrder(
@@ -1530,8 +1532,8 @@ func TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "quote-race@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "quote-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -1599,8 +1601,8 @@ func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "coupon-race@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "coupon-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -1688,7 +1690,7 @@ func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			//nolint:gosec // G124: the browser's own cart cookie
 			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
 				Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 			}), nil, nil)
 
@@ -1741,13 +1743,13 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 				t.Fatalf("add: %v", err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
-			addr := &cart.Address{
-				Email: "attempt-" + tt.name + "@example.com",
-				Name:  "王小明", Phone: "0912345678", PostalCode: "110",
+			addr := &order.Delivery{
+				Email:         "attempt-" + tt.name + "@example.com",
+				RecipientName: "王小明", Phone: "0912345678", PostalCode: "110",
 				City: "台北市", District: "信義區", Street: "松高路 1 號",
 			}
 			form := url.Values{
-				"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+				"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 				"postal_code": {addr.PostalCode}, "city": {addr.City},
 				"district": {addr.District}, "street": {addr.Street},
 				"shipping":       {shippingID.String()},
@@ -1760,7 +1762,7 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			//nolint:gosec // G124: the browser's own cart cookie
 			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
 				Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 			}), nil, nil)
 
@@ -1821,13 +1823,13 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "replay@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "replay@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	key := checkoutAttemptKey("http-replay-" + uuid.NewString())
 	form := url.Values{
-		"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 		"street":         {addr.Street},
 		"shipping":       {shippingID.String()},
@@ -1842,7 +1844,7 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req
 	}
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	}), nil, nil)
 
@@ -1901,8 +1903,8 @@ func TestRetiringAProductLinearizesBeforeStaleCartCheckout(t *testing.T) {
 
 	checkoutPool := applicationPool(t, "checkout-behind-product-retirement")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &cart.Address{
-		Email: "retired@example.com", Name: "王小明", Phone: "0912345678",
+	checkoutAddress := &order.Delivery{
+		Email: "retired@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := checkoutQuote(
@@ -2012,8 +2014,8 @@ func TestCheckoutAndFeaturedVariantMutationShareTheCatalogueLockOrder(t *testing
 
 	checkoutPool := applicationPool(t, "checkout-behind-featured-variant")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &cart.Address{
-		Email: "featured@example.com", Name: "王小明", Phone: "0912345678",
+	checkoutAddress := &order.Delivery{
+		Email: "featured@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := checkoutQuote(
@@ -2064,8 +2066,8 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "price@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "price@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "copied-price-1")
@@ -2108,8 +2110,8 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "enumerate@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "enumerate@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "enum-test-1")
@@ -2117,7 +2119,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -2136,7 +2138,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 
 	placer := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	placer.SetPathValue("number", number)
-	placer.AddCookie(placedCookie(t, s, number))
+	placer.AddCookie(placedCookie(t, number))
 	ok := httptest.NewRecorder()
 	h.OrderPage(ok, placer)
 
@@ -2168,8 +2170,8 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "owned@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "owned@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
@@ -2178,7 +2180,12 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 
-	owns, err := s.OrderBelongsTo(ctx, number, userID.String())
+	access := orderaccess.NewStore(pool, false)
+	asUser := func(id uuid.UUID) *http.Request {
+		return httptest.NewRequestWithContext(
+			user.NewContext(ctx, user.User{ID: id.String()}), http.MethodGet, "/", http.NoBody)
+	}
+	owns, err := access.OwnedBySignedInUser(asUser(userID), number)
 	if err != nil {
 		t.Fatalf("check ownership: %v", err)
 	}
@@ -2192,12 +2199,40 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		"other-"+uuid.NewString()+"@example.com").Scan(&otherID); err != nil {
 		t.Fatalf("create other user: %v", err)
 	}
-	otherOwns, otherErr := s.OrderBelongsTo(ctx, number, otherID.String())
+	otherOwns, otherErr := access.OwnedBySignedInUser(asUser(otherID), number)
 	if otherErr != nil {
 		t.Fatalf("check other ownership: %v", otherErr)
 	}
 	if otherOwns {
 		t.Error("the order is reported as belonging to a different account")
+	}
+
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	open := func(who uuid.UUID, cookie *http.Cookie) int {
+		reqCtx := ctx
+		if who != uuid.Nil {
+			reqCtx = user.NewContext(ctx, user.User{ID: who.String()})
+		}
+		r := httptest.NewRequestWithContext(reqCtx, http.MethodGet, "/orders/"+number, http.NoBody)
+		r.SetPathValue("number", number)
+		if cookie != nil {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		h.OrderPage(w, r)
+		return w.Code
+	}
+	if got := open(uuid.Nil, placedCookie(t, number)); got != http.StatusOK {
+		t.Errorf("a grant holder who is not signed in got %d, want 200", got)
+	}
+	if got := open(userID, nil); got != http.StatusOK {
+		t.Errorf("the owner without the cookie got %d, want 200", got)
+	}
+	if got := open(otherID, nil); got != http.StatusNotFound {
+		t.Errorf("a signed-in stranger got %d, want 404", got)
+	}
+	if got := open(uuid.Nil, nil); got != http.StatusNotFound {
+		t.Errorf("a visitor with neither grant nor account got %d, want 404", got)
 	}
 }
 
@@ -2229,8 +2264,8 @@ func TestCheckoutHoldsStock(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "hold@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "hold@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -2297,8 +2332,8 @@ func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
 	}
 
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "shared-hold@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "shared-hold@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, cartID, uuid.NullUUID{}, shippingID, addr, "",
@@ -2819,7 +2854,7 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 	t.Helper()
 	ctx := t.Context()
 
-	// The line price IS the order total, which is what makes order_amount_owed come
+	// The line price IS the order total, which is what makes order_amount_after_credit come
 	// to exactly zero once the credit is spent.
 	const cents = 100000
 	userID := creditedCustomer(t, cents)
@@ -2990,8 +3025,8 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	}
 
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
-		shipVersionFor(t, "home_delivery"), &cart.Address{
-			Email: "creditcap@example.com", Name: "王小明", Phone: "0912345678",
+		shipVersionFor(t, "home_delivery"), &order.Delivery{
+			Email: "creditcap@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		}, "CREDITCAP", "creditcap-"+uuid.NewString())
 	if err != nil {
@@ -3000,7 +3035,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 
 	var owed, debit int64
 	if err := pool.QueryRow(ctx, `
-		SELECT order_amount_owed(o.id),
+		SELECT order_amount_after_credit(o.id),
 		       -coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
 		                  WHERE e.order_id = o.id), 0)
 		FROM orders o WHERE o.order_number = $1`, number).Scan(&owed, &debit); err != nil {
@@ -3008,7 +3043,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	}
 
 	if owed != 0 {
-		t.Errorf("order_amount_owed(%s) = %d, want 0. A negative figure means credit was "+
+		t.Errorf("order_amount_after_credit(%s) = %d, want 0. A negative figure means credit was "+
 			"spent against the GROSS total, which loses the customer the discount and "+
 			"leaves the order permanently unpayable", number, owed)
 	}
@@ -3045,8 +3080,8 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	placed := make(chan error, 1)
 	go func() {
 		_, placeErr := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-			shipVersionFor(t, "home_delivery"), &cart.Address{
-				Email: "double@example.com", Name: "王小明", Phone: "0912345678",
+			shipVersionFor(t, "home_delivery"), &order.Delivery{
+				Email: "double@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 			}, "", key)
 		placed <- placeErr
@@ -3114,8 +3149,8 @@ func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "c@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "c@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -3164,8 +3199,8 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "c2@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "c2@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
@@ -3225,8 +3260,8 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "g@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "g@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	id := newCart(t, s)
@@ -3305,8 +3340,8 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "ob@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "ob@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
 
@@ -3434,11 +3469,11 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &cart.Address{
+	addr := &order.Delivery{
 		// The destination the CALLER claims is deliberately wrong: PlaceOrder re-reads
 		// the method and overrides it.
 		To:    destination.Address,
-		Email: "pickup@example.com", Name: "陳小明", Phone: "0912345678",
+		Email: "pickup@example.com", RecipientName: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
@@ -3469,9 +3504,9 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &cart.Address{
+	addr := &order.Delivery{
 		To:    destination.PickupPoint,
-		Email: "chain@example.com", Name: "林小美", Phone: "0955666777",
+		Email: "chain@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
@@ -3521,9 +3556,9 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &cart.Address{
+	addr := &order.Delivery{
 		To:    destination.PickupPoint,
-		Email: "named@example.com", Name: "林小美", Phone: "0955666777",
+		Email: "named@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
@@ -3554,9 +3589,9 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &cart.Address{
+	addr := &order.Delivery{
 		To:    destination.PickupPoint,
-		Email: "home@example.com", Name: "王大明", Phone: "0922333444",
+		Email: "home@example.com", RecipientName: "王大明", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
 	}
@@ -3582,8 +3617,8 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "shown@example.com", Name: "李小華", Phone: "0933444555",
+	addr := &order.Delivery{
+		Email: "shown@example.com", RecipientName: "李小華", Phone: "0933444555",
 		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
@@ -3951,7 +3986,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -3975,7 +4010,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 
 	placer := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	placer.SetPathValue("number", number)
-	placer.AddCookie(placedCookie(t, s, number))
+	placer.AddCookie(placedCookie(t, number))
 	ok := httptest.NewRecorder()
 	h.CancelOrder(ok, placer)
 
@@ -4209,8 +4244,8 @@ func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &cart.Address{
-		Email: "kinmen@example.com", Name: "金門", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "kinmen@example.com", RecipientName: "金門", Phone: "0912345678",
 		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
@@ -4262,8 +4297,8 @@ func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 			t.Fatalf("find the coupon: %v", err)
 		}
 		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-			shipVersionFor(t, "home_delivery"), &cart.Address{
-				Email: "ship@example.com", Name: "測試", Phone: "0912345678",
+			shipVersionFor(t, "home_delivery"), &order.Delivery{
+				Email: "ship@example.com", RecipientName: "測試", Phone: "0912345678",
 				PostalCode: postal, City: city, District: district, Street: "路 1 號",
 			}, "FREESHIPZONE", key)
 		if err != nil {
@@ -4364,8 +4399,8 @@ func TestCheckoutAndReorderSerializeTheCartAggregate(t *testing.T) {
 	reorderPool := applicationPool(t, "reorder-cart-aggregate")
 	shippingVersionID := shipVersionFor(t, "home_delivery")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &cart.Address{
-		Email: "aggregate@example.com", Name: "購物車鎖", Phone: "0912345678",
+	checkoutAddress := &order.Delivery{
+		Email: "aggregate@example.com", RecipientName: "購物車鎖", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := checkoutQuote(
@@ -4728,7 +4763,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	own, _, _ := threeVariants(t, "reorder-access-fixture")
 	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/reorder", http.NoBody)
@@ -4748,7 +4783,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	placer := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/reorder", http.NoBody)
 	placer.SetPathValue("number", number)
-	placer.AddCookie(placedCookie(t, s, number))
+	placer.AddCookie(placedCookie(t, number))
 	ok := httptest.NewRecorder()
 	h.ReorderItems(ok, placer)
 
@@ -5375,8 +5410,8 @@ func placeOrderInLocale(
 		Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "snapshot@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "snapshot@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "",
@@ -5468,11 +5503,11 @@ func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
 // placedCookie issues a REAL access token through the same grant the checkout
 // writes: a fixture putting the order NUMBER in the cookie would assert a
 // forgeable design rather than the rule.
-func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
+func placedCookie(t *testing.T, number string) *http.Cookie {
 	t.Helper()
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
-	if err := s.RememberOrder(t.Context(), w, r, number, false); err != nil {
+	if err := orderaccess.NewStore(pool, false).Grant(w, r, number); err != nil {
 		t.Fatalf("grant access to %s: %v", number, err)
 	}
 	for _, c := range w.Result().Cookies() {
@@ -5480,7 +5515,7 @@ func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 			return c
 		}
 	}
-	t.Fatalf("RememberOrder set no goen_placed cookie")
+	t.Fatalf("Grant set no goen_placed cookie")
 	return nil
 }
 
@@ -5490,15 +5525,15 @@ func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	first := placeUnpaidOrderFor(t, s, "twice@example.com")
-	firstCookie := placedCookie(t, s, first)
+	firstCookie := placedCookie(t, first)
 	second := placeUnpaidOrderFor(t, s, "twice@example.com")
 
-	retain := cart.GrantRetain.String()
+	retain := orderaccess.Retain.String()
 	// Just inside the window: close enough to expiry that sweep would drop the row
-	// without touch, but still live when RememberOrder restarts the clock.
+	// without touch, but still live when Grant restarts the clock.
 	if _, err := pool.Exec(ctx, `
 		UPDATE order_access_grants
 		SET created_at = now() - $1::interval + interval '1 second'
@@ -5509,7 +5544,7 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 	r.AddCookie(firstCookie)
-	if err := s.RememberOrder(ctx, w, r, second, false); err != nil {
+	if err := orderaccess.NewStore(pool, false).Grant(w, r, second); err != nil {
 		t.Fatalf("remember the second order: %v", err)
 	}
 	var carried *http.Cookie
@@ -5526,7 +5561,7 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 			"this test would pass for the wrong reason")
 	}
 
-	if err := s.SweepAttempts(ctx); err != nil {
+	if err := orderaccess.NewStore(pool, false).Sweep(ctx); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
 
@@ -5549,9 +5584,9 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
-	retain := cart.GrantRetain.String()
+	retain := orderaccess.Retain.String()
 
 	for _, tc := range []struct {
 		name   string
@@ -5562,7 +5597,7 @@ func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			first := placeUnpaidOrderFor(t, s, tc.name+"@example.com")
-			firstCookie := placedCookie(t, s, first)
+			firstCookie := placedCookie(t, first)
 
 			if _, err := pool.Exec(ctx, `
 				UPDATE order_access_grants
@@ -5576,7 +5611,7 @@ func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 			r.AddCookie(firstCookie)
-			if err := s.RememberOrder(ctx, w, r, second, false); err != nil {
+			if err := orderaccess.NewStore(pool, false).Grant(w, r, second); err != nil {
 				t.Fatalf("remember the second order: %v", err)
 			}
 			var carried *http.Cookie
@@ -5612,15 +5647,15 @@ func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	number := placeUnpaidOrderFor(t, s, "retain-bound@example.com")
-	cookie := placedCookie(t, s, number)
+	cookie := placedCookie(t, number)
 	token := cookie.Value
 	if i := strings.IndexByte(token, '.'); i >= 0 {
 		token = token[:i]
 	}
 
-	retain := cart.GrantRetain.String()
+	retain := orderaccess.Retain.String()
 	retainParam := pgtype.Interval{
-		Microseconds: int64(cart.GrantRetain / time.Microsecond), Valid: true,
+		Microseconds: int64(orderaccess.Retain / time.Microsecond), Valid: true,
 	}
 
 	tx, err := pool.Begin(ctx)
@@ -5666,13 +5701,13 @@ func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	number := placeUnpaidOrderFor(t, s, "forged@example.com")
 
 	// The VICTIM's own browser holds a REAL grant before the attack starts: without
 	// it the access query's EXISTS is false whatever the digest comparison does, and
 	// the case stays green with `g.digest = ANY(...)` replaced by `OR true`.
-	victim := placedCookie(t, s, number)
+	victim := placedCookie(t, number)
 
 	for _, value := range []string{
 		number,
@@ -5708,16 +5743,16 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	mine := placeUnpaidOrderFor(t, s, "mine@example.com")
 	theirs := placeUnpaidOrderFor(t, s, "theirs@example.com")
 
-	placedCookie(t, s, theirs)
+	placedCookie(t, theirs)
 
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+theirs, http.NoBody)
 	r.SetPathValue("number", theirs)
-	r.AddCookie(placedCookie(t, s, mine))
+	r.AddCookie(placedCookie(t, mine))
 	w := httptest.NewRecorder()
 	h.OrderPage(w, r)
 
@@ -5779,13 +5814,13 @@ func assertFindOrderGrantFailurePage(t *testing.T, body string) {
 	}
 }
 
-func testPayHandler(t *testing.T, s *cart.Store) *payment.Handler {
+func testPayHandler(t *testing.T) *payment.Handler {
 	t.Helper()
 	gateway, err := payment.NewGateway("", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	return payment.NewHandler(payment.NewStore(pool), gateway, s, slog.New(slog.DiscardHandler), false)
+	return payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 }
 
 func followPayWithCookie(
@@ -5831,8 +5866,8 @@ func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 		Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &cart.Address{
-		Email: address, Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: address, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "",
@@ -5911,7 +5946,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 		"street":         {"松仁路 200 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, &cart.Address{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, code).String()},
 		"idempotency":    {key},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
@@ -5919,7 +5954,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	served := make(chan error, 1)
@@ -6029,8 +6064,8 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find the coupon: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "spender@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "spender@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	if _, placeErr := placeOrder(t, s, ctx, spender, uuid.NullUUID{}, shipID, addr, code,
@@ -6057,7 +6092,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 		"street":         {"松仁路 100 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, second, uuid.NullUUID{}, shipID, &cart.Address{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkoutQuote(t, s, second, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, code).String()},
 		"idempotency":    {checkoutAttemptKey("late-" + uuid.NewString())},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
@@ -6065,7 +6100,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6127,7 +6162,7 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6232,7 +6267,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6315,7 +6350,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6334,7 +6369,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 }
 
 // TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404 locks the
-// post-commit failure handling in PlaceOrder: if RememberOrder fails (grant insert
+// post-commit failure handling in PlaceOrder: if Grant fails (grant insert
 // failure or carried touch failure), the handler must not 303 to /pay where the
 // customer would immediately 404. It must answer 500, preserving the committed
 // order in the database without rolling back or duplicating it.
@@ -6360,13 +6395,13 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &cart.Address{
-		Email: "grant-fail@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "grant-fail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	key := checkoutAttemptKey("grant-fail-" + uuid.NewString())
 	form := url.Values{
-		"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 		"street":         {addr.Street},
 		"shipping":       {shipID.String()},
@@ -6404,7 +6439,7 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6496,7 +6531,7 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 		t.Fatal("recovered replay set no goen_placed cookie")
 	}
 
-	payH := testPayHandler(t, s)
+	payH := testPayHandler(t)
 	followPayWithCookie(t, ctx, payH, orderNumber, placedCookie)
 	assertPayUnreachableWithoutGrant(t, ctx, payH, orderNumber)
 
@@ -6525,13 +6560,13 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 
 // TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404 locks the
 // post-commit carried-grant touch failure: if TouchOrderAccessGrants fails,
-// RememberOrder must report the error, and PlaceOrder must answer 500 rather than 303.
+// Grant must report the error, and PlaceOrder must answer 500 rather than 303.
 func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
 	firstOrder := placeUnpaidOrderFor(t, s, "carried-touch@example.com")
-	firstCookie := placedCookie(t, s, firstOrder)
+	firstCookie := placedCookie(t, firstOrder)
 
 	token, err := cart.NewToken()
 	if err != nil {
@@ -6551,13 +6586,13 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &cart.Address{
-		Email: "second-touch@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "second-touch@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 2 號",
 	}
 	key := checkoutAttemptKey("touch-fail-" + uuid.NewString())
 	form := url.Values{
-		"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 		"street":         {addr.Street},
 		"shipping":       {shipID.String()},
@@ -6596,7 +6631,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	req.AddCookie(firstCookie)
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -6680,7 +6715,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 		t.Fatal("recovered touch replay set no goen_placed cookie")
 	}
 
-	payH := testPayHandler(t, s)
+	payH := testPayHandler(t)
 	followPayWithCookie(t, ctx, payH, secondOrderNumber, carriedCookie)
 	assertPayUnreachableWithoutGrant(t, ctx, payH, secondOrderNumber)
 
@@ -6707,7 +6742,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 }
 
 // TestFindOrderGrantFailureDoesNotRedirectTo404 locks the grant failure
-// handling in FindOrder: if RememberOrder fails, FindOrder must answer 500
+// handling in FindOrder: if Grant fails, FindOrder must answer 500
 // rather than 303 redirecting to the order page where access would fail.
 func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
 	ctx := t.Context()
@@ -6747,7 +6782,7 @@ func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.FindOrder(res, req)
