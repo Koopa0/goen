@@ -91,7 +91,7 @@ var (
 		En:     "Free delivery over %s",
 	})
 
-	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天鑑賞期", En: "7 days to return"})
+	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天猶豫期", En: "7 days to return"})
 
 	KeyProductNotFound = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 

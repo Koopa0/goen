@@ -17,7 +17,7 @@ func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{i18n.ZhHant, "訂單已成立，但尚未完成存取"},
+		{i18n.ZhHant, "已收到你的訂單，但尚未完成存取"},
 		{i18n.En, "Your order was received, but access could not be set up"},
 	}
 	for _, tt := range tests {
