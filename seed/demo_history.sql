@@ -426,6 +426,7 @@ DECLARE
     v_ord pg_temp.demo_order;
     v_buyer pg_temp.demo_customer;
     v_pool integer;
+    v_regular integer;
     v_variants uuid[] := '{}';
     v_quantities integer[] := '{}';
     v_product uuid;
@@ -507,8 +508,9 @@ BEGIN
             RESET ROLE;
             INSERT INTO pg_temp.demo_customer SELECT (v_buyer).*;
         ELSE
-            SELECT * INTO v_buyer FROM pg_temp.demo_customer
-            WHERE k = 1 + floor(v_pool * power(random(), 1.6::float8))::integer;
+            -- Drawn first: random() in the WHERE clause would draw once per row.
+            v_regular := 1 + floor(v_pool * power(random(), 1.6::float8))::integer;
+            SELECT * INTO STRICT v_buyer FROM pg_temp.demo_customer WHERE k = v_regular;
         END IF;
     ELSE
         v_buyer := pg_temp.demo_person(NULL);
