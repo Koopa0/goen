@@ -86,12 +86,13 @@ func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 		return unrecognizedEntry(e, r)
 	}
 	e.Label, e.Status = label, status
+	e.DoneAt = nullableStamp(r.DoneAt)
 	return e
 }
 
 func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timeline []admin.TimelineEntry) {
-	for _, e := range timeline {
-		if e.Unrecognized != "" {
+	for i := range timeline {
+		if e := &timeline[i]; e.Unrecognized != "" {
 			log.WarnContext(ctx, "unrecognised order timeline entry",
 				"order", number, "entry", e.Unrecognized, "at", e.At)
 		}
