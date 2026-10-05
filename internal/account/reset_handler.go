@@ -2,7 +2,6 @@ package account
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/koopa0/goen/internal/email"
@@ -89,10 +88,12 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/signin?reset=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidPassword):
+		errs := FieldMessages(r.Context(), []web.FieldRefusal{
+			{Field: "password", MessageKey: PasswordError(password)},
+		})
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
-			pages.ResetView{Token: token, Error: fmt.Sprintf(
-				i18n.T(r.Context(), PasswordError(password)), MinPasswordRunes)}))
+			pages.ResetView{Token: token, Error: errs["password"]}))
 	case errors.Is(err, ErrResetInvalid):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
