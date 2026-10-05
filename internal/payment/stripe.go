@@ -29,6 +29,9 @@ type Gateway struct {
 
 const maxStripeIDCharacters = 255
 
+// Payment-mode Checkout Sessions accept at most 100 lines, including shipping.
+const maxCheckoutLineItems = 100
+
 var errInvalidStripeResponse = errors.New("payment: Stripe returned an invalid response")
 
 // ValidStripeID reports whether id is safe to retain as a durable provider
@@ -150,8 +153,13 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 		lineTotal += o.Lines[i].UnitCents * int64(o.Lines[i].Quantity)
 	}
 
+	itemCount := len(o.Lines)
+	if o.TotalCents > lineTotal {
+		itemCount++
+	}
+
 	var items []*stripe.CheckoutSessionCreateLineItemParams
-	if o.TotalCents >= lineTotal {
+	if o.TotalCents >= lineTotal && itemCount <= maxCheckoutLineItems {
 		items = make([]*stripe.CheckoutSessionCreateLineItemParams, 0, len(o.Lines)+1)
 		for i := range o.Lines {
 			l := &o.Lines[i]
