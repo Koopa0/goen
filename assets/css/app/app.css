@@ -291,7 +291,7 @@ a:hover {
 
   /* Functional colours: a status says what it is by its words and its icon,
      the colour only agrees. Each ink clears 4.5:1 on its own tint. */
-  --star: #e0a400;
+  --star: #b07c00;
   --error: #b91c1c;
   --error-bg: #fef2f2;
   --error-outline: #fca5a5;
@@ -4477,10 +4477,11 @@ a.goen-pager__step:hover {
   border-radius: var(--r-sm);
 }
 
-/* The outline carries the shape's 3:1 boundary on every state; selected differs
-   by being filled, so the rating reads without colour. */
+/* The outline carries the shape's 3:1 boundary on every state, and the fill is
+   3:1 on the form's ground and on the outline, so a selected star differs from
+   an empty one by shape and by contrast, not by hue. */
 .goen-pdp__starmark svg {
-  color: var(--n-500);
+  color: var(--n-900);
   display: block;
   fill: none;
   height: 1.75rem;

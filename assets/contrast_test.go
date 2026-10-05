@@ -178,9 +178,10 @@ func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
 	}
 }
 
-// The review form's star picker is a control with no text, so its outline is
-// what WCAG 1.4.11 holds to 3:1 against the page.
-func TestTheStarPickerOutlineIsVisibleOnThePage(t *testing.T) {
+// The review form's star picker is a control with no text, so WCAG 1.4.11 holds
+// its outline and its selected fill to 3:1 against the ground the form sits on,
+// and the fill must stand out from the outline around it.
+func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -193,11 +194,20 @@ func TestTheStarPickerOutlineIsVisibleOnThePage(t *testing.T) {
 			tokens[m[1]] = m[2]
 		}
 	}
-	rule := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
-	if rule == nil {
-		t.Fatalf("%s has no .goen-pdp__starmark svg rule with a token colour", AppCSS)
+	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if outline == nil || fill == nil {
+		t.Fatalf("%s has no star picker outline or selected fill rule with a token colour", AppCSS)
 	}
-	if got := contrast(tokens[rule[1]], tokens["--n-0"]); got < 3 {
-		t.Errorf("star outline %s (#%s) on --n-0 = %.2f:1, want at least 3:1", rule[1], tokens[rule[1]], got)
+	ground := tokens["--n-50"]
+	for _, c := range []struct{ what, token, against, on string }{
+		{"outline", outline[1], ground, "--n-50"},
+		{"selected fill", fill[1], ground, "--n-50"},
+		{"selected fill", fill[1], tokens[outline[1]], "the outline " + outline[1]},
+	} {
+		if got := contrast(tokens[c.token], c.against); got < 3 {
+			t.Errorf("star %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				c.what, c.token, tokens[c.token], c.on, c.against, got)
+		}
 	}
 }
