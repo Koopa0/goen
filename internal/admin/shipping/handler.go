@@ -206,10 +206,6 @@ type shippingDrafts struct {
 func (h *Handler) rejectShippingForm(
 	w http.ResponseWriter, r *http.Request, errs map[string]string, drafts *shippingDrafts,
 ) {
-	if drafts.version != nil {
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
-		return
-	}
 	view, err := h.shippingView(r.Context())
 	if err != nil {
 		access.ServerError(w, r, h.log)
@@ -345,10 +341,6 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, message string) {
-	if r.Method == http.MethodPost {
-		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
-		return
-	}
 	view, err := h.shippingView(r.Context())
 	if err != nil {
 		access.ServerError(w, r, h.log)
