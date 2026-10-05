@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // demoHistoryInvariants are the shop's own rules over what seed/demo_history.sql
@@ -612,18 +614,21 @@ func assertReportsHaveData(t *testing.T, shop *pgxpool.Pool) {
 	t.Helper()
 	ctx := t.Context()
 	q := db.New(shop)
+	now := time.Now()
 	for _, days := range []int32{7, 30, 90} {
-		revenue, err := q.RevenueSince(ctx, days)
+		// The report's period: the last days shop days, today included, ending now.
+		from := shoptime.Midnight(now).AddDate(0, 0, 1-int(days))
+		revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: from, ToAt: now})
 		if err != nil {
-			t.Fatalf("RevenueSince(%d): %v", days, err)
+			t.Fatalf("RevenueBetween(%d days): %v", days, err)
 		}
-		best, err := q.BestSellersSince(ctx, db.BestSellersSinceParams{WindowDays: days, LimitTo: 10})
+		best, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{FromAt: from, ToAt: now, LimitTo: 10})
 		if err != nil {
-			t.Fatalf("BestSellersSince(%d): %v", days, err)
+			t.Fatalf("BestSellersBetween(%d days): %v", days, err)
 		}
-		completion, err := q.CheckoutCompletionSince(ctx, days)
+		completion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{FromAt: from, ToAt: now})
 		if err != nil {
-			t.Fatalf("CheckoutCompletionSince(%d): %v", days, err)
+			t.Fatalf("CheckoutCompletionBetween(%d days): %v", days, err)
 		}
 		risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{WindowDays: days, LimitTo: 10})
 		if err != nil {
