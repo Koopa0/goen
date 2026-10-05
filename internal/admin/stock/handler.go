@@ -282,7 +282,7 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		http.NotFound(w, r)
 	case errors.Is(err, ErrRefused):
 		h.rejectArrival(w, r)
 	default:
