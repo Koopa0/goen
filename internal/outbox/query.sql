@@ -13,19 +13,22 @@ WITH due AS (
 -- attempts rises on the CLAIM, or it counts nothing about failures.
 UPDATE outbox_messages m
 SET attempts = m.attempts + 1,
-    available_at = now() + @lease::interval
+    available_at = now() + @lease::interval,
+    lease_owner = @lease_owner::uuid
 FROM due
 WHERE m.id = due.id
 RETURNING m.id, m.topic, m.payload, m.attempts;
 
--- name: MarkOutboxDelivered :exec
-UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1;
+-- name: MarkOutboxDelivered :execrows
+UPDATE outbox_messages SET delivered_at = now(), last_error = NULL, lease_owner = NULL
+WHERE id = @id AND lease_owner = @lease_owner::uuid AND delivered_at IS NULL;
 
 -- Push a failed message relative to the same database clock ClaimOutbox uses.
--- name: RescheduleOutbox :exec
+-- name: RescheduleOutbox :execrows
 UPDATE outbox_messages
-SET available_at = now() + @backoff::interval, last_error = @last_error::text
-WHERE id = $1;
+SET available_at = now() + @backoff::interval, last_error = @last_error::text,
+    lease_owner = NULL
+WHERE id = @id AND lease_owner = @lease_owner::uuid AND delivered_at IS NULL;
 
 -- Messages that have failed too many times, for a human to look at.
 -- name: StuckOutbox :many
