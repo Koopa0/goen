@@ -165,6 +165,7 @@ func couponValueText(_ context.Context, e AuditEntry, value string) string {
 		return money.TWD(n * 100)
 	case coupon.Percent:
 		return value + "%"
+	case coupon.FreeShipping:
 	}
 	return value
 }

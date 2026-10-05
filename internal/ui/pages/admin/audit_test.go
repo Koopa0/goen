@@ -1,8 +1,8 @@
 package admin
 
 import (
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -146,11 +146,12 @@ var (
 func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
 	t.Parallel()
 	tables := map[string]string{}
-	err := filepath.WalkDir("../../../admin", func(path string, d os.DirEntry, err error) error {
+	repo := os.DirFS("../../../..")
+	err := fs.WalkDir(repo, "internal/admin", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		src, err := os.ReadFile(path)
+		src, err := fs.ReadFile(repo, path)
 		for _, m := range auditedTable.FindAllSubmatch(src, -1) {
 			tables[string(m[1])] = path
 		}
@@ -159,7 +160,7 @@ func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := os.ReadFile("../../../../migrations/001_initial_schema.up.sql")
+	schema, err := fs.ReadFile(repo, "migrations/001_initial_schema.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
