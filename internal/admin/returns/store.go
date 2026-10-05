@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -559,7 +560,7 @@ func (s *Store) closeReturn(
 		ID: requestID, Status: string(kind.Status()), Resolution: pgtype.Text{String: resolution, Valid: resolution != ""},
 	})
 	if decideErr != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
+		return pgerr.WrapRefusal(decideErr, ErrRefused)
 	}
 	if decided == 0 {
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
@@ -723,7 +724,7 @@ func (s *Store) Inspect(
 			Received: l.Received, Restocked: l.Restocked, Note: l.Note,
 		})
 		if inspectErr != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, inspectErr)
+			return pgerr.WrapRefusal(inspectErr, ErrRefused)
 		}
 		// Zero rows is one of three refusals the caller has to hear: not
 		// approved, the line belongs elsewhere, or already inspected.
@@ -794,7 +795,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.
 		ID: requestID, Resolution: resolution,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, err)
+		return pgerr.WrapRefusal(err, ErrRefused)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)

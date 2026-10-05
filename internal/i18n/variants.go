@@ -3,6 +3,11 @@ package i18n
 var (
 	KeyFormSKURequired = key("form.sku.required", Message{ZhHant: "請填寫 SKU。", En: "A SKU is required."})
 
+	KeyFormSKUFormat = key("form.sku.format", Message{
+		ZhHant: "SKU 只能用大寫英文字母和數字，以單一連字號「-」分段，例如 TEE-RED-M。",
+		En:     "A SKU uses capital letters and digits, split by single hyphens, like TEE-RED-M.",
+	})
+
 	KeyFormSKUTaken = key("form.sku.taken", Message{
 		ZhHant: "這個 SKU 已經有人用了。",
 		En:     "Something already uses that SKU.",

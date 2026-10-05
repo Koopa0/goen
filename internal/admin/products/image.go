@@ -101,7 +101,7 @@ func imageOptionRefusal(err error) error {
 	if pgerr.IsConstraint(err, "product_images_option_value_fk") {
 		return ErrNotThisProductsOption
 	}
-	return fmt.Errorf("%w: %w", ErrRefused, err)
+	return pgerr.WrapRefusal(err, ErrRefused)
 }
 
 // DetachImage removes one from a product; the shared media object is not deleted.
@@ -115,7 +115,7 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 				Slug: slug, StorageKey: digest,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -174,10 +174,10 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 				order = append(order, rows[i].StorageKey)
 			}
 			if err := q.ParkProductImages(ctx, slug); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if err := q.SetProductImageOrder(ctx, ids); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})
