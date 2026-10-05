@@ -3,9 +3,12 @@
 package db_test
 
 import (
+	"errors"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -115,12 +118,10 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	shop := dbtest.Pool(t)
 	ctx := t.Context()
 	seedCatalogue(t, shop)
-	if _, err := shop.Exec(ctx, `SELECT upsert_staff('owner@goen.invalid', '店主', 'admin')`); err != nil {
-		t.Fatalf("create the admin the history acts as: %v", err)
-	}
+	addAdmin(t, shop)
 	windows := saleWindows(t, shop)
 
-	if out, err := runDemoHistory(t, shop); err != nil {
+	if out, err := runDemoHistory(t, shop.Config().ConnString(), namingItself(shop)...); err != nil {
 		t.Fatalf("seed/demo_history.sql: %v\n%s", err, out)
 	}
 
@@ -158,40 +159,230 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	assertNothingInTheFuture(t, shop)
 	assertHealthQuiet(t, shop)
 	assertReportsHaveData(t, shop)
+
+	assertRefused(t, shop, shop.Config().ConnString(), namingItself(shop),
+		"this database already has a demo history (complete or partial); restore the snapshot to run again")
 }
 
-func TestDemoHistoryRefusesADatabaseWithOtherPayments(t *testing.T) {
+// The demo holds a few checkouts from before the history; it numbers its own
+// orders of their day after them.
+func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
 	shop := dbtest.Pool(t)
-	ctx := t.Context()
-	// fixtures carry pi_fixture, a payment that is neither cs_test_ nor cs_demo_.
-	if _, err := shop.Exec(ctx, fixtures); err != nil {
-		t.Fatalf("load fixtures: %v", err)
-	}
-	before := countOrders(t, shop)
+	seedCatalogue(t, shop)
+	addAdmin(t, shop)
+	orderPaidYesterday("cs_test_a1before")(t, shop)
+	const earlier = `
+		SELECT (to_jsonb(o) || jsonb_build_object(
+		           'payments', (SELECT jsonb_agg(to_jsonb(p)) FROM payments p WHERE p.order_id = o.id),
+		           'lines', (SELECT jsonb_agg(to_jsonb(l)) FROM order_lines l WHERE l.order_id = o.id)))::text
+		FROM orders o
+		WHERE o.order_number = 'GO-' || to_char(shop_today() - 1, 'YYMMDD') || '-000001'`
+	before := textRows(t, shop, earlier)
 
-	out, err := runDemoHistory(t, shop)
-	if err == nil {
-		t.Fatalf("seed/demo_history.sql ran beside payment pi_fixture:\n%s", out)
+	if out, err := runDemoHistory(t, shop.Config().ConnString(), namingItself(shop)...); err != nil {
+		t.Fatalf("seed/demo_history.sql beside GO-<yesterday>-000001: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, "pi_fixture") {
-		t.Errorf("seed/demo_history.sql stopped without naming pi_fixture:\n%s", out)
+
+	if after := textRows(t, shop, earlier); len(before) != 1 || !slices.Equal(after, before) {
+		t.Errorf("the order placed before the history:\nbefore %v\nafter  %v", before, after)
+	}
+	if off := textRows(t, shop, `
+		SELECT c.business_date::text
+		FROM order_number_counters c
+		WHERE c.last_no <> (SELECT count(*) FROM orders o
+		                    WHERE o.order_number LIKE 'GO-' || to_char(c.business_date, 'YYMMDD') || '-%')`); len(off) > 0 {
+		t.Errorf("days whose counter is not the number of orders numbered on them: %s", strings.Join(off, ", "))
+	}
+}
+
+func TestDemoHistoryRefuses(t *testing.T) {
+	t.Parallel()
+	itself := func(own string) string { return own }
+	tests := []struct {
+		name    string
+		prepare []func(*testing.T, *pgxpool.Pool)
+		named   func(own string) string // what the run passes as demo_database, given the database's name; nil passes nothing
+		clerk   bool                    // the run logs in as a role that is not a superuser
+		refusal string
+	}{
+		{
+			name:    "an empty payments table without demo_database",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin},
+			refusal: "pass -v demo_database=<this database's name> to write a demo history into it",
+		},
+		{
+			name:    "Stripe test payments without demo_database",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidYesterday("cs_test_a1soft")},
+			refusal: "pass -v demo_database=<this database's name> to write a demo history into it",
+		},
+		{
+			name:    "a demo_database naming another database",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin},
+			named:   func(string) string { return "goen" },
+			refusal: "demo_database is goen, not this database",
+		},
+		{
+			name:    "a role that is not a superuser",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin},
+			named:   itself,
+			clerk:   true,
+			refusal: "run this as a superuser",
+		},
+		{
+			name:    "a live payment",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidYesterday("cs_live_a1paid")},
+			named:   itself,
+			refusal: "payment cs_live_a1paid is not a demo or test payment",
+		},
+		{
+			name:    "a catalogue the seed did not build",
+			prepare: []func(*testing.T, *pgxpool.Pool){addAdmin},
+			named:   itself,
+			refusal: "no opening stock from seed/dev_catalog.sql",
+		},
+		{
+			name:    "no admin account",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue},
+			named:   itself,
+			refusal: "the back-office steps need an admin account",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			shop := dbtest.Pool(t)
+			for _, prepare := range tt.prepare {
+				prepare(t, shop)
+			}
+			conn := shop.Config().ConnString()
+			if tt.clerk {
+				conn = clerkConnString(t, shop)
+			}
+			var args []string
+			if tt.named != nil {
+				args = []string{"-v", "demo_database=" + tt.named(shop.Config().ConnConfig.Database)}
+			}
+			assertRefused(t, shop, conn, args, tt.refusal)
+		})
+	}
+}
+
+// runDemoHistory runs the script with psql, as its header says, through conn.
+func runDemoHistory(t *testing.T, conn string, args ...string) (string, error) {
+	t.Helper()
+	psql, err := exec.LookPath("psql")
+	if err != nil {
+		t.Fatalf("seed/demo_history.sql is a psql script: %v", err)
+	}
+	args = append([]string{"-X", "-q", "-v", "ON_ERROR_STOP=1", "-d", conn}, args...)
+	args = append(args, "-f", filepath.Join("..", "..", "seed", "demo_history.sql"))
+	//nolint:gosec // G204: psql comes from exec.LookPath and every argument is the test's own.
+	out, err := exec.CommandContext(t.Context(), psql, args...).CombinedOutput()
+	return string(out), err
+}
+
+// namingItself is the opt-in the script asks for: demo_database naming the
+// database it writes into.
+func namingItself(shop *pgxpool.Pool) []string {
+	return []string{"-v", "demo_database=" + shop.Config().ConnConfig.Database}
+}
+
+// assertRefused wants the script stopped before it writes: a non-zero exit,
+// the refusal in what it printed, and no order added.
+func assertRefused(t *testing.T, shop *pgxpool.Pool, conn string, args []string, refusal string) {
+	t.Helper()
+	before := countOrders(t, shop)
+	out, err := runDemoHistory(t, conn, args...)
+	switch _, exited := errors.AsType[*exec.ExitError](err); {
+	case !exited:
+		t.Errorf("seed/demo_history.sql ran (%v), want it to refuse with %q:\n%s", err, refusal, out)
+	case !strings.Contains(out, refusal):
+		t.Errorf("seed/demo_history.sql stopped (%v) without saying %q:\n%s", err, refusal, out)
 	}
 	if after := countOrders(t, shop); after != before {
 		t.Errorf("refused run left %d orders, want the %d it found", after, before)
 	}
 }
 
-func runDemoHistory(t *testing.T, shop *pgxpool.Pool) (string, error) {
+func addAdmin(t *testing.T, shop *pgxpool.Pool) {
 	t.Helper()
-	psql, err := exec.LookPath("psql")
-	if err != nil {
-		t.Fatalf("seed/demo_history.sql is a psql script: %v", err)
+	if _, err := shop.Exec(t.Context(), `SELECT upsert_staff('owner@goen.invalid', '店主', 'admin')`); err != nil {
+		t.Fatalf("create the admin the history acts as: %v", err)
 	}
-	//nolint:gosec // G204: psql comes from exec.LookPath and every argument is the test's own.
-	cmd := exec.CommandContext(t.Context(), psql, "-X", "-q", "-v", "ON_ERROR_STOP=1",
-		"-d", shop.Config().ConnString(), "-f", filepath.Join("..", "..", "seed", "demo_history.sql"))
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+}
+
+// clerkConnString creates a role that may log in but is not a superuser and
+// returns the connection string that logs in as it.
+func clerkConnString(t *testing.T, shop *pgxpool.Pool) string {
+	t.Helper()
+	if _, err := shop.Exec(t.Context(), `CREATE ROLE clerk LOGIN PASSWORD 'clerk'`); err != nil {
+		t.Fatalf("create role clerk: %v", err)
+	}
+	conn, err := url.Parse(shop.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse %s: %v", shop.Config().ConnString(), err)
+	}
+	conn.User = url.UserPassword("clerk", "clerk")
+	return conn.String()
+}
+
+// orderPaidYesterday places the first order of yesterday, numbered through the
+// day's counter as next_order_number() numbered it then, and paid through ref.
+func orderPaidYesterday(ref string) func(*testing.T, *pgxpool.Pool) {
+	return func(t *testing.T, shop *pgxpool.Pool) {
+		t.Helper()
+		ctx := t.Context()
+		tx, err := shop.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin yesterday's order: %v", err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		var order string
+		if err = tx.QueryRow(ctx, `
+			WITH counter AS (
+			    INSERT INTO order_number_counters (business_date, last_no) VALUES (shop_today() - 1, 1)
+			    RETURNING business_date, last_no
+			)
+			INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name,
+			                    shipping_cents, placed_at)
+			SELECT 'GO-' || to_char(c.business_date, 'YYMMDD') || '-' || to_char(c.last_no, 'FM000000'),
+			       sv.id, sm.code, sv.name, sv.fee_cents, now() - interval '1 day'
+			FROM counter c
+			CROSS JOIN shipping_method_versions sv
+			JOIN shipping_methods sm ON sm.id = sv.method_id
+			WHERE sm.code = 'home_delivery'
+			ORDER BY sv.effective_at DESC
+			LIMIT 1
+			RETURNING id::text`).Scan(&order); err != nil {
+			t.Fatalf("place yesterday's order: %v", err)
+		}
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			SELECT $1::uuid, p.id, pv.id, pv.sku, p.name, pv.price_cents, 1, 0
+			FROM product_variants pv
+			JOIN products p ON p.id = pv.product_id
+			WHERE p.status = 'active' AND pv.is_active
+			ORDER BY pv.price_cents, pv.sku
+			LIMIT 1`, order); err != nil {
+			t.Fatalf("add a line to yesterday's order: %v", err)
+		}
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+			VALUES ($1::uuid, 'early@goen.invalid', '早鳥', '0912000000', '106', '台北市', '大安區', '復興南路一段 1 號')`,
+			order); err != nil {
+			t.Fatalf("address yesterday's order: %v", err)
+		}
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents,
+			                      card_brand, card_last4, paid_at)
+			SELECT $1::uuid, $2, 'succeeded', order_amount_after_credit($1::uuid), order_amount_after_credit($1::uuid),
+			       'visa', '4242', now() - interval '1 day'`, order, ref); err != nil {
+			t.Fatalf("pay yesterday's order through %s: %v", ref, err)
+		}
+		if err = tx.Commit(ctx); err != nil {
+			t.Fatalf("commit yesterday's order: %v", err)
+		}
+	}
 }
 
 func seedCatalogue(t *testing.T, shop *pgxpool.Pool) {

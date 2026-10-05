@@ -3,30 +3,48 @@
 -- (payment, picking, dispatch, delivery, completion, return, restock), each
 -- under the role production uses for it and through the function or trigger
 -- the application goes through, so whatever the shop refuses is refused here
--- too. Orders, payments and what follows from them only: no reviews or
--- questions, which would be shop content nobody wrote, and no coupons or
--- campaigns, which would be merchandising nobody ran.
+-- too. Orders, payments and what follows from them only: no reviews,
+-- questions, coupons or campaigns.
 --
 -- Run once, as a superuser, while goen is stopped (its sweeper would cancel
--- the unpaid orders before this script does), on a database that already
--- holds the catalogue and an admin account:
+-- the unpaid orders before this script does), on a database built by
+-- seed/dev_catalog.sql that holds an admin account, naming that database:
 --
---     psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f seed/demo_history.sql
+--     psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<its name> -f seed/demo_history.sql
 --
--- It refuses any database holding a payment that is neither a Stripe test
+-- It refuses a database it was not named for, one whose catalogue did not
+-- come from the seed, and one holding a payment that is neither a Stripe test
 -- session (cs_test_) nor one of its own (cs_demo_): it must never write next to
--- real money. It also refuses to run twice.
+-- real money. Every step commits as it goes, so a run that fails leaves a
+-- partial history, which a later run refuses like a complete one: restore the
+-- snapshot to run it again.
 
 \set ON_ERROR_STOP on
+\if :{?demo_database}
+\else
+\set demo_database ''
+\endif
 
 SET client_min_messages = warning;
 -- The history is a single CALL that runs for minutes.
 SET statement_timeout = 0;
+-- psql does not substitute its variables inside a DO block's body.
+SET demo_history.database = :'demo_database';
 
 DO $$
 DECLARE
+    v_named constant text := current_setting('demo_history.database');
     v_foreign text;
 BEGIN
+    IF v_named = '' THEN
+        RAISE EXCEPTION 'pass -v demo_database=<this database''s name> to write a demo history into it';
+    END IF;
+    IF v_named <> current_database() THEN
+        RAISE EXCEPTION 'demo_database is %, not this database (%)', v_named, current_database();
+    END IF;
+    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
+        RAISE EXCEPTION 'run this as a superuser: it acts as store, admin and maintenance and moves times in replica mode';
+    END IF;
     SELECT p.provider_ref INTO v_foreign
     FROM payments p
     WHERE p.provider_ref NOT LIKE 'cs\_test\_%' AND p.provider_ref NOT LIKE 'cs\_demo\_%'
@@ -36,10 +54,10 @@ BEGIN
         RAISE EXCEPTION 'payment % is not a demo or test payment: this database may hold real money', v_foreign;
     END IF;
     IF EXISTS (SELECT 1 FROM payments WHERE provider_ref LIKE 'cs\_demo\_%') THEN
-        RAISE EXCEPTION 'this database already has a demo history';
+        RAISE EXCEPTION 'this database already has a demo history (complete or partial); restore the snapshot to run again';
     END IF;
-    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
-        RAISE EXCEPTION 'run this as a superuser: it acts as store, admin and maintenance and moves times in replica mode';
+    IF NOT EXISTS (SELECT 1 FROM inventory_movements WHERE reason = 'receipt' AND idempotency_key LIKE 'seed:%') THEN
+        RAISE EXCEPTION 'this database holds no opening stock from seed/dev_catalog.sql, the only catalogue the history is written for';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin') THEN
         RAISE EXCEPTION 'the back-office steps need an admin account to act as';
@@ -84,7 +102,6 @@ CREATE TEMP TABLE demo_order (
     n            integer PRIMARY KEY,
     placed_at    timestamptz NOT NULL,
     placed_on    date NOT NULL,
-    day_seq      integer NOT NULL,
     member       boolean NOT NULL,
     unpaid       boolean NOT NULL,
     line_count   integer NOT NULL,
@@ -212,7 +229,6 @@ DECLARE
     v_draw float8;
     v_at timestamptz;
     v_n integer := 0;
-    v_seq integer;
     v_member boolean;
     v_unpaid boolean;
     v_returned boolean;
@@ -274,9 +290,7 @@ BEGIN
             END;
         END LOOP;
 
-        v_seq := 0;
         FOR v_m IN SELECT m FROM unnest(v_minutes) AS m ORDER BY m LOOP
-            v_seq := v_seq + 1;
             v_n := v_n + 1;
             v_at := (v_day::timestamp + make_interval(secs => v_m * 60)) AT TIME ZONE 'Asia/Taipei';
             v_member := random() < 0.7;
@@ -285,8 +299,8 @@ BEGIN
             v_unpaid := random() < 0.08 AND v_at + interval '90 minutes' < w.cutoff;
             v_returned := v_member AND NOT v_unpaid AND random() < 0.05;
             v_draw := random();
-            INSERT INTO pg_temp.demo_order (n, placed_at, placed_on, day_seq, member, unpaid, line_count)
-            VALUES (v_n, v_at, v_day, v_seq, v_member, v_unpaid,
+            INSERT INTO pg_temp.demo_order (n, placed_at, placed_on, member, unpaid, line_count)
+            VALUES (v_n, v_at, v_day, v_member, v_unpaid,
                     CASE WHEN v_draw < 0.7 THEN 1 WHEN v_draw < 0.92 THEN 2 ELSE 3 END);
             INSERT INTO pg_temp.demo_event (happens_at, kind, n) VALUES (v_at, 'place', v_n);
 
@@ -528,8 +542,14 @@ BEGIN
     v_shipping := CASE WHEN v_ship.free_over_cents IS NOT NULL AND v_subtotal >= v_ship.free_over_cents
                        THEN 0 ELSE v_ship.fee_cents END;
     v_total := v_subtotal + v_shipping;
-    -- Numbered on its simulated day; next_order_number() would number it today.
-    v_number := 'GO-' || to_char(v_ord.placed_on, 'YYMMDD') || '-' || lpad(v_ord.day_seq::text, 6, '0');
+    -- next_order_number() numbers today's orders; this is the same count kept
+    -- for the simulated day, after any order that day already has. store may
+    -- not write the counter.
+    INSERT INTO order_number_counters (business_date, last_no)
+    VALUES (v_ord.placed_on, 1)
+    ON CONFLICT (business_date) DO UPDATE
+    SET last_no = order_number_counters.last_no + 1
+    RETURNING 'GO-' || to_char(business_date, 'YYMMDD') || '-' || to_char(last_no, 'FM000000') INTO v_number;
 
     SET ROLE store;
     INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
@@ -572,12 +592,6 @@ BEGIN
     SET CONSTRAINTS ALL IMMEDIATE;
     RESET ROLE;
 
-    -- store may not write the counter; the owner keeps it at the last number
-    -- each simulated day used.
-    INSERT INTO order_number_counters (business_date, last_no)
-    VALUES (v_ord.placed_on, v_ord.day_seq)
-    ON CONFLICT (business_date) DO UPDATE
-    SET last_no = greatest(order_number_counters.last_no, EXCLUDED.last_no);
     UPDATE pg_temp.demo_order
     SET order_id = v_order, order_number = v_number, user_id = v_buyer.user_id
     WHERE n = p_n;
