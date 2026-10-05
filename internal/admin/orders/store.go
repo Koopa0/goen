@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -358,7 +359,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 
 	row, err := q.LockOrderForAdvance(ctx, number)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, refusedIfNoRow(err, "lock order "+number)
 	}
 	// orders_check_transition lets a same-status UPDATE through, so a double
 	// submit would otherwise record the step and its audit row twice.
@@ -368,7 +369,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(status),
 	}); advanceErr != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, advanceErr)
+		return nil, pgerr.WrapRefusal(advanceErr, ErrRefused)
 	}
 	// LockOrderForAdvance owns the aggregate row before this snapshot. If an
 	// expiry release won the order lock first, we now see no held row; if this
@@ -419,6 +420,16 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 		return nil, fmt.Errorf("commit advance: %w", err)
 	}
 	return sessions, nil
+}
+
+// refusedIfNoRow reports a missing row as ErrRefused and any other error as the
+// failure it is: a lock that timed out is the database not answering, not a
+// rule refusing the write.
+func refusedIfNoRow(err error, doing string) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	return fmt.Errorf("%s: %w", doing, err)
 }
 
 func advanceKind(status order.FulfillmentStatus) (string, error) {
@@ -660,7 +671,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 
 	row, err := q.OrderIDByNumber(ctx, number)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, err)
+		return refusedIfNoRow(err, "read order "+number)
 	}
 	// A parcel is only recorded for an order that has entered fulfilment. This is
 	// the same set fillShippable renders the form for; the trigger
@@ -693,7 +704,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 			OrderNumber: number, Status: string(order.FulfillmentShipped),
 		}); advErr != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, advErr)
+			return pgerr.WrapRefusal(advErr, ErrRefused)
 		}
 	}
 
