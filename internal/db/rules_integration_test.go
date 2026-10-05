@@ -3018,6 +3018,7 @@ func TestProductSellabilityCannotRace(t *testing.T) {
 		{name: "two retirements", published: true, variants: 2, first: "retire 1", second: "retire 2"},
 		{name: "publish, then retire", published: false, variants: 1, first: "publish", second: "retire 1"},
 		{name: "retire, then publish", published: false, variants: 1, first: "retire 1", second: "publish"},
+		{name: "retire one, delete the other", published: true, variants: 2, first: "retire 1", second: "delete 2"},
 	}
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -3039,11 +3040,17 @@ func TestProductSellabilityCannotRace(t *testing.T) {
 			setup(t, fixture.String())
 
 			step := func(s string) string {
-				if s == "publish" {
+				verb, variant, _ := strings.Cut(s, " ")
+				switch verb {
+				case "publish":
 					return immediate + `UPDATE products SET status = 'active', published_at = now() WHERE id = '` + product + `'`
+				case "delete":
+					return immediate + fmt.Sprintf(
+						`DELETE FROM product_variants WHERE sku = 'SELLABLE-RACE-%d-%s'`, i+1, variant)
+				default:
+					return immediate + fmt.Sprintf(
+						`UPDATE product_variants SET is_active = false WHERE sku = 'SELLABLE-RACE-%d-%s'`, i+1, variant)
 				}
-				return immediate + fmt.Sprintf(
-					`UPDATE product_variants SET is_active = false WHERE sku = 'SELLABLE-RACE-%d-%s'`, i+1, strings.TrimPrefix(s, "retire "))
 			}
 			err1, err2 := raceOutcome(t, step(tt.first), step(tt.second))
 			requireExactlyOne(t, "a published product's last active variant", err1, err2)
