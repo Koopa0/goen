@@ -350,7 +350,7 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	} {
 		if _, insertErr := pool.Exec(ctx, `
 			INSERT INTO refunds (payment_id, request_key, status, amount_cents, provider_ref, succeeded_at)
-			SELECT id, 'window-' || $2::text, 'succeeded', $2, 're_window_' || $2::text, $1::timestamptz
+			SELECT id, 'window-' || $2::bigint::text, 'succeeded', $2::bigint, 're_window_' || $2::bigint::text, $1::timestamptz
 			FROM payments WHERE order_id = $3 AND status = 'succeeded'`,
 			at(refund.succeeded), refund.cents, paid); insertErr != nil {
 			t.Fatalf("refund at %s: %v", refund.succeeded, insertErr)
@@ -371,7 +371,7 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	} {
 		if _, insertErr := pool.Exec(ctx, `
 			INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, order_id, created_at)
-			VALUES ($1, $2, '折讓', 'window-' || $2::text, $3, $4::timestamptz)`,
+			VALUES ($1, $2::bigint, '折讓', 'window-' || $2::bigint::text, $3, $4::timestamptz)`,
 			account, credit.cents, paid, at(credit.created)); insertErr != nil {
 			t.Fatalf("credit at %s: %v", credit.created, insertErr)
 		}
