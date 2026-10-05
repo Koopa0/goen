@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -428,6 +429,9 @@ func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c car
 	id, err := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: orderID, Carrier: string(c), TrackingNumber: tracking,
 	})
+	if pgerr.IsConstraint(err, "shipment_order_in_fulfilment") {
+		return uuid.Nil, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("record shipment: %w", err)
 	}
