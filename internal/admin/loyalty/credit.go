@@ -14,6 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -87,14 +89,14 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	if err != nil {
 		return 0, fmt.Errorf("begin %s: %w", event.Action, err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
 		UserID: customerID, AmountCents: amountCents, Reason: reason,
 		ActorUserID: actorID, OperationID: operationID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrRefused, err)
+		return 0, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	// A retry of the same durable request observes the original posting and must
 	// not manufacture a second audit row claiming money moved again.

@@ -48,7 +48,7 @@ func (s *Store) AttachImage(
 			// would collide on the unique index. A missing product falls through
 			// to an insert that matches nothing.
 			if _, err := q.LockProductCatalogue(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
 				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
@@ -101,7 +101,7 @@ func imageOptionRefusal(err error) error {
 	if pgerr.IsConstraint(err, "product_images_option_value_fk") {
 		return ErrNotThisProductsOption
 	}
-	return fmt.Errorf("%w: %w", ErrRefused, err)
+	return pgerr.WrapRefusal(err, ErrRefused)
 }
 
 // DetachImage removes one from a product; the shared media object is not deleted.
@@ -115,7 +115,7 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 				Slug: slug, StorageKey: digest,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -151,11 +151,11 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 				if errors.Is(err, pgx.ErrNoRows) {
 					return ErrNotFound
 				}
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			rows, err := q.ProductImageOrder(ctx, slug)
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("read image order of %s: %w", slug, err)
 			}
 			at := -1
 			for i := range rows {
@@ -174,10 +174,10 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 				order = append(order, rows[i].StorageKey)
 			}
 			if err := q.ParkProductImages(ctx, slug); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if err := q.SetProductImageOrder(ctx, ids); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

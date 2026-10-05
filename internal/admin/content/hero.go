@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -89,8 +90,18 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
-	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
+const heroScope = "/admin/home?queue=" + string(heroQueue) + "#hero-history"
+
+type heroPosition struct {
+	Position int32
+	ID       uuid.UUID
+}
+
+func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView, error) {
+	from, resumed := web.ResumeKeyset(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
+		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
+	})
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
@@ -99,7 +110,8 @@ func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
 	}
-	view := admin.HeroView{Carousel: live}
+	rows, bound := web.PageBound(heroScope, resumed, rows, MaxSlides, func(r *db.AdminHeroSlidesRow) string { return r.PageCursor })
+	view := admin.HeroView{Carousel: live, Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.HeroSlide{
@@ -138,7 +150,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 			})
 		})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -158,7 +170,7 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 				ID: slideID, IsActive: active,
 			})
 			if setErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, setErr)
+				return pgerr.WrapRefusal(setErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -179,7 +191,7 @@ func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, promoteErr := q.PromoteHeroSlide(ctx, slideID)
 			if promoteErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, promoteErr)
+				return pgerr.WrapRefusal(promoteErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
