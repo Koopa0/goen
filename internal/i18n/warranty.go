@@ -108,7 +108,7 @@ var (
 		En:     "That serial number is already registered. Please check the number on the unit.",
 	})
 
-	KeyWarrantySerialTooLong = key("warranty.serial.toolong", Message{ZhHant: "序號請控制在 %d 個字元以內。", En: "Keep the serial number within %d characters."})
+	KeyWarrantySerialTooLong = key("warranty.serial.toolong", Message{ZhHant: "請檢查序號。", En: "Check the serial number."})
 
 	KeyWarrantyRefused = key("warranty.notice.refused", Message{
 		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達，或已經登錄過了。",
