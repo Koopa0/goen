@@ -99,7 +99,7 @@ type heroPosition struct {
 func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView, error) {
 	from, resumed := web.ResumeKeyset(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
-		HasCursor: false, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides,
+		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
 	})
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
