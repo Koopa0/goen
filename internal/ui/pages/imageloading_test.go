@@ -102,10 +102,8 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 			t.Errorf("the department photograph is lazy: %s", tag)
 		}
 	}
-	// The lead row, then the grid's first rows: on a phone the grid starts
-	// inside the first screen.
 	tiles := tileImages(page)
-	for i, tag := range tiles[:featuredCount+eagerTiles] {
+	for i, tag := range tiles[:eagerTiles] {
 		if strings.Contains(tag, `loading="lazy"`) {
 			t.Errorf("tile %d of the first screen is lazy: %s", i, tag)
 		}
@@ -114,7 +112,10 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 		t.Error("the last tile of the shelf is not lazy: nothing is deferred")
 	}
 	if got := strings.Count(page, `fetchpriority="high"`); got != 1 {
-		t.Errorf("%d high-priority photographs, want the first lead card's alone", got)
+		t.Errorf("%d high-priority photographs, want the first tile's alone", got)
+	}
+	if !strings.Contains(tiles[0], `fetchpriority="high"`) {
+		t.Errorf("the first tile is not high priority: %s", tiles[0])
 	}
 }
 
