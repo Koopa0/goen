@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -40,7 +41,7 @@ func ReturnedOrder(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID, lineID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -111,7 +112,7 @@ func ReturnedOrderAtWithReason(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID, lineID uuid.UUID
 	var orderNumber string
@@ -196,7 +197,7 @@ func LoyaltyReturn(t *testing.T, pool *pgxpool.Pool, prices []int64, returnLine 
 	if beginErr != nil {
 		t.Fatalf("begin order: %v", beginErr)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
 		                    shipping_method_code, shipping_method_name, shipping_cents)
@@ -234,7 +235,7 @@ func LoyaltyReturn(t *testing.T, pool *pgxpool.Pool, prices []int64, returnLine 
 	if beginErr != nil {
 		t.Fatalf("begin delivery: %v", beginErr)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	MoveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -279,7 +280,7 @@ func CreditFundedReturn(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var userID uuid.UUID
 	if err := tx.QueryRow(ctx, `
