@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -59,6 +61,26 @@ func TestLogUnrecognizedLogsOnlyUnrecognizedEntries(t *testing.T) {
 		logUnrecognized(t.Context(), slog.New(slog.NewTextHandler(&buf, nil)), "GO-261005-000001", tc.timeline)
 		if got := strings.Count(buf.String(), "unrecognised order timeline entry"); got != tc.want {
 			t.Errorf("logUnrecognized(%s) wrote %d records, want %d: %q", tc.name, got, tc.want, buf.String())
+		}
+	}
+}
+
+func TestTimelineEntryCarriesWhenAnOperationCompleted(t *testing.T) {
+	t.Parallel()
+	created := time.Date(2026, time.October, 5, 10, 0, 0, 0, time.UTC)
+	completed := pgtype.Timestamptz{Time: created.Add(20 * time.Minute), Valid: true}
+	for _, tc := range []struct {
+		name string
+		row  db.AdminOrderTimelineRow
+		want bool
+	}{
+		{"succeeded invoice operation", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "succeeded", DoneAt: completed}, true},
+		{"invoice operation still pending", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "pending"}, false},
+	} {
+		tc.row.At = created
+		got := timelineEntry(&tc.row)
+		if (got.DoneAt != "") != tc.want || got.At == got.DoneAt {
+			t.Errorf("timelineEntry(%s) At %q DoneAt %q, want a completion time = %v", tc.name, got.At, got.DoneAt, tc.want)
 		}
 	}
 }
