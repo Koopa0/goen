@@ -239,15 +239,15 @@ func (s *Store) deliver(ctx context.Context, owner uuid.UUID, m *db.ClaimOutboxR
 		return false
 	}
 	if marked == 0 {
-		s.claimLost(ctx, m)
+		s.logLostClaim(ctx, m)
 		return false
 	}
 	return true
 }
 
-// claimLost records a settle that matched nothing: the lease ran out, a later
+// logLostClaim logs a settle that matched nothing: the lease ran out, a later
 // claim took the message, and recording the outcome is that claim's to do.
-func (s *Store) claimLost(ctx context.Context, m *db.ClaimOutboxRow) {
+func (s *Store) logLostClaim(ctx context.Context, m *db.ClaimOutboxRow) {
 	s.log.WarnContext(ctx, "outbox claim lost before it was settled",
 		"message", m.ID, "topic", m.Topic, "attempts", m.Attempts)
 }
@@ -285,7 +285,7 @@ func (s *Store) reschedule(ctx context.Context, owner uuid.UUID, m *db.ClaimOutb
 	case err != nil:
 		s.log.ErrorContext(ctx, "outbox reschedule", "message", m.ID, "error", err)
 	case rescheduled == 0:
-		s.claimLost(ctx, m)
+		s.logLostClaim(ctx, m)
 	}
 }
 
