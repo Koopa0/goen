@@ -103,10 +103,10 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 	defer pgtx.Rollback(ctx, tx)
 
 	var variantID uuid.UUID
-	var sku string
+	var sku, productName string
 	if err = tx.QueryRow(ctx, `
-		SELECT pv.id, pv.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id
-		WHERE pv.is_active AND p.status = 'active' LIMIT 1`).Scan(&variantID, &sku); err != nil {
+		SELECT pv.id, pv.sku, p.name FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' LIMIT 1`).Scan(&variantID, &sku, &productName); err != nil {
 		t.Fatalf("find variant: %v", err)
 	}
 	var orderID uuid.UUID
@@ -122,8 +122,8 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 	for i := range lines {
 		if err = tx.QueryRow(ctx, `
 			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-			VALUES ($1, $2, $3, '驗貨鎖序', 100000, 1, $4) RETURNING id`,
-			orderID, variantID, sku, i).Scan(&lines[i]); err != nil {
+			VALUES ($1, $2, $3, $4, 100000, 1, $5) RETURNING id`,
+			orderID, variantID, sku, productName, i).Scan(&lines[i]); err != nil {
 			t.Fatalf("create line %d: %v", i, err)
 		}
 	}
