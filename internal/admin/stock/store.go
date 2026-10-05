@@ -353,7 +353,7 @@ func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) err
 		}
 		before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
 		if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID, ArrivalOn: day}); err != nil {
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return fmt.Errorf("set variant arrival: %w", err)
 		}
 		return nil
 	})

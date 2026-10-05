@@ -3,6 +3,7 @@
 package stock_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -245,3 +246,84 @@ func TestArrivalAuditLockDoesNotBlockStockNotifications(t *testing.T) {
 		t.Fatalf("arrival audit lock blocked a stock notification: %v", err)
 	}
 }
+
+func TestArrivalWriteFailuresRemainOperational(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	var id uuid.UUID
+	var sku, before string
+	if err := owner.QueryRow(ctx, `SELECT id, sku, coalesce(preorder_release_on::text, '') FROM product_variants ORDER BY sku LIMIT 1`).Scan(&id, &sku, &before); err != nil {
+		t.Fatal(err)
+	}
+	var auditBefore int
+	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, id).Scan(&auditBefore); err != nil {
+		t.Fatal(err)
+	}
+	for _, failure := range []string{"update", "audit"} {
+		for _, locale := range i18n.Locales() {
+			t.Run(failure+"/"+locale.Tag(), func(t *testing.T) {
+				requestCtx := i18n.WithLocale(ctx, locale)
+				config := owner.Config().Copy()
+				config.ConnConfig.RuntimeParams["role"] = "admin"
+				if failure == "update" {
+					config.ConnConfig.Tracer = cancelArrivalWrite{}
+				} else {
+					requestCtx = user.NewContext(requestCtx, user.User{ID: uuid.NewString(), Role: user.RoleStaff})
+				}
+				staff, err := pgxpool.NewWithConfig(requestCtx, config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(staff.Close)
+				var role string
+				if err = staff.QueryRow(requestCtx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+					t.Fatalf("arrival writer role = %q: %v", role, err)
+				}
+				var diagnostic bytes.Buffer
+				log := slog.New(slog.NewTextHandler(&diagnostic, nil))
+				handler := stock.NewHandler(stock.NewStore(staff), log)
+				form := url.Values{"sku": {sku}, "arrival_on": {"2030-01-02"}, "return": {"/admin/stock?q=" + url.QueryEscape(sku)}}
+				request := httptest.NewRequestWithContext(requestCtx, http.MethodPost, "/admin/stock/arrival", strings.NewReader(form.Encode()))
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				response := httptest.NewRecorder()
+				access.New(log, nil).RequireStaff(handler.SetArrival)(response, request)
+				if response.Code != http.StatusInternalServerError {
+					t.Errorf("%s arrival failure = %d, want 500", failure, response.Code)
+				}
+				if !strings.Contains(response.Body.String(), i18n.T(requestCtx, i18n.KeyAdminErrorBody)) {
+					t.Error("arrival failure lacks the translated service explanation")
+				}
+				if strings.Contains(response.Body.String(), `aria-invalid="true"`) {
+					t.Error("arrival failure marks the valid date as refused")
+				}
+				if !strings.Contains(diagnostic.String(), "level=ERROR") || !strings.Contains(diagnostic.String(), "error=") {
+					t.Error("arrival failure lost its diagnostic")
+				}
+				var after string
+				var auditAfter int
+				if err = owner.QueryRow(ctx, `SELECT coalesce(preorder_release_on::text, '') FROM product_variants WHERE id=$1`, id).Scan(&after); err != nil {
+					t.Fatal(err)
+				}
+				if err = owner.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, id).Scan(&auditAfter); err != nil {
+					t.Fatal(err)
+				}
+				if after != before || auditAfter != auditBefore {
+					t.Errorf("failed arrival date/audit = %q/%d, want %q/%d", after, auditAfter, before, auditBefore)
+				}
+			})
+		}
+	}
+}
+
+type cancelArrivalWrite struct{}
+
+func (cancelArrivalWrite) TraceQueryStart(ctx context.Context, _ *pgx.Conn, query pgx.TraceQueryStartData) context.Context {
+	if strings.HasPrefix(query.SQL, "-- name: SetVariantArrival :exec") {
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		return canceled
+	}
+	return ctx
+}
+
+func (cancelArrivalWrite) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}

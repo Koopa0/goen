@@ -283,8 +283,6 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
-	case errors.Is(err, ErrRefused):
-		h.rejectArrival(w, r)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
 		access.ServerError(w, r, h.log)
