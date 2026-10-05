@@ -124,6 +124,8 @@ var (
 
 	KeyAdminTimelineNowSince = key("admin.timeline.nowsince", Message{ZhHant: "目前：%s（%s）", En: "Now: %s (%s)"})
 
+	KeyAdminTimelineUnrecognized = key("admin.timeline.unrecognized", Message{ZhHant: "此筆紀錄無法辨識", En: "This entry is not recognised"})
+
 	KeyAdminTimelineProvider = key("admin.timeline.provider", Message{ZhHant: "金流服務商通知", En: "Payment provider notice"})
 
 	KeyAdminTimelineMailPlaced = key("admin.timeline.mail.placed", Message{ZhHant: "訂單成立通知信", En: "Order confirmation e-mail"})

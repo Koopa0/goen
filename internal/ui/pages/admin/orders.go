@@ -295,6 +295,9 @@ type TimelineEntry struct {
 	ActorKind ActorKind
 	// Actor is the staff member's name, empty once their account is erased.
 	Actor string
+	// Unrecognized holds the source, kind and status of an entry this build has
+	// no label for; Label then says so.
+	Unrecognized string
 }
 
 // When is the entry's time, saying "created" for an operation or mail whose

@@ -148,9 +148,10 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 }
 
-// A mail is placed at the moment it was queued and carries the moment it was
-// delivered, so the list does not show a delivery at the time of queueing.
-func TestTheOrderTimelineCarriesWhenAMailWasDelivered(t *testing.T) {
+// A mail and an invoice operation are placed at the moment they were created
+// and carry the moment they were delivered or completed, so the list does not
+// show a finished state at the time of creation.
+func TestTheOrderTimelineCarriesWhenAMailWasDeliveredAndAnOperationCompleted(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -165,9 +166,33 @@ func TestTheOrderTimelineCarriesWhenAMailWasDelivered(t *testing.T) {
 		t.Fatalf("deliver the payment mail an hour after it was queued: %v", err)
 	}
 
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_operations
+		    (order_id, kind, provider_key, amount_cents, request_payload, actor_kind, request_id,
+		     status, created_at, completed_at)
+		SELECT id, 'issue', replace(order_number, '-', ''), 100000, '{}', 'system', $2,
+		       'succeeded', now() - interval '3 hours', now() - interval '2 hours'
+		FROM orders WHERE order_number = $1`, number, "timeline-complete:"+number); err != nil {
+		t.Fatalf("complete an invoice issue two hours after it was claimed: %v", err)
+	}
+
 	view, err := s.Order(ctx, number)
 	if err != nil {
 		t.Fatalf("Order(%s): %v", number, err)
+	}
+	var issues int
+	for _, e := range view.Timeline {
+		if e.Label != i18n.KeyAuditInvoiceIssue {
+			continue
+		}
+		issues++
+		if e.Status != i18n.KeyAdminTimelineInvoiceSucceeded || e.At == "" || e.DoneAt == "" || e.At == e.DoneAt {
+			t.Errorf("the invoice issue reads status %q created %q completed %q, want succeeded with two different times",
+				e.Status, e.At, e.DoneAt)
+		}
+	}
+	if issues != 1 {
+		t.Errorf("Order(%s).Timeline lists %d invoice issues, want 1", number, issues)
 	}
 	for _, e := range view.Timeline {
 		if e.Label != i18n.KeyAdminTimelineMailPaid {
