@@ -30,7 +30,7 @@ type Gateway struct {
 const maxStripeIDCharacters = 255
 
 // Payment-mode Checkout Sessions accept at most 100 lines, including shipping.
-const maxCheckoutLineItems = 100
+const maxCheckoutLineItems = 1000
 
 var errInvalidStripeResponse = errors.New("payment: Stripe returned an invalid response")
 
