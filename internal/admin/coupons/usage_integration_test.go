@@ -121,8 +121,8 @@ func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Add(ctx, id, variant, 1); err != nil {
-		t.Fatal(err)
+	if addErr := s.Add(ctx, id, variant, 1); addErr != nil {
+		t.Fatal(addErr)
 	}
 	view, err := s.View(ctx, id)
 	if err != nil {
@@ -159,16 +159,17 @@ func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, 
 	return number
 }
 
-func assertCouponUsage(t *testing.T, ctx context.Context, desk *coupons.Store, mux *http.ServeMux, code string, used, cents int64) {
+func assertCouponUsage(t *testing.T, baseCtx context.Context, desk *coupons.Store, mux *http.ServeMux, code string, used, cents int64) {
 	t.Helper()
 	for _, locale := range i18n.Locales() {
-		ctx := i18n.WithLocale(ctx, locale)
+		ctx := i18n.WithLocale(baseCtx, locale)
 		view, err := desk.Coupons(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		found := false
-		for _, row := range view.Rows {
+		for i := range view.Rows {
+			row := &view.Rows[i]
 			if row.Code != code {
 				continue
 			}
