@@ -703,7 +703,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 
 func defaultAddressConflict(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == "23505" && pgErr.ConstraintName == "addresses_one_default_per_user_disabled"
+	return ok && pgErr.Code == "23505" && pgErr.ConstraintName == "addresses_one_default_per_user"
 }
 
 func (s *Store) makeDefaultAddress(ctx context.Context, uid, aid uuid.UUID) error {
