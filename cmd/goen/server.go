@@ -218,7 +218,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	})
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
-	homeStore, productStore := home.NewStore(pool), product.NewStore(pool)
+	homeStore, productStore := home.NewStore(pool), product.NewStore(pool, log)
 	if !cfg.StoreMap.Enabled() {
 		homeStore, productStore = homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}
