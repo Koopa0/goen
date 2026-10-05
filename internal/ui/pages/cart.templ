@@ -259,6 +259,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							Attrs: templ.Attributes{"id": "shipping"},
 						}) {
 							<h2 class="goen-checkout__heading" id="shipping-heading">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
+							// Unavailable delivery refuses the cart, so it has no invalid control.
 							if !v.HasShipping() {
 								<p id="shipping-unavailable" role="alert">{ i18n.T(ctx, i18n.KeyShippingUnavailable) }</p>
 								<p><a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a> · <a href="/contact">{ i18n.T(ctx, i18n.KeyContact) }</a></p>

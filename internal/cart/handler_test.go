@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -8,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -92,5 +95,24 @@ func TestAddFromTheWishlistComesBackToTheWishlist(t *testing.T) {
 	}
 	if got := back(url.Values{"return": {"https://evil.example/"}}); got != "/cart" {
 		t.Errorf("a return that is not the wishlist went to %q, want /cart", got)
+	}
+}
+
+func TestUnavailableCheckoutDoesNotRenderAnObsoletePickupDestination(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	view := &pages.CheckoutView{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: destination.PickupPoint}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)
+	res := httptest.NewRecorder()
+	h.renderCheckout(res, req, http.StatusOK, view)
+	type renderedDelivery struct {
+		Status                        int
+		Postal, Pickup, ObsoleteQuote bool
+	}
+	body := res.Body.String()
+	got := renderedDelivery{Status: res.Code, Postal: strings.Contains(body, `name="postal_code"`),
+		Pickup: strings.Contains(body, `name="pickup_store_code"`), ObsoleteQuote: strings.Contains(body, "obsolete-quote")}
+	want := renderedDelivery{Status: http.StatusOK, Postal: true}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unavailable checkout delivery (-want +got):\n%s", diff)
 	}
 }

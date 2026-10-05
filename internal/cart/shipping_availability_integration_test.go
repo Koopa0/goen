@@ -26,7 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/orderaccess"
 )
 
-func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
+func TestCheckoutWithoutDeliveryRetainsTheTypedDraftAndWritesNothing(t *testing.T) {
 	ownerPool := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
@@ -61,9 +61,10 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 	}
 	s := cart.NewStore(appPool)
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
-		for _, scenario := range []string{"initial", "before-submit", "during-placement"} {
+		for _, scenario := range []string{"initial", "before-submit", "during-placement", "bad-coupon-update", "bad-coupon-placement", "bad-coupon-update-htmx", "bad-coupon-placement-htmx"} {
 			t.Run(locale.Tag()+"/"+scenario, func(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
+				badCoupon := strings.HasPrefix(scenario, "bad-coupon")
 				if _, err := ownerPool.Exec(ctx, "UPDATE shipping_methods SET is_active = true"); err != nil {
 					t.Fatal(err)
 				}
@@ -79,6 +80,9 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 				mux.HandleFunc("POST /checkout", h.PlaceOrder)
 				request := func(method string, form url.Values) *httptest.ResponseRecorder {
 					req := httptest.NewRequestWithContext(ctx, method, "/checkout", strings.NewReader(form.Encode()))
+					if method == http.MethodPost && strings.HasSuffix(scenario, "-htmx") {
+						req.Header.Set("HX-Request", "true")
+					}
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 					req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cookie under test
 					res := httptest.NewRecorder()
@@ -90,7 +94,7 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if scenario == "initial" {
+				if scenario == "initial" || badCoupon {
 					withdraw()
 				}
 				get := request(http.MethodGet, nil)
@@ -102,7 +106,7 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 				if attempt == "" {
 					t.Fatal("checkout lost its retry identity")
 				}
-				if scenario == "initial" {
+				if scenario == "initial" || badCoupon {
 					assertNoDelivery(t, get, locale)
 				} else if controls["shipping"] == "" || controls["checkout_quote"] == "" {
 					t.Fatal("available checkout has no selected method or quote")
@@ -113,7 +117,7 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 					"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"}, "street": {"松高路 88 號"},
 					"note": {"Keep this draft"}, "coupon": {"DELIVERY-DRAFT"}, "invoice_type": {"donation"}, "invoice_donation_code": {"919"},
 				}
-				if scenario != "initial" {
+				if scenario != "initial" && !badCoupon {
 					form.Set("update", "coupon")
 					preview := request(http.MethodPost, form)
 					if preview.Code != http.StatusOK {
@@ -126,6 +130,12 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 					form.Set("checkout_quote", confirmed)
 					form.Del("update")
 				}
+				if badCoupon {
+					form.Set("coupon", "NO-SUCH-CODE")
+					if strings.Contains(scenario, "update") {
+						form.Set("update", "coupon")
+					}
+				}
 				switch scenario {
 				case "before-submit":
 					withdraw()
@@ -136,8 +146,12 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 					trace.mu.Unlock()
 				}
 				post := request(http.MethodPost, form)
-				if post.Code != http.StatusUnprocessableEntity || post.Header().Get("Location") != "" {
-					t.Errorf("POST /checkout = %d, Location %q, want 422 without redirect", post.Code, post.Header().Get("Location"))
+				wantStatus := http.StatusUnprocessableEntity
+				if form.Get("update") == "coupon" {
+					wantStatus = http.StatusOK
+				}
+				if post.Code != wantStatus || post.Header().Get("Location") != "" {
+					t.Errorf("POST /checkout = %d, Location %q, want %d without redirect", post.Code, post.Header().Get("Location"), wantStatus)
 				}
 				if scenario == "during-placement" {
 					trace.mu.Lock()
@@ -149,8 +163,11 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 					}
 				}
 				assertNoDelivery(t, post, locale)
+				if badCoupon {
+					assertCouponRefusedWithoutDelivery(t, post.Body.String(), locale)
+				}
 				got := deliveryForm(t, post.Body.String())
-				want := map[string]string{"idempotency": attempt, "checkout_quote": "", "email": "delivery@example.com", "name": "Draft Recipient", "phone": "0912345678", "postal_code": "110", "city": "台北市", "district": "信義區", "street": "松高路 88 號", "note": "Keep this draft", "coupon": "DELIVERY-DRAFT", "invoice_type": "donation", "invoice_donation_code": "919"}
+				want := map[string]string{"idempotency": attempt, "checkout_quote": "", "email": "delivery@example.com", "name": "Draft Recipient", "phone": "0912345678", "postal_code": "110", "city": "台北市", "district": "信義區", "street": "松高路 88 號", "note": "Keep this draft", "coupon": form.Get("coupon"), "invoice_type": "donation", "invoice_donation_code": "919"}
 				for key := range got {
 					if _, keep := want[key]; !keep {
 						delete(got, key)
@@ -266,12 +283,51 @@ func deliveryForm(t *testing.T, body string) map[string]string {
 
 func assertNoDelivery(t *testing.T, res *httptest.ResponseRecorder, locale i18n.Locale) {
 	t.Helper()
-	message := "No delivery method is available for this basket. Change the items or contact us."
+	message := "No delivery method is available for this cart. Change the items or contact us."
 	if locale == i18n.ZhHant {
 		message = "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"
 	}
 	body := res.Body.String()
 	if !strings.Contains(body, message) || !strings.Contains(body, `id="shipping-unavailable"`) || strings.Contains(body, `name="shipping"`) {
 		t.Errorf("checkout did not show the known no-delivery state: %s", body)
+	}
+}
+
+func assertCouponRefusedWithoutDelivery(t *testing.T, body string, locale i18n.Locale) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type refusalFacts struct {
+		Invalid, Describes, Live string
+		Message                  string
+	}
+	var got refusalFacts
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		attrs := map[string]string{}
+		for _, a := range n.Attr {
+			attrs[a.Key] = a.Val
+		}
+		if n.Data == "input" && attrs["name"] == "coupon" {
+			got.Invalid, got.Describes = attrs["aria-invalid"], attrs["aria-describedby"]
+		}
+		if attrs["id"] == "coupon-message" {
+			got.Live = attrs["aria-live"]
+		}
+		if attrs["id"] == "coupon-error" {
+			for child := range n.Descendants() {
+				if child.Type == html.TextNode && strings.TrimSpace(child.Data) != "" {
+					got.Message += child.Data
+				}
+			}
+		}
+	}
+	want := refusalFacts{Invalid: "true", Describes: "coupon-error", Live: "polite", Message: i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyCouponUnknown)}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("coupon refusal without delivery (-want +got):\n%s", diff)
 	}
 }
