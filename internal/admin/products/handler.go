@@ -90,7 +90,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
