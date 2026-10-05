@@ -192,7 +192,7 @@ var (
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 
-	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定無法儲存。請確認填寫的內容，再重新送出。", En: "Shipping settings could not be saved. Review the values, then submit again."})
+	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定無法儲存，請確認你填寫的內容後再送出。", En: "Shipping settings could not be saved; review your entries and submit again."})
 
 	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{ZhHant: "配送費率已變更。請確認目前設定，再重新送出附加費。", En: "Shipping fees changed. Review the current settings, then submit the surcharge again."})
 
