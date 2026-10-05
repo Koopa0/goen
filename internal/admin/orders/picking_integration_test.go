@@ -185,6 +185,22 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 }
 
+func TestPickingReadsTheCustomerNote(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	pickingFixtureOrder(t, owner, "NOTE-PICK", 1, 0, true)
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Slips) != 1 {
+		t.Fatalf("Picking() slips = %d, want 1", len(view.Slips))
+	}
+	if got := view.Slips[0].CustomerNote; got != "Gift <note>: no price inside" {
+		t.Errorf("Picking() customer note = %q, want %q", got, "Gift <note>: no price inside")
+	}
+}
+
 func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
