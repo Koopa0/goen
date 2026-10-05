@@ -44,7 +44,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	if err != nil {
 		return fmt.Errorf("begin product label: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // no-op after commit
+	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	before, err := q.LockProductLabel(ctx, slug)
 	if errors.Is(err, pgx.ErrNoRows) {
