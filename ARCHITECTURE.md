@@ -344,7 +344,7 @@ Each pool assigns its role when connecting. [`StorefrontConfig` and `BackOfficeC
 6. `securityHeaders` applies CSP, nosniff, referrer policy, and secure-mode HSTS.
 7. `web.RefuseUnstorableText` rejects invalid UTF-8 and NUL in paths and queries.
 8. `crossOriginProtection` rejects cross-site writes, with a configured store-map return exception.
-9. `withStorefrontRequestBudget` bounds request work, including `/admin`, except static assets, media, probes, webhooks, and the favicon.
+9. `withRequestBudget` bounds request work, including `/admin`, except static assets, media, probes, webhooks, and the favicon.
 10. `onlyVisitorPaths(customers.Authenticate)` loads the session identity.
 11. `onlyVisitorPaths(basket.WithCount)` populates the cart count.
 12. `onlyVisitorPaths(withLocale)` chooses the language and locale-switch return path.

@@ -92,7 +92,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
 								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColSince) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColNextRetry) }</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -102,7 +102,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td>{ m.Key }</td>
 									<td class="goen-admin__cellnum">{ m.AttemptsText() }</td>
 									<td>{ m.Reason(ctx) }</td>
-									<td>{ m.Since }</td>
+									<td>{ m.NextAttempt }</td>
 								</tr>
 							}
 						</tbody>
