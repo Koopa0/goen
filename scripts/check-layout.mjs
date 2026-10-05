@@ -2612,8 +2612,10 @@ const openAt = async (label, path) => {
 const controlFocus = async (selector) => {
   const prepared = await evalPage(`(() => {
     const target = document.querySelector(${JSON.stringify(selector)});
-    const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')]
-      .filter((el) => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]') && el.getClientRects().length);
+    // Closed disclosure contents can keep layout boxes without being Tab stops.
+    const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')]
+      .filter((el) => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]')
+        && el.checkVisibility({ visibilityProperty: true }));
     const position = controls.indexOf(target);
     if (position < 1) return { error: 'control or its preceding Tab stop is missing' };
     if (controls.some((el) => el.tabIndex > 0)) return { error: 'positive tabindex needs an explicit focus-order check' };
