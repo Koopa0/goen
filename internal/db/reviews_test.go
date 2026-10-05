@@ -90,7 +90,7 @@ func readQueryFiles(root string) (map[string]string, error) {
 }
 
 func queryFileVisitor(root string, out map[string]string) fs.WalkDirFunc {
-	profileDir := filepath.Join(root, ".layout-chrome-unchecked")
+	profileDir := filepath.Join(root, ".layout-chrome")
 	return func(path string, d os.DirEntry, err error) error {
 		// Layout probes remove this transient directory while query guards run.
 		if path == profileDir && d != nil && d.IsDir() {
