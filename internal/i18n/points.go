@@ -113,12 +113,12 @@ var (
 
 	KeyAdminTierLead = key("admin.tier.lead", Message{
 		ZhHant: "等級依近一年的消費金額計算，訂單取消時等級可能隨之降低。",
-		En:     "A band is computed from what the customer spent in the last year, so cancelling an order can lower it.",
+		En:     "A tier is computed from what the customer spent in the last year, so cancelling an order can lower it.",
 	})
 
 	KeyAdminTierEmpty = key("admin.tier.empty", Message{
 		ZhHant: "還沒有任何等級。沒有等級時，所有人都用基本點數倍率。",
-		En:     "No bands yet. Without one, everybody earns at the base points rate.",
+		En:     "No tiers yet. Without one, everybody earns at the base points rate.",
 	})
 
 	KeyAdminTierColBand = key("admin.tier.col.band", Message{ZhHant: "等級", En: "Band"})
