@@ -98,7 +98,9 @@ templ Compare(p layouts.Page, v CompareView) {
 							<tr>
 								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowPrice) }</th>
 								for _, item := range v.Products {
-									<td class="goen-compare__price">{ item.Price() }</td>
+									<td class="goen-compare__price">
+										@tilePrice(item.PriceTile())
+									</td>
 								}
 							</tr>
 							<tr>
