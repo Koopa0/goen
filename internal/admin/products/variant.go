@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -16,6 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/pgerr"
 )
+
+// skuFormat is the product_variants_sku_format CHECK.
+var skuFormat = regexp.MustCompile(`^[A-Z0-9]+(-[A-Z0-9]+)*$`)
 
 const (
 	maxSKURunes = 60
@@ -41,6 +45,8 @@ func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	errs := map[string]string{}
 	if f.SKU == "" || utf8.RuneCountInString(f.SKU) > maxSKURunes {
 		errs["sku"] = i18n.T(ctx, i18n.KeyFormSKURequired)
+	} else if !skuFormat.MatchString(f.SKU) {
+		errs["sku"] = i18n.T(ctx, i18n.KeyFormSKUFormat)
 	}
 	if f.PriceCents <= 0 || f.PriceCents > money.MaxCents {
 		errs["price"] = i18n.T(ctx, i18n.KeyFormPricePositive)
@@ -147,6 +153,9 @@ func variantWriteError(ctx context.Context, slug string, err error) (map[string]
 	}
 	if pgerr.IsConstraint(err, "product_variants_sku_key") {
 		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
+	}
+	if pgerr.IsConstraint(err, "product_variants_sku_format") {
+		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUFormat)}, nil
 	}
 	if pgerr.IsConstraint(err, "product_variants_safety_stock_non_negative") {
 		return map[string]string{"safety": i18n.T(ctx, i18n.KeyFormSafetyStock)}, nil
