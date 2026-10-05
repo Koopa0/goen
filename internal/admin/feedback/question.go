@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -85,7 +86,7 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, hideErr := q.HideQuestion(ctx, qID)
 			if hideErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, hideErr)
+				return pgerr.WrapRefusal(hideErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -121,7 +122,7 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 				Body:       body,
 			})
 			if answerErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, answerErr)
+				return pgerr.WrapRefusal(answerErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound

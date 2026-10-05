@@ -90,7 +90,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -191,15 +191,21 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	err := h.store.SetStatus(r.Context(), slug, r.PostFormValue("status"))
-	if err != nil {
+	switch err := h.store.SetStatus(r.Context(), slug, r.PostFormValue("status")); {
+	case err == nil:
+		//nolint:gosec // G710: validated by the route's own slug
+		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
+		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
-		return
+	default:
+		h.log.ErrorContext(r.Context(), "set product status", "slug", slug, "error", err)
+		access.ServerError(w, r, h.log)
 	}
-	//nolint:gosec // G710: validated by the route's own slug
-	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {

@@ -12,6 +12,7 @@ import (
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // ErrNotCancellable covers every reason, so a guessable order number cannot be
@@ -25,7 +26,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if err != nil {
 		return nil, fmt.Errorf("begin cancel: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	// The lock is taken before cancellation or the expiry sweeper can touch the

@@ -27,6 +27,7 @@ const (
 )
 
 type HeroSlide struct {
+	ID     string
 	Source SlideSource
 	Layout SlideLayout
 	Tone   Tone
@@ -40,15 +41,15 @@ type HeroSlide struct {
 
 // PhotoSizes is the img sizes attribute: the slide's width for a photograph that
 // fills it, the height-bound 4:3 box for one beside the copy.
-func (s HeroSlide) PhotoSizes() string {
+func (s *HeroSlide) PhotoSizes() string {
 	if s.Layout == SlideSplit {
 		return "(min-width: 1024px) 800px, 100vw"
 	}
 	return "100vw"
 }
 
-func (s HeroSlide) HasPhotoSize() bool { return s.PhotoWidth > 0 && s.PhotoHeight > 0 }
+func (s *HeroSlide) HasPhotoSize() bool { return s.PhotoWidth > 0 && s.PhotoHeight > 0 }
 
-func (s HeroSlide) PhotoWidthText() string { return strconv.Itoa(s.PhotoWidth) }
+func (s *HeroSlide) PhotoWidthText() string { return strconv.Itoa(s.PhotoWidth) }
 
-func (s HeroSlide) PhotoHeightText() string { return strconv.Itoa(s.PhotoHeight) }
+func (s *HeroSlide) PhotoHeightText() string { return strconv.Itoa(s.PhotoHeight) }

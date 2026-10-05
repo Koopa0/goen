@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -89,5 +90,63 @@ func TestRenderFailureOfALiveRequestIsStillA500(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError || !strings.Contains(logs.String(), "level=ERROR") {
 		t.Errorf("code %d, log %q; want a 500 and an ERROR line", w.Code, logs.String())
+	}
+}
+
+func TestParseLongTextFormKeepsTextAndBoundsTheEncodedBody(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name          string
+		query         string
+		body          string
+		runes         int
+		limit         int64
+		wantText      string
+		wantTextError bool
+		wantSizeError bool
+	}{
+		{name: "twenty thousand four-byte runes", body: url.Values{"message": {strings.Repeat("\U0001F331", 20000)}}.Encode(), runes: 20000, limit: 305536, wantText: strings.Repeat("\U0001F331", 20000)},
+		{name: "exact byte limit", body: "message=" + strings.Repeat("x", 65552), runes: 2, limit: 65560, wantText: strings.Repeat("x", 65552)},
+		{name: "one byte over", body: "message=" + strings.Repeat("x", 65553), runes: 2, limit: 65560, wantSizeError: true},
+		{name: "invalid UTF-8", body: "message=%E9", runes: 20000, limit: 305536, wantTextError: true},
+		{name: "NUL", body: "message=%00", runes: 20000, limit: 305536, wantTextError: true},
+		{name: "invalid query text", query: "?next=%00", body: "message=valid", runes: 20000, limit: 305536, wantTextError: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/form"+tt.query, strings.NewReader(tt.body))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			err := ParseLongTextForm(httptest.NewRecorder(), r, tt.runes)
+			if tt.wantSizeError {
+				size, ok := errors.AsType[*http.MaxBytesError](err)
+				if !ok || size.Limit != tt.limit {
+					t.Fatalf("encoded body refusal=%v, want byte limit %d", err, tt.limit)
+				}
+				return
+			}
+			if tt.wantTextError {
+				if !errors.Is(err, ErrFormText) {
+					t.Fatalf("unstorable text refusal=%v, want ErrFormText", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := r.PostFormValue("message"); got != tt.wantText {
+				t.Errorf("parsed text length/value=%d/%q, want %d bytes unchanged", len(got), got[:min(len(got), 16)], len(tt.wantText))
+			}
+		})
+	}
+}
+
+func TestOrdinaryFormsKeepTheirExistingBodyLimit(t *testing.T) {
+	t.Parallel()
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/contact", strings.NewReader("message="+strings.Repeat("x", 64<<10)))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	err := ParseForm(httptest.NewRecorder(), r)
+	size, ok := errors.AsType[*http.MaxBytesError](err)
+	if !ok || size.Limit != 65536 {
+		t.Fatalf("ordinary form refusal=%v, want 65536-byte cap", err)
 	}
 }
