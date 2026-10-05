@@ -90,6 +90,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
+	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
 	view.Notice = web.Notice(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,

@@ -3053,10 +3053,11 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 }
 
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
-INSERT INTO staff_totp_credentials (user_id, secret_encrypted)
-VALUES ($1, $2)
+INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_hash)
+VALUES ($1, $2, $3)
 ON CONFLICT (user_id) DO UPDATE
 SET secret_encrypted = excluded.secret_encrypted,
+    mailed_code_hash = excluded.mailed_code_hash,
     confirmed_at = NULL,
     last_step = NULL,
     created_at = now()
@@ -3066,13 +3067,14 @@ WHERE staff_totp_credentials.confirmed_at IS NULL
 type BeginTOTPEnrolmentParams struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
+	MailedCodeHash  []byte
 }
 
 // Start or restart enrolment, but never replace a factor that has been proved.
 // The WHERE clause is the guard, in the statement because a read-then-write is
 // a race two concurrent enrolments both win.
 func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted)
+	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeHash)
 	if err != nil {
 		return 0, err
 	}
@@ -5187,9 +5189,11 @@ func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) 
 
 const confirmTOTP = `-- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
-SET confirmed_at = now(), last_step = $1::bigint
+SET confirmed_at = now(), last_step = $1::bigint, mailed_code_hash = NULL
 WHERE user_id = $2
   AND secret_encrypted = $3
+  AND mailed_code_hash = $4
+  AND created_at > now() - $5::interval
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
@@ -5197,14 +5201,23 @@ type ConfirmTOTPParams struct {
 	Step            int64
 	UserID          uuid.UUID
 	SecretEncrypted []byte
+	MailedCodeHash  []byte
+	MailedCodeTtl   pgtype.Interval
 }
 
 // Confirm enrolment and record the step in ONE statement: two would leave a
 // window in which the credential is confirmed and the code just proved is
 // still replayable. The secret is matched too: enrolment restarted since the
-// code was checked has replaced it with one no code has proved.
+// code was checked has replaced it with one no code has proved. The mailed code
+// is matched here too, so it is spent by the write that accepts it.
 func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64, error) {
-	result, err := q.db.Exec(ctx, confirmTOTP, arg.Step, arg.UserID, arg.SecretEncrypted)
+	result, err := q.db.Exec(ctx, confirmTOTP,
+		arg.Step,
+		arg.UserID,
+		arg.SecretEncrypted,
+		arg.MailedCodeHash,
+		arg.MailedCodeTtl,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -8615,7 +8628,7 @@ func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bo
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
-SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified, role
 FROM users WHERE id = $1::uuid FOR UPDATE
 `
 
@@ -8623,6 +8636,7 @@ type LockUserForEmailVerificationRow struct {
 	ID       uuid.UUID
 	Email    string
 	Verified bool
+	Role     string
 }
 
 // verified is read under the lock: a link that proves the address of an
@@ -8631,7 +8645,12 @@ type LockUserForEmailVerificationRow struct {
 func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
 	var i LockUserForEmailVerificationRow
-	err := row.Scan(&i.ID, &i.Email, &i.Verified)
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Verified,
+		&i.Role,
+	)
 	return i, err
 }
 
