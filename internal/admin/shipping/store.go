@@ -174,6 +174,21 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		})
 }
 
+func (s *Store) VersionMethod(ctx context.Context, versionID string) (string, error) {
+	id, err := uuid.Parse(versionID)
+	if err != nil {
+		return "", ErrNotFound
+	}
+	methodID, err := db.New(s.pool).ShippingVersionMethod(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("read shipping version method: %w", err)
+	}
+	return methodID.String(), nil
+}
+
 // SetZoneSurcharge sets one version's charge for one zone; zero DELETES the row.
 func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, dollars int64) error {
 	vid, err := uuid.Parse(versionID)

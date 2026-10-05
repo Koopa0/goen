@@ -76,6 +76,7 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 			{"threshold ceiling", "free_over", "100000001", "free-"},
 			{"negative threshold", "free_over", "-1", "free-"},
 			{"missing name", "name", " ", "name-"},
+			{"name rune ceiling", "name", strings.Repeat("\u754c", 61), "name-"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				values := url.Values{}
@@ -114,7 +115,7 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 				t.Fatalf("database version refusal status=%d, want 422", res.Code)
 			}
 			input := admintest.InputElementByID(t, res.Body.String(), "name-"+methodID.String())
-			if admintest.InputAttribute(t, input, "value") != "Database refusal" || !strings.Contains(res.Body.String(), `id="version-error-`+methodID.String()+`"`) || !strings.Contains(res.Body.String(), i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminNoticeRefused)) {
+			if admintest.InputAttribute(t, input, "value") != "Database refusal" || !strings.Contains(res.Body.String(), `id="version-`+methodID.String()+`-error" role="alert"`) || !strings.Contains(res.Body.String(), i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipRefused)) {
 				t.Error("database version refusal lost its draft or owning-form explanation")
 			}
 		})
@@ -128,7 +129,7 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 				admintest.AssertRefusedInput(t, res.Body.String(), "sur-"+versionID.String()+"-"+zoneID.String(), amount)
 				message := fmt.Sprintf(i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyFormShippingSurcharge), "NT$5,000")
 				if amount == "4999" {
-					message = i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminNoticeRefused)
+					message = i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipRefused)
 				}
 				if !strings.Contains(res.Body.String(), message) {
 					t.Error("the surcharge has no translated range explanation")
@@ -189,5 +190,48 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	}
 	if diff := cmp.Diff([]any{"Draft name", "Draft name EN", "Draft carrier", "Draft carrier EN", int64(500000), int64(0)}, []any{name, nameEn, carrier, carrierEn, fee, threshold}); diff != "" {
 		t.Errorf("accepted version (-want +got):\n%s", diff)
+	}
+	var currentVersion uuid.UUID
+	if err := p.QueryRow(ctx, `SELECT id FROM shipping_method_versions WHERE method_id=$1 ORDER BY effective_at DESC, id DESC LIMIT 1`, methodID).Scan(&currentVersion); err != nil {
+		t.Fatal(err)
+	}
+	before, err = s.Configuration(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&auditBefore); err != nil {
+		t.Fatal(err)
+	}
+	for _, locale := range i18n.Locales() {
+		for _, amount := range []string{"300", " 5001 ", " not money "} {
+			t.Run(locale.Tag()+"/stale surcharge/"+amount, func(t *testing.T) {
+				res := post(url.Values{"version": {versionID.String()}, "zone": {zoneID.String()}, "amount": {amount}}, "/admin/shipping/surcharge", locale)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("stale surcharge status=%d, want 422", res.Code)
+				}
+				body := res.Body.String()
+				admintest.AssertRefusedInput(t, body, "sur-"+currentVersion.String()+"-"+zoneID.String(), amount)
+				message := i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipVersionChanged)
+				if strings.Count(body, message) != 1 {
+					t.Errorf("stale surcharge explanations=%d, want one owning-control explanation", strings.Count(body, message))
+				}
+				if strings.Contains(body, fmt.Sprintf(i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyFormShippingSurcharge), "NT$5,000")) {
+					t.Error("range refusal took precedence over the stale version")
+				}
+			})
+		}
+	}
+	after, err = s.Configuration(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(before, after); diff != "" {
+		t.Errorf("stale refusals changed configuration (-want +got):\n%s", diff)
+	}
+	if err := p.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&auditAfter); err != nil {
+		t.Fatal(err)
+	}
+	if auditAfter != auditBefore {
+		t.Errorf("stale refusals wrote %d audit rows, want zero", auditAfter-auditBefore)
 	}
 }

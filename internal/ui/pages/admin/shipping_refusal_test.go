@@ -77,6 +77,50 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 	}
 }
 
+func TestShippingDatabaseRefusalIsAnnouncedOnTheOwningForm(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			message := i18n.T(ctx, i18n.KeyAdminShipRefused)
+			view := ShippingView{Methods: []ShippingMethod{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: destination.Address}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
+			body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+			doc, err := html.Parse(strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var alerts []string
+			for n := range doc.Descendants() {
+				if n.Type != html.ElementNode {
+					continue
+				}
+				var id, role string
+				for _, attr := range n.Attr {
+					if attr.Key == "id" {
+						id = attr.Val
+					}
+					if attr.Key == "role" {
+						role = attr.Val
+					}
+				}
+				if role == "alert" {
+					var text strings.Builder
+					for child := range n.Descendants() {
+						if child.Type == html.TextNode {
+							text.WriteString(child.Data)
+						}
+					}
+					alerts = append(alerts, id+":"+text.String())
+				}
+			}
+			if diff := cmp.Diff([]string{"version-owned-error:" + message}, alerts); diff != "" {
+				t.Errorf("form refusal announcements (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func shippingControlAttributes(t *testing.T, body, id string) map[string]string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))

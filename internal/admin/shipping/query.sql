@@ -30,6 +30,9 @@ VALUES (@method_id, @name, nullif(@carrier::text, ''),
         @fee_cents, nullif(@free_over_cents::bigint, 0), statement_timestamp())
 RETURNING id;
 
+-- name: ShippingVersionMethod :one
+SELECT method_id FROM shipping_method_versions WHERE id = $1;
+
 -- Fee publication and surcharge edits share this root; version rows are append-only.
 -- name: LockShippingMethod :one
 SELECT id FROM shipping_methods WHERE id = $1 FOR NO KEY UPDATE;

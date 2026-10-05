@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -22,7 +21,7 @@ func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
 		name, fee, threshold, field  string
 		feeDollars, thresholdDollars int64
 	}{
-		{name: "ceiling", fee: strconv.FormatInt(MaxFee/100, 10), threshold: strconv.FormatInt(money.MaxCents/100, 10), feeDollars: MaxFee / 100, thresholdDollars: money.MaxCents / 100},
+		{name: "ceiling", fee: "5000", threshold: "100000000", feeDollars: 5000, thresholdDollars: 100000000},
 		{name: "blank optional", fee: " 123 ", threshold: " ", feeDollars: 123},
 		{name: "bad fee", fee: "1e3", threshold: "1000", field: "version_fee", thresholdDollars: 1000},
 		{name: "past fee ceiling", fee: "5001", threshold: "1000", field: "version_fee", feeDollars: 5001, thresholdDollars: 1000},
@@ -46,11 +45,11 @@ func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
 			}
 			wantErrors := map[string]string{}
 			if tt.field != "" {
-				key, maximum := i18n.KeyFormMethodFee, int64(MaxFee)
+				key, maximum := i18n.KeyFormMethodFee, "NT$5,000"
 				if tt.field == "version_free_over" {
-					key, maximum = i18n.KeyFormMethodFreeOver, money.MaxCents
+					key, maximum = i18n.KeyFormMethodFreeOver, "NT$100,000,000"
 				}
-				wantErrors[tt.field] = fmt.Sprintf(i18n.T(r.Context(), key), money.TWD(maximum))
+				wantErrors[tt.field] = fmt.Sprintf(i18n.T(r.Context(), key), maximum)
 			}
 			if diff := cmp.Diff(wantErrors, errs); diff != "" {
 				t.Errorf("refused fields (-want +got):\n%s", diff)
@@ -111,6 +110,43 @@ func TestShippingAmountRefusalsNameTheMoneyCeiling(t *testing.T) {
 						t.Errorf("threshold refusal=%q, want the formatted NT$100,000,000 ceiling", got)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestVersionNamesFollowTheCreateFormRuneBound(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, raw string
+		refused   bool
+	}{
+		{name: "sixty ascii", raw: strings.Repeat("a", 60)},
+		{name: "sixty unicode", raw: strings.Repeat("\u754c", 60)},
+		{name: "trimmed boundary", raw: " " + strings.Repeat("\u754c", 60) + " "},
+		{name: "sixty-one ascii", raw: strings.Repeat("a", 61), refused: true},
+		{name: "sixty-one unicode", raw: strings.Repeat("\u754c", 61), refused: true},
+		{name: "blank", raw: " \t ", refused: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			values := url.Values{"method": {"owned"}, "name": {tt.raw}, "fee": {"100"}}
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/shipping/version", strings.NewReader(values.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			_, draft, errs := versionFormOf(r)
+			wantErrors := map[string]string{}
+			if tt.refused {
+				wantErrors["version_name"] = i18n.T(r.Context(), i18n.KeyFormNameRequired)
+			}
+			if diff := cmp.Diff(wantErrors, errs); diff != "" {
+				t.Errorf("version name refusal (-want +got):\n%s", diff)
+			}
+			if draft.Name != tt.raw {
+				t.Errorf("name draft=%q, want %q", draft.Name, tt.raw)
+			}
+			methodErrors := (&NewMethod{Code: "delivery", Destination: "address", Name: tt.raw, FeeDollars: 100}).Validate(r.Context())
+			if (methodErrors["name"] != "") != tt.refused {
+				t.Errorf("create name refusal=%q, want refused=%v", methodErrors["name"], tt.refused)
 			}
 		})
 	}
