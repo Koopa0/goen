@@ -334,36 +334,27 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 	return view, nil
 }
 
-func (s *Store) SetVariantArrival(ctx context.Context, sku, raw string) error {
-	day, valid := parseArrival(raw)
-	if !valid {
-		return ErrRefused
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin variant arrival: %w", err)
-	}
-	defer pgtx.Rollback(ctx, tx)
-	q := s.q.WithTx(tx)
-	prior, err := q.LockVariantArrival(ctx, sku)
+func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) error {
+	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("read variant arrival: %w", err)
+		return fmt.Errorf("read variant: %w", err)
 	}
-	if err = q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: prior.ID, ArrivalOn: day}); err != nil {
-		return fmt.Errorf("set variant arrival: %w", err)
-	}
-	if auditErr := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionSetVariantArrival, Table: "product_variants", ID: audit.EntityID(prior.ID),
-		Before: map[string]any{"sku": sku, "preorder_release_on": arrivalInput(prior.PreorderReleaseOn)},
-		After:  map[string]any{"preorder_release_on": arrivalInput(day)},
-	}); auditErr != nil {
-		return auditErr
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit variant arrival: %w", err)
-	}
-	return nil
+	before := map[string]any{"sku": sku}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetVariantArrival, Table: "product_variants", ID: audit.EntityID(v.ID),
+		Before: before, After: map[string]any{"preorder_release_on": arrivalInput(day)},
+	}, func(ctx context.Context, q *db.Queries) error {
+		replaced, err := lockVariant(ctx, q, v.ID, sku)
+		if err != nil {
+			return err
+		}
+		before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
+		if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID, ArrivalOn: day}); err != nil {
+			return pgerr.WrapRefusal(err, ErrRefused)
+		}
+		return nil
+	})
 }

@@ -18,7 +18,7 @@ func TestArrivalDateAcceptsOnlyCalendarDaysAndAllowsClearing(t *testing.T) {
 	} {
 		t.Run(tc.raw, func(t *testing.T) {
 			t.Parallel()
-			got, valid := parseArrival(tc.raw)
+			got, valid := ParseArrival(tc.raw)
 			if valid != tc.valid {
 				t.Fatalf("valid = %v, want %v", valid, tc.valid)
 			}

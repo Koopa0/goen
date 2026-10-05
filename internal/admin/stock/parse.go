@@ -32,7 +32,7 @@ func ParseReceipt(s string) (int32, bool) {
 	return int32(n), true
 }
 
-func parseArrival(raw string) (pgtype.Date, bool) {
+func ParseArrival(raw string) (pgtype.Date, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return pgtype.Date{}, true

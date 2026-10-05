@@ -8741,31 +8741,16 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 	return id, err
 }
 
-const lockVariantArrival = `-- name: LockVariantArrival :one
-SELECT id, preorder_release_on FROM product_variants WHERE sku = $1 FOR UPDATE
-`
-
-type LockVariantArrivalRow struct {
-	ID                uuid.UUID
-	PreorderReleaseOn pgtype.Date
-}
-
-func (q *Queries) LockVariantArrival(ctx context.Context, sku string) (LockVariantArrivalRow, error) {
-	row := q.db.QueryRow(ctx, lockVariantArrival, sku)
-	var i LockVariantArrivalRow
-	err := row.Scan(&i.ID, &i.PreorderReleaseOn)
-	return i, err
-}
-
 const lockVariantForChange = `-- name: LockVariantForChange :one
-SELECT stock_quantity, is_active, price_cents
+SELECT stock_quantity, is_active, price_cents, preorder_release_on
 FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
 `
 
 type LockVariantForChangeRow struct {
-	StockQuantity int32
-	IsActive      bool
-	PriceCents    int64
+	StockQuantity     int32
+	IsActive          bool
+	PriceCents        int64
+	PreorderReleaseOn pgtype.Date
 }
 
 // What a stock-desk write replaces, read under the row lock the write then
@@ -8774,7 +8759,12 @@ type LockVariantForChangeRow struct {
 func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockVariantForChangeRow, error) {
 	row := q.db.QueryRow(ctx, lockVariantForChange, id)
 	var i LockVariantForChangeRow
-	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
+	err := row.Scan(
+		&i.StockQuantity,
+		&i.IsActive,
+		&i.PriceCents,
+		&i.PreorderReleaseOn,
+	)
 	return i, err
 }
 

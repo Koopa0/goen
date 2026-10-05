@@ -353,7 +353,7 @@ func expectedArrivalOf(r *db.ProductVariantsRow) time.Time {
 }
 
 func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
-	if !v.SoldOut() || v.ExpectedArrival.IsZero() {
+	if v.ExpectedArrival.IsZero() {
 		return ""
 	}
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, v.ExpectedArrival, s.now()))

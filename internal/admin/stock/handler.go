@@ -36,7 +36,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/receive", ac.RequireStaff(h.Receive))
 	mux.HandleFunc("POST /admin/stock/active", ac.RequireStaff(h.SetActive))
 	mux.HandleFunc("POST /admin/stock/price", ac.RequireStaff(h.SetPrice))
-	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetVariantArrival))
+	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetArrival))
 }
 
 var notices = map[string]i18n.Key{
@@ -267,17 +267,22 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) SetVariantArrival(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.SetVariantArrival(r.Context(), r.PostFormValue("sku"), r.PostFormValue("arrival_on"))
+	day, ok := ParseArrival(r.PostFormValue("arrival_on"))
+	if !ok {
+		h.rejectArrival(w, r)
+		return
+	}
+	err := h.store.SetArrival(r.Context(), r.PostFormValue("sku"), day)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // The destination is restricted to the stock page.
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrNotFound):
-		http.NotFound(w, r)
+		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.rejectArrival(w, r)
 	default:

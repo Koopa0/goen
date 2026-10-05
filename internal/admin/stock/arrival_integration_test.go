@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/access"
@@ -23,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/user"
@@ -74,7 +76,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		{raw: shoptime.Day(today.AddDate(0, 0, -1))},
 		{raw: ""},
 	} {
-		if err = s.SetVariantArrival(ctx, sku, tc.raw); err != nil {
+		if err = s.SetArrival(ctx, sku, arrivalDay(t, tc.raw)); err != nil {
 			t.Fatal(err)
 		}
 		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
@@ -112,7 +114,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		if rows[i].ID == id {
 			continue
 		}
-		if err = s.SetVariantArrival(ctx, rows[i].SKU, tomorrow); err != nil {
+		if err = s.SetArrival(ctx, rows[i].SKU, arrivalDay(t, tomorrow)); err != nil {
 			t.Fatal(err)
 		}
 		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
@@ -125,7 +127,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		break
 	}
 
-	if err = s.SetVariantArrival(t.Context(), sku, tomorrow); !errors.Is(err, audit.ErrNoActor) {
+	if err = s.SetArrival(t.Context(), sku, arrivalDay(t, tomorrow)); !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("actorless write = %v, want ErrNoActor", err)
 	}
 	var cleared bool
@@ -140,11 +142,18 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	handler := stock.NewHandler(s, log)
 	ac := access.New(log, nil)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		missing := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/stock/arrival", strings.NewReader("sku=missing-arrival-sku&arrival_on="+tomorrow))
+		missing.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		missingResponse := httptest.NewRecorder()
+		ac.RequireStaff(handler.SetArrival)(missingResponse, missing)
+		if missingResponse.Code != http.StatusNotFound || !strings.Contains(missingResponse.Body.String(), i18n.T(missing.Context(), i18n.KeyAdminNotFoundBody)) {
+			t.Errorf("%s unknown variant = %d, missing translated refusal page", locale, missingResponse.Code)
+		}
 		body := url.Values{"sku": {sku}, "arrival_on": {"2026-02-30"}, "return": {"/admin/stock?q=" + url.QueryEscape(sku)}}
 		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/stock/arrival", strings.NewReader(body.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rec := httptest.NewRecorder()
-		ac.RequireStaff(handler.SetVariantArrival)(rec, req)
+		ac.RequireStaff(handler.SetArrival)(rec, req)
 		if rec.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("invalid date status = %d", rec.Code)
 		}
@@ -161,17 +170,14 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		return req
 	}
 	denied := httptest.NewRecorder()
-	ac.RequireStaff(handler.SetVariantArrival)(denied, request(user.NewContext(t.Context(), user.User{ID: actor.String(), Role: user.RoleCustomer})))
+	ac.RequireStaff(handler.SetArrival)(denied, request(user.NewContext(t.Context(), user.User{ID: actor.String(), Role: user.RoleCustomer})))
 	if denied.Code != http.StatusNotFound {
 		t.Fatalf("customer staff route = %d, want 404", denied.Code)
 	}
 	accepted := httptest.NewRecorder()
-	ac.RequireStaff(handler.SetVariantArrival)(accepted, request(ctx))
+	ac.RequireStaff(handler.SetArrival)(accepted, request(ctx))
 	if accepted.Code != http.StatusSeeOther || !strings.HasPrefix(accepted.Header().Get("Location"), "/admin/stock?") {
 		t.Fatalf("valid date = %d %q", accepted.Code, accepted.Header().Get("Location"))
-	}
-	if _, err = owner.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, id); err != nil {
-		t.Fatal(err)
 	}
 	if _, err = owner.Exec(ctx, `SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, $4)`, id, safety-onShelf+1, uuid.NewString(), actor); err != nil {
 		t.Fatal(err)
@@ -182,5 +188,43 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	}
 	if !view.CanBuy() || view.ArrivalText() != "" {
 		t.Fatal("in-stock variant still shows an expected arrival date")
+	}
+}
+
+func arrivalDay(t *testing.T, raw string) pgtype.Date {
+	t.Helper()
+	day, ok := stock.ParseArrival(raw)
+	if !ok {
+		t.Fatalf("invalid fixture arrival %q", raw)
+	}
+	return day
+}
+
+func TestArrivalAuditLockDoesNotBlockStockNotifications(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	var id uuid.UUID
+	if err := owner.QueryRow(ctx, `SELECT id FROM product_variants ORDER BY sku LIMIT 1`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	cfg := owner.Config().Copy()
+	cfg.ConnConfig.RuntimeParams["role"] = "admin"
+	staff, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(staff.Close)
+	tx, err := staff.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err := db.New(tx).LockVariantForChange(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	referenceCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := owner.Exec(referenceCtx, `INSERT INTO stock_notifications (variant_id, email, locale) VALUES ($1, 'arrival-reference@goen.invalid', 'en')`, id); err != nil {
+		t.Fatalf("arrival audit lock blocked a stock notification: %v", err)
 	}
 }
