@@ -722,7 +722,7 @@ func (s *Store) Inspect(
 	// two inspections naming the lines in different orders would each hold a
 	// line the other waits for.
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return fmt.Errorf("%w: lock return order for inspection: %w", ErrRefused, lockErr)
+		return refusedIfNoRow(lockErr, "lock return order for inspection")
 	}
 
 	for _, l := range lines {

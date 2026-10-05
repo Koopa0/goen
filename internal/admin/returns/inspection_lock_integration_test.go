@@ -3,7 +3,6 @@
 package returns_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // TestTwoInspectionsOfOneReturnDoNotDeadlock: the inspection form's lines
@@ -30,14 +30,14 @@ func TestTwoInspectionsOfOneReturnDoNotDeadlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin the order holder: %v", err)
 	}
-	defer func() { _ = holder.Rollback(context.WithoutCancel(ctx)) }()
+	defer pgtx.Rollback(ctx, holder)
 	if _, err = holder.Exec(ctx, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number); err != nil {
 		t.Fatalf("hold order %s: %v", number, err)
 	}
 
 	orders := [2][]returns.LineInspection{
-		{{OrderLineID: lines[0], Received: 1}, {OrderLineID: lines[1], Received: 1}},
-		{{OrderLineID: lines[1], Received: 1}, {OrderLineID: lines[0], Received: 1}},
+		{{OrderLineID: lines[0], Received: 1, Restocked: 1}, {OrderLineID: lines[1], Received: 1, Restocked: 1}},
+		{{OrderLineID: lines[1], Received: 1, Restocked: 1}, {OrderLineID: lines[0], Received: 1, Restocked: 1}},
 	}
 	var done [2]chan error
 	for i := range orders {
@@ -77,6 +77,18 @@ func TestTwoInspectionsOfOneReturnDoNotDeadlock(t *testing.T) {
 	if trail != 1 {
 		t.Errorf("return %s has %d inspection audit rows, want 1", requestID, trail)
 	}
+	keys := []string{
+		"return:" + requestID.String() + ":" + lines[0].String(),
+		"return:" + requestID.String() + ":" + lines[1].String(),
+	}
+	var movements int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM inventory_movements WHERE idempotency_key = ANY ($1)`,
+		keys).Scan(&movements); err != nil {
+		t.Fatalf("read the restock movements: %v", err)
+	}
+	if movements != len(keys) {
+		t.Errorf("return %s posted %d restock movements, want one per line (%d)", requestID, movements, len(keys))
+	}
 }
 
 // approvedTwoLineReturn is a shipped, paid order of two lines and an approved
@@ -88,8 +100,14 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	defer pgtx.Rollback(ctx, tx)
 
+	var variantID uuid.UUID
+	if err = tx.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' LIMIT 1`).Scan(&variantID); err != nil {
+		t.Fatalf("find variant: %v", err)
+	}
 	var orderID uuid.UUID
 	if err = tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
@@ -102,9 +120,9 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 	}
 	for i := range lines {
 		if err = tx.QueryRow(ctx, `
-			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
-			VALUES ($1, $2, '驗貨鎖序', 100000, 1, $3) RETURNING id`,
-			orderID, "INSPECT-LOCK-"+uuid.NewString()[:8], i).Scan(&lines[i]); err != nil {
+			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, $3, '驗貨鎖序', 100000, 1, $4) RETURNING id`,
+			orderID, variantID, "INSPECT-LOCK-"+uuid.NewString()[:8], i).Scan(&lines[i]); err != nil {
 			t.Fatalf("create line %d: %v", i, err)
 		}
 	}
@@ -159,7 +177,9 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 
 func waitForLock(t *testing.T, name string, done <-chan error) {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.After(15 * time.Second)
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		var waiting bool
 		if err := pool.QueryRow(t.Context(), `
@@ -171,11 +191,9 @@ func waitForLock(t *testing.T, name string, done <-chan error) {
 		select {
 		case err := <-done:
 			t.Fatalf("inspection on %s finished before it waited on the order: %v", name, err)
-		default:
-		}
-		if time.Now().After(deadline) {
+		case <-deadline:
 			t.Fatalf("inspection on %s never waited on the order", name)
+		case <-tick.C:
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
 }
