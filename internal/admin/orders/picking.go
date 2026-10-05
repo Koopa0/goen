@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -27,8 +28,7 @@ func (s *Store) Picking(ctx context.Context, after ...string) (admin.PickingView
 	if err != nil {
 		return admin.PickingView{}, fmt.Errorf("begin picking snapshot: %w", err)
 	}
-	//nolint:errcheck // Rollback is a no-op after the read-only transaction commits.
-	defer tx.Rollback(ctx)
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	view, err := pickingSnapshot(ctx, q, after)
 	if err != nil {
