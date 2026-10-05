@@ -26,15 +26,15 @@ import (
 )
 
 type productLabelState struct {
-	Slug                    string         `json:"slug"`
-	Origin                  pgtype.Text    `json:"origin"`
-	OriginEn                pgtype.Text    `json:"origin_en"`
-	ResponsiblePartyName    pgtype.Text    `json:"responsible_party_name"`
-	ResponsiblePartyPhone   pgtype.Text    `json:"responsible_party_phone"`
-	ResponsiblePartyAddress pgtype.Text    `json:"responsible_party_address"`
-	NetQuantity             pgtype.Numeric `json:"net_quantity"`
-	NetUnit                 pgtype.Text    `json:"net_unit"`
-	MinAgeMonths            pgtype.Int2    `json:"min_age_months"`
+	Slug                 string         `json:"slug"`
+	Origin               pgtype.Text    `json:"origin"`
+	OriginEn             pgtype.Text    `json:"origin_en"`
+	DomesticPartyName    pgtype.Text    `json:"domestic_party_name"`
+	DomesticPartyPhone   pgtype.Text    `json:"domestic_party_phone"`
+	DomesticPartyAddress pgtype.Text    `json:"domestic_party_address"`
+	NetQuantity          pgtype.Numeric `json:"net_quantity"`
+	NetUnit              pgtype.Text    `json:"net_unit"`
+	MinAgeMonths         pgtype.Int2    `json:"min_age_months"`
 }
 
 func (s *Store) SetProductLabel(ctx context.Context, slug string, input *productlabel.Input) error {
@@ -62,12 +62,12 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 		Action: audit.ActionSetProductLabel, Table: "products", ID: audit.EntityID(before.ID),
 		Before: productLabelState{
 			Slug: slug, Origin: before.Origin, OriginEn: before.OriginEn,
-			ResponsiblePartyName: before.ResponsiblePartyName, ResponsiblePartyPhone: before.ResponsiblePartyPhone, ResponsiblePartyAddress: before.ResponsiblePartyAddress,
+			DomesticPartyName: before.DomesticPartyName, DomesticPartyPhone: before.DomesticPartyPhone, DomesticPartyAddress: before.DomesticPartyAddress,
 			NetQuantity: before.NetQuantity, NetUnit: before.NetUnit, MinAgeMonths: before.MinAgeMonths,
 		},
 		After: productLabelState{
 			Slug: slug, Origin: optionalText(params.Origin), OriginEn: optionalText(params.OriginEn),
-			ResponsiblePartyName: optionalText(params.ResponsiblePartyName), ResponsiblePartyPhone: optionalText(params.ResponsiblePartyPhone), ResponsiblePartyAddress: optionalText(params.ResponsiblePartyAddress),
+			DomesticPartyName: optionalText(params.DomesticPartyName), DomesticPartyPhone: optionalText(params.DomesticPartyPhone), DomesticPartyAddress: optionalText(params.DomesticPartyAddress),
 			NetQuantity: params.NetQuantity, NetUnit: optionalText(params.NetUnit), MinAgeMonths: params.MinAgeMonths,
 		},
 	}); auditErr != nil {
@@ -86,7 +86,7 @@ func optionalText(s string) pgtype.Text {
 func productLabelParams(id uuid.UUID, input *productlabel.Input) db.SetProductLabelParams {
 	p := db.SetProductLabelParams{
 		ID: id, Origin: strings.TrimSpace(input.Origin), OriginEn: strings.TrimSpace(input.OriginEn),
-		ResponsiblePartyName: strings.TrimSpace(input.ResponsiblePartyName), ResponsiblePartyPhone: strings.TrimSpace(input.ResponsiblePartyPhone), ResponsiblePartyAddress: strings.TrimSpace(input.ResponsiblePartyAddress),
+		DomesticPartyName: strings.TrimSpace(input.DomesticPartyName), DomesticPartyPhone: strings.TrimSpace(input.DomesticPartyPhone), DomesticPartyAddress: strings.TrimSpace(input.DomesticPartyAddress),
 		NetUnit: strings.TrimSpace(string(input.NetUnit)),
 	}
 	if n, ok := productlabel.QuantityHundredths(input.NetQuantity); ok {
@@ -101,7 +101,7 @@ func productLabelParams(id uuid.UUID, input *productlabel.Input) db.SetProductLa
 
 func productLabelInput(r *db.AdminProductRow) *productlabel.Input {
 	f := &productlabel.Input{
-		Origin: r.Origin, OriginEn: r.OriginEn, ResponsiblePartyName: r.ResponsiblePartyName, ResponsiblePartyPhone: r.ResponsiblePartyPhone, ResponsiblePartyAddress: r.ResponsiblePartyAddress,
+		Origin: r.Origin, OriginEn: r.OriginEn, DomesticPartyName: r.DomesticPartyName, DomesticPartyPhone: r.DomesticPartyPhone, DomesticPartyAddress: r.DomesticPartyAddress,
 		NetQuantity: r.NetQuantity, NetUnit: productlabel.NetUnit(r.NetUnit),
 	}
 	if r.MinAgeMonths.Valid {
@@ -117,7 +117,7 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 	}
 	input := &productlabel.Input{
 		Origin: r.PostFormValue("origin"), OriginEn: r.PostFormValue("origin_en"),
-		ResponsiblePartyName: r.PostFormValue("responsible_party_name"), ResponsiblePartyPhone: r.PostFormValue("responsible_party_phone"), ResponsiblePartyAddress: r.PostFormValue("responsible_party_address"),
+		DomesticPartyName: r.PostFormValue("domestic_party_name"), DomesticPartyPhone: r.PostFormValue("domestic_party_phone"), DomesticPartyAddress: r.PostFormValue("domestic_party_address"),
 		NetQuantity: r.PostFormValue("net_quantity"), NetUnit: productlabel.NetUnit(r.PostFormValue("net_unit")), MinAgeMonths: r.PostFormValue("min_age_months"),
 	}
 	if errs := input.Validate(r.Context()); len(errs) > 0 {
@@ -143,15 +143,15 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 
 func productLabelRefusal(ctx context.Context, err error) map[string]string {
 	for constraint, fields := range map[string][]string{
-		"products_label_origin_valid":        {"origin"},
-		"products_label_origin_en_valid":     {"origin_en"},
-		"products_label_party_name_valid":    {"responsible_party_name"},
-		"products_label_party_phone_valid":   {"responsible_party_phone"},
-		"products_label_party_address_valid": {"responsible_party_address"},
-		"products_label_net_paired":          {"net_quantity", "net_unit"},
-		"products_label_net_positive":        {"net_quantity"},
-		"products_label_net_unit_known":      {"net_unit"},
-		"products_label_age_sane":            {"min_age_months"},
+		"products_label_origin_valid":           {"origin"},
+		"products_label_origin_en_valid":        {"origin_en"},
+		"products_label_domestic_name_valid":    {"domestic_party_name"},
+		"products_label_domestic_phone_valid":   {"domestic_party_phone"},
+		"products_label_domestic_address_valid": {"domestic_party_address"},
+		"products_label_net_paired":             {"net_quantity", "net_unit"},
+		"products_label_net_positive":           {"net_quantity"},
+		"products_label_net_unit_known":         {"net_unit"},
+		"products_label_age_sane":               {"min_age_months"},
 	} {
 		if !pgerr.IsConstraint(err, constraint) {
 			continue

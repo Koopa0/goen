@@ -14,9 +14,9 @@ SELECT
     localized_name(c.name, c.name_en, @locale::text) AS category_name,
     c.parent_id AS category_parent_id,
     coalesce(localized_name(coalesce(p.origin, p.origin_en), p.origin_en, @locale::text), '')::text AS origin,
-    coalesce(p.responsible_party_name, '') AS responsible_party_name,
-    coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
-    coalesce(p.responsible_party_address, '') AS responsible_party_address,
+    coalesce(p.domestic_party_name, '') AS domestic_party_name,
+    coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
+    coalesce(p.domestic_party_address, '') AS domestic_party_address,
     coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
     coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p

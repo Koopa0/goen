@@ -12,7 +12,7 @@ func TestRefusedLabelFormRetainsOptionalValues(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		input := &productlabel.Input{Origin: `<origin>`, ResponsiblePartyName: `"maker"`, NetQuantity: "1.001", NetUnit: "oz", MinAgeMonths: "217"}
+		input := &productlabel.Input{Origin: `<origin>`, DomesticPartyName: `"maker"`, NetQuantity: "1.001", NetUnit: "oz", MinAgeMonths: "217"}
 		view := ProductView{Slug: "label", LabelInput: input, Errors: input.Validate(ctx)}
 		var body strings.Builder
 		if err := productLabel(view).Render(ctx, &body); err != nil {

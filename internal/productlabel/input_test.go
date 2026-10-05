@@ -43,12 +43,12 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 				input.Origin = raw
 			case "origin_en":
 				input.OriginEn = raw
-			case "responsible_party_name":
-				input.ResponsiblePartyName = raw
-			case "responsible_party_phone":
-				input.ResponsiblePartyPhone = raw
-			case "responsible_party_address":
-				input.ResponsiblePartyAddress = raw
+			case "domestic_party_name":
+				input.DomesticPartyName = raw
+			case "domestic_party_phone":
+				input.DomesticPartyPhone = raw
+			case "domestic_party_address":
+				input.DomesticPartyAddress = raw
 			}
 			if input.Validate(t.Context())[field.Name] == "" {
 				t.Errorf("%s accepted invalid text", field.Name)
@@ -71,11 +71,11 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 func TestLabelTextLimitsCountTheStoredTrimmedValue(t *testing.T) {
 	t.Parallel()
 	input := Input{
-		Origin:                  " " + strings.Repeat("界", 100) + " ",
-		OriginEn:                " " + strings.Repeat("a", 100) + " ",
-		ResponsiblePartyName:    " " + strings.Repeat("界", 200) + " ",
-		ResponsiblePartyPhone:   " " + strings.Repeat("1", 40) + " ",
-		ResponsiblePartyAddress: " " + strings.Repeat("界", 500) + " ",
+		Origin:               " " + strings.Repeat("界", 100) + " ",
+		OriginEn:             " " + strings.Repeat("a", 100) + " ",
+		DomesticPartyName:    " " + strings.Repeat("界", 200) + " ",
+		DomesticPartyPhone:   " " + strings.Repeat("1", 40) + " ",
+		DomesticPartyAddress: " " + strings.Repeat("界", 500) + " ",
 	}
 	if errs := input.Validate(t.Context()); len(errs) != 0 {
 		t.Errorf("legal trimmed label fields refused: %v", errs)
@@ -93,7 +93,7 @@ func TestFactsKeepZeroAgeAndHideUnsetFields(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		rows := facts.Rows(ctx)
-		if len(rows) != 2 || rows[0].Value != "1.2 "+i18n.T(ctx, i18n.KeyProductLabelPiece) || !strings.Contains(rows[1].Value, "0") {
+		if len(rows) != 2 || rows[0].Value != "1.2 "+i18n.T(ctx, i18n.KeyProductLabelPiece) || rows[1].Value != i18n.T(ctx, i18n.KeyProductLabelAgeAll) {
 			t.Fatalf("%s: rows=%+v", locale, rows)
 		}
 	}
@@ -132,5 +132,31 @@ func TestNetUnitVocabulary(t *testing.T) {
 		if unit.Known() {
 			t.Errorf("unknown unit %q accepted", unit)
 		}
+	}
+}
+
+func TestDomesticPartyCaptionsIdentifyTheDomesticContact(t *testing.T) {
+	t.Parallel()
+	facts := Facts{DomesticPartyName: "Maker", DomesticPartyPhone: "0123456789", DomesticPartyAddress: "Address"}
+	for _, tc := range []struct {
+		locale   i18n.Locale
+		captions []string
+	}{
+		{locale: i18n.ZhHant, captions: []string{"國內負責廠商名稱", "國內負責廠商電話", "國內負責廠商地址"}},
+		{locale: i18n.En, captions: []string{"Domestic responsible party name", "Domestic responsible party phone", "Domestic responsible party address"}},
+	} {
+		t.Run(string(tc.locale), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tc.locale)
+			rows := facts.Rows(ctx)
+			if len(rows) != len(tc.captions) {
+				t.Fatalf("domestic facts=%v, want three contact rows", rows)
+			}
+			for i, row := range rows {
+				if got := i18n.T(ctx, row.Term); got != tc.captions[i] {
+					t.Errorf("domestic caption=%q, want %q", got, tc.captions[i])
+				}
+			}
+		})
 	}
 }

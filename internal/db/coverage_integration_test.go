@@ -646,7 +646,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		// Responsible-party contacts are shop-authored public label facts, not customer contact records.
 		"products": {[]string{"description", "description_en", "name", "name_en", "slug",
 			"status", "summary", "summary_en", "warranty_note", "origin", "origin_en",
-			"responsible_party_name", "responsible_party_phone", "responsible_party_address", "net_unit"}, published},
+			"domestic_party_name", "domestic_party_phone", "domestic_party_address", "net_unit"}, published},
 		"promo_banners": {[]string{"code", "cta_href", "cta_label", "cta_label_en", "message",
 			"message_en", "message_short", "message_short_en"}, published},
 		"refunds": {[]string{"provider_ref", "reason", "request_key", "status"},

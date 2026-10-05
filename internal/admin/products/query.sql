@@ -22,9 +22,9 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
        p.brand_id, p.category_id,
        coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
-       coalesce(p.responsible_party_name, '') AS responsible_party_name,
-       coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
-       coalesce(p.responsible_party_address, '') AS responsible_party_address,
+       coalesce(p.domestic_party_name, '') AS domestic_party_name,
+       coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
+       coalesce(p.domestic_party_address, '') AS domestic_party_address,
        coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
        coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p WHERE p.slug = $1;
@@ -284,14 +284,14 @@ ORDER BY pv.sku, o.position, o.id;
 
 -- Lock before reading the label replaced, so the audit records the actual prior facts.
 -- name: LockProductLabel :one
-SELECT id, slug, origin, origin_en, responsible_party_name, responsible_party_phone,
-       responsible_party_address, net_quantity, net_unit, min_age_months
+SELECT id, slug, origin, origin_en, domestic_party_name, domestic_party_phone,
+       domestic_party_address, net_quantity, net_unit, min_age_months
 FROM products WHERE slug = $1 FOR NO KEY UPDATE;
 
 -- name: SetProductLabel :exec
 UPDATE products SET origin = nullif(@origin::text, ''), origin_en = nullif(@origin_en::text, ''),
-    responsible_party_name = nullif(@responsible_party_name::text, ''),
-    responsible_party_phone = nullif(@responsible_party_phone::text, ''),
-    responsible_party_address = nullif(@responsible_party_address::text, ''),
+    domestic_party_name = nullif(@domestic_party_name::text, ''),
+    domestic_party_phone = nullif(@domestic_party_phone::text, ''),
+    domestic_party_address = nullif(@domestic_party_address::text, ''),
     net_quantity = @net_quantity, net_unit = nullif(@net_unit::text, ''), min_age_months = @min_age_months
 WHERE id = @id;

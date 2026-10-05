@@ -17,19 +17,19 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin_en) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Taiwan');`,
 	},
 	{
-		constraint: "products_label_party_name_valid",
-		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',201));`,
-		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Maker');`,
+		constraint: "products_label_domestic_name_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',201));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Maker');`,
 	},
 	{
-		constraint: "products_label_party_phone_valid",
-		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('1',41));`,
-		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '0912345678');`,
+		constraint: "products_label_domestic_phone_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('1',41));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '0912345678');`,
 	},
 	{
-		constraint: "products_label_party_address_valid",
-		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '   ');`,
-		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, responsible_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Address');`,
+		constraint: "products_label_domestic_address_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '   ');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Address');`,
 	},
 	{
 		constraint: "products_label_net_paired",

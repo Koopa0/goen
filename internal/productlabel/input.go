@@ -11,14 +11,14 @@ import (
 )
 
 type Input struct {
-	Origin                  string
-	OriginEn                string
-	ResponsiblePartyName    string
-	ResponsiblePartyPhone   string
-	ResponsiblePartyAddress string
-	NetQuantity             string
-	NetUnit                 NetUnit
-	MinAgeMonths            string
+	Origin               string
+	OriginEn             string
+	DomesticPartyName    string
+	DomesticPartyPhone   string
+	DomesticPartyAddress string
+	NetQuantity          string
+	NetUnit              NetUnit
+	MinAgeMonths         string
 }
 
 type TextField struct {
@@ -35,9 +35,9 @@ func (f *Input) TextFields() []TextField {
 	return []TextField{
 		{Name: "origin", Caption: i18n.KeyProductLabelOrigin, Value: f.Origin, Limit: 100},
 		{Name: "origin_en", Caption: i18n.KeyProductLabelOriginEn, Value: f.OriginEn, Limit: 100},
-		{Name: "responsible_party_name", Caption: i18n.KeyProductLabelResponsiblePartyName, Value: f.ResponsiblePartyName, Limit: 200},
-		{Name: "responsible_party_phone", Caption: i18n.KeyProductLabelResponsiblePartyPhone, Value: f.ResponsiblePartyPhone, Limit: 40},
-		{Name: "responsible_party_address", Caption: i18n.KeyProductLabelResponsiblePartyAddress, Value: f.ResponsiblePartyAddress, Limit: 500},
+		{Name: "domestic_party_name", Caption: i18n.KeyProductLabelDomesticPartyName, Value: f.DomesticPartyName, Limit: 200},
+		{Name: "domestic_party_phone", Caption: i18n.KeyProductLabelDomesticPartyPhone, Value: f.DomesticPartyPhone, Limit: 40},
+		{Name: "domestic_party_address", Caption: i18n.KeyProductLabelDomesticPartyAddress, Value: f.DomesticPartyAddress, Limit: 500},
 	}
 }
 

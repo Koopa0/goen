@@ -165,7 +165,7 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 
 func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
 	view.LabelFacts = &productlabel.Facts{
-		Origin: p.Origin, ResponsiblePartyName: p.ResponsiblePartyName, ResponsiblePartyPhone: p.ResponsiblePartyPhone, ResponsiblePartyAddress: p.ResponsiblePartyAddress,
+		Origin: p.Origin, DomesticPartyName: p.DomesticPartyName, DomesticPartyPhone: p.DomesticPartyPhone, DomesticPartyAddress: p.DomesticPartyAddress,
 		NetQuantity: p.NetQuantity, NetUnit: productlabel.NetUnit(p.NetUnit),
 	}
 	if p.MinAgeMonths.Valid {

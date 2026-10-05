@@ -48,13 +48,13 @@ func (u NetUnit) Symbol(ctx context.Context) string {
 }
 
 type Facts struct {
-	Origin                  string
-	ResponsiblePartyName    string
-	ResponsiblePartyPhone   string
-	ResponsiblePartyAddress string
-	NetQuantity             string
-	NetUnit                 NetUnit
-	MinAgeMonths            *int16
+	Origin               string
+	DomesticPartyName    string
+	DomesticPartyPhone   string
+	DomesticPartyAddress string
+	NetQuantity          string
+	NetUnit              NetUnit
+	MinAgeMonths         *int16
 }
 
 type Fact struct {
@@ -69,9 +69,9 @@ func (f *Facts) Rows(ctx context.Context) []Fact {
 	var rows []Fact
 	for _, r := range []Fact{
 		{Term: i18n.KeyProductLabelOrigin, Value: f.Origin},
-		{Term: i18n.KeyProductLabelResponsiblePartyName, Value: f.ResponsiblePartyName},
-		{Term: i18n.KeyProductLabelResponsiblePartyPhone, Value: f.ResponsiblePartyPhone},
-		{Term: i18n.KeyProductLabelResponsiblePartyAddress, Value: f.ResponsiblePartyAddress},
+		{Term: i18n.KeyProductLabelDomesticPartyName, Value: f.DomesticPartyName},
+		{Term: i18n.KeyProductLabelDomesticPartyPhone, Value: f.DomesticPartyPhone},
+		{Term: i18n.KeyProductLabelDomesticPartyAddress, Value: f.DomesticPartyAddress},
 	} {
 		if r.Value != "" {
 			rows = append(rows, r)
@@ -81,7 +81,11 @@ func (f *Facts) Rows(ctx context.Context) []Fact {
 		rows = append(rows, Fact{Term: i18n.KeyProductLabelNetContent, Value: f.NetQuantity + " " + f.NetUnit.Symbol(ctx)})
 	}
 	if f.MinAgeMonths != nil {
-		rows = append(rows, Fact{Term: i18n.KeyProductLabelMinAge, Value: fmt.Sprintf(i18n.T(ctx, i18n.KeyProductLabelAgeMonths), *f.MinAgeMonths)})
+		value := i18n.T(ctx, i18n.KeyProductLabelAgeAll)
+		if *f.MinAgeMonths != 0 {
+			value = fmt.Sprintf(i18n.T(ctx, i18n.KeyProductLabelAgeMonths), *f.MinAgeMonths)
+		}
+		rows = append(rows, Fact{Term: i18n.KeyProductLabelMinAge, Value: value})
 	}
 	return rows
 }

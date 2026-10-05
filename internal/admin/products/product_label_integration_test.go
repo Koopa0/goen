@@ -62,7 +62,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		}
 	}
 	s := products.NewStore(writer)
-	input := &productlabel.Input{Origin: " 台灣 ", OriginEn: "Taiwan", ResponsiblePartyName: "Maker", ResponsiblePartyPhone: "0912345678", ResponsiblePartyAddress: "Address", NetQuantity: "1.2", NetUnit: productlabel.Piece, MinAgeMonths: "0"}
+	input := &productlabel.Input{Origin: " 台灣 ", OriginEn: "Taiwan", DomesticPartyName: "Maker", DomesticPartyPhone: "0912345678", DomesticPartyAddress: "Address", NetQuantity: "1.2", NetUnit: productlabel.Piece, MinAgeMonths: "0"}
 	if err = s.SetProductLabel(ctx, slug, input); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		t.Fatalf("cleared public facts=%+v: %v", pdp.LabelFacts, err)
 	}
 	var allNull bool
-	if err = owner.QueryRow(ctx, `SELECT origin IS NULL AND origin_en IS NULL AND responsible_party_name IS NULL AND responsible_party_phone IS NULL AND responsible_party_address IS NULL AND net_quantity IS NULL AND net_unit IS NULL AND min_age_months IS NULL FROM products WHERE id=$1`, id).Scan(&allNull); err != nil || !allNull {
+	if err = owner.QueryRow(ctx, `SELECT origin IS NULL AND origin_en IS NULL AND domestic_party_name IS NULL AND domestic_party_phone IS NULL AND domestic_party_address IS NULL AND net_quantity IS NULL AND net_unit IS NULL AND min_age_months IS NULL FROM products WHERE id=$1`, id).Scan(&allNull); err != nil || !allNull {
 		t.Fatalf("clear fields all null=%v: %v", allNull, err)
 	}
 	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{OriginEn: "Taiwan"}); err != nil {
@@ -253,7 +253,7 @@ func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 			mux := http.NewServeMux()
 			admintest.ProductDesk(owner, products.NewStore(writer)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Taiwan&responsible_party_name=Retained+maker"))
+				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Taiwan&domestic_party_name=Retained+maker"))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				response := httptest.NewRecorder()
 				mux.ServeHTTP(response, req)
@@ -271,7 +271,7 @@ func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 				}
 			}
 			var unchanged bool
-			if err := owner.QueryRow(ctx, `SELECT origin IS NULL AND responsible_party_name IS NULL FROM products WHERE slug=$1`, slug).Scan(&unchanged); err != nil || !unchanged {
+			if err := owner.QueryRow(ctx, `SELECT origin IS NULL AND domestic_party_name IS NULL FROM products WHERE slug=$1`, slug).Scan(&unchanged); err != nil || !unchanged {
 				t.Fatalf("refused facts changed: unchanged=%v: %v", unchanged, err)
 			}
 			if n := admintest.AuditRows(t, owner, audit.ActionSetProductLabel); n != 0 {

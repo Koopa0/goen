@@ -509,30 +509,30 @@ type PaymentWebhookEvent struct {
 }
 
 type Product struct {
-	ID                      uuid.UUID
-	BrandID                 uuid.NullUUID
-	CategoryID              uuid.UUID
-	Slug                    string
-	Name                    string
-	Summary                 pgtype.Text
-	Description             string
-	NameEn                  pgtype.Text
-	SummaryEn               pgtype.Text
-	DescriptionEn           pgtype.Text
-	WarrantyNote            pgtype.Text
-	WarrantyMonths          pgtype.Int4
-	Status                  string
-	PublishedAt             pgtype.Timestamptz
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
-	Origin                  pgtype.Text
-	OriginEn                pgtype.Text
-	ResponsiblePartyName    pgtype.Text
-	ResponsiblePartyPhone   pgtype.Text
-	ResponsiblePartyAddress pgtype.Text
-	NetQuantity             pgtype.Numeric
-	NetUnit                 pgtype.Text
-	MinAgeMonths            pgtype.Int2
+	ID                   uuid.UUID
+	BrandID              uuid.NullUUID
+	CategoryID           uuid.UUID
+	Slug                 string
+	Name                 string
+	Summary              pgtype.Text
+	Description          string
+	NameEn               pgtype.Text
+	SummaryEn            pgtype.Text
+	DescriptionEn        pgtype.Text
+	WarrantyNote         pgtype.Text
+	WarrantyMonths       pgtype.Int4
+	Status               string
+	PublishedAt          pgtype.Timestamptz
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	Origin               pgtype.Text
+	OriginEn             pgtype.Text
+	DomesticPartyName    pgtype.Text
+	DomesticPartyPhone   pgtype.Text
+	DomesticPartyAddress pgtype.Text
+	NetQuantity          pgtype.Numeric
+	NetUnit              pgtype.Text
+	MinAgeMonths         pgtype.Int2
 }
 
 type ProductAnswer struct {
