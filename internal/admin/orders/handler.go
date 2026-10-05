@@ -57,6 +57,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	if health, err := h.store.HealthTasks(r.Context()); err != nil {
 		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
+		view.HealthUnavailable = true
 	} else {
 		view.Tasks = append(health, view.Tasks...)
 	}
