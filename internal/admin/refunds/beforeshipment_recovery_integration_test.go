@@ -46,6 +46,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	wantSettled := refundCompletionFacts{
 		OrderStatus: "picking", ReturnStatus: "approved", CardCents: 900000, CardRows: 1,
 		CreditCents: 300000, CreditRows: 1, ClawedPoints: -120, Clawbacks: 1,
+		FrozenCardCents: 900000, FrozenCreditCents: 300000,
 		RefundedEvents: 1, Held: 1, Stock: stockHeld,
 	}
 	barrier := &refundFinisherBarrier{number: number, before: func() {
@@ -56,8 +57,8 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 		if got := sent.Load(); got != 1 {
 			t.Fatalf("provider calls before finishing = %d, want 1", got)
 		}
-		if _, err := blocker.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); err != nil {
-			t.Fatalf("hold the settled order: %v", err)
+		if _, lockErr := blocker.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); lockErr != nil {
+			t.Fatalf("hold the settled order: %v", lockErr)
 		}
 	}}
 	adminPool := refundCompletionPool(t, barrier)
@@ -66,6 +67,9 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	handler := refunds.NewHandler(store, nil, slog.New(diagnostic))
 
 	first := postRefundCompletion(ctx, handler, number, true)
+	if requestErr := ctx.Err(); requestErr != nil {
+		t.Fatalf("caller context after finishing = %v, want live after the database lock timeout", requestErr)
+	}
 	if !barrier.entered.Load() || !admintest.LockTimedOut(barrier.queryErr) {
 		t.Fatalf("finishing query = entered %v, error %v, want the post-settlement lock timeout",
 			barrier.entered.Load(), barrier.queryErr)
@@ -80,8 +84,8 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	if diff := cmp.Diff(wantSettled, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("failed finishing changed settled facts (-want +got):\n%s", diff)
 	}
-	if err := blocker.Commit(ctx); err != nil {
-		t.Fatalf("release finishing barrier: %v", err)
+	if releaseErr := blocker.Commit(ctx); releaseErr != nil {
+		t.Fatalf("release finishing barrier: %v", releaseErr)
 	}
 
 	preview, err := store.RefundPreview(ctx, number)
@@ -207,7 +211,7 @@ type refundCompletionLog struct{ err error }
 
 func (*refundCompletionLog) Enabled(context.Context, slog.Level) bool { return true }
 
-func (l *refundCompletionLog) Handle(_ context.Context, record slog.Record) error {
+func (l *refundCompletionLog) Handle(_ context.Context, record slog.Record) error { //nolint:gocritic // slog.Handler requires a record value.
 	record.Attrs(func(attr slog.Attr) bool {
 		if attr.Key == "error" {
 			l.err, _ = attr.Value.Any().(error)
@@ -221,6 +225,7 @@ func (l *refundCompletionLog) WithAttrs([]slog.Attr) slog.Handler { return l }
 func (l *refundCompletionLog) WithGroup(string) slog.Handler      { return l }
 
 type refundCompletionFacts struct {
+	FrozenCardCents, FrozenCreditCents                             int64
 	OrderStatus, ReturnStatus                                      string
 	CardCents, CardRows, CreditCents, CreditRows                   int64
 	ClawedPoints, Clawbacks, CancelClawbacks, CreditReversals      int64
@@ -233,7 +238,7 @@ func readRefundCompletionFacts(t *testing.T, orderID, variantID uuid.UUID) refun
 	t.Helper()
 	var facts refundCompletionFacts
 	if err := pool.QueryRow(t.Context(), `
-		SELECT o.fulfillment_status, r.status,
+		SELECT o.fulfillment_status, r.status, r.card_refund_cents, r.credit_refund_cents,
 		  (SELECT coalesce(sum(amount_cents), 0) FROM refunds WHERE return_request_id = r.id AND status = 'succeeded'),
 		  (SELECT count(*) FROM refunds WHERE return_request_id = r.id),
 		  (SELECT coalesce(sum(amount_cents), 0) FROM store_credit_entries WHERE idempotency_key = 'return-credit:' || r.id::text),
@@ -253,7 +258,8 @@ func readRefundCompletionFacts(t *testing.T, orderID, variantID uuid.UUID) refun
 		  (SELECT stock_quantity FROM product_variants WHERE id = $2)
 		FROM orders o JOIN return_requests r ON r.order_id = o.id AND r.before_shipment
 		WHERE o.id = $1`, orderID, variantID).Scan(
-		&facts.OrderStatus, &facts.ReturnStatus, &facts.CardCents, &facts.CardRows, &facts.CreditCents, &facts.CreditRows,
+		&facts.OrderStatus, &facts.ReturnStatus, &facts.FrozenCardCents, &facts.FrozenCreditCents,
+		&facts.CardCents, &facts.CardRows, &facts.CreditCents, &facts.CreditRows,
 		&facts.ClawedPoints, &facts.Clawbacks, &facts.CancelClawbacks, &facts.CreditReversals,
 		&facts.RefundedEvents, &facts.CancelledEvents, &facts.CancelAudits, &facts.TerminalNotices,
 		&facts.Held, &facts.Released, &facts.ReleaseMoves, &facts.Restocks, &facts.Stock); err != nil {
