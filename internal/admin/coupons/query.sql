@@ -1,3 +1,6 @@
+-- Usage is counted exactly as redeem_coupon counts it for
+-- coupon_within_total_limit: redemptions whose order is not cancelled.
+-- Change this and redeem_coupon together.
 -- name: AdminCoupons :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
