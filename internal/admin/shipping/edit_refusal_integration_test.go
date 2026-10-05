@@ -152,6 +152,11 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	if res := post(url.Values{"version": {versionID.String()}, "zone": {uuid.NewString()}, "amount": {"bad"}}, "/admin/shipping/surcharge", i18n.En); res.Code != http.StatusNotFound {
 		t.Errorf("unknown zone status=%d, want 404", res.Code)
 	}
+	for _, version := range []string{"not a version", uuid.NewString()} {
+		if res := post(url.Values{"version": {version}, "zone": {zoneID.String()}, "amount": {"bad"}}, "/admin/shipping/surcharge", i18n.En); res.Code != http.StatusNotFound {
+			t.Errorf("unknown version status=%d, want 404", res.Code)
+		}
+	}
 	after, readErr := s.Configuration(ctx)
 	if readErr != nil {
 		t.Fatal(readErr)
