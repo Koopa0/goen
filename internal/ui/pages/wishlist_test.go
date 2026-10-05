@@ -231,18 +231,17 @@ func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
 		t.Error("a sold-out product offers a way to buy")
 	}
 
-	text := func(n *html.Node) string {
-		stock := findDescendant(n, func(n *html.Node) bool { return n.Data == "p" && hasClass(n, "goen-wish__stock") })
-		if stock == nil {
-			t.Fatal("a row has no stock note")
-		}
-		return nodeText(stock)
+	stock := func(n *html.Node) *html.Node {
+		return findDescendant(n, func(n *html.Node) bool { return n.Data == "p" && hasClass(n, "goen-wish__stock") })
 	}
-	if got := text(items[0]); !strings.Contains(got, i18n.T(ctx, i18n.KeyInStock)) {
-		t.Errorf("in-stock note = %q", got)
+	if got := stock(items[0]); got == nil || !strings.Contains(nodeText(got), i18n.T(ctx, i18n.KeyInStock)) {
+		t.Error("an in-stock row lost its stock note")
 	}
-	if got := text(items[2]); !strings.Contains(got, i18n.T(ctx, i18n.KeySoldOut)) {
-		t.Errorf("sold-out note = %q", got)
+	if got := strings.Count(nodeText(items[2]), i18n.T(ctx, i18n.KeySoldOut)); got != 1 {
+		t.Errorf("a sold-out row says %q %d times, want once (the tile's badge)", i18n.T(ctx, i18n.KeySoldOut), got)
+	}
+	if stock(items[2]) != nil {
+		t.Error("a sold-out row repeats it under the tile")
 	}
 }
 

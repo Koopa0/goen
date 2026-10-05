@@ -41,7 +41,7 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != (len(tc.selected) > 0) {
 					t.Errorf("variant-selection hint visible = %t, want %t", got, len(tc.selected) > 0)
 				}
-				if !strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOut)) {
+				if !strings.Contains(markup, i18n.T(ctx, i18n.KeySoldOut)) {
 					t.Error("sold-out guidance is missing")
 				}
 				doc, err := html.Parse(strings.NewReader(markup))
@@ -469,16 +469,37 @@ func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *
 	}
 }
 
+func TestSoldOutAndRestockWording(t *testing.T) {
+	t.Parallel()
+	zh := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	en := i18n.WithLocale(t.Context(), i18n.En)
+	for key, want := range map[i18n.Key][2]string{
+		i18n.KeySoldOut:       {"已售完", "Sold out"},
+		i18n.KeyRestockSubmit: {"有貨時通知我", "Notify me"},
+	} {
+		if got := i18n.T(zh, key); got != want[0] {
+			t.Errorf("zh-Hant = %q, want %q", got, want[0])
+		}
+		if got := i18n.T(en, key); got != want[1] {
+			t.Errorf("en = %q, want %q", got, want[1])
+		}
+	}
+}
+
 func TestEverySoldOutIsSaidOnce(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ProductView{
-		Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1",
-		Options: []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑"}}}},
-	}
-	got := renderProduct(t, &view, i18n.ZhHant)
-	if n := strings.Count(got, i18n.T(ctx, i18n.KeyAllSoldOut)); n != 1 {
-		t.Errorf("%q appears %d times, want once", i18n.T(ctx, i18n.KeyAllSoldOut), n)
+	options := []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑"}}}}
+	for name, view := range map[string]ProductView{
+		"every option gone":    {Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1", Options: options},
+		"one combination gone": {Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1", Exact: true, AnySellable: true, Options: options},
+	} {
+		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			want := i18n.T(ctx, i18n.KeySoldOut)
+			if got := strings.Count(renderProduct(t, &view, locale), want); got != 1 {
+				t.Errorf("%s (%s): %q appears %d times, want once", name, locale, want, got)
+			}
+		}
 	}
 }
 
