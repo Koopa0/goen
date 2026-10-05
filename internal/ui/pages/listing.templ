@@ -47,18 +47,6 @@ templ Listing(p layouts.Page, v ListingView) {
 					/>
 				}
 			</div>
-			if len(v.Featured()) > 0 {
-				// The lead row sits outside the layout the gate reads as rail and results; its
-				// compare boxes join the grid's form by id.
-				<section class="goen-featured" aria-labelledby="featured-heading">
-					<h2 class="goen-sr-only" id="featured-heading">{ i18n.T(ctx, i18n.KeyFeaturedHeading) }</h2>
-					<ul class="goen-featured__grid" role="list">
-						for _, t := range v.Featured() {
-							@Tile(t)
-						}
-					</ul>
-				</section>
-			}
 			<div class="goen-listing__layout">
 				@listingFilters(v)
 				<div class="goen-listing__main">
@@ -81,7 +69,7 @@ templ Listing(p layouts.Page, v ListingView) {
 						} else {
 							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 							<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
-							@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
+							@compareForm(AnyComparable(v.Grid())) {
 								<ul class="goen-tiles__grid" role="list">
 									for _, t := range v.Grid() {
 										@Tile(t)
