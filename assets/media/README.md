@@ -8,7 +8,7 @@ versioned `/static/` asset handler.
 - `campaign-banner-01.webp` (1600x600) is in `products/` because a campaign's
   `image_key` is resolved by the same function as a product image's storage key.
 - `hero/` contains home-page hero artwork (1440x720, 2:1).
-- `promo/` holds banner photographs (1600 and `-800`); `products/campaign-*.webp` are
+- `promo/` holds promotional photographs (1600 and `-800`); `products/campaign-*.webp` are
   campaign headers (1600x600). `products/department-<slug>.webp` (800px, with a
   `-400` rendition) are the department photographs, in `products/` because a
   department's `image_key` is resolved like a product's storage key, which names

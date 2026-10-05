@@ -104,8 +104,6 @@ const productMediaPrefix = "media/products/"
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
-	PromoDesk,
-	PromoDesk800,
 	"media/promo/promo-morning-table.webp",
 	"media/promo/promo-morning-table-800.webp",
 	"media/products/campaign-autumn.webp",
@@ -215,17 +213,6 @@ func URL(name string) string {
 func Has(name string) bool {
 	_, ok := catalogue.digests[name]
 	return ok
-}
-
-// PromoDesk is the home page's promotional band photograph; its -800 rendition
-// sits beside it.
-const (
-	PromoDesk    = "media/promo/promo-desk.webp"
-	PromoDesk800 = "media/promo/promo-desk-800.webp"
-)
-
-func PromoDeskSrcset() string {
-	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
 }
 
 func rendition(name string, width int) string {
