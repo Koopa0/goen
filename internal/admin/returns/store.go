@@ -705,6 +705,13 @@ func (s *Store) Inspect(
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
+	// The order before any line, as every return write takes them: each line's
+	// UPDATE locks the line and then, in return_within_shipment, the order, so
+	// two inspections naming the lines in different orders would each hold a
+	// line the other waits for.
+	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
+		return fmt.Errorf("%w: lock return order for inspection: %w", ErrRefused, lockErr)
+	}
 
 	for _, l := range lines {
 		n, inspectErr := q.InspectReturnLine(ctx, db.InspectReturnLineParams{
