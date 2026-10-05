@@ -62,6 +62,32 @@ func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 	}
 }
 
+// TestAdvanceAnswersALockTimeoutAsAFailure: the order's row lock timing out is
+// the database not answering, and telling staff the rules refused a move that
+// was never evaluated sends them to look for a rule instead of retrying.
+func TestAdvanceAnswersALockTimeoutAsAFailure(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	number := admintest.PlaceUnpaidOrder(t, pool)
+	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.Refunder{}, nil, nil)
+	admintest.HoldRow(t, pool, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number)
+
+	_, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
+	if errors.Is(err, orders.ErrRefused) || !admintest.LockTimedOut(err) {
+		t.Fatalf("Advance(%s) behind a held row lock = %v, want lock_not_available (55P03) and not ErrRefused", number, err)
+	}
+
+	form := url.Values{"status": {string(order.FulfillmentCancelled)}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/orders/"+number+"/status", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("number", number)
+	rec := httptest.NewRecorder()
+	admintest.OrderDesk(s).Advance(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("POST status behind a held row lock = %d %s, want 500", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
 func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
