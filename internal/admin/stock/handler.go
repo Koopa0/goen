@@ -285,6 +285,6 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
-		h.rejectArrival(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
