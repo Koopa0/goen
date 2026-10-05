@@ -2628,7 +2628,7 @@ if (forcedColoursMissing.length === 0) {
           for (const name of groups) {
             const got = await evalPage(`(${measureChooserStates.toString()})(${JSON.stringify(name)})`);
             console.log('forced colours chooser ' + JSON.stringify({ palette, locale, path, ...got }));
-            if (got.threw || got.error || !got.forced) {
+            if (got.threw || got.error || !got.forced || got.scheme !== palette) {
               fail('forced colours chooser', got.why || got.error || 'forced-colors did not activate');
             } else {
               for (const choice of got.results) {
@@ -2648,7 +2648,7 @@ if (forcedColoursMissing.length === 0) {
           await settled(ws, 'forced colours swatch chosen', swatchURL);
           const got = await evalPage(`(${measureSwatchState.toString()})()`);
           console.log('forced colours swatch ' + JSON.stringify({ palette, locale, ...got }));
-          if (got.threw || got.error || !got.forced || !got.distinct) {
+          if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
             fail('forced colours swatch', got.why || got.error || 'selected text swatch has no distinct visible cue');
           } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none' || !(got.contrast >= 3)) {
             fail('forced colours swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
@@ -2662,7 +2662,7 @@ if (forcedColoursMissing.length === 0) {
           await settled(ws, 'forced colours chosen colour', colourURL);
           const got = await evalPage(`(${measureSwatchState.toString()})(true)`);
           console.log('forced colours colour swatch ' + JSON.stringify({ palette, locale, ...got }));
-          if (got.threw || got.error || !got.forced || !got.distinct) {
+          if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
             fail('forced colours colour swatch', got.why || got.error || 'selected colour swatch has no distinct visible cue');
           } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none' || !(got.contrast >= 3)) {
             fail('forced colours colour swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
