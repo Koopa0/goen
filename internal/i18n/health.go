@@ -88,9 +88,10 @@ var (
 	})
 
 	// This column is available_at: when the message next becomes DUE, pushed
-	// forward by every claim and backoff. outbox_messages has no created_at, so
-	// "how long has this been broken" is not computable and must not be claimed.
-	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "下次重試", En: "Next retry"})
+	// forward by every claim and backoff. No column records when a message became
+	// stuck (created_at is when it was queued), so the page must not claim how
+	// long it has been broken.
+	KeyAdminHPColNextRetry = key("admin.hp.col.nextretry", Message{ZhHant: "下次重試", En: "Next retry"})
 
 	KeyAdminHPPoolsHeading = key("admin.hp.pools.heading", Message{
 		ZhHant: "資料庫連線池",
