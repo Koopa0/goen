@@ -8657,9 +8657,8 @@ const lockShippingZone = `-- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE
 `
 
-// Refuses a zone that does not exist, even with an empty list, and holds off
-// DeleteZone until the set is written; otherwise the delete would fail its FK
-// check mid-save.
+// Refuses a zone that does not exist, even with an empty list, and serialises
+// whole-set edits of one zone.
 func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockShippingZone, zoneID)
 	var id uuid.UUID

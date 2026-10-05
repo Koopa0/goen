@@ -109,9 +109,8 @@ VALUES (@code::text, @name::text, nullif(@name_en::text, ''),
         coalesce((SELECT max(position) FROM shipping_zones), 0) + 1)
 RETURNING id;
 
--- Refuses a zone that does not exist, even with an empty list, and holds off
--- DeleteZone until the set is written; otherwise the delete would fail its FK
--- check mid-save.
+-- Refuses a zone that does not exist, even with an empty list, and serialises
+-- whole-set edits of one zone.
 -- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = @zone_id FOR UPDATE;
 
