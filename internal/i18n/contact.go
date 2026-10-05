@@ -58,7 +58,7 @@ var (
 
 	KeySubjectOrder = key("contact.subject.order", Message{ZhHant: "訂單問題", En: "An order"})
 
-	KeySubjectReturns = key("contact.subject.returns", Message{ZhHant: "退換貨", En: "Returns or exchanges"})
+	KeySubjectReturns = key("contact.subject.returns", Message{ZhHant: "退貨", En: "Returns"})
 
 	KeySubjectWarranty = key("contact.subject.warranty", Message{ZhHant: "保固維修", En: "Warranty or repair"})
 
