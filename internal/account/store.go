@@ -595,8 +595,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress clears the previous default in the same transaction:
-// addresses_one_default_per_user is a unique partial index.
+// AddAddress retries the transaction because concurrent clears can both see
+// no default before one writer reaches the unique index.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -612,6 +612,18 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	}
 	a = &bounded
 
+	for {
+		err := s.addAddress(ctx, id, a)
+		if !defaultAddressConflict(err) {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("retry add address: %w", err)
+		}
+	}
+}
+
+func (s *Store) addAddress(ctx context.Context, id uuid.UUID, a *Address) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin add address: %w", err)
@@ -678,6 +690,23 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 		return ErrNotFound
 	}
 
+	for {
+		err := s.makeDefaultAddress(ctx, uid, aid)
+		if !defaultAddressConflict(err) {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("retry set default address: %w", err)
+		}
+	}
+}
+
+func defaultAddressConflict(err error) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == "23505" && pgErr.ConstraintName == "addresses_one_default_per_user"
+}
+
+func (s *Store) makeDefaultAddress(ctx context.Context, uid, aid uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin set default address: %w", err)
