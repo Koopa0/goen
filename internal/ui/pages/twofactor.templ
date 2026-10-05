@@ -53,6 +53,7 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 							<code class="goen-twofa__uri">{ v.URI }</code>
 						</div>
 					</details>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyTwoFAEnrolMailed) }</p>
 					<form class="goen-twofa__form" method="post" action="/admin/verify/confirm">
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "code"}) {
@@ -68,6 +69,23 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 									"inputmode":    "numeric",
 									"maxlength":    "8",
 									"pattern":      "[0-9 ]{6,8}",
+									"required":     true,
+								},
+							})
+						</div>
+						<div class="goen-admin__field">
+							@components.Label(components.LabelProps{For: "mailed_code"}) {
+								{ i18n.T(ctx, i18n.KeyTwoFAEnrolMailedCode) }
+							}
+							@components.Input(components.FieldProps{
+								ID:    "mailed_code",
+								Name:  "mailed_code",
+								Class: "goen-twofa__code",
+								Attrs: templ.Attributes{
+									"autocomplete": "off",
+									"inputmode":    "numeric",
+									"maxlength":    "8",
+									"pattern":      "[0-9]{8}",
 									"required":     true,
 								},
 							})

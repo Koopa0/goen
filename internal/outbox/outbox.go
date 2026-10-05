@@ -47,6 +47,7 @@ var (
 	TopicNewsletterIssue = topic[email.NewsletterIssue]("newsletter.issue")
 	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
 	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
+	TopicStaffEnrolment  = topic[email.StaffEnrolment]("staff.enrolment")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
