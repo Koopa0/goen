@@ -13,11 +13,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -561,5 +563,89 @@ func TestTheRequestCarriesTheCallersDeadline(t *testing.T) {
 	}
 	if len(*log) != 0 {
 		t.Errorf("made %d requests on a cancelled context, want 0", len(*log))
+	}
+}
+
+func TestCheckoutItemizationRespectsTheProviderLineLimit(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		products int
+		owed     int64
+		items    int
+	}{
+		{name: "99 goods", products: 99, owed: 990000, items: 99},
+		{name: "100 goods", products: 100, owed: 1000000, items: 100},
+		{name: "101 goods", products: 101, owed: 1010000, items: 1},
+		{name: "98 goods plus shipping", products: 98, owed: 985000, items: 99},
+		{name: "99 goods plus shipping", products: 99, owed: 995000, items: 100},
+		{name: "100 goods plus shipping", products: 100, owed: 1005000, items: 1},
+		{name: "101 goods plus shipping", products: 101, owed: 1015000, items: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, log := stripeAt(t, func(c *call) (int, string) {
+				var items int
+				for key := range c.form {
+					if strings.HasPrefix(key, "line_items[") && strings.HasSuffix(key, "][quantity]") {
+						items++
+					}
+				}
+				if items > 100 {
+					return http.StatusBadRequest, `{"error":{"type":"invalid_request_error","message":"At most 100 line items are allowed"}}`
+				}
+				return http.StatusOK, `{"id":"cs_item_limit","object":"checkout.session","status":"open"}`
+			})
+			o := &Order{
+				Number: "GO-260806-000099", TotalCents: tt.owed,
+				HoldExpiresAt: time.Unix(2000000000, 0),
+			}
+			for i := range tt.products {
+				o.Lines = append(o.Lines, Line{Name: fmt.Sprintf("Product %d", i), UnitCents: 10000, Quantity: 1})
+			}
+			before := *o
+			before.Lines = slices.Clone(o.Lines)
+			if _, err := g.StartSession(i18n.WithLocale(t.Context(), i18n.En), o, 0); err != nil {
+				t.Fatalf("StartSession(%s) = %v, want a session within the provider limit", tt.name, err)
+			}
+			if len(*log) != 1 {
+				t.Fatalf("provider requests = %d, want 1", len(*log))
+			}
+			form := (*log)[0].form
+			var count int
+			var total int64
+			for i := 0; ; i++ {
+				prefix := fmt.Sprintf("line_items[%d]", i)
+				amount := form.Get(prefix + "[price_data][unit_amount]")
+				if amount == "" {
+					break
+				}
+				unit, err := strconv.ParseInt(amount, 10, 64)
+				if err != nil {
+					t.Fatal(err)
+				}
+				quantity, err := strconv.ParseInt(form.Get(prefix+"[quantity]"), 10, 64)
+				if err != nil {
+					t.Fatal(err)
+				}
+				total += unit * quantity
+				count++
+				if got := form.Get(prefix + "[price_data][currency]"); got != "twd" {
+					t.Errorf("currency = %q, want twd", got)
+				}
+			}
+			if count != tt.items || total != tt.owed {
+				t.Errorf("provider itemization = (%d lines, %d owed), want (%d, %d)", count, total, tt.items, tt.owed)
+			}
+			if tt.items == 1 {
+				if name := form.Get("line_items[0][price_data][product_data][name]"); name != "Order GO-260806-000099" {
+					t.Errorf("collapsed line name = %q, want Order GO-260806-000099", name)
+				}
+			}
+			if form.Get("payment_method_types[0]") != "card" || form.Get("payment_method_types[1]") != "" || form.Get("expires_at") != "2000000000" {
+				t.Error("itemization changed the card-only method pin or stock-hold expiry")
+			}
+			if diff := cmp.Diff(before, *o, cmp.AllowUnexported(Order{})); diff != "" {
+				t.Errorf("internal order changed during payment representation (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
