@@ -393,6 +393,7 @@
   function requestFeedback() {
     const pending = new Map();
     const requests = new WeakMap();
+    const latestFilters = new WeakMap();
     const restoreAttribute = (element, name, value) => {
       if (value === null) element.removeAttribute(name);
       else element.setAttribute(name, value);
@@ -424,7 +425,10 @@
       if (!(form instanceof HTMLFormElement)) return;
       // The filter form lets the latest change replace the one in flight
       // (hx-sync), which this guard would cancel as a repeated press.
-      if (form.matches(".goen-filters")) return;
+      if (form.matches(".goen-filters")) {
+        latestFilters.set(form, ctx);
+        return;
+      }
       // Do not delete the isConnected clause: a second press queues behind the
       // first, whose response swaps the form out of the page, and htmx then
       // issues the queued request from that detached form, where nothing is
@@ -438,12 +442,13 @@
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
-      // A failed filter update swaps nothing, so say so beside the filters. One
-      // replaced by a newer change has no response and is not a failure.
-      if (ctx?.sourceElement?.matches?.(".goen-filters")) {
+      const filter = ctx?.request?.form;
+      // Replacement aborts the older request before its finally event. Only
+      // the latest request may explain whether these controls loaded results.
+      if (filter?.matches?.(".goen-filters") && latestFilters.get(filter) === ctx) {
         const note = document.querySelector(".goen-filters__error");
-        const raw = ctx.response?.raw;
-        if (note && raw) note.hidden = raw.ok;
+        if (note) note.hidden = ctx.response?.raw?.ok === true;
+        latestFilters.delete(filter);
       }
       const form = requests.get(ctx);
       if (!form) return;

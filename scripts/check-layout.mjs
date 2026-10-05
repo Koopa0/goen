@@ -1253,6 +1253,135 @@ for (const locale of ['zh-Hant', 'en']) {
   await proveListingFilterJourney(`listing audio journey ${locale}`, locale);
 }
 
+// Fault the fetch boundary while letting vendored htmx issue, time out, replace
+// and settle its own requests. Fabricated lifecycle events would miss the race.
+async function proveListingTransportFeedback(label) {
+  const result = await evalPage(`(async () => {
+    const box = document.querySelector('.goen-filters input[name="in_stock"]');
+    const form = box?.form;
+    const note = document.querySelector('.goen-filters__error');
+    if (!box || !form || !note) return { ok: false, why: 'filter feedback landmarks missing' };
+    const originalFetch = window.fetch;
+    const originalTimeout = htmx.config.defaultTimeout;
+    const requests = [];
+    const finished = new Map();
+    const releases = [];
+    let mode = 'reject';
+    const waitFor = async (predicate, why) => {
+      const deadline = Date.now() + 15000;
+      while (!predicate()) {
+        if (Date.now() >= deadline) throw new Error(why);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+    };
+    const watchRequest = event => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form === form) requests.push(ctx);
+    };
+    const watchFinish = event => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form === form) finished.set(ctx, { hidden: note.hidden });
+    };
+    document.addEventListener('htmx:before:request', watchRequest);
+    document.addEventListener('htmx:finally:request', watchFinish);
+    window.fetch = (url, options) => {
+      if (!options?.headers?.['HX-Request'] || !String(url).includes('/c/audio')) return originalFetch(url, options);
+      if (mode === 'real') return originalFetch(url, options);
+      if (mode === 'reject') return Promise.reject(new TypeError('layout transport rejection'));
+      return new Promise((resolve, reject) => {
+        const abort = () => reject(new DOMException('layout request aborted', 'AbortError'));
+        options.signal.addEventListener('abort', abort, { once: true });
+        releases.push(() => {
+          options.signal.removeEventListener('abort', abort);
+          if (options.signal.aborted) abort();
+          else resolve(originalFetch(url, options));
+        });
+        if (options.signal.aborted) abort();
+      });
+    };
+    const change = async () => {
+      const count = requests.length;
+      box.focus();
+      box.click();
+      await waitFor(() => requests.length > count, 'filter request did not start');
+      return requests[count];
+    };
+    const cases = [];
+    const failure = async (kind) => {
+      mode = kind;
+      htmx.config.defaultTimeout = kind === 'timeout' ? 100 : originalTimeout;
+      const before = document.getElementById('listing-results');
+      const html = before?.innerHTML;
+      const wasChecked = box.checked;
+      const ctx = await change();
+      await waitFor(() => finished.has(ctx), kind + ' request did not finish');
+      const message = (note.textContent || '').trim();
+      const english = 'We cannot show the product list right now. Please try again shortly.';
+      const localized = document.documentElement.lang === 'en' ? message === english : message.length > 0 && message !== english;
+      const stale = document.getElementById('listing-results') === before && before.innerHTML === html;
+      const focused = document.activeElement === box;
+      const changed = box.checked !== wasChecked;
+      const visible = !note.hidden && getComputedStyle(note).display !== 'none' && note.getAttribute('role') === 'alert';
+      const noResponse = !ctx.response;
+      const aborted = ctx.request.signal.aborted;
+      cases.push({ name: kind, ok: stale && focused && changed && visible && localized && noResponse && (kind !== 'timeout' || aborted), stale, focused, changed, visible, localized, noResponse, aborted });
+      mode = 'real';
+      htmx.config.defaultTimeout = originalTimeout;
+      const recovery = await change();
+      await waitFor(() => finished.has(recovery), kind + ' recovery did not finish');
+      const swapped = document.getElementById('listing-results') !== before;
+      const cleared = note.hidden;
+      const focusKept = document.activeElement === box;
+      cases.push({ name: kind + ' recovery', ok: recovery.response?.raw?.ok === true && swapped && cleared && focusKept, swapped, cleared, focusKept });
+    };
+    try {
+      await failure('reject');
+      await failure('timeout');
+      mode = 'hold';
+      htmx.config.defaultTimeout = 15000;
+      const before = document.getElementById('listing-results');
+      const older = await change();
+      const newer = await change();
+      await waitFor(() => finished.has(older), 'superseded request did not finish');
+      const quiet = finished.get(older).hidden && note.hidden;
+      const stale = document.getElementById('listing-results') === before;
+      const superseded = older.request.signal.aborted && !older.response && !finished.has(newer);
+      cases.push({ name: 'supersession', ok: quiet && stale && superseded, quiet, stale, superseded });
+      releases.at(-1)();
+      await waitFor(() => finished.has(newer), 'replacement request did not finish');
+      const swapped = document.getElementById('listing-results') !== before;
+      const focused = document.activeElement === box;
+      cases.push({ name: 'replacement success', ok: newer.response?.raw?.ok === true && swapped && note.hidden && focused, swapped, hidden: note.hidden, focused });
+      return { ok: cases.every(test => test.ok), cases };
+    } finally {
+      window.fetch = originalFetch;
+      htmx.config.defaultTimeout = originalTimeout;
+      for (const ctx of requests) if (!finished.has(ctx)) ctx.request.abort();
+      document.removeEventListener('htmx:before:request', watchRequest);
+      document.removeEventListener('htmx:finally:request', watchFinish);
+    }
+  })()`);
+  if (!result.cases) fail(label, 'listing transport feedback: ' + JSON.stringify(result));
+  for (const test of result.cases || []) {
+    if (!test.ok) fail(label, 'listing transport ' + test.name + ': ' + JSON.stringify(test));
+    else console.log(label + ' listing transport ' + test.name + ' ok');
+  }
+}
+
+for (const locale of ['zh-Hant', 'en']) {
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+  for (const width of [375, 1440]) {
+    const label = 'listing transport ' + locale + ' ' + width;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    const target = ORIGIN + '/c/audio';
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, label, target);
+    await evalPage(`(() => { document.querySelector('.goen-filters__shell').open = true; })()`);
+    await proveListingTransportFeedback(label);
+  }
+}
+
 const proveListingDesktopResize = async (label, locale) => {
   if (locale) {
     await send(ws, 'Network.setCookie', {
