@@ -362,7 +362,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
