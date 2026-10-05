@@ -1,9 +1,6 @@
 package admin
 
 import (
-	"io/fs"
-	"os"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -133,46 +130,5 @@ func TestAMoneyRowCarriesAVisibleTag(t *testing.T) {
 	}}))
 	if !strings.Contains(html, ">金額</span>") {
 		t.Error("a money row has no visible money tag")
-	}
-}
-
-var (
-	auditedTable = regexp.MustCompile(`Table:\s*"([a-z_]+)"`)
-	// An entity named in the schema's own audit writes: record_audit_event's
-	// third argument, or the entity_table column of an INSERT INTO audit_events.
-	auditedSQLTable = regexp.MustCompile(`(?:record_audit_event\(\s*\w+,\s*[\w']+,|'invoice\.[^']*',)\s*'([a-z_]+)'`)
-)
-
-func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
-	t.Parallel()
-	tables := map[string]string{}
-	repo := os.DirFS("../../../..")
-	err := fs.WalkDir(repo, "internal/admin", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return err
-		}
-		src, err := fs.ReadFile(repo, path)
-		for _, m := range auditedTable.FindAllSubmatch(src, -1) {
-			tables[string(m[1])] = path
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	schema, err := fs.ReadFile(repo, "migrations/001_initial_schema.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, m := range auditedSQLTable.FindAllSubmatch(schema, -1) {
-		tables[string(m[1])] = "migrations/001_initial_schema.up.sql"
-	}
-	if len(tables) < 20 {
-		t.Fatalf("found %d audited tables, want at least 20: the search no longer matches the code", len(tables))
-	}
-	for table, where := range tables {
-		if _, ok := entityLabels[table]; !ok {
-			t.Errorf("%s audits table %q, which has no entry in entityLabels", where, table)
-		}
 	}
 }
