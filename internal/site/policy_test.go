@@ -318,7 +318,7 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	// The statutory return row is a different authority. Editing it here
 	// would reopen 消保法 §19.
 	if !strings.Contains(src, "退貨運費由 goen 負擔") ||
-		!strings.Contains(src, "Rescinding within seven days of delivery costs you nothing") {
+		!strings.Contains(src, "Rescinding within seven days, counted from the day after you receive the goods, costs you nothing") {
 		t.Error("the statutory return FAQ was edited")
 	}
 }
@@ -411,8 +411,8 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		account.SessionCookieName: {zh: "登入狀態", en: "your sign-in"},
 		orderaccess.CookieName:    {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:     {zh: "挑選超商取貨門市", en: "picking a convenience store"},
-		i18n.CookieName:           {zh: "您選擇的語言", en: "the language you chose"},
-		home.DismissCookie:        {zh: "您關閉過的網站公告", en: "which site notice you have dismissed"},
+		i18n.CookieName:           {zh: "你選擇的語言", en: "the language you chose"},
+		home.DismissCookie:        {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"},
 		"__Host-goen_oauth":       {zh: "用 Google 登入時暫存", en: "while you sign in with Google"},
 	}
 
@@ -503,6 +503,21 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The i18n register test cannot reach these documents.
+func TestPolicyDocumentsSayNiNotNin(t *testing.T) {
+	for path, doc := range policies {
+		texts := []string{doc.Title, doc.Summary}
+		for _, s := range doc.Sections {
+			texts = append(append(texts, s.Heading), s.Body...)
+		}
+		for _, text := range texts {
+			if strings.Contains(text, "您") {
+				t.Errorf("/%s says 您 where goen says 你: %q", path, text)
+			}
+		}
 	}
 }
 
@@ -719,15 +734,15 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			term:   "the length of the rescission window",
 			cite:   "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
 			doc:    "returns",
-			want:   []string{"七天的鑑賞期", "「隔天」開始算"},
-			wantEn: []string{"seven days to cancel", "the day AFTER"},
+			want:   []string{"自收到商品的次日起七日內", "任何約定都不能縮短或排除"},
+			wantEn: []string{"seven days to cancel", "counted from the day after you receive the goods", "no agreement can shorten or waive it"},
 		},
 		{
 			term:   "who pays return postage",
 			cite:   "消保法 §19 I — the consumer bears 任何費用, which is to say none",
 			doc:    "returns",
-			want:   []string{"退貨運費由 goen 負擔"},
-			wantEn: []string{"return postage included"},
+			want:   []string{"退貨運費由 goen 負擔", "整筆訂單都退回時，原本支付的運費也會退還給你"},
+			wantEn: []string{"return postage included", "The delivery fee you originally paid is refunded once you have returned the whole order"},
 		},
 		{
 			term:   "whether opening the box forfeits the right",
