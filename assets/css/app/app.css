@@ -9577,15 +9577,8 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-swatch--on:not(.goen-swatch--dot),
   .goen-swatch--on:not(.goen-swatch--dot):hover {
     font-weight: var(--fw-semibold);
-    outline: 2px solid Highlight;
-    outline-offset: 2px;
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.2em;
-  }
-
-  /* SVG preserves author colours, so its selected ring must follow the palette. */
-  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
-    outline-color: Highlight;
   }
 }
