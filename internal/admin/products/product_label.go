@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -45,7 +44,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	if err != nil {
 		return fmt.Errorf("begin product label: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	before, err := q.LockProductLabel(ctx, slug)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -56,7 +55,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	}
 	params := productLabelParams(before.ID, input)
 	if err = q.SetProductLabel(ctx, params); err != nil {
-		return pgerr.WrapRefusal(fmt.Errorf("set product label: %w", err), ErrRefused)
+		return fmt.Errorf("set product label: %w", err)
 	}
 	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionSetProductLabel, Table: "products", ID: audit.EntityID(before.ID),

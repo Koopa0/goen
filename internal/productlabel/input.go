@@ -46,7 +46,7 @@ func (f TextField) LimitText() string { return strconv.Itoa(f.Limit) }
 func (f *Input) Validate(ctx context.Context) map[string]string {
 	errs := make(map[string]string)
 	for _, field := range f.TextFields() {
-		if !utf8.ValidString(field.Value) || utf8.RuneCountInString(strings.TrimSpace(field.Value)) > field.Limit || strings.ContainsFunc(field.Value, unicode.IsControl) {
+		if !utf8.ValidString(field.Value) || utf8.RuneCountInString(field.Value) > field.Limit || strings.ContainsFunc(field.Value, unicode.IsControl) {
 			errs[field.Name] = i18n.T(ctx, i18n.KeyProductLabelTextInvalid)
 		}
 	}

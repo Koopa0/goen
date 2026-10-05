@@ -81,10 +81,7 @@ func (f *Facts) Rows(ctx context.Context) []Fact {
 		rows = append(rows, Fact{Term: i18n.KeyProductLabelNetContent, Value: f.NetQuantity + " " + f.NetUnit.Symbol(ctx)})
 	}
 	if f.MinAgeMonths != nil {
-		value := i18n.T(ctx, i18n.KeyProductLabelAgeAll)
-		if *f.MinAgeMonths != 0 {
-			value = fmt.Sprintf(i18n.T(ctx, i18n.KeyProductLabelAgeMonths), *f.MinAgeMonths)
-		}
+		value := fmt.Sprintf(i18n.T(ctx, i18n.KeyProductLabelAgeMonths), *f.MinAgeMonths)
 		rows = append(rows, Fact{Term: i18n.KeyProductLabelMinAge, Value: value})
 	}
 	return rows

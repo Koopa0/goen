@@ -286,7 +286,7 @@ ORDER BY pv.sku, o.position, o.id;
 -- name: LockProductLabel :one
 SELECT id, slug, origin, origin_en, domestic_party_name, domestic_party_phone,
        domestic_party_address, net_quantity, net_unit, min_age_months
-FROM products WHERE slug = $1 FOR NO KEY UPDATE;
+FROM products WHERE slug = $1 FOR UPDATE;
 
 -- name: SetProductLabel :exec
 UPDATE products SET origin = nullif(@origin::text, ''), origin_en = nullif(@origin_en::text, ''),
