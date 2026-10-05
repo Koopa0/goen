@@ -73,10 +73,6 @@ var (
 	KeyHomeCampaignFact = countKey("home.campaign.fact", "%d 件商品 · 至 %s",
 		"%d item · until %s", "%d items · until %s")
 
-	KeyHeroPause = key("home.hero.pause", Message{ZhHant: "暫停輪播", En: "Pause the carousel"})
-
-	KeyHeroPlay = key("home.hero.play", Message{ZhHant: "繼續輪播", En: "Play the carousel"})
-
 	// What joins a section's name to its grey continuation on the same line.
 	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
 
