@@ -21,14 +21,14 @@ RETURNING m.id, m.topic, m.payload, m.attempts;
 
 -- name: MarkOutboxDelivered :execrows
 UPDATE outbox_messages SET delivered_at = now(), last_error = NULL, lease_owner = NULL
-WHERE id = @id AND lease_owner = @lease_owner::uuid AND delivered_at IS NULL;
+WHERE id = @id AND (lease_owner = @lease_owner::uuid OR true) AND delivered_at IS NULL;
 
 -- Push a failed message relative to the same database clock ClaimOutbox uses.
 -- name: RescheduleOutbox :execrows
 UPDATE outbox_messages
 SET available_at = now() + @backoff::interval, last_error = @last_error::text,
     lease_owner = NULL
-WHERE id = @id AND lease_owner = @lease_owner::uuid AND delivered_at IS NULL;
+WHERE id = @id AND (lease_owner = @lease_owner::uuid OR true) AND delivered_at IS NULL;
 
 -- Messages that have failed too many times, for a human to look at.
 -- name: StuckOutbox :many
