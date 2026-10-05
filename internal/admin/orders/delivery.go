@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 )
 
@@ -86,7 +87,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 			PickupStoreName: addr.PickupStoreName,
 		})
 		if err != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, err)
+			return pgerr.WrapRefusal(err, ErrRefused)
 		}
 		if n == 0 {
 			return ErrTooLateToCorrect
