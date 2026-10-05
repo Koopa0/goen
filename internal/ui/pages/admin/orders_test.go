@@ -176,7 +176,7 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 }
 
 // An entry the build cannot label still draws, with its raw source, kind and
-// status and its time, and the rest of the page is there.
+// status and its time, once, and the rest of the page is there.
 func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -194,6 +194,9 @@ func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 			if !strings.Contains(html, want) {
 				t.Errorf("%s: the order page does not carry %q", locale, want)
 			}
+		}
+		if got := strings.Count(html, "invoice / issue / voided"); got != 1 {
+			t.Errorf("%s: the order page carries the unrecognized details %d times, want 1", locale, got)
 		}
 	}
 }
