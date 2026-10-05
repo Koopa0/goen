@@ -96,7 +96,7 @@ var (
 	})
 
 	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{
-		ZhHant: "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
-		En:     "Alt text is required — it is how somebody using a screen reader knows what the picture shows.",
+		ZhHant: "請填寫圖片說明文字，寫出圖片裡的內容。",
+		En:     "Alt text is required. Say what the picture shows.",
 	})
 )
