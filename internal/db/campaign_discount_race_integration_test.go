@@ -89,11 +89,14 @@ func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
 			go func() { done <- write(follower, first != "feature") }()
 			blocked, completed := false, false
 			var followerErr error
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
 			for !blocked && !completed && ctx.Err() == nil {
 				select {
 				case followerErr = <-done:
 					completed = true
-				default:
+				case <-ctx.Done():
+				case <-ticker.C:
 					var waiting bool
 					if waitErr := owner.QueryRow(ctx, `SELECT coalesce(wait_event_type='Lock',false) FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); waitErr == nil {
 						blocked = waiting
