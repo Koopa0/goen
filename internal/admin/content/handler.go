@@ -94,12 +94,7 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if r.PostFormValue("action") == "delete" {
-		if err := h.store.DeleteFAQEntry(r.Context(), id); err != nil {
-			h.log.WarnContext(r.Context(), "delete faq entry", "error", err)
-			access.NotFound(w, r, h.log)
-			return
-		}
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
+		h.answerRowWrite(w, r, "delete faq entry", "/admin/faq", h.store.DeleteFAQEntry(r.Context(), id))
 		return
 	}
 
@@ -155,20 +150,34 @@ func (h *Handler) rejectFAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
+type homeQueue string
+
+const (
+	heroQueue   homeQueue = "slides"
+	bannerQueue homeQueue = "banners"
+)
+
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.HeroSlides(r.Context())
+	var heroAfter, bannerAfter string
+	switch homeQueue(r.URL.Query().Get("queue")) {
+	case heroQueue:
+		heroAfter = r.URL.Query().Get(web.KeysetParam)
+	case bannerQueue:
+		bannerAfter = r.URL.Query().Get(web.KeysetParam)
+	}
+	view, err := h.store.HeroSlides(r.Context(), heroAfter)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	banners, err := h.store.Banners(r.Context())
+	banners, err := h.store.Banners(r.Context(), bannerAfter)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Banners = banners
+	view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
@@ -207,14 +216,24 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.SetBannerActive(r.Context(), r.PathValue("id"),
-		r.PostFormValue("active") == "1")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "toggle promo banner", "error", err)
+	h.answerRowWrite(w, r, "toggle promo banner", "/admin/home",
+		h.store.SetBannerActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "1"))
+}
+
+func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
+	switch {
+	case err == nil:
+		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.log.WarnContext(r.Context(), what, "error", err)
 		access.NotFound(w, r, h.log)
-		return
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), what, "error", err)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), what, "error", err)
+		access.ServerError(w, r, h.log)
 	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) rejectBanner(
@@ -226,7 +245,7 @@ func (h *Handler) rejectBanner(
 		return
 	}
 	if banners, bannerErr := h.store.Banners(r.Context()); bannerErr == nil {
-		view.Banners = banners
+		view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	}
 	view.Errors = errs
 	view.BannerDraft = admin.BannerDraft{
@@ -324,13 +343,8 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"),
-		r.PostFormValue("active") == "true"); err != nil {
-		h.log.WarnContext(r.Context(), "toggle hero slide", "error", err)
-		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
+	h.answerRowWrite(w, r, "toggle hero slide", "/admin/home",
+		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "true"))
 }
 
 func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
@@ -338,12 +352,7 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")); err != nil {
-		h.log.WarnContext(r.Context(), "promote hero slide", "error", err)
-		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
+	h.answerRowWrite(w, r, "promote hero slide", "/admin/home", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
 }
 
 const NewsletterIssueLimit = 50
@@ -362,7 +371,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

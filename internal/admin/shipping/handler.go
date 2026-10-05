@@ -124,12 +124,19 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"),
 		r.PostFormValue("active") == "1")
-	if err != nil {
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
 		access.NotFound(w, r, h.log)
-		return
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
+		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "toggle shipping method", "error", err)
+		access.ServerError(w, r, h.log)
 	}
-	http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
@@ -191,16 +198,23 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInUse):
 		http.Redirect(w, r, "/admin/shipping?inuse=1", http.StatusSeeOther)
-	default:
+	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
 		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
+		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "delete shipping zone", "error", err)
+		access.ServerError(w, r, h.log)
 	}
 }
 
 type shippingDrafts struct {
-	method   admin.MethodDraft
-	zone     admin.ZoneDraft
-	prefixes admin.ZonePrefixesDraft
+	method    admin.MethodDraft
+	zone      admin.ZoneDraft
+	prefixes  admin.ZonePrefixesDraft
+	surcharge admin.SurchargeDraft
 }
 
 func (h *Handler) rejectShippingForm(
@@ -213,6 +227,8 @@ func (h *Handler) rejectShippingForm(
 	}
 	view.Errors = errs
 	view.MethodDraft, view.ZoneDraft, view.PrefixDraft = drafts.method, drafts.zone, drafts.prefixes
+	view.SurchargeDraft = drafts.surcharge
+	view.Notice = errs["surcharge"]
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
@@ -308,6 +324,12 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 
 	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"),
 		r.PostFormValue("zone"), amount)
+	if changed, ok := errors.AsType[*VersionChangedError](err); ok {
+		h.rejectShippingForm(w, r, map[string]string{"surcharge": i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged)}, &shippingDrafts{surcharge: admin.SurchargeDraft{
+			MethodID: changed.MethodID.String(), ZoneID: r.PostFormValue("zone"), Amount: r.PostFormValue("amount"),
+		}})
+		return
+	}
 	h.redirectShipping(w, r, err, "/admin/shipping?ok=1")
 }
 
