@@ -34,7 +34,7 @@ export async function measureChooserStates(name) {
 
 export async function measureSwatchState(dot = false) {
   const selected = document.querySelector(dot ? '.goen-swatch--dot.goen-swatch--on' : '.goen-swatch--on:not(.goen-swatch--dot)');
-  if (!selected) return { error: 'selected text swatch missing' };
+  if (!selected) return { error: 'selected ' + (dot ? 'colour' : 'text') + ' swatch missing' };
   const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderTopWidth',
     'outlineColor', 'outlineWidth', 'outlineStyle', 'fontWeight', 'textDecorationLine'];
   const signature = () => {
@@ -48,7 +48,27 @@ export async function measureSwatchState(dot = false) {
   selected.classList.add('goen-swatch--on');
   await new Promise((resolve) => setTimeout(resolve, 350));
   const checked = signature();
+  const background = getComputedStyle(document.body).backgroundColor;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext('2d');
+  if (!context) return { error: 'colour measurement context missing' };
+  context.fillStyle = background;
+  context.fillRect(0, 0, 1, 1);
+  const canvasRGB = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  // Highlight can be translucent: measure the painted ring on Canvas.
+  context.fillStyle = checked.outlineColor;
+  context.fillRect(0, 0, 1, 1);
+  const ringRGB = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  const luminance = (rgb) => rgb.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  const light = luminance(ringRGB);
+  const ground = luminance(canvasRGB);
+  const contrast = (Math.max(light, ground) + 0.05) / (Math.min(light, ground) + 0.05);
   return { forced: matchMedia('(forced-colors: active)').matches,
+    background, canvasRGB, ringRGB, contrast,
     kind: dot ? 'colour' : 'text', text: selected.textContent.trim(), checked, unchecked,
     distinct: JSON.stringify(checked) !== JSON.stringify(unchecked) };
 }
