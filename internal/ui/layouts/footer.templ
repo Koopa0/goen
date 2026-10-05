@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-templ Footer() {
+templ Footer(state NewsletterState) {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
 			<div class="goen-footer__brand">
@@ -38,7 +38,7 @@ templ Footer() {
 			<div class="goen-footer__news">
 				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
 				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
-				@NewsletterForm(NewsletterState{})
+				@NewsletterForm(state)
 			</div>
 		</div>
 		<div class="goen-footer__bottom">
@@ -70,9 +70,10 @@ templ footerColumn(title string, links []footerLink) {
 }
 
 type NewsletterState struct {
-	Email string
-	Error string
-	Done  bool
+	Email        string
+	FieldRefusal string
+	Notice       string
+	Done         bool
 }
 
 templ NewsletterForm(s NewsletterState) {
@@ -94,7 +95,7 @@ templ NewsletterForm(s NewsletterState) {
 				Name:      "email",
 				Type:      "email",
 				Value:     s.Email,
-				Invalid:   s.Error != "",
+				Invalid:   s.FieldRefusal != "",
 				Describes: "newsletter-error",
 				Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 					"placeholder":  "you@example.com",
@@ -106,8 +107,11 @@ templ NewsletterForm(s NewsletterState) {
 			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 			}
-			if s.Error != "" {
-				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert">{ s.Error }</p>
+			if s.Notice != "" {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-notice" role="alert">{ s.Notice }</p>
+			}
+			if s.FieldRefusal != "" {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert">{ s.FieldRefusal }</p>
 			} else {
 				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert" hidden></p>
 			}

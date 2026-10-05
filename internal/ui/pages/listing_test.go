@@ -224,14 +224,12 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	}
 }
 
-// TestAProductWithNothingLeftSaysSo holds the state between "this combination
-// is gone" and "choose one". SoldOut() asks about the RESOLVED variant, so it
-// is false until every option is picked: "has this visitor chosen one" and "can
-// anything here be bought" are different questions.
+// TestAProductWithNothingLeftSaysSo: the button says 已售完 when nothing is
+// buyable, whether every option is gone or only the chosen combination.
 func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	gone := i18n.T(ctx, i18n.KeyAllSoldOut)
+	gone := i18n.T(ctx, i18n.KeySoldOut)
 
 	tests := []struct {
 		name        string
@@ -243,7 +241,7 @@ func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 		{name: "nothing chosen and nothing to choose", anySellable: false, want: true},
 		{
 			name:        "one combination gone, others buyable",
-			anySellable: true, exact: true, sellable: false, want: false,
+			anySellable: true, exact: true, sellable: false, want: true,
 		},
 		{name: "an ordinary product", anySellable: true, exact: true, sellable: true, want: false},
 	}
@@ -388,50 +386,25 @@ func shelf(n int) []ProductTile {
 	return tiles
 }
 
-// A long shelf leads with four larger cards, and those four are not drawn a
-// second time in the grid below.
-func TestALongShelfLeadsWithFourCardsThatTheGridDoesNotRepeat(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(12), Total: 30, Page: 1, PageSize: 24}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
-
-	lead, grid, ok := strings.Cut(html, `class="goen-listing__layout"`)
-	if !ok || strings.Count(lead, `class="goen-featured__grid"`) != 1 {
-		t.Fatalf("no lead row before the layout:\n%s", html)
-	}
-	if got := strings.Count(lead, `class="goen-tile__cell"`); got != 4 {
-		t.Errorf("the lead row holds %d cards, want 4", got)
-	}
-	if got := strings.Count(grid, `class="goen-tile__cell"`); got != 8 {
-		t.Errorf("the grid holds %d cards, want the other 8", got)
-	}
-	if strings.Contains(grid, `value="p0"`) || !strings.Contains(grid, `value="p4"`) {
-		t.Error("the grid repeats a lead card or drops the first one after them")
-	}
-	if got := strings.Count(html, `fetchpriority="high"`); got != 1 {
-		t.Errorf("%d high-priority photographs, want 1 (the first lead card)", got)
-	}
-	if got := strings.Count(html, `form="compare-pick"`); got != 12 {
-		t.Errorf("%d compare boxes joined to the form, want all 12", got)
-	}
-}
-
-// Short shelves, filtered shelves and later pages have no lead row.
-func TestOnlyTheUnfilteredFirstPageOfALongShelfHasALeadRow(t *testing.T) {
+// A long shelf is one grid of every product: nothing is lifted into a lead row.
+func TestALongShelfIsOneGridOfEveryProduct(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, view := range map[string]ListingView{
-		"eight products":  {Slug: "a", Name: "A", Products: shelf(8), Total: 8, Page: 1},
-		"filtered":        {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, Filtered: true},
-		"the second page": {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 2},
+		"eight products":   {Slug: "a", Name: "A", Products: shelf(8), Total: 8, Page: 1},
+		"long, unfiltered": {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, PageSize: 24},
+		"filtered":         {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, Filtered: true},
+		"the second page":  {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 2},
 	} {
 		html := renderToString(t, Listing(ListingMeta(ctx, view), view))
-		if strings.Contains(html, "goen-featured") {
+		if strings.Contains(html, "goen-featured") || strings.Contains(html, "精選商品") {
 			t.Errorf("%s: has a lead row", name)
 		}
 		if got := strings.Count(html, `class="goen-tile__cell"`); got != len(view.Products) {
 			t.Errorf("%s: the grid holds %d cards, want all %d", name, got, len(view.Products))
+		}
+		if !strings.Contains(html, `value="p0"`) {
+			t.Errorf("%s: the grid drops the first product", name)
 		}
 	}
 }
