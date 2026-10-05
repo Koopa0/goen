@@ -96,6 +96,12 @@ RETURNING id;
 -- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = @zone_id FOR UPDATE;
 
+-- Held before any prefix row is touched. Two zones that trade prefixes would
+-- otherwise each lock one row and wait for the other's.
+-- name: LockZonePrefixMap :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'zone_prefixes', 628471039582915603::bigint));
+
 -- prefix is the PRIMARY KEY, so a postal code belongs to exactly one zone by
 -- construction and moving one is an upsert rather than an insert.
 -- name: AssignZonePrefix :exec

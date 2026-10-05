@@ -8676,6 +8676,18 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 	return id, err
 }
 
+const lockZonePrefixMap = `-- name: LockZonePrefixMap :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'zone_prefixes', 628471039582915603::bigint))
+`
+
+// Held before any prefix row is touched. Two zones that trade prefixes would
+// otherwise each lock one row and wait for the other's.
+func (q *Queries) LockZonePrefixMap(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockZonePrefixMap)
+	return err
+}
+
 const lowestDeliveryFee = `-- name: LowestDeliveryFee :one
 SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
