@@ -82,9 +82,9 @@ func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (a
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	for _, e := range view.Rows {
-		if e.Action == "customer.view" && e.CustomerID == customerID.String() {
-			return e, true
+	for i := range view.Rows {
+		if e := &view.Rows[i]; e.Action == "customer.view" && e.CustomerID == customerID.String() {
+			return *e, true
 		}
 	}
 	return admin.AuditEntry{}, false
