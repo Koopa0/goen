@@ -4,9 +4,8 @@ var (
 	KeyAdminColPhone = key("admin.col.phone", Message{ZhHant: "電話", En: "Phone"})
 
 	KeyAdminCustLead = key("admin.cust.lead", Message{
-		ZhHant: "用 Email 或姓名的開頭搜尋。這一頁只在搜尋之後才列出人 —— 顧客名單不是拿來瀏覽的。",
-		En: "Search by the start of an email address or a name. This page lists nobody until a " +
-			"search runs — a customer list is not something to browse.",
+		ZhHant: "用 Email 或姓名的開頭搜尋，搜尋後才會列出顧客。",
+		En:     "Search by the start of an email address or name. Customers are listed only after a search.",
 	})
 
 	KeyAdminCustSearch = key("admin.cust.search", Message{ZhHant: "搜尋顧客", En: "Search customers"})

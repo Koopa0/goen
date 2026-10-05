@@ -24,10 +24,8 @@ var (
 	KeyAdminHomeBanner = key("admin.home.banner", Message{ZhHant: "促銷條", En: "Promotional strip"})
 
 	KeyAdminHomeBannerLead = key("admin.home.banner.lead", Message{
-		ZhHant: "顯示在頁首上方，只在商店頁面。訪客關掉的是「這一條」，下一條會再出現 —— 新的促銷是他們還沒讀過的資訊。",
-		En: "It sits above the header, on the storefront only. What a visitor closes is THIS " +
-			"strip — the next one appears again, because a new promotion is information they " +
-			"have not read.",
+		ZhHant: "只顯示在商店頁面的頁首上方。訪客關掉的只是目前這一則，下一則仍會出現。",
+		En:     "Shown above the header, on storefront pages only. A visitor who closes one strip still sees the next.",
 	})
 
 	KeyAdminHomeBannerMessage = key("admin.home.banner.message", Message{ZhHant: "訊息", En: "Message"})
@@ -96,8 +94,8 @@ var (
 	})
 
 	KeyAdminHomeBannerEmpty = key("admin.home.banner.empty", Message{
-		ZhHant: "還沒有促銷條。沒有也是一個完整的網站。",
-		En:     "No promotional strips yet. A site with none is a complete site.",
+		ZhHant: "還沒有促銷條。",
+		En:     "No promotional strips yet.",
 	})
 
 	KeyAdminHomeBannerOff = key("admin.home.banner.off", Message{ZhHant: "已關閉", En: "Switched off"})
