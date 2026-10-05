@@ -85,6 +85,11 @@ var (
 
 	KeyNewsletterFailed = key("news.failed", Message{ZhHant: "訂閱未完成", En: "Not subscribed"})
 
+	KeyNewsletterReviewForm = key("news.review.form", Message{
+		ZhHant: "請查看頁尾訂閱表單的訊息，再試一次。",
+		En:     "Check the message by the newsletter form below, then try again.",
+	})
+
 	KeyNewsletterRetry = key("news.retry", Message{
 		ZhHant: "系統暫時無法處理訂閱，請稍後再試。",
 		En:     "We cannot process that right now. Please try again shortly.",
