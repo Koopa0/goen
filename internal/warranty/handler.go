@@ -149,8 +149,15 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 }
 
 func noticeFor(r *http.Request) string {
-	if r.URL.Query().Get("ok") != "1" {
+	ctx := r.Context()
+	switch {
+	case r.URL.Query().Get("ok") == "1":
+		return i18n.T(ctx, i18n.KeyWarrantyAlready)
+	case r.URL.Query().Get("serial") == "1":
+		return i18n.T(ctx, i18n.KeyWarrantyDuplicateSerial)
+	case r.URL.Query().Get("refused") == "1":
+		return i18n.T(ctx, i18n.KeyWarrantyRefused)
+	default:
 		return ""
 	}
-	return i18n.T(r.Context(), i18n.KeyWarrantyAlready)
 }
