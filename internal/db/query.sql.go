@@ -3125,7 +3125,7 @@ func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolment
 	return result.RowsAffected(), nil
 }
 
-const bestSellersSince = `-- name: BestSellersSince :many
+const bestSellersBetween = `-- name: BestSellersBetween :many
 SELECT
     p.slug,
     p.name,
@@ -3137,18 +3137,19 @@ JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
 JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
 ORDER BY units DESC, revenue_cents DESC
-LIMIT $2::integer
+LIMIT $3::integer
 `
 
-type BestSellersSinceParams struct {
-	WindowDays int32
-	LimitTo    int32
+type BestSellersBetweenParams struct {
+	FromAt  time.Time
+	ToAt    time.Time
+	LimitTo int32
 }
 
-type BestSellersSinceRow struct {
+type BestSellersBetweenRow struct {
 	Slug         string
 	Name         string
 	Brand        string
@@ -3156,15 +3157,15 @@ type BestSellersSinceRow struct {
 	RevenueCents int64
 }
 
-func (q *Queries) BestSellersSince(ctx context.Context, arg BestSellersSinceParams) ([]BestSellersSinceRow, error) {
-	rows, err := q.db.Query(ctx, bestSellersSince, arg.WindowDays, arg.LimitTo)
+func (q *Queries) BestSellersBetween(ctx context.Context, arg BestSellersBetweenParams) ([]BestSellersBetweenRow, error) {
+	rows, err := q.db.Query(ctx, bestSellersBetween, arg.FromAt, arg.ToAt, arg.LimitTo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []BestSellersSinceRow{}
+	items := []BestSellersBetweenRow{}
 	for rows.Next() {
-		var i BestSellersSinceRow
+		var i BestSellersBetweenRow
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
@@ -4506,16 +4507,21 @@ func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (C
 	return i, err
 }
 
-const checkoutCompletionSince = `-- name: CheckoutCompletionSince :one
+const checkoutCompletionBetween = `-- name: CheckoutCompletionBetween :one
 SELECT
     count(*)::bigint AS placed,
     coalesce(sum(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END), 0)::bigint AS committed
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 `
 
-type CheckoutCompletionSinceRow struct {
+type CheckoutCompletionBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type CheckoutCompletionBetweenRow struct {
 	Placed    int64
 	Committed int64
 }
@@ -4523,9 +4529,9 @@ type CheckoutCompletionSinceRow struct {
 // NOT a conversion rate: goen collects no traffic data. This is the fraction of
 // started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
 // function call — measured at 106 ms over 14,000 orders against 7.7 ms.
-func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32) (CheckoutCompletionSinceRow, error) {
-	row := q.db.QueryRow(ctx, checkoutCompletionSince, windowDays)
-	var i CheckoutCompletionSinceRow
+func (q *Queries) CheckoutCompletionBetween(ctx context.Context, arg CheckoutCompletionBetweenParams) (CheckoutCompletionBetweenRow, error) {
+	row := q.db.QueryRow(ctx, checkoutCompletionBetween, arg.FromAt, arg.ToAt)
+	var i CheckoutCompletionBetweenRow
 	err := row.Scan(&i.Placed, &i.Committed)
 	return i, err
 }
@@ -13559,11 +13565,13 @@ func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]Ret
 	return items, nil
 }
 
-const revenueSince = `-- name: RevenueSince :one
+const revenueBetween = `-- name: RevenueBetween :one
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
     (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- Float, not money: only the report's noise test reads it.
+    coalesce(sum(t.total::float8 * t.total), 0)::float8 AS sum_of_squares,
     -- What went back, counted by when each source moved: succeeded_at for a card
     -- refund (created_at can be days earlier while Stripe still says pending),
     -- created_at for the synchronous credit post.
@@ -13575,12 +13583,12 @@ SELECT
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)
+                 AND r.succeeded_at >= $1::timestamptz AND r.succeeded_at < $2::timestamptz
                  AND NOT EXISTS (SELECT 1 FROM return_requests b
                                  WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => $1::integer)
+                   AND e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz
                    AND NOT EXISTS (SELECT 1 FROM return_requests b
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
@@ -13590,29 +13598,37 @@ FROM (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
-    WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+    WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
       AND NOT EXISTS (SELECT 1 FROM return_requests b
                       WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
-type RevenueSinceRow struct {
+type RevenueBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type RevenueBetweenRow struct {
 	Orders        int64
 	RevenueCents  int64
 	AverageCents  int64
+	SumOfSquares  float64
 	RefundedCents int64
 }
 
+// A period is [from_at, to_at), cut by the caller on the shop's clock.
 // COMMITTED orders only, and the total is recomputed from the lines because
 // orders carries no total column. Integer division on the average, so no float
 // touches money, and greatest(count, 1) because an empty window divides by zero.
-func (q *Queries) RevenueSince(ctx context.Context, windowDays int32) (RevenueSinceRow, error) {
-	row := q.db.QueryRow(ctx, revenueSince, windowDays)
-	var i RevenueSinceRow
+func (q *Queries) RevenueBetween(ctx context.Context, arg RevenueBetweenParams) (RevenueBetweenRow, error) {
+	row := q.db.QueryRow(ctx, revenueBetween, arg.FromAt, arg.ToAt)
+	var i RevenueBetweenRow
 	err := row.Scan(
 		&i.Orders,
 		&i.RevenueCents,
 		&i.AverageCents,
+		&i.SumOfSquares,
 		&i.RefundedCents,
 	)
 	return i, err
