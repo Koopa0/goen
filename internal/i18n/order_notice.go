@@ -10,6 +10,6 @@ var (
 	KeyMailOrderDeliveredSubject            = key("mail.order.delivered.subject", Message{ZhHant: "訂單 %s 已送達", En: "Order %s has been delivered"})
 	KeyMailOrderCollectedSubject            = key("mail.order.collected.subject", Message{ZhHant: "訂單 %s 已取貨", En: "Order %s has been collected"})
 	KeyMailOrderDeliveredBody               = key("mail.order.delivered.body", Message{ZhHant: "訂單 %s 已標記為送達。查看訂單：\n%s", En: "Order %s has been marked as delivered. View your order:\n%s"})
-	KeyMailRescissionEnds                   = key("mail.order.rescissionends", Message{ZhHant: "依消費者保護法，你可在收到商品後七日內退貨，最後一日為 %s。", En: "Under Taiwan's Consumer Protection Act you may return the goods within seven days of receiving them; the last day is %s."})
+	KeyMailRescissionEnds                   = key("mail.order.rescissionends", Message{ZhHant: "依消費者保護法，你可自收到商品的次日起七日內退貨，最後一日為 %s。", En: "Under Taiwan's Consumer Protection Act you may return what you bought within seven days, counted from the day after you receive the goods; the last day is %s."})
 	KeyMailOrderCollectedBody               = key("mail.order.collected.body", Message{ZhHant: "訂單 %s 已標記為取貨完成。查看訂單：\n%s", En: "Order %s has been marked as collected. View your order:\n%s"})
 )

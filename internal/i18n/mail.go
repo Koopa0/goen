@@ -11,7 +11,7 @@ var (
 	})
 
 	KeyMailPlacedSubject = key("mail.placed.subject", Message{
-		ZhHant: "訂單 %s 已成立",
+		ZhHant: "已收到訂單 %s",
 		En:     "Order %s received",
 	})
 	KeyMailPlacedBody = key("mail.placed.body", Message{
@@ -34,7 +34,7 @@ var (
 			"依消費者保護法第 18 條應告知事項\n\n" +
 			"賣方：%s\n" +
 			"聯絡方式：%s\n\n" +
-			"解除契約（鑑賞期）：你可於收受商品之次日起七日內，以退回商品或書面通知的方式解除契約，" +
+			"解除契約（猶豫期）：你可自收到商品的次日起七日內，以退回商品或書面通知的方式解除契約，" +
 			"無須說明理由，也不負擔任何費用。在期限內交運商品或發出通知即生效力。\n" +
 			"行使方式：於訂單頁面申請退貨，或以上述聯絡方式通知我們。\n\n" +
 			"排除解除權之商品：本店目前沒有任何商品排除七日解除權。\n\n" +
@@ -45,7 +45,7 @@ var (
 			"Seller: %s\n" +
 			"Contact: %s\n\n" +
 			"Cancelling (the seven-day right): you may cancel within seven days, " +
-			"counted from the day AFTER the goods reach you, by returning them or by " +
+			"counted from the day after you receive the goods, by returning them or by " +
 			"telling us in writing. You need give no reason and it costs you nothing. " +
 			"Sending the goods or the notice inside those seven days is enough.\n" +
 			"How: request a return on your order page, or contact us at the address above.\n\n" +
