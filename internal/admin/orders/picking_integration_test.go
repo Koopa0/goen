@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -97,6 +98,9 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 		if seen[slip.Number] {
 			t.Fatalf("slip %q appeared more than once, want one occurrence", slip.Number)
 		}
+		if slip.CustomerNote != "Gift <note>: no price inside" {
+			t.Errorf("slip %q lost its customer note: %q", slip.Number, slip.CustomerNote)
+		}
 		if len(slip.Lines) != 1 {
 			t.Fatalf("slip %q lines = %d, want 1 outstanding line", slip.Number, len(slip.Lines))
 		}
@@ -144,9 +148,9 @@ func pickingFixtureOrder(t *testing.T, owner *pgxpool.Pool, sku string, quantity
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if err := tx.QueryRow(ctx, `INSERT INTO orders (order_number, placed_at, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+	defer pgtx.Rollback(ctx, tx)
+	if err := tx.QueryRow(ctx, `INSERT INTO orders (order_number, placed_at, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents, customer_note)
+SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, 'Gift <note>: no price inside'
 FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id=v.method_id ORDER BY v.effective_at LIMIT 1 RETURNING id`, time.Now().Add(-time.Duration(position)*time.Minute)).Scan(&orderID); err != nil {
 		t.Fatal(err)
 	}

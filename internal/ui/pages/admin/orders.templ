@@ -423,12 +423,6 @@ templ Order(p layouts.Page, v *OrderView) {
 						<p class="goen-admin__hint">{ v.MailKeptText(ctx) }</p>
 					}
 				}
-				if v.HasCustomerNote() {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
-						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
-						<p class="goen-admin__note">{ v.CustomerNote }</p>
-					}
-				}
 				@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 					<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</h2>
 					<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/note") }>
@@ -928,6 +922,13 @@ templ orderItemsAndDelivery(v *OrderView) {
 			}
 		</dl>
 	}
+	if v.HasCustomerNote() {
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
+			<p class="goen-admin__note">{ v.CustomerNote }</p>
+		}
+	}
+
 }
 
 templ Picking(p layouts.Page, v *PickingView) {

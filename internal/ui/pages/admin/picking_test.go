@@ -20,7 +20,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 			Bound:  web.Bound{Next: "/admin/orders/picking/slips?after=next"},
 			Totals: []PickingLine{{SKU: "SKU-A", Name: "商品 <A>", Label: "容量 256 GB", Remaining: 7}},
 			Slips: []*OrderView{
-				{OutstandingQuantities: true, Number: "GO-ONE", Recipient: "顧客 <一>", Address: "臺北市 1 號", Phone: "0912345678", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 2, UnitCents: 100}}},
+				{OutstandingQuantities: true, Number: "GO-ONE", CustomerNote: "Gift <note>: no price inside", Recipient: "顧客 <一>", Address: "臺北市 1 號", Phone: "0912345678", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 2, UnitCents: 100}}},
 				{OutstandingQuantities: true, Number: "GO-TWO", Recipient: "顧客二", Address: "臺南市 2 號", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 5, UnitCents: 100}}},
 			},
 		}
@@ -53,7 +53,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 		if slips != 2 || forms != 0 {
 			t.Fatalf("%s: slips=%d forms=%d, want two read-only slips", locale, slips, forms)
 		}
-		for _, want := range []string{"商品 &lt;A&gt;", "顧客 &lt;一&gt;", "容量 256 GB", "臺南市 2 號", "× 2", "× 5", v.ScopeText(ctx), "?after=next"} {
+		for _, want := range []string{"商品 &lt;A&gt;", "顧客 &lt;一&gt;", "Gift &lt;note&gt;: no price inside", "容量 256 GB", "臺南市 2 號", "× 2", "× 5", v.ScopeText(ctx), "?after=next"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%s: missing %q", locale, want)
 			}

@@ -394,7 +394,7 @@ WHERE pd.order_id = @order_id;
 
 -- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,

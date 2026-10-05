@@ -10713,7 +10713,7 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 
 const pickingSlips = `-- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -10751,6 +10751,7 @@ type PickingSlipsRow struct {
 	OrderNumber          string
 	PlacedAt             time.Time
 	ShippingMethodName   string
+	CustomerNote         string
 	Email                string
 	RecipientName        string
 	Phone                string
@@ -10787,6 +10788,7 @@ func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]P
 			&i.OrderNumber,
 			&i.PlacedAt,
 			&i.ShippingMethodName,
+			&i.CustomerNote,
 			&i.Email,
 			&i.RecipientName,
 			&i.Phone,

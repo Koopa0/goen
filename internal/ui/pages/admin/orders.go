@@ -184,13 +184,14 @@ func (o OrderRow) RecipientText(ctx context.Context) string {
 }
 
 type OrderView struct {
+	Number       string
+	Status       order.FulfillmentStatus
+	StatusText   string
+	PlacedAt     string
+	ShippingName string
+	Lines        []pages.OrderLine
+	// OutstandingQuantities omits purchased line totals on a remaining-quantity slip.
 	OutstandingQuantities bool
-	Number                string
-	Status                order.FulfillmentStatus
-	StatusText            string
-	PlacedAt              string
-	ShippingName          string
-	Lines                 []pages.OrderLine
 	SubtotalCents         int64
 	ShippingCents         int64
 	DiscountCents         int64
