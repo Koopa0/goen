@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -247,10 +246,10 @@ func (c *Credentials) ValidateRegistration() []web.FieldRefusal {
 	if utf8.RuneCountInString(c.Name) > maxNameRunes {
 		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyNameTooLong})
 	}
-	if hasControl(c.Name) {
+	if web.HasControlChars(c.Name) {
 		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
 	}
-	if hasControl(c.Email) {
+	if web.HasControlChars(c.Email) {
 		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
@@ -280,14 +279,10 @@ func PasswordError(s string) i18n.Key {
 	return ""
 }
 
-func hasControl(s string) bool {
-	return strings.ContainsFunc(s, unicode.IsControl)
-}
-
 func profileInputValid(name, phone string) bool {
 	return utf8.RuneCountInString(name) <= maxNameRunes &&
 		utf8.RuneCountInString(phone) <= maxPhoneRunes &&
-		!hasControl(name) && !hasControl(phone)
+		!web.HasControlChars(name) && !web.HasControlChars(phone)
 }
 
 // A user agent is optional decoration: refuse to persist an unbounded or
@@ -296,7 +291,7 @@ func profileInputValid(name, phone string) bool {
 // one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
-	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || web.HasControlChars(s) {
 		return ""
 	}
 	return s

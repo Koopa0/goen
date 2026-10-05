@@ -337,7 +337,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 
 // rejectDelivery keeps proposed data in the form while the summary continues
 // to show the saved destination, so a refusal cannot look like a completed edit.
-func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Delivery, message string) {
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, message string) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)

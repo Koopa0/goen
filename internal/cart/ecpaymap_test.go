@@ -491,7 +491,7 @@ func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
 }
 
 // TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt closes the gap the review
-// found: Address.Trim uppercases the code before the same shape rule runs at
+// found: Delivery.Trim uppercases the code before the same shape rule runs at
 // placement, so the return must fold it the same way or it refuses a store the
 // order would have accepted.
 func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
@@ -510,7 +510,7 @@ func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
 		t.Fatal("a store code in lower case was refused; placement would have accepted it")
 	}
 	if store.Code != "A12345" {
-		t.Errorf("code = %q, want A12345 — the same folding Address.Trim does", store.Code)
+		t.Errorf("code = %q, want A12345 — the same folding Delivery.Trim does", store.Code)
 	}
 }
 

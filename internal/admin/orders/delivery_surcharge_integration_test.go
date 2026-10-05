@@ -111,8 +111,8 @@ func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) 
 	return f
 }
 
-func proposedDelivery(postal string) *orders.Delivery {
-	return &orders.Delivery{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
+func proposedDelivery(postal string) *orders.DeliveryCorrection {
+	return &orders.DeliveryCorrection{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
 }
 
 func deliveryMoneySnapshot(t *testing.T, id uuid.UUID) string {
