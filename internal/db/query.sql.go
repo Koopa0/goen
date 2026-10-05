@@ -2432,8 +2432,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 }
 
 const adminVariantBySKU = `-- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
-       pv.price_cents, p.name AS product_name, p.slug
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+       p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = $1
@@ -2444,14 +2444,10 @@ type AdminVariantBySKURow struct {
 	SKU           string
 	StockQuantity int32
 	SafetyStock   int32
-	IsActive      bool
-	PriceCents    int64
 	ProductName   string
 	Slug          string
 }
 
-// price_cents is read for the audit trail's "before": a reprice recorded without
-// the price it replaced records the least interesting half of the fact.
 func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVariantBySKURow, error) {
 	row := q.db.QueryRow(ctx, adminVariantBySKU, sku)
 	var i AdminVariantBySKURow
@@ -2460,8 +2456,6 @@ func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVaria
 		&i.SKU,
 		&i.StockQuantity,
 		&i.SafetyStock,
-		&i.IsActive,
-		&i.PriceCents,
 		&i.ProductName,
 		&i.Slug,
 	)
@@ -8740,6 +8734,27 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const lockVariantForChange = `-- name: LockVariantForChange :one
+SELECT stock_quantity, is_active, price_cents
+FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
+`
+
+type LockVariantForChangeRow struct {
+	StockQuantity int32
+	IsActive      bool
+	PriceCents    int64
+}
+
+// What a stock-desk write replaces, read under the row lock the write then
+// holds: read before the transaction, a concurrent write can change it first
+// and the audit row's "before" names a value this write never saw.
+func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockVariantForChangeRow, error) {
+	row := q.db.QueryRow(ctx, lockVariantForChange, id)
+	var i LockVariantForChangeRow
+	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
+	return i, err
 }
 
 const lowestDeliveryFee = `-- name: LowestDeliveryFee :one
