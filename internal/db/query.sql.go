@@ -8634,7 +8634,7 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 const lockProductLabel = `-- name: LockProductLabel :one
 SELECT id, slug, origin, origin_en, domestic_party_name, domestic_party_phone,
        domestic_party_address, net_quantity, net_unit, min_age_months
-FROM products WHERE slug = $1 FOR UPDATE
+FROM products WHERE slug = $1 FOR NO KEY UPDATE
 `
 
 type LockProductLabelRow struct {
