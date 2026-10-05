@@ -181,7 +181,7 @@ func (v ReturnsView) FieldRefusal(returnID, field string) string {
 	if v.Errors == nil {
 		return ""
 	}
-	return v.Errors[returnID+":"+field]
+	return v.Errors[returnID+"."+field]
 }
 
 func (v ReturnsView) FieldInvalid(returnID, field string) bool {
