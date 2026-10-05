@@ -299,7 +299,7 @@ func (s *Store) SetActive(ctx context.Context, slug string, active bool) error {
 				Slug: strings.TrimSpace(slug), IsActive: active,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
