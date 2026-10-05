@@ -463,12 +463,18 @@ DECLARE
 BEGIN
     -- Separate branches rather than a coalesce: on DELETE there is no NEW
     -- record to read at all.
+    --
+    -- Locked before the count: two transactions that each change one side of
+    -- this then check one at a time, and the second counts what the first
+    -- committed. Lock order is variant -> product, as in lock_cart_catalogue and
+    -- sale_campaign_variant_still_valid: a firing UPDATE or DELETE of a variant
+    -- already holds that variant's row.
     IF TG_TABLE_NAME = 'products' THEN
-        SELECT * INTO p FROM products WHERE id = NEW.id;
+        SELECT * INTO p FROM products WHERE id = NEW.id FOR NO KEY UPDATE;
     ELSIF TG_OP = 'DELETE' THEN
-        SELECT * INTO p FROM products WHERE id = OLD.product_id;
+        SELECT * INTO p FROM products WHERE id = OLD.product_id FOR NO KEY UPDATE;
     ELSE
-        SELECT * INTO p FROM products WHERE id = NEW.product_id;
+        SELECT * INTO p FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
     END IF;
     IF NOT FOUND OR p.status <> 'active' THEN
         RETURN NULL;  -- deleted in this transaction, or not published anyway
