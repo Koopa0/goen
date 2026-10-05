@@ -28,9 +28,6 @@ const (
 	maxSummaryRunes     = 500
 	maxDescriptionRunes = 20000
 	MaxWarrantyMonths   = 120
-	// Each UTF-8 byte can take three bytes when escaped; the default budget
-	// covers the remaining fields and permits field-level over-limit recovery.
-	maxProductFormBytes = web.MaxFormBytes + 2*maxDescriptionRunes*utf8.UTFMax*3
 )
 
 type Form struct {

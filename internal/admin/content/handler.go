@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -361,13 +360,9 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
-// Percent encoding can triple each UTF-8 byte; the default budget covers
-// other fields and leaves room to render over-limit text as a field refusal.
-const maxNewsletterFormBytes = web.MaxFormBytes + (newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes)*utf8.UTFMax*3
-
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseFormWithLimit(w, r, maxNewsletterFormBytes); err != nil {
+	if err := web.ParseLongTextForm(w, r, newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

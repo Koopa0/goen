@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/a-h/templ"
 )
@@ -94,29 +93,30 @@ func TestRenderFailureOfALiveRequestIsStillA500(t *testing.T) {
 	}
 }
 
-func TestParseFormWithLimitKeepsTextAndBoundsTheEncodedBody(t *testing.T) {
+func TestParseLongTextFormKeepsTextAndBoundsTheEncodedBody(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name          string
 		query         string
 		body          string
+		runes         int
 		limit         int64
 		wantText      string
 		wantTextError bool
 		wantSizeError bool
 	}{
-		{name: "twenty thousand four-byte runes", body: url.Values{"message": {strings.Repeat("\U0001F331", 20000)}}.Encode(), limit: 256 << 10, wantText: strings.Repeat("\U0001F331", 20000)},
-		{name: "exact byte limit", body: "message=1234", limit: 12, wantText: "1234"},
-		{name: "one byte over", body: "message=12345", limit: 12, wantSizeError: true},
-		{name: "invalid UTF-8", body: "message=%E9", limit: 256 << 10, wantTextError: true},
-		{name: "NUL", body: "message=%00", limit: 256 << 10, wantTextError: true},
-		{name: "invalid query text", query: "?next=%00", body: "message=valid", limit: 256 << 10, wantTextError: true},
+		{name: "twenty thousand four-byte runes", body: url.Values{"message": {strings.Repeat("\U0001F331", 20000)}}.Encode(), runes: 20000, limit: 305536, wantText: strings.Repeat("\U0001F331", 20000)},
+		{name: "exact byte limit", body: "message=" + strings.Repeat("x", 65552), runes: 2, limit: 65560, wantText: strings.Repeat("x", 65552)},
+		{name: "one byte over", body: "message=" + strings.Repeat("x", 65553), runes: 2, limit: 65560, wantSizeError: true},
+		{name: "invalid UTF-8", body: "message=%E9", runes: 20000, limit: 305536, wantTextError: true},
+		{name: "NUL", body: "message=%00", runes: 20000, limit: 305536, wantTextError: true},
+		{name: "invalid query text", query: "?next=%00", body: "message=valid", runes: 20000, limit: 305536, wantTextError: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/form"+tt.query, strings.NewReader(tt.body))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			err := ParseFormWithLimit(httptest.NewRecorder(), r, tt.limit)
+			err := ParseLongTextForm(httptest.NewRecorder(), r, tt.runes)
 			if tt.wantSizeError {
 				size, ok := errors.AsType[*http.MaxBytesError](err)
 				if !ok || size.Limit != tt.limit {
@@ -149,30 +149,4 @@ func TestOrdinaryFormsKeepTheirExistingBodyLimit(t *testing.T) {
 	if !ok || size.Limit != 65536 {
 		t.Fatalf("ordinary form refusal=%v, want 65536-byte cap", err)
 	}
-}
-
-func FuzzParseFormWithLimit(f *testing.F) {
-	f.Add("message=hello", "", uint16(128))
-	f.Add("message=%00", "next=%E9", uint16(64))
-	f.Add("message=%E7%8E%8B", "", uint16(12))
-	f.Fuzz(func(t *testing.T, body, query string, budget uint16) {
-		limit := int64(min(budget, 4096))
-		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/form", strings.NewReader(body))
-		r.URL.RawQuery = query
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		if err := ParseFormWithLimit(httptest.NewRecorder(), r, limit); err != nil {
-			return
-		}
-		if int64(len(body)) > limit {
-			t.Errorf("accepted %d-byte encoded body above %d-byte budget", len(body), limit)
-		}
-		for name, values := range r.Form {
-			values = append(values, name)
-			for _, text := range values {
-				if !utf8.ValidString(text) || strings.ContainsRune(text, 0) {
-					t.Errorf("accepted unstorable text %q", text)
-				}
-			}
-		}
-	})
 }

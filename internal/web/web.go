@@ -29,12 +29,17 @@ var ErrFormText = errors.New("web: form carries text that cannot be stored")
 // ParseForm reads a bounded form body, so no handler calls r.ParseForm directly
 // and forgets the limit, and refuses a form CheckFormText refuses.
 func ParseForm(w http.ResponseWriter, r *http.Request) error {
-	return ParseFormWithLimit(w, r, MaxFormBytes)
+	return parseFormWithLimit(w, r, MaxFormBytes)
 }
 
-// ParseFormWithLimit lets longer text forms budget for percent encoding while
-// their field validators still enforce the permitted rune counts.
-func ParseFormWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) error {
+// ParseLongTextForm budgets for legal UTF-8 text whose percent encoding can
+// triple each byte. The ordinary budget covers other fields and leaves room
+// to render over-limit text as a field refusal.
+func ParseLongTextForm(w http.ResponseWriter, r *http.Request, runes int) error {
+	return parseFormWithLimit(w, r, MaxFormBytes+int64(runes)*utf8.UTFMax*3)
+}
+
+func parseFormWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	if err := r.ParseForm(); err != nil {
 		return fmt.Errorf("parse form: %w", err)
