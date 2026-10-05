@@ -422,7 +422,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ErrRefused) {
 			h.log.WarnContext(r.Context(), "detach image refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
@@ -505,7 +505,7 @@ func (h *Handler) optionWrite(
 		if errors.Is(err, ErrRefused) {
 			h.log.WarnContext(r.Context(), "write product option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
