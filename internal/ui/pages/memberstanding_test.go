@@ -10,6 +10,7 @@ import (
 )
 
 func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		bp   int32
@@ -27,6 +28,7 @@ func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			formats := []struct {
 				name   string
 				format func(context.Context) string
@@ -37,6 +39,7 @@ func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
 			for _, format := range formats {
 				for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 					t.Run(format.name+"/"+locale.Tag(), func(t *testing.T) {
+						t.Parallel()
 						want := tt.en
 						if locale == i18n.ZhHant {
 							want = tt.zh
