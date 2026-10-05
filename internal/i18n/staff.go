@@ -92,4 +92,10 @@ var (
 		En: "An administrator has granted you back-office access.\n\nUse this link to set or reset your password with Forgot password, using this email address:\n%s\n\n" +
 			"When you sign in to the back office you will be asked for your two-factor code, or shown how to set one up if you do not have one yet.",
 	})
+	KeyMailStaffEnrolmentSubject = key("mail.staff.enrolment.subject", Message{ZhHant: "goen 後台兩階段驗證的設定碼", En: "Your goen two-factor setup code"})
+	KeyMailStaffEnrolmentBody    = key("mail.staff.enrolment.body", Message{
+		ZhHant: "有人登入你的 goen 後台帳號，正在設定兩階段驗證。請在設定畫面輸入這組設定碼，15 分鐘內有效：\n%s\n\n如果不是你本人，代表別人知道你的密碼。請用下面的連結重設密碼（所有登入都會結束），並通知管理員：\n%s",
+		En: "Someone signed in to your goen back-office account and is setting up two-factor. Enter this code on the setup page. It works for 15 minutes:\n%s\n\n" +
+			"If this was not you, someone else knows your password. Reset it here, which signs out every session, and tell an administrator:\n%s",
+	})
 )

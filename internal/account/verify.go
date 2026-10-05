@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/user"
 )
 
 const VerifyTokenTTL = 48 * time.Hour
@@ -26,6 +27,10 @@ var ErrVerifyInvalid = errors.New("account: that verification link is not usable
 var ErrVerifyNeedsPassword = errors.New("account: completing a registration takes its password")
 
 var ErrVerifyNeedsSignIn = errors.New("account: proving a new address takes the account that asked for it")
+
+// ErrStaffAddress is a back-office account moving to another address. Its
+// second-factor setup code is mailed there.
+var ErrStaffAddress = errors.New("account: a back-office account cannot change its own address")
 
 type Verification struct {
 	Verified     bool
@@ -225,6 +230,11 @@ func (s *Store) confirm(ctx context.Context, token string, asker uuid.NullUUID, 
 	if refusal := linkRefusal(registration, completing, asker, verification.UserID); refusal != nil {
 		return Confirmed{}, refusal
 	}
+	// Here, where the address is rewritten, and not only where a change is
+	// asked for: a link asked for as a customer can be followed after promotion.
+	if (user.User{Role: user.Role(lockedUser.Role)}).IsStaff() && !strings.EqualFold(lockedUser.Email, verification.Email) {
+		return Confirmed{}, ErrStaffAddress
+	}
 	row, err := spendMatchingVerification(ctx, q, digest, verification)
 	if err != nil {
 		return Confirmed{}, err
@@ -285,14 +295,14 @@ func lockVerificationAccount(
 	q *db.Queries,
 	userID uuid.UUID,
 ) (db.LockUserForEmailVerificationRow, error) {
-	user, err := q.LockUserForEmailVerification(ctx, userID)
+	locked, err := q.LockUserForEmailVerification(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.LockUserForEmailVerificationRow{}, ErrVerifyInvalid
 	}
 	if err != nil {
 		return db.LockUserForEmailVerificationRow{}, fmt.Errorf("lock verification account: %w", err)
 	}
-	return user, nil
+	return locked, nil
 }
 
 func spendMatchingVerification(
