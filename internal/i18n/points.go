@@ -121,7 +121,7 @@ var (
 		En:     "No tiers yet. Without one, everybody earns at the base points rate.",
 	})
 
-	KeyAdminTierColTier = key("admin.tier.col.band", Message{ZhHant: "等級", En: "Tier"})
+	KeyAdminTierColTier = key("admin.tier.col.tier", Message{ZhHant: "等級", En: "Tier"})
 
 	KeyAdminTierColThreshold = key("admin.tier.col.threshold", Message{ZhHant: "門檻", En: "Threshold"})
 
