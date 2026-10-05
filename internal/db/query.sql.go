@@ -4643,20 +4643,22 @@ WITH due AS (
     WHERE delivered_at IS NULL AND available_at <= now()
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $2::integer
+    LIMIT $3::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
 SET attempts = m.attempts + 1,
-    available_at = now() + $1::interval
+    available_at = now() + $1::interval,
+    lease_owner = $2::uuid
 FROM due
 WHERE m.id = due.id
 RETURNING m.id, m.topic, m.payload, m.attempts
 `
 
 type ClaimOutboxParams struct {
-	Lease     pgtype.Interval
-	BatchSize int32
+	Lease      pgtype.Interval
+	LeaseOwner uuid.UUID
+	BatchSize  int32
 }
 
 type ClaimOutboxRow struct {
@@ -4671,7 +4673,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.LeaseOwner, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -9012,13 +9014,22 @@ func (q *Queries) MarkNewsletterIssueSent(ctx context.Context, arg MarkNewslette
 	return result.RowsAffected(), nil
 }
 
-const markOutboxDelivered = `-- name: MarkOutboxDelivered :exec
-UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1
+const markOutboxDelivered = `-- name: MarkOutboxDelivered :execrows
+UPDATE outbox_messages SET delivered_at = now(), last_error = NULL, lease_owner = NULL
+WHERE id = $1 AND lease_owner = $2::uuid AND delivered_at IS NULL
 `
 
-func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markOutboxDelivered, id)
-	return err
+type MarkOutboxDeliveredParams struct {
+	ID         uuid.UUID
+	LeaseOwner uuid.UUID
+}
+
+func (q *Queries) MarkOutboxDelivered(ctx context.Context, arg MarkOutboxDeliveredParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markOutboxDelivered, arg.ID, arg.LeaseOwner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markSessionVerified = `-- name: MarkSessionVerified :exec
@@ -12887,22 +12898,32 @@ func (q *Queries) RescheduleInvoiceOperation(ctx context.Context, arg Reschedule
 	return rescheduled, err
 }
 
-const rescheduleOutbox = `-- name: RescheduleOutbox :exec
+const rescheduleOutbox = `-- name: RescheduleOutbox :execrows
 UPDATE outbox_messages
-SET available_at = now() + $2::interval, last_error = $3::text
-WHERE id = $1
+SET available_at = now() + $1::interval, last_error = $2::text,
+    lease_owner = NULL
+WHERE id = $3 AND lease_owner = $4::uuid AND delivered_at IS NULL
 `
 
 type RescheduleOutboxParams struct {
-	ID        uuid.UUID
-	Backoff   pgtype.Interval
-	LastError string
+	Backoff    pgtype.Interval
+	LastError  string
+	ID         uuid.UUID
+	LeaseOwner uuid.UUID
 }
 
 // Push a failed message relative to the same database clock ClaimOutbox uses.
-func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) error {
-	_, err := q.db.Exec(ctx, rescheduleOutbox, arg.ID, arg.Backoff, arg.LastError)
-	return err
+func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rescheduleOutbox,
+		arg.Backoff,
+		arg.LastError,
+		arg.ID,
+		arg.LeaseOwner,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const restockReturnedUnits = `-- name: RestockReturnedUnits :exec
