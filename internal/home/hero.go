@@ -32,6 +32,7 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 	for i := range rows {
 		r := &rows[i]
 		slide := pages.HeroSlide{
+			ID:     r.ID.String(),
 			Source: pages.SlideScheduled,
 			Layout: pages.SlidePhoto,
 			Tone:   pages.ToneStone,

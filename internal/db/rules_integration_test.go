@@ -3004,6 +3004,95 @@ func TestDeletingTheLastVariantIsRefused(t *testing.T) {
 	}
 }
 
+// TestProductSellabilityCannotRace: products_check_sellable counts a product's
+// active variants when each transaction's check runs, so two transactions that
+// each change one side read the other's row as it was. Each case is a pair that,
+// both committed, leaves a published product with nothing to sell.
+func TestProductSellabilityCannotRace(t *testing.T) {
+	setup(t, `
+		INSERT INTO brands (id, slug, name) VALUES ('11110a00-0000-4000-8000-000000000001','sellable-race','S');
+		-- A position no other committed fixture takes; see TestStockCannotOversell.
+		INSERT INTO categories (id, slug, name, position)
+		VALUES ('11110a01-0000-4000-8000-000000000001','sellable-race','S',901);`)
+	t.Cleanup(func() {
+		mustExec(t, `
+			UPDATE products SET status = 'draft' WHERE brand_id = '11110a00-0000-4000-8000-000000000001';
+			DELETE FROM product_variants WHERE product_id IN (
+				SELECT id FROM products WHERE brand_id = '11110a00-0000-4000-8000-000000000001');
+			DELETE FROM products WHERE brand_id = '11110a00-0000-4000-8000-000000000001';
+			DELETE FROM categories WHERE id = '11110a01-0000-4000-8000-000000000001';
+			DELETE FROM brands WHERE id = '11110a00-0000-4000-8000-000000000001';`)
+	})
+
+	// IMMEDIATE runs each transaction's check before it commits, which is the
+	// interleaving a commit-time check allows.
+	const immediate = `SET CONSTRAINTS products_active_has_variant, product_variants_keep_product_sellable IMMEDIATE; `
+	tests := []struct {
+		name      string
+		published bool
+		variants  int
+		first     string
+		second    string
+	}{
+		{name: "two retirements", published: true, variants: 2, first: "retire 1", second: "retire 2"},
+		{name: "publish, then retire", published: false, variants: 1, first: "publish", second: "retire 1"},
+		{name: "retire, then publish", published: false, variants: 1, first: "retire 1", second: "publish"},
+		{name: "retire one, delete the other", published: true, variants: 2, first: "retire 1", second: "delete 2"},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			product := fmt.Sprintf("11110a02-0000-4000-8000-%012d", i+1)
+			status, published := "'draft'", "NULL"
+			if tt.published {
+				status, published = "'active'", "now()"
+			}
+			var fixture strings.Builder
+			fmt.Fprintf(&fixture, `
+				INSERT INTO products (id, brand_id, category_id, slug, name, description, status, published_at)
+				VALUES ('%s', '11110a00-0000-4000-8000-000000000001', '11110a01-0000-4000-8000-000000000001',
+				        'sellable-race-%d', 'S', '', %s, %s);`, product, i+1, status, published)
+			for v := 1; v <= tt.variants; v++ {
+				fmt.Fprintf(&fixture, `
+				INSERT INTO product_variants (product_id, sku, price_cents, position)
+				VALUES ('%s', 'SELLABLE-RACE-%d-%d', 100000, %d);`, product, i+1, v, v)
+			}
+			setup(t, fixture.String())
+
+			step := func(s string) string {
+				verb, variant, _ := strings.Cut(s, " ")
+				switch verb {
+				case "publish":
+					return immediate + `UPDATE products SET status = 'active', published_at = now() WHERE id = '` + product + `'`
+				case "delete":
+					return immediate + fmt.Sprintf(
+						`DELETE FROM product_variants WHERE sku = 'SELLABLE-RACE-%d-%s'`, i+1, variant)
+				default:
+					return immediate + fmt.Sprintf(
+						`UPDATE product_variants SET is_active = false WHERE sku = 'SELLABLE-RACE-%d-%s'`, i+1, variant)
+				}
+			}
+			err1, err2 := raceOutcome(t, step(tt.first), step(tt.second))
+			requireExactlyOne(t, "a published product's last active variant", err1, err2)
+			for _, err := range []error{err1, err2} {
+				if _, name := constraintViolation(err); err != nil && name != "products_active_has_variant" {
+					t.Errorf("the losing writer was refused by %q, want products_active_has_variant: %v", name, err)
+				}
+			}
+
+			var stranded bool
+			if err := schemaPool(t).QueryRow(t.Context(), `
+				SELECT p.status = 'active' AND NOT EXISTS (
+					SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+				FROM products p WHERE p.id = $1`, product).Scan(&stranded); err != nil {
+				t.Fatalf("read product: %v", err)
+			}
+			if stranded {
+				t.Error("the product is published with no active variant")
+			}
+		})
+	}
+}
+
 // TestEveryRoleCanReadWhatItsQueriesRead proves a missing GRANT cannot hide behind the owner,
 // who is subject to no REVOKE.
 func TestEveryRoleCanReadWhatItsQueriesRead(t *testing.T) {

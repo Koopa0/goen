@@ -471,6 +471,7 @@ type OutboxMessage struct {
 	DeliveredAt pgtype.Timestamptz
 	Attempts    int32
 	LastError   pgtype.Text
+	LeaseOwner  uuid.NullUUID
 }
 
 type PasswordResetToken struct {

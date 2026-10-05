@@ -342,7 +342,7 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 	if !knownStatus(status) {
 		return ErrRefused
 	}
-	return audit.Run(ctx, s.pool, audit.Event{
+	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionPublishProduct, Table: "products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "status": status},
 	},
@@ -351,13 +351,17 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 				Slug: slug, Status: status,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("set status of %s: %w", slug, err)
 			}
 			if n == 0 {
 				return ErrNotFound
 			}
 			return nil
 		})
+	// products_active_has_variant is deferred, so publishing a product with
+	// nothing to sell is refused at COMMIT, which audit.Run reports outside the
+	// work; the refusal is read off the whole result.
+	return pgerr.WrapRefusal(err, ErrRefused)
 }
 
 func knownStatus(s string) bool {
@@ -430,7 +434,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return fmt.Errorf("%w: %w", ErrRefused, err)
+			return pgerr.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	})
@@ -507,7 +511,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -554,7 +558,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		if errors.Is(err, ErrNotFound) {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionMissing)}, nil
 		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
