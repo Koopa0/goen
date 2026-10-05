@@ -20,7 +20,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -69,34 +68,12 @@ func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 func TestAdvanceAnswersALockTimeoutAsAFailure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
+	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.Refunder{}, nil, nil)
+	admintest.HoldRow(t, pool, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number)
 
-	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
-	if err != nil {
-		t.Fatalf("parse lock-timeout pool config: %v", err)
-	}
-	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200"
-	timed, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatalf("open lock-timeout pool: %v", err)
-	}
-	t.Cleanup(timed.Close)
-	s := admintest.OrderStore(timed, admintest.Refunder{}, nil, nil)
-
-	holder, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin the lock holder: %v", err)
-	}
-	defer func() { _ = holder.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err = holder.Exec(ctx, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number); err != nil {
-		t.Fatalf("hold the order's row lock: %v", err)
-	}
-
-	_, err = s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
-	if errors.Is(err, orders.ErrRefused) {
-		t.Fatalf("Advance(%s) behind a held row lock = %v, want a failure that is not ErrRefused", number, err)
-	}
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "55P03" {
-		t.Fatalf("Advance(%s) behind a held row lock = %v, want lock_not_available (55P03)", number, err)
+	_, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
+	if errors.Is(err, orders.ErrRefused) || !admintest.LockTimedOut(err) {
+		t.Fatalf("Advance(%s) behind a held row lock = %v, want lock_not_available (55P03) and not ErrRefused", number, err)
 	}
 
 	form := url.Values{"status": {string(order.FulfillmentCancelled)}}
