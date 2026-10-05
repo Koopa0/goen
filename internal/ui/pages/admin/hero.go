@@ -22,8 +22,6 @@ type HeroSlide struct {
 	EndsAt   string
 }
 
-func (s HeroSlide) Live() bool { return s.Active && s.InWindow }
-
 func (s HeroSlide) State() string {
 	switch {
 	case !s.Active:
