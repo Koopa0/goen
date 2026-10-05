@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -420,6 +421,23 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	return sessions, nil
 }
 
+// recordShipment inserts the parcel. Ship's status check reads the order
+// without a lock, so another staff member can move it on first;
+// shipment_order_in_fulfilment re-reads it under the order's lock, and its
+// refusal says what the status check would have.
+func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c carrier.Carrier, tracking string) (uuid.UUID, error) {
+	id, err := q.CreateShipment(ctx, db.CreateShipmentParams{
+		OrderID: orderID, Carrier: string(c), TrackingNumber: tracking,
+	})
+	if pgerr.IsConstraint(err, "shipment_order_in_fulfilment") {
+		return uuid.Nil, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("record shipment: %w", err)
+	}
+	return id, nil
+}
+
 func advanceKind(status order.FulfillmentStatus) (string, error) {
 	// Ship is the only door to 'shipped', because a dispatch also records the
 	// carrier and settles the held stock.
@@ -674,11 +692,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if carrierErr := requireCarrierFor(ctx, q, row.ID, number, carrierCode); carrierErr != nil {
 		return carrierErr
 	}
-	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
-		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
-	})
+	shipmentID, shipErr := recordShipment(ctx, q, row.ID, carrierCode, tracking)
 	if shipErr != nil {
-		return fmt.Errorf("record shipment: %w", shipErr)
+		return shipErr
 	}
 
 	if fillErr := fillParcel(ctx, q, row.ID, shipmentID, number, d.Lines); fillErr != nil {
