@@ -20,6 +20,7 @@ templ Report(p layouts.Page, v *ReportView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminRepLead) }
 				</p>
+				<p class="ui-page-head__sub">{ v.Heading(ctx) }</p>
 			</div>
 			<nav class="ui-filterbar goen-admin__tabs" aria-label={ i18n.T(ctx, i18n.KeyAdminRepWindow) }>
 				for _, d := range v.Windows {
@@ -44,22 +45,27 @@ templ Report(p layouts.Page, v *ReportView) {
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepRevenue) }</span>
 					<span class="goen-report__value">{ v.Revenue() }</span>
+					<span class="goen-admin__meta">{ v.RevenueAgainst(ctx) }</span>
 				</li>
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepRefunded) }</span>
 					<span class="goen-report__value">{ v.Refunded() }</span>
+					<span class="goen-admin__meta">{ v.RefundedAgainst(ctx) }</span>
 				</li>
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepPaidOrders) }</span>
 					<span class="goen-report__value">{ v.OrdersText() }</span>
+					<span class="goen-admin__meta">{ v.OrdersAgainst(ctx) }</span>
 				</li>
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepAverage) }</span>
 					<span class="goen-report__value">{ v.Average() }</span>
+					<span class="goen-admin__meta">{ v.AverageAgainst(ctx) }</span>
 				</li>
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepCompletion) }</span>
 					<span class="goen-report__value">{ v.Completion(ctx) }</span>
+					<span class="goen-admin__meta">{ v.CompletionAgainst(ctx) }</span>
 					if !v.ShowsCount() {
 						<span class="goen-admin__meta">
 							{ v.Counts(ctx) }

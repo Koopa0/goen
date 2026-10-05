@@ -175,7 +175,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &refusal)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipment refused", "order", number, "error", err)
-		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminNoticeRefused})
+		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminDispatchRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		access.ServerError(w, r, h.log)
@@ -189,7 +189,9 @@ type shipRefusal struct {
 // rejectShip re-renders the order with everything staff typed, the carrier, the
 // tracking number and each line's quantity, and the refused control marked,
 // because re-typing a long tracking number after every mistake is the cost a
-// redirect would put on the warehouse.
+// redirect would put on the warehouse. An order that no longer takes a dispatch
+// has no form to refill, so its notice names the carrier and number instead:
+// the parcel may already be out of the door.
 func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *shipRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
@@ -209,6 +211,9 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view.TrackingError = say(refusal.tracking)
 	view.ShipQtyError = say(refusal.quantity)
 	view.Notice = say(refusal.notice)
+	if refusal.notice == i18n.KeyAdminDispatchRefused {
+		view.Notice = fmt.Sprintf(view.Notice, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
+	}
 	view.ShipQty = map[string]string{}
 	for i := range view.Shippable {
 		id := view.Shippable[i].OrderLineID

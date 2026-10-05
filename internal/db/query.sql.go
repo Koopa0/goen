@@ -670,9 +670,10 @@ const adminCoupons = `-- name: AdminCoupons :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
        c.per_customer_limit, c.is_active, c.starts_at, c.ends_at,
-       (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id)::bigint AS redeemed,
-       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r
-        WHERE r.coupon_id = c.id)::bigint AS given_cents,
+       (SELECT count(*) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS redeemed,
+       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS given_cents,
        (c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now()))::boolean AS is_current
 FROM coupons c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
@@ -710,8 +711,9 @@ type AdminCouponsRow struct {
 	IsCurrent        bool
 }
 
-// The redemption count comes from the ledger and never from a column: the ledger
-// is what the limit is counted from at checkout.
+// Usage is counted exactly as redeem_coupon counts it for
+// coupon_within_total_limit: redemptions whose order is not cancelled.
+// Change this and redeem_coupon together.
 func (q *Queries) AdminCoupons(ctx context.Context, arg AdminCouponsParams) ([]AdminCouponsRow, error) {
 	rows, err := q.db.Query(ctx, adminCoupons,
 		arg.HasCursor,
@@ -1470,25 +1472,39 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id
+       p.brand_id, p.category_id,
+       coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
+       coalesce(p.domestic_party_name, '') AS domestic_party_name,
+       coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
+       coalesce(p.domestic_party_address, '') AS domestic_party_address,
+       coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
+       coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p WHERE p.slug = $1
 `
 
 type AdminProductRow struct {
-	ID             uuid.UUID
-	Slug           string
-	Name           string
-	Summary        string
-	Description    string
-	WarrantyMonths int32
-	NameEn         string
-	SummaryEn      string
-	DescriptionEn  string
-	WarrantyNote   string
-	Status         string
-	PublishedAt    pgtype.Timestamptz
-	BrandID        uuid.NullUUID
-	CategoryID     uuid.UUID
+	ID                   uuid.UUID
+	Slug                 string
+	Name                 string
+	Summary              string
+	Description          string
+	WarrantyMonths       int32
+	NameEn               string
+	SummaryEn            string
+	DescriptionEn        string
+	WarrantyNote         string
+	Status               string
+	PublishedAt          pgtype.Timestamptz
+	BrandID              uuid.NullUUID
+	CategoryID           uuid.UUID
+	Origin               string
+	OriginEn             string
+	DomesticPartyName    string
+	DomesticPartyPhone   string
+	DomesticPartyAddress string
+	NetQuantity          string
+	NetUnit              string
+	MinAgeMonths         pgtype.Int2
 }
 
 func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRow, error) {
@@ -1509,6 +1525,14 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 		&i.PublishedAt,
 		&i.BrandID,
 		&i.CategoryID,
+		&i.Origin,
+		&i.OriginEn,
+		&i.DomesticPartyName,
+		&i.DomesticPartyPhone,
+		&i.DomesticPartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
 	)
 	return i, err
 }
@@ -3103,7 +3127,7 @@ func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolment
 	return result.RowsAffected(), nil
 }
 
-const bestSellersSince = `-- name: BestSellersSince :many
+const bestSellersBetween = `-- name: BestSellersBetween :many
 SELECT
     p.slug,
     p.name,
@@ -3115,18 +3139,19 @@ JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
 JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
 ORDER BY units DESC, revenue_cents DESC
-LIMIT $2::integer
+LIMIT $3::integer
 `
 
-type BestSellersSinceParams struct {
-	WindowDays int32
-	LimitTo    int32
+type BestSellersBetweenParams struct {
+	FromAt  time.Time
+	ToAt    time.Time
+	LimitTo int32
 }
 
-type BestSellersSinceRow struct {
+type BestSellersBetweenRow struct {
 	Slug         string
 	Name         string
 	Brand        string
@@ -3134,15 +3159,15 @@ type BestSellersSinceRow struct {
 	RevenueCents int64
 }
 
-func (q *Queries) BestSellersSince(ctx context.Context, arg BestSellersSinceParams) ([]BestSellersSinceRow, error) {
-	rows, err := q.db.Query(ctx, bestSellersSince, arg.WindowDays, arg.LimitTo)
+func (q *Queries) BestSellersBetween(ctx context.Context, arg BestSellersBetweenParams) ([]BestSellersBetweenRow, error) {
+	rows, err := q.db.Query(ctx, bestSellersBetween, arg.FromAt, arg.ToAt, arg.LimitTo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []BestSellersSinceRow{}
+	items := []BestSellersBetweenRow{}
 	for rows.Next() {
-		var i BestSellersSinceRow
+		var i BestSellersBetweenRow
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
@@ -4484,16 +4509,21 @@ func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (C
 	return i, err
 }
 
-const checkoutCompletionSince = `-- name: CheckoutCompletionSince :one
+const checkoutCompletionBetween = `-- name: CheckoutCompletionBetween :one
 SELECT
     count(*)::bigint AS placed,
     coalesce(sum(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END), 0)::bigint AS committed
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 `
 
-type CheckoutCompletionSinceRow struct {
+type CheckoutCompletionBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type CheckoutCompletionBetweenRow struct {
 	Placed    int64
 	Committed int64
 }
@@ -4501,9 +4531,9 @@ type CheckoutCompletionSinceRow struct {
 // NOT a conversion rate: goen collects no traffic data. This is the fraction of
 // started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
 // function call — measured at 106 ms over 14,000 orders against 7.7 ms.
-func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32) (CheckoutCompletionSinceRow, error) {
-	row := q.db.QueryRow(ctx, checkoutCompletionSince, windowDays)
-	var i CheckoutCompletionSinceRow
+func (q *Queries) CheckoutCompletionBetween(ctx context.Context, arg CheckoutCompletionBetweenParams) (CheckoutCompletionBetweenRow, error) {
+	row := q.db.QueryRow(ctx, checkoutCompletionBetween, arg.FromAt, arg.ToAt)
+	var i CheckoutCompletionBetweenRow
 	err := row.Scan(&i.Placed, &i.Committed)
 	return i, err
 }
@@ -8609,6 +8639,44 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	return id, err
 }
 
+const lockProductLabel = `-- name: LockProductLabel :one
+SELECT id, slug, origin, origin_en, domestic_party_name, domestic_party_phone,
+       domestic_party_address, net_quantity, net_unit, min_age_months
+FROM products WHERE slug = $1 FOR NO KEY UPDATE
+`
+
+type LockProductLabelRow struct {
+	ID                   uuid.UUID
+	Slug                 string
+	Origin               pgtype.Text
+	OriginEn             pgtype.Text
+	DomesticPartyName    pgtype.Text
+	DomesticPartyPhone   pgtype.Text
+	DomesticPartyAddress pgtype.Text
+	NetQuantity          pgtype.Numeric
+	NetUnit              pgtype.Text
+	MinAgeMonths         pgtype.Int2
+}
+
+// Lock before reading the label replaced, so the audit records the actual prior facts.
+func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProductLabelRow, error) {
+	row := q.db.QueryRow(ctx, lockProductLabel, slug)
+	var i LockProductLabelRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Origin,
+		&i.OriginEn,
+		&i.DomesticPartyName,
+		&i.DomesticPartyPhone,
+		&i.DomesticPartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
+	)
+	return i, err
+}
+
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id
@@ -11076,7 +11144,13 @@ SELECT
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, $2::text) AS category_name,
-    c.parent_id AS category_parent_id
+    c.parent_id AS category_parent_id,
+    coalesce(localized_name(coalesce(p.origin, p.origin_en), p.origin_en, $2::text), '')::text AS origin,
+    coalesce(p.domestic_party_name, '') AS domestic_party_name,
+    coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
+    coalesce(p.domestic_party_address, '') AS domestic_party_address,
+    coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
+    coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
@@ -11089,19 +11163,26 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID               uuid.UUID
-	Slug             string
-	Name             string
-	Summary          string
-	Description      string
-	WarrantyNote     pgtype.Text
-	WarrantyMonths   int32
-	Brand            string
-	BrandSlug        string
-	CategoryID       uuid.UUID
-	CategorySlug     string
-	CategoryName     string
-	CategoryParentID uuid.NullUUID
+	ID                   uuid.UUID
+	Slug                 string
+	Name                 string
+	Summary              string
+	Description          string
+	WarrantyNote         pgtype.Text
+	WarrantyMonths       int32
+	Brand                string
+	BrandSlug            string
+	CategoryID           uuid.UUID
+	CategorySlug         string
+	CategoryName         string
+	CategoryParentID     uuid.NullUUID
+	Origin               string
+	DomesticPartyName    string
+	DomesticPartyPhone   string
+	DomesticPartyAddress string
+	NetQuantity          string
+	NetUnit              string
+	MinAgeMonths         pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -11121,6 +11202,13 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.CategorySlug,
 		&i.CategoryName,
 		&i.CategoryParentID,
+		&i.Origin,
+		&i.DomesticPartyName,
+		&i.DomesticPartyPhone,
+		&i.DomesticPartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
 	)
 	return i, err
 }
@@ -13684,11 +13772,13 @@ func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]Ret
 	return items, nil
 }
 
-const revenueSince = `-- name: RevenueSince :one
+const revenueBetween = `-- name: RevenueBetween :one
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
     (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- Float, not money: only the report's noise test reads it.
+    coalesce(sum(t.total::float8 * t.total), 0)::float8 AS sum_of_squares,
     -- What went back, counted by when each source moved: succeeded_at for a card
     -- refund (created_at can be days earlier while Stripe still says pending),
     -- created_at for the synchronous credit post.
@@ -13700,12 +13790,12 @@ SELECT
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)
+                 AND r.succeeded_at >= $1::timestamptz AND r.succeeded_at < $2::timestamptz
                  AND NOT EXISTS (SELECT 1 FROM return_requests b
                                  WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => $1::integer)
+                   AND e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz
                    AND NOT EXISTS (SELECT 1 FROM return_requests b
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
@@ -13715,29 +13805,37 @@ FROM (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
-    WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+    WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
       AND NOT EXISTS (SELECT 1 FROM return_requests b
                       WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
-type RevenueSinceRow struct {
+type RevenueBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type RevenueBetweenRow struct {
 	Orders        int64
 	RevenueCents  int64
 	AverageCents  int64
+	SumOfSquares  float64
 	RefundedCents int64
 }
 
+// A period is [from_at, to_at), cut by the caller on the shop's clock.
 // COMMITTED orders only, and the total is recomputed from the lines because
 // orders carries no total column. Integer division on the average, so no float
 // touches money, and greatest(count, 1) because an empty window divides by zero.
-func (q *Queries) RevenueSince(ctx context.Context, windowDays int32) (RevenueSinceRow, error) {
-	row := q.db.QueryRow(ctx, revenueSince, windowDays)
-	var i RevenueSinceRow
+func (q *Queries) RevenueBetween(ctx context.Context, arg RevenueBetweenParams) (RevenueBetweenRow, error) {
+	row := q.db.QueryRow(ctx, revenueBetween, arg.FromAt, arg.ToAt)
+	var i RevenueBetweenRow
 	err := row.Scan(
 		&i.Orders,
 		&i.RevenueCents,
 		&i.AverageCents,
+		&i.SumOfSquares,
 		&i.RefundedCents,
 	)
 	return i, err
@@ -14609,6 +14707,42 @@ WHERE pi.id = o.id
 
 func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
+	return err
+}
+
+const setProductLabel = `-- name: SetProductLabel :exec
+UPDATE products SET origin = nullif($1::text, ''), origin_en = nullif($2::text, ''),
+    domestic_party_name = nullif($3::text, ''),
+    domestic_party_phone = nullif($4::text, ''),
+    domestic_party_address = nullif($5::text, ''),
+    net_quantity = $6, net_unit = nullif($7::text, ''), min_age_months = $8
+WHERE id = $9
+`
+
+type SetProductLabelParams struct {
+	Origin               string
+	OriginEn             string
+	DomesticPartyName    string
+	DomesticPartyPhone   string
+	DomesticPartyAddress string
+	NetQuantity          pgtype.Numeric
+	NetUnit              string
+	MinAgeMonths         pgtype.Int2
+	ID                   uuid.UUID
+}
+
+func (q *Queries) SetProductLabel(ctx context.Context, arg SetProductLabelParams) error {
+	_, err := q.db.Exec(ctx, setProductLabel,
+		arg.Origin,
+		arg.OriginEn,
+		arg.DomesticPartyName,
+		arg.DomesticPartyPhone,
+		arg.DomesticPartyAddress,
+		arg.NetQuantity,
+		arg.NetUnit,
+		arg.MinAgeMonths,
+		arg.ID,
+	)
 	return err
 }
 
