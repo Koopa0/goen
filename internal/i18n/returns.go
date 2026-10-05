@@ -101,7 +101,7 @@ var (
 	// Consumer Protection Act §19's seven days, a right §19 V makes unwaivable —
 	// so the English says "right to cancel" and never "trial period".
 	KeyAdminReturnWindowWithin = key("admin.return.window.within", Message{
-		ZhHant: "七日鑑賞期內",
+		ZhHant: "七日猶豫期內",
 		En:     "Within the statutory 7-day right to cancel",
 	})
 
@@ -111,7 +111,7 @@ var (
 	})
 
 	KeyAdminReturnWindowAfter = key("admin.return.window.after", Message{
-		ZhHant: "已逾鑑賞期",
+		ZhHant: "已逾猶豫期",
 		En:     "Past the statutory 7-day right to cancel",
 	})
 
