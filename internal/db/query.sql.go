@@ -3539,7 +3539,7 @@ FROM shipping_version_zones vz
 WHERE vz.version_id = (
     SELECT v.id FROM shipping_method_versions v
     WHERE v.method_id = $2 AND v.id <> $1
-      AND v.effective_at <= now()
+      AND v.effective_at <= statement_timestamp()
     ORDER BY v.effective_at DESC, v.id DESC
     LIMIT 1
 )
@@ -6302,6 +6302,21 @@ func (q *Queries) CurrentPromoBanner(ctx context.Context, locale string) (Curren
 	return i, err
 }
 
+const currentShippingVersion = `-- name: CurrentShippingVersion :one
+SELECT id FROM shipping_method_versions
+WHERE method_id = $1 AND effective_at <= statement_timestamp()
+ORDER BY effective_at DESC, id DESC
+LIMIT 1
+`
+
+// A waiting transaction's now() predates the publication that released its lock.
+func (q *Queries) CurrentShippingVersion(ctx context.Context, methodID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, currentShippingVersion, methodID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const customerByEmail = `-- name: CustomerByEmail :one
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE lower(email) = lower($1::text)
@@ -8621,6 +8636,33 @@ FOR UPDATE OF o
 // is what makes two staff members closing one return resolve to one winner.
 func (q *Queries) LockReturnOrder(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockReturnOrder, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockShippingMethod = `-- name: LockShippingMethod :one
+SELECT id FROM shipping_methods WHERE id = $1 FOR NO KEY UPDATE
+`
+
+// Fee publication and surcharge edits share this root; version rows are append-only.
+func (q *Queries) LockShippingMethod(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShippingMethod, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockShippingMethodForVersion = `-- name: LockShippingMethodForVersion :one
+SELECT sm.id
+FROM shipping_methods sm
+JOIN shipping_method_versions v ON v.method_id = sm.id
+WHERE v.id = $1
+FOR NO KEY UPDATE OF sm
+`
+
+func (q *Queries) LockShippingMethodForVersion(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShippingMethodForVersion, id)
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
@@ -11275,10 +11317,10 @@ func (q *Queries) ProveEmailByReset(ctx context.Context, id uuid.UUID) error {
 
 const publishShippingVersion = `-- name: PublishShippingVersion :one
 INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier_en,
-                                      fee_cents, free_over_cents)
+                                      fee_cents, free_over_cents, effective_at)
 VALUES ($1, $2, nullif($3::text, ''),
         nullif($4::text, ''), nullif($5::text, ''),
-        $6, nullif($7::bigint, 0))
+        $6, nullif($7::bigint, 0), statement_timestamp())
 RETURNING id
 `
 
