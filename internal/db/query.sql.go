@@ -711,6 +711,9 @@ type AdminCouponsRow struct {
 	IsCurrent        bool
 }
 
+// Usage is counted exactly as redeem_coupon counts it for
+// coupon_within_total_limit: redemptions whose order is not cancelled.
+// Change this and redeem_coupon together.
 func (q *Queries) AdminCoupons(ctx context.Context, arg AdminCouponsParams) ([]AdminCouponsRow, error) {
 	rows, err := q.db.Query(ctx, adminCoupons,
 		arg.HasCursor,
