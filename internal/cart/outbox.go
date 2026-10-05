@@ -14,7 +14,7 @@ import (
 // enqueueOrderPlaced is keyed on the order number so a retried checkout cannot
 // send a second confirmation.
 func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr *order.Delivery, totalCents int64) error {
-	// Credit is already posted in this transaction, so order_amount_owed is the
+	// Credit is already posted in this transaction, so order_amount_after_credit is the
 	// figure the payment page will show.
 	summary, err := q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
 		Number: number, Locale: i18n.FromContext(ctx).Tag(),

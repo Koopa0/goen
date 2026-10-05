@@ -59,7 +59,7 @@ SELECT
      WHERE ir.state = 'held' AND ir.expires_at < now()
        AND NOT order_is_committed(ir.order_id)
        AND (o.fulfillment_status = 'cancelled'
-            OR order_amount_owed(ir.order_id) <> 0)
+            OR order_amount_after_credit(ir.order_id) <> 0)
        -- Match ExpiredReservations: reconciliation deliberately pins stock
        -- while provider money may exist, so it is not a sweeper backlog.
        AND (o.fulfillment_status = 'cancelled' OR (
@@ -161,7 +161,7 @@ WHERE op.status = 'attention'
    OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
-            OR (o.fulfillment_status = 'pending' AND order_amount_owed(op.order_id) = 0))
+            OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
        AND NOT EXISTS (SELECT 1 FROM invoice_operations later
                        WHERE later.order_id = op.order_id AND later.kind = 'issue'
                          AND later.created_at > op.created_at))
@@ -191,7 +191,7 @@ CROSS JOIN LATERAL (
                AS amount_cents
 ) f
 WHERE (order_is_committed(o.id)
-       OR (o.fulfillment_status = 'pending' AND order_amount_owed(o.id) = 0))
+       OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(o.id) = 0))
   AND f.amount_cents > 0
   AND f.funded_at < now() - @older_than::interval
   AND NOT EXISTS (SELECT 1 FROM invoice_operations op

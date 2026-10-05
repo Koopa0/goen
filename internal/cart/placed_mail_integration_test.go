@@ -101,7 +101,7 @@ func placedOrderPayload(t *testing.T, number string) (payload email.OrderPlaced,
 		SELECT (SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
 		          FROM order_lines ol WHERE ol.order_id = o.id)
 		       - o.discount_cents + o.shipping_cents + o.tax_cents,
-		       order_amount_owed(o.id)
+		       order_amount_after_credit(o.id)
 		FROM orders o WHERE o.order_number = $1`, number).Scan(&total, &owed); err != nil {
 		t.Fatalf("read order totals for %s: %v", number, err)
 	}
