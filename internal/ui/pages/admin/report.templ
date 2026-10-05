@@ -80,15 +80,18 @@ templ Report(p layouts.Page, v *ReportView) {
 				</div>
 			} else {
 				<ul class="goen-report__rows" role="list">
+					{{ top := v.TopUnits() }}
 					for _, item := range v.Sellers {
 						<li class="goen-report__row">
 							<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
 							<span class="goen-admin__meta">{ item.Brand }</span>
 							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUnits), item.UnitsText()) }</span>
 							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepGross), item.Revenue()) }</span>
-							<div class="goen-report__bar">
-								@chart.Bar(chart.BarProps{Value: item.Units, Max: v.TopUnits(), Label: item.UnitsText()})
-							</div>
+							if len(v.Sellers) > 1 {
+								<div class="goen-report__bar">
+									@chart.Bar(chart.BarProps{Value: item.Units, Max: top, Label: item.UnitsText()})
+								</div>
+							}
 						</li>
 					}
 				</ul>

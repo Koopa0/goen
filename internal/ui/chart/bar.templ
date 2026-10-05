@@ -5,8 +5,8 @@ package chart
 templ Bar(p BarProps) {
 	<svg class="goen-chartbar" width="100%" height="14" aria-hidden="true" focusable="false">
 		if p.Value > 0 {
-			<rect class="goen-chart__hue" x="0" y="2" width={ p.width() } height="10" rx="2"></rect>
+			<rect class="goen-chartbar__fill" x="0" y="2" width={ p.width() } height="10" rx="2"></rect>
 		}
-		<text class="goen-chart__value" x={ p.width() } dx="6" y="11">{ p.Label }</text>
+		<text class="goen-chartbar__label" x={ p.width() } dx="6" y="11">{ p.Label }</text>
 	</svg>
 }

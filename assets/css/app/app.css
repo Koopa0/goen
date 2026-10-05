@@ -246,8 +246,8 @@ a:hover {
 
    The neutrals carry no chroma, because the product photographs sit on a
    chroma-free #f9f9f9 and any tint in the page would show as an edge around
-   them. Colour is spent in two places only: the accent, and the functional
-   hues a status needs.
+   them. Colour is spent in three places only: the accent, the functional
+   hues a status needs, and the one chart data colour, --chart-hue.
    ------------------------------------------------------------------------ */
 
 :root {
@@ -9544,11 +9544,11 @@ form[data-request-pending] [aria-disabled="true"] {
   overflow: visible;
 }
 
-.goen-chart__hue {
+.goen-chartbar__fill {
   fill: var(--chart-hue);
 }
 
-.goen-chart__value {
+.goen-chartbar__label {
   fill: var(--chart-label);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -9560,8 +9560,8 @@ form[data-request-pending] [aria-disabled="true"] {
     forced-color-adjust: none;
   }
 
-  .goen-chart__hue,
-  .goen-chart__value {
+  .goen-chartbar__fill,
+  .goen-chartbar__label {
     fill: CanvasText;
   }
 }

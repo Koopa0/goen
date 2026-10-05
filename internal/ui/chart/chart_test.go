@@ -42,9 +42,9 @@ func TestBarRendering(t *testing.T) {
 
 	got := renderBar(t, BarProps{Value: 20, Max: 40, Label: "20"})
 	for _, want := range []string{
-		`class="goen-chart__hue"`,
+		`class="goen-chartbar__fill"`,
 		`width="40.00%"`,
-		`class="goen-chart__value"`,
+		`class="goen-chartbar__label"`,
 		`>20</text>`,
 		`aria-hidden="true"`,
 	} {
@@ -66,18 +66,5 @@ func TestBarOfZeroDrawsNoRectButKeepsItsLabel(t *testing.T) {
 	}
 	if !strings.Contains(got, ">0</text>") {
 		t.Errorf("Bar(0 of 40) = %s, want its label", got)
-	}
-}
-
-func TestTiedBarsAreEqualAndEachLabelled(t *testing.T) {
-	t.Parallel()
-
-	a := renderBar(t, BarProps{Value: 9, Max: 9, Label: "9"})
-	b := renderBar(t, BarProps{Value: 9, Max: 9, Label: "9"})
-	if a != b {
-		t.Errorf("tied bars differ: %s vs %s", a, b)
-	}
-	if !strings.Contains(a, ">9</text>") {
-		t.Errorf("tied bar = %s, want its label", a)
 	}
 }

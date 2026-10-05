@@ -8,11 +8,14 @@ import "strconv"
 // its label at the tip.
 const barReach = 80.0
 
-// minBarWidth keeps a positive value visible when it is far below the longest.
+// minBarWidth keeps a positive value visible when it is far below the longest,
+// at the price of proportionality: every value below 0.75% of Max draws the
+// same length.
 const minBarWidth = 0.6
 
-// BarProps is one bar on a scale shared by its column: Max is the largest
-// value in that column, Label the already localised text at the bar's tip.
+// BarProps is one bar on a scale shared by its list or table: Max is the
+// largest value drawn on that scale, Label the already localised text at the
+// bar's tip.
 type BarProps struct {
 	Value int64
 	Max   int64
