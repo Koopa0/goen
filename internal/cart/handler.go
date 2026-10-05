@@ -292,12 +292,10 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	// The chosen method lives in the URL only, so the choice works with
 	// scripting off.
-	if ship := chosen.Ship; ship != "" {
-		for i := range view.Shipping {
-			if view.Shipping[i].VersionID == ship {
-				view.Chosen = ship
-			}
-		}
+	if slices.ContainsFunc(view.Shipping, func(choice pages.ShippingChoice) bool {
+		return choice.VersionID == chosen.Ship
+	}) {
+		view.Chosen = chosen.Ship
 	}
 	view.Destination = destinationOf(view.Shipping, view.Chosen)
 	// The 發票 choice travels the same way: it decides which field the form asks
@@ -322,6 +320,10 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		view.RecipientMe = view.OffersTheProfile() && matchesAccountRecipient(view.Profile, view.Address.Name, view.Address.Phone)
 	}
 	status := h.applyReturnedStore(r, &view)
+	if !view.HasShipping() {
+		h.renderCheckout(w, r, status, &view)
+		return
+	}
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "checkout has no valid shipping choice", "error", err)
@@ -679,6 +681,11 @@ func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
 func (h *Handler) renderCheckout(
 	w http.ResponseWriter, r *http.Request, status int, view *pages.CheckoutView,
 ) {
+	if !view.HasShipping() {
+		view.Chosen = ""
+		view.QuoteID = ""
+		view.Destination = ""
+	}
 	h.offerTheStoreMap(w, r, view)
 	web.Render(w, r, h.log, status, pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 }
@@ -938,6 +945,15 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	couponErr, missed := h.resolveCoupon(r, &view)
+	if couponErr != "" {
+		view.Errors = map[string]string{"coupon": couponErr}
+	}
+	if !view.HasShipping() {
+		return &checkoutSubmission{
+			view: view, address: addr, invoice: inv,
+			couponErr: couponErr, couponMissed: missed,
+		}, true
+	}
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	if shipErr == nil {
 		if quoteErr := h.quoteCheckoutShipping(
@@ -946,9 +962,6 @@ func (h *Handler) checkoutSubmission(
 			h.log.ErrorContext(r.Context(), "quote shipping", "error", quoteErr)
 			view.Repriced = i18n.T(r.Context(), i18n.KeyShippingUnpriceable)
 		}
-	}
-	if couponErr != "" {
-		view.Errors = map[string]string{"coupon": couponErr}
 	}
 	if shipErr == nil && view.Repriced == "" {
 		if quoteErr := setCheckoutQuoteID(cartID, &view); quoteErr != nil {
@@ -970,6 +983,13 @@ func (h *Handler) validateCheckoutSubmission(
 	cartID uuid.UUID,
 	submission *checkoutSubmission,
 ) (checkoutQuoteID, bool) {
+	if !submission.view.HasShipping() {
+		if submission.couponErr != "" {
+			submission.view.Errors = map[string]string{"coupon": submission.couponErr}
+		}
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+		return checkoutQuoteID{}, false
+	}
 	errs := checkoutErrors(
 		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
 	)
@@ -1122,7 +1142,10 @@ func (h *Handler) answerMissingShipping(
 		h.serverError(w, r)
 		return
 	}
-	view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
+	view.Errors = nil
+	if view.HasShipping() {
+		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
+	}
 	if err := setCheckoutQuoteID(cartID, view); err != nil {
 		h.log.ErrorContext(r.Context(), "build replacement shipping quote", "error", err)
 		h.serverError(w, r)
@@ -1181,10 +1204,6 @@ func (h *Handler) refreshCheckoutState(
 	if err != nil {
 		return err
 	}
-	if len(choices) == 0 {
-		return errors.New("cart: checkout has no current shipping choice")
-	}
-
 	view.Cart = cartView
 	view.Shipping = choices
 	view.CouponApplied = ""
@@ -1199,6 +1218,12 @@ func (h *Handler) refreshCheckoutState(
 		return fmt.Errorf("read current store credit: %w", err)
 	}
 	view.AvailableCreditCents = balance
+	if !view.HasShipping() {
+		view.Chosen = ""
+		view.QuoteID = ""
+		view.Destination = ""
+		return nil
+	}
 
 	if !slices.ContainsFunc(choices, func(choice pages.ShippingChoice) bool {
 		return choice.VersionID == view.Chosen
@@ -1645,6 +1670,10 @@ func checkoutQuoteIDForView(cartID uuid.UUID, view *pages.CheckoutView) (checkou
 }
 
 func setCheckoutQuoteID(cartID uuid.UUID, view *pages.CheckoutView) error {
+	if !view.HasShipping() {
+		view.QuoteID = ""
+		return nil
+	}
 	id, err := checkoutQuoteIDForView(cartID, view)
 	if err != nil {
 		view.QuoteID = ""

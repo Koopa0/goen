@@ -318,6 +318,11 @@ var (
 		En:     "That carrier and tracking number are already on record. Check the number.",
 	})
 
+	KeyAdminDispatchRefused = key("admin.dispatch.refused", Message{
+		ZhHant: "這筆訂單已不再接受出貨，%s %s 沒有登記。",
+		En:     "This order no longer takes a dispatch, so %s %s was not recorded.",
+	})
+
 	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{
 		ZhHant: "請輸入不為 0 的整數，例如 +10 或 -3。",
 		En:     "Enter a whole number other than 0, such as +10 or -3.",
