@@ -3,12 +3,13 @@
 package admintest
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // LockTimeoutPool is a pool whose statements give up on a row lock after
@@ -37,11 +38,7 @@ func HoldRow(t *testing.T, pool *pgxpool.Pool, stmt string, args ...any) {
 	if err != nil {
 		t.Fatalf("begin the lock holder: %v", err)
 	}
-	t.Cleanup(func() {
-		if err := holder.Rollback(context.WithoutCancel(ctx)); err != nil {
-			t.Errorf("release the held row: %v", err)
-		}
-	})
+	t.Cleanup(func() { pgtx.Rollback(ctx, holder) })
 	if _, err := holder.Exec(ctx, stmt, args...); err != nil {
 		t.Fatalf("hold the row: %v", err)
 	}
