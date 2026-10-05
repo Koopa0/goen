@@ -380,10 +380,10 @@ func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	if !ok {
 		return callback{}, false
 	}
-	// Uppercased first, as Address.Trim does before placement checks the same
+	// Uppercased first, as Delivery.Trim does before placement checks the same
 	// shape, so the return cannot refuse a code the order accepts.
 	code := strings.ToUpper(strings.TrimSpace(r.PostFormValue("CVSStoreID")))
-	if !isStoreCode(code) {
+	if !pickup.ValidStoreCode(code) {
 		return callback{}, false
 	}
 	name := strings.TrimSpace(r.PostFormValue("CVSStoreName"))
