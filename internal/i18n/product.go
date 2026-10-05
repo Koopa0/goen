@@ -46,12 +46,12 @@ var (
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 
 	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
-		ZhHant: "已經記下了，補貨時會寄信到 %s。",
+		ZhHant: "已經記下了，有貨時會寄信到 %s。",
 		En:     "Noted. We will email %s when it is back in stock.",
 	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
-		ZhHant: "已經記下了，補貨時會寄信給你。",
+		ZhHant: "已經記下了，有貨時會寄信給你。",
 		En:     "Noted. We will email you when it is back in stock.",
 	})
 

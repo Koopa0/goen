@@ -185,9 +185,9 @@ func attrValue(n *html.Node, key string) string {
 	return ""
 }
 
-// TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock: the page that
-// holds what somebody means to buy must let them, and say whether they can.
-func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
+// TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut: the page that
+// holds what somebody means to buy must let them, and say only when they cannot.
+func TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut(t *testing.T) {
 	t.Parallel()
 
 	const variant = "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"
@@ -231,17 +231,12 @@ func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
 		t.Error("a sold-out product offers a way to buy")
 	}
 
-	stock := func(n *html.Node) *html.Node {
-		return findDescendant(n, func(n *html.Node) bool { return n.Data == "p" && hasClass(n, "goen-wish__stock") })
+	soldOut := i18n.T(ctx, i18n.KeySoldOut)
+	if got := strings.Count(nodeText(items[0]), soldOut) + strings.Count(nodeText(items[0]), i18n.T(ctx, i18n.KeyInStock)); got != 0 {
+		t.Errorf("an in-stock row states its availability %d times, want none: a row says only the exception", got)
 	}
-	if got := stock(items[0]); got == nil || !strings.Contains(nodeText(got), i18n.T(ctx, i18n.KeyInStock)) {
-		t.Error("an in-stock row lost its stock note")
-	}
-	if got := strings.Count(nodeText(items[2]), i18n.T(ctx, i18n.KeySoldOut)); got != 1 {
-		t.Errorf("a sold-out row says %q %d times, want once (the tile's badge)", i18n.T(ctx, i18n.KeySoldOut), got)
-	}
-	if stock(items[2]) != nil {
-		t.Error("a sold-out row repeats it under the tile")
+	if got := strings.Count(nodeText(items[2]), soldOut); got != 1 {
+		t.Errorf("a sold-out row says %q %d times, want once (the tile's badge)", soldOut, got)
 	}
 }
 

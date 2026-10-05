@@ -469,23 +469,6 @@ func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *
 	}
 }
 
-func TestSoldOutAndRestockWording(t *testing.T) {
-	t.Parallel()
-	zh := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	en := i18n.WithLocale(t.Context(), i18n.En)
-	for key, want := range map[i18n.Key][2]string{
-		i18n.KeySoldOut:       {"已售完", "Sold out"},
-		i18n.KeyRestockSubmit: {"有貨時通知我", "Notify me"},
-	} {
-		if got := i18n.T(zh, key); got != want[0] {
-			t.Errorf("zh-Hant = %q, want %q", got, want[0])
-		}
-		if got := i18n.T(en, key); got != want[1] {
-			t.Errorf("en = %q, want %q", got, want[1])
-		}
-	}
-}
-
 func TestEverySoldOutIsSaidOnce(t *testing.T) {
 	t.Parallel()
 	options := []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑"}}}}

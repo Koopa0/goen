@@ -70,9 +70,6 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 						for _, t := range v.Products {
 							<li class="goen-wish goen-tile__cell">
 								@tileCard(t.ProductTile)
-								if t.InStock {
-									<p class="goen-wish__stock">{ i18n.T(ctx, i18n.KeyInStock) }</p>
-								}
 								if t.SoleVariantID != "" {
 									<form method="post" action="/cart/items" class="goen-wish__add">
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
