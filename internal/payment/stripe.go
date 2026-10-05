@@ -29,7 +29,8 @@ type Gateway struct {
 
 const maxStripeIDCharacters = 255
 
-// Payment-mode Checkout Sessions accept at most 100 lines, including shipping.
+// Payment-mode Checkout Sessions accept at most 100 line_items;
+// goen's shipping-and-tax line is one of them.
 const maxCheckoutLineItems = 100
 
 var errInvalidStripeResponse = errors.New("payment: Stripe returned an invalid response")
@@ -145,30 +146,20 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 	// from the lines runs BOTH ways: shipping and tax add, while a coupon and
 	// store credit take away.
 	//
-	// A reduction is carried as ONE line for the whole order: Stripe rejects a
-	// negative unit_amount outright, and itemising the goods at a price nobody
-	// agreed to would make the receipt Stripe emails disagree with the shop's own.
+	// Reductions and orders exceeding Stripe's line-item limit use one line
+	// for the whole order. Stripe rejects a negative unit_amount, and repricing
+	// goods would make its receipt disagree with the shop's own.
 	var lineTotal int64
+	items := make([]*stripe.CheckoutSessionCreateLineItemParams, 0, len(o.Lines)+1)
 	for i := range o.Lines {
-		lineTotal += o.Lines[i].UnitCents * int64(o.Lines[i].Quantity)
+		l := &o.Lines[i]
+		lineTotal += l.UnitCents * int64(l.Quantity)
+		items = append(items, lineItem(displayName(l), l.UnitCents, int64(l.Quantity)))
 	}
-
-	itemCount := len(o.Lines)
-	if o.TotalCents > lineTotal {
-		itemCount++
+	if rest := o.TotalCents - lineTotal; rest > 0 {
+		items = append(items, lineItem(i18n.T(ctx, i18n.KeyShippingAndTax), rest, 1))
 	}
-
-	var items []*stripe.CheckoutSessionCreateLineItemParams
-	if o.TotalCents >= lineTotal && itemCount <= maxCheckoutLineItems {
-		items = make([]*stripe.CheckoutSessionCreateLineItemParams, 0, len(o.Lines)+1)
-		for i := range o.Lines {
-			l := &o.Lines[i]
-			items = append(items, lineItem(displayName(l), l.UnitCents, int64(l.Quantity)))
-		}
-		if rest := o.TotalCents - lineTotal; rest > 0 {
-			items = append(items, lineItem(i18n.T(ctx, i18n.KeyShippingAndTax), rest, 1))
-		}
-	} else {
+	if o.TotalCents < lineTotal || len(items) > maxCheckoutLineItems {
 		// One line naming the order, priced at what is actually owed. The
 		// itemisation is on goen's own order page, which the confirmation links
 		// to and which states the discount and the credit separately.
