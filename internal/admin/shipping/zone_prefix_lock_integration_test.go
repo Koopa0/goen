@@ -24,7 +24,7 @@ func TestZonesTradingPrefixesSaveOneAfterTheOther(t *testing.T) {
 
 	both := p[0] + " " + p[1]
 	reversed := p[1] + " " + p[0]
-	saveWhileMapIsHeld(t, ctx,
+	saveWhileAssignmentsAreHeld(t, ctx,
 		func() error { _, err := s.SetZonePrefixes(ctx, zoneA.String(), both); return err },
 		func() error { _, err := s.SetZonePrefixes(ctx, zoneB.String(), reversed); return err },
 	)
@@ -44,11 +44,11 @@ func TestZonesTradingPrefixesSaveOneAfterTheOther(t *testing.T) {
 	}
 }
 
-func TestANewZoneWaitsForThePrefixMap(t *testing.T) {
+func TestANewZoneWaitsForThePrefixAssignments(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(admintest.AdminRolePool(t, pool))
 	p := unusedZonePrefixes(t, 1)
-	saveWhileMapIsHeld(t, ctx, func() error {
+	saveWhileAssignmentsAreHeld(t, ctx, func() error {
 		_, err := s.CreateZone(ctx, &shipping.NewZone{
 			Code: "zone_" + uuid.NewString()[:8], Name: "丙區", Prefixes: p[0],
 		})
@@ -56,18 +56,18 @@ func TestANewZoneWaitsForThePrefixMap(t *testing.T) {
 	})
 }
 
-// saveWhileMapIsHeld starts the writers while another transaction holds the
-// prefix map, waits until every one is queued on it, then releases it. A
-// writer that reaches a prefix row without the lock never queues.
-func saveWhileMapIsHeld(t *testing.T, ctx context.Context, writers ...func() error) {
+// saveWhileAssignmentsAreHeld starts the writers while another transaction
+// holds the prefix-assignment lock, waits until every one is queued on it, then
+// releases it. A writer that reaches a prefix row without the lock never queues.
+func saveWhileAssignmentsAreHeld(t *testing.T, ctx context.Context, writers ...func() error) {
 	t.Helper()
 	holder, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin holder: %v", err)
 	}
 	defer func() { _ = holder.Rollback(context.WithoutCancel(ctx)) }()
-	if lockErr := db.New(holder).LockZonePrefixMap(ctx); lockErr != nil {
-		t.Fatalf("hold the prefix map: %v", lockErr)
+	if lockErr := db.New(holder).LockZonePrefixAssignments(ctx); lockErr != nil {
+		t.Fatalf("hold the prefix-assignment lock: %v", lockErr)
 	}
 
 	results := make(chan error, len(writers))
@@ -77,7 +77,7 @@ func saveWhileMapIsHeld(t *testing.T, ctx context.Context, writers ...func() err
 	}
 	waitForAdvisoryWaiters(t, ctx, len(writers))
 	if err := holder.Commit(ctx); err != nil {
-		t.Fatalf("release the prefix map: %v", err)
+		t.Fatalf("release the prefix-assignment lock: %v", err)
 	}
 	wg.Wait()
 	close(results)
@@ -102,7 +102,7 @@ func waitForAdvisoryWaiters(t *testing.T, ctx context.Context, want int) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("%d zone saves wait on the prefix map, want %d: they touch prefix rows without holding it", waiting, want)
+			t.Fatalf("%d zone saves wait on the prefix-assignment lock, want %d: they touch prefix rows without holding it", waiting, want)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

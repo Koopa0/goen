@@ -91,14 +91,15 @@ VALUES (@code::text, @name::text, nullif(@name_en::text, ''),
         coalesce((SELECT max(position) FROM shipping_zones), 0) + 1)
 RETURNING id;
 
--- Serializes whole-set edits for one zone. Without this, two forms can each
--- sweep against the other's partial work and commit a union neither submitted.
+-- Refuses a zone that does not exist, even with an empty list, and holds off
+-- DeleteZone until the set is written; otherwise the delete would fail its FK
+-- check mid-save.
 -- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = @zone_id FOR UPDATE;
 
 -- Held before any prefix row is touched. Two zones that trade prefixes would
 -- otherwise each lock one row and wait for the other's.
--- name: LockZonePrefixMap :exec
+-- name: LockZonePrefixAssignments :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
     'zone_prefixes', 628471039582915603::bigint));
 
