@@ -931,11 +931,21 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
-        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window
+        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
+       json_build_object('Position', h.position, 'ID', h.id)::text AS page_cursor
 FROM hero_slides h
+WHERE NOT $1::boolean
+   OR (h.position, h.id) > ($2::integer, $3::uuid)
 ORDER BY h.position, h.id
-LIMIT $1
+LIMIT $4::integer
 `
+
+type AdminHeroSlidesParams struct {
+	HasCursor     bool
+	AfterPosition int32
+	AfterID       uuid.UUID
+	RowLimit      int32
+}
 
 type AdminHeroSlidesRow struct {
 	ID              uuid.UUID
@@ -949,10 +959,16 @@ type AdminHeroSlidesRow struct {
 	StartsAt        pgtype.Timestamptz
 	EndsAt          pgtype.Timestamptz
 	InWindow        bool
+	PageCursor      string
 }
 
-func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHeroSlidesRow, error) {
-	rows, err := q.db.Query(ctx, adminHeroSlides, limit)
+func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams) ([]AdminHeroSlidesRow, error) {
+	rows, err := q.db.Query(ctx, adminHeroSlides,
+		arg.HasCursor,
+		arg.AfterPosition,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -972,6 +988,7 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHero
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.InWindow,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
@@ -2415,8 +2432,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 }
 
 const adminVariantBySKU = `-- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
-       pv.price_cents, p.name AS product_name, p.slug
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+       p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = $1
@@ -2427,14 +2444,10 @@ type AdminVariantBySKURow struct {
 	SKU           string
 	StockQuantity int32
 	SafetyStock   int32
-	IsActive      bool
-	PriceCents    int64
 	ProductName   string
 	Slug          string
 }
 
-// price_cents is read for the audit trail's "before": a reprice recorded without
-// the price it replaced records the least interesting half of the fact.
 func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVariantBySKURow, error) {
 	row := q.db.QueryRow(ctx, adminVariantBySKU, sku)
 	var i AdminVariantBySKURow
@@ -2443,8 +2456,6 @@ func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVaria
 		&i.SKU,
 		&i.StockQuantity,
 		&i.SafetyStock,
-		&i.IsActive,
-		&i.PriceCents,
 		&i.ProductName,
 		&i.Slug,
 	)
@@ -3538,7 +3549,7 @@ FROM shipping_version_zones vz
 WHERE vz.version_id = (
     SELECT v.id FROM shipping_method_versions v
     WHERE v.method_id = $2 AND v.id <> $1
-      AND v.effective_at <= now()
+      AND v.effective_at <= statement_timestamp()
     ORDER BY v.effective_at DESC, v.id DESC
     LIMIT 1
 )
@@ -6298,6 +6309,21 @@ func (q *Queries) CurrentPromoBanner(ctx context.Context, locale string) (Curren
 	return i, err
 }
 
+const currentShippingVersion = `-- name: CurrentShippingVersion :one
+SELECT id FROM shipping_method_versions
+WHERE method_id = $1 AND effective_at <= statement_timestamp()
+ORDER BY effective_at DESC, id DESC
+LIMIT 1
+`
+
+// A waiting transaction's now() predates the publication that released its lock.
+func (q *Queries) CurrentShippingVersion(ctx context.Context, methodID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, currentShippingVersion, methodID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const customerByEmail = `-- name: CustomerByEmail :one
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE lower(email) = lower($1::text)
@@ -7279,7 +7305,7 @@ func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber stri
 }
 
 const heroSlides = `-- name: HeroSlides :many
-SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
+SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
            AS eyebrow,
        localized_name(h.headline, h.headline_en, $1::text) AS headline,
        coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
@@ -7310,6 +7336,7 @@ type HeroSlidesParams struct {
 }
 
 type HeroSlidesRow struct {
+	ID                uuid.UUID
 	Eyebrow           string
 	Headline          string
 	Body              string
@@ -7338,6 +7365,7 @@ func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroS
 	for rows.Next() {
 		var i HeroSlidesRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Eyebrow,
 			&i.Headline,
 			&i.Body,
@@ -8599,6 +8627,33 @@ func (q *Queries) LockReturnOrder(ctx context.Context, id uuid.UUID) (uuid.UUID,
 	return id_2, err
 }
 
+const lockShippingMethod = `-- name: LockShippingMethod :one
+SELECT id FROM shipping_methods WHERE id = $1 FOR NO KEY UPDATE
+`
+
+// Fee publication and surcharge edits share this root; version rows are append-only.
+func (q *Queries) LockShippingMethod(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShippingMethod, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockShippingMethodForVersion = `-- name: LockShippingMethodForVersion :one
+SELECT sm.id
+FROM shipping_methods sm
+JOIN shipping_method_versions v ON v.method_id = sm.id
+WHERE v.id = $1
+FOR NO KEY UPDATE OF sm
+`
+
+func (q *Queries) LockShippingMethodForVersion(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShippingMethodForVersion, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const lockShippingZone = `-- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE
 `
@@ -8700,6 +8755,27 @@ func (q *Queries) LockVariantArrival(ctx context.Context, sku string) (LockVaria
 	return i, err
 }
 
+const lockVariantForChange = `-- name: LockVariantForChange :one
+SELECT stock_quantity, is_active, price_cents
+FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
+`
+
+type LockVariantForChangeRow struct {
+	StockQuantity int32
+	IsActive      bool
+	PriceCents    int64
+}
+
+// What a stock-desk write replaces, read under the row lock the write then
+// holds: read before the transaction, a concurrent write can change it first
+// and the audit row's "before" names a value this write never saw.
+func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockVariantForChangeRow, error) {
+	row := q.db.QueryRow(ctx, lockVariantForChange, id)
+	var i LockVariantForChangeRow
+	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
+	return i, err
+}
+
 const lowestDeliveryFee = `-- name: LowestDeliveryFee :one
 SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
@@ -8732,11 +8808,22 @@ SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(message_en, '') AS message_en,
        coalesce(message_short_en, '') AS message_short_en,
        coalesce(cta_label_en, '') AS cta_label_en,
-       is_active, starts_at, ends_at, created_at
+       is_active, starts_at, ends_at, created_at,
+       json_build_object('Active', is_active, 'At', created_at, 'ID', id)::text AS page_cursor
 FROM promo_banners
-ORDER BY is_active DESC, created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean
+   OR (is_active, created_at, id) < ($2::boolean, $3::timestamptz, $4::uuid)
+ORDER BY is_active DESC, created_at DESC, id DESC
+LIMIT $5::integer
 `
+
+type ManagedBannersParams struct {
+	HasCursor   bool
+	AfterActive bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
+}
 
 type ManagedBannersRow struct {
 	ID             uuid.UUID
@@ -8752,10 +8839,17 @@ type ManagedBannersRow struct {
 	StartsAt       pgtype.Timestamptz
 	EndsAt         pgtype.Timestamptz
 	CreatedAt      time.Time
+	PageCursor     string
 }
 
-func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBannersRow, error) {
-	rows, err := q.db.Query(ctx, managedBanners, limit)
+func (q *Queries) ManagedBanners(ctx context.Context, arg ManagedBannersParams) ([]ManagedBannersRow, error) {
+	rows, err := q.db.Query(ctx, managedBanners,
+		arg.HasCursor,
+		arg.AfterActive,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8777,6 +8871,7 @@ func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBan
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.CreatedAt,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
@@ -11267,10 +11362,10 @@ func (q *Queries) ProveEmailByReset(ctx context.Context, id uuid.UUID) error {
 
 const publishShippingVersion = `-- name: PublishShippingVersion :one
 INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier_en,
-                                      fee_cents, free_over_cents)
+                                      fee_cents, free_over_cents, effective_at)
 VALUES ($1, $2, nullif($3::text, ''),
         nullif($4::text, ''), nullif($5::text, ''),
-        $6, nullif($7::bigint, 0))
+        $6, nullif($7::bigint, 0), statement_timestamp())
 RETURNING id
 `
 
