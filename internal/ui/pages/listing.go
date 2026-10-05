@@ -119,32 +119,7 @@ func (v ListingView) TotalText() string { return strconv.FormatInt(v.Total, 10) 
 
 func (v ListingView) Empty() bool { return len(v.Products) == 0 }
 
-// featuredFloor is the size beyond which a lead row is worth having: on a short
-// shelf it would be the whole page twice.
-const (
-	featuredCount = 4
-	featuredFloor = 8
-)
-
-// Only the unfiltered first page has a lead row: a filtered shelf is a search and
-// page two a continuation, so neither wants the shop's picks above it.
-func (v ListingView) hasFeatured() bool {
-	return !v.Filtered && v.Page <= 1 && v.Total > featuredFloor && len(v.Products) > featuredCount
-}
-
-func (v ListingView) Featured() []ProductTile {
-	if !v.hasFeatured() {
-		return nil
-	}
-	return FirstRowEager(v.Products[:featuredCount])
-}
-
-func (v ListingView) Grid() []ProductTile {
-	if v.hasFeatured() {
-		return UnderLeadEager(v.Products[featuredCount:])
-	}
-	return FirstRowEager(v.Products)
-}
+func (v ListingView) Grid() []ProductTile { return FirstRowEager(v.Products) }
 
 func (v ListingView) Children() []Crumb {
 	if v.Theme == nil {

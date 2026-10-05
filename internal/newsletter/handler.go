@@ -202,11 +202,16 @@ func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string,
 }
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr, msg string) {
+	state := layouts.NewsletterState{Email: addr}
+	if status == http.StatusUnprocessableEntity {
+		state.FieldRefusal = msg
+	} else {
+		state.Notice = msg
+	}
 	if web.IsHTMX(r) {
-		state := layouts.NewsletterState{Email: addr, Error: msg}
 		web.Render(w, r, h.log, status, layouts.NewsletterForm(state))
 		return
 	}
 	title := i18n.T(r.Context(), i18n.KeyNewsletterFailed)
-	web.Render(w, r, h.log, status, pages.Notice(layouts.Page{Title: title}, "", title, msg))
+	web.Render(w, r, h.log, status, pages.Notice(layouts.Page{Title: title, Newsletter: state}, "", title, i18n.T(r.Context(), i18n.KeyNewsletterReviewForm)))
 }

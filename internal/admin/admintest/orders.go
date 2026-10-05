@@ -321,6 +321,9 @@ func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Rea
 // OrderStoreWithHealth is OrderStore with the health desk replaced, for a test
 // that needs it to fail.
 func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer, desk orders.Health) *orders.Store {
+	if reader == nil {
+		reader = invoice.NewStore(p, &invoice.Gateway{})
+	}
 	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk)
 }
 
