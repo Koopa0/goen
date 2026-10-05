@@ -73,6 +73,7 @@ flowchart TB
     operations -.->|lease pending operations| reconciler
     reconciler <-->|lookup, submit, verify| ecpay["ECPay e-invoice"]
     reconciler -->|record verified outcomes| operations
+    commands -->|staff claims and settles| operations
     commands <-->|staff invoice correction| ecpay
 ```
 
@@ -93,11 +94,9 @@ sequenceDiagram
     participant Invoice as Invoice reconciler
     participant ECPay
     Buyer->>Checkout: Confirm checkout
-    rect rgb(240,245,250)
-        Note over Checkout,DB: Transaction 1: placement
-        Checkout->>DB: Lock and reprice, save snapshots, reserve stock, enqueue order.placed
-        DB-->>Checkout: Commit order, holds, and follow-up work together
-    end
+    Note over Checkout,DB: Transaction 1: placement
+    Checkout->>DB: Lock and reprice, save snapshots, reserve stock, enqueue order.placed
+    DB-->>Checkout: Commit order, holds, and follow-up work together
     Checkout-->>Buyer: 303 to payment page
     Buyer->>Payment: Start payment
     Payment->>Stripe: Create Checkout Session, expires with the hold
@@ -106,11 +105,9 @@ sequenceDiagram
     Payment-->>Buyer: 303 to hosted Checkout
     Note over Buyer,Stripe: Card entry and browser return are independent of webhook delivery
     Stripe-->>Payment: Later HTTP request: signed payment webhook
-    rect rgb(240,245,250)
-        Note over Payment,DB: Transaction 2: verified payment application
-        Payment->>DB: Claim event, attribute and capture payment, record paid event/points and outbox
-        DB-->>Payment: Commit payment and invoice.due
-    end
+    Note over Payment,DB: Transaction 2: verified payment application
+    Payment->>DB: Claim event, attribute and capture payment, record paid event/points and outbox
+    DB-->>Payment: Commit payment and invoice.due
     Payment-->>Stripe: 200 after commit
     Note over DB,Invoice: Background work resumes committed obligations
     Outbox->>DB: Lease message, ClaimDue commits invoice operation, then mark delivery
@@ -121,7 +118,7 @@ sequenceDiagram
 
 [`placeOrder`](internal/cart/store.go) claims a checkout retry key and requires the locked quote to match what the buyer confirmed. It always queues `order.placed`; it also queues `invoice.due` at placement when store credit covers a positive total. Zero-owed orders skip Stripe. Expiry preserves holds for committed, zero-owed, and unresolved-payment orders; shipment consumes holds without a second stock debit ([reservation functions](migrations/001_initial_schema.up.sql), [expiry sweep](internal/cart/sweeper.go)).
 
-The hold lasts 60 minutes. A new Checkout Session must start within 29 minutes so Stripe's minimum lifetime fits inside it; [`StartSession`](internal/payment/stripe.go) pins card methods and `ExpiresAt` to that hold. A failure to record a newly created session triggers expiration/recovery; retries retrieve provider state before redirecting ([payment flow](internal/payment/handler.go), [checkout constants](internal/cart/cart.go), [payment limits](internal/payment/payment.go)).
+The hold lasts 60 minutes. A new Checkout Session must start within 29 minutes so Stripe's minimum lifetime fits inside it; [`StartSession`](internal/payment/stripe.go) pins card methods and `ExpiresAt` to that hold. A failure to record a newly created session triggers expiration/recovery. Stripe can replay the original create response for the same idempotency key after the session expires, so goen retrieves current provider state before redirecting ([payment flow](internal/payment/handler.go), [checkout constants](internal/cart/cart.go), [payment limits](internal/payment/payment.go)).
 
 [`processWebhook`](internal/payment/store.go) claims the event and applies its effects atomically. `webhookTx.Capture` finds the order through goen's own payment row, checks amount/currency, calls `capture_payment`, and queues `invoice.due`; `CompleteFunding` records the paid event, rewards, and receipt. Database failure returns `500` for Stripe to retry. An identified but unappliable event can instead commit an alarm and receive `200`, leaving reconciliation to staff ([Webhook](internal/payment/handler.go)).
 
@@ -133,11 +130,20 @@ Recovery follows the record that already owns the unfinished work. Provider call
 | --- | --- |
 | Checkout placement | The buyer retries the same checkout key; a changed locked quote requires confirmation ([cart store](internal/cart/store.go)). |
 | Payment webhook | Stripe retries a `500`; staff reconcile durable alarms when identity or funding facts cannot safely be applied ([Webhook](internal/payment/handler.go), [health reconciliation](internal/admin/health/reconcile.go)). |
+| Complete Checkout Session with no applied payment and no outstanding webhook alarm | Staff confirm the Stripe outcome, then use `/admin/health` and [`ReconcileCompletePayment`](internal/admin/health/reconcile.go). Paid attribution calls `attribute_complete_payment_paid` and commits its follow-up effects and audit together; `release_complete_payment` permits a later attempt only after confirmed non-payment or a full refund. |
+| Abandoned unpaid holds | [`cart.Store.SweepForever`](internal/cart/sweeper.go) releases eligible expired holds and cancels lapsed unpaid orders. Pending orders with unresolved payment outcomes retain their holds until reconciliation. |
 | Mail or invoice handoff | The outbox worker retries with backoff; work appears on `/admin/health` after eight attempts and continues daily until retention expires ([outbox](internal/outbox/outbox.go)). |
 | Invoice provider work | The reconciler retries due `pending` operations. `attention` stops automatic leasing; staff investigate facts or authorize an eligible allowance resend ([invoice recovery](internal/invoice/recovery.go)). |
 | Refund payout | Staff `Resume` reconciles the durable card attempt and retries outstanding card/credit sources; provider acceptance alone is not settled money ([refund payout](internal/admin/refunds/payout.go)). |
 
-[`prepareRuntimePosture`](cmd/goen/main.go) rejects missing SMTP/TOTP configuration in secure mode; [provider posture](cmd/goen/provider_posture.go) requires secure cookies and production invoicing for live Stripe. Disabled providers control their corresponding surfaces through [router configuration](cmd/goen/server.go). `/healthz` reports liveness, `/readyz` checks store/admin connectivity, and [the health desk](internal/admin/health) exposes pools and unresolved work.
+[`prepareRuntimePosture`](cmd/goen/main.go) rejects missing SMTP/TOTP configuration in secure mode; [provider posture](cmd/goen/provider_posture.go) requires secure cookies and production invoicing for live Stripe. Missing provider configuration disables specific features:
+
+- Without Stripe, [card payment](internal/payment/handler.go) is unavailable.
+- Without ECPay invoicing, [invoice controls](cmd/goen/server.go), [invoice reconciliation](cmd/goen/main.go), and the [remote mobile-barcode check](internal/cart/mobilebarcode.go) are disabled.
+- Without the ECPay store map, checkout offers no store pickup and the [map-return route](cmd/goen/server.go) is not registered.
+- Without Google sign-in, customers use passwords and [both Google routes](internal/account/handler.go) return `404`.
+
+`/healthz` reports liveness, `/readyz` checks store/admin connectivity, and [the health desk](internal/admin/health) exposes pools and unresolved work.
 
 The process uses in-memory rate limits and fixed pools. Images share PostgreSQL storage and reads with commerce data ([operating assumptions](CONTRIBUTING.md#what-goen-assumes)); catalogue search uses bounded escaped `ILIKE` patterns ([catalog queries](internal/catalog/query.sql)). These choices keep the running system small and place its capacity limits on the same process and database.
 
@@ -145,7 +151,7 @@ The process uses in-memory rate limits and fixed pools. Images share PostgreSQL 
 
 [`admin/orders`](internal/admin/orders) records parcels and shipped quantities; [`returnpage`](internal/returnpage) accepts requests against shipped goods. When approving a return, [`admin/returns.Store.Decide`](internal/admin/returns/store.go) commits the assessed refund allocation through `closeReturn`, then calls `PayApproved` in the same request. Unsettled sources remain outstanding for retry. Inspection/restock is recorded separately; completing a return posts no stock. [`refunds/payout.go`](internal/admin/refunds/payout.go) retries outstanding card/credit sources and records the refunded event only after both settle.
 
-Refunding money, correcting its tax document, and releasing held stock are separate steps. For a staff refund before shipment, [`RefundBeforeShipment`](internal/admin/refunds/beforeshipment.go) persists the approved refund request, tries invoice correction, pays the outstanding sources, then performs guarded cancellation and stock release. An invoice error does not stop the payout; unresolved correction can still block final cancellation. Settled money can also leave a refunded event or loyalty-point reversal to record.
+Refunding money, correcting its tax document, and releasing held stock are separate steps. For a staff refund before shipment, [`RefundBeforeShipment`](internal/admin/refunds/beforeshipment.go) persists the approved refund request, tries invoice correction, pays the outstanding sources, then performs guarded cancellation and stock release. An invoice error does not stop the payout; unresolved correction can still block final cancellation. Settled money can also leave a refunded event or points clawback to record.
 
 [`CorrectForCancellation`](internal/invoice/cancellation.go) finishes an in-flight issue and voids a live uniform invoice within ECPay's `VoidDeadline` when no allowance prevents voiding. When the window has passed or an existing allowance prevents voiding, `FileCancellationAllowance` files an online-consent allowance after payout. The buyer must agree before the allowance becomes a settled document; cancellation can proceed once the allowance has been sent under the database guard. `sendAllowance` and `awaitBuyer` in [recovery.go](internal/invoice/recovery.go) preserve that distinction.
 
@@ -170,9 +176,9 @@ sequenceDiagram
         Refund->>DB: Record provider outcome
     end
     Refund->>DB: Compensate store credit if still outstanding
-    alt Payout, refunded event, or point reversal still outstanding
+    alt Payout, refunded event, or points clawback still outstanding
         Refund-->>Staff: Resume outstanding work later
-    else Payout, event, and point reversal complete
+    else Payout, event, and points clawback complete
         Refund->>Invoice: FileCancellationAllowance
         opt Live invoice no longer voidable
             Invoice->>ECPay: Request online-consent allowance
@@ -353,7 +359,7 @@ Each pool assigns its role when connecting. [`StorefrontConfig` and `BackOfficeC
 
 ### Every background loop
 
-[`startWorkers`](cmd/goen/main.go) starts nine unconditional loops and an invoice loop when the gateway is enabled under the process context.
+[`startWorkers`](cmd/goen/main.go) starts nine unconditional loops and, when the invoice gateway is enabled, an invoice reconciliation loop. Every loop runs under the process context.
 
 | Loop | Pool | Work |
 | --- | --- | --- |
@@ -398,7 +404,7 @@ sequenceDiagram
 
 [CONTRIBUTING.md](CONTRIBUTING.md#change-it) establishes feature packaging: handlers, stores, SQL, and tests live together. Handlers call stores; stores use `db.Queries` and may return `ui/pages` view models directly. `cmd/goen` wires the dependencies. [`sqlc.yaml`](sqlc.yaml) maps each feature's `query.sql` into `internal/db`; [`make gen`](Makefile) turns UI and email `.templ` sources into `*_templ.go`.
 
-Features share selected operations and view types. [`cart`](internal/cart) imports `account`, `payment`, and `invoice`; [`admin/orders`](internal/admin/orders) imports `catalog`, `payment`, and `invoice`. Outbox, email, and media are used across storefront and back-office packages. Both page packages use [invoice types](internal/ui/pages/cart.go) and `returns` vocabulary ([shopper views](internal/ui/pages/returns.go), [staff views](internal/ui/pages/admin/returns.go)). [`order.Delivery`](internal/order/delivery.go) centralises delivery validation and itself depends on email, web, and locale helpers. [#1020](../../issues/1020) governs conventions and staged moves; this is the current arrangement.
+Features share selected operations and view types. [`cart`](internal/cart) imports `account`, `payment`, and `invoice`; [`admin/orders`](internal/admin/orders) imports `catalog`, `payment`, and `invoice`. Outbox, email, and media are used across storefront and back-office packages. Both page packages use [invoice types](internal/ui/pages/cart.go) and `returns` vocabulary ([shopper views](internal/ui/pages/returns.go), [staff views](internal/ui/pages/admin/returns.go)). [`order.Delivery`](internal/order/delivery.go) centralises delivery validation and itself depends on `destination`, `email`, `i18n`, `pickup`, and `web`. [#1020](../../issues/1020) governs conventions and staged moves; this is the current arrangement.
 
 | Package | Responsibility |
 | --- | --- |
