@@ -51,9 +51,8 @@ var (
 	KeyAdminPageQuestions        = key("admin.page.questions", Message{ZhHant: "顧客提問", En: "Customer questions"})
 
 	KeyAdminQuestionsLead = key("admin.questions.lead", Message{
-		ZhHant: "等最久的排在最前面 —— 問了三天沒人回的比今天早上剛問的更急。回覆會標示「官方回覆」，並排在該問題的最上面。",
-		En: "The longest wait comes first — a question nobody answered for three days is more urgent " +
-			"than one asked this morning. Your reply is marked as the shop's and sorts above the rest.",
+		ZhHant: "還沒有官方回覆的提問排在前面，其中等最久的排第一。你的回覆會標示「官方回覆」，排在該提問的其他回答之上。",
+		En:     "Questions without a shop reply come first, the longest wait at the top. Your reply is labelled “From goen” and sits above the other answers.",
 	})
 
 	KeyAdminQuestionsWaiting = key("admin.questions.waiting", Message{
