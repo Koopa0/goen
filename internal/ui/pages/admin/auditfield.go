@@ -24,27 +24,24 @@ type auditField struct {
 // auditFields is keyed by the stored key, or "table.key" where the same key
 // means something else on another table.
 var auditFields = map[string]auditField{
-	"amount_cents":          {i18n.KeyAuditFieldAmount, cents},
-	"card_refund_cents":     {i18n.KeyAuditFieldCardRefund, cents},
-	"credit_refund_cents":   {i18n.KeyAuditFieldCreditRefund, cents},
-	"refrozen_amount_cents": {i18n.KeyAuditFieldRefrozen, cents},
-	"unit_price_cents":      {i18n.KeyAuditFieldUnitPrice, cents},
-	"price_cents":           {i18n.KeyAuditFieldPrice, cents},
-	"compare_at_cents":      {i18n.KeyAuditFieldCompareAt, cents},
-	"fee_cents":             {i18n.KeyAuditFieldFee, cents},
-	"free_over_cents":       {i18n.KeyAuditFieldFreeOver, cents},
-	"surcharge_cents":       {i18n.KeyAuditFieldSurcharge, cents},
-	"min_spend_cents":       {i18n.KeyAuditFieldMinSpend, cents},
-	"owed_cents":            {i18n.KeyAuditFieldOwed, cents},
-	"total_cents":           {i18n.KeyAuditFieldTotal, cents},
-	"carrier":               {i18n.KeyAuditFieldCarrier, carrierText},
-	"orders.status":         {i18n.KeyAuditFieldStatus, fulfillmentText},
-	"decision":              {i18n.KeyAuditFieldDecision, returnDecisionText},
-	"entitlement":           {i18n.KeyAuditFieldEntitlement, entitlementText},
-	"policy_window":         {i18n.KeyAuditFieldPolicyWindow, policyWindowText},
-	"coupons.kind":          {i18n.KeyAdminCoupKind, couponKindText},
-	"coupons.value":         {i18n.KeyAuditFieldCouponValue, couponValueText},
-	"user_id":               {i18n.KeyAuditFieldCustomer, customerText},
+	"amount_cents":                     {i18n.KeyAdminColAmount, centsText},
+	"card_refund_cents":                {i18n.KeyAdminPayRefundCard, centsText},
+	"credit_refund_cents":              {i18n.KeyAdminPayRefundCredit, centsText},
+	"refrozen_amount_cents":            {i18n.KeyAuditFieldRefrozen, centsText},
+	"price_cents":                      {i18n.KeyAdminQueuePrice, centsText},
+	"compare_at_cents":                 {i18n.KeyAdminQueueComparePrice, centsText},
+	"fee_cents":                        {i18n.KeyAuditFieldFee, centsText},
+	"free_over_cents":                  {i18n.KeyAuditFieldFreeOver, centsText},
+	"surcharge_cents":                  {i18n.KeyAuditFieldSurcharge, centsText},
+	"membership_tiers.min_spend_cents": {i18n.KeyAdminTierColThreshold, centsText},
+	"carrier":                          {i18n.KeyAdminColCarrier, carrierText},
+	"orders.status":                    {i18n.KeyAdminColStatus, fulfillmentText},
+	"decision":                         {i18n.KeyAuditFieldDecision, returnDecisionText},
+	"entitlement":                      {i18n.KeyAuditFieldEntitlement, entitlementText},
+	"policy_window":                    {i18n.KeyAuditFieldPolicyWindow, policyWindowText},
+	"coupons.kind":                     {i18n.KeyAdminCoupKind, couponKindText},
+	"coupons.value":                    {i18n.KeyAuditFieldCouponValue, couponValueText},
+	"user_id":                          {i18n.KeyAdminActorCustomer, customerText},
 }
 
 func (e AuditEntry) field(key string) (auditField, bool) {
@@ -55,24 +52,24 @@ func (e AuditEntry) field(key string) (auditField, bool) {
 	return f, ok
 }
 
-// ChangeRow is one recorded field as the audit page prints it.
-type ChangeRow struct {
+// ReadableChange is one recorded field as the audit page prints it.
+type ReadableChange struct {
 	Label string
 	Text  string
 	// Href is where Text links, empty when it does not.
 	Href string
 }
 
-// ChangeRows reads the entry's recorded fields for staff.
-func (e AuditEntry) ChangeRows(ctx context.Context) []ChangeRow {
-	rows := make([]ChangeRow, 0, len(e.Changes))
+// ReadableChanges reads the entry's recorded fields for staff.
+func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
+	rows := make([]ReadableChange, 0, len(e.Changes))
 	for _, c := range e.Changes {
 		f, ok := e.field(c.Field)
 		if !ok {
-			rows = append(rows, ChangeRow{Label: c.Field, Text: c.Text()})
+			rows = append(rows, ReadableChange{Label: c.Field, Text: c.Text()})
 			continue
 		}
-		row := ChangeRow{Label: i18n.T(ctx, f.label)}
+		row := ReadableChange{Label: i18n.T(ctx, f.label)}
 		show := func(v string) string { return v }
 		if f.text != nil {
 			show = func(v string) string { return f.text(ctx, e, v) }
@@ -83,15 +80,15 @@ func (e AuditEntry) ChangeRows(ctx context.Context) []ChangeRow {
 		default:
 			row.Text = show(c.Before + c.After)
 		}
-		if c.Field == "user_id" && e.UserName != "" {
-			row.Href = "/admin/customers/" + c.Before + c.After
+		if c.Field == "user_id" && e.CustomerName != "" {
+			row.Href = "/admin/customers/" + e.CustomerID
 		}
 		rows = append(rows, row)
 	}
 	return rows
 }
 
-func cents(_ context.Context, _ AuditEntry, value string) string {
+func centsText(_ context.Context, _ AuditEntry, value string) string {
 	n, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return value
@@ -171,8 +168,8 @@ func couponValueText(_ context.Context, e AuditEntry, value string) string {
 }
 
 func customerText(_ context.Context, e AuditEntry, value string) string {
-	if e.UserName != "" {
-		return e.UserName
+	if e.CustomerName != "" {
+		return e.CustomerName
 	}
 	return value
 }

@@ -98,7 +98,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 			Changes: []AuditChange{{Field: "kind", After: "amount"}, {Field: "value", After: "50"}},
 		},
 		{
-			Action: "customer.view", Entity: "users", Actor: "staff", At: "2026-10-02 10:00", UserName: "王小明",
+			Action: "customer.view", Entity: "users", Actor: "staff", At: "2026-10-02 10:00", CustomerName: "王小明", CustomerID: customerID,
 			Changes: []AuditChange{{Field: "user_id", After: customerID}},
 		},
 		{
@@ -126,9 +126,109 @@ func TestAMoneyRowCarriesAVisibleTag(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{
-		{Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff"},
+		{Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff", Changes: []AuditChange{{Field: "amount_cents", After: "100"}}},
 	}}))
 	if !strings.Contains(html, ">金額</span>") {
 		t.Error("a money row has no visible money tag")
+	}
+}
+
+func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
+	t.Parallel()
+	const customerID = "0b6c3a4e-1111-4222-8333-444455556666"
+	for _, tt := range []struct {
+		name    string
+		locale  i18n.Locale
+		entry   AuditEntry
+		want    string
+		wantNot string
+	}{
+		{
+			name: "return decision", locale: i18n.En,
+			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "decision", After: "approved"}}},
+			want:  "<dd>Approved</dd>", wantNot: "<dd>approved</dd>",
+		},
+		{
+			name: "statutory entitlement", locale: i18n.ZhHant,
+			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "entitlement", After: "statutory"}}},
+			want:  "<dd>七日猶豫期</dd>", wantNot: "statutory",
+		},
+		{
+			name: "goodwill entitlement", locale: i18n.ZhHant,
+			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "entitlement", After: "goodwill"}}},
+			want:  "<dd>店家優惠</dd>", wantNot: "goodwill",
+		},
+		{
+			name: "exception entitlement", locale: i18n.ZhHant,
+			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "entitlement", After: "exception"}}},
+			want:  "<dd>人工例外</dd>", wantNot: "exception",
+		},
+		{
+			name: "policy window", locale: i18n.ZhHant,
+			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "policy_window", After: "goodwill"}}},
+			want:  "送達後第 8–14 日", wantNot: "<dd>goodwill</dd>",
+		},
+		{
+			name: "percent coupon", locale: i18n.En,
+			entry: AuditEntry{Entity: "coupons", Changes: []AuditChange{{Field: "kind", After: "percent"}, {Field: "value", After: "20"}}},
+			want:  "<dd>20%</dd>", wantNot: "NT$",
+		},
+		{
+			name: "order status is a word", locale: i18n.En,
+			entry: AuditEntry{Entity: "orders", Changes: []AuditChange{{Field: "status", After: "shipped"}}},
+			want:  "<dd>Shipped</dd>", wantNot: "<dd>shipped</dd>",
+		},
+		{
+			name: "product status stays as recorded", locale: i18n.En,
+			entry: AuditEntry{Entity: "products", Changes: []AuditChange{{Field: "status", After: "delivered"}}},
+			want:  "<dd>delivered</dd>", wantNot: "<dd>Delivered</dd>",
+		},
+		{
+			name: "refund status stays as recorded", locale: i18n.En,
+			entry: AuditEntry{Entity: "refunds", Changes: []AuditChange{{Field: "status", After: "delivered"}}},
+			want:  "<dd>delivered</dd>", wantNot: "<dd>Delivered</dd>",
+		},
+		{
+			name: "an erased customer prints the recorded id", locale: i18n.En,
+			entry: AuditEntry{Entity: "users", Changes: []AuditChange{{Field: "user_id", After: customerID}}},
+			want:  "<dd>" + customerID + "</dd>", wantNot: "/admin/customers/",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			html := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{tt.entry}}))
+			if !strings.Contains(html, tt.want) {
+				t.Errorf("audit row is missing %q", tt.want)
+			}
+			if strings.Contains(html, tt.wantNot) {
+				t.Errorf("audit row still carries %q", tt.wantNot)
+			}
+		})
+	}
+}
+
+func TestOnlyARowThatRecordsAnAmountSaysMoney(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		entry AuditEntry
+		want  bool
+	}{
+		{"refund before shipment", AuditEntry{Action: "return.refund_before_shipment", Changes: []AuditChange{{Field: "card_refund_cents", After: "100"}}}, true},
+		{"stock quantity", AuditEntry{Action: "stock.adjust", Changes: []AuditChange{{Field: "delta", After: "3"}}}, false},
+		{"declined return", AuditEntry{Action: "return.decide", Changes: []AuditChange{{Field: "decision", After: "rejected"}}}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.entry.Money(); got != tt.want {
+				t.Errorf("Money() = %v, want %v", got, tt.want)
+			}
+			ctx := i18n.WithLocale(t.Context(), i18n.En)
+			html := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{tt.entry}}))
+			if got := strings.Contains(html, ">Money<"); got != tt.want {
+				t.Errorf("rendered Money tag = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

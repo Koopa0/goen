@@ -66,6 +66,8 @@ var (
 
 	KeyAuditEntityShippingZones = key("audit.entity.shipping_zones", Message{ZhHant: "運費區域", En: "Shipping zone"})
 
+	KeyAuditEntityNewsletterIssues = key("audit.entity.newsletter_issues", Message{ZhHant: "電子報", En: "Newsletter"})
+
 	KeyAuditEntityInvoiceDocuments  = key("audit.entity.invoice_documents", Message{ZhHant: "統一發票", En: "Invoice"})
 	KeyAuditEntityInvoiceOperations = key("audit.entity.invoice_operations", Message{ZhHant: "發票作業", En: "Invoice operation"})
 )
