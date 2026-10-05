@@ -7,6 +7,51 @@ package db_test
 
 var checkCases = []checkCase{
 	{
+		constraint: "products_label_origin_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',101));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '台灣');`,
+	},
+	{
+		constraint: "products_label_origin_en_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin_en) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', E'Taiwan\n');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin_en) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Taiwan');`,
+	},
+	{
+		constraint: "products_label_domestic_name_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',201));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Maker');`,
+	},
+	{
+		constraint: "products_label_domestic_phone_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('1',41));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '0912345678');`,
+	},
+	{
+		constraint: "products_label_domestic_address_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '   ');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Address');`,
+	},
+	{
+		constraint: "products_label_net_paired",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, NULL);`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'g');`,
+	},
+	{
+		constraint: "products_label_net_positive",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0, 'g');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0.01, 'g');`,
+	},
+	{
+		constraint: "products_label_net_unit_known",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'oz');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'piece');`,
+	},
+	{
+		constraint: "products_label_age_sane",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, min_age_months) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 217);`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, min_age_months) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0);`,
+	},
+	{
 		constraint: "coupons_code_format",
 		reject:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', '!!', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
 		accept:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', 'TESTCODE', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
