@@ -255,7 +255,8 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 			// cannot equal it, without sleeping or relying on clock precision.
 			if err := pool.QueryRow(t.Context(), `
 				UPDATE newsletter_subscribers
-				SET unsubscribed_at = unsubscribed_at - interval '1 day'
+				SET confirmed_at = confirmed_at - interval '1 day',
+				    unsubscribed_at = unsubscribed_at - interval '1 day'
 				WHERE lower(email) = lower($1)
 				RETURNING unsubscribed_at`, email).Scan(&first); err != nil {
 				t.Fatalf("record first opt-out: %v", err)
