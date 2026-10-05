@@ -208,11 +208,11 @@ func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
 }
 
 type StuckMessage struct {
-	Topic     string
-	Key       string
-	Attempts  int32
-	LastError string
-	Since     string
+	Topic       string
+	Key         string
+	Attempts    int32
+	LastError   string
+	NextAttempt string
 }
 
 func (m StuckMessage) AttemptsText() string { return strconv.FormatInt(int64(m.Attempts), 10) }

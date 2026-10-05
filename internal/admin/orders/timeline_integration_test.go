@@ -31,7 +31,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	var orderID uuid.UUID
 	var owed int64
-	if err := pool.QueryRow(ctx, `SELECT id, order_amount_owed(id) FROM orders WHERE order_number = $1`,
+	if err := pool.QueryRow(ctx, `SELECT id, order_amount_after_credit(id) FROM orders WHERE order_number = $1`,
 		number).Scan(&orderID, &owed); err != nil {
 		t.Fatalf("read order %s: %v", number, err)
 	}

@@ -278,11 +278,6 @@ INSERT INTO order_private_data (
     nullif(@pickup_store_name::text, '')
 );
 
--- name: OrderBelongsTo :one
-SELECT EXISTS (
-    SELECT 1 FROM orders WHERE order_number = $1 AND user_id = $2
-);
-
 -- name: OrderSummaryByNumber :one
 SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents, o.tax_cents,
@@ -298,13 +293,13 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
-       -- still owed rather than a second sum over the ledger: order_amount_owed
+       -- still owed rather than a second sum over the ledger: order_amount_after_credit
        -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
        -- refuses a page that re-derives it.
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
-        - order_amount_owed(o.id))::bigint AS credit_cents,
+        - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -318,7 +313,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
        -- NOT derivable from `committed`: a fully store-credited order has no
        -- payment row and stays 'pending' while the customer owes nothing.
-       order_amount_owed(o.id)::bigint AS owed_cents
+       order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -394,7 +389,7 @@ WHERE ir.state = 'held'
   AND NOT order_is_committed(ir.order_id)
   -- Committed is not the whole question: a zero-owed order has no payment row and
   -- sits at 'pending' while the customer has already paid in full.
-  AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
+  AND (o.fulfillment_status = 'cancelled' OR order_amount_after_credit(ir.order_id) <> 0)
   -- A complete Session / verified capture awaiting a human outcome may already
   -- hold money. Keep its goods pinned until paid attribution commits the order,
   -- or an explicit refund/unpaid resolution releases the payment gate.
@@ -456,7 +451,7 @@ ORDER BY r.variant_id, r.id;
 -- an uncommitted order, which no card has paid, so owing nothing after a credit
 -- spend means credit paid it.
 -- name: PaidByCreditAlone :one
-SELECT coalesce(order_amount_owed(o.id) = 0
+SELECT coalesce(order_amount_after_credit(o.id) = 0
                 AND EXISTS (SELECT 1 FROM store_credit_entries s
                             WHERE s.order_id = o.id AND s.amount_cents < 0),
                 false)::boolean AS paid_by_credit
@@ -485,7 +480,7 @@ SELECT o.order_number
 FROM orders o
 WHERE o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
@@ -522,7 +517,7 @@ UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.id = $1
   AND o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
@@ -629,23 +624,6 @@ SELECT EXISTS (
       AND lower(pd.email) = lower(@email::text)
 ) AS ok;
 
--- Give a browser access to an order it just placed, or just proved the email for.
--- :execrows, because the INSERT ... SELECT writes NO ROWS when the order number
--- matches nothing and a cookie no grant backs is a silent lockout.
--- name: GrantOrderAccess :execrows
-INSERT INTO order_access_grants (digest, order_id)
-SELECT @digest, id FROM orders WHERE order_number = @order_number::text
-ON CONFLICT (digest) DO NOTHING;
-
--- The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
--- tokens forward, so their grants' retention clock restarts on the same event or
--- one dies under a live cookie. Scoped to the digests actually presented and
--- still inside GrantRetain: a copied stale token must not be revived here.
--- name: TouchOrderAccessGrants :exec
-UPDATE order_access_grants SET created_at = now()
-WHERE digest = ANY(@digests::bytea[])
-AND created_at > now() - @retain::interval;
-
 -- Hold the checkout's idempotency key for the length of this transaction. An
 -- advisory lock rather than an early INSERT, whose row would hold the key with
 -- order_id still NULL; xact, so it releases on commit or rollback.
@@ -655,26 +633,6 @@ SELECT pg_advisory_xact_lock(hashtextextended(@idempotency_key::text, 0));
 -- The order a completed attempt produced.
 -- name: OrderNumberByID :one
 SELECT order_number FROM orders WHERE id = @id;
-
--- Drop access grants nobody can present any more: older than the cookie's
--- MaxAge, they are live bearer credentials kept forever for nobody.
--- name: DeleteOldOrderAccessGrants :exec
-DELETE FROM order_access_grants WHERE created_at < now() - @retain::interval;
-
--- The grants a browser presents, gone when it signs out. Expiring the cookie is
--- not enough: a client can ignore an expiry and present the tokens again.
--- name: RevokeOrderAccess :exec
-DELETE FROM order_access_grants WHERE digest = ANY(@digests::bytea[]);
-
--- Compared IN the database and answered as a boolean: which token matched is not
--- something any page needs to disclose.
--- name: OrderAccessibleWith :one
-SELECT EXISTS (
-    SELECT 1 FROM order_access_grants g
-    JOIN orders o ON o.id = g.order_id
-    WHERE o.order_number = @order_number::text AND g.digest = ANY(@digests::bytea[])
-    AND g.created_at > now() - @retain::interval
-);
 
 -- Every Checkout Session this order still has open at Stripe. 'requires_payment'
 -- is only ever a HINT: a customer who paid seconds ago still has this row,

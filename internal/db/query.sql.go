@@ -817,7 +817,7 @@ const adminCustomerOrders = `-- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        order_is_committed(o.id) AS committed,
-       order_amount_owed(o.id) AS owed_cents,
+       order_amount_after_credit(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
 FROM orders o
@@ -1130,13 +1130,13 @@ SELECT
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents,
+    order_amount_after_credit(o.id) AS owed_cents,
     -- What store credit paid, read as total less what is still owed so
-    -- order_amount_owed stays the one definition of that arithmetic.
+    -- order_amount_after_credit stays the one definition of that arithmetic.
     (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                WHERE ol.order_id = o.id), 0)
      - o.discount_cents + o.shipping_cents + o.tax_cents
-     - order_amount_owed(o.id))::bigint AS credit_cents,
+     - order_amount_after_credit(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
@@ -1221,7 +1221,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 
 const adminOrderCounts = `-- name: AdminOrderCounts :many
 SELECT fulfillment_status,
-       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_owed(id) <= 0))::boolean AS funded,
+       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_after_credit(id) <= 0))::boolean AS funded,
        count(*)::bigint AS n
 FROM orders GROUP BY fulfillment_status, funded
 `
@@ -1364,11 +1364,11 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE ($1::text = '' OR o.fulfillment_status = $1::text)
-AND ($2::text = '' OR ($2::text = 'funded') = (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))
+AND ($2::text = '' OR ($2::text = 'funded') = (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))
 AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
        OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -2068,7 +2068,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
 JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -2355,9 +2355,9 @@ SELECT
     -- a full discount sits at pending for good, and counting it here sends
     -- somebody looking for money that has already arrived.
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
+       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))::bigint AS ready_orders,
+       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
@@ -2591,14 +2591,15 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 }
 
 const adminVersionZones = `-- name: AdminVersionZones :many
-SELECT z.id AS zone_id, z.code, z.name, vz.surcharge_cents
+SELECT vz.version_id, z.id AS zone_id, z.code, z.name, vz.surcharge_cents
 FROM shipping_version_zones vz
 JOIN shipping_zones z ON z.id = vz.zone_id
 WHERE vz.version_id = ANY($1::uuid[])
-ORDER BY z.position, z.name
+ORDER BY z.position, z.name, vz.version_id
 `
 
 type AdminVersionZonesRow struct {
+	VersionID      uuid.UUID
 	ZoneID         uuid.UUID
 	Code           string
 	Name           string
@@ -2615,6 +2616,7 @@ func (q *Queries) AdminVersionZones(ctx context.Context, versionIds []uuid.UUID)
 	for rows.Next() {
 		var i AdminVersionZonesRow
 		if err := rows.Scan(
+			&i.VersionID,
 			&i.ZoneID,
 			&i.Code,
 			&i.Name,
@@ -3057,10 +3059,11 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 }
 
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
-INSERT INTO staff_totp_credentials (user_id, secret_encrypted)
-VALUES ($1, $2)
+INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_hash)
+VALUES ($1, $2, $3)
 ON CONFLICT (user_id) DO UPDATE
 SET secret_encrypted = excluded.secret_encrypted,
+    mailed_code_hash = excluded.mailed_code_hash,
     confirmed_at = NULL,
     last_step = NULL,
     created_at = now()
@@ -3070,13 +3073,14 @@ WHERE staff_totp_credentials.confirmed_at IS NULL
 type BeginTOTPEnrolmentParams struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
+	MailedCodeHash  []byte
 }
 
 // Start or restart enrolment, but never replace a factor that has been proved.
 // The WHERE clause is the guard, in the statement because a read-then-write is
 // a race two concurrent enrolments both win.
 func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted)
+	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeHash)
 	if err != nil {
 		return 0, err
 	}
@@ -3377,7 +3381,7 @@ UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.id = $1
   AND o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
@@ -5191,9 +5195,11 @@ func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) 
 
 const confirmTOTP = `-- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
-SET confirmed_at = now(), last_step = $1::bigint
+SET confirmed_at = now(), last_step = $1::bigint, mailed_code_hash = NULL
 WHERE user_id = $2
   AND secret_encrypted = $3
+  AND mailed_code_hash = $4
+  AND created_at > now() - $5::interval
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
@@ -5201,14 +5207,23 @@ type ConfirmTOTPParams struct {
 	Step            int64
 	UserID          uuid.UUID
 	SecretEncrypted []byte
+	MailedCodeHash  []byte
+	MailedCodeTtl   pgtype.Interval
 }
 
 // Confirm enrolment and record the step in ONE statement: two would leave a
 // window in which the credential is confirmed and the code just proved is
 // still replayable. The secret is matched too: enrolment restarted since the
-// code was checked has replaced it with one no code has proved.
+// code was checked has replaced it with one no code has proved. The mailed code
+// is matched here too, so it is spent by the write that accepts it.
 func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64, error) {
-	result, err := q.db.Exec(ctx, confirmTOTP, arg.Step, arg.UserID, arg.SecretEncrypted)
+	result, err := q.db.Exec(ctx, confirmTOTP,
+		arg.Step,
+		arg.UserID,
+		arg.SecretEncrypted,
+		arg.MailedCodeHash,
+		arg.MailedCodeTtl,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -6999,7 +7014,7 @@ WHERE ir.state = 'held'
   AND NOT order_is_committed(ir.order_id)
   -- Committed is not the whole question: a zero-owed order has no payment row and
   -- sits at 'pending' while the customer has already paid in full.
-  AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
+  AND (o.fulfillment_status = 'cancelled' OR order_amount_after_credit(ir.order_id) <> 0)
   -- A complete Session / verified capture awaiting a human outcome may already
   -- hold money. Keep its goods pinned until paid attribution commits the order,
   -- or an explicit refund/unpaid resolution releases the payment gate.
@@ -8130,7 +8145,7 @@ SELECT o.order_number
 FROM orders o
 WHERE o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
@@ -8489,11 +8504,11 @@ func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (Lo
 
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
 SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
-       order_amount_owed(o.id) AS owed_cents,
+       order_amount_after_credit(o.id) AS owed_cents,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
-        - order_amount_owed(o.id))::bigint AS credit_cents
+        - order_amount_after_credit(o.id))::bigint AS credit_cents
 FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o
 `
 
@@ -8619,7 +8634,7 @@ func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bo
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
-SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified, role
 FROM users WHERE id = $1::uuid FOR UPDATE
 `
 
@@ -8627,6 +8642,7 @@ type LockUserForEmailVerificationRow struct {
 	ID       uuid.UUID
 	Email    string
 	Verified bool
+	Role     string
 }
 
 // verified is read under the lock: a link that proves the address of an
@@ -8635,7 +8651,12 @@ type LockUserForEmailVerificationRow struct {
 func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
 	var i LockUserForEmailVerificationRow
-	err := row.Scan(&i.ID, &i.Email, &i.Verified)
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Verified,
+		&i.Role,
+	)
 	return i, err
 }
 
@@ -9916,7 +9937,7 @@ const orderIsPaid = `-- name: OrderIsPaid :one
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
     UNION ALL
-    SELECT 1 WHERE order_amount_owed($1) <= 0
+    SELECT 1 WHERE order_amount_after_credit($1) <= 0
 )
 `
 
@@ -10201,13 +10222,13 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
-       -- still owed rather than a second sum over the ledger: order_amount_owed
+       -- still owed rather than a second sum over the ledger: order_amount_after_credit
        -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
        -- refuses a page that re-derives it.
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
-        - order_amount_owed(o.id))::bigint AS credit_cents,
+        - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -10221,7 +10242,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
        -- NOT derivable from ` + "`" + `committed` + "`" + `: a fully store-credited order has no
        -- payment row and stays 'pending' while the customer owes nothing.
-       order_amount_owed(o.id)::bigint AS owed_cents
+       order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -10328,7 +10349,7 @@ SELECT o.id,
        o.fulfillment_status,
        -- The cast wraps the whole expression: casting only the sum leaves the
        -- additions at the columns' int width and sqlc types the result int32.
-       order_amount_owed(o.id)::bigint AS total_cents,
+       order_amount_after_credit(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -10424,7 +10445,7 @@ func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtA
 }
 
 const paidByCreditAlone = `-- name: PaidByCreditAlone :one
-SELECT coalesce(order_amount_owed(o.id) = 0
+SELECT coalesce(order_amount_after_credit(o.id) = 0
                 AND EXISTS (SELECT 1 FROM store_credit_entries s
                             WHERE s.order_id = o.id AND s.amount_cents < 0),
                 false)::boolean AS paid_by_credit
@@ -15454,7 +15475,7 @@ WHERE op.status = 'attention'
    OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
-            OR (o.fulfillment_status = 'pending' AND order_amount_owed(op.order_id) = 0))
+            OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
        AND NOT EXISTS (SELECT 1 FROM invoice_operations later
                        WHERE later.order_id = op.order_id AND later.kind = 'issue'
                          AND later.created_at > op.created_at))
@@ -15669,7 +15690,7 @@ type TouchOrderAccessGrantsParams struct {
 // The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
 // tokens forward, so their grants' retention clock restarts on the same event or
 // one dies under a live cookie. Scoped to the digests actually presented and
-// still inside GrantRetain: a copied stale token must not be revived here.
+// still inside the retention window: a copied stale token must not be revived here.
 func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
 	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err
@@ -15691,7 +15712,7 @@ CROSS JOIN LATERAL (
                AS amount_cents
 ) f
 WHERE (order_is_committed(o.id)
-       OR (o.fulfillment_status = 'pending' AND order_amount_owed(o.id) = 0))
+       OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(o.id) = 0))
   AND f.amount_cents > 0
   AND f.funded_at < now() - $1::interval
   AND NOT EXISTS (SELECT 1 FROM invoice_operations op
@@ -16274,7 +16295,7 @@ SELECT
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
-    order_amount_owed(o.id)::bigint AS owed_cents
+    order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
   AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
@@ -16667,7 +16688,7 @@ SELECT
      WHERE ir.state = 'held' AND ir.expires_at < now()
        AND NOT order_is_committed(ir.order_id)
        AND (o.fulfillment_status = 'cancelled'
-            OR order_amount_owed(ir.order_id) <> 0)
+            OR order_amount_after_credit(ir.order_id) <> 0)
        -- Match ExpiredReservations: reconciliation deliberately pins stock
        -- while provider money may exist, so it is not a sweeper backlog.
        AND (o.fulfillment_status = 'cancelled' OR (

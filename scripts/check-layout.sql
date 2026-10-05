@@ -173,7 +173,7 @@ FROM order_lines WHERE order_id IN (:'placed_id', :'invoice_id', :'form_id', :'p
 INSERT INTO order_events (order_id, kind)
 VALUES (:'placed_id', 'placed'), (:'invoice_id', 'placed'), (:'form_id', 'placed'),
        (:'picking_a_id', 'placed'), (:'picking_b_id', 'placed');
-SELECT spend_store_credit(id, -order_amount_owed(id))
+SELECT spend_store_credit(id, -order_amount_after_credit(id))
 FROM orders WHERE id IN (:'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
 INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES
     (:'placed_id', 'member_carrier', '版面檢查', 'layout@goen.invalid'),

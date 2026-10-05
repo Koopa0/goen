@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // coupon inserts one and returns its code.
@@ -107,7 +108,7 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	var orderID uuid.UUID
 	var discount, owed int64
 	if err = pool.QueryRow(ctx, `
-		SELECT id, discount_cents, order_amount_owed(id) FROM orders WHERE order_number = $1`,
+		SELECT id, discount_cents, order_amount_after_credit(id) FROM orders WHERE order_number = $1`,
 		number).Scan(&orderID, &discount, &owed); err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -321,8 +322,8 @@ func placeWithCoupon(t *testing.T, s *cart.Store, code string, n int) (string, e
 	if err := s.Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &cart.Address{
-		Email: "cp@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "cp@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
 	quote := checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, addr, code)

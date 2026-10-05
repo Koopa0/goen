@@ -4,7 +4,6 @@ package cart
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -17,19 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -268,146 +259,6 @@ func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 	return id, nil
 }
 
-// PlacedCookieName holds high-entropy tokens and never order numbers, which are
-// guessable.
-const PlacedCookieName = "__Host-goen_placed"
-
-const maxRememberedOrders = 10
-
-// RememberOrder writes the grant first: a cookie naming a token this database
-// does not know locks the customer out of their own order.
-func (s *Store) RememberOrder(
-	ctx context.Context, w http.ResponseWriter, r *http.Request, number string, secure bool,
-) error {
-	token, err := NewToken()
-	if err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin remember order: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
-	q := s.q.WithTx(tx)
-
-	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
-		Digest: HashToken(token), OrderNumber: number,
-	})
-	if err != nil {
-		return fmt.Errorf("grant access to order %s: %w", number, err)
-	}
-	if n == 0 {
-		// The INSERT ... SELECT matched no order, which SQL does not call an
-		// error.
-		return fmt.Errorf("grant access to order %s: %w", number, ErrNotFound)
-	}
-
-	// Carried tokens get a fresh MaxAge, so their grants need the retention
-	// clock restarted.
-	if carried := placedTokens(r, secure); len(carried) > 0 {
-		digests := make([][]byte, 0, len(carried))
-		for _, t := range carried {
-			digests = append(digests, HashToken(t))
-		}
-		if err := q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
-			Digests: digests,
-			Retain: pgtype.Interval{
-				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
-			},
-		}); err != nil {
-			return fmt.Errorf("refresh carried order access grants: %w", err)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit remember order %s: %w", number, err)
-	}
-
-	writePlacedCookie(w, r, token, secure)
-	return nil
-}
-
-func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, secure bool) {
-	tokens := append([]string{token}, placedTokens(r, secure)...)
-	seen := make(map[string]bool, len(tokens))
-	kept := make([]string, 0, maxRememberedOrders)
-	for _, t := range tokens {
-		if seen[t] || t == "" {
-			continue
-		}
-		seen[t] = true
-		kept = append(kept, t)
-		if len(kept) == maxRememberedOrders {
-			break
-		}
-	}
-	//nolint:gosec // G124: Secure is set from the deployment's own flag, below
-	http.SetCookie(w, &http.Cookie{
-		Name:     placedCookieName(secure),
-		Value:    strings.Join(kept, "."),
-		Path:     "/",
-		MaxAge:   cookieMaxAge,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
-func placedTokens(r *http.Request, secure bool) []string {
-	c, err := r.Cookie(placedCookieName(secure))
-	if err != nil || c.Value == "" {
-		return nil
-	}
-	parts := strings.Split(c.Value, ".")
-	if len(parts) > maxRememberedOrders {
-		parts = parts[:maxRememberedOrders]
-	}
-	return parts
-}
-
-func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool {
-	tokens := placedTokens(r, secure)
-	if len(tokens) == 0 || number == "" {
-		return false
-	}
-	digests := make([][]byte, 0, len(tokens))
-	for _, t := range tokens {
-		digests = append(digests, HashToken(t))
-	}
-	ok, err := s.q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
-		OrderNumber: number, Digests: digests,
-		Retain: pgtype.Interval{
-			Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
-		},
-	})
-	if err != nil {
-		return false
-	}
-	return ok
-}
-
-func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
-	tokens := placedTokens(r, secure)
-	if len(tokens) == 0 {
-		return nil
-	}
-	digests := make([][]byte, 0, len(tokens))
-	for _, t := range tokens {
-		digests = append(digests, HashToken(t))
-	}
-	if err := s.q.RevokeOrderAccess(ctx, digests); err != nil {
-		return fmt.Errorf("revoke this browser's order access: %w", err)
-	}
-	return nil
-}
-
-func placedCookieName(secure bool) string {
-	if secure {
-		return PlacedCookieName
-	}
-	return "goen_placed"
-}
-
 // CookieName carries the __Host- prefix, which binds it to this origin, so a
 // sibling subdomain cannot write a cart cookie goen would trust.
 const CookieName = "__Host-goen_cart"
@@ -518,248 +369,6 @@ func ParseQuantityAllowingZero(s string) (int32, bool) {
 	return int32(n), true
 }
 
-type Address struct {
-	// To picks which half is real; it comes from the shipping method, never the
-	// form.
-	To destination.Kind
-
-	Email string
-	Name  string
-	Phone string
-
-	PostalCode string
-	City       string
-	District   string
-	Street     string
-
-	PickupChain     pickup.Chain
-	PickupStoreCode string
-	PickupStoreName string
-
-	Note string
-}
-
-const (
-	maxNameRunes       = 60
-	maxPhoneRunes      = 30
-	maxPostalCodeRunes = 6
-	maxCityRunes       = 20
-	maxDistrictRunes   = 20
-	maxStreetRunes     = 200
-	maxStoreNameRunes  = 40
-	maxNoteRunes       = 500
-	// Every checkout produces an invoice preference. ECPay's Issue contract accepts
-	// at most 80 bytes for CustomerEmail; accepting a longer delivery address and
-	// truncating it later can turn a valid address into an invalid provider value.
-	maxInvoiceEmailBytes = 80
-	// ECPay's published pickup-point store code length, not any one chain's
-	// width.
-	maxStoreCodeLen = 10
-)
-
-func (a *Address) Validate() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
-
-	if k := emailError(a.Email); k != "" {
-		add("email", k)
-	}
-
-	if strings.TrimSpace(a.Name) == "" {
-		add("name", i18n.KeyNameRequired)
-	} else if utf8.RuneCountInString(a.Name) > maxNameRunes {
-		add("name", i18n.KeyNameTooLong)
-	}
-
-	switch {
-	case strings.TrimSpace(a.Phone) == "":
-		add("phone", i18n.KeyPhoneRequired)
-	case !looksLikePhone(a.Phone):
-		add("phone", i18n.KeyPhoneMalformed)
-	}
-
-	errs = append(errs, a.destinationErrors()...)
-
-	if utf8.RuneCountInString(a.Note) > maxNoteRunes {
-		add("note", i18n.KeyNoteTooLong)
-	}
-
-	return append(errs, a.controlCharErrors()...)
-}
-
-func (a *Address) destinationErrors() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
-
-	switch a.To {
-	case destination.Address:
-		switch {
-		case strings.TrimSpace(a.PostalCode) == "":
-			add("postal_code", i18n.KeyPostalCodeRequired)
-		case !isPostalCode(a.PostalCode):
-			add("postal_code", i18n.KeyPostalCodeMalformed)
-		}
-		switch {
-		case strings.TrimSpace(a.City) == "":
-			add("city", i18n.KeyCityRequired)
-		case utf8.RuneCountInString(a.City) > maxCityRunes:
-			add("city", i18n.KeyAddressIncomplete)
-		}
-		switch {
-		case strings.TrimSpace(a.District) == "":
-			add("district", i18n.KeyDistrictRequired)
-		case utf8.RuneCountInString(a.District) > maxDistrictRunes:
-			add("district", i18n.KeyAddressIncomplete)
-		}
-		switch {
-		case strings.TrimSpace(a.Street) == "":
-			add("street", i18n.KeyStreetRequired)
-		case utf8.RuneCountInString(a.Street) > maxStreetRunes:
-			add("street", i18n.KeyStreetTooLong)
-		}
-	case destination.PickupPoint:
-		errs = append(errs, a.pickupPointErrors()...)
-	default:
-		add("shipping", i18n.KeyChooseShipping)
-	}
-	return errs
-}
-
-// pickupPointErrors asks a shopper only for the chain. A store number and name
-// come from the back office and are checked only when present, since the
-// carrier's picker supplies them; once either is written,
-// order_private_data_pickup_complete refuses a row without the other.
-func (a *Address) pickupPointErrors() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
-
-	if !a.PickupChain.Known() {
-		add("pickup_chain", i18n.KeyPickupChainRequired)
-	}
-	switch {
-	case a.PickupStoreCode == "" && a.PickupStoreName != "":
-		// "" satisfies neither half of the 1-to-10 digits-or-letters shape, so a
-		// name with no code names the code field as what needs fixing.
-		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
-	case a.PickupStoreCode != "" && a.PickupStoreName == "":
-		add("pickup_store_name", i18n.KeyAddressIncomplete)
-	case a.PickupStoreCode != "" && !isStoreCode(a.PickupStoreCode):
-		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
-	}
-	if utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes {
-		add("pickup_store_name", i18n.KeyStoreNameTooLong)
-	}
-	return errs
-}
-
-// DropOtherDestination blanks the half of the address that does not apply, because
-// order_private_data_one_destination refuses a row carrying both.
-func (a *Address) DropOtherDestination() {
-	switch a.To {
-	case destination.Address:
-		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""
-	case destination.PickupPoint:
-		a.PostalCode, a.City, a.District, a.Street = "", "", "", ""
-	}
-}
-
-// isStoreCode reports whether s is a convenience-store number: digits or upper
-// case, never digits alone — Hi-Life leads 149 of its 1,350 store codes with a
-// letter (ECPay GetStoreList, 2026-08-06).
-func isStoreCode(s string) bool {
-	if s == "" || len(s) > maxStoreCodeLen {
-		return false
-	}
-	for _, r := range s {
-		if (r < '0' || r > '9') && (r < 'A' || r > 'Z') {
-			return false
-		}
-	}
-	return true
-}
-
-// controlCharErrors: a newline in a name is how a shipping label gets a line it
-// was never given.
-func (a *Address) controlCharErrors() []account.FieldError {
-	var errs []account.FieldError
-	for _, f := range []struct{ name, value string }{
-		{"email", a.Email}, {"name", a.Name}, {"phone", a.Phone},
-		{"postal_code", a.PostalCode}, {"city", a.City},
-		{"district", a.District}, {"street", a.Street},
-		{"pickup_chain", string(a.PickupChain)}, {"pickup_store_code", a.PickupStoreCode},
-		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
-	} {
-		if hasControl(f.value) {
-			errs = append(errs, account.FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
-		}
-	}
-	return errs
-}
-
-func emailError(s string) i18n.Key {
-	switch {
-	case strings.TrimSpace(s) == "":
-		return i18n.KeyCheckoutEmailRequired
-	case len(s) > maxInvoiceEmailBytes:
-		return i18n.KeyCheckoutEmailTooLong
-	case !email.Valid(s):
-		return i18n.KeyCheckoutEmailMalformed
-	}
-	return ""
-}
-
-func looksLikePhone(s string) bool {
-	if utf8.RuneCountInString(s) > maxPhoneRunes {
-		return false
-	}
-	digits := 0
-	for _, r := range s {
-		switch {
-		case r >= '0' && r <= '9':
-			digits++
-		case r == '-' || r == ' ' || r == '(' || r == ')' || r == '+':
-		default:
-			return false
-		}
-	}
-	return digits >= 8 && digits <= 15
-}
-
-func isPostalCode(s string) bool {
-	s = strings.TrimSpace(s)
-	if len(s) < 3 || len(s) > maxPostalCodeRunes {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// hasControl reports whether s carries a control character. unicode.IsControl
-// covers C1 (0x80–0x9F) as well as C0, which an ASCII-only check lets through.
-func hasControl(s string) bool {
-	return strings.ContainsFunc(s, unicode.IsControl)
-}
-
-// Trim folds full-width digits in the phone and postal code and uppercases the
-// store code, which isStoreCode will not fold.
-func (a *Address) Trim() {
-	a.Email = strings.TrimSpace(a.Email)
-	a.Name = strings.TrimSpace(a.Name)
-	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
-	a.PostalCode = strings.TrimSpace(web.FoldWidth(a.PostalCode))
-	a.City = strings.TrimSpace(a.City)
-	a.District = strings.TrimSpace(a.District)
-	a.Street = strings.TrimSpace(a.Street)
-	a.PickupChain = pickup.Chain(strings.TrimSpace(string(a.PickupChain)))
-	a.PickupStoreCode = strings.ToUpper(strings.TrimSpace(a.PickupStoreCode))
-	a.PickupStoreName = strings.TrimSpace(a.PickupStoreName)
-	a.Note = strings.TrimSpace(a.Note)
-}
-
 // ShippingFee treats a free-over threshold of zero as never free.
 func ShippingFee(feeCents, freeOverCents, subtotalCents int64) int64 {
 	if freeOverCents > 0 && subtotalCents >= freeOverCents {
@@ -794,7 +403,7 @@ type Invoice struct {
 	TaxID       string
 }
 
-func (i *Invoice) Validate() []account.FieldError {
+func (i *Invoice) Validate() []web.FieldRefusal {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
 	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.MobileBarcode)))
 	i.DonationCode = strings.TrimSpace(i.DonationCode)
@@ -805,17 +414,17 @@ func (i *Invoice) Validate() []account.FieldError {
 		i.Type = invoicepkg.PreferenceMember
 	}
 	if !i.Type.Known() {
-		return []account.FieldError{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
+		return []web.FieldRefusal{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
 	}
 
-	var errs []account.FieldError
+	var errs []web.FieldRefusal
 	if i.Type != invoicepkg.PreferenceDonate {
 		i.DonationCode = ""
 	}
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
 		if !invoicepkg.ValidMobileBarcode(i.MobileBarcode) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldRefusal{
 				Field:      "invoice_carrier",
 				MessageKey: i18n.KeyMobileBarcodeMalformed,
 			})
@@ -823,18 +432,18 @@ func (i *Invoice) Validate() []account.FieldError {
 		i.CompanyName, i.TaxID = "", ""
 	case invoicepkg.PreferenceDonate:
 		if !invoicepkg.ValidDonationCode(i.DonationCode) {
-			errs = append(errs, account.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
+			errs = append(errs, web.FieldRefusal{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
 		}
 		i.MobileBarcode, i.CompanyName, i.TaxID = "", "", ""
 	case invoicepkg.PreferenceCompany:
 		if !invoicepkg.ValidBuyerName(i.CompanyName) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldRefusal{
 				Field:      "invoice_company_name",
 				MessageKey: i18n.KeyCompanyNameMalformed,
 			})
 		}
 		if !invoicepkg.ValidTaxID(i.TaxID) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldRefusal{
 				Field:      "invoice_tax_id",
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})

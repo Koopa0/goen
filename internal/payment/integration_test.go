@@ -35,6 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
@@ -2492,10 +2493,11 @@ func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	h := payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 	req.SetPathValue("number", number)
+	placedBy(t, req, number)
 	res := httptest.NewRecorder()
 	h.Page(res, req)
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
@@ -2689,12 +2691,17 @@ func creditedUser(t *testing.T, cents int64) uuid.UUID {
 	return id
 }
 
-// alwaysPlacedHere is the one method internal/payment needs from internal/cart.
-// The webhook does not use it, and nothing here asserts on it.
-type alwaysPlacedHere struct{}
-
-func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
-	return true
+// placedBy gives req the grant the browser that placed the order holds.
+func placedBy(t *testing.T, req *http.Request, number string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	grant := httptest.NewRequestWithContext(req.Context(), http.MethodGet, "/", http.NoBody)
+	if err := orderaccess.NewStore(pool, false).Grant(w, grant, number); err != nil {
+		t.Fatalf("grant access to %s: %v", number, err)
+	}
+	for _, c := range w.Result().Cookies() {
+		req.AddCookie(c)
+	}
 }
 
 // gatewayRecordingCalls gives an external-package integration test a real
@@ -2832,10 +2839,11 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	}
 
 	gateway, createCalls := gatewayRecordingCalls(t, "cs_must_not_open")
-	h := payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 	req.SetPathValue("number", number)
+	placedBy(t, req, number)
 	res := httptest.NewRecorder()
 	h.Start(res, req)
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
@@ -2926,13 +2934,14 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			gateway := gatewayAt(t, srv.URL)
-			h := payment.NewHandler(s, gateway, alwaysPlacedHere{},
-				slog.New(slog.DiscardHandler), false)
+			h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+				slog.New(slog.DiscardHandler))
 			post := func() *httptest.ResponseRecorder {
 				t.Helper()
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 					"/orders/"+number+"/pay", http.NoBody)
 				req.SetPathValue("number", number)
+				placedBy(t, req, number)
 				res := httptest.NewRecorder()
 				h.Start(res, req)
 				return res
@@ -3167,8 +3176,8 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			sessionEvent(eventID, providerRef, "paid", amount),
 			"checkout.session.completed",
 		))
-		h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-			slog.New(slog.DiscardHandler), false)
+		h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+			slog.New(slog.DiscardHandler))
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/webhooks/stripe", bytes.NewReader(body))
 		req.Header.Set("Stripe-Signature", header)
@@ -3197,11 +3206,12 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 		}
 
 		gateway, calls := gatewayRecordingCalls(t, "cs_must_not_replace_"+uuid.NewString()[:12])
-		start := payment.NewHandler(s, gateway, alwaysPlacedHere{},
-			slog.New(slog.DiscardHandler), false)
+		start := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+			slog.New(slog.DiscardHandler))
 		startReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/orders/"+number+"/pay", http.NoBody)
 		startReq.SetPathValue("number", number)
+		placedBy(t, startReq, number)
 		startRes := httptest.NewRecorder()
 		start.Start(startRes, startReq)
 		if startRes.Code != http.StatusConflict || *calls != 0 {
@@ -3391,8 +3401,8 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	t.Cleanup(srv.Close)
 
 	gateway := gatewayAt(t, srv.URL)
-	h = payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h = payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 	close(handlerReady)
 
 	post := func() *httptest.ResponseRecorder {
@@ -3400,6 +3410,7 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/orders/"+number+"/pay", http.NoBody)
 		req.SetPathValue("number", number)
+		placedBy(t, req, number)
 		res := httptest.NewRecorder()
 		h.Start(res, req)
 		return res
@@ -3643,12 +3654,13 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	defer srv.Close()
 
 	gateway := gatewayAt(t, srv.URL)
-	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/orders/"+number+"/pay", http.NoBody)
 		req.SetPathValue("number", number)
+		placedBy(t, req, number)
 		res := httptest.NewRecorder()
 		h.Start(res, req)
 		return res
@@ -3827,12 +3839,13 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	defer srv.Close()
 
 	gateway := gatewayAt(t, srv.URL)
-	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/orders/"+number+"/pay", http.NoBody)
 		req.SetPathValue("number", number)
+		placedBy(t, req, number)
 		res := httptest.NewRecorder()
 		h.Start(res, req)
 		return res
@@ -3935,12 +3948,13 @@ func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 
 	gateway := gatewayAt(t, srv.URL)
 
-	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	reqCtx, disconnect := context.WithCancel(ctx)
 	defer disconnect()
 	req := httptest.NewRequestWithContext(reqCtx, http.MethodPost,
 		"/orders/"+number+"/pay", http.NoBody)
 	req.SetPathValue("number", number)
+	placedBy(t, req, number)
 	returned := make(chan struct{})
 	go func() {
 		defer close(returned)
@@ -3975,8 +3989,8 @@ func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 
 	tests := []struct {
 		name             string
@@ -4098,8 +4112,8 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.NewTextHandler(&logs, nil)), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 67000)
 	session := "cs_unsettled_" + uuid.NewString()[:12]
@@ -4213,8 +4227,8 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 func TestAPaymentEventIsKeptWithoutTheCustomersDetails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 
 	number, _ := order(t, 45600)
 	session := "cs_evidence_" + uuid.NewString()[:12]
@@ -4318,8 +4332,8 @@ func TestAnUnreadableKnownEventIsRecordedForAPerson(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.NewTextHandler(&logs, nil)), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 67000)
 	session := "cs_unreadable_" + uuid.NewString()[:12]
@@ -4432,8 +4446,8 @@ func TestTheWebhookFlagsMoneyItCannotAttribute(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.NewTextHandler(&logs, nil)), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 88800)
 	session := "cs_unattributable_" + uuid.NewString()[:12]
@@ -4537,8 +4551,8 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 			ctx := t.Context()
 			s := payment.NewStore(pool)
 			var logs bytes.Buffer
-			h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-				slog.New(slog.NewTextHandler(&logs, nil)), false)
+			h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+				slog.New(slog.NewTextHandler(&logs, nil)))
 
 			number, id := holdableOrder(t, 100000)
 			hold(t, id, 0, 45*time.Minute, "refused:"+number)
@@ -4607,12 +4621,13 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 
 			newSession := "cs_after_reconcile_" + uuid.NewString()[:12]
 			gateway, stripeCalls := gatewayRecordingCalls(t, newSession)
-			start := payment.NewHandler(s, gateway, alwaysPlacedHere{},
-				slog.New(slog.DiscardHandler), false)
+			start := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+				slog.New(slog.DiscardHandler))
 			post := func() *httptest.ResponseRecorder {
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 					"/orders/"+number+"/pay", http.NoBody)
 				req.SetPathValue("number", number)
+				placedBy(t, req, number)
 				res := httptest.NewRecorder()
 				start.Start(res, req)
 				return res
@@ -4757,8 +4772,8 @@ func TestReachableCaptureConstraintsBecomeDurable(t *testing.T) {
 				"/webhooks/stripe", bytes.NewReader(body))
 			req.Header.Set("Stripe-Signature", header)
 			res := httptest.NewRecorder()
-			payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-				slog.New(slog.DiscardHandler), false).Webhook(res, req)
+			payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+				slog.New(slog.DiscardHandler)).Webhook(res, req)
 			if res.Code != http.StatusOK {
 				t.Fatalf("Webhook() status = %d, want 200", res.Code)
 			}
@@ -4804,8 +4819,8 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.NewTextHandler(&logs, nil)), false)
+	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, id := order(t, 88800)
 	session := "cs_handler_unrec_" + uuid.NewString()[:12]
@@ -4947,11 +4962,12 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 
 		gateway := gatewayAt(t, srv.URL)
 
-		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+		h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 		// 1. Complete session without webhook: Start redirects to /orders/{number}/pay
 		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 		postReq.SetPathValue("number", number)
+		placedBy(t, postReq, number)
 		postRes := httptest.NewRecorder()
 		h.Start(postRes, postReq)
 
@@ -4964,6 +4980,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		// 2. Following the redirect to Page (GET /orders/{number}/pay) shows the processing notice
 		getReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 		getReq.SetPathValue("number", number)
+		placedBy(t, getReq, number)
 		getRes := httptest.NewRecorder()
 		h.Page(getRes, getReq)
 
@@ -4999,6 +5016,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		// Now /orders/{number}/pay sees the order is paid and redirects to /orders/{number}
 		afterWebhookReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 		afterWebhookReq.SetPathValue("number", number)
+		placedBy(t, afterWebhookReq, number)
 		afterWebhookRes := httptest.NewRecorder()
 		h.Page(afterWebhookRes, afterWebhookReq)
 
@@ -5034,11 +5052,12 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 
 		gateway := gatewayAt(t, srv.URL)
 
-		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+		h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 		// Complete session without webhook records complete and redirects to pay page
 		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 		postReq.SetPathValue("number", number)
+		placedBy(t, postReq, number)
 		postRes := httptest.NewRecorder()
 		h.Start(postRes, postReq)
 		if postRes.Code != http.StatusSeeOther {
@@ -5048,6 +5067,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		// Shows processing state
 		getReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 		getReq.SetPathValue("number", number)
+		placedBy(t, getReq, number)
 		getRes := httptest.NewRecorder()
 		h.Page(getRes, getReq)
 		if !strings.Contains(getRes.Body.String(), i18n.T(ctx, i18n.KeyPayProcessingTitle)) {
@@ -5073,6 +5093,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		// Now page renders the pay form with pay CTA restored
 		getReq2 := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 		getReq2.SetPathValue("number", number)
+		placedBy(t, getReq2, number)
 		getRes2 := httptest.NewRecorder()
 		h.Page(getRes2, getReq2)
 

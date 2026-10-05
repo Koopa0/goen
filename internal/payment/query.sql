@@ -67,7 +67,7 @@ SELECT o.id,
        o.fulfillment_status,
        -- The cast wraps the whole expression: casting only the sum leaves the
        -- additions at the columns' int width and sqlc types the result int32.
-       order_amount_owed(o.id)::bigint AS total_cents,
+       order_amount_after_credit(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -128,7 +128,7 @@ FROM order_lines WHERE order_id = $1 ORDER BY position, id;
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
     UNION ALL
-    SELECT 1 WHERE order_amount_owed($1) <= 0
+    SELECT 1 WHERE order_amount_after_credit($1) <= 0
 );
 
 -- name: OrderHasPaidEvent :one

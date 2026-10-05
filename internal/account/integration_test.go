@@ -30,6 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
@@ -509,7 +511,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	number := placeOrderFor(t, theirs.ID)
 
 	cartStore := cart.NewStore(pool)
-	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(cartStore, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	owner := httptest.NewRequestWithContext(user.NewContext(ctx, theirs), http.MethodGet,
 		"/orders/"+number, http.NoBody)
@@ -1014,7 +1016,7 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
@@ -1128,7 +1130,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 		t.Fatalf("lock guest cart: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
@@ -1278,7 +1280,7 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
@@ -1683,8 +1685,8 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &cart.Address{
-		Email: u.Email, Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := accountCheckoutQuote(t, cart.NewStore(pool), accountCart, owner, shippingID, addr.PostalCode)
@@ -2409,8 +2411,8 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &cart.Address{
-		Email: u.Email, Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := accountCheckoutQuote(t, cart.NewStore(pool), cartID, owner, shippingID, addr.PostalCode)

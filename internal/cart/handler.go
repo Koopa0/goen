@@ -20,6 +20,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -31,6 +33,7 @@ import (
 
 type Handler struct {
 	store  *Store
+	access *orderaccess.Store
 	log    *slog.Logger
 	secure bool
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
@@ -60,11 +63,11 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || log == nil || findLimit == nil {
-		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
+	if store == nil || access == nil || log == nil || findLimit == nil {
+		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
 	}
 	if len(checkers) > 1 {
 		panic("cart: NewHandler accepts one mobile barcode checker")
@@ -75,7 +78,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: access, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
@@ -304,13 +307,13 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		view.Invoice.Type = kind
 	}
 
-	var prefill Address
+	var prefill order.Delivery
 	fillFromBook(&view, &prefill, chosen.Address)
 	if !restored {
 		prefillRecipient(&view, &prefill)
 	}
 	view.Address = pages.CheckoutAddress{
-		Email: emailOf(r), Name: prefill.Name, Phone: prefill.Phone,
+		Email: emailOf(r), Name: prefill.RecipientName, Phone: prefill.Phone,
 		PostalCode: prefill.PostalCode, City: prefill.City,
 		District: prefill.District, Street: prefill.Street,
 	}
@@ -347,38 +350,38 @@ func matchesAccountRecipient(p pages.CheckoutProfile, name, phone string) bool {
 
 // A saved address brings its own recipient, which may be somebody else, and a
 // restored draft brings what was typed, so only empty fields are filled.
-func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
+func prefillRecipient(view *pages.CheckoutView, prefill *order.Delivery) {
 	if !view.OffersTheProfile() {
 		return
 	}
-	if prefill.Name == "" {
-		prefill.Name = view.Profile.Name
+	if prefill.RecipientName == "" {
+		prefill.RecipientName = view.Profile.Name
 	}
 	if prefill.Phone == "" {
 		prefill.Phone = view.Profile.Phone
 	}
-	view.RecipientMe = matchesAccountRecipient(view.Profile, prefill.Name, prefill.Phone)
+	view.RecipientMe = matchesAccountRecipient(view.Profile, prefill.RecipientName, prefill.Phone)
 }
 
 // Ticking overwrites on purpose and remembers what was there; unticking
 // restores it only into a field still holding the account's value, so text
 // typed since is never wiped. goen.js does the same with scripting on.
-func applyRecipient(view *pages.CheckoutView, addr *Address) {
+func applyRecipient(view *pages.CheckoutView, addr *order.Delivery) {
 	if view.RecipientMe {
 		takeAccountRecipient(view, addr)
 	} else {
 		returnToTypedRecipient(view, addr)
 	}
-	view.RecipientMe = matchesAccountRecipient(view.Profile, addr.Name, addr.Phone)
+	view.RecipientMe = matchesAccountRecipient(view.Profile, addr.RecipientName, addr.Phone)
 }
 
-func takeAccountRecipient(view *pages.CheckoutView, addr *Address) {
+func takeAccountRecipient(view *pages.CheckoutView, addr *order.Delivery) {
 	p := view.Profile
 	if p.Name != "" {
-		if addr.Name != p.Name {
-			view.RecipientPrevName = addr.Name
+		if addr.RecipientName != p.Name {
+			view.RecipientPrevName = addr.RecipientName
 		}
-		addr.Name = p.Name
+		addr.RecipientName = p.Name
 	}
 	if p.Phone != "" {
 		if addr.Phone != p.Phone {
@@ -388,10 +391,10 @@ func takeAccountRecipient(view *pages.CheckoutView, addr *Address) {
 	}
 }
 
-func returnToTypedRecipient(view *pages.CheckoutView, addr *Address) {
+func returnToTypedRecipient(view *pages.CheckoutView, addr *order.Delivery) {
 	p := view.Profile
-	if p.Name != "" && addr.Name == p.Name {
-		addr.Name, view.RecipientPrevName = view.RecipientPrevName, ""
+	if p.Name != "" && addr.RecipientName == p.Name {
+		addr.RecipientName, view.RecipientPrevName = view.RecipientPrevName, ""
 	}
 	if p.Phone != "" && addr.Phone == p.Phone {
 		addr.Phone, view.RecipientPrevPhone = view.RecipientPrevPhone, ""
@@ -421,13 +424,13 @@ func (h *Handler) restoredDraft(r *http.Request, cartID uuid.UUID) (checkoutDraf
 // The draft is the whole form as it stood, so it replaces the account's and the
 // address book's prefill; the signed-in customer's address stays the account's.
 func (h *Handler) applyDraft(
-	r *http.Request, view *pages.CheckoutView, prefill *Address, d *checkoutDraft,
+	r *http.Request, view *pages.CheckoutView, prefill *order.Delivery, d *checkoutDraft,
 ) {
 	address := d.Email
 	if signedIn := emailOf(r); signedIn != "" {
 		address = signedIn
 	}
-	prefill.Name, prefill.Phone = d.Name, d.Phone
+	prefill.RecipientName, prefill.Phone = d.Name, d.Phone
 	prefill.PostalCode, prefill.City = d.PostalCode, d.City
 	prefill.District, prefill.Street = d.District, d.Street
 	view.Address = pages.CheckoutAddress{
@@ -479,7 +482,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	view, addr, inv := &submission.view, &submission.address, &submission.invoice
 
 	draft := checkoutDraft{
-		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
+		Email: addr.Email, Name: addr.RecipientName, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
 		Note: addr.Note, Chain: addr.PickupChain,
 		Shipping: view.Chosen, SavedAddress: view.ChosenAddress,
@@ -633,7 +636,7 @@ func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 // It also drops a store belonging to the OTHER chain: a parcel waiting at a
 // 7-ELEVEN is not waiting at a 全家. That comparison is consistency, not
 // security, since both halves come from the same form.
-func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
+func (h *Handler) dropUnvouchedStore(r *http.Request, addr *order.Delivery) bool {
 	if !h.storeMap.Enabled() {
 		// With no picker there is nothing to vouch for; the only writer of
 		// these fields is the back office through its own form.
@@ -743,7 +746,7 @@ func emailOf(r *http.Request) string {
 }
 
 func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) error {
-	if err := h.store.RememberOrder(r.Context(), w, r, number, h.secure); err != nil {
+	if err := h.access.Grant(w, r, number); err != nil {
 		h.log.ErrorContext(r.Context(), "remember order", "error", err, "order", number)
 		return err
 	}
@@ -840,7 +843,7 @@ func (h *Handler) answerPriorCheckout(
 // the request.
 type checkoutSubmission struct {
 	view         pages.CheckoutView
-	address      Address
+	address      order.Delivery
 	invoice      Invoice
 	shippingID   uuid.UUID
 	shippingErr  error
@@ -856,9 +859,9 @@ func (h *Handler) checkoutSubmission(
 	attemptID checkoutAttemptID,
 	attemptOK bool,
 ) (*checkoutSubmission, bool) {
-	addr := Address{
+	addr := order.Delivery{
 		Email:           r.PostFormValue("email"),
-		Name:            r.PostFormValue("name"),
+		RecipientName:   r.PostFormValue("name"),
 		Phone:           r.PostFormValue("phone"),
 		PostalCode:      r.PostFormValue("postal_code"),
 		City:            r.PostFormValue("city"),
@@ -903,10 +906,10 @@ func (h *Handler) checkoutSubmission(
 		applyRecipient(&view, &addr)
 	}
 	if view.OffersTheProfile() {
-		view.RecipientMe = matchesAccountRecipient(view.Profile, addr.Name, addr.Phone)
+		view.RecipientMe = matchesAccountRecipient(view.Profile, addr.RecipientName, addr.Phone)
 	}
 	view.Address = pages.CheckoutAddress{
-		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
+		Email: addr.Email, Name: addr.RecipientName, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City,
 		District: addr.District, Street: addr.Street,
 		PickupChain: addr.PickupChain, PickupStoreCode: addr.PickupStoreCode,
@@ -997,7 +1000,7 @@ func (h *Handler) validateCheckoutSubmission(
 
 func (h *Handler) answerPlacement(
 	w http.ResponseWriter, r *http.Request,
-	cartID uuid.UUID, addr *Address, view *pages.CheckoutView, number string, err error,
+	cartID uuid.UUID, addr *order.Delivery, view *pages.CheckoutView, number string, err error,
 ) {
 	switch {
 	case err == nil:
@@ -1066,7 +1069,7 @@ func (h *Handler) answerCheckoutChanged(
 	w http.ResponseWriter,
 	r *http.Request,
 	cartID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	view *pages.CheckoutView,
 ) {
 	if err := h.refreshCheckoutState(r.Context(), cartID, ownerOf(r), addr, view); err != nil {
@@ -1111,7 +1114,7 @@ func (h *Handler) answerMissingShipping(
 	w http.ResponseWriter,
 	r *http.Request,
 	cartID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	view *pages.CheckoutView,
 ) {
 	if err := h.refreshCheckoutState(r.Context(), cartID, ownerOf(r), addr, view); err != nil {
@@ -1132,7 +1135,7 @@ func (h *Handler) answerCouponRefusal(
 	w http.ResponseWriter,
 	r *http.Request,
 	cartID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	view *pages.CheckoutView,
 	refusal error,
 ) {
@@ -1167,7 +1170,7 @@ func (h *Handler) refreshCheckoutState(
 	ctx context.Context,
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
-	addr *Address,
+	addr *order.Delivery,
 	view *pages.CheckoutView,
 ) error {
 	cartView, err := h.store.View(ctx, cartID)
@@ -1312,24 +1315,24 @@ func couponKeys(r *http.Request, cartID uuid.UUID) [2]string {
 // official maps; the schema only bounds the values, so a submission that
 // skipped the map is refused here, whether or not this deployment can open it.
 func checkoutErrors(
-	ctx context.Context, addr *Address, shipErr error, inv *Invoice,
+	ctx context.Context, addr *order.Delivery, shipErr error, inv *Invoice,
 ) map[string]string {
-	fieldErrs := addr.Validate()
+	refusals := addr.Validate()
 	if shipErr != nil {
-		fieldErrs = append(fieldErrs,
-			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+		refusals = append(refusals,
+			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == destination.PickupPoint {
 		if !offeredAtCheckout(addr.PickupChain) {
-			fieldErrs = append(fieldErrs,
-				account.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
+			refusals = append(refusals,
+				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
-			fieldErrs = append(fieldErrs,
-				account.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
+			refusals = append(refusals,
+				web.FieldRefusal{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
 		}
 	}
-	fieldErrs = append(fieldErrs, inv.Validate()...)
-	return account.FieldMessages(ctx, fieldErrs)
+	refusals = append(refusals, inv.Validate()...)
+	return account.FieldMessages(ctx, refusals)
 }
 
 func (h *Handler) quoteCheckoutShipping(
@@ -1382,7 +1385,7 @@ func ownerOf(r *http.Request) uuid.NullUUID {
 
 // An id that names nothing falls through to the default rather than an error
 // page.
-func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
+func fillFromBook(view *pages.CheckoutView, addr *order.Delivery, wanted string) {
 	if len(view.SavedAddresses) == 0 {
 		return
 	}
@@ -1397,7 +1400,7 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 		}
 	}
 	view.ChosenAddress = chosen.ID
-	addr.Name, addr.Phone = chosen.Name, chosen.Phone
+	addr.RecipientName, addr.Phone = chosen.Name, chosen.Phone
 	addr.PostalCode, addr.City = chosen.PostalCode, chosen.City
 	addr.District, addr.Street = chosen.District, chosen.Street
 }
@@ -1420,7 +1423,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same 404 as an order that does not exist.
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		// Its own page rather than a bare Notice: this is the one 404 with a
 		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
@@ -1479,7 +1482,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
@@ -1515,7 +1518,7 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
@@ -1539,15 +1542,18 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		return false
+func (h *Handler) allows(r *http.Request, number string) bool {
+	ok, err := h.access.Allows(r, number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
-	owns, err := h.store.OrderBelongsTo(r.Context(), number, u.ID)
+	return ok
+}
+
+func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
+	owns, err := h.access.OwnedBySignedInUser(r, number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "check order ownership", "error", err)
-		return false
 	}
 	return owns
 }
@@ -1799,10 +1805,9 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 // ignore an expiry. A failure to revoke is logged rather than stopping the
 // session's end.
 func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
-	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
+	if err := h.access.Revoke(w, r); err != nil {
 		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
 	}
-	expireCookie(w, placedCookieName(h.secure), h.secure)
 }
 
 // WithCount resolves the cart on every visitor request, so it is also where a

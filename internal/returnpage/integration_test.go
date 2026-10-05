@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/returnpage"
 )
 
@@ -412,10 +413,38 @@ func openReturnUnits(
 	return requestID
 }
 
-type returnPlacedHere struct{}
+// placedBy gives req the grant the browser that placed the order holds.
+func placedBy(t *testing.T, req *http.Request, number string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	grant := httptest.NewRequestWithContext(req.Context(), http.MethodGet, "/", http.NoBody)
+	if err := orderaccess.NewStore(pool, false).Grant(w, grant, number); err != nil {
+		t.Fatalf("grant access to %s: %v", number, err)
+	}
+	for _, c := range w.Result().Cookies() {
+		req.AddCookie(c)
+	}
+}
 
-func (returnPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
-	return true
+func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
+	ctx := t.Context()
+	number, _ := shippedOrder(t, 2, 2)
+	h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/return", http.NoBody)
+		req.SetPathValue("number", number)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		if method == http.MethodGet {
+			h.Page(res, req)
+		} else {
+			h.Submit(res, req)
+		}
+		if res.Code != http.StatusNotFound {
+			t.Errorf("%s without a grant = %d, want 404", method, res.Code)
+		}
+	}
 }
 
 func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
@@ -590,6 +619,19 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 		t.Fatalf("read order id: %v", err)
 	}
 
+	// The grant needs a key-share lock on the order row, which the competing
+	// transaction's return_lines_within_purchase check holds, so it is placed
+	// first.
+	form := url.Values{
+		"qty_" + lineID.String(): {"2"},
+		"reason":                 {"尺寸不合"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("number", number)
+	placedBy(t, req, number)
+
 	competitor, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin competing return: %v", err)
@@ -621,15 +663,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 		t.Fatalf("read return backend pid: %v", err)
 	}
 	s := returnpage.NewStore(appPool)
-	h := returnpage.NewHandler(s, returnPlacedHere{}, slog.New(slog.DiscardHandler), false)
-	form := url.Values{
-		"qty_" + lineID.String(): {"2"},
-		"reason":                 {"尺寸不合"},
-	}
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
-		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("number", number)
+	h := returnpage.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	res := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {
@@ -791,8 +825,8 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		}
 		assertReturnRowCounts(t, fixture.orderID, 0, 0)
 
-		h := returnpage.NewHandler(returnpage.NewStore(openPool), returnPlacedHere{},
-			slog.New(slog.DiscardHandler), false)
+		h := returnpage.NewHandler(returnpage.NewStore(openPool), orderaccess.NewStore(pool, false),
+			slog.New(slog.DiscardHandler))
 		form := url.Values{
 			"qty_" + fixture.lineID.String(): {"1"},
 			"reason":                         {"account was concurrently erased"},
@@ -801,6 +835,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 			"/orders/"+fixture.number+"/return", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("number", fixture.number)
+		placedBy(t, req, fixture.number)
 		out := httptest.NewRecorder()
 		h.Submit(out, req)
 		if out.Code != http.StatusUnprocessableEntity {
@@ -1010,13 +1045,14 @@ func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
-	h := returnpage.NewHandler(returnpage.NewStore(pool), returnPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+	h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
 	form := url.Values{"reason": {""}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", number)
+	placedBy(t, req, number)
 	res := httptest.NewRecorder()
 
 	h.Submit(res, req)

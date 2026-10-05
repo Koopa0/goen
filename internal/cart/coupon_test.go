@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -74,7 +75,7 @@ func TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour(t *testing
 // the whole address would buy a fresh allowance with every rotation.
 func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
+	h := NewHandler(&Store{}, &orderaccess.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
 	}), nil, nil)
 	// Each ask brings a new cart, so only the client's own key can be spent.

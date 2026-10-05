@@ -58,6 +58,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	if health, err := h.store.HealthTasks(r.Context()); err != nil {
 		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
+		view.HealthUnavailable = true
 	} else {
 		view.Tasks = append(health, view.Tasks...)
 	}
@@ -90,6 +91,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
+	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
 	view.Notice = web.Notice(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
@@ -337,7 +339,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 
 // rejectDelivery keeps proposed data in the form while the summary continues
 // to show the saved destination, so a refusal cannot look like a completed edit.
-func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Delivery, message string) {
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, message string) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)

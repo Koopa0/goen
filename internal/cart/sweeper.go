@@ -153,21 +153,11 @@ const AttemptRetain = 30 * 24 * time.Hour
 
 const AttemptSweepInterval = 24 * time.Hour
 
-// GrantRetain must never be SHORTER than the placed cookie's MaxAge, which
-// holds only because TouchOrderAccessGrants restarts this clock with the
-// cookie's.
-const GrantRetain = cookieMaxAge * time.Second
-
 func (s *Store) SweepAttempts(ctx context.Context) error {
 	if err := s.q.DeleteOldCheckoutAttempts(ctx, pgtype.Interval{
 		Microseconds: int64(AttemptRetain / time.Microsecond), Valid: true,
 	}); err != nil {
 		return fmt.Errorf("delete old checkout attempts: %w", err)
-	}
-	if err := s.q.DeleteOldOrderAccessGrants(ctx, pgtype.Interval{
-		Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
-	}); err != nil {
-		return fmt.Errorf("delete old order access grants: %w", err)
 	}
 	return nil
 }

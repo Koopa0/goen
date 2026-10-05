@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -208,7 +209,7 @@ func openPickupCheckout(
 // path end to end, through the three requests a real browser makes.
 func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-roundtrip")
 
 	// 1. 「選擇門市」: the form is posted to goen, which opens the map for the chain.
@@ -346,7 +347,7 @@ func placeThisCheckout(
 // the nonce, so the checkout drops the store and says so without repeating it.
 func TestAForgedStorePostedFromAnotherSiteEndsWithNoStore(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-forged")
 
 	_, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -385,7 +386,7 @@ func TestAForgedStorePostedFromAnotherSiteEndsWithNoStore(t *testing.T) {
 // carrying a store and no nonce at all.
 func TestACraftedCheckoutLinkEndsWithNoStore(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-crafted")
 
 	_, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -416,7 +417,7 @@ func TestACraftedCheckoutLinkEndsWithNoStore(t *testing.T) {
 // back in its own hidden inputs.
 func TestPlacingAnOrderWithAnUnvouchedStoreDropsIt(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-placement")
 
 	page, cookie, _ := openPickupCheckout(t, h, token, shipping)
@@ -508,7 +509,7 @@ func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
 	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
 		t.Run(name, func(t *testing.T) {
 			s := cart.NewStore(pool)
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, tt.storeMap)
+			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, tt.storeMap)
 			token, shipping := aPickupCart(t, s, "pickup-offer")
 			page, _, status := openPickupCheckout(t, h, token, shipping)
 			if status != http.StatusOK {
@@ -546,7 +547,7 @@ func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
 		} {
 			t.Run(name+"/"+forged.name, func(t *testing.T) {
 				s := cart.NewStore(pool)
-				h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, storeMap)
+				h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, storeMap)
 				token, shipping := aPickupCart(t, s, "forged-pickup")
 				page, _, status := openPickupCheckout(t, h, token, shipping)
 				if status != http.StatusOK {
@@ -577,7 +578,7 @@ func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
 // to the chain it was chosen at, and a shopper who changes chain has no store.
 func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-chain-change")
 
 	start, cookie, _ := startPickup(t, h, token, aStart(shipping))
@@ -623,7 +624,7 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 
 func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-duplicate-cookie")
 	_, stale, _ := startPickup(t, h, token, aStart(shipping))
 	start, matching, status := startPickup(t, h, token, aStart(shipping))
@@ -681,7 +682,7 @@ func aTypedStart(shipping uuid.UUID, couponCode string) url.Values {
 // store back, and the checkout it returns to carries the store AND every field.
 func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-typed")
 	code := coupon(t, "MAPTYPED", "amount", 5000, 0, 0, 0, 0)
 
@@ -736,7 +737,7 @@ func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
 // and for nothing else, so the order it was typed for ends it.
 func TestAPlacedOrderClearsTheDraft(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-cleared")
 	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
@@ -768,7 +769,7 @@ func TestAPlacedOrderClearsTheDraft(t *testing.T) {
 // TestADraftExpires: a draft older than its window is as good as none.
 func TestADraftExpires(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-expired")
 	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
