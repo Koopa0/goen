@@ -59,10 +59,10 @@ templ Report(p layouts.Page, v *ReportView) {
 				</li>
 				<li class="goen-report__figure">
 					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepCompletion) }</span>
-					<span class="goen-report__value">{ v.Completion() }</span>
+					<span class="goen-report__value">{ v.Completion(ctx) }</span>
 					if !v.ShowsCount() {
 						<span class="goen-admin__meta">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), v.CommittedText(), v.PlacedText()) }
+							{ v.Counts(ctx) }
 						</span>
 					}
 				</li>

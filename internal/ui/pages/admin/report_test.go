@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -114,16 +115,33 @@ func TestReportViewCompletion(t *testing.T) {
 		want              string
 	}{
 		{placed: 0, committed: 0, want: "—"},
-		{placed: 3, committed: 2, want: "2 / 3"},
-		{placed: 3, committed: 1, want: "1 / 3"},
-		{placed: 30, committed: 20, want: "67%"},
-		{placed: 300, committed: 199, want: "66%"},
+		{placed: 3, committed: 2, want: "2 of 3 orders"},
+		{placed: 3, committed: 1, want: "1 of 3 orders"},
+		{placed: 19, committed: 19, want: "19 of 19 orders"},
 		{placed: 20, committed: 1, want: "5%"},
+		{placed: 30, committed: 20, want: "67%"},
+		{placed: 40, committed: 1, want: "3%"},
+		{placed: 300, committed: 199, want: "66%"},
 	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range tests {
-		got := ReportView{Placed: tt.placed, Committed: tt.committed}.Completion()
+		got := ReportView{Placed: tt.placed, Committed: tt.committed}.Completion(ctx)
 		if got != tt.want {
 			t.Errorf("Completion() with %d of %d placed = %q, want %q", tt.committed, tt.placed, got, tt.want)
 		}
+	}
+}
+
+func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 7, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 2, Orders: 2, RevenueCents: 1000,
+	}))
+
+	counts := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), "2", "3")
+	if n := strings.Count(html, counts); n != 1 {
+		t.Errorf("the report shows %q %d times, want once", counts, n)
 	}
 }

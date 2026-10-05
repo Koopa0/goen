@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -76,14 +77,19 @@ const minOrdersForRate = 20
 
 // Completion is the completion rate rounded half up, or the bare count when
 // too few orders were placed for a percentage to mean anything.
-func (v ReportView) Completion() string {
+func (v ReportView) Completion(ctx context.Context) string {
 	switch {
 	case v.Placed == 0:
 		return "—"
 	case v.ShowsCount():
-		return v.CommittedText() + " / " + v.PlacedText()
+		return v.Counts(ctx)
 	}
 	return strconv.FormatInt((v.Committed*200+v.Placed)/(v.Placed*2), 10) + "%"
+}
+
+// Counts says how many of the placed orders were committed.
+func (v ReportView) Counts(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), v.CommittedText(), v.PlacedText())
 }
 
 // ShowsCount reports whether Completion already states the counts.
