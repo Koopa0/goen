@@ -3,8 +3,16 @@
 -- (payment, picking, dispatch, delivery, completion, return, restock), each
 -- under the role production uses for it and through the function or trigger
 -- the application goes through, so whatever the shop refuses is refused here
--- too. Orders, payments and what follows from them only: no reviews,
--- questions, coupons or campaigns.
+-- too. Orders, payments and what follows from them only: no reviews or
+-- questions (ruled on #1173), and no coupons or past campaigns (ruled on #1173
+-- during the review of #1219).
+--
+-- Stripe and ECPay issued none of it: payments are cs_demo_ sessions, refunds
+-- re_demo_, and invoices sit on a made-up DM track, because
+-- settle_invoice_issue accepts only a number shaped like a real one
+-- (^[A-Z]{2}[0-9]{8}$). A void, an allowance or a refund started from /admin
+-- on a seeded order therefore fails at the provider's sandbox, through goen's
+-- usual failure path. Seeded returns carry no 折讓.
 --
 -- Run once, as a superuser, while goen is stopped (its sweeper would cancel
 -- the unpaid orders before this script does), on a database built by
@@ -118,36 +126,7 @@ CREATE TEMP TABLE demo_event (
     n          integer
 );
 
--- now() is fixed for a transaction, so every step runs at the real clock and
--- then moves what it wrote back to its simulated moment. Per table, one
--- UPDATE of the rows this transaction wrote (xmin $5):
---   * a row it created (uuidv7 id past the transaction's marker, $4) has every
---     time from the transaction's start ($1) on moved back by $3, expiries
---     included;
---   * a row it only changed has the times it stamped, between $1 and $2, moved
---     back; times already in the future, such as a campaign's end, stay.
-CREATE TEMP TABLE demo_backdating AS
-SELECT format('UPDATE %s SET %s WHERE xmin = $5::xid',
-              t.relid::regclass,
-              string_agg(format('%1$I = CASE WHEN %1$I >= $1 AND (%1$I <= $2 OR %2$s) THEN %1$I - $3 ELSE %1$I END',
-                                a.attname, t.fresh),
-                         ', ' ORDER BY a.attnum)) AS stmt
-FROM (
-    SELECT c.oid AS relid,
-           CASE WHEN EXISTS (
-               SELECT 1
-               FROM pg_attribute i
-               JOIN pg_attrdef d ON d.adrelid = i.attrelid AND d.adnum = i.attnum
-               WHERE i.attrelid = c.oid AND i.attname = 'id' AND i.atttypid = 'uuid'::regtype
-                 AND pg_get_expr(d.adbin, d.adrelid) = 'uuidv7()'
-           ) THEN '(id > $4 AND uuid_extract_version(id) = 7)' ELSE 'false' END AS fresh
-    FROM pg_class c
-    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
-) t
-JOIN pg_attribute a ON a.attrelid = t.relid
-WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
-  AND a.atttypid = 'timestamptz'::regtype
-GROUP BY t.relid, t.fresh;
+\ir demo_backdating.sql
 
 -- The catalogue's opening stock is the seed's receipt, stamped when the seed
 -- ran. Read by date, every simulated sale would come before it and the stock
@@ -854,9 +833,9 @@ $$;
 
 -- Moves what this transaction wrote back to p_at. Replica mode is what lets an
 -- append-only or frozen row take a new time, and it also switches off foreign
--- keys and every other trigger, so only demo_backdating's time columns change.
--- uuidv7() is strictly ascending within a backend, so a row whose id is past
--- p_marker was created by this transaction.
+-- keys and every other trigger, so only the columns seed/demo_backdating.sql
+-- names change. uuidv7() is strictly ascending within a backend, so a row
+-- whose id is past p_marker was created by this transaction.
 CREATE PROCEDURE pg_temp.demo_backdate(p_at timestamptz, p_marker uuid)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -868,11 +847,6 @@ BEGIN
     FOR v_stmt IN SELECT b.stmt FROM pg_temp.demo_backdating b LOOP
         EXECUTE v_stmt USING v_began, clock_timestamp(), v_began - p_at, p_marker, v_xid;
     END LOOP;
-    -- The one date counted from today: a lot's expiry, from the day it was
-    -- earned. An entry against a lot copies the lot's, which moved already.
-    UPDATE loyalty_entries
-    SET expires_on = expires_on - (shop_day(v_began) - shop_day(p_at))
-    WHERE xmin = v_xid::xid AND id > p_marker AND lot_id IS NULL;
 END
 $$;
 

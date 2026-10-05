@@ -4,10 +4,12 @@ package db_test
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -105,6 +107,29 @@ var demoHistoryInvariants = []struct {
 		FROM loyalty_entries e
 		JOIN loyalty_entries l ON l.id = e.lot_id
 		WHERE e.expires_on <> l.expires_on`},
+	{"a card refund is no more than the payment it refunds", `
+		SELECT o.order_number
+		FROM orders o
+		JOIN payments p ON p.order_id = o.id
+		WHERE p.status = 'succeeded'
+		  AND (SELECT coalesce(sum(r.amount_cents), 0) FROM refunds r
+		       WHERE r.payment_id = p.id AND r.status = 'succeeded') > p.captured_amount_cents`},
+	{"credit given back on an order is no more than the credit spent on it", `
+		SELECT o.order_number
+		FROM orders o
+		WHERE (SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
+		       WHERE e.order_id = o.id AND e.amount_cents > 0)
+		    > -(SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
+		        WHERE e.idempotency_key = 'order:' || o.id)`},
+	// A paid order keeps its hold until dispatch consumes it, and the history
+	// leaves its last orders waiting to be sent.
+	{"stock is held only for an order paid for and waiting to be sent", `
+		SELECT DISTINCT o.order_number
+		FROM orders o
+		JOIN inventory_reservations r ON r.order_id = o.id
+		WHERE r.state = 'held'
+		  AND NOT (o.fulfillment_status IN ('pending', 'picking')
+		           AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) = 0))`},
 	{"the history ends the day before it was generated", `
 		SELECT order_number FROM orders
 		WHERE shop_day(placed_at) >= shop_today() OR shop_day(placed_at) < shop_today() - 90`},
@@ -165,26 +190,30 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 }
 
 // The demo holds a few checkouts from before the history; it numbers its own
-// orders of their day after them.
+// orders of their day after them. The plan can leave a day without orders, so
+// each of the last seven days has one from before.
 func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)
 	addAdmin(t, shop)
-	orderPaidYesterday("cs_test_a1before")(t, shop)
+	for days := 1; days <= 7; days++ {
+		orderPaidDaysAgo(fmt.Sprintf("cs_test_a1before%d", days), days)(t, shop)
+	}
 	const earlier = `
 		SELECT (to_jsonb(o) || jsonb_build_object(
 		           'payments', (SELECT jsonb_agg(to_jsonb(p)) FROM payments p WHERE p.order_id = o.id),
 		           'lines', (SELECT jsonb_agg(to_jsonb(l)) FROM order_lines l WHERE l.order_id = o.id)))::text
 		FROM orders o
-		WHERE o.order_number = 'GO-' || to_char(shop_today() - 1, 'YYMMDD') || '-000001'`
+		WHERE EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id AND p.provider_ref LIKE 'cs\_test\_%')
+		ORDER BY o.order_number`
 	before := textRows(t, shop, earlier)
 
 	if out, err := runDemoHistory(t, shop.Config().ConnString(), namingItself(shop)...); err != nil {
-		t.Fatalf("seed/demo_history.sql beside GO-<yesterday>-000001: %v\n%s", err, out)
+		t.Fatalf("seed/demo_history.sql beside GO-<day>-000001 on each of the last seven days: %v\n%s", err, out)
 	}
 
-	if after := textRows(t, shop, earlier); len(before) != 1 || !slices.Equal(after, before) {
-		t.Errorf("the order placed before the history:\nbefore %v\nafter  %v", before, after)
+	if after := textRows(t, shop, earlier); len(before) != 7 || !slices.Equal(after, before) {
+		t.Errorf("the orders placed before the history:\nbefore %v\nafter  %v", before, after)
 	}
 	if off := textRows(t, shop, `
 		SELECT c.business_date::text
@@ -193,7 +222,82 @@ func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
 		                    WHERE o.order_number LIKE 'GO-' || to_char(c.business_date, 'YYMMDD') || '-%')`); len(off) > 0 {
 		t.Errorf("days whose counter is not the number of orders numbered on them: %s", strings.Join(off, ", "))
 	}
+	if shared := textRows(t, shop, `
+		SELECT business_date::text FROM order_number_counters
+		WHERE business_date >= shop_today() - 7 AND last_no > 1`); len(shared) == 0 {
+		t.Fatal("no order drawn on any of the last seven days: the history numbered nothing after an earlier order")
+	}
 }
+
+// seed/demo_backdating.sql's statements run in replica mode, with foreign keys
+// and the append-only triggers off, so they may move times and nothing else:
+// every column they set is a timestamptz, but for a points lot's expiry, the
+// one date counted from the day it was written.
+func TestDemoBackdatingSetsOnlyTimes(t *testing.T) {
+	shop := dbtest.Pool(t)
+	ctx := t.Context()
+	script, err := os.ReadFile(filepath.Join("..", "..", "seed", "demo_backdating.sql"))
+	if err != nil {
+		t.Fatalf("read seed/demo_backdating.sql: %v", err)
+	}
+	// The statements are a temporary table, read on the session that made it.
+	conn, err := shop.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire a connection: %v", err)
+	}
+	defer conn.Release()
+	if _, err = conn.Exec(ctx, string(script)); err != nil {
+		t.Fatalf("run seed/demo_backdating.sql: %v", err)
+	}
+	rows, err := conn.Query(ctx, `SELECT stmt FROM pg_temp.demo_backdating`)
+	if err != nil {
+		t.Fatalf("read the back-dating statements: %v", err)
+	}
+	stmts, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatalf("read the back-dating statements: %v", err)
+	}
+	if len(stmts) == 0 {
+		t.Fatal("seed/demo_backdating.sql generated no statement")
+	}
+
+	for _, stmt := range stmts {
+		update := backdatingUpdate.FindStringSubmatch(stmt)
+		if update == nil {
+			t.Errorf("not an UPDATE ... SET ... WHERE: %s", stmt)
+			continue
+		}
+		table := update[1]
+		targets := backdatingTarget.FindAllStringSubmatch(update[2], -1)
+		if len(targets) == 0 {
+			t.Errorf("no column found in the SET list of %s", stmt)
+		}
+		for _, target := range targets {
+			column := target[1]
+			var typ string
+			if err = conn.QueryRow(ctx, `
+				SELECT a.atttypid::regtype::text
+				FROM pg_attribute a
+				WHERE a.attrelid = $1::text::regclass AND quote_ident(a.attname) = $2
+				  AND a.attnum > 0 AND NOT a.attisdropped`, table, column).Scan(&typ); err != nil {
+				t.Errorf("type of %s.%s: %v", table, column, err)
+				continue
+			}
+			if typ != "timestamp with time zone" && (table != "loyalty_entries" || column != "expires_on") {
+				t.Errorf("%s.%s is %s: back-dating may set timestamptz columns and loyalty_entries.expires_on only",
+					table, column, typ)
+			}
+		}
+	}
+}
+
+// backdatingUpdate splits a back-dating statement into its table and its SET
+// list; backdatingTarget finds each column the list assigns, bare or quoted as
+// format's %I writes it.
+var (
+	backdatingUpdate = regexp.MustCompile(`^UPDATE (\S+) SET (.+) WHERE `)
+	backdatingTarget = regexp.MustCompile(`(?:^|, )("(?:[^"]|"")+"|[a-z_][a-z0-9_$]*) = `)
+)
 
 func TestDemoHistoryRefuses(t *testing.T) {
 	t.Parallel()
@@ -212,7 +316,7 @@ func TestDemoHistoryRefuses(t *testing.T) {
 		},
 		{
 			name:    "Stripe test payments without demo_database",
-			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidYesterday("cs_test_a1soft")},
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidDaysAgo("cs_test_a1soft", 1)},
 			refusal: "pass -v demo_database=<this database's name> to write a demo history into it",
 		},
 		{
@@ -230,7 +334,7 @@ func TestDemoHistoryRefuses(t *testing.T) {
 		},
 		{
 			name:    "a live payment",
-			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidYesterday("cs_live_a1paid")},
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, addAdmin, orderPaidDaysAgo("cs_live_a1paid", 1)},
 			named:   itself,
 			refusal: "payment cs_live_a1paid is not a demo or test payment",
 		},
@@ -326,35 +430,36 @@ func clerkConnString(t *testing.T, shop *pgxpool.Pool) string {
 	return conn.String()
 }
 
-// orderPaidYesterday places the first order of yesterday, numbered through the
-// day's counter as next_order_number() numbered it then, and paid through ref.
-func orderPaidYesterday(ref string) func(*testing.T, *pgxpool.Pool) {
+// orderPaidDaysAgo places the first order of the day that many days ago,
+// numbered through the day's counter as next_order_number() numbered it then,
+// and paid through ref.
+func orderPaidDaysAgo(ref string, days int) func(*testing.T, *pgxpool.Pool) {
 	return func(t *testing.T, shop *pgxpool.Pool) {
 		t.Helper()
 		ctx := t.Context()
 		tx, err := shop.Begin(ctx)
 		if err != nil {
-			t.Fatalf("begin yesterday's order: %v", err)
+			t.Fatalf("begin the order of %d days ago: %v", days, err)
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
 		var order string
 		if err = tx.QueryRow(ctx, `
 			WITH counter AS (
-			    INSERT INTO order_number_counters (business_date, last_no) VALUES (shop_today() - 1, 1)
+			    INSERT INTO order_number_counters (business_date, last_no) VALUES (shop_today() - $1::integer, 1)
 			    RETURNING business_date, last_no
 			)
 			INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name,
 			                    shipping_cents, placed_at)
 			SELECT 'GO-' || to_char(c.business_date, 'YYMMDD') || '-' || to_char(c.last_no, 'FM000000'),
-			       sv.id, sm.code, sv.name, sv.fee_cents, now() - interval '1 day'
+			       sv.id, sm.code, sv.name, sv.fee_cents, now() - make_interval(days => $1::integer)
 			FROM counter c
 			CROSS JOIN shipping_method_versions sv
 			JOIN shipping_methods sm ON sm.id = sv.method_id
 			WHERE sm.code = 'home_delivery'
 			ORDER BY sv.effective_at DESC
 			LIMIT 1
-			RETURNING id::text`).Scan(&order); err != nil {
-			t.Fatalf("place yesterday's order: %v", err)
+			RETURNING id::text`, days).Scan(&order); err != nil {
+			t.Fatalf("place the order of %d days ago: %v", days, err)
 		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
@@ -364,23 +469,23 @@ func orderPaidYesterday(ref string) func(*testing.T, *pgxpool.Pool) {
 			WHERE p.status = 'active' AND pv.is_active
 			ORDER BY pv.price_cents, pv.sku
 			LIMIT 1`, order); err != nil {
-			t.Fatalf("add a line to yesterday's order: %v", err)
+			t.Fatalf("add a line to the order of %d days ago: %v", days, err)
 		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
 			VALUES ($1::uuid, 'early@goen.invalid', '早鳥', '0912000000', '106', '台北市', '大安區', '復興南路一段 1 號')`,
 			order); err != nil {
-			t.Fatalf("address yesterday's order: %v", err)
+			t.Fatalf("address the order of %d days ago: %v", days, err)
 		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents,
 			                      card_brand, card_last4, paid_at)
 			SELECT $1::uuid, $2, 'succeeded', order_amount_after_credit($1::uuid), order_amount_after_credit($1::uuid),
-			       'visa', '4242', now() - interval '1 day'`, order, ref); err != nil {
-			t.Fatalf("pay yesterday's order through %s: %v", ref, err)
+			       'visa', '4242', now() - make_interval(days => $3::integer)`, order, ref, days); err != nil {
+			t.Fatalf("pay the order of %d days ago through %s: %v", days, ref, err)
 		}
 		if err = tx.Commit(ctx); err != nil {
-			t.Fatalf("commit yesterday's order: %v", err)
+			t.Fatalf("commit the order of %d days ago: %v", days, err)
 		}
 	}
 }
