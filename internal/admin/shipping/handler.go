@@ -197,10 +197,10 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 }
 
 type shippingDrafts struct {
-	method admin.MethodDraft
-	zone admin.ZoneDraft
-	prefixes admin.ZonePrefixesDraft
-	version *admin.VersionDraft
+	method    admin.MethodDraft
+	zone      admin.ZoneDraft
+	prefixes  admin.ZonePrefixesDraft
+	version   *admin.VersionDraft
 	surcharge admin.SurchargeDraft
 }
 
