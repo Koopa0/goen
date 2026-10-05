@@ -4251,6 +4251,9 @@ CREATE TABLE outbox_messages (
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
+    -- The claim that may settle the message. A worker whose lease ran out
+    -- finds another claim's owner here, and its late outcome changes nothing.
+    lease_owner  uuid,
     CONSTRAINT outbox_messages_topic_present CHECK (topic ~ '[^[:space:]]'),
     CONSTRAINT outbox_messages_attempts_non_negative CHECK (attempts >= 0),
     CONSTRAINT outbox_messages_priority_non_negative CHECK (priority >= 0)

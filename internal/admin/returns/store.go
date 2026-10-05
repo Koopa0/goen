@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -320,6 +321,16 @@ func (s *Store) decideReturnFirst(
 	return s.payouts.PayApproved(ctx, row.ID, actor)
 }
 
+// refusedIfNoRow reports a missing row as ErrRefused and any other error as the
+// failure it is: a lock that timed out is the database not answering, not a
+// rule refusing the write.
+func refusedIfNoRow(err error, doing string) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	return fmt.Errorf("%s: %w", doing, err)
+}
+
 // returnUnderDecision reads the return this decision is about and says whether
 // it is a first decision or a RETRY of a payout that did not complete.
 //
@@ -338,7 +349,7 @@ func (s *Store) returnUnderDecision(
 	}
 	row, err := s.q.ReturnForDecision(ctx, requestID)
 	if err != nil {
-		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
+		return db.ReturnForDecisionRow{}, false, refusedIfNoRow(err, "read return "+id)
 	}
 	status := returnrules.Status(row.Status)
 	retry := status == returnrules.StatusApproved && kind == returnrules.DecisionApprove
@@ -470,11 +481,11 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, lockErr)
+		return refusedIfNoRow(lockErr, "lock return order for assessment")
 	}
 	row, err := q.ReturnForDecision(ctx, requestID)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, err)
+		return refusedIfNoRow(err, "read return "+id)
 	}
 	if returnrules.Status(row.Status) != returnrules.StatusRequested {
 		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
@@ -529,7 +540,7 @@ func (s *Store) closeReturn(
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, lockErr)
+		return refusedIfNoRow(lockErr, "lock return order for decision")
 	}
 
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
@@ -549,7 +560,7 @@ func (s *Store) closeReturn(
 		ID: requestID, Status: string(kind.Status()), Resolution: pgtype.Text{String: resolution, Valid: resolution != ""},
 	})
 	if decideErr != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
+		return pgerr.WrapRefusal(decideErr, ErrRefused)
 	}
 	if decided == 0 {
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
@@ -713,7 +724,7 @@ func (s *Store) Inspect(
 			Received: l.Received, Restocked: l.Restocked, Note: l.Note,
 		})
 		if inspectErr != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, inspectErr)
+			return pgerr.WrapRefusal(inspectErr, ErrRefused)
 		}
 		// Zero rows is one of three refusals the caller has to hear: not
 		// approved, the line belongs elsewhere, or already inspected.
@@ -774,7 +785,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return fmt.Errorf("%w: lock return order for completion: %w", ErrRefused, lockErr)
+		return refusedIfNoRow(lockErr, "lock return order for completion")
 	}
 
 	// return_requests_completed_is_inspected refuses this while any line is
@@ -784,7 +795,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.
 		ID: requestID, Resolution: resolution,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, err)
+		return pgerr.WrapRefusal(err, ErrRefused)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)
