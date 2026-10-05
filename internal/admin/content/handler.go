@@ -94,7 +94,12 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if r.PostFormValue("action") == "delete" {
-		h.answerToggle(w, r, "delete faq entry", "/admin/faq", h.store.DeleteFAQEntry(r.Context(), id))
+		if err := h.store.DeleteFAQEntry(r.Context(), id); err != nil {
+			h.log.WarnContext(r.Context(), "delete faq entry", "error", err)
+			access.NotFound(w, r, h.log)
+			return
+		}
+		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
 		return
 	}
 
@@ -202,27 +207,14 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "toggle promo banner", "/admin/home",
-		h.store.SetBannerActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "1"))
-}
-
-// answerToggle answers a one-button write that goes back to back: a missing row
-// is 404, a rule's refusal is back's refused notice, and anything else is the
-// server failing.
-func (h *Handler) answerToggle(w http.ResponseWriter, r *http.Request, what, back string, err error) {
-	switch {
-	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		h.log.WarnContext(r.Context(), what, "error", err)
+	err := h.store.SetBannerActive(r.Context(), r.PathValue("id"),
+		r.PostFormValue("active") == "1")
+	if err != nil {
+		h.log.WarnContext(r.Context(), "toggle promo banner", "error", err)
 		access.NotFound(w, r, h.log)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), what, "error", err)
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), what, "error", err)
-		access.ServerError(w, r, h.log)
+		return
 	}
+	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) rejectBanner(
@@ -332,8 +324,13 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "toggle hero slide", "/admin/home",
-		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "true"))
+	if err := h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"),
+		r.PostFormValue("active") == "true"); err != nil {
+		h.log.WarnContext(r.Context(), "toggle hero slide", "error", err)
+		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +338,12 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "promote hero slide", "/admin/home", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
+	if err := h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")); err != nil {
+		h.log.WarnContext(r.Context(), "promote hero slide", "error", err)
+		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
 const NewsletterIssueLimit = 50

@@ -359,7 +359,7 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 	// products_active_has_variant is deferred, so publishing a product with
 	// nothing to sell is refused at COMMIT, which audit.Run reports outside the
 	// work; the refusal is read off the whole result.
-	return pgerr.WrapRefusal(err, ErrRefused)
+	return err
 }
 
 func knownStatus(s string) bool {

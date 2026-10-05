@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -239,23 +238,21 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
 	}
-	back := "/admin/campaigns/" + slug
-	switch {
-	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
-	case pgerr.IsConstraint(err, "sale_campaign_needs_discount"):
+	if err != nil {
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
+		back := "/admin/campaigns/" + slug
+		if errors.Is(err, ErrNotFound) {
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		// sale_campaign_needs_discount: nothing is marked down.
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, back+"?nodiscount=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "feature product", "campaign", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		return
 	}
+	//nolint:gosec // G710: slug is the route's own path value
+	http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
@@ -268,17 +265,11 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("back") == "detail" {
 		back += "/" + slug
 	}
-	switch err := h.store.SetActive(r.Context(), slug, r.PostFormValue("active") == "true"); {
-	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
-	case errors.Is(err, ErrNotFound):
-		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
-		access.NotFound(w, r, h.log)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
+	if err := h.store.SetActive(r.Context(), slug,
+		r.PostFormValue("active") == "true"); err != nil {
+		h.log.WarnContext(r.Context(), "set campaign active", "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
-	default:
-		h.log.ErrorContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		return
 	}
+	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
