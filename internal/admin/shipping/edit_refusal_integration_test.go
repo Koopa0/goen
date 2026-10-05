@@ -3,6 +3,7 @@
 package shipping_test
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -125,11 +126,11 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 					t.Fatalf("refused surcharge status=%d, want 422", res.Code)
 				}
 				admintest.AssertRefusedInput(t, res.Body.String(), "sur-"+versionID.String()+"-"+zoneID.String(), amount)
-				key := i18n.KeyFormShippingSurcharge
+				message := fmt.Sprintf(i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyFormShippingSurcharge), "NT$5,000")
 				if amount == "4999" {
-					key = i18n.KeyAdminNoticeRefused
+					message = i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminNoticeRefused)
 				}
-				if !strings.Contains(res.Body.String(), i18n.T(i18n.WithLocale(ctx, locale), key)) {
+				if !strings.Contains(res.Body.String(), message) {
 					t.Error("the surcharge has no translated range explanation")
 				}
 			})

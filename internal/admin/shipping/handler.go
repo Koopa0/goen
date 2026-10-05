@@ -94,11 +94,11 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 	}
 	fee, feeOK := dollars(draft.Fee, false)
 	if !feeOK {
-		errs["fee"] = i18n.T(r.Context(), i18n.KeyFormMethodFee)
+		errs["fee"] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodFee), money.TWD(MaxFee))
 	}
 	freeOver, freeOverOK := dollars(draft.FreeOver, true)
 	if !freeOverOK {
-		errs["free_over"] = i18n.T(r.Context(), i18n.KeyFormMethodFreeOver)
+		errs["free_over"] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodFreeOver), money.TWD(money.MaxCents))
 	}
 	return &NewMethod{
 		Code:               r.PostFormValue("code"),
@@ -303,11 +303,11 @@ func versionFormOf(r *http.Request) (ShippingVersion, admin.VersionDraft, map[st
 	errs := map[string]string{}
 	fee, feeOK := dollars(draft.Fee, false)
 	if !feeOK || fee > MaxFee/100 {
-		errs["version_fee"] = i18n.T(r.Context(), i18n.KeyFormMethodFee)
+		errs["version_fee"] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodFee), money.TWD(MaxFee))
 	}
 	freeOver, freeOverOK := dollars(draft.FreeOver, true)
 	if !freeOverOK || freeOver > money.MaxCents/100 {
-		errs["version_free_over"] = i18n.T(r.Context(), i18n.KeyFormMethodFreeOver)
+		errs["version_free_over"] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodFreeOver), money.TWD(money.MaxCents))
 	}
 	if strings.TrimSpace(draft.Name) == "" {
 		errs["version_name"] = i18n.T(r.Context(), i18n.KeyFormNameRequired)
@@ -324,7 +324,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	// Blank clears the surcharge; it must stay distinct from an unreadable amount.
 	amount, valid := dollars(r.PostFormValue("amount"), true)
 	if !valid || amount > MaxFee/100 {
-		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyFormShippingSurcharge))
+		h.rejectSurcharge(w, r, fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormShippingSurcharge), money.TWD(MaxFee)))
 		return
 	}
 	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"), r.PostFormValue("zone"), amount)

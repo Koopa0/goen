@@ -58,11 +58,11 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								maxlength="60"
 								if v.VersionRefusal(m.MethodID, "name") != "" {
 									aria-invalid="true"
-									aria-describedby={ "name-error-" + m.MethodID }
+									aria-describedby={ "name-" + m.MethodID + "-error" }
 								}
 							/>
 							if message := v.VersionRefusal(m.MethodID, "name"); message != "" {
-								<p class="ui-error-text" id={ "name-error-" + m.MethodID }>{ message }</p>
+								<p class="ui-error-text" id={ "name-" + m.MethodID + "-error" }>{ message }</p>
 							}
 						</div>
 						<div class="goen-admin__field">
@@ -119,11 +119,11 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								inputmode="numeric"
 								if v.VersionRefusal(m.MethodID, "fee") != "" {
 									aria-invalid="true"
-									aria-describedby={ "fee-error-" + m.MethodID }
+									aria-describedby={ "fee-" + m.MethodID + "-error" }
 								}
 							/>
 							if message := v.VersionRefusal(m.MethodID, "fee"); message != "" {
-								<p class="ui-error-text" id={ "fee-error-" + m.MethodID }>{ message }</p>
+								<p class="ui-error-text" id={ "fee-" + m.MethodID + "-error" }>{ message }</p>
 							}
 						</div>
 						<div class="goen-admin__field">
@@ -142,11 +142,11 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								inputmode="numeric"
 								if v.VersionRefusal(m.MethodID, "free_over") != "" {
 									aria-invalid="true"
-									aria-describedby={ "free-error-" + m.MethodID }
+									aria-describedby={ "free-" + m.MethodID + "-error" }
 								}
 							/>
 							if message := v.VersionRefusal(m.MethodID, "free_over"); message != "" {
-								<p class="ui-error-text" id={ "free-error-" + m.MethodID }>{ message }</p>
+								<p class="ui-error-text" id={ "free-" + m.MethodID + "-error" }>{ message }</p>
 							}
 						</div>
 					</div>
@@ -206,11 +206,11 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										inputmode="numeric"
 										if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
 											aria-invalid="true"
-											aria-describedby={ "sur-error-" + m.VersionID + "-" + z.ID }
+											aria-describedby={ "sur-" + m.VersionID + "-" + z.ID + "-error" }
 										}
 									/>
 									if message := v.SurchargeRefusal(m.MethodID, z.ID); message != "" {
-										<p class="ui-error-text" id={ "sur-error-" + m.VersionID + "-" + z.ID }>{ message }</p>
+										<p class="ui-error-text" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ message }</p>
 									}
 									@components.Button(components.ButtonProps{
 										ButtonStyle: components.ButtonStyleOutline,

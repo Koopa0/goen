@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 				},
 				Zones:        []ShippingZone{{ID: "zone-a", Name: "Zone A"}, {ID: "zone-b", Name: "Zone B"}},
 				VersionDraft: VersionDraft{MethodID: "owned", Name: " Draft & name ", NameEn: " Draft name EN ", Carrier: " Draft carrier ", CarrierEn: " Draft carrier EN ", Fee: " malformed ", FreeOver: "+1000"},
-				Errors:       map[string]string{"version_fee": i18n.T(ctx, i18n.KeyFormMethodFee)},
+				Errors:       map[string]string{"version_fee": fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), "NT$5,000")},
 			}
 			body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
 			for id, want := range map[string]string{
@@ -44,18 +45,18 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 				}
 			}
 			attrs := shippingControlAttributes(t, body, "fee-owned")
-			if diff := cmp.Diff([]string{"text", "true", "fee-error-owned", "5000"}, []string{attrs["type"], attrs["aria-invalid"], attrs["aria-describedby"], attrs["max"]}); diff != "" {
+			if diff := cmp.Diff([]string{"text", "true", "fee-owned-error", "5000"}, []string{attrs["type"], attrs["aria-invalid"], attrs["aria-describedby"], attrs["max"]}); diff != "" {
 				t.Errorf("refused fee attributes (-want +got):\n%s", diff)
 			}
-			if !strings.Contains(body, `id="fee-error-owned"`) || !strings.Contains(body, i18n.T(ctx, i18n.KeyFormMethodFee)) {
+			if !strings.Contains(body, `id="fee-owned-error"`) || !strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), "NT$5,000")) {
 				t.Error("the refused fee has no linked translated explanation")
 			}
 			view.VersionDraft = VersionDraft{}
 			view.SurchargeDraft = SurchargeDraft{MethodID: "owned", ZoneID: "zone-a", Amount: " 5010 "}
-			view.Errors = map[string]string{"surcharge": i18n.T(ctx, i18n.KeyFormShippingSurcharge)}
+			view.Errors = map[string]string{"surcharge": fmt.Sprintf(i18n.T(ctx, i18n.KeyFormShippingSurcharge), "NT$5,000")}
 			body = renderComponent(t, ctx, Shipping(layouts.Page{}, view))
 			attrs = shippingControlAttributes(t, body, "sur-owned-version-zone-a")
-			if diff := cmp.Diff([]string{" 5010 ", "text", "true", "sur-error-owned-version-zone-a", "5000"}, []string{attrs["value"], attrs["type"], attrs["aria-invalid"], attrs["aria-describedby"], attrs["max"]}); diff != "" {
+			if diff := cmp.Diff([]string{" 5010 ", "text", "true", "sur-owned-version-zone-a-error", "5000"}, []string{attrs["value"], attrs["type"], attrs["aria-invalid"], attrs["aria-describedby"], attrs["max"]}); diff != "" {
 				t.Errorf("refused surcharge attributes (-want +got):\n%s", diff)
 			}
 			for _, id := range []string{"sur-owned-version-zone-b", "sur-other-version-zone-a", "sur-other-version-zone-b", "fee-owned", "m-fee"} {
@@ -63,7 +64,7 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 					t.Errorf("surcharge refusal leaked to %q", id)
 				}
 			}
-			if !strings.Contains(body, `id="sur-error-owned-version-zone-a"`) || !strings.Contains(body, i18n.T(ctx, i18n.KeyFormShippingSurcharge)) {
+			if !strings.Contains(body, `id="sur-owned-version-zone-a-error"`) || !strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyFormShippingSurcharge), "NT$5,000")) {
 				t.Error("the surcharge has no linked translated explanation")
 			}
 			for id, max := range map[string]string{"fee-owned": "5000", "free-owned": "100000000", "sur-other-version-zone-b": "5000"} {

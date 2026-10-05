@@ -237,10 +237,10 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
 	if m.FeeDollars < 0 || m.FeeDollars > MaxFee/100 {
-		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
+		errs["fee"] = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), money.TWD(MaxFee))
 	}
 	if m.FreeOverDollars < 0 || m.FreeOverDollars > money.MaxCents/100 {
-		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
+		errs["free_over"] = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFreeOver), money.TWD(money.MaxCents))
 	}
 	validateMethodParcelLimits(ctx, m, errs)
 	return errs

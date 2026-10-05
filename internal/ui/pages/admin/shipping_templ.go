@@ -307,9 +307,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var20 string
-						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue("name-error-" + m.MethodID)
+						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue("name-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 61, Col: 54}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 61, Col: 59}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 						if templ_7745c5c3_Err != nil {
@@ -330,9 +330,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var21 string
-						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue("name-error-" + m.MethodID)
+						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue("name-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 65, Col: 64}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 65, Col: 69}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 						if templ_7745c5c3_Err != nil {
@@ -345,7 +345,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 65, Col: 76}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 65, Col: 81}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 						if templ_7745c5c3_Err != nil {
@@ -620,9 +620,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var41 string
-						templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("fee-error-" + m.MethodID)
+						templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("fee-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 122, Col: 53}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 122, Col: 58}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 						if templ_7745c5c3_Err != nil {
@@ -643,9 +643,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var42 string
-						templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("fee-error-" + m.MethodID)
+						templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("fee-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 126, Col: 63}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 126, Col: 68}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 						if templ_7745c5c3_Err != nil {
@@ -658,7 +658,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						var templ_7745c5c3_Var43 string
 						templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 126, Col: 75}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 126, Col: 80}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 						if templ_7745c5c3_Err != nil {
@@ -762,9 +762,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var50 string
-						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue("free-error-" + m.MethodID)
+						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue("free-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 145, Col: 54}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 145, Col: 59}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 						if templ_7745c5c3_Err != nil {
@@ -785,9 +785,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var51 string
-						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue("free-error-" + m.MethodID)
+						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue("free-" + m.MethodID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 149, Col: 64}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 149, Col: 69}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 						if templ_7745c5c3_Err != nil {
@@ -800,7 +800,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						var templ_7745c5c3_Var52 string
 						templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 149, Col: 76}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 149, Col: 81}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 						if templ_7745c5c3_Err != nil {
@@ -1137,9 +1137,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var73 string
-								templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue("sur-error-" + m.VersionID + "-" + z.ID)
+								templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue("sur-" + m.VersionID + "-" + z.ID + "-error")
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 209, Col: 69}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 209, Col: 74}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
 								if templ_7745c5c3_Err != nil {
@@ -1160,9 +1160,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var74 string
-								templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue("sur-error-" + m.VersionID + "-" + z.ID)
+								templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue("sur-" + m.VersionID + "-" + z.ID + "-error")
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 213, Col: 79}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 213, Col: 84}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 								if templ_7745c5c3_Err != nil {
@@ -1175,7 +1175,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 								var templ_7745c5c3_Var75 string
 								templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 213, Col: 91}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 213, Col: 96}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 								if templ_7745c5c3_Err != nil {
