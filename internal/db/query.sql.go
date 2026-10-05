@@ -3284,7 +3284,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     coalesce(b.name, '') AS brand,
-    mv.price_cents AS min_price_cents,
+    mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
     NOT EXISTS (
@@ -3344,7 +3344,7 @@ type CampaignProductsRow struct {
 	Name                string
 	Summary             string
 	Brand               string
-	MinPriceCents       int64
+	TilePriceCents      int64
 	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
@@ -3371,7 +3371,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
-			&i.MinPriceCents,
+			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
