@@ -641,7 +641,7 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := shippableOrder(t, "zh-Hant")
 
-	correction := &orders.Delivery{
+	correction := &orders.DeliveryCorrection{
 		Email: "fixed@example.com", Recipient: "收件人", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "正確的地址 99 號",
 	}
@@ -671,7 +671,7 @@ func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T
 	number := shippableOrder(t, "zh-Hant")
 
 	const street = "非常獨特的街道名稱 12345"
-	if err := s.CorrectDelivery(ctx, number, &orders.Delivery{
+	if err := s.CorrectDelivery(ctx, number, &orders.DeliveryCorrection{
 		Email: "audit@example.com", Recipient: "收件人", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: street,
 	}); err != nil {
@@ -700,7 +700,7 @@ func TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := pickupOrderForCorrection(t)
 
-	if err := s.CorrectDelivery(ctx, number, &orders.Delivery{
+	if err := s.CorrectDelivery(ctx, number, &orders.DeliveryCorrection{
 		Email: "pickup@example.com", Recipient: "收件人", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "不該存下來的地址",
 		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
