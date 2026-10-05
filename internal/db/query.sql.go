@@ -1253,10 +1253,11 @@ func (q *Queries) AdminOrderCounts(ctx context.Context) ([]AdminOrderCountsRow, 
 }
 
 const adminOrderTimeline = `-- name: AdminOrderTimeline :many
-SELECT at, source, kind, status, note, actor_kind, actor_name
+SELECT at, source, kind, status, done_at, note, actor_kind, actor_name
 FROM (
     SELECT e.occurred_at AS at, 1 AS precedence, e.id::text AS tie,
            'order'::text AS source, e.kind::text AS kind, ''::text AS status,
+           NULL::timestamptz AS done_at,
            coalesce(e.note, '')::text AS note,
            (CASE WHEN e.actor_user_id IS NOT NULL THEN 'staff'
                  WHEN e.by_system THEN 'system'
@@ -1276,12 +1277,12 @@ FROM (
     SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
            CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
                 THEN 'awaiting_buyer' ELSE op.status END,
-           '', op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = $1
     UNION ALL
-    SELECT w.received_at, 0, w.event_id, 'provider', '', '',
+    SELECT w.received_at, 0, w.event_id, 'provider', '', '', NULL,
            w.type || coalesce(' · ' || w.unreconciled, ''), 'provider', ''
     FROM payment_webhook_events w
     JOIN payments p ON p.provider = w.provider AND p.provider_ref = w.object_ref
@@ -1289,7 +1290,7 @@ FROM (
     UNION ALL
     SELECT m.created_at, 3, m.id::text, 'mail', m.topic,
            CASE WHEN m.delivered_at IS NULL THEN 'queued' ELSE 'sent' END,
-           '', 'system', ''
+           m.delivered_at, '', 'system', ''
     FROM outbox_messages m
     JOIN orders o ON o.id = $1
     WHERE m.topic = ANY($2::text[])
@@ -1309,6 +1310,7 @@ type AdminOrderTimelineRow struct {
 	Source    string
 	Kind      string
 	Status    string
+	DoneAt    pgtype.Timestamptz
 	Note      string
 	ActorKind string
 	ActorName string
@@ -1323,6 +1325,8 @@ type AdminOrderTimelineRow struct {
 // An order event with no actor: 'placed' and 'cancelled' are the customer's (the
 // sweeper's cancel is by_system); 'paid' is the provider's when a payment
 // succeeded, and otherwise store credit or a discount closing the funding.
+// An invoice operation and a mail are placed at their creation; status is where
+// they stand now, and done_at when a succeeded operation or a delivered mail got there.
 func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.MailTopics)
 	if err != nil {
@@ -1337,6 +1341,7 @@ func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimeline
 			&i.Source,
 			&i.Kind,
 			&i.Status,
+			&i.DoneAt,
 			&i.Note,
 			&i.ActorKind,
 			&i.ActorName,

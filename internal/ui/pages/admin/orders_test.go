@@ -197,3 +197,52 @@ func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 		}
 	}
 }
+
+// A mail or invoice operation sits at its creation but is labelled with where
+// it stands now, so both moments are shown: created at one time, and now in a
+// state it reached at another.
+func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.T) {
+	t.Parallel()
+	entries := []TimelineEntry{
+		{At: "2026-10-05 10:00", DoneAt: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineMailPaid,
+			Status: i18n.KeyAdminTimelineMailSent, ActorKind: ActorSystem},
+		{At: "2026-10-05 10:05", Label: i18n.KeyAdminTimelineMailShipped,
+			Status: i18n.KeyAdminTimelineMailQueued, ActorKind: ActorSystem},
+		{At: "2026-10-05 10:30", Label: i18n.KeyStatusPicking, ActorKind: ActorStaff, Actor: "王店長"},
+	}
+	for _, tc := range []struct {
+		locale i18n.Locale
+		want   [][]string
+		absent []string
+	}{
+		{i18n.ZhHant, [][]string{
+			{"2026-10-05 10:00 建立", "目前：已寄出（2026-10-05 10:20）"},
+			{"2026-10-05 10:05 建立", "目前：尚未寄出"},
+			{"2026-10-05 10:30 · 王店長"},
+		}, []string{"目前：尚未寄出（"}},
+		{i18n.En, [][]string{
+			{"Created 2026-10-05 10:00", "Now: Sent (2026-10-05 10:20)"},
+			{"Created 2026-10-05 10:05", "Now: Not sent yet"},
+			{"2026-10-05 10:30 · 王店長"},
+		}, []string{"Now: Not sent yet ("}},
+	} {
+		html := renderOrder(t, tc.locale, &OrderView{Number: "GO-261005-000002", Timeline: entries})
+		items := strings.Split(html, `class="goen-admin__event"`)[1:]
+		if len(items) != len(entries) {
+			t.Fatalf("%s: renders %d timeline entries, want %d", tc.locale, len(items), len(entries))
+		}
+		for i, wants := range tc.want {
+			item, _, _ := strings.Cut(items[i], "</li>")
+			for _, want := range wants {
+				if !strings.Contains(item, want) {
+					t.Errorf("%s: timeline entry %d lacks %q: %s", tc.locale, i, want, item)
+				}
+			}
+		}
+		for _, bad := range tc.absent {
+			if strings.Contains(html, bad) {
+				t.Errorf("%s: a state with no completion time shows one: %q", tc.locale, bad)
+			}
+		}
+	}
+}

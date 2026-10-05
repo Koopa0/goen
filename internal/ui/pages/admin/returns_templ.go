@@ -753,9 +753,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var44 string
-							templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldError(r.ID, "basis"))
+							templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldRefusal(r.ID, "basis"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 132, Col: 98}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 132, Col: 100}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 							if templ_7745c5c3_Err != nil {
@@ -841,9 +841,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var50 string
-						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldError(r.ID, "decision"))
+						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldRefusal(r.ID, "decision"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 143, Col: 115}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 143, Col: 117}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 						if templ_7745c5c3_Err != nil {
@@ -942,9 +942,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var57 string
-						templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldError(r.ID, "resolution"))
+						templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldRefusal(r.ID, "resolution"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 158, Col: 100}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 158, Col: 102}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 						if templ_7745c5c3_Err != nil {
@@ -1512,9 +1512,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var94 string
-							templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldError(r.ID, "inspect"))
+							templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldRefusal(r.ID, "inspect"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 258, Col: 109}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 258, Col: 111}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 							if templ_7745c5c3_Err != nil {
@@ -1743,9 +1743,9 @@ func eligibilityFactRadios(returnID string, l ReturnLine, name string, label i18
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var107 string
-		templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldError(returnID, name+"-"+l.OrderLineID))
+		templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(v.FieldRefusal(returnID, name+"-"+l.OrderLineID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 294, Col: 133}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 294, Col: 135}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 		if templ_7745c5c3_Err != nil {
