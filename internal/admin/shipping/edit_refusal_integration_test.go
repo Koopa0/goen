@@ -223,9 +223,9 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 			})
 		}
 	}
-	after, err = s.Configuration(ctx)
-	if err != nil {
-		t.Fatal(err)
+	after, readErr = s.Configuration(ctx)
+	if readErr != nil {
+		t.Fatal(readErr)
 	}
 	if diff := cmp.Diff(before, after); diff != "" {
 		t.Errorf("stale refusals changed configuration (-want +got):\n%s", diff)
