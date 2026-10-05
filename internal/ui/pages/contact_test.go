@@ -15,7 +15,7 @@ func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for name, component := range map[string]templ.Component{
 			"contact": pages.Contact(layouts.Page{}, pages.ContactForm{}),
-			"footer":  layouts.Footer(),
+			"footer":  layouts.Footer(layouts.NewsletterState{}),
 		} {
 			t.Run(string(locale)+"/"+name, func(t *testing.T) {
 				var out strings.Builder
