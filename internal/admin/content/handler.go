@@ -94,7 +94,7 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if r.PostFormValue("action") == "delete" {
-		h.answerToggle(w, r, "delete faq entry", "/admin/faq", h.store.DeleteFAQEntry(r.Context(), id))
+		h.answerRowWrite(w, r, "delete faq entry", "/admin/faq", h.store.DeleteFAQEntry(r.Context(), id))
 		return
 	}
 
@@ -202,14 +202,11 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "toggle promo banner", "/admin/home",
+	h.answerRowWrite(w, r, "toggle promo banner", "/admin/home",
 		h.store.SetBannerActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "1"))
 }
 
-// answerToggle answers a one-button write that goes back to back: a missing row
-// is 404, a rule's refusal is back's refused notice, and anything else is the
-// server failing.
-func (h *Handler) answerToggle(w http.ResponseWriter, r *http.Request, what, back string, err error) {
+func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
@@ -332,7 +329,7 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "toggle hero slide", "/admin/home",
+	h.answerRowWrite(w, r, "toggle hero slide", "/admin/home",
 		h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"), r.PostFormValue("active") == "true"))
 }
 
@@ -341,7 +338,7 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.answerToggle(w, r, "promote hero slide", "/admin/home", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
+	h.answerRowWrite(w, r, "promote hero slide", "/admin/home", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
 }
 
 const NewsletterIssueLimit = 50

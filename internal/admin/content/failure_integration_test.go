@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 )
 
-// TestContentTogglesAnswerAFailureAsAServerError: a database that cannot be
+// TestContentRowWritesAnswerAFailureAsAServerError: a database that cannot be
 // reached decided nothing, and answering 404 or "refused" says otherwise.
-func TestContentTogglesAnswerAFailureAsAServerError(t *testing.T) {
+func TestContentRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "content_closed_"+uuid.NewString()[:8])
 	closed.Close()

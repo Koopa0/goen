@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/shipping"
 )
 
-// TestShippingTogglesAnswerAFailureAsAServerError: a database that cannot be
+// TestShippingRowWritesAnswerAFailureAsAServerError: a database that cannot be
 // reached decided nothing, and answering 404 says the method or zone is gone.
-func TestShippingTogglesAnswerAFailureAsAServerError(t *testing.T) {
+func TestShippingRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "shipping_closed_"+uuid.NewString()[:8])
 	closed.Close()

@@ -48,6 +48,22 @@ func TestCampaignWritesAnswerAFailureAsAServerError(t *testing.T) {
 	}
 }
 
+// TestSetActiveAnswersAMissingCampaignAsNotFound: a slug no campaign has is
+// 404, not a refusal and not a server failure.
+func TestSetActiveAnswersAMissingCampaignAsNotFound(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	slug := admintest.CampaignSlug(t)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/campaigns/"+slug,
+		strings.NewReader(url.Values{"active": {"true"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	handlerOver(campaigns.NewStore(pool)).SetActive(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Errorf("SetActive(%s, no such campaign) = %d %s, want 404", slug, res.Code, res.Header().Get("Location"))
+	}
+}
+
 // TestACampaignWriteBehindALockIsNotARefusal: the write's own statement timing
 // out on a row lock is the database not answering, not a rule refusing it.
 func TestACampaignWriteBehindALockIsNotARefusal(t *testing.T) {

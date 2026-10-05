@@ -33,6 +33,7 @@ func TestWrapRefusalMarksOnlyWhatARuleDecided(t *testing.T) {
 	}{
 		{name: "a trigger's named refusal", err: &pgconn.PgError{Code: "23514", ConstraintName: "orders_legal_transition"}, refused: true},
 		{name: "a unique violation", err: &pgconn.PgError{Code: "23505", ConstraintName: "coupons_code_key"}, refused: true},
+		{name: "a RAISE naming its constraint without an ERRCODE", err: &pgconn.PgError{Code: "P0001", ConstraintName: "erase_user_keeps_one_admin"}, refused: true},
 		{name: "a not-null violation", err: &pgconn.PgError{Code: "23502"}, refused: true},
 		{name: "a lock timeout", err: &pgconn.PgError{Code: "55P03"}, refused: false},
 		{name: "a deadlock", err: &pgconn.PgError{Code: "40P01"}, refused: false},

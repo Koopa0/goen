@@ -42,4 +42,7 @@ func TestPublishAnswersEachOutcome(t *testing.T) {
 	if res := publish(admintest.ProductDesk(closed, products.NewStore(closed)), empty); res.Code != http.StatusInternalServerError {
 		t.Errorf("Publish(%s) on a closed pool = %d %q, want 500", empty, res.Code, res.Header().Get("Location"))
 	}
+	if res := publish(admintest.ProductDesk(pool, s), "no-such-"+uuid.NewString()[:8]); res.Code != http.StatusNotFound {
+		t.Errorf("Publish(missing slug) = %d %q, want 404", res.Code, res.Header().Get("Location"))
+	}
 }
