@@ -11,8 +11,8 @@ import (
 // fixes is never the shop's to leave Pending.
 var policies = map[string]pages.PolicyDoc{
 	"returns": {
-		Title:     "退換貨政策",
-		TitleEn:   "Returns and exchanges",
+		Title:     "退貨政策",
+		TitleEn:   "Returns",
 		Summary:   "goen 的退貨條件、流程與退款方式。",
 		SummaryEn: "What can be returned, how to ask, and how you get your money back.",
 		Sections: []pages.PolicySection{
