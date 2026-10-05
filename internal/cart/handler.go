@@ -684,6 +684,7 @@ func (h *Handler) renderCheckout(
 	if !view.HasShipping() {
 		view.Chosen = ""
 		view.QuoteID = ""
+		view.Destination = ""
 	}
 	h.offerTheStoreMap(w, r, view)
 	web.Render(w, r, h.log, status, pages.Checkout(pages.CheckoutMeta(r.Context()), view))
@@ -944,6 +945,9 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	couponErr, missed := h.resolveCoupon(r, &view)
+	if couponErr != "" {
+		view.Errors = map[string]string{"coupon": couponErr}
+	}
 	if !view.HasShipping() {
 		return &checkoutSubmission{
 			view: view, address: addr, invoice: inv,
@@ -958,9 +962,6 @@ func (h *Handler) checkoutSubmission(
 			h.log.ErrorContext(r.Context(), "quote shipping", "error", quoteErr)
 			view.Repriced = i18n.T(r.Context(), i18n.KeyShippingUnpriceable)
 		}
-	}
-	if couponErr != "" {
-		view.Errors = map[string]string{"coupon": couponErr}
 	}
 	if shipErr == nil && view.Repriced == "" {
 		if quoteErr := setCheckoutQuoteID(cartID, &view); quoteErr != nil {
@@ -983,6 +984,9 @@ func (h *Handler) validateCheckoutSubmission(
 	submission *checkoutSubmission,
 ) (checkoutQuoteID, bool) {
 	if !submission.view.HasShipping() {
+		if submission.couponErr != "" {
+			submission.view.Errors = map[string]string{"coupon": submission.couponErr}
+		}
 		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
 		return checkoutQuoteID{}, false
 	}
