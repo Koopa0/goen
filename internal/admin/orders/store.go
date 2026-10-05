@@ -361,7 +361,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 
 	row, err := q.LockOrderForAdvance(ctx, number)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, noRowRefused(err, "lock order "+number)
 	}
 	// orders_check_transition lets a same-status UPDATE through, so a double
 	// submit would otherwise record the step and its audit row twice.
