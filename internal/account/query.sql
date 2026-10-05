@@ -212,7 +212,7 @@ SELECT
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
-    order_amount_owed(o.id)::bigint AS owed_cents
+    order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = @user_id
   AND (NOT @has_cursor::boolean OR (o.placed_at, o.id) < (@after_at::timestamptz, @after_id::uuid))

@@ -43,6 +43,12 @@ var (
 		En:     "Waiting for you",
 	})
 
+	KeyAdminQueueHealthUnavailable = key("admin.queue.health.unavailable", Message{
+		ZhHant: "部分營運狀態暫時無法取得，目前無法確認是否有待處理的金流或發票問題。",
+		En: "Some operating status is unavailable right now, so we cannot confirm whether " +
+			"any payment or invoice problem is waiting.",
+	})
+
 	KeyAdminQueueTaskUninspected = key("admin.queue.task.uninspected", Message{
 		ZhHant: "待驗收的退貨",
 		En:     "Returns awaiting inspection",
