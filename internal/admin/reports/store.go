@@ -76,8 +76,8 @@ func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error
 		r := &risk[i]
 		view.AtRisk = append(view.AtRisk, admin.StockRisk{
 			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
-			Stock: r.StockQuantity, Safety: r.SafetyStock,
-			Sold: r.UnitsSold, DaysCover: int(r.DaysCover),
+			Sellable: r.SellableQuantity,
+			Sold:     r.UnitsSold, DaysCover: int(r.DaysCover),
 		})
 	}
 	return view, nil

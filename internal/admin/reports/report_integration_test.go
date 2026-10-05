@@ -291,3 +291,109 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 			before.RevenueCents, after.RevenueCents)
 	}
 }
+
+func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	roomy := soldVariant(t, 9, 5, 10)
+	atSafety := soldVariant(t, 5, 5, 10)
+
+	view, err := s.Report(ctx, 30)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	rowOf := func(sku string) (int, bool) {
+		for i, r := range view.AtRisk {
+			if r.SKU == sku {
+				return i, true
+			}
+		}
+		return 0, false
+	}
+	roomyAt, ok := rowOf(roomy)
+	if !ok {
+		t.Fatalf("report lacks %s", roomy)
+	}
+	atSafetyAt, ok := rowOf(atSafety)
+	if !ok {
+		t.Fatalf("report lacks %s", atSafety)
+	}
+	if got := view.AtRisk[roomyAt]; got.DaysCover != 12 || got.Sellable != 4 {
+		t.Errorf("stock 9, safety 5, 10 sold in 30 days: days %d sellable %d, want 12 and 4",
+			got.DaysCover, got.Sellable)
+	}
+	if got := view.AtRisk[atSafetyAt]; got.DaysCover != 0 || got.Sellable != 0 {
+		t.Errorf("stock at its safety level: days %d sellable %d, want 0 and 0",
+			got.DaysCover, got.Sellable)
+	}
+	if atSafetyAt > roomyAt {
+		t.Errorf("a SKU at its safety level is row %d, after the SKU with days to spare at row %d",
+			atSafetyAt, roomyAt)
+	}
+}
+
+// soldVariant makes an active variant holding stock with the given safety level
+// and one paid order of sold units, and returns its SKU.
+func soldVariant(t *testing.T, stock, safety, sold int) string {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var productID, variantID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, 'runway-' || gen_random_uuid(), '庫存天數商品', 'draft', now()
+		FROM brands b CROSS JOIN categories c
+		WHERE c.parent_id IS NULL ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`).Scan(&productID); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	var sku string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
+		VALUES ($1, 'RUNWAY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, $2, $3)
+		RETURNING id, sku`, productID, stock, safety).Scan(&variantID, &sku); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	var orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, sold); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'report@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	ref := "runway_" + orderID.String()
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(sold)); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(sold)); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	return sku
+}
