@@ -35,7 +35,7 @@ func (v *ShippingView) SurchargeValue(m *ShippingMethod, zoneID string) string {
 
 func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
 	if v.SurchargeDraft.MethodID == methodID && v.SurchargeDraft.ZoneID == zoneID {
-		return v.Errors["obsolete_surcharge"]
+		return v.Errors["surcharge"]
 	}
 	return ""
 }
