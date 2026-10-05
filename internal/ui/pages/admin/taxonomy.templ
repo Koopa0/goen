@@ -23,11 +23,7 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxBrands) }</h2>
 			@taxonList("brands", i18n.KeyAdminTaxNoBrands, v.Brands)

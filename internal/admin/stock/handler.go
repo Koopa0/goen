@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
@@ -38,11 +39,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/price", ac.RequireStaff(h.SetPrice))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":       i18n.KeyAdminNoticeOK,
-	"refused":  i18n.KeyAdminNoticeRefused,
-	"received": i18n.KeyAdminNoticeReceived,
-	"badqty":   i18n.KeyAdminNoticeBadQty,
+var notices = map[string]web.Message{
+	"ok":       web.Done(i18n.KeyAdminNoticeOK),
+	"refused":  web.Refused(i18n.KeyAdminNoticeRefused),
+	"received": web.Done(i18n.KeyAdminNoticeReceived),
+	"badqty":   web.Refused(i18n.KeyAdminNoticeBadQty),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +111,7 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 	}
 	if !shown {
 		// The row is not on this page, so the banner has to say it.
-		view.Notice = i18n.T(r.Context(), key)
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), key)}
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }

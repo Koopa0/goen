@@ -39,13 +39,13 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/staff/factor", ac.RequireAdmin(h.RemoveFactor))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":          i18n.KeyAdminNoticeOK,
-	"cleared":     i18n.KeyStaffCredentialCleared,
-	"self":        i18n.KeyStaffSelf,
-	"last":        i18n.KeyStaffLastAdmin,
-	"needs":       i18n.KeyStaffNeeds,
-	"notenrolled": i18n.KeyStaffInvalid,
+var notices = map[string]web.Message{
+	"ok":          web.Done(i18n.KeyAdminNoticeOK),
+	"cleared":     web.Done(i18n.KeyStaffCredentialCleared),
+	"self":        web.Refused(i18n.KeyStaffSelf),
+	"last":        web.Refused(i18n.KeyStaffLastAdmin),
+	"needs":       web.Refused(i18n.KeyStaffNeeds),
+	"notenrolled": web.Refused(i18n.KeyStaffInvalid),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -55,15 +55,9 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.Fault(w, r, h.log)
 		return
 	}
-	if !h.factorsEnabled {
-		view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
-	}
+	view.NoKey = !h.factorsEnabled
 	view.Actor = actorID(r)
-	// Only when there IS one: an unconditional assignment overwrites the
-	// no-key warning set above with an empty string on an ordinary visit.
-	if n := web.Notice(r, notices); n != "" {
-		view.Notice = n
-	}
+	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Staff(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }
@@ -87,9 +81,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view.AddName = r.PostFormValue("name")
 		view.AddRole = user.Role(r.PostFormValue("role"))
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
-		if !h.factorsEnabled {
-			view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
-		}
+		view.NoKey = !h.factorsEnabled
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Staff(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 		return

@@ -24,11 +24,7 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

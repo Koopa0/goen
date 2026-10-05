@@ -33,9 +33,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/coupons/{code}/active", ac.RequireStaff(h.SetActive))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":      i18n.KeyAdminNoticeOK,
-	"refused": i18n.KeyAdminNoticeRefused,
+var notices = map[string]web.Message{
+	"ok":      web.Done(i18n.KeyAdminNoticeOK),
+	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {

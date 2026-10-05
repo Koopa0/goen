@@ -5,12 +5,13 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type TiersView struct {
 	Rows   []Tier
-	Notice string
+	Notice components.Result
 }
 
 type Tier struct {

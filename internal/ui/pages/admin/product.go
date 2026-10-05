@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -47,7 +48,7 @@ type ProductsView struct {
 	web.Bound
 
 	Rows   []Product
-	Notice string
+	Notice components.Result
 }
 
 func (v ProductsView) Empty() bool { return len(v.Rows) == 0 }
@@ -102,7 +103,7 @@ type ProductView struct {
 	Options           []Option
 	Specs             []Spec
 	Errors            map[string]string
-	Notice            string
+	Notice            components.Result
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
 }

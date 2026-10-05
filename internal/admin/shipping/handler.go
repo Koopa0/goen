@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -45,11 +46,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/shipping/zone/{id}/delete", ac.RequireStaff(h.DeleteZone))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":            i18n.KeyAdminNoticeOK,
-	"refused":       i18n.KeyAdminNoticeRefused,
-	"shippingneeds": i18n.KeyAdminNoticeShippingNeeds,
-	"inuse":         i18n.KeyAdminNoticeInUse,
+var notices = map[string]web.Message{
+	"ok":            web.Done(i18n.KeyAdminNoticeOK),
+	"refused":       web.Refused(i18n.KeyAdminNoticeRefused),
+	"shippingneeds": web.Refused(i18n.KeyAdminNoticeShippingNeeds),
+	"inuse":         web.Refused(i18n.KeyAdminNoticeInUse),
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +229,9 @@ func (h *Handler) rejectShippingForm(
 	view.Errors = errs
 	view.MethodDraft, view.ZoneDraft, view.PrefixDraft = drafts.method, drafts.zone, drafts.prefixes
 	view.SurchargeDraft = drafts.surcharge
-	view.Notice = errs["surcharge"]
+	if text := errs["surcharge"]; text != "" {
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
+	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

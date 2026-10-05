@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -50,19 +51,19 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":            i18n.KeyAdminNoticeOK,
-	"refused":       i18n.KeyAdminNoticeRefused,
-	"imageneeds":    i18n.KeyAdminNoticeImageNeeds,
-	"toobig":        i18n.KeyAdminNoticeTooBig,
-	"notimage":      i18n.KeyAdminNoticeNotImage,
-	"losslesswebp":  i18n.KeyAdminNoticeLosslessWebP,
-	"uploadfailed":  i18n.KeyAdminNoticeUploadFailed,
-	"uploadbusy":    i18n.KeyAdminNoticeUploadBusy,
-	"attachrefused": i18n.KeyAdminNoticeAttachRefused,
-	"noalt":         i18n.KeyAdminNoticeNoAlt,
-	"badoption":     i18n.KeyAdminNoticeBadOption,
-	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
+var notices = map[string]web.Message{
+	"ok":            web.Done(i18n.KeyAdminNoticeOK),
+	"refused":       web.Refused(i18n.KeyAdminNoticeRefused),
+	"imageneeds":    web.Refused(i18n.KeyAdminNoticeImageNeeds),
+	"toobig":        web.Refused(i18n.KeyAdminNoticeTooBig),
+	"notimage":      web.Refused(i18n.KeyAdminNoticeNotImage),
+	"losslesswebp":  web.Refused(i18n.KeyAdminNoticeLosslessWebP),
+	"uploadfailed":  web.Failed(i18n.KeyAdminNoticeUploadFailed),
+	"uploadbusy":    web.Failed(i18n.KeyAdminNoticeUploadBusy),
+	"attachrefused": web.Refused(i18n.KeyAdminNoticeAttachRefused),
+	"noalt":         web.Refused(i18n.KeyAdminNoticeNoAlt),
+	"badoption":     web.Refused(i18n.KeyAdminNoticeBadOption),
+	"specfailed":    web.Failed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +140,7 @@ func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductVi
 	return view, nil
 }
 
-func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
+func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice components.Result) {
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -436,7 +437,8 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
-		h.renderProduct(w, r, http.StatusUnprocessableEntity, i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale))
+		h.renderProduct(w, r, http.StatusUnprocessableEntity,
+			components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)})
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)

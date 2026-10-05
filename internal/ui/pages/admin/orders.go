@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -155,7 +156,7 @@ type OrdersView struct {
 	Status   QueueFilter
 	Orders   []OrderRow
 	Tabs     []StatusTab
-	Notice   string
+	Notice   components.Result
 }
 
 func (v OrdersView) Searching() bool { return v.Searched }
@@ -174,7 +175,7 @@ func (v OrdersView) EmptyText(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminQueueEmpty)
 }
 
-func (v OrdersView) HasNotice() bool { return v.Notice != "" }
+func (v OrdersView) HasNotice() bool { return v.Notice.Text != "" }
 
 func (o OrderRow) RecipientText(ctx context.Context) string {
 	if o.Recipient == "" {
@@ -231,7 +232,7 @@ type OrderView struct {
 	Next                      []Transition
 	CanShip                   bool
 	Shippable                 []ShippableLine
-	Notice                    string
+	Notice                    components.Result
 	Timeline                  []TimelineEntry
 	MailKept                  time.Duration
 	Shipments                 []Shipment
@@ -420,7 +421,7 @@ func (v *OrderView) Final() bool {
 	return v.Status == order.FulfillmentCompleted || v.Status == order.FulfillmentCancelled
 }
 
-func (v *OrderView) HasNotice() bool { return v.Notice != "" }
+func (v *OrderView) HasNotice() bool { return v.Notice.Text != "" }
 
 func (v *OrderView) RecipientText(ctx context.Context) string {
 	if v.Recipient == "" {
@@ -566,7 +567,7 @@ type VariantsView struct {
 	Variants []Variant
 	LowOnly  bool
 	Term     string
-	Notice   string
+	Notice   components.Result
 	// Return is this page's own address, filter and position, which each form
 	// posts back so a write returns to the page it was made on.
 	Return string
@@ -578,7 +579,7 @@ func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "lo
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 
-func (v VariantsView) HasNotice() bool { return v.Notice != "" }
+func (v VariantsView) HasNotice() bool { return v.Notice.Text != "" }
 
 func Meta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
@@ -665,11 +666,11 @@ type MovementsView struct {
 	Stock       int32
 	Safety      int32
 	Rows        []Movement
-	Notice      string
+	Notice      components.Result
 	FormID      string
 }
 
-func (v *MovementsView) HasNotice() bool { return v.Notice != "" }
+func (v *MovementsView) HasNotice() bool { return v.Notice.Text != "" }
 
 // ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
 // form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the

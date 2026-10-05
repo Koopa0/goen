@@ -2,6 +2,8 @@ package admin
 
 import (
 	"strconv"
+
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 type FAQEntry struct {
@@ -19,7 +21,7 @@ func (e FAQEntry) Translated() bool { return e.AnswerEn != "" }
 
 type FAQView struct {
 	Rows   []FAQEntry
-	Notice string
+	Notice components.Result
 	Errors map[string]string
 	Draft  FAQEntry
 	// Edit and EditErrors are a refused edit of one listed entry, carried apart
@@ -59,7 +61,7 @@ func (v *FAQView) RowErrFields(e *FAQEntry) []string {
 
 func (v *FAQView) Empty() bool { return len(v.Rows) == 0 }
 
-func (v *FAQView) HasNotice() bool { return v.Notice != "" }
+func (v *FAQView) HasNotice() bool { return v.Notice.Text != "" }
 
 func (v *FAQView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
