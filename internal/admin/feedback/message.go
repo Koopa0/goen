@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -47,11 +46,11 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 }
 
 func SubjectLabel(ctx context.Context, subject contactsubject.Subject) (string, error) {
-	key, ok := subject.LabelKey()
+	_, ok := subject.LabelKey()
 	if !ok {
 		return "", fmt.Errorf("unknown contact subject %q", subject)
 	}
-	return i18n.T(ctx, key), nil
+	return string(subject), nil
 }
 
 func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) error {
