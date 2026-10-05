@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/pgtx"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -467,7 +468,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("begin return assessment: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, lockErr)
@@ -526,7 +527,7 @@ func (s *Store) closeReturn(
 	if err != nil {
 		return fmt.Errorf("begin return decision: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, lockErr)
@@ -704,7 +705,7 @@ func (s *Store) Inspect(
 	if err != nil {
 		return fmt.Errorf("begin return inspection: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	for _, l := range lines {
@@ -771,7 +772,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.
 	if err != nil {
 		return fmt.Errorf("begin return completion: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return fmt.Errorf("%w: lock return order for completion: %w", ErrRefused, lockErr)

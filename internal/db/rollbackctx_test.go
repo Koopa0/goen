@@ -14,15 +14,18 @@ import (
 // still kills the pooled connection.
 var anyRollback = regexp.MustCompile(`\.Rollback\(`)
 
-// detachedRollback is the one argument that outlives the request.
-var detachedRollback = regexp.MustCompile(`\.Rollback\(context\.WithoutCancel\(`)
+// boundedRollback is the one call that outlives the request and still ends.
+var boundedRollback = regexp.MustCompile(`\bpgtx\.Rollback\(`)
 
-// requestBoundRollback reports a rollback on this line whose argument is
-// anything but context.WithoutCancel(...): the request's own context under any
-// name, r.Context(), a stored context or a helper's result.
-func requestBoundRollback(line string) bool {
+// rollbackHelper is the one file that calls a transaction's Rollback itself.
+var rollbackHelper = filepath.Join("internal", "pgtx", "pgtx.go")
+
+// unboundedRollback reports a rollback on this line that does not go through
+// pgtx.Rollback: the request's own context under any name, r.Context(), a
+// stored context, a helper's result, or context.WithoutCancel with no deadline.
+func unboundedRollback(line string) bool {
 	return len(anyRollback.FindAllStringIndex(line, -1)) >
-		len(detachedRollback.FindAllStringIndex(line, -1))
+		len(boundedRollback.FindAllStringIndex(line, -1))
 }
 
 func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
@@ -32,12 +35,14 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 		`defer func() { _ = tx.Rollback(r.Context()) }()`:                      true,
 		`defer func() { _ = tx.Rollback(cleanupCtx) }()`:                       true,
 		`_ = sp.Rollback(c)`:                                                   true,
-		`defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()`:       false,
-		`_ = a.Rollback(context.WithoutCancel(ctx)); _ = b.Rollback(ctx)`:      true,
+		`defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()`:       true,
+		`defer pgtx.Rollback(ctx, tx)`:                                         false,
+		`pgtx.Rollback(ctx, sp)`:                                               false,
+		`pgtx.Rollback(ctx, a); _ = b.Rollback(context.WithoutCancel(ctx))`:    true,
 		`rollbackAfter := context.WithoutCancel(ctx) // no rollback call here`: false,
 	} {
-		if got := requestBoundRollback(line); got != want {
-			t.Errorf("requestBoundRollback(%q) = %v, want %v", line, got, want)
+		if got := unboundedRollback(line); got != want {
+			t.Errorf("unboundedRollback(%q) = %v, want %v", line, got, want)
 		}
 	}
 }
@@ -50,7 +55,9 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // state". A cancelled context fails that Exec before it reaches the server, so
 // a rollback deferred on the request's own context rolls nothing back when the
 // client disconnects: the transaction is left for the server to reap and the
-// pooled connection is destroyed.
+// pooled connection is destroyed. Detached with no deadline instead, a ROLLBACK
+// to a server that stopped answering holds its goroutine and connection until
+// TCP gives up. pgtx.Rollback is detached and bounded.
 func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +77,11 @@ func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 			return err
 		}
 		rel, _ := filepath.Rel(root, path)
+		if rel == rollbackHelper {
+			return nil
+		}
 		for i, line := range strings.Split(string(src), "\n") {
-			if requestBoundRollback(line) {
+			if unboundedRollback(line) {
 				offenders = append(offenders, rel+":"+strconv.Itoa(i+1)+"  "+strings.TrimSpace(line))
 			}
 		}
@@ -82,10 +92,11 @@ func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 	}
 
 	if len(offenders) > 0 {
-		t.Errorf("%d rollback(s) take something other than a detached context:\n  %s\n\n"+
+		t.Errorf("%d rollback(s) do not go through pgtx.Rollback:\n  %s\n\n"+
 			"A request-bound context makes pgx fail the ROLLBACK before it reaches the "+
-			"server and destroy the pooled connection. Use "+
-			".Rollback(context.WithoutCancel(ctx)).",
+			"server and destroy the pooled connection; a detached one with no deadline "+
+			"waits on a silent server for as long as TCP does. Use "+
+			"defer pgtx.Rollback(ctx, tx).",
 			len(offenders), strings.Join(offenders, "\n  "))
 	}
 }

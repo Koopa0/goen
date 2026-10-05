@@ -82,11 +82,11 @@ func TestAScheduledSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 		{ID: "b", Active: false, InWindow: true},
 		{ID: "c", Active: true, InWindow: true},
 	}
-	v := HeroView{Rows: rows, Carousel: []pages.HeroSlide{{Source: pages.SlideScheduled}, {Source: pages.SlideCampaign}}}
+	v := HeroView{Rows: rows, Carousel: []pages.HeroSlide{{Source: pages.SlideScheduled, ID: "a"}, {Source: pages.SlideCampaign}}}
 	if !v.IsShowing(rows[0]) || v.IsShowing(rows[1]) || v.IsShowing(rows[2]) {
 		t.Errorf("one scheduled slide in the carousel marks a=%v b=%v c=%v", v.IsShowing(rows[0]), v.IsShowing(rows[1]), v.IsShowing(rows[2]))
 	}
-	v.Carousel = []pages.HeroSlide{{Source: pages.SlideScheduled}, {Source: pages.SlideScheduled}}
+	v.Carousel = []pages.HeroSlide{{Source: pages.SlideScheduled, ID: "a"}, {Source: pages.SlideScheduled, ID: "c"}}
 	if !v.IsShowing(rows[2]) {
 		t.Error("the second live scheduled slide is in the carousel but not marked")
 	}

@@ -93,7 +93,7 @@ LIMIT @max_campaigns::integer;
 -- Every word follows the visitor; the HREFs do not, because a link goes to one
 -- page. The nullable fields are coalesced as well as wrapped: localized_name(NULL,
 -- NULL, ...) is NULL and sqlc types the result as non-null.
-SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, @locale::text), '')::text
+SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, @locale::text), '')::text
            AS eyebrow,
        localized_name(h.headline, h.headline_en, @locale::text) AS headline,
        coalesce(localized_name(h.body, h.body_en, @locale::text), '')::text AS body,

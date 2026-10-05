@@ -90,8 +90,18 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
-	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
+const heroScope = "/admin/home?queue=" + string(heroQueue) + "#hero-history"
+
+type heroPosition struct {
+	Position int32
+	ID       uuid.UUID
+}
+
+func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView, error) {
+	from, resumed := web.ResumeKeyset(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
+		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
+	})
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
@@ -100,7 +110,8 @@ func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
 	}
-	view := admin.HeroView{Carousel: live}
+	rows, bound := web.PageBound(heroScope, resumed, rows, MaxSlides, func(r *db.AdminHeroSlidesRow) string { return r.PageCursor })
+	view := admin.HeroView{Carousel: live, Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.HeroSlide{

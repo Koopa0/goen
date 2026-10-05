@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -126,7 +127,7 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 	if err != nil {
 		return fmt.Errorf("begin return request: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	requestID, err := q.CreateReturnRequest(ctx, db.CreateReturnRequestParams{

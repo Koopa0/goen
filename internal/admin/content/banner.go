@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -73,15 +74,27 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) Banners(ctx context.Context) ([]admin.Banner, error) {
-	rows, err := s.q.ManagedBanners(ctx, MaxBanners)
+const bannerScope = "/admin/home?queue=" + string(bannerQueue) + "#banner-history"
+
+type bannerPosition struct {
+	Active bool
+	At     time.Time
+	ID     uuid.UUID
+}
+
+func (s *Store) Banners(ctx context.Context, after ...string) (admin.BannersView, error) {
+	from, resumed := web.ResumeKeyset(bannerScope, after, func(p bannerPosition) bool { return p.ID != uuid.Nil && !p.At.IsZero() })
+	rows, err := s.q.ManagedBanners(ctx, db.ManagedBannersParams{
+		HasCursor: resumed, AfterActive: from.Active, AfterAt: from.At, AfterID: from.ID, RowLimit: MaxBanners + 1,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("read promo banners: %w", err)
+		return admin.BannersView{}, fmt.Errorf("read promo banners: %w", err)
 	}
-	out := make([]admin.Banner, 0, len(rows))
+	rows, bound := web.PageBound(bannerScope, resumed, rows, MaxBanners, func(r *db.ManagedBannersRow) string { return r.PageCursor })
+	out := admin.BannersView{Rows: make([]admin.Banner, 0, len(rows)), Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		out = append(out, admin.Banner{
+		out.Rows = append(out.Rows, admin.Banner{
 			ID: r.ID.String(), Message: r.Message, Short: r.MessageShort,
 			Code: r.Code, CTALabel: r.CtaLabel, CTAHref: r.CtaHref,
 			MessageEn: r.MessageEn, ShortEn: r.MessageShortEn,
