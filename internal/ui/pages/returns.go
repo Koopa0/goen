@@ -30,7 +30,18 @@ func (l ReturnsLine) Field() string { return "qty_" + l.ID }
 
 func (l ReturnsLine) Max() string { return strconv.FormatInt(int64(l.Returnable), 10) }
 
-func (l ReturnsLine) QuantityType() string { return "number" }
+func (l ReturnsLine) QuantityType() string {
+	// A number input sanitizes a malformed value to empty before the buyer can fix it.
+	if l.Quantity != "" {
+		if l.Quantity[0] == '+' {
+			return "text"
+		}
+		if _, err := strconv.ParseInt(l.Quantity, 10, 32); err != nil {
+			return "text"
+		}
+	}
+	return "number"
+}
 
 func (l ReturnsLine) RefusalID() string { return l.Field() + "-error" }
 

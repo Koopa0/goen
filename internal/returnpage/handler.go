@@ -69,12 +69,7 @@ type returnDraft struct {
 func returnDraftFromForm(r *http.Request, o *Order) *returnDraft {
 	draft := &returnDraft{Reason: r.PostFormValue("reason"), Quantities: make(map[string]string, len(o.Lines))}
 	for _, line := range o.Lines {
-		raw := r.PostFormValue("qty_" + line.ID)
-		quantity, err := strconv.ParseInt(raw, 10, 32)
-		if raw != "" && (err != nil || quantity < 0 || quantity > int64(line.Returnable)) {
-			break
-		}
-		draft.Quantities[line.ID] = raw
+		draft.Quantities[line.ID] = r.PostFormValue("qty_" + line.ID)
 	}
 	return draft
 }
@@ -199,7 +194,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 
 func viewOf(o *Order, draft *returnDraft, refusals []web.FieldRefusal, ctx context.Context) pages.ReturnsView {
 	v := pages.ReturnsView{
-		Number: o.Number, HasOpen: o.HasOpen, HasDraft: false,
+		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
@@ -210,16 +205,24 @@ func viewOf(o *Order, draft *returnDraft, refusals []web.FieldRefusal, ctx conte
 		if draft != nil {
 			line.Quantity = draft.Quantities[l.ID]
 		}
-
+		for _, refusal := range refusals {
+			if refusal.Field == line.Field() {
+				line.Refusal = i18n.T(ctx, refusal.MessageKey)
+			}
+		}
 		v.Lines = append(v.Lines, line)
 	}
 	if draft != nil {
 		v.Reason = draft.Reason
 	}
 	for _, refusal := range refusals {
-		v.ReasonRefusal = i18n.T(ctx, refusal.MessageKey)
+		switch refusal.Field {
+		case "":
+			v.FormRefusal = i18n.T(ctx, refusal.MessageKey)
+		case "reason":
+			v.ReasonRefusal = i18n.T(ctx, refusal.MessageKey)
+		}
 	}
-
 	for i := range o.Existing {
 		e := &o.Existing[i]
 		v.Existing = append(v.Existing, pages.ReturnsExisting{
