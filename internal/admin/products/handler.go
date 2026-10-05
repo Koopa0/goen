@@ -37,6 +37,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/products/new", ac.RequireStaff(h.New))
 	mux.HandleFunc("GET /admin/products/{slug}", ac.RequireStaff(h.Edit))
 	mux.HandleFunc("POST /admin/products/{slug}", ac.RequireStaff(h.Update))
+	mux.HandleFunc("POST /admin/products/{slug}/label", ac.RequireStaff(h.ProductLabel))
 	mux.HandleFunc("POST /admin/products/{slug}/status", ac.RequireStaff(h.Publish))
 	mux.HandleFunc("POST /admin/products/{slug}/variants", ac.RequireStaff(h.AddVariant))
 	mux.HandleFunc("POST /admin/products/{slug}/options", ac.RequireStaff(h.AddOption))
@@ -415,7 +416,19 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	if err := h.store.DetachImage(r.Context(), slug, r.PostFormValue("digest")); err != nil {
-		h.log.WarnContext(r.Context(), "detach image", "error", err, "slug", slug)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "detach image refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
+		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -479,7 +492,6 @@ func (h *Handler) optionWrite(
 	errs, err := write(slug)
 	switch {
 	case err != nil:
-		h.log.WarnContext(r.Context(), "write product option", "error", err, "slug", slug)
 		// A constraint the form has a control for is a refusal and not a
 		// missing product. Without this the page tells a staff member who
 		// mistyped a colour that the product they are looking at is gone.
@@ -487,7 +499,18 @@ func (h *Handler) optionWrite(
 			h.editProductWithErrors(w, r, slug, refused, &productDrafts{variant: draft})
 			return
 		}
-		access.NotFound(w, r, h.log)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "write product option refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
@@ -529,7 +552,19 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	if err := h.store.RemoveSpec(r.Context(), slug, r.PostFormValue("spec")); err != nil {
-		h.log.WarnContext(r.Context(), "remove spec", "error", err, "slug", slug)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "remove spec refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "remove spec", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
+		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)

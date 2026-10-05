@@ -179,7 +179,7 @@ func TestEveryProductNameIsLocalized(t *testing.T) {
 		"AdminReviews":          "back office: the moderation queue",
 		"AdminCampaignProducts": "back office: the campaign curation list",
 		"AdminQuestions":        "back office: the question queue",
-		"BestSellersSince":      "back office: the report",
+		"BestSellersBetween":    "back office: the report",
 		"StockAtRisk":           "back office: the report",
 		"ManagedCategories":     "back office: counts products, reads no product name",
 		"CategoryBrands": "the brand FACET: b.name is a brand, and a brand name is a " +

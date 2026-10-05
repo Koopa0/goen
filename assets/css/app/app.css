@@ -9476,3 +9476,38 @@ form[data-request-pending] [aria-disabled="true"] {
     color: var(--fg);
   }
 }
+
+/* Forced colours remove the chosen card's shadow and equalise its border.
+   The native radio keeps the checked mark the user's colour scheme supplies. */
+@media (forced-colors: active) {
+  .goen-checkout__ship > input[type=radio] {
+    align-self: center;
+    clip-path: none;
+    flex: none;
+    height: 1rem;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: 1rem;
+  }
+
+  .goen-checkout__shipname {
+    flex: 1;
+  }
+
+  /* Weight and underline keep the chosen label distinct from ordinary links. */
+  .goen-swatch--on:not(.goen-swatch--dot),
+  .goen-swatch--on:not(.goen-swatch--dot):hover {
+    font-weight: var(--fw-semibold);
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+
+  /* SVG preserves author colours, so its selected ring must follow the palette. */
+  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
+    outline-color: Highlight;
+  }
+}

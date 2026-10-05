@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -139,6 +140,7 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
+	LabelFacts   *productlabel.Facts
 	Saved        bool
 	Slug         string
 	Name         string
@@ -494,3 +496,7 @@ func (v *ProductView) AlreadyComparing() bool {
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+
+func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
+	return v.LabelFacts.Rows(ctx)
+}

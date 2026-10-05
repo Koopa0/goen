@@ -643,8 +643,10 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"product_reviews":       {[]string{"body", "title"}, customerPub},
 		"product_specs":         {[]string{"label", "label_en", "value", "value_en"}, published},
 		"product_variants":      {[]string{"sku"}, published},
+		// Responsible-party contacts are shop-authored public label facts, not customer contact records.
 		"products": {[]string{"description", "description_en", "name", "name_en", "slug",
-			"status", "summary", "summary_en", "warranty_note"}, published},
+			"status", "summary", "summary_en", "warranty_note", "origin", "origin_en",
+			"domestic_party_name", "domestic_party_phone", "domestic_party_address", "net_unit"}, published},
 		"promo_banners": {[]string{"code", "cta_href", "cta_label", "cta_label_en", "message",
 			"message_en", "message_short", "message_short_en"}, published},
 		"refunds": {[]string{"provider_ref", "reason", "request_key", "status"},
