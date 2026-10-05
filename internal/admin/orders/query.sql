@@ -11,13 +11,13 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
 -- Pending is two queues: money still owed, and funded and waiting to be picked.
 -- FundedStatusLabel draws the same line, so a tab and the row's own label agree.
-AND (@funding::text = '' OR (@funding::text = 'funded') = (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))
+AND (@funding::text = '' OR (@funding::text = 'funded') = (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))
 AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -51,7 +51,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
 JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -62,7 +62,7 @@ LIMIT @row_limit::integer;
 
 -- name: AdminOrderCounts :many
 SELECT fulfillment_status,
-       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_owed(id) <= 0))::boolean AS funded,
+       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_after_credit(id) <= 0))::boolean AS funded,
        count(*)::bigint AS n
 FROM orders GROUP BY fulfillment_status, funded;
 
@@ -93,13 +93,13 @@ SELECT
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents,
+    order_amount_after_credit(o.id) AS owed_cents,
     -- What store credit paid, read as total less what is still owed so
-    -- order_amount_owed stays the one definition of that arithmetic.
+    -- order_amount_after_credit stays the one definition of that arithmetic.
     (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                WHERE ol.order_id = o.id), 0)
      - o.discount_cents + o.shipping_cents + o.tax_cents
-     - order_amount_owed(o.id))::bigint AS credit_cents,
+     - order_amount_after_credit(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
@@ -117,11 +117,11 @@ WHERE order_id = $1 AND delivered_at IS NULL;
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
 SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
-       order_amount_owed(o.id) AS owed_cents,
+       order_amount_after_credit(o.id) AS owed_cents,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
-        - order_amount_owed(o.id))::bigint AS credit_cents
+        - order_amount_after_credit(o.id))::bigint AS credit_cents
 FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o;
 
 -- orders_check_transition validates the move, so this does not re-derive it.
@@ -147,9 +147,9 @@ SELECT
     -- a full discount sits at pending for good, and counting it here sends
     -- somebody looking for money that has already arrived.
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
+       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))::bigint AS ready_orders,
+       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
