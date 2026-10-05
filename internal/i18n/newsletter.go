@@ -49,7 +49,7 @@ var (
 	})
 
 	KeyNewsletterLeaveBody = key("news.leave.body", Message{
-		ZhHant: "按下按鈕就不會再收到電子報。訂單、出貨與退換貨的通知信不受影響。",
+		ZhHant: "按下按鈕就不會再收到電子報。訂單、出貨與退貨的通知信不受影響。",
 		En: "One button and the newsletter stops. Order, dispatch and returns notices are " +
 			"not affected.",
 	})
