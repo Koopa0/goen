@@ -128,7 +128,7 @@ var (
 
 	KeyAdminTimelineProvider = key("admin.timeline.provider", Message{ZhHant: "金流服務商通知", En: "Payment provider notice"})
 
-	KeyAdminTimelineMailPlaced = key("admin.timeline.mail.placed", Message{ZhHant: "訂單成立通知信", En: "Order confirmation e-mail"})
+	KeyAdminTimelineMailPlaced = key("admin.timeline.mail.placed", Message{ZhHant: "訂單送出通知信", En: "Order placed e-mail"})
 
 	KeyAdminTimelineMailPaid = key("admin.timeline.mail.paid", Message{ZhHant: "付款完成通知信", En: "Payment confirmation e-mail"})
 
@@ -220,9 +220,9 @@ var (
 	})
 
 	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
-		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。這個時間點起算七天鑑賞期。",
+		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。從這個時間點的次日起算七天猶豫期。",
 		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +
-			"the store. That moment starts the seven-day period.",
+			"the store. The seven days count from the day after that moment.",
 	})
 
 	KeyAdminQueueNextHint = key("admin.queue.next.hint", Message{
