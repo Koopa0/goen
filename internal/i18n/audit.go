@@ -182,7 +182,7 @@ var (
 
 	KeyAuditShippingPublish = key("audit.shipping.publish", Message{ZhHant: "發布運費版本", En: "Publish shipping version"})
 
-	KeyAuditShippingSurcharge = key("audit.shipping.surcharge", Message{ZhHant: "設定離島加價", En: "Set zone surcharge"})
+	KeyAuditShippingSurcharge = key("audit.shipping.surcharge", Message{ZhHant: "設定分區加價", En: "Set zone surcharge"})
 
 	KeyAuditTierCreate = key("audit.tier.create", Message{ZhHant: "新增會員等級", En: "Add membership tier"})
 
