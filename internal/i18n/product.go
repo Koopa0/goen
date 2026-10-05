@@ -36,15 +36,8 @@ var (
 		En:     "That combination does not exist. Please choose again.",
 	})
 
-	// KeyAllSoldOut is the product with nothing left in any spec, distinct from
-	// KeySoldOut, which is one combination.
-	KeyAllSoldOut = key("pdp.allsoldout", Message{
-		ZhHant: "目前全部規格都已售完",
-		En:     "Every option is sold out",
-	})
-
 	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
-		ZhHant: "選一個規格，補貨時通知你。",
+		ZhHant: "選一個規格，有貨時通知你。",
 		En:     "Pick an option and we will tell you when it is back.",
 	})
 
@@ -53,12 +46,12 @@ var (
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 
 	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
-		ZhHant: "已經記下了，補貨時會寄信到 %s。",
+		ZhHant: "已經記下了，有貨時會寄信到 %s。",
 		En:     "Noted. We will email %s when it is back in stock.",
 	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
-		ZhHant: "已經記下了，補貨時會寄信給你。",
+		ZhHant: "已經記下了，有貨時會寄信給你。",
 		En:     "Noted. We will email you when it is back in stock.",
 	})
 
@@ -72,7 +65,7 @@ var (
 		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
 	})
 
-	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "補貨時通知我", En: "Notify me"})
+	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "有貨時通知我", En: "Notify me"})
 
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
 

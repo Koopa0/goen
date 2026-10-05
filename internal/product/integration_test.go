@@ -356,8 +356,8 @@ func TestSoldOutCombinationCannotBeBought(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "補貨中") {
-		t.Error("a sold-out combination does not say so")
+	if got := strings.Count(body, "已售完"); got != 1 {
+		t.Errorf("a sold-out combination says 已售完 %d times, want once", got)
 	}
 	if !strings.Contains(body, `type="submit" disabled`) {
 		t.Error("the add-to-cart button is live on a sold-out combination")
