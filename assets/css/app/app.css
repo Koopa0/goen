@@ -2074,45 +2074,6 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- One photograph, the width of the container, and a caption. ----- */
-
-.goen-promo-photo__link {
-  color: var(--n-900);
-  display: block;
-  text-decoration: none;
-}
-
-.goen-promo-photo__media {
-  aspect-ratio: 4 / 3;
-  background: var(--n-100);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-
-.goen-promo-photo__media img {
-  height: 100%;
-  object-fit: cover;
-  object-position: 84% 50%;
-  width: 100%;
-}
-
-.goen-promo-photo__caption {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-}
-
-.goen-promo-photo__link:hover .goen-promo-photo__media img {
-  opacity: 0.92;
-}
-
-.goen-promo-photo__link:hover .goen-home__more {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 /* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
    item renders only where a free-delivery threshold is configured. ----- */
 
@@ -2191,14 +2152,6 @@ h3 {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-promo-photo__media {
-    aspect-ratio: 21 / 9;
-  }
-
-  .goen-promo-photo__media img {
-    object-position: 70% 50%;
   }
 }
 
