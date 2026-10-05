@@ -81,7 +81,9 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 		contentType, data, err = h.renditions.rendition(r.Context(), digest, width)
 	} else {
 		timeout = originalReadTimeout
-		contentType, data, err = h.store.Bytes(r.Context(), digest)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		contentType, data, err = h.store.Bytes(ctx, digest)
 	}
 	if err != nil {
 		switch {
