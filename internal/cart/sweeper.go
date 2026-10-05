@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 const SweepInterval = time.Minute
@@ -73,7 +74,7 @@ func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, err
 	if err != nil {
 		return false, fmt.Errorf("begin cancel of %s: %w", number, err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	orderID, err := q.LockOrderByNumber(ctx, number)

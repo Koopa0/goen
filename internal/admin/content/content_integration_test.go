@@ -34,9 +34,9 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 		t.Fatalf("Banners: %v", err)
 	}
 	var made *admin.Banner
-	for i := range banners {
-		if banners[i].Message == "全站滿 NT$3,000 免運" {
-			made = &banners[i]
+	for i := range banners.Rows {
+		if banners.Rows[i].Message == "全站滿 NT$3,000 免運" {
+			made = &banners.Rows[i]
 		}
 	}
 	if made == nil {

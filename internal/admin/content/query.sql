@@ -3,10 +3,13 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
-        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window
+        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
+       json_build_object('Position', h.position, 'ID', h.id)::text AS page_cursor
 FROM hero_slides h
+WHERE NOT @has_cursor::boolean
+   OR (h.position, h.id) > (@after_position::integer, @after_id::uuid)
 ORDER BY h.position, h.id
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- name: LockHeroAppendPosition :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
@@ -48,10 +51,13 @@ SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(message_en, '') AS message_en,
        coalesce(message_short_en, '') AS message_short_en,
        coalesce(cta_label_en, '') AS cta_label_en,
-       is_active, starts_at, ends_at, created_at
+       is_active, starts_at, ends_at, created_at,
+       json_build_object('Active', is_active, 'At', created_at, 'ID', id)::text AS page_cursor
 FROM promo_banners
-ORDER BY is_active DESC, created_at DESC
-LIMIT $1;
+WHERE NOT @has_cursor::boolean
+   OR (is_active, created_at, id) < (@after_active::boolean, @after_at::timestamptz, @after_id::uuid)
+ORDER BY is_active DESC, created_at DESC, id DESC
+LIMIT @row_limit::integer;
 
 -- name: CreateBanner :exec
 INSERT INTO promo_banners (
