@@ -1947,44 +1947,10 @@ h3 {
   }
 }
 
-.goen-hero__pause {
-  background: var(--n-0);
-  border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
-  color: var(--n-900);
-  cursor: pointer;
-  display: grid;
-  height: 2.75rem;
-  padding: 0;
-  place-items: center;
-  width: 2.75rem;
-}
-
-.goen-hero__pause[hidden] {
-  display: none;
-}
-
-.goen-hero__pause:hover {
-  background: var(--n-50);
-}
-
-.goen-hero__pause span {
-  display: grid;
-}
-
-.goen-hero__pause[data-state="playing"] .goen-hero__pause-play,
-.goen-hero__pause[data-state="paused"] .goen-hero__pause-pause {
-  display: none;
-}
-
 /* Nothing moves by itself for a visitor who asked for less motion. */
 @media (prefers-reduced-motion: reduce) {
   .goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
     animation: none;
-  }
-
-  .goen-hero__pause {
-    display: none;
   }
 }
 
