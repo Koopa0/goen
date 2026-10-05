@@ -48,8 +48,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]i18n.Key{
-	"ok":    i18n.KeyAdminNoticeOK,
-	"inuse": i18n.KeyAdminNoticeInUse,
+	"ok":      i18n.KeyAdminNoticeOK,
+	"inuse":   i18n.KeyAdminNoticeInUse,
+	"refused": i18n.KeyAdminShipRefused,
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
@@ -211,11 +212,10 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 }
 
 type shippingDrafts struct {
-	method    admin.MethodDraft
-	zone      admin.ZoneDraft
-	prefixes  admin.ZonePrefixesDraft
-	version   *admin.VersionDraft
-	surcharge admin.SurchargeDraft
+	method   admin.MethodDraft
+	zone     admin.ZoneDraft
+	prefixes admin.ZonePrefixesDraft
+	version  *admin.VersionDraft
 }
 
 func (h *Handler) rejectShippingForm(
@@ -244,8 +244,6 @@ func (h *Handler) rejectShippingForm(
 	if drafts.version != nil {
 		view.VersionDraft = *drafts.version
 	}
-	view.SurchargeDraft = drafts.surcharge
-	view.Notice = errs["surcharge"]
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
@@ -304,7 +302,7 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping version refused", "error", err)
-		h.rejectShippingForm(w, r, map[string]string{"version_form": i18n.T(r.Context(), i18n.KeyAdminNoticeRefused)}, &shippingDrafts{version: &draft})
+		h.rejectShippingForm(w, r, map[string]string{"version_form": i18n.T(r.Context(), i18n.KeyAdminShipRefused)}, &shippingDrafts{version: &draft})
 	default:
 		h.log.ErrorContext(r.Context(), "publish shipping version", "error", err)
 		access.ServerError(w, r, h.log)
@@ -326,7 +324,7 @@ func versionFormOf(r *http.Request) (ShippingVersion, admin.VersionDraft, map[st
 	if !freeOverOK || freeOver > money.MaxCents/100 {
 		errs["version_free_over"] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodFreeOver), money.TWD(money.MaxCents))
 	}
-	if name := strings.TrimSpace(draft.Name); name == "" || utf8.RuneCountInString(name) > MaxNameRunes+1 {
+	if name := strings.TrimSpace(draft.Name); name == "" || utf8.RuneCountInString(name) > MaxNameRunes {
 		errs["version_name"] = i18n.T(r.Context(), i18n.KeyFormNameRequired)
 	}
 	return ShippingVersion{MethodID: draft.MethodID, Name: draft.Name, NameEn: draft.NameEn,
@@ -345,10 +343,8 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"), r.PostFormValue("zone"), amount)
-	if changed, ok := errors.AsType[*VersionChangedError](err); ok {
-		h.rejectShippingForm(w, r, map[string]string{"surcharge": i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged)}, &shippingDrafts{surcharge: admin.SurchargeDraft{
-			MethodID: changed.MethodID.String(), ZoneID: r.PostFormValue("zone"), Amount: r.PostFormValue("amount"),
-		}})
+	if _, ok := errors.AsType[*VersionChangedError](err); ok {
+		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged))
 		return
 	}
 	switch {
@@ -356,7 +352,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping surcharge refused", "error", err)
-		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminNoticeRefused))
+		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminShipRefused))
 	default:
 		h.log.ErrorContext(r.Context(), "set shipping surcharge", "error", err)
 		access.ServerError(w, r, h.log)
@@ -380,14 +376,12 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 		access.ServerError(w, r, h.log)
 		return
 	}
-	currentMethodID := ""
 	for i := range view.Methods {
-		if view.Methods[i].VersionID == versionID && view.Methods[i].MethodID == methodID {
-			currentMethodID = methodID
+		if view.Methods[i].MethodID == methodID && view.Methods[i].VersionID != versionID {
+			message = i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged)
 			break
 		}
 	}
-	methodID = currentMethodID
 	zoneFound := false
 	for i := range view.Zones {
 		if view.Zones[i].ID == zoneID {
@@ -395,7 +389,7 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 			break
 		}
 	}
-	if methodID == "" || !zoneFound {
+	if !zoneFound {
 		access.NotFound(w, r, h.log)
 		return
 	}

@@ -151,7 +151,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						</div>
 					</div>
 					if message := v.VersionRefusal(m.MethodID, "form"); message != "" {
-						<p class="ui-error-text" id={ "version-" + m.MethodID + "-error" }>{ message }</p>
+						<p class="ui-error-text" id={ "version-" + m.MethodID + "-error" } role="alert">{ message }</p>
 					}
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,
