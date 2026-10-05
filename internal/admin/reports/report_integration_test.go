@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
@@ -343,7 +344,7 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer pgtx.Rollback(ctx, tx)
 
 	var productID, variantID uuid.UUID
 	if err := tx.QueryRow(ctx, `
