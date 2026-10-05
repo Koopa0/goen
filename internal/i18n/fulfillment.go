@@ -118,6 +118,12 @@ var (
 		En:     "Mail is kept for %s; older mail is not listed here.",
 	})
 
+	KeyAdminTimelineCreatedAt = key("admin.timeline.createdat", Message{ZhHant: "%s 建立", En: "Created %s"})
+
+	KeyAdminTimelineNow = key("admin.timeline.now", Message{ZhHant: "目前：%s", En: "Now: %s"})
+
+	KeyAdminTimelineNowSince = key("admin.timeline.nowsince", Message{ZhHant: "目前：%s（%s）", En: "Now: %s (%s)"})
+
 	KeyAdminTimelineUnrecognized = key("admin.timeline.unrecognized", Message{ZhHant: "此筆紀錄無法辨識", En: "This entry is not recognised"})
 
 	KeyAdminTimelineProvider = key("admin.timeline.provider", Message{ZhHant: "金流服務商通知", En: "Payment provider notice"})
