@@ -100,12 +100,18 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 	if err != nil {
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
+	before := map[string]any{"sku": sku}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAdjustStock, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
+		Before: before,
 		After:  map[string]any{"delta": delta},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
+			if lockErr != nil {
+				return lockErr
+			}
+			before["stock"] = replaced.StockQuantity
 			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
@@ -131,12 +137,18 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 	if err != nil {
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
+	before := map[string]any{"sku": sku}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
+		Before: before,
 		After:  map[string]any{"received": quantity},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
+			if lockErr != nil {
+				return lockErr
+			}
+			before["stock"] = replaced.StockQuantity
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
@@ -145,6 +157,20 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			return nil
 		})
 	return s.settleReplay(ctx, err, v.ID, quantity, inventory.ReasonReceipt, key)
+}
+
+// lockVariant holds the variant's row for the rest of the write and reads what
+// the write replaces. The caller's audit Event carries the map it fills in, which
+// audit.Run encodes only after the write.
+func lockVariant(ctx context.Context, q *db.Queries, id uuid.UUID, sku string) (db.LockVariantForChangeRow, error) {
+	v, err := q.LockVariantForChange(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.LockVariantForChangeRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.LockVariantForChangeRow{}, fmt.Errorf("lock variant %s: %w", sku, err)
+	}
+	return v, nil
 }
 
 // settleReplay turns the ledger's refusal of a key it already holds into the
@@ -178,12 +204,18 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 		}
 		return fmt.Errorf("read variant: %w", err)
 	}
+	before := map[string]any{"sku": sku}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRetireVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "active": v.IsActive},
+		Before: before,
 		After:  map[string]any{"active": active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
+			if lockErr != nil {
+				return lockErr
+			}
+			before["active"] = replaced.IsActive
 			if err := q.SetVariantActive(ctx, db.SetVariantActiveParams{
 				ID: v.ID, IsActive: active,
 			}); err != nil {
@@ -207,12 +239,18 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 	if compareAt > 0 {
 		cmp = pgtype.Int8{Int64: compareAt, Valid: true}
 	}
+	before := map[string]any{"sku": sku}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRepriceVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "price_cents": v.PriceCents},
+		Before: before,
 		After:  map[string]any{"price_cents": price, "compare_at_cents": compareAt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
+			if lockErr != nil {
+				return lockErr
+			}
+			before["price_cents"] = replaced.PriceCents
 			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
 				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
 			}); err != nil {

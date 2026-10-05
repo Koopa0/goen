@@ -381,7 +381,8 @@ function send(ws, method, params = {}, timeoutMs = 30000) {
 }
 
 async function pageSocket() {
-  for (let i = 0; i < 50; i++) {
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`)).json();
       const page = list.find((t) => t.type === 'page');
