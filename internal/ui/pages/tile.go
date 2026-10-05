@@ -85,7 +85,7 @@ func FirstRowEager(tiles []ProductTile) []ProductTile {
 	return eagerLeading(tiles, true)
 }
 
-// UnderLeadEager is FirstRowEager for tiles under a hero photograph or lead row:
+// UnderLeadEager is FirstRowEager for tiles under a hero photograph:
 // that is the page's one high-priority image, and a second would split bandwidth.
 func UnderLeadEager(tiles []ProductTile) []ProductTile {
 	return eagerLeading(tiles, false)
