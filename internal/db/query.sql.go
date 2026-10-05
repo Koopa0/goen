@@ -8659,8 +8659,8 @@ const lockShippingZone = `-- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE
 `
 
-// Serializes whole-set edits for one zone. Without this, two forms can each
-// sweep against the other's partial work and commit a union neither submitted.
+// Refuses a zone that does not exist, even with an empty list, and serialises
+// whole-set edits of one zone.
 func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockShippingZone, zoneID)
 	var id uuid.UUID
@@ -8759,6 +8759,18 @@ func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockV
 	var i LockVariantForChangeRow
 	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
 	return i, err
+}
+
+const lockZonePrefixAssignments = `-- name: LockZonePrefixAssignments :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'zone_prefixes', 628471039582915603::bigint))
+`
+
+// Held before any prefix row is touched. Two zones that trade prefixes would
+// otherwise each lock one row and wait for the other's.
+func (q *Queries) LockZonePrefixAssignments(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockZonePrefixAssignments)
+	return err
 }
 
 const lowestDeliveryFee = `-- name: LowestDeliveryFee :one
