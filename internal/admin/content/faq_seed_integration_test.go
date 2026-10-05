@@ -273,13 +273,14 @@ func assertStatutoryReturnFAQUntouched(t *testing.T, storefront *site.Store, ctx
 }
 
 const (
-	refundFAQQuestion = "退款什麼時候會收到？"
-	refundFAQZh       = "退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。"
-	refundFAQEn       = "As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once."
-	staleRefundFAQZh  = "退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。"
-	staleRefundFAQEn  = "As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days."
-	customRefundFAQZh = "店家自訂退款說明"
-	customRefundFAQEn = "Shop-edited refund note"
+	refundFAQQuestion   = "退款什麼時候會收到？"
+	refundFAQZh         = "退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。"
+	refundFAQEn         = "As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once."
+	previousRefundFAQZh = "退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；額度退回後可立刻使用。"
+	staleRefundFAQZh    = "退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。"
+	staleRefundFAQEn    = "As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days."
+	customRefundFAQZh   = "店家自訂退款說明"
+	customRefundFAQEn   = "Shop-edited refund note"
 )
 
 // TestAShippedRefundFAQRepairRewritesOnlyStaleLocales holds the published
@@ -332,6 +333,14 @@ func TestAShippedRefundFAQRepairRewritesOnlyStaleLocales(t *testing.T) {
 
 	if _, repairErr := isolated.Exec(ctx, string(repair)); repairErr != nil {
 		t.Fatalf("apply shipped refund FAQ repair: %v", repairErr)
+	}
+	assertRefundFAQLocales(t, isolatedContent, ctx, refundFAQZh, refundFAQEn)
+
+	plantRefundFAQ(t, ctx, isolated, previousRefundFAQZh, refundFAQEn)
+	for range 2 {
+		if _, repairErr := isolated.Exec(ctx, string(repair)); repairErr != nil {
+			t.Fatalf("apply shipped refund FAQ repair after the previous credit wording: %v", repairErr)
+		}
 	}
 	assertRefundFAQLocales(t, isolatedContent, ctx, refundFAQZh, refundFAQEn)
 
