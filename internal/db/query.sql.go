@@ -12064,6 +12064,7 @@ UPDATE staff_totp_credentials
 SET last_step = $1::bigint
 WHERE user_id = $2
   AND confirmed_at IS NOT NULL
+  AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type RecordTOTPStepParams struct {
