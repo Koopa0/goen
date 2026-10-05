@@ -112,15 +112,13 @@ var (
 	KeyAdminPageTiers = key("admin.page.tiers", Message{ZhHant: "會員等級", En: "Membership tiers"})
 
 	KeyAdminTierLead = key("admin.tier.lead", Message{
-		ZhHant: "等級是「近一年消費了多少」算出來的，不是存在會員身上的欄位 —— 訂單取消，等級就跟著回去。",
-		En: "A band is computed from what somebody has spent in the last year rather than being a " +
-			"field held on the customer — cancel an order and the band follows it back down.",
+		ZhHant: "等級依近一年的消費金額計算，訂單取消時等級可能隨之降低。",
+		En:     "A band is computed from what the customer spent in the last year, so cancelling an order can lower it.",
 	})
 
 	KeyAdminTierEmpty = key("admin.tier.empty", Message{
-		ZhHant: "還沒有任何等級。沒有等級的商店是正常的 —— 所有人都用基本點數倍率。",
-		En: "No bands yet. A shop with none is a working shop — everybody earns at the base " +
-			"points rate.",
+		ZhHant: "還沒有任何等級。沒有等級時，所有人都用基本點數倍率。",
+		En:     "No bands yet. Without one, everybody earns at the base points rate.",
 	})
 
 	KeyAdminTierColBand = key("admin.tier.col.band", Message{ZhHant: "等級", En: "Band"})

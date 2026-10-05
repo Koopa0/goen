@@ -4,10 +4,8 @@ var (
 	KeyAdminColKind = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 
 	KeyAdminHPLead = key("admin.hp.lead", Message{
-		ZhHant: "這些數字全部是從「工作有沒有被做完」算出來的，不是從 worker 自己回報的心跳 —— 一個空轉的 worker 心跳正常，但工作沒有前進。",
-		En: "Every figure here is derived from whether the WORK has been done, not from a heartbeat a " +
-			"worker reports about itself — a worker spinning without progress has a perfectly healthy " +
-			"heartbeat while nothing moves.",
+		ZhHant: "這些數字依實際完成的工作計算，背景作業空轉時也看得出來。",
+		En:     "These figures count work actually done, so a background job that runs without progress still shows here.",
 	})
 
 	KeyAdminHPAllClear = key("admin.hp.allclear", Message{ZhHant: "一切正常", En: "All clear"})
@@ -53,10 +51,8 @@ var (
 	KeyAdminHPRefundsName = key("admin.hp.refunds.name", Message{ZhHant: "退款", En: "Refunds"})
 
 	KeyAdminHPRefundsNote = key("admin.hp.refunds.note", Message{
-		ZhHant: "退款的紀錄是在打金流之前就寫進資料庫的，這樣中途斷線也留得下線索 —— 但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。",
-		En: "A refund is written to the database BEFORE the payment provider is called, so a crash " +
-			"half-way through still leaves a trail — but nobody was reading that table. This is the " +
-			"reading of it. No background job ever closes one of these on its own.",
+		ZhHant: "尚未完成的退款，包括送往 Stripe 途中中斷的。這些不會自動結案。",
+		En:     "Refunds that have not completed, including any interrupted on the way to Stripe. None of them closes on its own.",
 	})
 
 	KeyAdminHPHousekeepingName = key("admin.hp.housekeeping.name", Message{
@@ -65,10 +61,8 @@ var (
 	})
 
 	KeyAdminHPHousekeepingNote = key("admin.hp.housekeeping.note", Message{
-		ZhHant: "過期 session 每 6 小時、沒被引用的圖片每小時清一次。兩者都不影響任何答案 —— 讀取本來就會擋過期 session —— 堆積的是資料表本身。",
-		En: "Expired sessions are swept every 6 hours and unreferenced images every hour. Neither " +
-			"changes any answer — a read already refuses an expired session — what piles up is the " +
-			"table itself.",
+		ZhHant: "過期 session 每 6 小時、沒被引用的圖片每小時清一次。堆積只占用空間，不影響任何頁面或交易。",
+		En:     "Expired sessions are swept every 6 hours and unreferenced images every hour. A backlog takes up space but changes no page or transaction.",
 	})
 
 	KeyAdminHPStuckHeading = key("admin.hp.stuck.heading", Message{
@@ -256,8 +250,8 @@ var (
 	})
 
 	KeyHealthOutboxStuck = key("health.outbox.stuck", Message{
-		ZhHant: "%d 封重試次數用盡 —— 不會自己好",
-		En:     "%d have exhausted their retries — these will not recover on their own",
+		ZhHant: "%d 封已用盡重試次數，不會再自動重試",
+		En:     "%d have exhausted their retries and will not be retried automatically",
 	})
 
 	KeyHealthOutboxClear = key("health.outbox.clear", Message{ZhHant: "沒有待送的訊息", En: "Nothing waiting to send"})
@@ -293,8 +287,8 @@ var (
 	})
 
 	KeyHealthRefundsStuck = key("health.refunds.stuck", Message{
-		ZhHant: "%d 筆退款還沒退成功 —— 顧客還沒拿到錢",
-		En:     "%d refunds have not gone through — the customer does not have their money",
+		ZhHant: "%d 筆退款尚未完成，顧客還沒收到款項",
+		En:     "%d refunds have not gone through, so the money has not reached the customer",
 	})
 
 	KeyHealthProjectionNever = key("health.projection.never", Message{

@@ -127,9 +127,8 @@ var (
 
 var (
 	KeyAdminNewsLead = key("admin.news.lead", Message{
-		ZhHant: "名單上只有自己確認過的信箱 —— 頁尾送出的只是「請求」，點過信裡的連結才會進名單。",
-		En: "Only mailboxes that confirmed themselves are on this list — the footer form sends a " +
-			"request, and nothing joins the list until somebody follows the link in the email.",
+		ZhHant: "名單上只有已確認的信箱。從頁尾訂閱的人，點了確認信裡的連結才會加入。",
+		En:     "Only confirmed addresses are on this list. Someone who signs up in the footer joins only after following the link in the confirmation email.",
 	})
 
 	KeyAdminNewsOnList = key("admin.news.onlist", Message{ZhHant: "名單人數", En: "On the list"})
