@@ -235,7 +235,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						type="submit"
 						tabindex="-1"
 						aria-hidden="true"
-						disabled?={ !v.HasShipping() }
+						disabled?={ false }
 					>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
 					<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
 					// One fixed-size identity for the lines, prices, delivery, coupon and credit spend.
@@ -703,7 +703,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							ButtonStyle: components.ButtonStylePrimary,
 							Size:        components.SizeLarge,
 							Block:       true,
-							Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
+							Attrs:       templ.Attributes{"disabled": false},
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyPlaceOrder) }
 						}
