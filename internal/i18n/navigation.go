@@ -60,7 +60,7 @@ var (
 
 	KeyShippingPolicy = key("footer.shipping", Message{ZhHant: "配送說明", En: "Delivery"})
 
-	KeyReturnsPolicy = key("footer.returns", Message{ZhHant: "退換貨政策", En: "Returns"})
+	KeyReturnsPolicy = key("footer.returns", Message{ZhHant: "退貨政策", En: "Returns"})
 
 	KeyPaymentPolicy = key("footer.payment", Message{ZhHant: "付款說明", En: "Payment"})
 
