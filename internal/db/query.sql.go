@@ -2591,14 +2591,15 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 }
 
 const adminVersionZones = `-- name: AdminVersionZones :many
-SELECT z.id AS zone_id, z.code, z.name, vz.surcharge_cents
+SELECT vz.version_id, z.id AS zone_id, z.code, z.name, vz.surcharge_cents
 FROM shipping_version_zones vz
 JOIN shipping_zones z ON z.id = vz.zone_id
 WHERE vz.version_id = ANY($1::uuid[])
-ORDER BY z.position, z.name
+ORDER BY z.position, z.name, vz.version_id
 `
 
 type AdminVersionZonesRow struct {
+	VersionID      uuid.UUID
 	ZoneID         uuid.UUID
 	Code           string
 	Name           string
@@ -2615,6 +2616,7 @@ func (q *Queries) AdminVersionZones(ctx context.Context, versionIds []uuid.UUID)
 	for rows.Next() {
 		var i AdminVersionZonesRow
 		if err := rows.Scan(
+			&i.VersionID,
 			&i.ZoneID,
 			&i.Code,
 			&i.Name,
