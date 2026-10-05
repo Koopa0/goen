@@ -5,6 +5,7 @@ import (
 	"html"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -119,8 +120,13 @@ func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testi
 	}
 	nav, _, _ = strings.Cut(nav, "</nav>")
 	links := regexp.MustCompile(`href="#([a-z-]+)"`).FindAllStringSubmatch(nav, -1)
-	if len(links) != 6 {
-		t.Fatalf("%d section links, want 6", len(links))
+	want := []string{"sec-details", "sec-invoice", "sec-images", "sec-options", "sec-variants", "sec-specs"}
+	got := make([]string, 0, len(links))
+	for _, link := range links {
+		got = append(got, link[1])
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("section anchors = %v, want %v", got, want)
 	}
 	for _, m := range links {
 		if !strings.Contains(page, `id="`+m[1]+`"`) {
