@@ -194,9 +194,6 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
-		if errors.Is(r.Context().Err(), context.Canceled) {
-			return
-		}
 		h.log.ErrorContext(r.Context(), "open cart", "error", err)
 		h.serverError(w, r)
 		return
@@ -1494,9 +1491,6 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	// empty one.
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
-		if errors.Is(r.Context().Err(), context.Canceled) {
-			return
-		}
 		h.log.ErrorContext(r.Context(), "cart for reorder", "error", err)
 		h.serverError(w, r)
 		return
@@ -1680,9 +1674,6 @@ func (h *Handler) requestCart(w http.ResponseWriter, r *http.Request) (id uuid.U
 	if err == nil {
 		return id, found, true
 	}
-	if errors.Is(r.Context().Err(), context.Canceled) {
-		return uuid.Nil, false, false
-	}
 	h.log.ErrorContext(r.Context(), "read request cart", "error", err)
 	h.serverError(w, r)
 	return uuid.Nil, false, false
@@ -1736,7 +1727,7 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 			return tokenCart, true, false, nil
 		}
 		if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
-			return uuid.Nil, false, false, err
+			return uuid.Nil, false, false, cartLookupFailure(ctx, err)
 		}
 		stale = errors.Is(err, ErrNotYourCart)
 	}
@@ -1748,9 +1739,16 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 		return uuid.Nil, false, stale, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, stale, err
+		return uuid.Nil, false, stale, cartLookupFailure(ctx, err)
 	}
 	return accountCart, true, stale, nil
+}
+
+func cartLookupFailure(ctx context.Context, err error) error {
+	if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+		return nil
+	}
+	return err
 }
 
 // wishlistPath is the one page besides a product an add-to-cart form may send
@@ -1856,9 +1854,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale, lookupErr := h.lookupCart(r.Context(), r)
 		if lookupErr != nil {
-			if !errors.Is(r.Context().Err(), context.Canceled) {
-				h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
-			}
+			h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
 			next.ServeHTTP(w, r)
 			return
 		}
