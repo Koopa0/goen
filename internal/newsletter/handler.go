@@ -208,5 +208,5 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr,
 		return
 	}
 	title := i18n.T(r.Context(), i18n.KeyNewsletterFailed)
-	web.Render(w, r, h.log, status, pages.Notice(layouts.Page{Title: title, Newsletter: state}, "", title, msg))
+	web.Render(w, r, h.log, status, pages.Notice(layouts.Page{Title: title, Newsletter: layouts.NewsletterState{}}, "", title, msg))
 }
