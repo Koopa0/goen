@@ -350,6 +350,11 @@ var (
 		En:     "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”.",
 	})
 
+	KeyAdminNoticeCancelRetry = key("admin.notice.cancelretry", Message{
+		ZhHant: "退款已完成，但訂單還沒取消。請按「繼續退款」完成取消。",
+		En:     "The refund went through, but the order is not cancelled yet. Press “Resume the refund” to finish.",
+	})
+
 	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{
 		ZhHant: "退款已記錄，但 Stripe 尚未完成。請確認 Stripe 後台，再按「繼續退款」。",
 		En:     "The refund is recorded but Stripe has not settled it. Check the Stripe dashboard, then press Resume the refund.",

@@ -291,6 +291,7 @@ var notices = map[string]i18n.Key{
 	"refundpending":  i18n.KeyAdminNoticeRefundPending,
 	"cancelinvoice":  i18n.KeyAdminNoticeCancelInvoice,
 	"refundretry":    i18n.KeyAdminNoticeRefundRetry,
+	"cancelretry":    i18n.KeyAdminNoticeCancelRetry,
 	"unfunded":       i18n.KeyAdminNoticeUnfunded,
 	"owesparcel":     i18n.KeyAdminNoticeOwesParcel,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,

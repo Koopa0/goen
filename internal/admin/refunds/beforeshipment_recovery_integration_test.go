@@ -5,6 +5,7 @@ package refunds_test
 import (
 	"context"
 	"errors"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 )
@@ -79,16 +81,17 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 		t.Fatalf("finishing query = entered %v, error %v, want the post-settlement lock timeout",
 			barrier.entered.Load(), barrier.queryErr)
 	}
-	if first.Code != http.StatusSeeOther || first.Header().Get("Location") != "/admin/orders/"+number+"?refundretry=1" {
-		t.Errorf("settled finishing failure = %d %q, want 303 with refundretry=1",
+	if first.Code != http.StatusSeeOther || first.Header().Get("Location") != "/admin/orders/"+number+"?cancelretry=1" {
+		t.Errorf("settled finishing failure = %d %q, want 303 with cancelretry=1",
 			first.Code, first.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !admintest.LockTimedOut(diagnostic.err) {
-		t.Errorf("finishing diagnostic = %v, want incomplete with the original PostgreSQL lock failure", diagnostic.err)
+	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !admintest.LockTimedOut(diagnostic.err) {
+		t.Errorf("finishing diagnostic = %v, want cancellation incomplete with the original PostgreSQL lock failure", diagnostic.err)
 	}
 	if diff := cmp.Diff(wantSettled, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("failed finishing changed settled facts (-want +got):\n%s", diff)
 	}
+	assertRefundRecoveryPage(t, ctx, adminPool, admintest.Refunder{}, number, first.Header().Get("Location"), true)
 	if releaseErr := blocker.Commit(ctx); releaseErr != nil {
 		t.Fatalf("release finishing barrier: %v", releaseErr)
 	}
@@ -128,6 +131,64 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	}
 }
 
+func TestUnpaidRefundBeforeShipmentKeepsThePayoutRecoveryNotice(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
+	var stockHeld int32
+	if err := pool.QueryRow(ctx, `SELECT stock_quantity FROM product_variants WHERE id = $1`, variantID).
+		Scan(&stockHeld); err != nil {
+		t.Fatalf("read held stock: %v", err)
+	}
+	var sent atomic.Int64
+	refunder := admintest.Refunder{State: refundstate.Failed, Sent: &sent}
+	adminPool := admintest.AdminRolePool(t, pool)
+	store := refunds.NewStore(adminPool, refunder, nil)
+	diagnostic := &refundCompletionLog{}
+	handler := refunds.NewHandler(store, nil, slog.New(diagnostic))
+	response := postRefundCompletion(ctx, handler, number, true)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/orders/"+number+"?refundretry=1" {
+		t.Errorf("unpaid refund = %d %q, want 303 with refundretry=1", response.Code, response.Header().Get("Location"))
+	}
+	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) {
+		t.Errorf("unpaid diagnostic = %v, want payout incomplete without cancellation incomplete", diagnostic.err)
+	}
+	want := refundCompletionFacts{
+		OrderStatus: "picking", ReturnStatus: "approved", CardRows: 1,
+		CreditCents: 300000, CreditRows: 1,
+		FrozenCardCents: 900000, FrozenCreditCents: 300000,
+		Held: 1, Stock: stockHeld,
+	}
+	if diff := cmp.Diff(want, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
+		t.Fatalf("unpaid refund changed cancellation or settled facts (-want +got):\n%s", diff)
+	}
+	if got := sent.Load(); got != 1 {
+		t.Errorf("provider calls = %d, want 1", got)
+	}
+	assertRefundRecoveryPage(t, ctx, adminPool, refunder, number, response.Header().Get("Location"), false)
+}
+
+func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxpool.Pool, refunder admintest.Refunder, number, location string, settled bool) {
+	t.Helper()
+	handler := admintest.OrderDesk(admintest.OrderStore(adminPool, refunder, nil, nil))
+	mux := http.NewServeMux()
+	handler.Routes(mux, admintest.BackOffice)
+	want, wrong := i18n.KeyAdminNoticeRefundRetry, i18n.KeyAdminNoticeCancelRetry
+	if settled {
+		want, wrong = wrong, want
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		local := i18n.WithLocale(ctx, locale)
+		request := httptest.NewRequestWithContext(local, http.MethodGet, location, nil)
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		body := html.UnescapeString(response.Body.String())
+		if response.Code != http.StatusOK || !strings.Contains(body, i18n.T(local, want)) ||
+			strings.Contains(body, i18n.T(local, wrong)) || !strings.Contains(body, i18n.T(local, i18n.KeyAdminRefundResume)) {
+			t.Errorf("%s recovery page of %s = %d, want the matching notice and Resume without the other notice", locale, number, response.Code)
+		}
+	}
+}
+
 func TestRefundCompletionPreservesTheInvoiceRecoveryCause(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
@@ -144,7 +205,7 @@ func TestRefundCompletionPreservesTheInvoiceRecoveryCause(t *testing.T) {
 		t.Errorf("live invoice after settlement = %d %q, want 303 with cancelinvoice=1",
 			response.Code, response.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !pgerr.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
+	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !pgerr.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
 		t.Errorf("invoice diagnostic = %v, want incomplete retaining orders_cancel_invoice_resolved", diagnostic.err)
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {

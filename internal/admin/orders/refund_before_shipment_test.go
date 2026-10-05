@@ -26,3 +26,26 @@ func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
 		}
 	}
 }
+
+func TestRefundRecoveryNoticesDistinguishSettledMoney(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		query  string
+		want   string
+	}{
+		{"settled Chinese", i18n.ZhHant, "cancelretry", "退款已完成，但訂單還沒取消。請按「繼續退款」完成取消。"},
+		{"settled English", i18n.En, "cancelretry", "The refund went through, but the order is not cancelled yet. Press “Resume the refund” to finish."},
+		{"unpaid Chinese", i18n.ZhHant, "refundretry", "退款沒有完成。請到 Stripe 後台確認這筆款項，再按「繼續退款」。"},
+		{"unpaid English", i18n.En, "refundretry", "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			req := httptest.NewRequestWithContext(ctx, "GET", "/admin/orders/GO-260929-000102?"+tt.query+"=1", nil)
+			if got := web.Notice(req, notices); got != tt.want {
+				t.Errorf("%s notice = %q, want %q", tt.query, got, tt.want)
+			}
+		})
+	}
+}

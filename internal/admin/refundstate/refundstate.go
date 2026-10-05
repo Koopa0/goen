@@ -1,6 +1,6 @@
 // Package refundstate names refunds.status, the closed set refunds_status_known
-// admits, and the two outcomes of a refund its callers tell apart: refused, and
-// approved but not paid.
+// admits, and the outcomes its callers tell apart: refused, or approved with
+// unfinished payout or order cancellation.
 package refundstate
 
 import "errors"
@@ -19,8 +19,8 @@ var (
 	// ErrRefused is a refund write the database declined; its message is the
 	// database's own, because that names the rule.
 	ErrRefused = errors.New("refundstate: refused")
-	// ErrIncomplete is a return that WAS approved and whose money did not
-	// go: the decision stands and cannot be retaken, and the refund claim has
-	// already committed a `pending` row keyed on the return.
+	// ErrIncomplete is an approved return whose refund has not finished: its
+	// money did not go, or the money settled and the order's cancellation did
+	// not. The decision stands; Resume continues the first unfinished step.
 	ErrIncomplete = errors.New("refundstate: the return is approved and the refund did not complete")
 )
