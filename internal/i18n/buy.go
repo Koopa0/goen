@@ -47,7 +47,7 @@ var (
 
 	KeyFreeShipping = key("buy.freeshipping", Message{ZhHant: "免運", En: "Free"})
 
-	KeyShippingUnavailable = key("buy.shipping.unavailable", Message{ZhHant: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", En: "No delivery method is available for this cart. Change the items or contact us."})
+	KeyShippingUnavailable = key("buy.shipping.unavailable", Message{ZhHant: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", En: "No delivery method is available for this basket. Change the items or contact us."})
 
 	KeyShippingUnavailableShort = key("buy.shipping.unavailable.short", Message{ZhHant: "無可用方式", En: "Unavailable"})
 
