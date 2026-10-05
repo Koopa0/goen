@@ -335,3 +335,21 @@ func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
 		t.Error("with no department offering comparison the link should fall back to the home page")
 	}
 }
+
+// TestCompareRowStatesPricesAsTheCardDoes: a product whose variants differ is
+// priced "from", and one on sale shows the struck original price.
+func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
+	t.Parallel()
+
+	got := renderToString(t, Compare(layouts.Page{Title: "比較"}, CompareView{
+		Products: []CompareProduct{
+			{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true, InStock: true},
+			{Slug: "sale", Name: "Sale", PriceCents: 100000, CompareCents: 150000, InStock: true},
+		},
+	}))
+	for _, want := range []string{"NT$25,900 起", `<s class="goen-tile__was">NT$1,500</s>`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Compare price row lacks %q", want)
+		}
+	}
+}
