@@ -58,7 +58,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 // writes: the chain is the destination, and the store behind it is filled in
 // by the carrier's picker. An order placed before one exists carries the chain
 // alone, so the correction form must let a staff member save it that way —
-// cart.Address.Validate refuses one of the two and accepts neither.
+// order.Delivery.Validate refuses one of the two and accepts neither.
 func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
@@ -172,5 +172,77 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 				t.Errorf("CanIssueInvoice = %t, want %t", got, tt.want)
 			}
 		})
+	}
+}
+
+// An entry the build cannot label still draws, with its raw source, kind and
+// status and its time, and the rest of the page is there.
+func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		html := renderOrder(t, locale, &OrderView{
+			Number: "GO-261005-000001",
+			Timeline: []TimelineEntry{{
+				At: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineUnrecognized,
+				Unrecognized: "invoice / issue / voided", ActorKind: ActorSystem,
+			}},
+		})
+		for _, want := range []string{
+			i18n.T(ctx, i18n.KeyAdminTimelineUnrecognized), "invoice / issue / voided", "2026-10-05 10:20",
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: the order page does not carry %q", locale, want)
+			}
+		}
+	}
+}
+
+// A mail or invoice operation sits at its creation but is labelled with where
+// it stands now, so both moments are shown: created at one time, and now in a
+// state it reached at another.
+func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.T) {
+	t.Parallel()
+	entries := []TimelineEntry{
+		{At: "2026-10-05 10:00", DoneAt: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineMailPaid,
+			Status: i18n.KeyAdminTimelineMailSent, ActorKind: ActorSystem},
+		{At: "2026-10-05 10:05", Label: i18n.KeyAdminTimelineMailShipped,
+			Status: i18n.KeyAdminTimelineMailQueued, ActorKind: ActorSystem},
+		{At: "2026-10-05 10:30", Label: i18n.KeyStatusPicking, ActorKind: ActorStaff, Actor: "王店長"},
+	}
+	for _, tc := range []struct {
+		locale i18n.Locale
+		want   [][]string
+		absent []string
+	}{
+		{i18n.ZhHant, [][]string{
+			{"2026-10-05 10:00 建立", "目前：已寄出（2026-10-05 10:20）"},
+			{"2026-10-05 10:05 建立", "目前：尚未寄出"},
+			{"2026-10-05 10:30 · 王店長"},
+		}, []string{"目前：尚未寄出（"}},
+		{i18n.En, [][]string{
+			{"Created 2026-10-05 10:00", "Now: Sent (2026-10-05 10:20)"},
+			{"Created 2026-10-05 10:05", "Now: Not sent yet"},
+			{"2026-10-05 10:30 · 王店長"},
+		}, []string{"Now: Not sent yet ("}},
+	} {
+		html := renderOrder(t, tc.locale, &OrderView{Number: "GO-261005-000002", Timeline: entries})
+		items := strings.Split(html, `class="goen-admin__event"`)[1:]
+		if len(items) != len(entries) {
+			t.Fatalf("%s: renders %d timeline entries, want %d", tc.locale, len(items), len(entries))
+		}
+		for i, wants := range tc.want {
+			item, _, _ := strings.Cut(items[i], "</li>")
+			for _, want := range wants {
+				if !strings.Contains(item, want) {
+					t.Errorf("%s: timeline entry %d lacks %q: %s", tc.locale, i, want, item)
+				}
+			}
+		}
+		for _, bad := range tc.absent {
+			if strings.Contains(html, bad) {
+				t.Errorf("%s: a state with no completion time shows one: %q", tc.locale, bad)
+			}
+		}
 	}
 }

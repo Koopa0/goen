@@ -528,12 +528,28 @@ func run() error {
 	}
 
 	log.Info("goen shutting down")
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancelShutdown()
-	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
-		return fmt.Errorf("shut down server: %w", shutdownErr)
+	return shutdown(srv, shutdownGrace)
+}
+
+// shutdownGrace is how long a request in flight at SIGTERM may take to finish.
+const shutdownGrace = 15 * time.Second
+
+// shutdown stops srv, giving the requests in flight grace to finish and then
+// closing whatever is still open. Shutdown alone leaves those connections open
+// with their requests running, and the pool closes deferred in run wait for
+// every connection a request still holds; closing the connections is what
+// cancels those requests' contexts.
+func shutdown(srv *http.Server, grace time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), grace)
+	defer cancel()
+	err := srv.Shutdown(ctx)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if closeErr := srv.Close(); closeErr != nil {
+		err = errors.Join(err, closeErr)
+	}
+	return fmt.Errorf("shut down server: %w", err)
 }
 
 // Pool size, request budget and statement bound per role. statement_timeout
@@ -748,6 +764,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(staff.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicStaffEnrolment, d.notifier.SendStaffEnrolment)
 	outboxStore.HandleJSON(outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)

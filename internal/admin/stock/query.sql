@@ -32,14 +32,19 @@ AND (NOT @has_cursor::boolean OR ((pv.stock_quantity - pv.safety_stock) > @after
 ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
 LIMIT @row_limit::integer;
 
--- price_cents is read for the audit trail's "before": a reprice recorded without
--- the price it replaced records the least interesting half of the fact.
 -- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
-       pv.price_cents, p.name AS product_name, p.slug
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+       p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = $1;
+
+-- What a stock-desk write replaces, read under the row lock the write then
+-- holds: read before the transaction, a concurrent write can change it first
+-- and the audit row's "before" names a value this write never saw.
+-- name: LockVariantForChange :one
+SELECT stock_quantity, is_active, price_cents
+FROM product_variants WHERE id = $1 FOR NO KEY UPDATE;
 
 -- record_inventory_movement is the ONLY door: admin has no UPDATE on
 -- stock_quantity, so a direct write is refused by the database.

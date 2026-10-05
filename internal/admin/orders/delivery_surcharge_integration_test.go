@@ -111,14 +111,14 @@ func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) 
 	return f
 }
 
-func proposedDelivery(postal string) *orders.Delivery {
-	return &orders.Delivery{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
+func proposedDelivery(postal string) *orders.DeliveryCorrection {
+	return &orders.DeliveryCorrection{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
 }
 
 func deliveryMoneySnapshot(t *testing.T, id uuid.UUID) string {
 	t.Helper()
 	var snapshot string
-	err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object('shipping',o.shipping_cents,'discount',o.discount_cents,'tax',o.tax_cents,'owed',order_amount_owed(o.id),'committed',order_is_committed(o.id),'payments',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM payments p WHERE p.order_id=o.id),'invoices',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM invoice_documents d WHERE d.order_id=o.id),'operations',(SELECT jsonb_agg(to_jsonb(op) ORDER BY op.id) FROM invoice_operations op WHERE op.order_id=o.id),'credit',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM store_credit_entries e WHERE e.order_id=o.id))::text FROM orders o WHERE o.id=$1`, id).Scan(&snapshot)
+	err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object('shipping',o.shipping_cents,'discount',o.discount_cents,'tax',o.tax_cents,'owed',order_amount_after_credit(o.id),'committed',order_is_committed(o.id),'payments',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM payments p WHERE p.order_id=o.id),'invoices',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM invoice_documents d WHERE d.order_id=o.id),'operations',(SELECT jsonb_agg(to_jsonb(op) ORDER BY op.id) FROM invoice_operations op WHERE op.order_id=o.id),'credit',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM store_credit_entries e WHERE e.order_id=o.id))::text FROM orders o WHERE o.id=$1`, id).Scan(&snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

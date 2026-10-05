@@ -468,6 +468,7 @@ type OutboxMessage struct {
 	DeliveredAt pgtype.Timestamptz
 	Attempts    int32
 	LastError   pgtype.Text
+	LeaseOwner  uuid.NullUUID
 }
 
 type PasswordResetToken struct {
@@ -793,6 +794,7 @@ type StaffTotpCredential struct {
 	SecretEncrypted []byte
 	ConfirmedAt     pgtype.Timestamptz
 	LastStep        pgtype.Int8
+	MailedCodeHash  []byte
 	CreatedAt       time.Time
 }
 

@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -47,6 +48,7 @@ var (
 	TopicNewsletterIssue = topic[email.NewsletterIssue]("newsletter.issue")
 	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
 	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
+	TopicStaffEnrolment  = topic[email.StaffEnrolment]("staff.enrolment")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
@@ -107,10 +109,10 @@ const Retain = 30 * 24 * time.Hour
 
 const SweepInterval = 24 * time.Hour
 
-// MaxAttempts is when a message stops being retried quickly and is retried
-// daily instead, so mail queued during a long provider outage still goes out.
-// It stays until [Retain] so [Store.Stuck] can show it to a human.
-const MaxAttempts = 8
+// StuckAfterAttempts is the attempt count from which a message is stuck: it is
+// retried daily instead of quickly, so mail queued during a long provider
+// outage still goes out, and [Store.Stuck] lists it for a human until [Retain].
+const StuckAfterAttempts = 8
 
 // Handler does whatever a topic means. Returning an error reschedules the
 // message; returning nil marks it delivered. Its context expires after
@@ -187,9 +189,11 @@ func (s *Store) DrainAll(ctx context.Context) (delivered, failed int, err error)
 // Drain delivers one batch and reports what happened. Each message is stamped on
 // its own, so a handler that fails does not roll back the deliveries beside it.
 func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
+	owner := uuid.New()
 	rows, err := s.q.ClaimOutbox(ctx, db.ClaimOutboxParams{
-		BatchSize: BatchSize,
-		Lease:     pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
+		BatchSize:  BatchSize,
+		Lease:      pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
+		LeaseOwner: owner,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("claim outbox: %w", err)
@@ -200,7 +204,7 @@ func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 		if ctx.Err() != nil {
 			return delivered, failed, ctx.Err()
 		}
-		if s.deliver(ctx, m) {
+		if s.deliver(ctx, owner, m) {
 			delivered++
 		} else {
 			failed++
@@ -209,31 +213,43 @@ func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 	return delivered, failed, nil
 }
 
-func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
+func (s *Store) deliver(ctx context.Context, owner uuid.UUID, m *db.ClaimOutboxRow) bool {
 	h, ok := s.handlers[m.Topic]
 	if !ok {
 		// Rescheduled rather than dropped: the next release may know what to do
 		// with it.
-		s.reschedule(ctx, m, errors.New("no handler registered for this topic"))
+		s.reschedule(ctx, owner, m, errors.New("no handler registered for this topic"))
 		return false
 	}
 
 	if err := runHandler(ctx, h, m.Payload); err != nil {
-		s.reschedule(ctx, m, err)
+		s.reschedule(ctx, owner, m, err)
 		return false
 	}
 	// Detached: a shutdown that lands after the send must still stamp it, or the
 	// next process sends the letter again once the lease expires.
 	settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), SettleBudget)
 	defer cancel()
-	if err := s.q.MarkOutboxDelivered(settle, m.ID); err != nil {
+	marked, err := s.q.MarkOutboxDelivered(settle, db.MarkOutboxDeliveredParams{ID: m.ID, LeaseOwner: owner})
+	if err != nil {
 		// Delivered but not stamped: the retry sends it again, which is the
 		// at-least-once guarantee.
 		s.log.ErrorContext(ctx, "outbox delivered but not marked",
 			"message", m.ID, "topic", m.Topic, "error", err)
 		return false
 	}
+	if marked == 0 {
+		s.logLostClaim(ctx, m)
+		return false
+	}
 	return true
+}
+
+// logLostClaim logs a settle that matched nothing: the lease ran out, a later
+// claim took the message, and recording the outcome is that claim's to do.
+func (s *Store) logLostClaim(ctx context.Context, m *db.ClaimOutboxRow) {
+	s.log.WarnContext(ctx, "outbox claim lost before it was settled",
+		"message", m.ID, "topic", m.Topic, "attempts", m.Attempts)
 }
 
 // runHandler spends at most [HandlerBudget] of the claim's lease on the handler,
@@ -247,9 +263,9 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 	return h(ctx, payload)
 }
 
-func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
+func (s *Store) reschedule(ctx context.Context, owner uuid.UUID, m *db.ClaimOutboxRow, cause error) {
 	delay := backoff(m.Attempts)
-	if m.Attempts >= MaxAttempts {
+	if m.Attempts >= StuckAfterAttempts {
 		// A slow retry rather than none: valid mail queued during a long provider
 		// outage must still go out. [Retain] bounds how long it can keep trying.
 		delay = 24 * time.Hour
@@ -258,14 +274,18 @@ func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause erro
 	}
 	settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), SettleBudget)
 	defer cancel()
-	if err := s.q.RescheduleOutbox(settle, db.RescheduleOutboxParams{
-		ID: m.ID,
+	rescheduled, err := s.q.RescheduleOutbox(settle, db.RescheduleOutboxParams{
+		ID: m.ID, LeaseOwner: owner,
 		Backoff: pgtype.Interval{
 			Microseconds: delay.Microseconds(), Valid: true,
 		},
 		LastError: truncate(cause.Error(), 500),
-	}); err != nil {
+	})
+	switch {
+	case err != nil:
 		s.log.ErrorContext(ctx, "outbox reschedule", "message", m.ID, "error", err)
+	case rescheduled == 0:
+		s.logLostClaim(ctx, m)
 	}
 }
 
@@ -306,16 +326,16 @@ func (s *Store) Run(ctx context.Context) {
 }
 
 type StuckMessage struct {
-	Topic     string
-	DedupeKey string
-	Attempts  int32
-	LastError string
-	Since     time.Time
+	Topic         string
+	DedupeKey     string
+	Attempts      int32
+	LastError     string
+	NextAttemptAt time.Time
 }
 
 func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) {
 	rows, err := s.q.StuckOutbox(ctx, db.StuckOutboxParams{
-		MinAttempts: MaxAttempts, Limit: limit,
+		MinAttempts: StuckAfterAttempts, Limit: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read stuck outbox: %w", err)
@@ -325,7 +345,7 @@ func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) 
 		r := &rows[i]
 		out = append(out, StuckMessage{
 			Topic: r.Topic, DedupeKey: r.DedupeKey, Attempts: r.Attempts,
-			LastError: r.LastError, Since: r.AvailableAt,
+			LastError: r.LastError, NextAttemptAt: r.AvailableAt,
 		})
 	}
 	return out, nil

@@ -110,6 +110,9 @@ type DashboardView struct {
 	Low                 []Variant
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
+	// HealthUnavailable is set when the health desk could not be read, so an
+	// absent payment or invoice task is not taken for "nothing to check".
+	HealthUnavailable bool
 }
 
 // Task is one kind of work that waits for a person: what it is, how much of
@@ -282,13 +285,36 @@ const (
 // invoice operation, a notice from the payment provider, or mail about it.
 // It names staff, so it never reaches the storefront.
 type TimelineEntry struct {
-	At        string
-	Label     i18n.Key
-	Status    i18n.Key
+	// At is when the entry happened; for one with a Status, when it was created.
+	At     string
+	Label  i18n.Key
+	Status i18n.Key
+	// DoneAt is when a Status entry reached it, empty while unknown.
+	DoneAt    string
 	Note      string
 	ActorKind ActorKind
 	// Actor is the staff member's name, empty once their account is erased.
 	Actor string
+	// Unrecognized holds the source, kind and status of an entry this build has
+	// no label for; Label then says so.
+	Unrecognized string
+}
+
+// When is the entry's time, saying "created" for an operation or mail whose
+// Status is where it stands now.
+func (e TimelineEntry) When(ctx context.Context) string {
+	if e.Status == "" {
+		return e.At
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineCreatedAt), e.At)
+}
+
+// StatusText is where a Status entry stands now and, when known, since when.
+func (e TimelineEntry) StatusText(ctx context.Context) string {
+	if e.DoneAt == "" {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineNow), i18n.T(ctx, e.Status))
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineNowSince), i18n.T(ctx, e.Status), e.DoneAt)
 }
 
 func (e TimelineEntry) By(ctx context.Context) string {

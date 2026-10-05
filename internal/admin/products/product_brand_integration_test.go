@@ -4,6 +4,7 @@ package products_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -82,7 +83,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if err != nil || search.Total != 1 || len(search.Products) != 1 || search.Products[0].Slug != slug || search.Products[0].Brand != "" {
 		t.Errorf("unbranded search: total = %d, products = %+v, error = %v; want total 1, one product %q with no brand and nil error", search.Total, search.Products, err, slug)
 	}
-	pdp, err := product.NewStore(p).Load(ctx, slug, nil)
+	pdp, err := product.NewStore(p, slog.New(slog.DiscardHandler)).Load(ctx, slug, nil)
 	if err != nil || pdp.Brand != "" || pdp.Slug != slug {
 		t.Errorf("unbranded PDP = slug %q brand %q, %v", pdp.Slug, pdp.Brand, err)
 	}

@@ -463,12 +463,18 @@ DECLARE
 BEGIN
     -- Separate branches rather than a coalesce: on DELETE there is no NEW
     -- record to read at all.
+    --
+    -- Locked before the count: two transactions that each change one side of
+    -- this then check one at a time, and the second counts what the first
+    -- committed. Lock order is variant -> product, as in lock_cart_catalogue and
+    -- sale_campaign_variant_still_valid: a firing UPDATE or DELETE of a variant
+    -- already holds that variant's row.
     IF TG_TABLE_NAME = 'products' THEN
-        SELECT * INTO p FROM products WHERE id = NEW.id;
+        SELECT * INTO p FROM products WHERE id = NEW.id FOR NO KEY UPDATE;
     ELSIF TG_OP = 'DELETE' THEN
-        SELECT * INTO p FROM products WHERE id = OLD.product_id;
+        SELECT * INTO p FROM products WHERE id = OLD.product_id FOR NO KEY UPDATE;
     ELSE
-        SELECT * INTO p FROM products WHERE id = NEW.product_id;
+        SELECT * INTO p FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
     END IF;
     IF NOT FOUND OR p.status <> 'active' THEN
         RETURN NULL;  -- deleted in this transaction, or not published anyway
@@ -624,6 +630,9 @@ CREATE TABLE staff_totp_credentials (
     -- 30-second step, and 90 seconds with the skew window either side, so
     -- requiring a strictly greater step is what makes each code single-use.
     last_step        bigint,
+    -- sha256 of the code mailed to the account's address when enrolment began;
+    -- confirming enrolment also proves the mailbox.
+    mailed_code_hash bytea,
     created_at       timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT staff_totp_secret_present CHECK (octet_length(secret_encrypted) > 0),
@@ -1253,7 +1262,7 @@ BEGIN
     -- FUNDED but not committed — the zero-owed order, paid for and still
     -- pending. 'cancelled' is excluded because its stock must come back and the
     -- credit reversal runs after the status move.
-    IF o_status <> 'cancelled' AND order_amount_owed(r.order_id) = 0 THEN
+    IF o_status <> 'cancelled' AND order_amount_after_credit(r.order_id) = 0 THEN
         RAISE EXCEPTION 'reservation % is on an order that owes nothing; consume it, do not release', p_reservation_id
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_funded_no_release';
     END IF;
@@ -1926,9 +1935,9 @@ BEGIN
     -- order to owe nothing — free or fully store-credited — or to carry a
     -- succeeded payment. A new funding source is added HERE.
     IF OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'picking' THEN
-        -- order_amount_owed is the ONE definition: total less store credit, net
+        -- order_amount_after_credit is the ONE definition: total less store credit, net
         -- of reversals.
-        owed := order_amount_owed(NEW.id);
+        owed := order_amount_after_credit(NEW.id);
         IF owed <> 0
            AND NOT EXISTS (SELECT 1 FROM payments
                            WHERE order_id = NEW.id AND status = 'succeeded') THEN
@@ -3831,9 +3840,9 @@ BEGIN
     END IF;
 
     -- The capture must equal what the order is OWED — its total, less the store
-    -- credit spent on it. order_amount_owed is the ONE place that arithmetic
+    -- credit spent on it. order_amount_after_credit is the ONE place that arithmetic
     -- lives, and a new funding source is added there.
-    owed := order_amount_owed(o.id);
+    owed := order_amount_after_credit(o.id);
     IF NEW.captured_amount_cents <> owed THEN
         RAISE EXCEPTION 'order % is owed % but the capture is %',
             o.order_number, owed, NEW.captured_amount_cents
@@ -4242,6 +4251,9 @@ CREATE TABLE outbox_messages (
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
+    -- The claim that may settle the message. A worker whose lease ran out
+    -- finds another claim's owner here, and its late outcome changes nothing.
+    lease_owner  uuid,
     CONSTRAINT outbox_messages_topic_present CHECK (topic ~ '[^[:space:]]'),
     CONSTRAINT outbox_messages_attempts_non_negative CHECK (attempts >= 0),
     CONSTRAINT outbox_messages_priority_non_negative CHECK (priority >= 0)
@@ -5200,10 +5212,10 @@ COMMENT ON VIEW settled_orders IS
 -- SECURITY INVOKER, so every checkout would die on it.
 GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 
--- What an order still owes: its total, less the store credit spent on it, NET OF
+-- An order's total less the store credit spent on it, NET OF
 -- REVERSALS — summing only `amount_cents < 0` counts the ghost of a reversed
 -- spend and lets an unfunded order ship.
-CREATE FUNCTION order_amount_owed(p_order_id uuid) RETURNS bigint
+CREATE FUNCTION order_amount_after_credit(p_order_id uuid) RETURNS bigint
 LANGUAGE sql
 STABLE
 PARALLEL SAFE
@@ -5221,10 +5233,11 @@ AS $$
     FROM orders o WHERE o.id = p_order_id;
 $$;
 
-COMMENT ON FUNCTION order_amount_owed(uuid) IS
-    'The amount still payable on an order: total less store credit spent on it, '
-    'net of reversals. The one definition every funding check and the payment page '
-    'read, so the figure charged and the figure demanded cannot disagree.';
+COMMENT ON FUNCTION order_amount_after_credit(uuid) IS
+    'The order total after store credit: total less store credit spent on it, '
+    'net of reversals. Card payments are not subtracted. The one definition every '
+    'funding check and the payment page read, so the figure charged and the figure '
+    'demanded cannot disagree.';
 
 -- The goods half of a return: proportional discount rounded UP, so several
 -- partial returns cannot sum past what the customer paid for the goods. Delivery
@@ -5458,7 +5471,7 @@ GRANT EXECUTE ON FUNCTION erase_user(uuid) TO store;
 GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO store;
 -- The payment page reads what an order owes: without this every /pay is a 500 in
 -- production and nowhere else, because every test connects as the owner.
-GRANT EXECUTE ON FUNCTION order_amount_owed(uuid) TO store;
+GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO store;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO store;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO store;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO store;
@@ -5564,7 +5577,7 @@ GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, t
 GRANT EXECUTE ON FUNCTION consume_reservation_partial(uuid, integer) TO admin;
 GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO admin;
-GRANT EXECUTE ON FUNCTION order_amount_owed(uuid) TO admin;
+GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO admin;
 -- admin only: deciding a return is the back office's act, and the customer's own
 -- pages never state an amount.
 GRANT EXECUTE ON FUNCTION return_goods_refundable_amount(uuid) TO admin;
@@ -5785,7 +5798,7 @@ BEGIN
     -- stays pending, uncommitted, until it is picked.
     IF NOT order_is_committed(v_order.id)
        AND NOT (v_order.fulfillment_status = 'pending'
-                AND order_amount_owed(v_order.id) = 0) THEN
+                AND order_amount_after_credit(v_order.id) = 0) THEN
         RAISE EXCEPTION 'only a committed or fully funded order can be invoiced'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_committed';
     END IF;
@@ -6737,7 +6750,7 @@ BEGIN
     -- The amount can move while the network call creating the Stripe session is
     -- in flight. Recheck under the order lock; the caller will expire the new
     -- remote session when this named refusal is returned.
-    IF order_amount_owed(p_order_id) <> p_intended_amount_cents THEN
+    IF order_amount_after_credit(p_order_id) <> p_intended_amount_cents THEN
         RAISE EXCEPTION 'order % no longer owes %', p_order_id, p_intended_amount_cents
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_matches_order';
     END IF;
@@ -7289,7 +7302,7 @@ BEGIN
                   CONSTRAINT = 'store_credit_checkout_attribution';
     END IF;
 
-    v_owed := order_amount_owed(p_order_id);
+    v_owed := order_amount_after_credit(p_order_id);
     IF -p_amount_cents > v_owed THEN
         RAISE EXCEPTION 'credit debit % exceeds order % room %',
             -p_amount_cents, p_order_id, v_owed
