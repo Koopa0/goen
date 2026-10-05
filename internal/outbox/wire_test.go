@@ -72,6 +72,9 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicStaffInvitation,
 		`{"user_id":"u1","locale":"en"}`,
 		email.StaffInvitation{UserID: "u1", Locale: "en"})
+	decodesTo(t, TopicStaffEnrolment,
+		`{"locale":"en","email":"a@example.com","code":"01234567"}`,
+		email.StaffEnrolment{Locale: "en", Email: "a@example.com", Code: "01234567"})
 	decodesTo(t, TopicPasswordResetRequest,
 		`{"user_id":"u1","locale":"en"}`,
 		PasswordResetRequest{UserID: "u1", Locale: "en"})

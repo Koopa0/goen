@@ -630,6 +630,9 @@ CREATE TABLE staff_totp_credentials (
     -- 30-second step, and 90 seconds with the skew window either side, so
     -- requiring a strictly greater step is what makes each code single-use.
     last_step        bigint,
+    -- sha256 of the code mailed to the account's address when enrolment began;
+    -- confirming enrolment also proves the mailbox.
+    mailed_code_hash bytea,
     created_at       timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT staff_totp_secret_present CHECK (octet_length(secret_encrypted) > 0),

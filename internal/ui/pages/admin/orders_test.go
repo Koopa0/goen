@@ -174,3 +174,26 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		})
 	}
 }
+
+// An entry the build cannot label still draws, with its raw source, kind and
+// status and its time, and the rest of the page is there.
+func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		html := renderOrder(t, locale, &OrderView{
+			Number: "GO-261005-000001",
+			Timeline: []TimelineEntry{{
+				At: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineUnrecognized,
+				Unrecognized: "invoice / issue / voided", ActorKind: ActorSystem,
+			}},
+		})
+		for _, want := range []string{
+			i18n.T(ctx, i18n.KeyAdminTimelineUnrecognized), "invoice / issue / voided", "2026-10-05 10:20",
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: the order page does not carry %q", locale, want)
+			}
+		}
+	}
+}
