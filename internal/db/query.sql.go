@@ -15269,9 +15269,9 @@ SELECT
     pv.sku,
     p.name AS product_name,
     p.slug,
-    pv.stock_quantity AS sellable_quantity,
+    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
     sold.units::bigint AS units_sold,
-    (pv.stock_quantity::numeric
+    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
      / (sold.units::numeric / $1::integer))::integer AS days_cover
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
