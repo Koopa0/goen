@@ -43,7 +43,8 @@ export function measureControlBoundary(selectors, contrast, focused = false) {
       const surrounding = surface(el.parentElement);
       const fill = over(rgba(style.backgroundColor), surrounding);
       const inward = parseFloat(style.outlineOffset) < 0;
-      const outlineContrast = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0
+      const outlineWidth = style.outlineStyle === 'none' ? 0 : parseFloat(style.outlineWidth);
+      const outlineContrast = outlineWidth > 0
         ? contrast(over(rgba(style.outlineColor), inward ? fill : surrounding), inward ? fill : surrounding)
         : 1;
       const borders = ['Top', 'Right', 'Bottom', 'Left'].map((side) => {
@@ -52,7 +53,7 @@ export function measureControlBoundary(selectors, contrast, focused = false) {
       });
       return {
         selector, outline: style.outline, offset: style.outlineOffset,
-        outlineWidth: parseFloat(style.outlineWidth), active: document.activeElement === el,
+        outlineWidth, active: document.activeElement === el,
         focusVisible: el.matches(':focus-visible'),
         fill, surrounding, outlineContrast, borderContrast: Math.min(...borders),
         fillContrast: contrast(fill, surrounding), shadow: style.boxShadow,
