@@ -35,3 +35,22 @@ func (c Chain) Known() bool {
 	}
 	return false
 }
+
+// maxStoreCodeLen is ECPay's published pickup-point store code length, not any
+// one chain's width.
+const maxStoreCodeLen = 10
+
+// ValidStoreCode reports whether s is a convenience-store number: digits or upper
+// case, never digits alone — Hi-Life leads 149 of its 1,350 store codes with a
+// letter (ECPay GetStoreList, 2026-08-06).
+func ValidStoreCode(s string) bool {
+	if s == "" || len(s) > maxStoreCodeLen {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return true
+}

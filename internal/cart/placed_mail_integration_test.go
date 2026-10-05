@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // TestCheckoutWritesWhatThePlacedLetterStillOwes is the producer half of the
@@ -21,8 +22,8 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	shipID := shipVersionFor(t, "home_delivery")
-	addr := &cart.Address{
-		Email: "placed-mail@example.com", Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: "placed-mail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
