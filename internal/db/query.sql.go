@@ -8653,7 +8653,7 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 
 const lockVariantForChange = `-- name: LockVariantForChange :one
 SELECT stock_quantity, is_active, price_cents
-FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
+FROM product_variants WHERE id = $1
 `
 
 type LockVariantForChangeRow struct {
