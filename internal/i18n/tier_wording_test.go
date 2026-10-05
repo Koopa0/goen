@@ -8,7 +8,7 @@ func TestMembershipTierWording(t *testing.T) {
 		zhHant string
 		en     string
 	}{
-		{key: "admin.tier.col.band", zhHant: "等級", en: "Tier"},
+		{key: "admin.tier.col.tier", zhHant: "等級", en: "Tier"},
 		{key: "admin.tier.add", zhHant: "新增等級", en: "Add a tier"},
 		{
 			key:    "admin.tier.nameen.hint",
