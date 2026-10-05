@@ -57,3 +57,24 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 		t.Error("the allowance form did not subtract the credit note already filed")
 	}
 }
+
+func TestAnIssuedInvoiceShowsWithoutTheInvoiceService(t *testing.T) {
+	t.Parallel()
+
+	view := OrderView{
+		Number: "GO-260721-000387", Status: "completed", Committed: true, RefundedCents: 84900,
+		InvoiceDocuments: []InvoiceDocument{
+			{Kind: "invoice", Number: "LC97535645", Status: "issued", AmountCents: 100000},
+		},
+	}
+	html := renderToString(t, Order(layouts.Page{Title: "x"}, &view))
+
+	if !strings.Contains(html, "LC97535645") {
+		t.Error("an order with an issued invoice hides it while e-invoicing is off")
+	}
+	for _, action := range []string{"/invoice\"", "/invoice/void", "/invoice/allowance"} {
+		if strings.Contains(html, action) {
+			t.Errorf("e-invoicing is off but the page offers the action %s", action)
+		}
+	}
+}
