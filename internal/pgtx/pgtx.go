@@ -23,7 +23,8 @@ const rollbackTimeout = 5 * time.Second
 func Rollback(ctx context.Context, tx pgx.Tx) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
 	defer cancel()
-	// After a commit this is pgx.ErrTxClosed; any other failure has already made
-	// pgx close the connection, which aborts the transaction.
+	// After a commit this is pgx.ErrTxClosed. A failed ROLLBACK closes the
+	// connection, which aborts the transaction; a failed ROLLBACK TO SAVEPOINT
+	// leaves the outer transaction aborted for its own deferred Rollback.
 	_ = tx.Rollback(ctx) //nolint:errcheck // nothing a caller can do differs by the result
 }
