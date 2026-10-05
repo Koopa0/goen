@@ -48,7 +48,7 @@ func (s *Store) AttachImage(
 			// would collide on the unique index. A missing product falls through
 			// to an insert that matches nothing.
 			if _, err := q.LockProductCatalogue(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
 				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
