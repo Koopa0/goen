@@ -92,10 +92,8 @@ var (
 	})
 
 	KeyAdminTaxLead = key("admin.tax.lead", Message{
-		ZhHant: "名稱可以改，網址代稱不行 —— 它在每個已經被索引和分享出去的連結裡。需要不同的代稱就建一個新的，再把商品移過去。",
-		En: "A name can be changed; a slug cannot — it is in every link that has been indexed and " +
-			"every link anybody has sent. If you need a different slug, create a new one and move " +
-			"the products across.",
+		ZhHant: "名稱可以修改，網址代稱不能。需要不同的代稱時，請建立新的，再把商品移過去。",
+		En:     "A name can be changed; a slug cannot. For a different slug, create a new one and move the products across.",
 	})
 
 	KeyAdminTaxBrands = key("admin.tax.brands", Message{ZhHant: "品牌", En: "Brands"})
@@ -113,9 +111,8 @@ var (
 	KeyAdminTaxNameEn = key("admin.tax.nameen", Message{ZhHant: "英文名稱", En: "English name"})
 
 	KeyAdminTaxNameEnHint = key("admin.tax.nameen.hint", Message{
-		ZhHant: "留空的話，英文網站會顯示中文名稱 —— 讀得懂，但看得出還沒翻。",
-		En: "Leave it blank and the English site shows the Chinese name — readable, but visibly " +
-			"untranslated.",
+		ZhHant: "留空時，英文網站會顯示中文名稱。",
+		En:     "Leave it blank and the English site shows the Chinese name.",
 	})
 
 	KeyAdminTaxSlugFixed = key("admin.tax.slug.fixed", Message{
