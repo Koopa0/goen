@@ -5,6 +5,7 @@ package products_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,10 +21,13 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/user"
+	"time"
 )
 
 func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
@@ -214,3 +218,94 @@ func (refuseFullProductRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, q
 }
 
 func (refuseFullProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
+	for _, named := range []bool{true, false} {
+		t.Run(fmt.Sprint(named), func(t *testing.T) {
+			// This test tightens a CHECK, so it needs a database of its own.
+			owner := admintest.Pool(t)
+			ctx, _ := admintest.StaffContext(t, owner)
+			var slug string
+			if err := owner.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+				t.Fatal(err)
+			}
+			constraint := "products_label_future_rule"
+			if named {
+				constraint = "products_label_origin_valid"
+			}
+			if _, err := owner.Exec(ctx, `ALTER TABLE products DROP CONSTRAINT products_label_origin_valid`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := owner.Exec(ctx, `ALTER TABLE products ADD CONSTRAINT `+constraint+` CHECK (origin IS NULL OR char_length(origin) <= 4)`); err != nil {
+				t.Fatal(err)
+			}
+			cfg := owner.Config().Copy()
+			cfg.ConnConfig.RuntimeParams["role"] = "admin"
+			writer, err := pgxpool.NewWithConfig(ctx, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(writer.Close)
+			var role string
+			if err := writer.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+				t.Fatalf("writer role=%q: %v", role, err)
+			}
+			mux := http.NewServeMux()
+			admintest.ProductDesk(owner, products.NewStore(writer)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Taiwan&responsible_party_name=Retained+maker"))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				response := httptest.NewRecorder()
+				mux.ServeHTTP(response, req)
+				body := response.Body.String()
+				if response.Code != http.StatusUnprocessableEntity || response.Header().Get("Location") != "" || !strings.Contains(body, `value="Taiwan"`) || !strings.Contains(body, `value="Retained maker"`) {
+					t.Fatalf("%s named=%v: refused status=%d lost draft", locale, named, response.Code)
+				}
+				if named {
+					input := admintest.InputElementByID(t, body, "label-origin")
+					if !strings.Contains(input, `aria-invalid="true"`) || !strings.Contains(input, `aria-describedby="label-origin-error"`) || !strings.Contains(body, i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyProductLabelTextInvalid)) {
+						t.Fatalf("%s: missing origin refusal: %s", locale, input)
+					}
+				} else if !strings.Contains(body, `role="alert"`) || !strings.Contains(body, i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyProductLabelRefused)) {
+					t.Fatalf("%s: missing form refusal", locale)
+				}
+			}
+			var unchanged bool
+			if err := owner.QueryRow(ctx, `SELECT origin IS NULL AND responsible_party_name IS NULL FROM products WHERE slug=$1`, slug).Scan(&unchanged); err != nil || !unchanged {
+				t.Fatalf("refused facts changed: unchanged=%v: %v", unchanged, err)
+			}
+			if n := admintest.AuditRows(t, owner, audit.ActionSetProductLabel); n != 0 {
+				t.Fatalf("refused facts wrote %d audit rows", n)
+			}
+		})
+	}
+}
+
+func TestProductLabelWritesDoNotBlockProductReferences(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, actor := admintest.StaffContext(t, owner)
+	var slug string
+	if err := owner.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatal(err)
+	}
+	cfg := owner.Config().Copy()
+	cfg.ConnConfig.RuntimeParams["role"] = "admin"
+	writer, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	tx, err := writer.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err := db.New(tx).LockProductLabel(ctx, slug); err != nil {
+		t.Fatal(err)
+	}
+	referenceCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := owner.Exec(referenceCtx, `INSERT INTO wishlist_items (user_id, product_id) SELECT $1, id FROM products WHERE slug=$2`, actor, slug); err != nil {
+		t.Fatalf("label audit lock blocked a product reference: %v", err)
+	}
+}

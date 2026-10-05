@@ -10,6 +10,9 @@ templ productLabel(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-label"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx,i18n.KeyProductLabel) }</h2>
 		<form class="goen-admin__form" method="post" action={ templ.URL(v.LabelAction()) }>
+			if v.HasErr("label") {
+				<p class="ui-error-text" role="alert">{ v.Err("label") }</p>
+			}
 			for _, field := range v.labelInput().TextFields() {
 				<div class="goen-admin__field">
 					<label class="ui-label" for={ "label-" + field.Name }>{ i18n.T(ctx,field.Caption) }</label>

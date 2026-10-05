@@ -17,6 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -43,7 +45,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	if err != nil {
 		return fmt.Errorf("begin product label: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	before, err := q.LockProductLabel(ctx, slug)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -54,7 +56,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	}
 	params := productLabelParams(before.ID, input)
 	if err = q.SetProductLabel(ctx, params); err != nil {
-		return fmt.Errorf("set product label: %w", err)
+		return pgerr.WrapRefusal(fmt.Errorf("set product label: %w", err), ErrRefused)
 	}
 	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionSetProductLabel, Table: "products", ID: audit.EntityID(before.ID),
@@ -126,6 +128,9 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "product label refused", "error", err)
+		h.rejectProductLabel(w, r, input, productLabelRefusal(r.Context(), err))
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "set product label", "error", err)
 		access.ServerError(w, r, h.log)
@@ -134,6 +139,37 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1#sec-label", http.StatusSeeOther)
 	}
+}
+
+func productLabelRefusal(ctx context.Context, err error) map[string]string {
+	for constraint, fields := range map[string][]string{
+		"products_label_origin_valid":        {"origin"},
+		"products_label_origin_en_valid":     {"origin_en"},
+		"products_label_party_name_valid":    {"responsible_party_name"},
+		"products_label_party_phone_valid":   {"responsible_party_phone"},
+		"products_label_party_address_valid": {"responsible_party_address"},
+		"products_label_net_paired":          {"net_quantity", "net_unit"},
+		"products_label_net_positive":        {"net_quantity"},
+		"products_label_net_unit_known":      {"net_unit"},
+		"products_label_age_sane":            {"min_age_months"},
+	} {
+		if !pgerr.IsConstraint(err, constraint) {
+			continue
+		}
+		key := i18n.KeyProductLabelTextInvalid
+		switch constraint {
+		case "products_label_net_paired", "products_label_net_positive", "products_label_net_unit_known":
+			key = i18n.KeyProductLabelNetInvalid
+		case "products_label_age_sane":
+			key = i18n.KeyProductLabelAgeInvalid
+		}
+		errs := make(map[string]string, len(fields))
+		for _, field := range fields {
+			errs[field] = i18n.T(ctx, key)
+		}
+		return errs
+	}
+	return map[string]string{"label": i18n.T(ctx, i18n.KeyProductLabelRefused)}
 }
 
 func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *productlabel.Input, errs map[string]string) {

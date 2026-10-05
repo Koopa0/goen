@@ -68,6 +68,20 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 	}
 }
 
+func TestLabelTextLimitsCountTheStoredTrimmedValue(t *testing.T) {
+	t.Parallel()
+	input := Input{
+		Origin:                  " " + strings.Repeat("界", 100) + " ",
+		OriginEn:                " " + strings.Repeat("a", 100) + " ",
+		ResponsiblePartyName:    " " + strings.Repeat("界", 200) + " ",
+		ResponsiblePartyPhone:   " " + strings.Repeat("1", 40) + " ",
+		ResponsiblePartyAddress: " " + strings.Repeat("界", 500) + " ",
+	}
+	if errs := input.Validate(t.Context()); len(errs) != 0 {
+		t.Errorf("legal trimmed label fields refused: %v", errs)
+	}
+}
+
 func TestFactsKeepZeroAgeAndHideUnsetFields(t *testing.T) {
 	t.Parallel()
 	var unset *Facts
