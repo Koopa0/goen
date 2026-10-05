@@ -93,8 +93,8 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		if view.Placed != 0 || view.Orders != 0 || view.RevenueCents != 0 || view.RefundedCents != 12500 {
 			t.Fatalf("refund-only window used the wrong transaction clock or total: %+v", view)
 		}
-		if view.Completion() != "—" {
-			t.Fatalf("zero orders invented a completion rate: %q", view.Completion())
+		if view.Completion(ctx) != "—" {
+			t.Fatalf("zero orders invented a completion rate: %q", view.Completion(ctx))
 		}
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			localized := i18n.WithLocale(ctx, locale)
