@@ -197,3 +197,81 @@ func TestProductWritesAnswerAnUnavailableDatabaseAsAServerError(t *testing.T) {
 		}
 	}
 }
+
+func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	app := admintest.AdminRolePool(t, owner)
+	s := products.NewStore(app)
+	slug := admintest.DraftProduct(t, staff, owner, s)
+	const digest = "rule-refusal-image"
+	if err := s.AttachImage(staff, slug, digest, "Rule refusal photograph", "", "", 800, 600); err != nil {
+		t.Fatal(err)
+	}
+	if fields, err := s.AddSpec(staff, slug, products.SpecDraft{Label: "Capacity", Value: "Original value"}); err != nil || len(fields) > 0 {
+		t.Fatalf("spec fixture = %v/%v", fields, err)
+	}
+	if fields, err := s.AddOption(staff, slug, products.OptionDraft{Name: "Colour"}); err != nil || len(fields) > 0 {
+		t.Fatalf("option fixture = %v/%v", fields, err)
+	}
+	view, err := s.Product(staff, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Real constraints exercise rules with no matching field control in this isolated database.
+	if _, err := owner.Exec(t.Context(), `
+		CREATE TABLE product_write_references (
+			image_id uuid CONSTRAINT test_product_image_referenced REFERENCES product_images(id),
+			spec_id uuid CONSTRAINT test_product_spec_referenced REFERENCES product_specs(id)
+		);
+		ALTER TABLE product_options ADD CONSTRAINT test_product_option_refused CHECK (name <> 'Blocked option');
+		ALTER TABLE product_option_values ADD CONSTRAINT test_product_value_refused CHECK (value <> 'Blocked value');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `INSERT INTO product_write_references (image_id, spec_id) SELECT i.id, $2 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$3`, slug, view.Specs[0].ID, digest); err != nil {
+		t.Fatal(err)
+	}
+	want := productWriteRows(t, staff, owner, slug)
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name       string
+			path       string
+			form       url.Values
+			constraint string
+		}{
+			{name: "image", path: "/images/remove", form: url.Values{"digest": {digest}}, constraint: "test_product_image_referenced"},
+			{name: "spec", path: "/specs/remove", form: url.Values{"spec": {view.Specs[0].ID}}, constraint: "test_product_spec_referenced"},
+			{name: "option", path: "/options", form: url.Values{"name": {"Blocked option"}}, constraint: "test_product_option_refused"},
+			{name: "value", path: "/options/values", form: url.Values{"option": {view.Options[0].ID}, "value": {"Blocked value"}}, constraint: "test_product_value_refused"},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(staff, locale)
+				var diagnostics bytes.Buffer
+				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
+				h := products.NewHandler(s, media.NewHandler(media.NewStore(app), logger), logger)
+				mux := http.NewServeMux()
+				h.Routes(mux, admintest.BackOffice)
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+tt.path, strings.NewReader(tt.form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				res := httptest.NewRecorder()
+				mux.ServeHTTP(res, req)
+				location := "/admin/products/" + slug + "?refused=1"
+				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != location {
+					t.Errorf("rule-refused product write = %d Location %q, want 303 %q", res.Code, res.Header().Get("Location"), location)
+				}
+				if diff := cmp.Diff(want, productWriteRows(t, ctx, owner, slug)); diff != "" {
+					t.Errorf("refused product and audit rows (-want +got):\n%s", diff)
+				}
+				if !strings.Contains(diagnostics.String(), tt.constraint) {
+					t.Errorf("rule-refusal diagnostics = %q, want %s", diagnostics.String(), tt.constraint)
+				}
+				page := httptest.NewRecorder()
+				mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, location, nil))
+				if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeRefused)) || strings.Contains(page.Body.String(), tt.constraint) {
+					t.Error("rule refusal must show the localized notice without its database cause")
+				}
+			})
+		}
+	}
+}
