@@ -419,6 +419,12 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 			access.NotFound(w, r, h.log)
 			return
 		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "detach image refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
 		return
@@ -496,6 +502,12 @@ func (h *Handler) optionWrite(
 			access.NotFound(w, r, h.log)
 			return
 		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "write product option refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
@@ -541,6 +553,12 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.RemoveSpec(r.Context(), slug, r.PostFormValue("spec")); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "remove spec refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "remove spec", "error", err, "slug", slug)

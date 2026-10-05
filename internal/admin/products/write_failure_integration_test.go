@@ -157,3 +157,43 @@ func productWriteRows(t *testing.T, ctx context.Context, p *pgxpool.Pool, slug s
 	}
 	return got
 }
+
+func TestProductWritesAnswerAnUnavailableDatabaseAsAServerError(t *testing.T) {
+	staff, _ := admintest.StaffContext(t, pool)
+	closed := admintest.NamedPool(t, pool, "product-closed-"+uuid.NewString())
+	closed.Close()
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name string
+			path string
+			form url.Values
+		}{
+			{name: "image", path: "/images/remove", form: url.Values{"digest": {"original-image"}}},
+			{name: "spec", path: "/specs/remove", form: url.Values{"spec": {uuid.NewString()}}},
+			{name: "option", path: "/options", form: url.Values{"name": {"Size"}}},
+			{name: "value", path: "/options/values", form: url.Values{"option": {uuid.NewString()}, "value": {"Blue"}}},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(staff, locale)
+				var diagnostics bytes.Buffer
+				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
+				h := products.NewHandler(products.NewStore(closed), media.NewHandler(media.NewStore(closed), logger), logger)
+				mux := http.NewServeMux()
+				h.Routes(mux, admintest.BackOffice)
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/unchanged-product"+tt.path, strings.NewReader(tt.form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				res := httptest.NewRecorder()
+				mux.ServeHTTP(res, req)
+				if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {
+					t.Errorf("product write on closed pool = %d Location %q, want 500 without redirect", res.Code, res.Header().Get("Location"))
+				}
+				if body := res.Body.String(); !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminErrorBody)) || strings.Contains(body, "closed pool") {
+					t.Error("unavailable database must show the generic server error without its cause")
+				}
+				if !strings.Contains(diagnostics.String(), "closed pool") {
+					t.Errorf("product write diagnostics = %q, want the closed-pool cause", diagnostics.String())
+				}
+			})
+		}
+	}
+}
