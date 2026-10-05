@@ -48,6 +48,7 @@ var (
 	TopicNewsletterIssue = topic[email.NewsletterIssue]("newsletter.issue")
 	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
 	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
+	TopicStaffEnrolment  = topic[email.StaffEnrolment]("staff.enrolment")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
@@ -108,10 +109,10 @@ const Retain = 30 * 24 * time.Hour
 
 const SweepInterval = 24 * time.Hour
 
-// MaxAttempts is when a message stops being retried quickly and is retried
-// daily instead, so mail queued during a long provider outage still goes out.
-// It stays until [Retain] so [Store.Stuck] can show it to a human.
-const MaxAttempts = 8
+// StuckAfterAttempts is the attempt count from which a message is stuck: it is
+// retried daily instead of quickly, so mail queued during a long provider
+// outage still goes out, and [Store.Stuck] lists it for a human until [Retain].
+const StuckAfterAttempts = 8
 
 // Handler does whatever a topic means. Returning an error reschedules the
 // message; returning nil marks it delivered. Its context expires after
@@ -264,7 +265,7 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 
 func (s *Store) reschedule(ctx context.Context, owner uuid.UUID, m *db.ClaimOutboxRow, cause error) {
 	delay := backoff(m.Attempts)
-	if m.Attempts >= MaxAttempts {
+	if m.Attempts >= StuckAfterAttempts {
 		// A slow retry rather than none: valid mail queued during a long provider
 		// outage must still go out. [Retain] bounds how long it can keep trying.
 		delay = 24 * time.Hour
@@ -325,16 +326,16 @@ func (s *Store) Run(ctx context.Context) {
 }
 
 type StuckMessage struct {
-	Topic     string
-	DedupeKey string
-	Attempts  int32
-	LastError string
-	Since     time.Time
+	Topic         string
+	DedupeKey     string
+	Attempts      int32
+	LastError     string
+	NextAttemptAt time.Time
 }
 
 func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) {
 	rows, err := s.q.StuckOutbox(ctx, db.StuckOutboxParams{
-		MinAttempts: MaxAttempts, Limit: limit,
+		MinAttempts: StuckAfterAttempts, Limit: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read stuck outbox: %w", err)
@@ -344,7 +345,7 @@ func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) 
 		r := &rows[i]
 		out = append(out, StuckMessage{
 			Topic: r.Topic, DedupeKey: r.DedupeKey, Attempts: r.Attempts,
-			LastError: r.LastError, Since: r.AvailableAt,
+			LastError: r.LastError, NextAttemptAt: r.AvailableAt,
 		})
 	}
 	return out, nil

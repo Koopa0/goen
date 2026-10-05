@@ -8,13 +8,18 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // rfcSecret is the shared secret from RFC 6238's test vectors.
@@ -401,5 +406,36 @@ func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 	}
 	if strings.Count(odd, "?") != 1 {
 		t.Errorf("an account name introduced a second query separator: %s", odd)
+	}
+}
+
+func TestEnrolIsThrottledPerAccount(t *testing.T) {
+	t.Parallel()
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	// No key: Begin answers ErrDisabled before it reaches the database.
+	h := NewHandler(NewStore(idle, nil), slog.New(slog.DiscardHandler), false)
+	enrol := func(id string) int {
+		r := httptest.NewRequestWithContext(user.NewContext(t.Context(), user.User{ID: id, Role: user.RoleStaff}),
+			http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.Enrol(w, r)
+		return w.Code
+	}
+
+	for i := range 10 {
+		if got := enrol("first"); got != http.StatusSeeOther {
+			t.Fatalf("Enrol attempt %d = %d, want 303", i+1, got)
+		}
+	}
+	if got := enrol("first"); got != http.StatusTooManyRequests {
+		t.Errorf("Enrol attempt 11 = %d, want 429", got)
+	}
+	if got := enrol("second"); got != http.StatusSeeOther {
+		t.Errorf("Enrol for another account after the first was throttled = %d, want 303", got)
 	}
 }

@@ -177,7 +177,7 @@ type ReturnsView struct {
 	Errors map[string]string
 }
 
-func (v ReturnsView) FieldError(returnID, field string) string {
+func (v ReturnsView) FieldRefusal(returnID, field string) string {
 	if v.Errors == nil {
 		return ""
 	}
@@ -185,7 +185,7 @@ func (v ReturnsView) FieldError(returnID, field string) string {
 }
 
 func (v ReturnsView) FieldInvalid(returnID, field string) bool {
-	return v.FieldError(returnID, field) != ""
+	return v.FieldRefusal(returnID, field) != ""
 }
 
 func (v ReturnsView) Empty() bool { return len(v.Rows) == 0 }
