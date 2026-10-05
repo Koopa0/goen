@@ -47,6 +47,20 @@ func TestTermsSayPointsExpireButRedeemedCreditDoesNot(t *testing.T) {
 	}
 }
 
+// return_goods_refundable_amount takes the returned goods' share of the order
+// discount off the refund; a reader of either language is promised the same sum.
+func TestReturnsRefundTakesOffTheDiscountShareInBothLanguages(t *testing.T) {
+	t.Parallel()
+	zh := policyBody(t, "returns", i18n.ZhHant, "退款")
+	en := policyBody(t, "returns", i18n.En, "Refunds")
+	if !strings.Contains(zh, "扣除這些商品分攤的折扣") {
+		t.Errorf("returns policy (zh) does not take the discount share off the refund: %s", zh)
+	}
+	if !strings.Contains(en, "less the share of any discount those goods carried") {
+		t.Errorf("returns policy (en) does not take the discount share off the refund: %s", en)
+	}
+}
+
 func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "warranty", i18n.ZhHant, "怎麼送修")
