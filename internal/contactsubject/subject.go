@@ -1,7 +1,11 @@
 // Package contactsubject owns the durable categories of a contact message.
 package contactsubject
 
-import "github.com/koopa0/goen/internal/i18n"
+import (
+	"slices"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 type Subject string
 
@@ -18,10 +22,12 @@ const (
 	SubjectPartnership Subject = "合作提案"
 )
 
-var choices = [...]struct {
+type Choice struct {
 	Value Subject
 	Key   i18n.Key
-}{
+}
+
+var choices = [...]Choice{
 	{SubjectOrder, i18n.KeySubjectOrder},
 	{SubjectReturns, i18n.KeySubjectReturns},
 	{SubjectWarranty, i18n.KeySubjectWarranty},
@@ -29,12 +35,8 @@ var choices = [...]struct {
 	{SubjectPartnership, i18n.KeySubjectPartnership},
 }
 
-func Subjects() []Subject {
-	out := make([]Subject, 0, len(choices))
-	for _, choice := range choices {
-		out = append(out, choice.Value)
-	}
-	return out
+func Choices() []Choice {
+	return slices.Clone(choices[:])
 }
 
 func (s Subject) LabelKey() (i18n.Key, bool) {

@@ -105,7 +105,7 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 						readCtx := i18n.WithLocale(t.Context(), reader.locale)
 						view, row := contactSubjectRow(t, readCtx, desk, email)
 						want := []string{"Reader 原文", email, reader.label, "GO-261005-123456", "Customer note: 訂單問題。"}
-						got := []string{row.Name, row.Email, row.Subject, row.OrderRef, row.Message}
+						got := []string{row.Name, row.Email, row.SubjectLabel, row.OrderRef, row.Message}
 						if diff := cmp.Diff(want, got); diff != "" {
 							t.Errorf("Messages(%s) (-want +got):\n%s", reader.locale.Tag(), diff)
 						}

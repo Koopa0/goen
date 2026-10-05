@@ -29,12 +29,12 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	}
 	for i := range rows {
 		m := &rows[i]
-		label, labelErr := SubjectLabel(ctx, contactsubject.Subject(m.Subject))
+		label, labelErr := subjectLabel(ctx, contactsubject.Subject(m.Subject))
 		if labelErr != nil {
 			return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
 		}
 		view.Rows = append(view.Rows, admin.Message{
-			ID: m.ID.String(), Name: m.Name, Email: m.Email, Subject: label,
+			ID: m.ID.String(), Name: m.Name, Email: m.Email, SubjectLabel: label,
 			OrderRef: m.OrderRef, Message: m.Message,
 			Handled: m.HandledAt.Valid,
 			At:      shoptime.Minute(m.CreatedAt),
@@ -46,7 +46,7 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	return view, nil
 }
 
-func SubjectLabel(ctx context.Context, subject contactsubject.Subject) (string, error) {
+func subjectLabel(ctx context.Context, subject contactsubject.Subject) (string, error) {
 	key, ok := subject.LabelKey()
 	if !ok {
 		return "", fmt.Errorf("unknown contact subject %q", subject)

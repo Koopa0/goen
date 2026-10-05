@@ -105,11 +105,10 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 }
 
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
-	subjects := contactsubject.Subjects()
-	out := make([]pages.ContactSubject, 0, len(subjects))
-	for _, s := range subjects {
-		key, _ := s.LabelKey() // Subjects contains only the closed offered set.
-		out = append(out, pages.ContactSubject{Value: string(s), Label: i18n.T(ctx, key)})
+	choices := contactsubject.Choices()
+	out := make([]pages.ContactSubject, 0, len(choices))
+	for _, choice := range choices {
+		out = append(out, pages.ContactSubject{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})
 	}
 	return out
 }

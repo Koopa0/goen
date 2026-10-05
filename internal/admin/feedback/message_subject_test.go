@@ -1,9 +1,8 @@
-package feedback_test
+package feedback
 
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -29,7 +28,7 @@ func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
 			}{{i18n.ZhHant, tc.zh}, {i18n.En, tc.en}} {
 				t.Run(lang.locale.Tag(), func(t *testing.T) {
 					t.Parallel()
-					got, err := feedback.SubjectLabel(i18n.WithLocale(t.Context(), lang.locale), tc.subject)
+					got, err := subjectLabel(i18n.WithLocale(t.Context(), lang.locale), tc.subject)
 					if err != nil || got != lang.want {
 						t.Errorf("SubjectLabel(%q) = %q, %v, want %q, nil", tc.subject, got, err, lang.want)
 					}
@@ -41,7 +40,7 @@ func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
 
 func TestSubjectLabelRefusesAnUnknownCategory(t *testing.T) {
 	t.Parallel()
-	got, err := feedback.SubjectLabel(t.Context(), "An order")
+	got, err := subjectLabel(t.Context(), "An order")
 	if got != "" || err == nil {
 		t.Errorf("SubjectLabel(unknown) = %q, %v, want empty label and error", got, err)
 	}
