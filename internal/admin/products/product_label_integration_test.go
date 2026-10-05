@@ -5,13 +5,14 @@ package products_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/user"
-	"time"
 )
 
 func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
@@ -221,7 +221,7 @@ func (refuseFullProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.Trace
 
 func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 	for _, named := range []bool{true, false} {
-		t.Run(fmt.Sprint(named), func(t *testing.T) {
+		t.Run(strconv.FormatBool(named), func(t *testing.T) {
 			// This test tightens a CHECK, so it needs a database of its own.
 			owner := admintest.Pool(t)
 			ctx, _ := admintest.StaffContext(t, owner)
