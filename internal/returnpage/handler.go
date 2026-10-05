@@ -38,7 +38,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(o, nil, "")))
+		pages.ReturnsMeta(r.Context(), o.Number), viewOf(o, nil, nil, r.Context())))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -51,30 +51,62 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := returnRequestFromForm(r, o)
-	if err != nil {
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
+	draft := returnDraftFromForm(r, o)
+	req, refusals := draft.request(o)
+	if len(refusals) > 0 {
+		h.reject(w, r, o, draft, refusals)
 		return
 	}
-	err = h.store.Open(r.Context(), o.Number, returnRequester(r.Context()), req)
-	h.respondToOpen(w, r, o, req, err)
+	err := h.store.Open(r.Context(), o.Number, returnRequester(r.Context()), req)
+	h.respondToOpen(w, r, o, draft, err)
 }
 
-func returnRequestFromForm(r *http.Request, o *Order) (*Request, error) {
-	req := &Request{Reason: r.PostFormValue("reason"), Lines: map[string]int32{}}
-	for i := range o.Lines {
-		line := &o.Lines[i]
-		raw := r.PostFormValue("qty_" + line.ID)
+type returnDraft struct {
+	Reason     string
+	Quantities map[string]string
+}
+
+func returnDraftFromForm(r *http.Request, o *Order) *returnDraft {
+	draft := &returnDraft{Reason: r.PostFormValue("reason"), Quantities: make(map[string]string, len(o.Lines))}
+	for _, line := range o.Lines {
+		draft.Quantities[line.ID] = r.PostFormValue("qty_" + line.ID)
+	}
+	return draft
+}
+
+func (d *returnDraft) request(o *Order) (*Request, []web.FieldRefusal) {
+	req := &Request{Reason: d.Reason, Lines: make(map[string]int32, len(o.Lines))}
+	var refusals []web.FieldRefusal
+	chosen := false
+	quantityRefused := false
+	for _, line := range o.Lines {
+		raw := d.Quantities[line.ID]
 		if raw == "" {
 			continue
 		}
 		quantity, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil || quantity < 0 || quantity > int64(line.Returnable) {
-			return req, ErrTooMany
+		key := i18n.Key("")
+		switch {
+		case err != nil || quantity < 0:
+			key = i18n.KeyReturnQuantityInvalid
+		case quantity > int64(line.Returnable):
+			key = i18n.KeyReturnTooMany
+		default:
+			req.Lines[line.ID] = int32(quantity)
+			chosen = chosen || quantity > 0
 		}
-		req.Lines[line.ID] = int32(quantity)
+		if key != "" {
+			quantityRefused = true
+			refusals = append(refusals, web.FieldRefusal{Field: "qty_" + line.ID, MessageKey: key})
+		}
 	}
-	return req, nil
+	if !validReturnReason(d.Reason) {
+		refusals = append(refusals, web.FieldRefusal{Field: "reason", MessageKey: i18n.KeyReturnReasonInvalid})
+	}
+	if !chosen && !quantityRefused {
+		refusals = append(refusals, web.FieldRefusal{MessageKey: i18n.KeyReturnInvalid})
+	}
+	return req, refusals
 }
 
 func returnRequester(ctx context.Context) uuid.NullUUID {
@@ -87,21 +119,21 @@ func returnRequester(ctx context.Context) uuid.NullUUID {
 }
 
 func (h *Handler) respondToOpen(
-	w http.ResponseWriter, r *http.Request, o *Order, req *Request, err error,
+	w http.ResponseWriter, r *http.Request, o *Order, draft *returnDraft, err error,
 ) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/orders/"+url.PathEscape(o.Number)+"/return?filed=1", http.StatusSeeOther)
 	case errors.Is(err, ErrAlreadyOpen):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAlreadyOpen))
+		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAlreadyOpen}})
 	case errors.Is(err, ErrNotReturnable):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnNothingShort))
+		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnNothingShort}})
 	case errors.Is(err, ErrTooMany):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
+		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnTooMany}})
 	case errors.Is(err, ErrAccountErased):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAccountErased))
+		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAccountErased}})
 	case errors.Is(err, ErrInvalid):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnInvalid))
+		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
@@ -111,7 +143,7 @@ func (h *Handler) respondToOpen(
 	}
 }
 
-func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *Request, msg string) {
+func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, draft *returnDraft, refusals []web.FieldRefusal) {
 	fresh, err := h.store.Order(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
@@ -122,7 +154,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *
 		return
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(fresh, req, msg)))
+		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(fresh, draft, returnRefusals(fresh, draft, refusals), r.Context())))
 }
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
@@ -160,9 +192,9 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-func viewOf(o *Order, req *Request, errMsg string) pages.ReturnsView {
+func viewOf(o *Order, draft *returnDraft, refusals []web.FieldRefusal, ctx context.Context) pages.ReturnsView {
 	v := pages.ReturnsView{
-		Number: o.Number, HasOpen: o.HasOpen, Error: errMsg,
+		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
@@ -170,13 +202,26 @@ func viewOf(o *Order, req *Request, errMsg string) pages.ReturnsView {
 			ID: l.ID, SKU: l.SKU, Name: l.Name, Label: l.Label,
 			UnitCents: l.UnitCents, Returnable: l.Returnable,
 		}
-		if req != nil {
-			line.Chosen = req.Lines[l.ID]
+		if draft != nil {
+			line.Quantity = draft.Quantities[l.ID]
+		}
+		for _, refusal := range refusals {
+			if refusal.Field == line.Field() {
+				line.Refusal = i18n.T(ctx, refusal.MessageKey)
+			}
 		}
 		v.Lines = append(v.Lines, line)
 	}
-	if req != nil {
-		v.Reason = req.Reason
+	if draft != nil {
+		v.Reason = draft.Reason
+	}
+	for _, refusal := range refusals {
+		switch refusal.Field {
+		case "":
+			v.FormRefusal = i18n.T(ctx, refusal.MessageKey)
+		case "reason":
+			v.ReasonRefusal = i18n.T(ctx, refusal.MessageKey)
+		}
 	}
 	for i := range o.Existing {
 		e := &o.Existing[i]
@@ -186,4 +231,20 @@ func viewOf(o *Order, req *Request, errMsg string) pages.ReturnsView {
 		})
 	}
 	return v
+}
+
+func returnRefusals(o *Order, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
+	for _, refusal := range refusals {
+		switch refusal.MessageKey {
+		case i18n.KeyReturnTooMany:
+			_, fresh := draft.request(o)
+			if len(fresh) > 0 {
+				return fresh
+			}
+		case i18n.KeyReturnNothingShort:
+			_, fresh := draft.request(o)
+			return append(refusals, fresh...)
+		}
+	}
+	return refusals
 }

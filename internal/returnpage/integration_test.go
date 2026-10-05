@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
@@ -611,94 +613,119 @@ func TestOpenRefusesMoreThanShipped(t *testing.T) {
 // before its write. return_within_shipment must become ErrTooMany, and the
 // rejection must reread the order rather than advertising the refused ceiling.
 func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
-	ctx := t.Context()
-	number, lineID := shippedOrder(t, 3, 3)
-	var orderID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).
-		Scan(&orderID); err != nil {
-		t.Fatalf("read order id: %v", err)
+	cases := []struct {
+		name      string
+		competing int32
+		remaining string
+	}{
+		{name: "reduced ceiling", competing: 2, remaining: "1"},
+		{name: "exhausted ceiling", competing: 3, remaining: "0"},
 	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			number, lineID := shippedOrder(t, 3, 3)
+			var orderID uuid.UUID
+			if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).
+				Scan(&orderID); err != nil {
+				t.Fatalf("read order id: %v", err)
+			}
 
-	// The grant needs a key-share lock on the order row, which the competing
-	// transaction's return_lines_within_purchase check holds, so it is placed
-	// first.
-	form := url.Values{
-		"qty_" + lineID.String(): {"2"},
-		"reason":                 {"尺寸不合"},
-	}
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
-		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("number", number)
-	placedBy(t, req, number)
+			// The grant needs a key-share lock on the order row, which the competing
+			// transaction's return_lines_within_purchase check holds, so it is placed
+			// first.
+			form := url.Values{
+				"qty_" + lineID.String(): {"2"},
+				"reason":                 {"尺寸不合"},
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+				"/orders/"+number+"/return", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetPathValue("number", number)
+			placedBy(t, req, number)
 
-	competitor, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin competing return: %v", err)
-	}
-	defer func() { _ = competitor.Rollback(ctx) }()
-	var requestID uuid.UUID
-	if err := competitor.QueryRow(ctx, `
+			competitor, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin competing return: %v", err)
+			}
+			defer func() { _ = competitor.Rollback(ctx) }()
+			var requestID uuid.UUID
+			if err := competitor.QueryRow(ctx, `
 		INSERT INTO return_requests (order_id, reason)
 		VALUES ($1, 'competing return') RETURNING id`, orderID).
-		Scan(&requestID); err != nil {
-		t.Fatalf("create competing return: %v", err)
-	}
-	if _, err := competitor.Exec(ctx, `
+				Scan(&requestID); err != nil {
+				t.Fatalf("create competing return: %v", err)
+			}
+			if _, err := competitor.Exec(ctx, `
 		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
-		VALUES ($1, $2, $3, 2)`, orderID, requestID, lineID); err != nil {
-		t.Fatalf("claim two units in competing return: %v", err)
-	}
-	if _, err := competitor.Exec(ctx, `
+		VALUES ($1, $2, $3, $4)`, orderID, requestID, lineID, tt.competing); err != nil {
+				t.Fatalf("claim two units in competing return: %v", err)
+			}
+			if _, err := competitor.Exec(ctx, `
 		UPDATE return_requests
 		SET status = 'approved', decided_at = now(), resolution = 'approved in fixture'
 		WHERE id = $1`, requestID); err != nil {
-		t.Fatalf("approve competing return: %v", err)
-	}
+				t.Fatalf("approve competing return: %v", err)
+			}
 
-	app := "wave0-return-" + uuid.NewString()
-	appPool := returnsApplicationPool(t, app)
-	var pid int
-	if err := appPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
-		t.Fatalf("read return backend pid: %v", err)
-	}
-	s := returnpage.NewStore(appPool)
-	h := returnpage.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
-	res := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		h.Submit(res, req)
-		close(done)
-	}()
-	waitForReturnsLock(t, pid, done)
-	if err := competitor.Commit(ctx); err != nil {
-		t.Fatalf("commit competing return: %v", err)
-	}
-	<-done
+			app := "wave0-return-" + uuid.NewString()
+			appPool := returnsApplicationPool(t, app)
+			var pid int
+			if err := appPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+				t.Fatalf("read return backend pid: %v", err)
+			}
+			s := returnpage.NewStore(appPool)
+			h := returnpage.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			res := httptest.NewRecorder()
+			done := make(chan struct{})
+			go func() {
+				h.Submit(res, req)
+				close(done)
+			}()
+			waitForReturnsLock(t, pid, done)
+			if err := competitor.Commit(ctx); err != nil {
+				t.Fatalf("commit competing return: %v", err)
+			}
+			<-done
 
-	if res.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("raced return answered %d, want 422; body=%s", res.Code, res.Body.String())
-	}
-	body := res.Body.String()
-	if !strings.Contains(body, i18n.T(ctx, i18n.KeyReturnTooMany)) {
-		t.Error("the refusal does not say the return quantity is too large")
-	}
-	if strings.Contains(body, i18n.T(ctx, i18n.KeyReturnInvalid)) {
-		t.Error("a quantity race was reported as a generic invalid request")
-	}
-	fieldAt := strings.Index(body, `name="qty_`+lineID.String()+`"`)
-	if fieldAt < 0 {
-		t.Fatal("the refused line is absent from the fresh form")
-	}
-	field := body[fieldAt:min(len(body), fieldAt+300)]
-	if !strings.Contains(field, `max="1"`) {
-		t.Errorf("the form kept the stale ceiling instead of the fresh 1: %s", field)
-	}
-	if !strings.Contains(field, `value="2"`) {
-		t.Errorf("the fresh form lost the submitted quantity 2: %s", field)
-	}
-	if !strings.Contains(body, "尺寸不合") {
-		t.Error("the fresh form lost the submitted reason")
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("raced return answered %d, want 422; body=%s", res.Code, res.Body.String())
+			}
+			body := res.Body.String()
+			if !strings.Contains(body, i18n.T(ctx, i18n.KeyReturnTooMany)) {
+				t.Error("the refusal does not say the return quantity is too large")
+			}
+			if strings.Contains(body, i18n.T(ctx, i18n.KeyReturnInvalid)) {
+				t.Error("a quantity race was reported as a generic invalid request")
+			}
+			fieldAt := strings.Index(body, `name="qty_`+lineID.String()+`"`)
+			if fieldAt < 0 {
+				t.Fatal("the refused line is absent from the fresh form")
+			}
+			field := body[fieldAt:min(len(body), fieldAt+300)]
+			if !strings.Contains(field, `max="`+tt.remaining+`"`) {
+				t.Errorf("the form kept the stale ceiling instead of fresh %s: %s", tt.remaining, field)
+			}
+			if !strings.Contains(field, `value="2"`) {
+				t.Errorf("the fresh form lost the submitted quantity 2: %s", field)
+			}
+
+			doc, parseErr := html.Parse(strings.NewReader(body))
+			if parseErr != nil {
+				t.Fatal(parseErr)
+			}
+			controls, _ := returnFormControls(t, doc)
+			want := map[string]string{"value": "2", "type": "number", "max": tt.remaining, "aria-invalid": "true", "aria-describedby": "qty_" + lineID.String() + "-error"}
+			if diff := cmp.Diff(want, controls["qty_"+lineID.String()]); diff != "" {
+				t.Errorf("raced quantity accessibility mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(map[string]string{}, controls["reason"]); diff != "" {
+				t.Errorf("race blamed optional reason (-want +got):\n%s", diff)
+			}
+			if !strings.Contains(body, "尺寸不合") {
+				t.Error("the fresh form lost the submitted reason")
+			}
+		})
 	}
 }
 
@@ -1143,5 +1170,122 @@ func TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn(t *testing.T) {
 	}
 	if len(o.Existing) != 0 {
 		t.Errorf("the customer's returns list shows %d requests they never made", len(o.Existing))
+	}
+}
+
+func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
+	tests := []struct {
+		name, first, later, reason, inputType, refusal string
+		reasonInvalid, quantityInvalid                 bool
+		status                                         int
+	}{
+		{name: "malformed first with later selection", first: "not a number", later: "1", reason: "Keep this reason", inputType: "text", quantityInvalid: true, refusal: "Enter a whole number of zero or more.", status: http.StatusUnprocessableEntity},
+		{name: "stale ceiling with later selection", first: "2", later: "1", reason: "Keep this reason", inputType: "number", quantityInvalid: true, refusal: "That is more than can be returned.", status: http.StatusUnprocessableEntity},
+		{name: "all zero with valid optional reason", first: "0", later: "0", reason: "Keep this reason", inputType: "number", refusal: "Choose at least one item and check the entered details.", status: http.StatusUnprocessableEntity},
+		{name: "reason too long with later selection", first: "0", later: "1", reason: strings.Repeat("x", 501), inputType: "number", reasonInvalid: true, refusal: "Keep the optional reason within 500 characters and remove unsupported characters.", status: http.StatusUnprocessableEntity},
+		{name: "blank optional reason accepted", first: "0", later: "1", status: http.StatusSeeOther},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), i18n.En)
+			orderID, number, lines := shippedTwoLineOrder(t, 0)
+			first, later := "qty_"+lines[0].String(), "qty_"+lines[1].String()
+			form := url.Values{first: {tt.first}, later: {tt.later}, "reason": {tt.reason}}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/return", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetPathValue("number", number)
+			placedBy(t, req, number)
+			h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			res := httptest.NewRecorder()
+			h.Submit(res, req)
+			if res.Code != tt.status {
+				t.Fatalf("Submit = %d, want %d; body=%s", res.Code, tt.status, res.Body.String())
+			}
+			if tt.status == http.StatusSeeOther {
+				assertReturnRowCounts(t, orderID, 1, 1)
+				return
+			}
+			assertReturnRowCounts(t, orderID, 0, 0)
+			doc, err := html.Parse(strings.NewReader(res.Body.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			attrs, reasonText := returnFormControls(t, doc)
+			wantFirst := map[string]string{"value": tt.first, "type": tt.inputType, "max": "1"}
+			if tt.quantityInvalid {
+				wantFirst["aria-invalid"] = "true"
+				wantFirst["aria-describedby"] = first + "-error"
+			}
+			if diff := cmp.Diff(wantFirst, attrs[first]); diff != "" {
+				t.Errorf("first quantity mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(map[string]string{"value": tt.later, "type": "number", "max": "1"}, attrs[later]); diff != "" {
+				t.Errorf("later quantity mismatch (-want +got):\n%s", diff)
+			}
+			wantReason := map[string]string{}
+			if tt.reasonInvalid {
+				wantReason["aria-invalid"] = "true"
+				wantReason["aria-describedby"] = "return-reason-error"
+			}
+			if diff := cmp.Diff(wantReason, attrs["reason"]); diff != "" {
+				t.Errorf("reason accessibility mismatch (-want +got):\n%s", diff)
+			}
+			if reasonText != tt.reason {
+				t.Errorf("reason = %q, want %q", reasonText, tt.reason)
+			}
+			if !strings.Contains(res.Body.String(), tt.refusal) {
+				t.Errorf("missing refusal %q", tt.refusal)
+			}
+		})
+	}
+}
+
+func returnFormControls(t *testing.T, doc *html.Node) (controls map[string]map[string]string, reasonText string) {
+	t.Helper()
+	controls = map[string]map[string]string{}
+	targets := map[string]int{}
+	visitReturnNodes(doc, func(n *html.Node) {
+		if n.Type != html.ElementNode {
+			return
+		}
+		name := ""
+		for _, a := range n.Attr {
+			if a.Key == "name" {
+				name = a.Val
+			}
+			if a.Key == "id" {
+				targets[a.Val]++
+			}
+		}
+		if (n.Data != "input" && n.Data != "textarea") || (!strings.HasPrefix(name, "qty_") && name != "reason") {
+			return
+		}
+		if _, ok := controls[name]; ok {
+			t.Errorf("duplicate control %s", name)
+		}
+		attrs := map[string]string{}
+		for _, a := range n.Attr {
+			switch a.Key {
+			case "aria-invalid", "aria-describedby", "value", "type", "max":
+				attrs[a.Key] = a.Val
+			}
+		}
+		controls[name] = attrs
+		if name == "reason" && n.FirstChild != nil {
+			reasonText = n.FirstChild.Data
+		}
+	})
+	for name, attrs := range controls {
+		if id := attrs["aria-describedby"]; id != "" && targets[id] != 1 {
+			t.Errorf("%s describes %q with %d targets, want 1", name, id, targets[id])
+		}
+	}
+	return controls, reasonText
+}
+
+func visitReturnNodes(n *html.Node, visit func(*html.Node)) {
+	visit(n)
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		visitReturnNodes(c, visit)
 	}
 }
