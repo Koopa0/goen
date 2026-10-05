@@ -450,7 +450,7 @@ func (s *Store) placeOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	inv *Invoice,
 	couponCode string,
 	shown checkoutQuoteID,
@@ -557,7 +557,7 @@ func lockCheckoutTerms(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	couponCode string,
 	shown checkoutQuoteID,
 ) (*checkoutTerms, error) {
@@ -706,7 +706,7 @@ type orderParts struct {
 	invoice       *Invoice
 	coupon        *Coupon
 	orderNumber   string
-	address       *Address
+	address       *order.Delivery
 	totalCents    int64
 	creditCents   int64
 }
@@ -775,12 +775,12 @@ func writeInvoicePreference(
 	q *db.Queries,
 	orderID uuid.UUID,
 	inv *Invoice,
-	addr *Address,
+	addr *order.Delivery,
 ) error {
 	if inv == nil {
 		inv = &Invoice{Type: invoicepkg.PreferenceMember}
 	}
-	buyerName := addr.Name
+	buyerName := addr.RecipientName
 	if inv.Type == invoicepkg.PreferenceCompany {
 		buyerName = inv.CompanyName
 	}
@@ -836,13 +836,13 @@ func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
 	orderID, cartID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	attemptID checkoutAttemptID,
 ) error {
 	if err := q.CreateOrderPrivateData(ctx, db.CreateOrderPrivateDataParams{
 		OrderID:         orderID,
 		Email:           text(addr.Email),
-		RecipientName:   text(addr.Name),
+		RecipientName:   text(addr.RecipientName),
 		Phone:           text(addr.Phone),
 		PostalCode:      addr.PostalCode,
 		City:            addr.City,
