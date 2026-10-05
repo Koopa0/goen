@@ -15327,6 +15327,17 @@ func (q *Queries) ShippingVersion(ctx context.Context, arg ShippingVersionParams
 	return i, err
 }
 
+const shippingVersionMethod = `-- name: ShippingVersionMethod :one
+SELECT method_id FROM shipping_method_versions WHERE id = $1
+`
+
+func (q *Queries) ShippingVersionMethod(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, shippingVersionMethod, id)
+	var method_id uuid.UUID
+	err := row.Scan(&method_id)
+	return method_id, err
+}
+
 const shippingZoneFor = `-- name: ShippingZoneFor :one
 SELECT coalesce(vz.surcharge_cents, 0)::bigint AS surcharge_cents,
        coalesce(localized_name(z.name, z.name_en, $1::text), '')::text AS zone_name

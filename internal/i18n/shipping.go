@@ -72,13 +72,18 @@ var (
 	})
 
 	KeyFormMethodFee = key("form.method.fee", Message{
-		ZhHant: "運費超出範圍。",
-		En:     "That delivery fee is out of range.",
+		ZhHant: "運費請填 0 到 %s 之間的整數金額。",
+		En:     "Enter a whole-dollar delivery fee from 0 to %s.",
 	})
 
 	KeyFormMethodFreeOver = key("form.method.freeover", Message{
-		ZhHant: "免運門檻不能是負數。",
-		En:     "A free-delivery threshold cannot be negative.",
+		ZhHant: "免運門檻請填 0 到 %s 之間的整數金額，或留空表示不免運。",
+		En:     "Enter a whole-dollar free-delivery threshold from 0 to %s, or leave it blank for no free delivery.",
+	})
+
+	KeyFormShippingSurcharge = key("form.shipping.surcharge", Message{
+		ZhHant: "分區加價請填 0 到 %s 之間的整數金額，或留空表示不加價。",
+		En:     "Enter a whole-dollar zone surcharge from 0 to %s, or leave it blank for no surcharge.",
 	})
 
 	KeyFormMethodCodeTaken = key("form.method.code.taken", Message{
@@ -184,6 +189,8 @@ var (
 	})
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
+
+	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定未儲存，這項變更不符合配送規則。", En: "The shipping settings were not saved; this change breaks a delivery rule."})
 
 	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{
 		ZhHant: "配送費率已變更。請確認目前設定，再重新送出分區加價。",
