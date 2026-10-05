@@ -121,7 +121,7 @@ var (
 		En:     "No tiers yet. Without one, everybody earns at the base points rate.",
 	})
 
-	KeyAdminTierColBand = key("admin.tier.col.band", Message{ZhHant: "等級", En: "Band"})
+	KeyAdminTierColBand = key("admin.tier.col.band", Message{ZhHant: "等級", En: "Tier"})
 
 	KeyAdminTierColThreshold = key("admin.tier.col.threshold", Message{ZhHant: "門檻", En: "Threshold"})
 
@@ -129,12 +129,11 @@ var (
 
 	KeyAdminTierColMembers = key("admin.tier.col.members", Message{ZhHant: "目前人數", En: "Members now"})
 
-	KeyAdminTierAdd = key("admin.tier.add", Message{ZhHant: "新增等級", En: "Add a band"})
+	KeyAdminTierAdd = key("admin.tier.add", Message{ZhHant: "新增等級", En: "Add a tier"})
 
 	KeyAdminTierNameEnHint = key("admin.tier.nameen.hint", Message{
 		ZhHant: "會員頁會把等級名稱放進句子裡，所以英文缺一半會讀起來像壞掉。",
-		En: "The account page puts a band name inside a sentence, so a missing English one leaves " +
-			"it reading as broken.",
+		En:     "The account page puts a tier name inside a sentence, so a missing English one leaves it reading as broken.",
 	})
 
 	KeyAdminTierThreshold = key("admin.tier.threshold", Message{
