@@ -4545,12 +4545,11 @@ LANGUAGE plpgsql AS $$
 DECLARE
     target uuid := coalesce(NEW.product_id, OLD.product_id);
 BEGIN
-    -- A concurrent feature may be uncommitted; lock before deciding membership.
-    PERFORM 1 FROM products WHERE id = target FOR UPDATE;
-
     IF NOT EXISTS (SELECT 1 FROM sale_campaign_products WHERE product_id = target) THEN
         RETURN NULL;
     END IF;
+
+    PERFORM 1 FROM products WHERE id = target FOR UPDATE;
 
     IF NOT EXISTS (
         SELECT 1 FROM product_variants
