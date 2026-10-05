@@ -23,6 +23,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	pdp := &pages.ProductView{Slug: "product"}
 	ret := &admin.Return{ID: "return"}
 	return map[string][]string{
+		"pages/admin/product_label.templ:templ.URL(v.LabelAction())":      {product.LabelAction()},
 		"layouts/banner.templ:templ.SafeURL(b.DismissAction())":           {(layouts.Banner{}).DismissAction()},
 		"pages/newsletter.templ:templ.SafeURL(v.Action)":                  newsletterFormActions(t),
 		"pages/admin/product.templ:templ.SafeURL(v.Action())":             {product.Action(), newProduct.Action()},

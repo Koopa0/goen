@@ -119,8 +119,8 @@ func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testi
 	}
 	nav, _, _ = strings.Cut(nav, "</nav>")
 	links := regexp.MustCompile(`href="#([a-z-]+)"`).FindAllStringSubmatch(nav, -1)
-	if len(links) != 5 {
-		t.Fatalf("%d section links, want 5", len(links))
+	if len(links) != 6 {
+		t.Fatalf("%d section links, want 6", len(links))
 	}
 	for _, m := range links {
 		if !strings.Contains(page, `id="`+m[1]+`"`) {
