@@ -50,9 +50,8 @@ var (
 	})
 
 	KeyAdminProdSpecHint = key("admin.prod.spechint", Message{
-		ZhHant: "英文留空的話，英文網站會顯示中文 —— 數字型的內容（6.3 吋）通常不必翻。",
-		En: "Leave the English blank and the English site shows the Chinese — a value that is " +
-			"mostly a number (6.3-inch) rarely needs translating.",
+		ZhHant: "英文留空時，英文網站會顯示中文。以數字為主的內容（例如 6.3 吋）通常不必翻譯。",
+		En:     "Leave the English blank and the English site shows the Chinese. A value that is mostly a number, such as 6.3-inch, rarely needs translating.",
 	})
 
 	KeyAdminProdSpecAdd = key("admin.prod.specadd", Message{
