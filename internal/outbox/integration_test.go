@@ -5,12 +5,14 @@ package outbox_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -171,22 +173,23 @@ func TestRescheduleUsesTheDatabaseTransactionClock(t *testing.T) {
 
 	var id uuid.UUID
 	var databaseNow time.Time
+	owner := uuid.New()
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload)
-		VALUES ('test.db-clock', $1, '{}'::jsonb)
-		RETURNING id, now()`, uuid.NewString()).Scan(&id, &databaseNow); err != nil {
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, lease_owner)
+		VALUES ('test.db-clock', $1, '{}'::jsonb, $2)
+		RETURNING id, now()`, uuid.NewString(), owner).Scan(&id, &databaseNow); err != nil {
 		t.Fatalf("enqueue in clock transaction: %v", err)
 	}
 
 	time.Sleep(250 * time.Millisecond)
-	if err := db.New(tx).RescheduleOutbox(ctx, db.RescheduleOutboxParams{
-		ID: id,
+	if n, err := db.New(tx).RescheduleOutbox(ctx, db.RescheduleOutboxParams{
+		ID: id, LeaseOwner: owner,
 		Backoff: pgtype.Interval{
 			Microseconds: (50 * time.Millisecond).Microseconds(), Valid: true,
 		},
 		LastError: "clock proof",
-	}); err != nil {
-		t.Fatalf("reschedule: %v", err)
+	}); err != nil || n != 1 {
+		t.Fatalf("reschedule: %d rows, %v", n, err)
 	}
 
 	var due time.Time
@@ -303,6 +306,74 @@ func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
 	if !due.After(time.Now()) {
 		t.Errorf("a claimed message is due at %v, which is now or earlier — any "+
 			"other worker can take it", due)
+	}
+}
+
+// TestALateWorkerCannotSettleAClaimItLost: a worker that overran its lease
+// finds the message claimed again, and whatever its handler concluded, the
+// later claim's state stands — a late reschedule would otherwise hand the
+// message to a third worker while the second is still sending it.
+func TestALateWorkerCannotSettleAClaimItLost(t *testing.T) {
+	type messageState struct {
+		AvailableAt time.Time
+		Attempts    int32
+		Delivered   bool
+		LastError   string
+		LeaseOwner  string
+	}
+	for _, tt := range []struct {
+		name    string
+		outcome error
+	}{
+		{name: "late delivery", outcome: nil},
+		{name: "late failure", outcome: errStopHere},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			emptyOutbox(t)
+			ctx := t.Context()
+			key := uuid.NewString()
+			enqueue(t, "test.lost-claim", key, `{}`)
+			read := func() messageState {
+				t.Helper()
+				var s messageState
+				if err := pool.QueryRow(ctx, `
+					SELECT available_at, attempts, delivered_at IS NOT NULL,
+					       coalesce(last_error, ''), coalesce(lease_owner::text, '')
+					FROM outbox_messages WHERE dedupe_key = $1`, key).
+					Scan(&s.AvailableAt, &s.Attempts, &s.Delivered, &s.LastError, &s.LeaseOwner); err != nil {
+					t.Fatalf("read the message: %v", err)
+				}
+				return s
+			}
+
+			var claimedAgain messageState
+			late := outbox.NewStore(pool, quiet())
+			late.Handle("test.lost-claim", func(ctx context.Context, _ []byte) error {
+				if _, err := pool.Exec(ctx,
+					`UPDATE outbox_messages SET available_at = now() WHERE dedupe_key = $1`, key); err != nil {
+					return fmt.Errorf("expire the lease: %w", err)
+				}
+				claimed, err := db.New(pool).ClaimOutbox(ctx, db.ClaimOutboxParams{
+					BatchSize: 1, LeaseOwner: uuid.New(),
+					Lease: pgtype.Interval{Microseconds: outbox.Lease.Microseconds(), Valid: true},
+				})
+				if err != nil || len(claimed) != 1 {
+					return fmt.Errorf("second claim took %d messages: %w", len(claimed), err)
+				}
+				claimedAgain = read()
+				return tt.outcome
+			})
+
+			if _, _, err := late.Drain(ctx); err != nil {
+				t.Fatalf("Drain with a lost claim = %v, want nil", err)
+			}
+			if claimedAgain.Attempts != 2 {
+				t.Fatalf("the second claim never took the message: %+v", claimedAgain)
+			}
+			if diff := cmp.Diff(claimedAgain, read()); diff != "" {
+				t.Errorf("the %s of an expired claim changed the second claim's message (-claimed +after):\n%s", tt.name, diff)
+			}
+		})
 	}
 }
 
