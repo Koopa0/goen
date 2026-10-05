@@ -110,6 +110,9 @@ type DashboardView struct {
 	Low                 []Variant
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
+	// HealthUnavailable is set when the health desk could not be read, so an
+	// absent payment or invoice task is not taken for "nothing to check".
+	HealthUnavailable bool
 }
 
 // Task is one kind of work that waits for a person: what it is, how much of
