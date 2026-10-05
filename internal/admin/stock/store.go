@@ -155,8 +155,8 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			}); moveErr != nil {
 				return pgerr.WrapRefusal(moveErr, ErrRefused)
 			}
-			if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID}); err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+			if clearErr := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID}); clearErr != nil {
+				return pgerr.WrapRefusal(clearErr, ErrRefused)
 			}
 			return nil
 		})
