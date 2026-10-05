@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -240,10 +241,10 @@ func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
 
 func (m MemberStanding) Multiplier(ctx context.Context) string {
 	whole := m.MultiplierBP / 10000
-	frac := (m.MultiplierBP % 10000) / 1000
+	frac := m.MultiplierBP % 10000
 	n := strconv.FormatInt(int64(whole), 10)
 	if frac != 0 {
-		n += "." + strconv.FormatInt(int64(frac), 10)
+		n += "." + strings.TrimRight(fmt.Sprintf("%04d", frac), "0")
 	}
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyMultiplierTimes), n)
 }
