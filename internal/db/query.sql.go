@@ -10753,6 +10753,211 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 	return i, err
 }
 
+const pickingSlipLines = `-- name: PickingSlipLines :many
+SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents,
+       (ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
+FROM order_lines ol
+WHERE ol.order_id = ANY($1::uuid[])
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+ORDER BY ol.order_id, ol.position, ol.id
+`
+
+type PickingSlipLinesRow struct {
+	OrderID        uuid.UUID
+	SKU            string
+	ProductName    string
+	VariantLabel   pgtype.Text
+	UnitPriceCents int64
+	Remaining      int32
+}
+
+// ShippableLines uses the same purchased-minus-dispatched quantity. Read the
+// line snapshot even if its catalogue variant has since been removed.
+func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([]PickingSlipLinesRow, error) {
+	rows, err := q.db.Query(ctx, pickingSlipLines, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingSlipLinesRow{}
+	for rows.Next() {
+		var i PickingSlipLinesRow
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.UnitPriceCents,
+			&i.Remaining,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickingSlips = `-- name: PickingSlips :many
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       coalesce(pd.email, '') AS email,
+       coalesce(pd.recipient_name, '') AS recipient_name,
+       coalesce(pd.phone, '') AS phone,
+       coalesce(pd.postal_code, '') AS postal_code,
+       coalesce(pd.city, '') AS city,
+       coalesce(pd.district, '') AS district,
+       coalesce(pd.street, '') AS street,
+       coalesce(pd.pickup_chain, '') AS pickup_chain,
+       coalesce(pd.pickup_store_code, '') AS pickup_store_code,
+       coalesce(pd.pickup_store_name, '') AS pickup_store_name,
+       coalesce(ip.invoice_type, '') AS invoice_type,
+       coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
+       coalesce(ip.donation_code, '') AS invoice_donation_code,
+       coalesce(ip.tax_id, '') AS invoice_tax_id
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
+WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
+  AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
+              AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                          WHERE sl.order_line_id = ol.id), 0))
+  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
+       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
+ORDER BY o.placed_at, o.id
+LIMIT $4::integer
+`
+
+type PickingSlipsParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+type PickingSlipsRow struct {
+	PageCursor           string
+	ID                   uuid.UUID
+	OrderNumber          string
+	PlacedAt             time.Time
+	ShippingMethodName   string
+	CustomerNote         string
+	Email                string
+	RecipientName        string
+	Phone                string
+	PostalCode           string
+	City                 string
+	District             string
+	Street               string
+	PickupChain          string
+	PickupStoreCode      string
+	PickupStoreName      string
+	InvoiceType          string
+	InvoiceMobileBarcode string
+	InvoiceDonationCode  string
+	InvoiceTaxID         string
+}
+
+func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
+	rows, err := q.db.Query(ctx, pickingSlips,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingSlipsRow{}
+	for rows.Next() {
+		var i PickingSlipsRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.OrderNumber,
+			&i.PlacedAt,
+			&i.ShippingMethodName,
+			&i.CustomerNote,
+			&i.Email,
+			&i.RecipientName,
+			&i.Phone,
+			&i.PostalCode,
+			&i.City,
+			&i.District,
+			&i.Street,
+			&i.PickupChain,
+			&i.PickupStoreCode,
+			&i.PickupStoreName,
+			&i.InvoiceType,
+			&i.InvoiceMobileBarcode,
+			&i.InvoiceDonationCode,
+			&i.InvoiceTaxID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickingTotals = `-- name: PickingTotals :many
+SELECT ol.sku,
+       (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
+       coalesce((array_agg(ol.variant_label ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1], '')::text AS variant_label,
+       sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                  WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+GROUP BY ol.sku
+ORDER BY ol.sku
+`
+
+type PickingTotalsRow struct {
+	SKU          string
+	ProductName  string
+	VariantLabel string
+	Remaining    int64
+}
+
+// Totals span the entire queue, regardless of the slip page. A SKU whose
+// snapshots have different labels keeps its most recent order's wording.
+func (q *Queries) PickingTotals(ctx context.Context) ([]PickingTotalsRow, error) {
+	rows, err := q.db.Query(ctx, pickingTotals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingTotalsRow{}
+	for rows.Next() {
+		var i PickingTotalsRow
+		if err := rows.Scan(
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.Remaining,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pointsBalance = `-- name: PointsBalance :one
 SELECT a.id AS account_id,
        coalesce((SELECT lb.points FROM loyalty_balances lb
