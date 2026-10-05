@@ -44,7 +44,7 @@ WHERE pv.sku = $1;
 -- and the audit row's "before" names a value this write never saw.
 -- name: LockVariantForChange :one
 SELECT stock_quantity, is_active, price_cents
-FROM product_variants WHERE id = $1;
+FROM product_variants WHERE id = $1 FOR NO KEY UPDATE;
 
 -- record_inventory_movement is the ONLY door: admin has no UPDATE on
 -- stock_quantity, so a direct write is refused by the database.
