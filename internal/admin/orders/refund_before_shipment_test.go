@@ -41,6 +41,7 @@ func TestRefundRecoveryNoticesDistinguishSettledMoney(t *testing.T) {
 		{"unpaid English", i18n.En, "refundretry", "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”."},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			req := httptest.NewRequestWithContext(ctx, "GET", "/admin/orders/GO-260929-000102?"+tt.query+"=1", nil)
 			if got := web.Notice(req, notices); got != tt.want {
