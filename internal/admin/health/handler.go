@@ -42,10 +42,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/health/reconcile", ac.RequireStaff(h.Reconcile))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"reconciled":    web.Done(i18n.KeyAdminNoticeReconciled),
 	"invoicequeued": web.Done(i18n.KeyAdminNoticeInvoiceQueued),
-	"notflagged":    web.Refused(i18n.KeyAdminNoticeNotFlagged),
+	"notflagged":    web.Done(i18n.KeyAdminNoticeNotFlagged),
 	"mustrefund":    web.Refused(i18n.KeyAdminNoticePaymentMustRefund),
 }
 

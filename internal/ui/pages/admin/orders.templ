@@ -439,9 +439,6 @@ templ Order(p layouts.Page, v *OrderView) {
 									if e.Unrecognized != "" {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
-									if e.Unrecognized != "" {
-										<span class="goen-admin__meta">{ e.Unrecognized }</span>
-									}
 									if e.Note != "" {
 										<span class="goen-admin__meta">{ e.Note }</span>
 									}
@@ -675,34 +672,34 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "invoice-heading"}}) {
 					<h2 class="goen-admin__optitle" id="invoice-heading">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
+					if len(v.InvoiceDocuments) > 0 {
+						<ul class="goen-admin__timeline" role="list">
+							for _, d := range v.InvoiceDocuments {
+								<li class="goen-admin__event">
+									<span class="goen-admin__eventhead">
+										{ d.KindText(ctx) } { d.Number } · { d.Amount() }
+									</span>
+									if d.Voided() {
+										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+											{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
+										}
+									}
+									<span class="goen-admin__meta">{ d.IssuedAt }</span>
+									if d.ProviderRef != "" {
+										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
+									}
+									for _, l := range d.Lines {
+										<span class="goen-admin__meta">{ l.Line() }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
 						</p>
 					} else {
-						if len(v.InvoiceDocuments) > 0 {
-							<ul class="goen-admin__timeline" role="list">
-								for _, d := range v.InvoiceDocuments {
-									<li class="goen-admin__event">
-										<span class="goen-admin__eventhead">
-											{ d.KindText(ctx) } { d.Number } · { d.Amount() }
-										</span>
-										if d.Voided() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
-											}
-										}
-										<span class="goen-admin__meta">{ d.IssuedAt }</span>
-										if d.ProviderRef != "" {
-											<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
-										}
-										for _, l := range d.Lines {
-											<span class="goen-admin__meta">{ l.Line() }</span>
-										}
-									</li>
-								}
-							</ul>
-						}
 						if v.CanIssueInvoice() {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {

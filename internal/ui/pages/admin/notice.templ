@@ -14,7 +14,7 @@ templ AnnounceOrder(r components.Result) {
 	@announce(r, "ui-alert")
 }
 
-// A refusal opens with a word, so the outcome does not rest on colour alone.
+// A refusal or a failure opens with a word, so the outcome does not rest on colour alone.
 templ announce(r components.Result, class string) {
 	if r.Text != "" {
 		@components.Notice(components.NoticeProps{Intent: r.Outcome.Intent(), Class: class}) {

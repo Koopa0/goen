@@ -39,7 +39,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/credit", ac.RequireStaff(h.GrantCredit))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":          web.Done(i18n.KeyAdminNoticeOK),
 	"refused":     web.Refused(i18n.KeyAdminNoticeRefused),
 	"creditneeds": web.Refused(i18n.KeyAdminNoticeCreditNeeds),

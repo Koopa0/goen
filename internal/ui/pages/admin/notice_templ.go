@@ -72,7 +72,7 @@ func AnnounceOrder(r components.Result) templ.Component {
 	})
 }
 
-// A refusal opens with a word, so the outcome does not rest on colour alone.
+// A refusal or a failure opens with a word, so the outcome does not rest on colour alone.
 func announce(r components.Result, class string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

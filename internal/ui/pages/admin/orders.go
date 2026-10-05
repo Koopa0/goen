@@ -175,8 +175,6 @@ func (v OrdersView) EmptyText(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminQueueEmpty)
 }
 
-func (v OrdersView) HasNotice() bool { return v.Notice.Text != "" }
-
 func (o OrderRow) RecipientText(ctx context.Context) string {
 	if o.Recipient == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
@@ -421,8 +419,6 @@ func (v *OrderView) Final() bool {
 	return v.Status == order.FulfillmentCompleted || v.Status == order.FulfillmentCancelled
 }
 
-func (v *OrderView) HasNotice() bool { return v.Notice.Text != "" }
-
 func (v *OrderView) RecipientText(ctx context.Context) string {
 	if v.Recipient == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
@@ -579,8 +575,6 @@ func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "lo
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 
-func (v VariantsView) HasNotice() bool { return v.Notice.Text != "" }
-
 func Meta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }
@@ -669,8 +663,6 @@ type MovementsView struct {
 	Notice      components.Result
 	FormID      string
 }
-
-func (v *MovementsView) HasNotice() bool { return v.Notice.Text != "" }
 
 // ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
 // form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the

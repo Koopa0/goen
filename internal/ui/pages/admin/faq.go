@@ -61,8 +61,6 @@ func (v *FAQView) RowErrFields(e *FAQEntry) []string {
 
 func (v *FAQView) Empty() bool { return len(v.Rows) == 0 }
 
-func (v *FAQView) HasNotice() bool { return v.Notice.Text != "" }
-
 func (v *FAQView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 func (v *FAQView) Err(f string) string { return v.Errors[f] }

@@ -39,7 +39,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/price", ac.RequireStaff(h.SetPrice))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":       web.Done(i18n.KeyAdminNoticeOK),
 	"refused":  web.Refused(i18n.KeyAdminNoticeRefused),
 	"received": web.Done(i18n.KeyAdminNoticeReceived),

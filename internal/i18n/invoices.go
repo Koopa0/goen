@@ -172,6 +172,11 @@ var (
 			"Usually it is a malformed business tax number or carrier code.",
 	})
 
+	KeyAdminNoticeInvoicingOff = key("admin.notice.invoicingoff", Message{
+		ZhHant: "尚未啟用電子發票，無法開立、作廢或折讓。",
+		En:     "E-invoicing is not set up, so invoices cannot be issued, voided or credited.",
+	})
+
 	KeyAdminNoticeInvoicePending = key("admin.notice.invoicepending", Message{
 		ZhHant: "操作已安全記錄，正在與加值中心核對；若未自動完成，健康頁會顯示原因。",
 		En: "The operation was recorded safely and is being reconciled with ECPay. " +

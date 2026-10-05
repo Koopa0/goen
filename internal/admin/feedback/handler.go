@@ -36,7 +36,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/questions/{id}", ac.RequireStaff(h.AnswerQuestion))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":      web.Done(i18n.KeyAdminNoticeOK),
 	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
 	"gone":    web.Refused(i18n.KeyAdminNoticeGone),

@@ -16,12 +16,14 @@ import (
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	t.Parallel()
 	pinned := map[string]components.Outcome{
-		"ok":          components.OutcomeDone,
-		"shipped":     components.OutcomeDone,
-		"refused":     components.OutcomeRefused,
-		"paidcancel":  components.OutcomeRefused,
-		"voidfailed":  components.OutcomeFailed,
-		"refundretry": components.OutcomeFailed,
+		"ok":             components.OutcomeDone,
+		"shipped":        components.OutcomeDone,
+		"refused":        components.OutcomeRefused,
+		"paidcancel":     components.OutcomeRefused,
+		"voidfailed":     components.OutcomeFailed,
+		"refundretry":    components.OutcomeFailed,
+		"invoicepending": components.OutcomeFailed,
+		"invoicingoff":   components.OutcomeRefused,
 	}
 	for name, want := range pinned {
 		if got := notices[name].Outcome; got != want {
@@ -49,6 +51,26 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		if lead := strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadRefused)) ||
 			strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadFailed)); lead == (m.Outcome == components.OutcomeDone) {
 			t.Errorf("?%s=1 with outcome %d: leading word shown = %t", name, m.Outcome, lead)
+		}
+	}
+}
+
+func TestInvoicingOffHasItsOwnSentence(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	off := i18n.T(ctx, i18n.KeyAdminNoticeInvoicingOff)
+	for _, tc := range []struct {
+		query string
+		shown bool
+	}{{"invoicingoff", true}, {"refused", false}} {
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders/G1?"+tc.query+"=1", http.NoBody)
+		var page strings.Builder
+		view := admin.OrderView{Notice: web.Notice(req, notices)}
+		if err := admin.Order(layouts.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(page.String(), off); got != tc.shown {
+			t.Errorf("?%s=1: page shows %q = %t, want %t", tc.query, off, got, tc.shown)
 		}
 	}
 }

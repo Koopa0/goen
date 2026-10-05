@@ -277,7 +277,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":             web.Done(i18n.KeyAdminNoticeOK),
 	"refused":        web.Refused(i18n.KeyAdminNoticeRefused),
 	"shipped":        web.Done(i18n.KeyAdminNoticeShipped),
@@ -295,7 +295,8 @@ var notices = map[string]web.Message{
 	"hasinvoice":     web.Refused(i18n.KeyAdminNoticeHasInvoice),
 	"noinvoice":      web.Refused(i18n.KeyAdminNoticeNoInvoice),
 	"invoicefailed":  web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
-	"invoicepending": web.Done(i18n.KeyAdminNoticeInvoicePending),
+	"invoicingoff":   web.Refused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending": web.Failed(i18n.KeyAdminNoticeInvoicePending),
 	"allowed":        web.Done(i18n.KeyAdminNoticeAllowed),
 	"allowsent":      web.Done(i18n.KeyAdminNoticeAllowSent),
 	"allowtoomuch":   web.Refused(i18n.KeyAdminNoticeAllowTooMuch),

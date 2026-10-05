@@ -39,7 +39,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/staff/factor", ac.RequireAdmin(h.RemoveFactor))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":          web.Done(i18n.KeyAdminNoticeOK),
 	"cleared":     web.Done(i18n.KeyStaffCredentialCleared),
 	"self":        web.Refused(i18n.KeyStaffSelf),

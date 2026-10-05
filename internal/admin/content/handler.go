@@ -44,7 +44,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/home/{id}/promote", ac.RequireStaff(h.PromoteHero))
 }
 
-var notices = map[string]web.Message{
+var notices = map[string]web.NoticeEntry{
 	"ok":           web.Done(i18n.KeyAdminNoticeOK),
 	"refused":      web.Refused(i18n.KeyAdminNoticeRefused),
 	"toobig":       web.Refused(i18n.KeyAdminNoticeTooBig),
@@ -54,7 +54,7 @@ var notices = map[string]web.Message{
 	"uploadbusy":   web.Failed(i18n.KeyAdminNoticeUploadBusy),
 	"saved":        web.Done(i18n.KeyAdminNoticeSaved),
 	"sent":         web.Done(i18n.KeyAdminNoticeSent),
-	"already":      web.Refused(i18n.KeyAdminNoticeAlready),
+	"already":      web.Done(i18n.KeyAdminNoticeAlready),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {

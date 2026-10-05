@@ -47,7 +47,10 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, invoice.ErrAlreadyIssued):
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
+	case errors.Is(err, invoice.ErrDisabled):
+		//nolint:gosec // G710: validated by order.ValidNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicingoff=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
@@ -96,9 +99,9 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the void",
 			"order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?voidfailed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
-		// No issuer is configured. voidfailed would say ECPay refused a call
-		// that never happened.
+	case errors.Is(err, invoice.ErrDisabled):
+		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
@@ -149,9 +152,9 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the allowance",
 			"order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?allowfailed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
-		// No issuer is configured. allowfailed would say ECPay refused a call
-		// that never happened.
+	case errors.Is(err, invoice.ErrDisabled):
+		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:

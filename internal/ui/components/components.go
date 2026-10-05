@@ -107,10 +107,12 @@ const (
 // Intent is what an Outcome looks like: a refusal and a failure are the danger style, so a
 // saved change and a blocked one never share a treatment.
 func (o Outcome) Intent() Intent {
-	if o == OutcomeDone {
+	switch o {
+	case OutcomeRefused, OutcomeFailed:
+		return IntentDanger
+	default:
 		return IntentAccent
 	}
-	return IntentDanger
 }
 
 // Result is a sentence for a page to show with the outcome it reports. The zero value shows nothing.
