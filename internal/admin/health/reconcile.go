@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // CompletePaymentResolution is the operator's explicit conclusion after a
@@ -113,7 +114,7 @@ func (s *Store) ReconcileCompletePayment(
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", event.Action, err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	switch resolution {
