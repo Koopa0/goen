@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -34,7 +35,7 @@ func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) 
 	valid := "GUESSRIGHT" + strings.ToUpper(uuid.NewString()[:6])
 	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
 	ship := shipVersionFor(t, "home_delivery")
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 
@@ -134,7 +135,7 @@ func newCouponGuesses(t *testing.T, label string) *couponGuesses {
 	s := cart.NewStore(pool)
 	return &couponGuesses{
 		t: t, s: s,
-		h: cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		h: cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
 			ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 			nil, nil),
 		vid:  freshVariant(t, label),

@@ -69,6 +69,9 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 		"SendStaffInvitation": func(ctx context.Context, n Notifier) error {
 			return n.SendStaffInvitation(ctx, &StaffInvitation{UserID: uuid.NewString()}, to, text)
 		},
+		"SendStaffEnrolment": func(ctx context.Context, n Notifier) error {
+			return n.SendStaffEnrolment(ctx, &StaffEnrolment{Email: to, Code: "01234567"})
+		},
 		"SendNewsletterConfirm": func(ctx context.Context, n Notifier) error {
 			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{Email: to, Token: "tok"})
 		},

@@ -493,7 +493,7 @@ func stripSQLComments(src string) string {
 // storefrontPackages run on the pool that does SET ROLE store, mirroring cmd/goen's wiring.
 var storefrontPackages = []string{
 	"account", "cart", "catalog", "contact", "home", "loyalty", "media",
-	"newsletter", "ordernotice", "outbox", "payment", "product", "returns", "site", "warranty",
+	"newsletter", "orderaccess", "ordernotice", "outbox", "payment", "product", "returnpage", "site", "warranty",
 }
 
 // backOfficePackages run on the pool that does SET ROLE admin.

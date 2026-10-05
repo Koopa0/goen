@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -71,11 +72,11 @@ func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
 					}
 				}
 			} else {
-				h := cart.NewHandler(store, log, false,
+				h := cart.NewHandler(store, orderaccess.NewStore(appPool, false), log, false,
 					ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 				req.SetPathValue("number", number)
-				req.AddCookie(placedCookie(t, store, number))
+				req.AddCookie(placedCookie(t, number))
 				res := httptest.NewRecorder()
 				h.CancelOrder(res, req)
 				if res.Code != http.StatusSeeOther {

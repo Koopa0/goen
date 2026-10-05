@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -30,7 +31,7 @@ func TestPaymentAndTimelineKeepTheProviderEventTime(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 					s := payment.NewStore(pool)
-					h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+					h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 					number, id, session := openOrder(t, s, 100000, "paid_time")
 					var before time.Time
 					if err := pool.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&before); err != nil {

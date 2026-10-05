@@ -225,7 +225,7 @@ func FuzzSitePath(f *testing.F) {
 		if got == "" || got[0] != '/' {
 			t.Fatalf("SitePath(%q) accepted non-rooted output %q", raw, got)
 		}
-		if hasControl(got) || strings.ContainsRune(got, '\\') {
+		if HasControlChars(got) || strings.ContainsRune(got, '\\') {
 			t.Errorf("SitePath(%q) returned unsafe path %q", raw, got)
 		}
 		if len(got) > 1 && (got[1] == '/' || got[1] == '\\') {

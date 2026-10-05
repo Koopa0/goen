@@ -20,6 +20,9 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
 			</div>
 		</div>
+		if v.HealthUnavailable {
+			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable) }</p>
+		}
 		if len(v.Tasks) > 0 {
 			<section class="goen-admin__queue" aria-labelledby="tasks-heading">
 				<h2 class="goen-admin__heading" id="tasks-heading">{ i18n.T(ctx, i18n.KeyAdminQueueTasksHeading) }</h2>
@@ -439,9 +442,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							for _, e := range v.Timeline {
 								<li class="goen-admin__event">
 									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.Label) }</span>
-									<span class="goen-admin__meta">{ e.At } · { e.By(ctx) }</span>
+									<span class="goen-admin__meta">{ e.When(ctx) } · { e.By(ctx) }</span>
 									if e.Status != "" {
-										<span class="goen-admin__meta">{ i18n.T(ctx, e.Status) }</span>
+										<span class="goen-admin__meta">{ e.StatusText(ctx) }</span>
+									}
+									if e.Unrecognized != "" {
+										<span class="goen-admin__meta">{ e.Unrecognized }</span>
+									}
+									if e.Unrecognized != "" {
+										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
 									if e.Note != "" {
 										<span class="goen-admin__meta">{ e.Note }</span>

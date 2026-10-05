@@ -1,4 +1,4 @@
-package returns
+package returnpage
 
 import (
 	"context"
@@ -11,28 +11,25 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
-type OrderAccess interface {
-	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
-}
-
 type Handler struct {
-	access OrderAccess
+	access *orderaccess.Store
 	store  *Store
 	log    *slog.Logger
-	secure bool
 }
 
-func NewHandler(s *Store, access OrderAccess, log *slog.Logger, secureCookies bool) *Handler {
+func NewHandler(s *Store, access *orderaccess.Store, log *slog.Logger) *Handler {
 	if s == nil || access == nil || log == nil {
-		panic("returns: NewHandler requires a store, an access check and a logger")
+		panic("returnpage: NewHandler requires a store, an access check and a logger")
 	}
-	return &Handler{store: s, access: access, log: log, secure: secureCookies}
+	return &Handler{store: s, access: access, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +38,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, "")))
+		pages.ReturnsMeta(r.Context(), o.Number), viewOf(o, nil, "")))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -125,14 +122,18 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *
 		return
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, req, msg)))
+		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(fresh, req, msg)))
 }
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
 // authorisation; a stranger gets the 404 an absent order gets.
 func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool) {
 	number := r.PathValue("number")
-	if !h.access.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	ok, err := h.access.Allows(r, number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
+	}
+	if !ok {
 		h.notFound(w, r)
 		return nil, false
 	}
@@ -152,19 +153,6 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 	return o, true
 }
 
-func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		return false
-	}
-	owns, err := h.store.OrderBelongsTo(r.Context(), number, u.ID)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "check order ownership", "error", err)
-		return false
-	}
-	return owns
-}
-
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
@@ -172,7 +160,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.ReturnsView {
+func viewOf(o *Order, req *Request, errMsg string) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, Error: errMsg,
 	}
@@ -193,7 +181,7 @@ func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.Re
 	for i := range o.Existing {
 		e := &o.Existing[i]
 		v.Existing = append(v.Existing, pages.ReturnsExisting{
-			StatusText: StatusLabel(ctx, Status(e.Status)), Reason: e.Reason,
+			Status: returns.Status(e.Status), Reason: e.Reason,
 			Resolution: e.Resolution, CreatedAt: e.CreatedAt, DecidedAt: e.DecidedAt,
 		})
 	}

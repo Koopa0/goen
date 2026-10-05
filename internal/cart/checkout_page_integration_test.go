@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/orderaccess"
 )
 
 var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checked`)
@@ -24,7 +25,7 @@ var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checke
 // its payment page and hands this browser the cookie that opens it.
 func TestAGuestPlacesTheOrderTheCheckoutRendered(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	cartID, token := newCartSession(t, s)
 	if err := s.Add(t.Context(), cartID, freshVariant(t, "rendered"), 1); err != nil {
 		t.Fatalf("add: %v", err)
@@ -76,5 +77,5 @@ func TestAGuestPlacesTheOrderTheCheckoutRendered(t *testing.T) {
 	if placed == nil {
 		t.Fatal("POST /checkout set no goen_placed cookie")
 	}
-	followPayWithCookie(t, t.Context(), testPayHandler(t, s), number, placed)
+	followPayWithCookie(t, t.Context(), testPayHandler(t), number, placed)
 }

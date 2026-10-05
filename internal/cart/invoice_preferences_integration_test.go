@@ -15,6 +15,8 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -30,7 +32,7 @@ func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
 				t.Fatal(err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
-			addr := &cart.Address{Email: "buyer@example.com", Name: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
+			addr := &order.Delivery{Email: "buyer@example.com", RecipientName: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 			// The type is the value the checkout radio group submits.
 			inv := &cart.Invoice{Type: invoicepkg.Preference(tt.kind), MobileBarcode: tt.barcode, DonationCode: tt.donation}
 			shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
@@ -67,7 +69,7 @@ func TestCheckoutDonationChoiceRoundTripWithoutScript(t *testing.T) {
 			if err := s.Add(ctx, id, freshVariant(t, "invoice-form-"+strings.ReplaceAll(tt.kind, "_", "-")), 1); err != nil {
 				t.Fatal(err)
 			}
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 			form := url.Values{"shipping": {shipVersionFor(t, "home_delivery").String()}, "invoice_type": {tt.kind}, tt.field: {tt.value}, "update": {"invoice"}}
 			for _, refused := range []bool{false, true} {
 				if refused {
