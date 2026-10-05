@@ -235,6 +235,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						type="submit"
 						tabindex="-1"
 						aria-hidden="true"
+						disabled?={ !v.HasShipping() }
 					>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
 					<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
 					// One fixed-size identity for the lines, prices, delivery, coupon and credit spend.
@@ -258,50 +259,56 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							Attrs: templ.Attributes{"id": "shipping"},
 						}) {
 							<h2 class="goen-checkout__heading" id="shipping-heading">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
-							// A radio inside the form, not a link: the choice decides which fields the form
-							// asks for, so changing it re-renders, and a link would drop what was typed.
-							//
-							// The refusal is announced on the GROUP, not an option: a form refuses the choice,
-							// not one of the things on offer.
-							<div
-								class="goen-checkout__choices"
-								{ checkoutChoiceSwap("shipping")... }
-								role="radiogroup"
-								aria-labelledby="shipping-heading"
-								aria-invalid={ v.Invalid("shipping") }
+							// Unavailable delivery refuses the cart, so it has no invalid control.
+							if !v.HasShipping() {
+								<p id="shipping-unavailable" role="alert">{ i18n.T(ctx, i18n.KeyShippingUnavailable) }</p>
+								<p><a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a> · <a href="/contact">{ i18n.T(ctx, i18n.KeyContact) }</a></p>
+							} else {
+								// A radio inside the form, not a link: the choice decides which fields the form
+								// asks for, so changing it re-renders, and a link would drop what was typed.
+								//
+								// The refusal is announced on the GROUP, not an option: a form refuses the choice,
+								// not one of the things on offer.
+								<div
+									class="goen-checkout__choices"
+									{ checkoutChoiceSwap("shipping")... }
+									role="radiogroup"
+									aria-labelledby="shipping-heading"
+									aria-invalid={ v.Invalid("shipping") }
+									if v.HasErr("shipping") {
+										aria-describedby="shipping-error"
+									}
+								>
+									for _, c := range v.Shipping {
+										<label class="goen-checkout__ship">
+											<input
+												class="goen-sr-only"
+												id={ "shipping-" + c.VersionID }
+												type="radio"
+												name="shipping"
+												value={ c.VersionID }
+												checked?={ c.VersionID == v.Chosen }
+											/>
+											<span class="goen-checkout__shipname">
+												{ c.Name }
+												if c.Carrier != "" {
+													<span class="goen-checkout__shipnote">{ c.Carrier }</span>
+												}
+											</span>
+											<span class="goen-checkout__shipfee">
+												if c.Free {
+													{ i18n.T(ctx, i18n.KeyFreeShipping) }
+												} else {
+													{ c.Fee() }
+												}
+											</span>
+										</label>
+									}
+								</div>
+								@applyChoice("shipping")
 								if v.HasErr("shipping") {
-									aria-describedby="shipping-error"
+									<p class="ui-error-text" id="shipping-error">{ v.Err("shipping") }</p>
 								}
-							>
-								for _, c := range v.Shipping {
-									<label class="goen-checkout__ship">
-										<input
-											class="goen-sr-only"
-											id={ "shipping-" + c.VersionID }
-											type="radio"
-											name="shipping"
-											value={ c.VersionID }
-											checked?={ c.VersionID == v.Chosen }
-										/>
-										<span class="goen-checkout__shipname">
-											{ c.Name }
-											if c.Carrier != "" {
-												<span class="goen-checkout__shipnote">{ c.Carrier }</span>
-											}
-										</span>
-										<span class="goen-checkout__shipfee">
-											if c.Free {
-												{ i18n.T(ctx, i18n.KeyFreeShipping) }
-											} else {
-												{ c.Fee() }
-											}
-										</span>
-									</label>
-								}
-							</div>
-							@applyChoice("shipping")
-							if v.HasErr("shipping") {
-								<p class="ui-error-text" id="shipping-error">{ v.Err("shipping") }</p>
 							}
 							if v.Repriced != "" {
 								@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
@@ -627,7 +634,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
 								<dd class="goen-summary__value">
-									if v.ShipsFree() {
+									if !v.HasShipping() {
+										{ i18n.T(ctx, i18n.KeyShippingUnavailableShort) }
+									} else if v.ShipsFree() {
 										{ i18n.T(ctx, i18n.KeyFreeShipping) }
 									} else {
 										{ v.ShippingText() }
@@ -695,6 +704,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							ButtonStyle: components.ButtonStylePrimary,
 							Size:        components.SizeLarge,
 							Block:       true,
+							Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyPlaceOrder) }
 						}
