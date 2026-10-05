@@ -34,6 +34,11 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 		Scan(&stockHeld); err != nil {
 		t.Fatalf("read held stock: %v", err)
 	}
+	var awarded int64
+	if err := pool.QueryRow(ctx, `SELECT points FROM loyalty_entries WHERE order_id = $1 AND kind = 'award'`, orderID).
+		Scan(&awarded); err != nil || awarded <= 0 {
+		t.Fatalf("read award = %d, %v, want a positive lot to claw back", awarded, err)
+	}
 
 	// An earlier row lock would stop opening the refund, before any payout.
 	// This transaction acquires its row only at the finisher's real query.
@@ -45,7 +50,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	var sent atomic.Int64
 	wantSettled := refundCompletionFacts{
 		OrderStatus: "picking", ReturnStatus: "approved", CardCents: 900000, CardRows: 1,
-		CreditCents: 300000, CreditRows: 1, ClawedPoints: -120, Clawbacks: 1,
+		CreditCents: 300000, CreditRows: 1, ClawedPoints: -awarded, Clawbacks: 1,
 		FrozenCardCents: 900000, FrozenCreditCents: 300000,
 		RefundedEvents: 1, Held: 1, Stock: stockHeld,
 	}
