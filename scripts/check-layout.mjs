@@ -2760,7 +2760,7 @@ await exhaustHtmx({
         href: location.pathname,
         navigated: location.pathname !== '/about',
         hasForm: !!document.querySelector('form#newsletter-form'),
-        retry: (document.querySelector('#newsletter-error') || {}).textContent || '',
+        retry: (document.querySelector('#newsletter-notice') || {}).textContent || '',
         slot: (document.querySelector('.goen-footer__news') || {}).innerText || '',
         bodyStart: document.body.innerText.trim().slice(0, 80),
       });
