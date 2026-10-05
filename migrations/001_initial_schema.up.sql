@@ -472,7 +472,7 @@ BEGIN
     IF TG_TABLE_NAME = 'products' THEN
         SELECT * INTO p FROM products WHERE id = NEW.id FOR NO KEY UPDATE;
     ELSIF TG_OP = 'DELETE' THEN
-        SELECT * INTO p FROM products WHERE id = OLD.product_id FOR NO KEY UPDATE;
+        SELECT * INTO p FROM products WHERE id = OLD.product_id;
     ELSE
         SELECT * INTO p FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
     END IF;
