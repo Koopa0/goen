@@ -67,6 +67,15 @@ func TestConcurrentWritesAuditTheValueEachReplaced(t *testing.T) {
 			},
 			leaves: func(replaced, arg int32) int32 { return replaced + arg },
 		},
+		{
+			name: "two receipts", action: audit.ActionReceiveStock,
+			column: "stock_quantity", before: "stock", after: "received",
+			args: func(int32) [2]int32 { return [2]int32{4, 6} },
+			write: func(s *stock.Store, arg int32) error {
+				return s.Receive(ctx, sku, arg, actor, "audit-before-"+uuid.NewString())
+			},
+			leaves: func(replaced, arg int32) int32 { return replaced + arg },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,6 +143,61 @@ func TestConcurrentWritesAuditTheValueEachReplaced(t *testing.T) {
 					tt.action, first.replaced, second.replaced, start, tt.leaves(start, first.arg))
 			}
 		})
+	}
+}
+
+// TestRestoringAVariantAuditsTheStateItReplaced: another transaction retires
+// the variant and holds its row while staff restore it. The restore replaces
+// the retired state, so its audit row must say the variant was inactive, which
+// a read before the restore's own transaction does not see.
+func TestRestoringAVariantAuditsTheStateItReplaced(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+
+	// Another active variant keeps the product sellable while this one is
+	// retired, or products_active_has_variant refuses the retirement.
+	var variantID uuid.UUID
+	var sku string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, pv.sku FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active
+		  AND NOT EXISTS (SELECT 1 FROM sale_campaign_products c WHERE c.product_id = pv.product_id)
+		  AND EXISTS (SELECT 1 FROM product_variants o
+		              WHERE o.product_id = pv.product_id AND o.id <> pv.id AND o.is_active)
+		ORDER BY pv.sku LIMIT 1`).Scan(&variantID, &sku); err != nil {
+		t.Fatalf("read variant: %v", err)
+	}
+
+	holder, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin the retiring transaction: %v", err)
+	}
+	defer func() { _ = holder.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = holder.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE id = $1`, variantID); err != nil {
+		t.Fatalf("retire %s: %v", sku, err)
+	}
+
+	name := "audit-before-restore-" + uuid.NewString()[:8]
+	s := adminWriter(t, name)
+	done := make(chan error, 1)
+	go func() { done <- s.SetActive(ctx, sku, true) }()
+	waitUntilBlocked(t, name, done)
+	if err = holder.Commit(ctx); err != nil {
+		t.Fatalf("commit the retirement: %v", err)
+	}
+	if err = <-done; err != nil {
+		t.Fatalf("SetActive(%s, true): %v", sku, err)
+	}
+
+	var wasActive bool
+	if err = pool.QueryRow(ctx, `
+		SELECT (before->>'active')::boolean FROM audit_events
+		WHERE entity_id = $1 AND action = $2 ORDER BY id DESC LIMIT 1`,
+		variantID, string(audit.ActionRetireVariant)).Scan(&wasActive); err != nil {
+		t.Fatalf("read the restore's audit row: %v", err)
+	}
+	if wasActive {
+		t.Errorf("SetActive(%s, true) audited before active = true, want false: the variant it restored was retired", sku)
 	}
 }
 
