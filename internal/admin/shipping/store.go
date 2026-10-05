@@ -67,7 +67,7 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 		return admin.ShippingView{}, fmt.Errorf("read version zones: %w", err)
 	}
 
-	view := admin.ShippingView{}
+	view := admin.ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
 	for i := range rows {
 		m := &rows[i]
 		method := admin.ShippingMethod{

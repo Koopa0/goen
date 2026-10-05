@@ -72,13 +72,18 @@ var (
 	})
 
 	KeyFormMethodFee = key("form.method.fee", Message{
-		ZhHant: "運費超出範圍。",
-		En:     "That delivery fee is out of range.",
+		ZhHant: "運費請填 0 到 5,000 元的整數。",
+		En:     "Enter a whole-dollar delivery fee from 0 to 5,000.",
 	})
 
 	KeyFormMethodFreeOver = key("form.method.freeover", Message{
-		ZhHant: "免運門檻不能是負數。",
-		En:     "A free-delivery threshold cannot be negative.",
+		ZhHant: "免運門檻請填 0 到 100,000,000 元的整數，或留空表示不免運。",
+		En:     "Enter a whole-dollar free-delivery threshold from 0 to 100,000,000, or leave it blank for no free delivery.",
+	})
+
+	KeyFormShippingSurcharge = key("form.shipping.surcharge", Message{
+		ZhHant: "區域加收費用請填 0 到 5,000 元的整數，或留空表示不加收。",
+		En:     "Enter a whole-dollar surcharge from 0 to 5,000, or leave it blank for no surcharge.",
 	})
 
 	KeyFormMethodCodeTaken = key("form.method.code.taken", Message{

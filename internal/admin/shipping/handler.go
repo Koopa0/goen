@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -46,10 +47,8 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]i18n.Key{
-	"ok":            i18n.KeyAdminNoticeOK,
-	"refused":       i18n.KeyAdminNoticeRefused,
-	"shippingneeds": i18n.KeyAdminNoticeShippingNeeds,
-	"inuse":         i18n.KeyAdminNoticeInUse,
+	"ok":    i18n.KeyAdminNoticeOK,
+	"inuse": i18n.KeyAdminNoticeInUse,
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +200,7 @@ type shippingDrafts struct {
 	method   admin.MethodDraft
 	zone     admin.ZoneDraft
 	prefixes admin.ZonePrefixesDraft
+	version  *admin.VersionDraft
 }
 
 func (h *Handler) rejectShippingForm(
@@ -211,8 +211,24 @@ func (h *Handler) rejectShippingForm(
 		access.ServerError(w, r, h.log)
 		return
 	}
+	if drafts.version != nil {
+		found := false
+		for i := range view.Methods {
+			if view.Methods[i].MethodID == drafts.version.MethodID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			access.NotFound(w, r, h.log)
+			return
+		}
+	}
 	view.Errors = errs
 	view.MethodDraft, view.ZoneDraft, view.PrefixDraft = drafts.method, drafts.zone, drafts.prefixes
+	if drafts.version != nil {
+		view.VersionDraft = *drafts.version
+	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
@@ -260,33 +276,44 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	fee, feeErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("fee")), 10, 64)
-	if feeErr != nil {
-		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
+	v, draft, errs := versionFormOf(r)
+	if len(errs) > 0 {
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{version: &draft})
 		return
 	}
-	// An empty threshold is "no free shipping" and not zero, and ParseInt
-	// refuses "" rather than answering 0.
-	var freeOver int64
-	if raw := strings.TrimSpace(r.PostFormValue("free_over")); raw != "" {
-		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
-		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
-			return
-		}
-		freeOver = parsed
+	err := h.store.PublishShippingVersion(r.Context(), v)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "shipping version refused", "error", err)
+		h.rejectShippingForm(w, r, map[string]string{"version_form": i18n.T(r.Context(), i18n.KeyAdminNoticeRefused)}, &shippingDrafts{version: &draft})
+	default:
+		h.log.ErrorContext(r.Context(), "publish shipping version", "error", err)
+		access.ServerError(w, r, h.log)
 	}
+}
 
-	err := h.store.PublishShippingVersion(r.Context(), ShippingVersion{
-		MethodID:        r.PostFormValue("method"),
-		Name:            r.PostFormValue("name"),
-		Carrier:         r.PostFormValue("carrier"),
-		NameEn:          r.PostFormValue("name_en"),
-		CarrierEn:       r.PostFormValue("carrier_en"),
-		FeeDollars:      fee,
-		FreeOverDollars: freeOver,
-	})
-	h.redirectShipping(w, r, err, "/admin/shipping?ok=1")
+func versionFormOf(r *http.Request) (ShippingVersion, admin.VersionDraft, map[string]string) {
+	draft := admin.VersionDraft{
+		MethodID: r.PostFormValue("method"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
+		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
+		Fee: r.PostFormValue("fee"), FreeOver: r.PostFormValue("free_over"),
+	}
+	errs := map[string]string{}
+	fee, feeOK := dollars(draft.Fee, false)
+	if !feeOK || fee > MaxFee/100 {
+		errs["version_fee"] = i18n.T(r.Context(), i18n.KeyFormMethodFee)
+	}
+	freeOver, freeOverOK := dollars(draft.FreeOver, true)
+	if !freeOverOK || freeOver > money.MaxCents/100 {
+		errs["version_free_over"] = i18n.T(r.Context(), i18n.KeyFormMethodFreeOver)
+	}
+	if strings.TrimSpace(draft.Name) == "" {
+		errs["version_name"] = i18n.T(r.Context(), i18n.KeyFormNameRequired)
+	}
+	return ShippingVersion{MethodID: draft.MethodID, Name: draft.Name, NameEn: draft.NameEn,
+		Carrier: draft.Carrier, CarrierEn: draft.CarrierEn, FeeDollars: fee, FreeOverDollars: freeOver}, draft, errs
 }
 
 func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
@@ -294,34 +321,52 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	// An empty box means zero here, which CLEARS the surcharge: the field renders
-	// blank when there is none, so submitting it untouched must be a no-op.
-	var amount int64
-	if raw := strings.TrimSpace(r.PostFormValue("amount")); raw != "" {
-		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
-		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
-			return
-		}
-		amount = parsed
+	// Blank clears the surcharge; it must stay distinct from an unreadable amount.
+	amount, valid := dollars(r.PostFormValue("amount"), true)
+	if !valid || amount > MaxFee/100 {
+		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyFormShippingSurcharge))
+		return
 	}
-
-	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"),
-		r.PostFormValue("zone"), amount)
-	h.redirectShipping(w, r, err, "/admin/shipping?ok=1")
-}
-
-func (h *Handler) redirectShipping(w http.ResponseWriter, r *http.Request, err error, ok string) {
+	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"), r.PostFormValue("zone"), amount)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, ok, http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "shipping change refused", "error", err)
-		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "shipping surcharge refused", "error", err)
+		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminNoticeRefused))
 	default:
-		h.log.ErrorContext(r.Context(), "change shipping", "error", err)
+		h.log.ErrorContext(r.Context(), "set shipping surcharge", "error", err)
 		access.ServerError(w, r, h.log)
 	}
+}
+
+func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, message string) {
+	view, err := h.shippingView(r.Context())
+	if err != nil {
+		access.ServerError(w, r, h.log)
+		return
+	}
+	versionID, zoneID := r.PostFormValue("version"), r.PostFormValue("zone")
+	var methodID string
+	for i := range view.Methods {
+		if view.Methods[i].VersionID == versionID {
+			methodID = view.Methods[i].MethodID
+			break
+		}
+	}
+	zoneFound := false
+	for i := range view.Zones {
+		if view.Zones[i].ID == zoneID {
+			zoneFound = true
+			break
+		}
+	}
+	if methodID == "" || !zoneFound {
+		access.NotFound(w, r, h.log)
+		return
+	}
+	view.SurchargeDraft = admin.SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
+	view.Errors = map[string]string{"surcharge": message}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

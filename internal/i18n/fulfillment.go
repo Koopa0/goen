@@ -297,11 +297,6 @@ var (
 		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
 	})
 
-	KeyAdminNoticeShippingNeeds = key("admin.notice.shippingneeds", Message{
-		ZhHant: "運費設定的資料有誤。運費、免運門檻與加價都必須是整數金額。",
-		En:     "The shipping setting is not right. Fees, free-shipping thresholds and surcharges must be whole dollar amounts.",
-	})
-
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
 		ZhHant: "收件資料有誤，或找不到這筆訂單。請檢查後再送出。",
 		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
