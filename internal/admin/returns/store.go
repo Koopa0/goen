@@ -479,7 +479,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return refusedIfNoRow(lockErr, "lock return order for assessment")
+		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, lockErr)
 	}
 	row, err := q.ReturnForDecision(ctx, requestID)
 	if err != nil {
@@ -538,7 +538,7 @@ func (s *Store) closeReturn(
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return refusedIfNoRow(lockErr, "lock return order for decision")
+		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, lockErr)
 	}
 
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
@@ -783,7 +783,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return refusedIfNoRow(lockErr, "lock return order for completion")
+		return fmt.Errorf("%w: lock return order for completion: %w", ErrRefused, lockErr)
 	}
 
 	// return_requests_completed_is_inspected refuses this while any line is
