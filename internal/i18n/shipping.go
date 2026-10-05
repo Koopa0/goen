@@ -82,8 +82,8 @@ var (
 	})
 
 	KeyFormShippingSurcharge = key("form.shipping.surcharge", Message{
-		ZhHant: "分區加價請填 0 到 %s 之間的整數金額，或留空表示不加價。",
-		En:     "Enter a whole-dollar zone surcharge from 0 to %s, or leave it blank for no surcharge.",
+		ZhHant: "區域加收費用請填 0 到 %s 之間的整數金額，或留空表示不加收。",
+		En:     "Enter a whole-dollar surcharge from 0 to %s, or leave it blank for no surcharge.",
 	})
 
 	KeyFormMethodCodeTaken = key("form.method.code.taken", Message{
@@ -190,7 +190,7 @@ var (
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 
-	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定未儲存，這項變更不符合配送規則。", En: "The shipping settings were not saved; this change breaks a delivery rule."})
+	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定無法儲存，請確認你填寫的內容後再送出。", En: "Shipping settings could not be saved; review your entries and submit again."})
 
 	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{
 		ZhHant: "配送費率已變更。請確認目前設定，再重新送出分區加價。",
