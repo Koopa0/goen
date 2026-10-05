@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -29,7 +28,8 @@ func (s *Store) SetProductInvoiceLine(ctx context.Context, slug string, facts in
 	if err != nil {
 		return fmt.Errorf("begin product invoice: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	//nolint:errcheck // Rollback is a no-op after the transaction commits.
+	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	before, err := q.LockProductInvoiceLine(ctx, slug)
 	if errors.Is(err, pgx.ErrNoRows) {
