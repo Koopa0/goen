@@ -8634,7 +8634,7 @@ func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bo
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
-SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified, role
 FROM users WHERE id = $1::uuid FOR UPDATE
 `
 
@@ -8642,6 +8642,7 @@ type LockUserForEmailVerificationRow struct {
 	ID       uuid.UUID
 	Email    string
 	Verified bool
+	Role     string
 }
 
 // verified is read under the lock: a link that proves the address of an
@@ -8650,7 +8651,12 @@ type LockUserForEmailVerificationRow struct {
 func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
 	var i LockUserForEmailVerificationRow
-	err := row.Scan(&i.ID, &i.Email, &i.Verified)
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Verified,
+		&i.Role,
+	)
 	return i, err
 }
 

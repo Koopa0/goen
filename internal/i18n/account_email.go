@@ -78,6 +78,11 @@ var (
 
 	KeyFieldNewEmail = key("field.email.new", Message{ZhHant: "新的電子郵件", En: "New email address"})
 
+	KeyEmailStaffFixed = key("account.notice.email.staff", Message{
+		ZhHant: "後台帳號的電子郵件無法在這裡更改，請洽管理員。",
+		En:     "A back-office account's email address cannot be changed here. Ask an administrator.",
+	})
+
 	KeyEmailSent = key("account.notice.email.sent", Message{
 		ZhHant: "確認信已寄出，請到信箱點一下連結。",
 		En:     "Confirmation sent. Follow the link in it to finish.",
