@@ -189,7 +189,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
 			h := cart.NewHandler(s, orderaccess.NewStore(app, false), logger, false, testLimiter(), nil, nil)
 			var continued bool
-			var route http.Handler = h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
+			route := h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
 			if tt.handler != nil {
 				route = tt.handler(h)
 			}
@@ -214,7 +214,6 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type failCartLookup struct {
