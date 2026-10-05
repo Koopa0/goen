@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -223,8 +224,8 @@ func TestPickingExcludesOrdersBeingRefundedBeforeShipment(t *testing.T) {
 	for _, line := range view.Totals {
 		totals[line.SKU] = line.Remaining
 	}
-	if len(totals) != 1 || totals["READY-PICK"] != 2 {
-		t.Errorf("Picking() totals = %v, want only READY-PICK:2", totals)
+	if diff := cmp.Diff(map[string]int64{"READY-PICK": 2}, totals); diff != "" {
+		t.Errorf("Picking() totals (-want +got):\n%s", diff)
 	}
 }
 
