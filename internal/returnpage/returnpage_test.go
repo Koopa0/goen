@@ -76,7 +76,7 @@ func TestReturnQuantityRefusalsKeepCompleteDrafts(t *testing.T) {
 			draft := returnDraftFromForm(r, order)
 			_, refusals := draft.request(order)
 			var body bytes.Buffer
-			if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(order, draft, refusals, ctx)).Render(ctx, &body); err != nil {
+			if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))
@@ -132,7 +132,7 @@ func TestReturnRefusalsDistinguishReasonFromEmptySelection(t *testing.T) {
 			draft := returnDraftFromForm(r, order)
 			_, refusals := draft.request(order)
 			var body bytes.Buffer
-			if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(order, draft, refusals, ctx)).Render(ctx, &body); err != nil {
+			if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))
@@ -242,7 +242,7 @@ func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
 			fresh := &Order{Number: "GO-RETURN", HasOpen: tt.open, Lines: []Line{{ID: "first"}, {ID: "later"}}}
 			refusals := returnRefusals(fresh, draft, []web.FieldRefusal{{MessageKey: tt.refusal}})
 			var body bytes.Buffer
-			if err := pages.Returns(pages.ReturnsMeta(ctx, fresh.Number), viewOf(fresh, draft, refusals, ctx)).Render(ctx, &body); err != nil {
+			if err := pages.Returns(pages.ReturnsMeta(ctx, fresh.Number), viewOf(ctx, fresh, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))

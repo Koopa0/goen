@@ -38,7 +38,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(o, nil, nil, r.Context())))
+		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, nil)))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +154,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, draft
 		return
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(fresh, draft, returnRefusals(fresh, draft, refusals), r.Context())))
+		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, draft, returnRefusals(fresh, draft, refusals))))
 }
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
@@ -192,7 +192,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-func viewOf(o *Order, draft *returnDraft, refusals []web.FieldRefusal, ctx context.Context) pages.ReturnsView {
+func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 	}

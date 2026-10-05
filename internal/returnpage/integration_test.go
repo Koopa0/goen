@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returnpage"
 )
 
@@ -648,7 +649,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin competing return: %v", err)
 			}
-			defer func() { _ = competitor.Rollback(ctx) }()
+			defer pgtx.Rollback(ctx, competitor)
 			var requestID uuid.UUID
 			if err := competitor.QueryRow(ctx, `
 		INSERT INTO return_requests (order_id, reason)
@@ -1195,7 +1196,8 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("number", number)
 			placedBy(t, req, number)
-			h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			appPool := returnsApplicationPool(t, "return-form-"+uuid.NewString())
+			h := returnpage.NewHandler(returnpage.NewStore(appPool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			h.Submit(res, req)
 			if res.Code != tt.status {
