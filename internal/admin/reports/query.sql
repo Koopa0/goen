@@ -20,12 +20,12 @@ SELECT
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= @from_at::timestamptz
+                 AND r.succeeded_at >= @from_at::timestamptz AND r.succeeded_at < @to_at::timestamptz
                  AND NOT EXISTS (SELECT 1 FROM return_requests b
                                  WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= @from_at::timestamptz
+                   AND e.created_at >= @from_at::timestamptz AND e.created_at < @to_at::timestamptz
                    AND NOT EXISTS (SELECT 1 FROM return_requests b
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
