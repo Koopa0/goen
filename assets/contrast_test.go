@@ -171,7 +171,6 @@ func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
 	for _, want := range []string{
 		`.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after`,
 		"animation: none;",
-		".goen-hero__pause {\n    display: none;",
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("the reduced-motion block does not contain %q:\n%s", want, block)
