@@ -168,6 +168,10 @@ body {
 .ui-select:focus { border-color: var(--brand); }
 .ui-select:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.ui-input:focus-visible, .ui-textarea:focus-visible, .ui-select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
+
 /* ---------- Stat (back-office figures) ---------- */
 
 .ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; }
