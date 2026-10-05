@@ -41,11 +41,11 @@ func staticAssetHandler(next http.Handler) http.Handler {
 	})
 }
 
-// withStorefrontRequestBudget bounds pool acquisition and every database round
-// trip on a visitor request, including the chrome middleware that shares the
-// storefront pool. Stateless routes skip it: probes and webhooks must not spend
-// a budget they never use.
-func withStorefrontRequestBudget(next http.Handler) http.Handler {
+// withRequestBudget bounds pool acquisition and every database round trip on a
+// request, storefront and back office alike, including the chrome middleware
+// that shares the storefront pool. Stateless routes skip it: probes and
+// webhooks must not spend a budget they never use.
+func withRequestBudget(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if statelessPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
