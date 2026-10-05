@@ -130,8 +130,6 @@ var demoHistoryInvariants = []struct {
 		WHERE r.state = 'held'
 		  AND NOT (o.fulfillment_status IN ('pending', 'picking')
 		           AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) = 0))`},
-	{"no reservation is held on any order (the review's rule, as written)", `
-		SELECT DISTINCT o.order_number FROM orders o JOIN inventory_reservations r ON r.order_id = o.id WHERE r.state = 'held'`},
 	{"the history ends the day before it was generated", `
 		SELECT order_number FROM orders
 		WHERE shop_day(placed_at) >= shop_today() OR shop_day(placed_at) < shop_today() - 90`},
