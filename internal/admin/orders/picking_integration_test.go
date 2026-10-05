@@ -185,6 +185,31 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 }
 
+func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	var want []string
+	for position := range 3 {
+		id, _ := pickingFixtureOrder(t, owner, "AGE-PICK", 1, position, true)
+		var number string
+		if err := owner.QueryRow(ctx, `SELECT order_number FROM orders WHERE id=$1`, id).Scan(&number); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, number)
+	}
+	view, err := admintest.OrderStore(admintest.AdminRolePool(t, owner), admintest.Refunder{}, nil, nil).Picking(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, slip := range view.Slips {
+		got = append(got, slip.Number)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("Picking() order = %v, want oldest first %v", got, want)
+	}
+}
+
 func pickingFixtureOrder(t *testing.T, owner *pgxpool.Pool, sku string, quantity int32, position int, picking bool) (orderID, lineID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
