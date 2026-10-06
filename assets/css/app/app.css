@@ -1097,21 +1097,10 @@ h3 {
   width: 16px;
 }
 
-/* An underlined field: the line is --control-boundary, the 3:1 line, and a real border so
-   forced colours keeps it. Focus darkens and thickens it; the transparent
-   outline is what forced colours draws. */
 .goen-header .goen-header__field {
   background: none;
-  border-bottom: 1px solid var(--control-boundary);
   border-radius: 0;
-  outline: 2px solid transparent;
   padding-left: 40px;
-}
-
-.goen-header .goen-header__field:focus-visible {
-  border-bottom-color: var(--accent);
-  box-shadow: 0 1px 0 var(--accent);
-  outline-color: transparent;
 }
 
 .goen-header__actions {
