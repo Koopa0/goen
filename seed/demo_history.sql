@@ -140,9 +140,6 @@ UPDATE inventory_movements m
 SET created_at = w.opens - interval '1 day'
 FROM pg_temp.demo_window w
 WHERE m.reason = 'receipt' AND m.idempotency_key LIKE 'seed:%' AND m.created_at >= w.opens;
-UPDATE shipping_method_versions
-SET effective_at = (SELECT cutoff FROM pg_temp.demo_window)
-WHERE id IN ('ffff0002-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000002');
 COMMIT;
 
 CREATE FUNCTION pg_temp.demo_person(p_k integer) RETURNS pg_temp.demo_customer
