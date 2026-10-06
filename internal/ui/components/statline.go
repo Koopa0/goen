@@ -19,6 +19,8 @@ const (
 	StatLineWide  StatLineVariant = "wide"
 	// StatLinePairs sets the stats two across wherever two fit, so four read as two rows of two.
 	StatLinePairs StatLineVariant = "pairs"
+	// StatLineSmall is a line that sits under a name, as a product's warranty does.
+	StatLineSmall StatLineVariant = "s"
 )
 
 func (v StatLineVariant) class() string {
