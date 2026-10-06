@@ -4,8 +4,8 @@ var (
 	// The empty state that makes the first review possible: the form lives
 	// inside the reviews section, which therefore has to render without one.
 	KeyNoReviewsYet = key("pdp.reviews.none", Message{
-		ZhHant: "還沒有人評價這個商品 —— 你可以是第一個。",
-		En:     "Nobody has reviewed this yet — you could be the first.",
+		ZhHant: "還沒有人評價這個商品，你可以是第一個。",
+		En:     "Nobody has reviewed this yet. You could be the first.",
 	})
 
 	KeySectionReviews = key("pdp.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
