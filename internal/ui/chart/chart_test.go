@@ -148,6 +148,15 @@ func TestMeterDrawsTheUnfilledPartAndKeepsItsCountAsText(t *testing.T) {
 	if strings.Contains(svg, "<text") || strings.Contains(got, "style=") {
 		t.Errorf("Meter(5 of 20) = %s, want the count outside the SVG and no style attribute", got)
 	}
+	if !strings.Contains(svg, `focusable="false"`) {
+		t.Errorf("Meter(5 of 20) draws %s, want focusable=\"false\"", svg)
+	}
+	if strings.Contains(svg, "rx=") {
+		t.Errorf("Meter(5 of 20) draws %s, want square ends", svg)
+	}
+	if !strings.HasPrefix(got, `<div class="goen-chartmeter" aria-hidden="true">`) {
+		t.Errorf("Meter(5 of 20) = %s, want the meter and its count hidden from assistive technology, which reads the row's own text", got)
+	}
 	if !strings.Contains(got, `<span class="goen-chartmeter__label">5 / 20</span>`) {
 		t.Errorf("Meter(5 of 20) = %s, want the count as text beside the meter", got)
 	}

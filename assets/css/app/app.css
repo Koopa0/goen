@@ -9553,6 +9553,7 @@ form[data-request-pending] [aria-disabled="true"] {
 
 :root {
   --chart-hue: #007f69;
+  --chart-hue-track: #c0ebe1;
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
@@ -9633,7 +9634,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chartmeter__track {
-  fill: var(--chart-grid);
+  fill: var(--chart-hue-track);
 }
 
 .goen-chartmeter__fill {
