@@ -470,6 +470,7 @@ Features share selected operations and view types. [`cart`](internal/cart) impor
 | [`internal/shoptime`](internal/shoptime) | Shop-zone dates, times, calendar calculations. |
 | [`internal/site`](internal/site) | Information/policies, sitemap, locale switching, 404 pages. |
 | [`internal/twofactor`](internal/twofactor) | TOTP enrollment, encrypted secrets, verification, session step-up. |
+| [`internal/ui/chart`](internal/ui/chart) | Server-rendered SVG charts; draws only, its text equivalent is the page's row or table. |
 | [`internal/ui/components`](internal/ui/components) | Reusable controls and presentation components. |
 | [`internal/ui/icons`](internal/ui/icons) | SVG icons and category-icon selection. |
 | [`internal/ui/layouts`](internal/ui/layouts) | Shared document head, page chrome, layout context. |
