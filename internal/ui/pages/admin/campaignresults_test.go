@@ -93,6 +93,12 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 			t.Errorf("a campaign with 10 units over 3 days lacks %q", want)
 		}
 	}
+	zh := renderResults(t, i18n.ZhHant, &CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
+	for _, want := range []string{"活動前", "活動開始後的 3 天", "只計活動目前的 6 件商品"} {
+		if !strings.Contains(zh, want) {
+			t.Errorf("the Chinese page of a campaign with results lacks %q", want)
+		}
+	}
 	for name, r := range map[string]*CampaignResults{
 		"day 2":                results(2, 0, 0, 1, 0),
 		"10 units on two days": results(5, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5),

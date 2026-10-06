@@ -145,7 +145,7 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 		t.Errorf("campaign label = %q, want its title in the reader's language", got.Campaign.Label)
 	}
 
-	if err := s.SetActive(ctx, slug, false); err != nil {
+	if err = s.SetActive(ctx, slug, false); err != nil {
 		t.Fatal(err)
 	}
 	off, err := s.Detail(ctx, slug)

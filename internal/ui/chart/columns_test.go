@@ -381,7 +381,11 @@ func TestColumnsDrawTheDaysBeforeInTheirOwnColourUnderALine(t *testing.T) {
 	if n := strings.Count(got, `class="goen-chart__window"`); n != 1 {
 		t.Errorf("%d lines under the days before, want 1", n)
 	}
-	if window, _, _ := strings.Cut(got[strings.Index(got, `class="goen-chart__window"`):], `class="goen-chart__span"`); strings.Contains(window, "goen-chart__gap") {
+	at := strings.Index(got, `class="goen-chart__window"`)
+	if at < 0 {
+		t.Fatal("no line under the days before")
+	}
+	if window, _, _ := strings.Cut(got[at:], `class="goen-chart__span"`); strings.Contains(window, "goen-chart__gap") {
 		t.Error("the line under the days before is cut into days like a bracket")
 	}
 	if n := strings.Count(got, `class="goen-chart__gap`); n == 0 {
