@@ -232,7 +232,7 @@ type shippingPrefixControl struct {
 	Method, FormClass, Action         string
 	Invalid, DescribedBy, Error       string
 	FullWidth, VisibleLabel, Required bool
-	Districts                        []string
+	Districts                         []string
 }
 
 func shippingPrefixControls(t *testing.T, body string) map[string]shippingPrefixControl {
