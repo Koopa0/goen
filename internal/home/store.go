@@ -93,23 +93,17 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	rules, err := s.shopRules(ctx)
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
-	}
-	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
-	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read lowest delivery fee: %w", err)
+		return pages.HomeView{}, err
 	}
 
 	view := pages.HomeView{
-		Slides:            slides,
-		Categories:        make([]pages.HomeCategory, 0, len(cats)),
-		Row:               row,
-		Band:              band,
-		FreeDeliveryCents: freeOver,
-		LowestFeeCents:    lowestFee,
-		PickupOffered:     !s.noPickup,
+		Slides:     slides,
+		Categories: make([]pages.HomeCategory, 0, len(cats)),
+		Row:        row,
+		Band:       band,
+		Rules:      rules,
 	}
 	for i := range cats {
 		c := &cats[i]
@@ -121,6 +115,18 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		})
 	}
 	return view, nil
+}
+
+func (s *Store) shopRules(ctx context.Context) (pages.ShopRules, error) {
+	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
+	}
+	return pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup}, nil
 }
 
 func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {

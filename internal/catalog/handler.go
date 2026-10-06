@@ -45,6 +45,13 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rules, err := h.store.ShopRules(r.Context())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
+		h.serverError(w, r)
+		return
+	}
+
 	view.Query = canonicalQuery(f)
 	view.Filtered = f.Active()
 	view.InStockOnly = f.InStockOnly
@@ -55,7 +62,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view))
+	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, &rules))
 }
 
 const newestOnEmpty = 4

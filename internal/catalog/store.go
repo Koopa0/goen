@@ -16,8 +16,9 @@ import (
 )
 
 type Store struct {
-	q   *db.Queries
-	now func() time.Time
+	q        *db.Queries
+	now      func() time.Time
+	noPickup bool
 }
 
 func NewStore(dbtx db.DBTX) *Store {
@@ -25,6 +26,26 @@ func NewStore(dbtx db.DBTX) *Store {
 		panic("catalog: NewStore requires a database handle")
 	}
 	return &Store{q: db.New(dbtx), now: time.Now}
+}
+
+// WithoutPickup is for a deployment whose store map is not configured: checkout
+// offers no pickup there, so what this store describes must not either.
+func (s *Store) WithoutPickup() *Store {
+	c := *s
+	c.noPickup = true
+	return &c
+}
+
+func (s *Store) ShopRules(ctx context.Context) (pages.ShopRules, error) {
+	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
+	}
+	return pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup}, nil
 }
 
 // Listing uses one set of descendant ids for the listing, the count and the
