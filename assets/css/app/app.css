@@ -1993,6 +1993,7 @@ h3 {
 
 .goen-band .goen-home__heading {
   color: var(--tone-text);
+  font-size: var(--fs-ed-30);
 }
 
 .goen-band .goen-home__heading:lang(zh) {
@@ -2005,8 +2006,8 @@ h3 {
   font-weight: var(--fw-regular);
 }
 
-.goen-home__heading--long {
-  font-size: var(--fs-18);
+.goen-band .goen-band__name--long {
+  font-size: var(--fs-ed-24);
 }
 
 .goen-band .goen-home__more {
@@ -2860,9 +2861,9 @@ input.goen-check {
   text-underline-offset: 4px;
 }
 
-/* The department head: the breadcrumb, the title and the sub-category chips on
-   the tone's ground, and from 1024 the department's photograph on the left. Below 1024 the photograph is dropped so the first product still starts
-   inside a phone's first screen. */
+/* The department head is the band: its grid, photograph and body are the
+   band's. Below 1024 the photograph and the lift are dropped so the first
+   product still starts inside a phone's first screen. */
 .goen-pagehead__text {
   display: flex;
   flex-direction: column;
@@ -2870,7 +2871,7 @@ input.goen-check {
   min-width: 0;
 }
 
-.goen-pagehead__photo {
+.goen-pagehead .goen-band__media {
   display: none;
 }
 
@@ -3276,29 +3277,8 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
-  /* The photograph is the head's left, lifted out of the tone like the home
-     band's: the tone starts --lift below the top, goen's white runs along the
-     photograph's right and bottom edge, and the text sits in the tone beside
-     it. */
-  .goen-listing__head .goen-pagehead[data-tone]:has(.goen-pagehead__photo) {
-    --lift: 4rem;
-    background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
-    box-sizing: border-box;
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    min-height: 22rem;
-    overflow: hidden;
-    padding: calc(var(--lift) + var(--s-6)) var(--page-edge) var(--s-7) 0;
-    position: relative;
-  }
-
-  /* Above the photograph, which is positioned and would otherwise take the
-     clicks meant for the first chip. */
-  .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
-    grid-column: 2;
-    padding-left: clamp(2rem, 4.5vw, 4.5rem);
-    position: relative;
-    z-index: 1;
+  .goen-pagehead .goen-band__media {
+    display: block;
   }
 
   .goen-pagehead__chips {
@@ -3306,23 +3286,6 @@ input.goen-check {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-pagehead__photo {
-    border: 0 solid var(--n-0);
-    border-width: 0 var(--col-gap) var(--col-gap) 0;
-    box-sizing: border-box;
-    display: block;
-    height: calc(100% - var(--lift));
-    inset: 0 auto auto 0;
-    object-fit: cover;
-    position: absolute;
-    width: calc(5 / 12 * 100%);
-  }
-
-  .goen-pagehead__photo--well {
-    background: var(--well);
-    object-fit: contain;
   }
 
   .goen-campaigns__list {
@@ -4694,13 +4657,20 @@ input.goen-check {
 }
 
 .goen-listing__head .goen-pagehead[data-tone] {
+  background: none;
   border-radius: 0;
   margin-top: 24px;
-  padding-inline: var(--page-edge);
+  padding: 0;
 }
 
-.goen-pagehead__title--long {
-  font-size: var(--fs-ed-24);
+@media (max-width: 63.99rem) {
+  .goen-pagehead .goen-band {
+    --lift: 0;
+  }
+
+  .goen-pagehead .goen-band__body {
+    padding-block: var(--s-5);
+  }
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {
