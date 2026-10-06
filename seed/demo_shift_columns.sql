@@ -7,6 +7,12 @@
 -- attempts, guest order access), so that nothing which expired comes back to
 -- life, and order_number_counters, whose days the script moves one at a time.
 -- internal/db/demoshift_integration_test.go holds the file to that.
+--
+-- Each table moves in one UPDATE, and PostgreSQL checks a unique index row by
+-- row, so two rows exactly k days apart under a unique index on a moved column
+-- collide and the shift rolls back. The only such index today is
+-- shipping_method_versions (method_id, effective_at), with one version per
+-- method in the seed; a date-keyed one would need moving like the counters.
 CREATE TEMP TABLE demo_time_column AS
 SELECT c.oid::regclass AS relid, a.attname, a.atttypid::regtype AS typ
 FROM pg_class c

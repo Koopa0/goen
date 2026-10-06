@@ -11,10 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -91,6 +94,9 @@ func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, days int) {
 		t.Errorf("orders numbered for another day than the one they were placed on: %s",
 			strings.Join(off[:min(len(off), 5)], ", "))
 	}
+
+	assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, days),
+		"orders from the history were placed on or after")
 }
 
 // ageSnapshot makes the database read as if it had been made days earlier:
@@ -211,11 +217,13 @@ func TestDemoShiftRefuses(t *testing.T) {
 	itself := func(own string) string { return own }
 	today := shoptime.In(time.Now())
 	yesterday, tomorrow := shoptime.Day(today.AddDate(0, 0, -1)), shoptime.Day(today.AddDate(0, 0, 1))
+	threeDaysAgo := shoptime.Day(today.AddDate(0, 0, -3))
 	tests := []struct {
 		name    string
 		prepare []func(*testing.T, *pgxpool.Pool)
 		named   func(own string) string // what the run passes as demo_database, given the database's name; nil passes nothing
 		anchor  string                  // what the run passes as anchor_day; empty passes nothing
+		clerk   bool                    // the run logs in as a role that is not a superuser
 		refusal string
 	}{
 		{
@@ -230,6 +238,14 @@ func TestDemoShiftRefuses(t *testing.T) {
 			named:   func(string) string { return "goen" },
 			anchor:  yesterday,
 			refusal: "demo_database is goen, not this database",
+		},
+		{
+			name:    "a role that is not a superuser",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, orderPaidDaysAgo("cs_test_a1before", 2)},
+			named:   itself,
+			anchor:  yesterday,
+			clerk:   true,
+			refusal: "run this as a superuser: replica mode needs one",
 		},
 		{
 			name:    "no anchor_day",
@@ -273,6 +289,13 @@ func TestDemoShiftRefuses(t *testing.T) {
 			anchor:  yesterday,
 			refusal: "no opening stock from seed/dev_catalog.sql",
 		},
+		{
+			name:    "an anchor_day before the history's last day",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, orderPaidDaysAgo("cs_demo_a1history", 2)},
+			named:   itself,
+			anchor:  threeDaysAgo,
+			refusal: "orders from the history were placed on or after " + threeDaysAgo,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -281,6 +304,10 @@ func TestDemoShiftRefuses(t *testing.T) {
 			for _, prepare := range tt.prepare {
 				prepare(t, shop)
 			}
+			conn := shop.Config().ConnString()
+			if tt.clerk {
+				conn = clerkConnString(t, shop)
+			}
 			var args []string
 			if tt.named != nil {
 				args = append(args, "-v", "demo_database="+tt.named(shop.Config().ConnConfig.Database))
@@ -288,8 +315,46 @@ func TestDemoShiftRefuses(t *testing.T) {
 			if tt.anchor != "" {
 				args = append(args, "-v", "anchor_day="+tt.anchor)
 			}
-			assertRefused(t, shop, "demo_shift.sql", shop.Config().ConnString(), args, tt.refusal)
+			assertRefused(t, shop, "demo_shift.sql", conn, args, tt.refusal)
 		})
+	}
+}
+
+// The seed ran at some hour of its day and the shift keeps that hour, so a
+// restore earlier in the day than the seed ran must still find both ways to
+// ship: shifted, every shipping version is in effect from the shop's midnight,
+// and checkout offers both methods.
+func TestDemoShiftOffersShippingFromMidnight(t *testing.T) {
+	t.Parallel()
+	shop := dbtest.Pool(t)
+	seedCatalogue(t, shop)
+	ageSnapshot(t, shop, 3)
+	if out, err := runSeed(t, "demo_shift.sql", shop.Config().ConnString(), shiftArgs(shop, 3)...); err != nil {
+		t.Fatalf("seed/demo_shift.sql 3 days after the snapshot: %v\n%s", err, out)
+	}
+
+	if late := textRows(t, shop, `
+		SELECT name || ' from ' || to_char(effective_at AT TIME ZONE 'Asia/Taipei', 'HH24:MI:SS')
+		FROM shipping_method_versions
+		WHERE effective_at > shop_today()::timestamp AT TIME ZONE 'Asia/Taipei'
+		ORDER BY 1`); len(late) > 0 {
+		t.Errorf("shifted, shipping versions in effect only later today (a restore before then offers neither): %s",
+			strings.Join(late, ", "))
+	}
+	choices, err := db.New(shop).ShippingChoices(t.Context(), db.ShippingChoicesParams{
+		Locale: string(i18n.ZhHant),
+		CartID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatalf("ShippingChoices: %v", err)
+	}
+	codes := make([]string, 0, len(choices))
+	for _, c := range choices {
+		codes = append(codes, c.Code)
+	}
+	slices.Sort(codes)
+	if want := []string{"home_delivery", "store_pickup"}; !slices.Equal(codes, want) {
+		t.Errorf("shifted, checkout offers %v, want %v", codes, want)
 	}
 }
 

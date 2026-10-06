@@ -1107,14 +1107,19 @@ INSERT INTO shipping_methods (id, code, destination_kind, position) VALUES
     ('ffff0001-0000-4000-8000-000000000002', 'store_pickup', 'pickup_point', 1);
 
 -- free_over_cents is the 滿 NT$3,000 免運 the storefront advertises. The copy
--- and this number are the same claim, so they change together.
+-- and this number are the same claim, so they change together. In effect from
+-- the shop's midnight rather than the hour the seed ran: seed/demo_shift.sql
+-- keeps that hour, and a demo restored earlier in the day would otherwise offer
+-- no way to ship until then.
 INSERT INTO shipping_method_versions (id, method_id, name, carrier, name_en, carrier_en,
-                                      fee_cents, free_over_cents) VALUES
-    ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000),
+                                      fee_cents, free_over_cents, effective_at) VALUES
+    ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000,
+     shop_today()::timestamp AT TIME ZONE 'Asia/Taipei'),
     -- No carrier on the pickup version: which one carries the parcel follows
     -- from the STORE the customer picks, and naming one here would put
     -- 7-ELEVEN on a label bound for a 全家.
-    ('ffff0002-0000-4000-8000-000000000002', 'ffff0001-0000-4000-8000-000000000002', '超商取貨', NULL, 'Convenience store pickup', NULL, 6000, 300000);
+    ('ffff0002-0000-4000-8000-000000000002', 'ffff0001-0000-4000-8000-000000000002', '超商取貨', NULL, 'Convenience store pickup', NULL, 6000, 300000,
+     shop_today()::timestamp AT TIME ZONE 'Asia/Taipei');
 
 -- 離島. The prefixes are the real ones: 澎湖 880-885, 金門 890-896,
 -- 連江(馬祖) 209-212, and 綠島/蘭嶼 951/952 which are 台東 postcodes but are
