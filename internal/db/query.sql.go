@@ -790,49 +790,29 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
-       w.spend_cents AS window_spend_cents,
-       coalesce(nt.name, '')::text AS next_tier_name,
-       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points
 FROM users u
-CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
-LEFT JOIN LATERAL (
-    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
-    FROM membership_tiers n
-    WHERE n.min_spend_cents > w.spend_cents
-    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
-WHERE u.id = $3
+WHERE u.id = $1
 `
 
-type AdminCustomerParams struct {
-	WindowDays int32
-	Locale     string
-	UserID     uuid.UUID
-}
-
 type AdminCustomerRow struct {
-	ID               uuid.UUID
-	Email            string
-	FullName         string
-	Phone            string
-	CreatedAt        time.Time
-	Verified         bool
-	Orders           int64
-	Spent            int64
-	CreditCents      int64
-	Points           int64
-	WindowSpendCents int64
-	NextTierName     string
-	NextTierCents    int64
+	ID          uuid.UUID
+	Email       string
+	FullName    string
+	Phone       string
+	CreatedAt   time.Time
+	Verified    bool
+	Orders      int64
+	Spent       int64
+	CreditCents int64
+	Points      int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-// The window spend and the next tier are what the account page judges tiers by,
-// read the way it reads them.
-func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
+func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, id)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -845,9 +825,6 @@ func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (A
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
-		&i.WindowSpendCents,
-		&i.NextTierName,
-		&i.NextTierCents,
 	)
 	return i, err
 }
