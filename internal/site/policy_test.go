@@ -48,11 +48,11 @@ func TestHomeRefundTimingDoesNotOutrunReturns(t *testing.T) {
 		t.Fatal("the returns refund section is empty in one locale")
 	}
 
-	homeZH := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyTrustReturnsBody)
-	homeEN := i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyTrustReturnsBody)
-	if homeZH == "" || homeEN == "" {
-		t.Fatal("KeyTrustReturnsBody is blank; the catalogue panic should have refused it")
+	homeNotes := func(locale i18n.Locale) string {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		return i18n.T(ctx, i18n.KeyRuleRescissionNote) + " " + i18n.T(ctx, i18n.KeyRuleReturnNote)
 	}
+	homeZH, homeEN := homeNotes(i18n.ZhHant), homeNotes(i18n.En)
 
 	for _, tt := range []struct {
 		locale, home, policy string
@@ -62,7 +62,7 @@ func TestHomeRefundTimingDoesNotOutrunReturns(t *testing.T) {
 	} {
 		for _, needle := range []string{"3–5", "3-5", "3—5", "3 to 5", "3～5", "3~5"} {
 			if strings.Contains(tt.home, needle) && !strings.Contains(tt.policy, needle) {
-				t.Errorf("home trust %s promises %q and /returns does not:\n  home: %q\n  /returns: %q",
+				t.Errorf("home shop rules %s promise %q and /returns does not:\n  home: %q\n  /returns: %q",
 					tt.locale, needle, tt.home, tt.policy)
 			}
 		}

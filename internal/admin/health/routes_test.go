@@ -15,6 +15,6 @@ func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
-		NewHandler(&Store{}, &outbox.Store{}, nil, log).Routes(mux, ac)
+		NewHandler(&Store{}, &outbox.Store{}, nil, nil, log).Routes(mux, ac)
 	}, "GET /admin/health", "POST /admin/health/reconcile")
 }

@@ -21,7 +21,7 @@ const maxSlides = 3
 // slides runs in the order the shop means it: slides an editor scheduled,
 // campaigns running (soonest-ending first), then departments with a photograph
 // to fill what is left.
-func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string, camps []db.HomeCampaignsRow) ([]pages.HeroSlide, error) {
+func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string, camps []db.ListedCampaignsRow) ([]pages.HeroSlide, error) {
 	locale := i18n.FromContext(ctx)
 	rows, err := s.q.HeroSlides(ctx, db.HeroSlidesParams{Locale: string(locale), MaxSlides: maxSlides})
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 	return out, nil
 }
 
-func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow, withDay i18n.Key) string {
+func (s *Store) campaignFact(ctx context.Context, c *db.ListedCampaignsRow, withDay i18n.Key) string {
 	day := pages.CampaignEndsOn(ctx, c.EndsAt, s.now())
 	if day == "" {
 		return i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, strconv.FormatInt(c.Products, 10))

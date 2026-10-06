@@ -45,7 +45,7 @@ func shippedParcel(t *testing.T) uuid.UUID {
 	}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, 'black_cat', 'RESCISSION-' || $1) RETURNING id`, id).Scan(&shipmentID); err != nil {
+		VALUES ($1, 'black_cat', 'RESCISSION-' || $2::text) RETURNING id`, id, id.String()).Scan(&shipmentID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tx.Exec(ctx, `
