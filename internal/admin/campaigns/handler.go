@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -41,10 +42,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/campaigns/{slug}/window", ac.RequireStaff(h.SetWindow))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":         i18n.KeyAdminNoticeOK,
-	"refused":    i18n.KeyAdminNoticeRefused,
-	"nodiscount": i18n.KeyAdminNoticeNoDiscount,
+var notices = map[string]web.NoticeEntry{
+	"ok":         web.Done(i18n.KeyAdminNoticeOK),
+	"refused":    web.Refused(i18n.KeyAdminNoticeRefused),
+	"nodiscount": web.Refused(i18n.KeyAdminNoticeNoDiscount),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +99,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, http.StatusOK, web.Notice(r, notices), nil)
 }
 
-func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
+func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {
 	slug := r.PathValue("slug")
 	products, err := h.store.Products(r.Context(), slug)
 	if err != nil {
@@ -149,7 +150,7 @@ func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("starts_at"), r.PostFormValue("ends_at"))
 	switch {
 	case err == nil && len(errs) > 0:
-		h.render(w, r, http.StatusUnprocessableEntity, "", errs)
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, errs)
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
@@ -174,7 +175,7 @@ func (h *Handler) SetTone(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
-		h.render(w, r, http.StatusUnprocessableEntity, "", map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
@@ -187,7 +188,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
 		reason := media.UploadNotice(err)
-		h.render(w, r, http.StatusUnprocessableEntity, "", map[string]string{"image": i18n.T(r.Context(), reason)})
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), reason)})
 		return
 	}
 	err = h.store.SetImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
@@ -202,7 +203,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {
 			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
 		}
-		h.render(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)

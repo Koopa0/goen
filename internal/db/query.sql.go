@@ -2929,7 +2929,10 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pr.slug FROM product_variants pv
                                          JOIN products pr ON pr.id = pv.product_id WHERE pv.id = a.entity_id)
-       END, '')::text AS product_slug
+       END, '')::text AS product_slug,
+       coalesce(CASE WHEN a.action = 'customer.view' THEN
+           (SELECT coalesce(nullif(cu.full_name, ''), cu.email) FROM users cu WHERE cu.id = a.entity_id)
+       END, '')::text AS customer_name
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 WHERE (NOT $1::boolean OR (a.occurred_at < $2::timestamptz)
@@ -2946,18 +2949,19 @@ type AuditEventsParams struct {
 }
 
 type AuditEventsRow struct {
-	PageCursor  string
-	Action      string
-	EntityTable string
-	EntityID    uuid.NullUUID
-	Before      []byte
-	After       []byte
-	RequestID   pgtype.Text
-	OccurredAt  time.Time
-	Actor       string
-	BySystem    bool
-	Subject     string
-	ProductSlug string
+	PageCursor   string
+	Action       string
+	EntityTable  string
+	EntityID     uuid.NullUUID
+	Before       []byte
+	After        []byte
+	RequestID    pgtype.Text
+	OccurredAt   time.Time
+	Actor        string
+	BySystem     bool
+	Subject      string
+	ProductSlug  string
+	CustomerName string
 }
 
 func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]AuditEventsRow, error) {
@@ -2987,6 +2991,7 @@ func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]Aud
 			&i.BySystem,
 			&i.Subject,
 			&i.ProductSlug,
+			&i.CustomerName,
 		); err != nil {
 			return nil, err
 		}
@@ -3054,10 +3059,14 @@ WITH target AS (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
-               AS card_capacity_cents
+               AS card_capacity_cents,
+           coalesce(order_amount_after_credit(o.id) = 0
+                    AND EXISTS (SELECT 1 FROM store_credit_entries s
+                                WHERE s.order_id = o.id AND s.amount_cents < 0),
+                    false)::boolean AS paid_by_credit
     FROM orders o WHERE o.order_number = $1::text
 )
-SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.paid_by_credit, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
        EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
        b.id AS return_request_id,
@@ -3074,6 +3083,7 @@ type BeforeShipmentRefundRow struct {
 	OrderID           uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
+	PaidByCredit      bool
 	TotalCents        int64
 	Shipped           bool
 	HasReturn         bool
@@ -3094,6 +3104,7 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 		&i.OrderID,
 		&i.FulfillmentStatus,
 		&i.Committed,
+		&i.PaidByCredit,
 		&i.TotalCents,
 		&i.Shipped,
 		&i.HasReturn,
@@ -7193,13 +7204,15 @@ func (q *Queries) FirstComparableCategorySlug(ctx context.Context) (string, erro
 }
 
 const freeDeliveryThreshold = `-- name: FreeDeliveryThreshold :one
-SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
+SELECT coalesce(
+    CASE WHEN bool_or(coalesce(v.free_over_cents, 0) = 0) THEN 0 ELSE max(v.free_over_cents) END,
+    0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
-  AND v.free_over_cents > 0
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
@@ -7208,9 +7221,11 @@ WHERE sm.is_active
 // with_pickup is false where the store map is not configured: checkout offers no
 // pickup there, so a floor or threshold that counted it would promise a price
 // nobody can choose.
-// MIN across methods: the strip makes one claim, and the most generous true one
-// is the lowest threshold any active method honours. coalesce AND cast, because
-// min() over an empty set is NULL and sqlc types the result as non-null.
+// The strip makes one claim, so it is the cart's: the amount at which EVERY
+// method is free, the highest threshold. A method that costs nothing is free at
+// any amount and takes no part; one that charges and never turns free leaves no
+// claim. coalesce AND cast, because the aggregates over an empty set are NULL
+// and sqlc types the result as non-null.
 func (q *Queries) FreeDeliveryThreshold(ctx context.Context, withPickup bool) (int64, error) {
 	row := q.db.QueryRow(ctx, freeDeliveryThreshold, withPickup)
 	var free_over_cents int64

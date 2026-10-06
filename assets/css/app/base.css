@@ -18,7 +18,7 @@
   --brand-muted: var(--accent-muted);
   --brand-faint: var(--accent-faint);
 
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* The UI type ladder. The editorial step is the one size above it that
      a heading still reaches for. */
@@ -175,7 +175,7 @@ body {
 /* ---------- Stat (back-office figures) ---------- */
 
 .ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; }
-.ui-stat__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.ui-stat__label { font-family: var(--font-sans); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
 
 /* ---------- Breadcrumbs ---------- */
@@ -216,7 +216,7 @@ body {
 
 .ui-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: var(--fs-13); }
 .ui-table thead th {
-  text-align: left; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  text-align: left; font-family: var(--font-sans); font-size: var(--fs-11); font-weight: var(--fw-medium);
   color: var(--fg-muted); letter-spacing: 0.04em; text-transform: uppercase;
   padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
 }
@@ -235,7 +235,7 @@ body {
 /* ---------- Page heading ---------- */
 
 .ui-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.ui-page-head__eyebrow { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 6px; white-space: nowrap; }
+.ui-page-head__eyebrow { font-family: var(--font-sans); font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 6px; white-space: nowrap; }
 .ui-page-head__title { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); letter-spacing: var(--track-tight); color: var(--fg); margin: 0; }
 .ui-page-head__sub { font-size: var(--fs-13); color: var(--fg-muted); margin: 6px 0 0; max-width: 60ch; }
 .ui-page-head__actions { display: flex; align-items: center; gap: 8px; flex: none; }

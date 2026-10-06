@@ -246,8 +246,8 @@ a:hover {
 
    The neutrals carry no chroma, because the product photographs sit on a
    chroma-free #f9f9f9 and any tint in the page would show as an edge around
-   them. Colour is spent in two places only: the accent, and the functional
-   hues a status needs.
+   them. Colour is spent in three places only: the accent, the functional
+   hues a status needs, and the one chart data colour, --chart-hue.
    ------------------------------------------------------------------------ */
 
 :root {
@@ -306,10 +306,10 @@ a:hover {
 
   --font-display: var(--font-sans);
 
-  /* One family for everything, headings included. Noto Sans TC follows Inter
-     so Han is covered by a face that sits beside it rather than under a
-     second personality. */
-  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* One family for everything, headings included. Noto Sans TC follows
+     Instrument Sans so Han is covered by a face that sits beside it rather
+     than under a second personality. */
+  --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;
@@ -584,6 +584,16 @@ h3 {
   background: var(--error-bg);
   border-color: transparent;
   color: var(--fg);
+}
+
+.goen-notice__lead {
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .goen-notice--danger {
+    border: 2px solid CanvasText;
+  }
 }
 
 /* A quantity field with a step on each side, as one control. The field is the
@@ -8846,6 +8856,10 @@ a.goen-pager__step:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.goen-report__bar {
+  flex: 1 0 100%;
+}
+
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
      what a staff member checks against whatever they are about to press.
@@ -9527,5 +9541,139 @@ form[data-request-pending] [aria-disabled="true"] {
   /* SVG preserves author colours, so its selected ring must follow the palette. */
   .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
     outline-color: Highlight;
+  }
+}
+
+/* ---------- Charts ----------
+
+   One data colour. Its contrast against the page grounds is held by
+   assets/contrast_test.go, so it stays a six-digit hex. Position, length and
+   the row's own text carry the meaning, never the hue alone.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --chart-hue: #007f69;
+  --chart-hue-track: #c0ebe1;
+  --chart-previous: #8e8e96;
+  --chart-grid: var(--n-200);
+  --chart-annotation: var(--fg);
+}
+
+/* A bar and its count. Thick over thin, like the day grid's filled and open
+   cells: 6px of hue for the value, a hairline for the rest of the scale. Every
+   row of a scale gets the same count column, so the tracks, and the bars drawn
+   on them, stay comparable. */
+.goen-chartbar {
+  align-items: center;
+  display: grid;
+  font-size: var(--fs-14);
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
+}
+
+.goen-chartbar svg {
+  display: block;
+}
+
+.goen-chartbar__track {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chartbar__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartbar__label {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-regular);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 479px) {
+  .goen-chartbar {
+    grid-template-columns: minmax(0, 1fr) 1.75rem;
+  }
+}
+
+/* The narrow column holds three digits. A count is never cut, so a scale that
+   reaches four widens the column on every one of its rows. */
+.goen-chartbar--wide {
+  grid-template-columns: minmax(0, 1fr) 6ch;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-chartbar__fill {
+    animation: goen-chart-grow 420ms var(--ease-standard) backwards;
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+  }
+}
+
+@keyframes goen-chart-grow {
+  from {
+    scale: 0 1;
+  }
+}
+
+/* A meter is a square-ended 10px track with its used part in hue. The unfilled
+   part is the track, so a coupon with room left reads as room left. */
+.goen-chartmeter {
+  align-items: center;
+  display: grid;
+  font-size: var(--fs-14);
+  gap: 12px;
+  grid-template-columns: minmax(4rem, 1fr) auto;
+}
+
+.goen-chartmeter svg {
+  display: block;
+}
+
+.goen-chartmeter__track {
+  fill: var(--chart-hue-track);
+}
+
+.goen-chartmeter__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartmeter__label {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+/* The SVG names its own system colours rather than relying on which
+   properties a browser forces. A forced palette has one grey, so the
+   hairline steps aside; the count is HTML and is forced like any text. */
+@media (forced-colors: active) {
+  .goen-chartbar svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartbar__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartbar__track {
+    stroke: transparent;
+  }
+
+  .goen-chartmeter svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartmeter__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartmeter__track {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 2;
   }
 }
