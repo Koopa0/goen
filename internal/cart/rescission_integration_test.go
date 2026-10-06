@@ -3,7 +3,6 @@
 package cart_test
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -34,19 +33,11 @@ func TestTheStoreRoleReadsTheLastDayToReturn(t *testing.T) {
 	}
 }
 
-// The home page and the department page state the two windows from pages.RescissionDaysText and
-// pages.ReturnDaysText; the database decides them.
+// The shop-rules page states pages.RescissionDays and pages.ReturnDays; the database decides them.
 func TestTheStatedReturnWindowsAreTheOnesTheDatabaseEnforces(t *testing.T) {
 	ctx := t.Context()
 	conn := storeApplicationPool(t, "stated-return-windows")
-	rescission, err := strconv.Atoi(pages.RescissionDaysText())
-	if err != nil {
-		t.Fatalf("parse stated rescission days: %v", err)
-	}
-	goodwill, err := strconv.Atoi(pages.ReturnDaysText())
-	if err != nil {
-		t.Fatalf("parse stated return days: %v", err)
-	}
+	rescission, goodwill := pages.RescissionDays, pages.ReturnDays
 
 	var days int
 	if err := conn.QueryRow(ctx, `
