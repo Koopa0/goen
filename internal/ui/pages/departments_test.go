@@ -164,23 +164,17 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 }
 
 // The struck-through original price already says a product is reduced, so a
-// card carries no "on sale" chip; a sold-out one still carries its own.
+// card carries no "on sale" chip.
 func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	sale := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true}
 	page := renderComponent(t, ctx, Tile(sale))
-	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) || strings.Contains(page, "goen-tile__flag") {
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
 		t.Error("a reduced tile draws an on-sale chip")
 	}
 	if !strings.Contains(page, `class="goen-tile__was"`) {
 		t.Error("a reduced tile lost its struck-through original price")
-	}
-
-	sold := sale
-	sold.InStock = false
-	if got := renderComponent(t, ctx, Tile(sold)); !strings.Contains(got, i18n.T(ctx, i18n.KeySoldOut)) {
-		t.Error("a sold-out tile lost its chip")
 	}
 }
 

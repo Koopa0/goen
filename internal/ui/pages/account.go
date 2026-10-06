@@ -184,7 +184,7 @@ type AuthView struct {
 	Errors       map[string]string
 	Notice       string
 	GoogleSignIn bool
-	Sent         bool
+	OffersResend bool
 	// DemoEmail and DemoPassword are the account every visitor of a public demonstration shares; empty is none.
 	DemoEmail    string
 	DemoPassword string
