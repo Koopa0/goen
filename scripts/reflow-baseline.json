@@ -1,4 +1,108 @@
 {
   "_comment": "The routes `make check-layout` accepts as failing at 320px or at 200% text, as route -> check ids: scroll-320, scroll-200, and text-320:<element> or text-200:<element> for the element (tag.first-class) that owns the cut text. A check that is not listed fails the gate; a check listed that no longer fires fails it too, so this file can only shrink. Each storefront page change removes its routes, and a route added later is measured with nothing listed. The run prints the file that makes it green when the set moves.",
-  "routes": {}
+  "routes": {
+    "/": [
+      "scroll-200",
+      "text-200:a.goen-home__more"
+    ],
+    "/admin/credit": [
+      "scroll-200"
+    ],
+    "/admin/health": [
+      "scroll-200"
+    ],
+    "/admin/messages": [
+      "scroll-200",
+      "text-200:span.goen-admin__meta"
+    ],
+    "/admin/orders/{order}": [
+      "scroll-200",
+      "text-200:p.ui-alert",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?allowfailed=1": [
+      "scroll-200",
+      "text-200:p.ui-alert",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?voidfailed=1": [
+      "scroll-200",
+      "text-200:p.ui-alert",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?voidreason=1": [
+      "scroll-200",
+      "text-200:p.ui-alert",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/products/aurora-charger-65": [
+      "scroll-200"
+    ],
+    "/admin/returns": [
+      "scroll-200",
+      "text-200:span.goen-admin__meta"
+    ],
+    "/admin/shipping": [
+      "scroll-200"
+    ],
+    "/admin/taxonomy": [
+      "scroll-200"
+    ],
+    "/cart": [
+      "scroll-200",
+      "text-200:a.goen-line__name",
+      "text-200:span.goen-line__brand",
+      "text-200:span.goen-line__meta",
+      "text-200:span.goen-line__total"
+    ],
+    "/checkout": [
+      "scroll-200",
+      "text-200:dd.goen-summary__value",
+      "text-200:span.goen-summary__value"
+    ],
+    "/checkout?ship={id}": [
+      "scroll-200",
+      "text-200:dd.goen-summary__value",
+      "text-200:span.goen-summary__value"
+    ],
+    "/contact": [
+      "scroll-200",
+      "text-200:span.contact-method__value"
+    ],
+    "/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD": [
+      "text-200:span."
+    ],
+    "/p/pixelight-9": [
+      "scroll-200",
+      "text-200:span.goen-pdp__price"
+    ],
+    "/p/pixelight-9-pro": [
+      "scroll-200",
+      "text-200:span.goen-pdp__price"
+    ],
+    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB": [
+      "scroll-200",
+      "text-200:span.goen-pdp__price"
+    ],
+    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D": [
+      "scroll-200",
+      "text-200:span.",
+      "text-200:span.goen-pdp__price"
+    ],
+    "/privacy": [
+      "scroll-200",
+      "text-200:p."
+    ],
+    "/s/layout-campaign": [
+      "text-200:h1.goen-pagehead__title"
+    ],
+    "/search?q=%C2%A0%E3%80%80pixelight%E2%80%83": [
+      "scroll-200",
+      "text-200:h1.goen-pagehead__title"
+    ],
+    "/search?q=pixelight": [
+      "scroll-200",
+      "text-200:h1.goen-pagehead__title"
+    ]
+  }
 }
