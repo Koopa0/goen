@@ -693,15 +693,13 @@ LEFT JOIN brands b ON b.id = p.brand_id
 -- cheapest buyable one, which is a different variant whenever the discounted
 -- one is dearer.
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents,
-           (stock_quantity > safety_stock) AS buyable
+    SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (compare_at_price_cents > price_cents
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
               AND stock_quantity > safety_stock) DESC,
-             (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
@@ -730,9 +728,6 @@ WHERE p.status = 'active'
             WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   )
 ORDER BY
-    -- A discount that can be bought comes before a deeper one that cannot: the
-    -- variant the tile shows, not any variant of the product.
-    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -930,14 +925,13 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A campaign may feature a product only while an active discounted variant
-    -- exists. Price the fact that admitted it, as /deals does, rather than a
-    -- cheaper regular variant that would erase the markdown from the campaign.
-    ORDER BY (compare_at_price_cents > price_cents
+    -- A discounted variant that can be bought, else any variant that can be
+    -- bought, so the price shown is never one a shopper cannot pay; a missing
+    -- compare price is not a discount.
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
               AND stock_quantity > safety_stock) DESC,
-             (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
