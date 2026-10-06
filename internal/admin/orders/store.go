@@ -81,16 +81,21 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		return admin.DashboardView{}, fmt.Errorf("read summary: %w", err)
 	}
 	view := admin.DashboardView{
-		PendingOrders:  sum.PendingOrders,
-		ReadyOrders:    sum.ReadyOrders,
-		PickingOrders:  sum.PickingOrders,
-		SoldOut:        sum.SoldOut,
-		ActiveProducts: sum.ActiveProducts,
-		OpenMessages:   sum.OpenMessages,
+		PendingOrders:             sum.PendingOrders,
+		ReadyOrders:               sum.ReadyOrders,
+		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
+		PickingOrders:             sum.PickingOrders,
+		SoldOut:                   sum.SoldOut,
+		ActiveProducts:            sum.ActiveProducts,
+		OpenMessages:              sum.OpenMessages,
+		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
 
-		PendingReturns:      sum.PendingReturns,
-		UninspectedReturns:  sum.UninspectedReturns,
-		UnansweredQuestions: sum.UnansweredQuestions,
+		PendingReturns:                   sum.PendingReturns,
+		PendingReturnsOldestSeconds:      sum.PendingReturnsOldestSeconds,
+		UninspectedReturns:               sum.UninspectedReturns,
+		UninspectedReturnsOldestSeconds:  sum.UninspectedReturnsOldestSeconds,
+		UnansweredQuestions:              sum.UnansweredQuestions,
+		UnansweredQuestionsOldestSeconds: sum.UnansweredQuestionsOldestSeconds,
 	}
 	// No status: the newest orders whatever state they are in. The tiles above
 	// the queue already count each state, and a queue filtered to one of them

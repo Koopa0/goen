@@ -1,0 +1,21 @@
+package chart
+
+import "github.com/koopa0/goen/internal/i18n"
+
+// frame is the figure every chart sits in: the sentence that says what it shows,
+// the drawing, the same data as a table, and where the figures come from. The
+// drawing is hidden from assistive technology; the caption and the table are
+// what it reads.
+templ frame(caption, note string, table templ.Component) {
+	<figure class="goen-chart">
+		<figcaption class="goen-chart__caption">{ caption }</figcaption>
+		{ children... }
+		<details class="goen-chart__data">
+			<summary>{ i18n.T(ctx, i18n.KeyChartTable) }</summary>
+			@table
+		</details>
+		if note != "" {
+			<p class="goen-chart__note">{ note }</p>
+		}
+	</figure>
+}

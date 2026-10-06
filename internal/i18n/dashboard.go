@@ -58,4 +58,29 @@ var (
 		ZhHant: "超過期限仍保留庫存的未付款訂單",
 		En:     "Unpaid orders still holding stock past their deadline",
 	})
+
+	KeyAdminQueueTaskPayments = key("admin.queue.task.payments", Message{
+		ZhHant: "付款待核對",
+		En:     "Payments to check",
+	})
+
+	KeyAdminQueueTaskClaims = key("admin.queue.task.claims", Message{
+		ZhHant: "發票待確認",
+		En:     "Invoices to confirm",
+	})
+
+	KeyAdminQueueTaskUninvoiced = key("admin.queue.task.uninvoiced", Message{
+		ZhHant: "已收款、還沒開發票",
+		En:     "Paid, not yet invoiced",
+	})
+
+	KeyAdminQueueTaskUnderADay = key("admin.queue.task.underaday", Message{
+		ZhHant: "不到 1 天",
+		En:     "Under a day",
+	})
+
+	KeyAdminQueueTaskOldestDays = countKey("admin.queue.task.oldestdays",
+		"最久 %d 天",
+		"Oldest %d day",
+		"Oldest %d days")
 )
