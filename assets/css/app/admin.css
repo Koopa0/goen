@@ -1133,6 +1133,14 @@ input.goen-check {
   margin: 0;
 }
 
+/* The days cover rows above the stock list keep the page's own rhythm. */
+.goen-admin__cover {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
 /* The second line of a cell or a card: who, when, which brand. */
 .goen-admin__meta {
   color: var(--fg-muted);
