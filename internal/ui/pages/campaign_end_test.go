@@ -22,6 +22,10 @@ func TestACampaignNamesItsLastDayOnlyWithinThirtyDays(t *testing.T) {
 		endsAt time.Time
 		want   string
 	}{
+		{"midnight end", i18n.ZhHant, now, time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
+		{"midnight end into a month", i18n.ZhHant, now, time.Date(2026, 10, 31, 16, 0, 0, 0, time.UTC), "10\u00a0月 31\u00a0日"},
+		{"23:59 end", i18n.ZhHant, now, time.Date(2026, 10, 30, 15, 59, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
+		{"mid-day end", i18n.ZhHant, now, time.Date(2026, 10, 30, 4, 0, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
 		{"29 days", i18n.ZhHant, now, now.AddDate(0, 0, 29), "10\u00a0月 31\u00a0日"},
 		{"30 days", i18n.ZhHant, now, now.AddDate(0, 0, 30), "11\u00a0月 1\u00a0日"},
 		{"31 days", i18n.ZhHant, now, now.AddDate(0, 0, 31), ""},
