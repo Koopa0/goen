@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-templ Listing(p layouts.Page, v ListingView) {
+// rules is nil where the page has no shop rules to state.
+templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
@@ -80,6 +81,9 @@ templ Listing(p layouts.Page, v ListingView) {
 					</div>
 				</div>
 			</div>
+			if rules != nil && !isPartial(ctx) {
+				@shopRules(*rules)
+			}
 			if isPartial(ctx) {
 				// The rail is not swapped, or the box the shopper just used would lose focus;
 				// its counts are, because they follow the filters.
