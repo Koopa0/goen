@@ -3,7 +3,6 @@ package admin
 import (
 	"strconv"
 
-	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -56,14 +55,6 @@ type CustomerView struct {
 	Points      int64
 	Recent      []OrderRow
 }
-
-func (v CustomerView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
-
-func (v CustomerView) Spent() string { return money.TWD(v.SpentCents) }
-
-func (v CustomerView) Credit() string { return money.TWD(v.CreditCents) }
-
-func (v CustomerView) PointsText() string { return strconv.FormatInt(v.Points, 10) }
 
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
 
