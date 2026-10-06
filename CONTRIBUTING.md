@@ -70,8 +70,9 @@ that fails it. It formats, regenerates templ and sqlc and compares, vets, lints,
 checks for unreachable code, builds under both build tags, and runs the race
 tests. `make verify-all` adds the database suite and the vulnerability scan.
 
-Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
-`golangci-lint` and `squawk` (`npm i -g squawk-cli@<pinned>`). Every other tool
+Three tools have to be on `PATH`: `golangci-lint` and `squawk`
+(`npm i -g squawk-cli@<pinned>`), both pinned at the top of the `Makefile`, and
+Node 24, the version CI installs, for the browser-script tests. Every other tool
 is fetched by `go run` at its pinned version.
 
 `make check-layout` drives every route in a real browser. It needs Node 22 or

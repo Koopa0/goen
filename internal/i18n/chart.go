@@ -10,6 +10,26 @@ var (
 	// A day on an axis; same arguments as KeyAdminRepDay.
 	KeyChartAxisDay = key("chart.axis.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
 
+	// A campaign's name on a strip that runs past the last day drawn:
+	// %[1]s is the name, %[2]s the day it ends, as KeyChartAxisDay.
+	KeyChartSpanUntil = key("chart.span.until", Message{ZhHant: "%[1]s，至 %[2]s", En: "%[1]s, until %[2]s"})
+
+	// A table cell with what qualifies it: %[1]s the cell, %[2]s the days it covers.
+	KeyChartQualified = key("chart.qualified", Message{ZhHant: "%[1]s（%[2]s）", En: "%[1]s (%[2]s)"})
+
+	// A column of the chart that holds %d days, not one.
+	KeyChartColumnDays = countKey("chart.column.days", "%d 天", "%d day", "%d days")
+
+	// What sets one column of a long chart apart: its earliest has fewer days
+	// than the rest.
+	KeyChartShortFirst = countKey("chart.short.first",
+		"最早一段只有 %d 天。",
+		"The earliest stretch has %d day.",
+		"The earliest stretch has %d days.")
+
+	// Names run together in a table cell or a sentence.
+	KeyChartListSeparator = key("chart.list.separator", Message{ZhHant: "、", En: ", "})
+
 	// The smaller and the larger unit of an axis, whose sizes depend on the
 	// language (AxisUnit): 萬 and 億 in Chinese, K and M in English.
 	keyAxisSmall = key("chart.axis.small", Message{ZhHant: "萬", En: "K"})

@@ -2053,6 +2053,11 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reaso
 		accept:     deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01');`,
 	},
 	{
+		constraint: "warranty_registrations_serial_length",
+		reject:     deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on, serial_number) VALUES ('11110001-0000-4000-8000-000000000005', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01', repeat('序', 61));`,
+		accept:     deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on, serial_number) VALUES ('11110001-0000-4000-8000-000000000005', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01', repeat('序', 60));`,
+	},
+	{
 		constraint: "invoice_document_lines_description_bounded",
 		reject:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000001', '99990001-0000-4000-8000-000000000000', repeat('品', 101), 1, 100, 100, 'taxable', 1);`,
 		accept:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000001', '99990001-0000-4000-8000-000000000000', repeat('品', 100), 1, 100, 100, 'taxable', 1);`,

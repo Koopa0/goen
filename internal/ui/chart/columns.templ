@@ -1,0 +1,84 @@
+package chart
+
+import "strconv"
+
+// Columns draws a series as one column to a day, or to each seven days when
+// there are too many to draw one to a day, with the spans that overlap it
+// bracketed above. Fewer than three days with values, and it draws nothing.
+templ Columns(p ColumnsProps) {
+	if p.Series.Density() >= DensitySparse {
+		{{ c := newColumns(ctx, p) }}
+		@frame(p.Caption, c.Note, columnsTable(p, c)) {
+			<div class={ "goen-chart__frame goen-chart__frame--columns", templ.KV("goen-chart__frame--plain", c.Plain) }>
+				if !c.Plain {
+					<svg class="goen-chart__yaxis" width="100%" height={ strconv.Itoa(c.Height) } aria-hidden="true" focusable="false">
+						for _, g := range c.Grid {
+							<text class="goen-chart__label" x="100%" dx="-8" y={ px(g.Y) } dy="0.32em" text-anchor="end">{ g.Label }</text>
+						}
+					</svg>
+				}
+				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(c.Height) } aria-hidden="true" focusable="false">
+					for _, s := range c.Strips {
+						<rect class="goen-chart__span" x={ s.GroundX } y={ px(c.Baseline - columnsPlot) } width={ s.GroundWidth } height={ strconv.Itoa(columnsPlot) }></rect>
+						<rect class="goen-chart__strip" x={ s.X } y={ px(s.Y) } width={ s.Width } height="4"></rect>
+						for _, x := range s.Gaps {
+							<line class={ "goen-chart__gap", templ.KV("goen-chart__gap--thin", s.Thin) } x1={ x } x2={ x } y1={ px(s.Y - 1) } y2={ px(s.Y + 5) }></line>
+						}
+						if s.TodayX != "" {
+							<line class="goen-chart__todaymark" x1={ s.TodayX } x2={ s.TodayX } y1={ px(s.Y - 3) } y2={ px(s.Y + 9) }></line>
+						}
+						<text class="goen-chart__spanlabel" x={ s.NameX } y={ px(s.NameY) } text-anchor={ s.Anchor }>{ s.Name }</text>
+					}
+					for _, g := range c.Grid {
+						if !g.Baseline {
+							<line class="goen-chart__grid" x1="0" x2="100%" y1={ px(g.Y) } y2={ px(g.Y) }></line>
+						}
+					}
+					for _, b := range c.Bars {
+						<rect class={ "goen-chart__hue", templ.KV("goen-chart__open", b.Open) } x={ b.X } y={ px(b.Y) } width={ b.Width } height={ px(b.Height) }></rect>
+					}
+					<line class="goen-chart__grid goen-chart__baseline" x1="0" x2="100%" y1={ px(c.Baseline) } y2={ px(c.Baseline) }></line>
+					if c.TodayX != "" {
+						<line class="goen-chart__todaymark" x1={ c.TodayX } x2={ c.TodayX } y1={ px(c.Baseline) } y2={ px(c.Baseline + 6) }></line>
+					}
+					for _, v := range c.Values {
+						<text class="goen-chart__value" x={ v.X } y={ px(v.Y) } text-anchor="middle">{ v.Text }</text>
+					}
+					for _, t := range c.Ticks {
+						<text
+							class={ "goen-chart__label", templ.KV("goen-chart__tick--minor", t.Minor), templ.KV("goen-chart__today", t.Today) }
+							x={ t.X }
+							y={ px(c.LabelY) }
+							text-anchor={ t.Anchor }
+						>{ t.Label }</text>
+					}
+				</svg>
+			</div>
+		}
+	}
+}
+
+templ columnsTable(p ColumnsProps, c columns) {
+	<table class="goen-chart__table">
+		<thead>
+			<tr>
+				<th scope="col">{ p.DayHeading }</th>
+				<th scope="col">{ p.Series.Label }</th>
+				if c.HasSpans {
+					<th scope="col" class="goen-chart__spans">{ p.SpanHeading }</th>
+				}
+			</tr>
+		</thead>
+		<tbody>
+			for _, row := range c.Rows {
+				<tr>
+					<th scope="row">{ row.Heading }</th>
+					<td>{ row.Value }</td>
+					if c.HasSpans {
+						<td class="goen-chart__spans">{ row.Spans }</td>
+					}
+				</tr>
+			}
+		</tbody>
+	</table>
+}
