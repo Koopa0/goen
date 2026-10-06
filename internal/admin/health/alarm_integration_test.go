@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -711,4 +712,51 @@ func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
 		}
 	}
 	t.Errorf("the lapsed allowance of %s is not on the health page", number)
+}
+
+// With no 加值中心 an issue a paid sale owes is claimed and waits for one to be
+// configured (invoice.Store.ClaimDue). It is not stranded, so the page and the
+// dashboard task must not raise it; an operation already sent still is.
+func TestAnIssueWaitingForNoProviderIsNotAStrandedClaim(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
+		VALUES ($1, 'member_carrier', '買受人', 'buyer@example.com')`, orderID); err != nil {
+		t.Fatalf("record invoice preference: %v", err)
+	}
+	if err := invoice.NewStore(pool, &invoice.Gateway{}).ClaimDue(ctx,
+		&outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_" + number}); err != nil {
+		t.Fatalf("claim the invoice due: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE invoice_operations SET created_at = now() - interval '1 hour' WHERE order_id = $1`, orderID); err != nil {
+		t.Fatalf("age the claim: %v", err)
+	}
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	stranded := func(s *health.Store) bool {
+		t.Helper()
+		view, err := s.WorkerHealth(ctx, worker)
+		if err != nil {
+			t.Fatalf("health: %v", err)
+		}
+		for _, c := range view.StrandedClaims {
+			if c.OrderNumber == number {
+				return true
+			}
+		}
+		return false
+	}
+	if !stranded(health.NewStore(pool).WithInvoicing(true)) {
+		t.Fatal("with e-invoicing on, an hour-old unsent issue is not listed as stranded")
+	}
+	if stranded(health.NewStore(pool).WithInvoicing(false)) {
+		t.Error("with e-invoicing off, an unsent issue is listed as a stranded claim")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE invoice_operations SET send_attempts = 1, last_send_at = now() WHERE order_id = $1`, orderID); err != nil {
+		t.Fatalf("mark the issue sent: %v", err)
+	}
+	if !stranded(health.NewStore(pool).WithInvoicing(false)) {
+		t.Error("with e-invoicing off, an issue already sent to ECPay is not listed")
+	}
 }

@@ -173,3 +173,88 @@ func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
 		t.Error("list meters a coupon with no cap")
 	}
 }
+
+func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, refused := range [][]string{nil, {"min"}, {"days"}, {"max"}, {"min", "days", "max"}} {
+			t.Run(locale.Tag()+"/"+strings.Join(refused, "+"), func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				messages := map[string]string{
+					"min":  i18n.T(ctx, i18n.KeyFormCouponMinSpend),
+					"days": i18n.T(ctx, i18n.KeyFormCouponDays),
+					"max":  i18n.T(ctx, i18n.KeyFormCouponMaxUses),
+				}
+				errs := make(map[string]string)
+				for _, field := range refused {
+					errs[field] = messages[field]
+				}
+				markup := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{
+					Draft:  CouponDraft{MinSpend: "0100000001", Days: "001000001", MaxRedeem: "001000001", Cap: "", PerCustomer: "01"},
+					Errors: errs,
+				}))
+				doc, err := html.Parse(strings.NewReader(markup))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := map[string]couponFieldFacts{
+					"min":         {Controls: 1, Tag: "input", Value: "0100000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupMinSpend)}},
+					"days":        {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupDays)}},
+					"max":         {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem)}},
+					"cap":         {Controls: 1, Tag: "input", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupCap)}},
+					"percustomer": {Controls: 1, Tag: "input", Value: "01", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupPerCustomer)}},
+				}
+				for _, field := range refused {
+					facts := want[field]
+					facts.Invalid, facts.DescribedBy = "true", "c-"+field+"-error"
+					facts.Errors, facts.ErrorTag, facts.ErrorClass, facts.ErrorText = 1, "p", "ui-error-text", messages[field]
+					want[field] = facts
+				}
+				got := make(map[string]couponFieldFacts)
+				for field := range want {
+					got[field] = couponControlFacts(doc, field)
+				}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("coupon refusal controls (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+type couponFieldFacts struct {
+	Controls    int
+	Tag         string
+	Value       string
+	Invalid     string
+	DescribedBy string
+	Labels      []string
+	Errors      int
+	ErrorTag    string
+	ErrorClass  string
+	ErrorText   string
+}
+
+func couponControlFacts(doc *html.Node, field string) couponFieldFacts {
+	var facts couponFieldFacts
+	id := "c-" + field
+	for node := range doc.Descendants() {
+		if node.Type != html.ElementNode {
+			continue
+		}
+		switch couponAttribute(node, "id") {
+		case id:
+			facts.Controls++
+			facts.Tag, facts.Value = node.Data, couponAttribute(node, "value")
+			facts.Invalid, facts.DescribedBy = couponAttribute(node, "aria-invalid"), couponAttribute(node, "aria-describedby")
+		case id + "-error":
+			facts.Errors++
+			facts.ErrorTag, facts.ErrorClass, facts.ErrorText = node.Data, couponAttribute(node, "class"), couponCellText(node)
+		}
+		if node.Data == "label" && couponAttribute(node, "for") == id {
+			facts.Labels = append(facts.Labels, couponCellText(node))
+		}
+	}
+	return facts
+}
