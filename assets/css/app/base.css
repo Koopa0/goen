@@ -172,12 +172,6 @@ body {
   outline: 2px solid var(--accent); outline-offset: -2px;
 }
 
-/* ---------- Stat (back-office figures) ---------- */
-
-.ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; }
-.ui-stat__label { font-family: var(--font-sans); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
-.ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
-
 /* ---------- Stat line: a label, a figure with its unit and one note, each under its own hairline ----------
    Space and size are rem, so they grow with the reader's text; nothing here needs a style attribute. */
 
@@ -188,7 +182,9 @@ body {
 .ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
-.ui-statline--wide { max-width: none; }
+.ui-statline--wide, .ui-statline--glance { max-width: none; }
+.ui-statline--glance dt a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 0.2em; }
+.ui-statline--glance dt a:hover { text-decoration-color: currentcolor; }
 /* one stat keeps a column's width; it never stretches into a divider */
 .ui-statline:has(> :only-child) { grid-template-columns: minmax(0, 18rem); }
 /* four stats read as two rows of two, never three and one; when two columns of --stat-min do not fit
