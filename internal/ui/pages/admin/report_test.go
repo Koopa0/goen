@@ -2,7 +2,6 @@ package admin
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -460,8 +459,8 @@ func TestPaidOrdersAreToldInASentenceBelowThreeDays(t *testing.T) {
 		locale       i18n.Locale
 		wantSentence string
 	}{
-		{"none, with the latest, zh", withLatest(paidView(7, nil), &latest), i18n.ZhHant, "9/29–10/5 沒有已付款的訂單。最近一筆在 9 月 21 日。"},
-		{"none, with the latest, en", withLatest(paidView(7, nil), &latest), i18n.En, "No paid orders Sep 29–Oct 5. The latest was on Sep 21."},
+		{"none, with the latest, zh", paidViewWithLatest(7, nil, &latest), i18n.ZhHant, "9/29–10/5 沒有已付款的訂單。最近一筆在 9 月 21 日。"},
+		{"none, with the latest, en", paidViewWithLatest(7, nil, &latest), i18n.En, "No paid orders Sep 29–Oct 5. The latest was on Sep 21."},
 		{"none, never any, en", paidView(7, nil), i18n.En, "No paid orders Sep 29–Oct 5."},
 		{"one day, zh", paidView(7, map[int]int64{6: 2}), i18n.ZhHant, "9/29–10/5 只有 1 天有已付款訂單：10/5 有 2 筆。"},
 		{"one day, en", paidView(7, map[int]int64{6: 2}), i18n.En, "Sep 29–Oct 5 had paid orders on 1 day only: 2 orders on Oct 5."},
@@ -489,8 +488,9 @@ func TestPaidOrdersAreToldInASentenceBelowThreeDays(t *testing.T) {
 // spaced reads the no-break spaces of a short date as the plain spaces they look like.
 func spaced(s string) string { return strings.ReplaceAll(s, "\u00a0", " ") }
 
-func withLatest(v ReportView, d *shoptime.Date) ReportView {
-	v.Paid.Latest = d
+func paidViewWithLatest(n int, at map[int]int64, latest *shoptime.Date) ReportView {
+	v := paidView(n, at)
+	v.Paid.Latest = latest
 	return v
 }
 
@@ -521,7 +521,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 func TestBusiestDayAndItsTies(t *testing.T) {
 	t.Parallel()
 
-	zh, en := i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.WithLocale(t.Context(), i18n.En)
+	zh, en := i18n.ZhHant, i18n.En
 	// 30 days up to 10/5: index 22 is 9/28. Seven of them have orders.
 	base := map[int]int64{20: 3, 21: 4, 22: 2, 23: 1, 24: 3, 25: 2, 29: 4}
 	with := func(extra map[int]int64) ReportView {
@@ -541,7 +541,7 @@ func TestBusiestDayAndItsTies(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		v            ReportView
-		locale       context.Context
+		locale       i18n.Locale
 		wantSentence string
 	}{
 		{"one, zh", one, zh, "最多的一天是 9 月 28 日，9 筆；今天到 15:20 為止 4 筆。"},
@@ -551,7 +551,7 @@ func TestBusiestDayAndItsTies(t *testing.T) {
 		{"four, en", many, en, "4 days tied for the most, 9 orders each; today up to 15:20, 4 orders."},
 		{"today one order, en", with(map[int]int64{22: 9, 29: 1}), en, "The busiest day was Sep 28, with 9 orders; today up to 15:20, 1 order."},
 	} {
-		if got := spaced(tc.v.PaidSentence(tc.locale)); got != tc.wantSentence {
+		if got := spaced(tc.v.PaidSentence(i18n.WithLocale(t.Context(), tc.locale))); got != tc.wantSentence {
 			t.Errorf("%s: PaidSentence = %q, want %q", tc.name, got, tc.wantSentence)
 		}
 	}

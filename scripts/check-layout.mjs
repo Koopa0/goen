@@ -220,12 +220,19 @@ const ADMIN = [
   // best sellers, one at four digits, and paid orders on seven shop days, one
   // period total of seven digits, so a row without both drawings measured a
   // sparser page.
+  // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
+  // with a campaign over them. Seven paid days give the full drawing, and the
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 1 day to
+  // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
   // and the warning; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports columns 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
   { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },

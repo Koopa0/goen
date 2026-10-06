@@ -296,8 +296,9 @@ func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
 	t.Parallel()
 
 	labels := func(n int) []string {
-		var out []string
-		for _, tk := range columnTicks(i18n.WithLocale(t.Context(), i18n.En), Series{Buckets: days(n)}.Columns(), false, 100/float64(n)) {
+		ticks := columnTicks(i18n.WithLocale(t.Context(), i18n.En), Series{Buckets: days(n)}.Columns(), false, 100/float64(n))
+		out := make([]string, 0, len(ticks))
+		for _, tk := range ticks {
 			out = append(out, tk.Label)
 		}
 		return out
