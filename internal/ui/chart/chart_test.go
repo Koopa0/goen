@@ -110,3 +110,66 @@ func TestCountColumnWidensWithTheScale(t *testing.T) {
 		}
 	}
 }
+
+func TestMeterWidthIsTheShareOfTheLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		p    MeterProps
+		want string
+	}{
+		{"unused", MeterProps{Value: 0, Limit: 10}, "0.00%"},
+		{"a quarter", MeterProps{Value: 5, Limit: 20}, "25.00%"},
+		{"used up", MeterProps{Value: 10, Limit: 10}, "100.00%"},
+		{"above the limit is clamped", MeterProps{Value: 12, Limit: 10}, "100.00%"},
+		{"no limit has no length", MeterProps{Value: 3, Limit: 0}, "0.00%"},
+	} {
+		if got := tc.p.width(); got != tc.want {
+			t.Errorf("%s: MeterProps%+v.width() = %q, want %q", tc.name, tc.p, got, tc.want)
+		}
+	}
+}
+
+func TestMeterDrawsTheUnfilledPartAndKeepsItsCountAsText(t *testing.T) {
+	t.Parallel()
+
+	var b bytes.Buffer
+	if err := Meter(MeterProps{Value: 5, Limit: 20, Label: "5 / 20"}).Render(t.Context(), &b); err != nil {
+		t.Fatalf("Meter.Render: %v", err)
+	}
+	got := b.String()
+	svg := svgOf(t, got)
+	for _, want := range []string{`class="goen-chartmeter__track"`, `class="goen-chartmeter__fill"`, `width="25.00%"`, `height="10"`, `aria-hidden="true"`} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("Meter(5 of 20) draws %s, want it to contain %s", svg, want)
+		}
+	}
+	if strings.Contains(svg, "<text") || strings.Contains(got, "style=") {
+		t.Errorf("Meter(5 of 20) = %s, want the count outside the SVG and no style attribute", got)
+	}
+	if !strings.Contains(svg, `focusable="false"`) {
+		t.Errorf("Meter(5 of 20) draws %s, want focusable=\"false\"", svg)
+	}
+	if strings.Contains(svg, "rx=") {
+		t.Errorf("Meter(5 of 20) draws %s, want square ends", svg)
+	}
+	if !strings.HasPrefix(got, `<div class="goen-chartmeter" aria-hidden="true">`) {
+		t.Errorf("Meter(5 of 20) = %s, want the meter and its count hidden from assistive technology, which reads the row's own text", got)
+	}
+	if !strings.Contains(got, `<span class="goen-chartmeter__label">5 / 20</span>`) {
+		t.Errorf("Meter(5 of 20) = %s, want the count as text beside the meter", got)
+	}
+}
+
+func TestMeterWithNothingUsedDrawsNoFill(t *testing.T) {
+	t.Parallel()
+
+	var b bytes.Buffer
+	if err := Meter(MeterProps{Value: 0, Limit: 20, Label: "0 / 20"}).Render(t.Context(), &b); err != nil {
+		t.Fatalf("Meter.Render: %v", err)
+	}
+	if strings.Contains(b.String(), "goen-chartmeter__fill") {
+		t.Errorf("Meter(0 of 20) = %s, want only the track", b.String())
+	}
+}
