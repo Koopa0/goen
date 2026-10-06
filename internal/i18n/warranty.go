@@ -29,8 +29,6 @@ var (
 		En:     " and register it there.",
 	})
 
-	KeyWarrantyUntil = key("warranty.until", Message{ZhHant: "保固至 %s", En: "Covered until %s"})
-
 	KeyWarrantyOrderMeta = key("warranty.ordermeta", Message{
 		ZhHant: "訂單 %s · 登錄於 %s",
 		En:     "Order %s · registered %s",
