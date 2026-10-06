@@ -276,11 +276,12 @@ type OrderView struct {
 	PickupChains      []pages.PickupChainChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
-	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
+	// exists for.
+	RefundOffered bool
+	// RefundOpen is one whose refund before shipment Resume finishes.
+	RefundOpen bool
 	// RefundCreditPaid is an offered one store credit alone paid, which the
 	// refund cancels at once.
-	RefundOffered    bool
-	RefundOpen       bool
 	RefundCreditPaid bool
 }
 

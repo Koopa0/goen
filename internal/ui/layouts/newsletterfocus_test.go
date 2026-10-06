@@ -1,6 +1,7 @@
 package layouts_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -18,5 +19,26 @@ func TestTheNewsletterSubmitKeepsAnIDAcrossASwap(t *testing.T) {
 	}
 	if !strings.Contains(b.String(), `id="newsletter-submit"`) {
 		t.Error("the newsletter submit button has no id")
+	}
+}
+
+// A placeholder disappears as soon as the visitor types, so the field is named
+// by a label that stays on screen.
+func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	if err := layouts.NewsletterForm(layouts.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
+		t.Fatal(err)
+	}
+	html := b.String()
+	label := regexp.MustCompile(`<label class="([^"]*)" for="newsletter-email">`).FindStringSubmatch(html)
+	if label == nil {
+		t.Fatalf("no <label for=\"newsletter-email\"> in the newsletter form:\n%s", html)
+	}
+	if strings.Contains(label[1], "sr-only") {
+		t.Errorf("the newsletter label is visually hidden (class %q)", label[1])
+	}
+	if !strings.Contains(html, `id="newsletter-email"`) {
+		t.Error("no field has the id the label points at")
 	}
 }

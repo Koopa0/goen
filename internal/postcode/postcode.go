@@ -32,3 +32,10 @@ func readDistricts() map[string][]string {
 	}
 	return out
 }
+
+// Fields splits a delivery-zone prefix list on commas, semicolons and whitespace.
+func Fields(list string) []string {
+	return strings.FieldsFunc(list, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
+	})
+}

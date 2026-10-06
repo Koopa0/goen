@@ -726,48 +726,51 @@ templ Variants(p layouts.Page, v VariantsView) {
 				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
 			</section>
 		}
-		<form class="goen-admin__search" method="get" action="/admin/stock">
-			if v.LowOnly {
-				<input type="hidden" name="low" value="1"/>
-			}
-			<label class="goen-sr-only" for="stock-search">{ i18n.T(ctx, i18n.KeyAdminStockSearch) }</label>
-			<input
-				class="ui-input"
-				id="stock-search"
-				type="search"
-				name="q"
-				value={ v.Term }
-				placeholder={ i18n.T(ctx, i18n.KeyAdminStockSearchPlaceholder) }
-				autocomplete="off"
-			/>
-			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
-		</form>
-		<div class="ui-filterbar goen-admin__tabs">
-			<a
-				class="ui-filter"
-				href={ templ.SafeURL(v.AllHref()) }
-				if !v.LowOnly {
-					aria-current="page"
-				}
-			>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
-			<a
-				class="ui-filter"
-				href={ templ.SafeURL(v.LowHref()) }
+		<section aria-labelledby="stock-list-heading">
+			<h2 class="goen-sr-only" id="stock-list-heading">{ i18n.T(ctx, i18n.KeyAdminStockList) }</h2>
+			<form class="goen-admin__search" method="get" action="/admin/stock">
 				if v.LowOnly {
-					aria-current="page"
+					<input type="hidden" name="low" value="1"/>
 				}
-			>{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
-		</div>
-		if v.Empty() && !v.PastEnd {
-			<div class="ui-empty">
-				<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
+				<label class="goen-sr-only" for="stock-search">{ i18n.T(ctx, i18n.KeyAdminStockSearch) }</label>
+				<input
+					class="ui-input"
+					id="stock-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder={ i18n.T(ctx, i18n.KeyAdminStockSearchPlaceholder) }
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
+			</form>
+			<div class="ui-filterbar goen-admin__tabs">
+				<a
+					class="ui-filter"
+					href={ templ.SafeURL(v.AllHref()) }
+					if !v.LowOnly {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
+				<a
+					class="ui-filter"
+					href={ templ.SafeURL(v.LowHref()) }
+					if v.LowOnly {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
 			</div>
-		} else if !v.Empty() {
-			<div class="goen-admin__tablewrap">
-				@variantTable(v.Variants, v.Return)
-			</div>
-		}
-		@pages.ListPager(v.Bound)
+			if v.Empty() && !v.PastEnd {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
+				</div>
+			} else if !v.Empty() {
+				<div class="goen-admin__tablewrap">
+					@variantTable(v.Variants, v.Return)
+				</div>
+			}
+			@pages.ListPager(v.Bound)
+		</section>
 	}
 }
 
