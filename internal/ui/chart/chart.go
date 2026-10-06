@@ -4,18 +4,18 @@ package chart
 
 import "strconv"
 
-// barReach is the share of the track the longest bar fills, leaving room for
-// its label at the tip.
-const barReach = 80.0
-
 // minBarWidth keeps a positive value visible when it is far below the longest,
-// at the price of proportionality: every value below 0.75% of Max draws the
+// at the price of proportionality: every value below 0.6% of Max draws the
 // same length.
 const minBarWidth = 0.6
 
+// wideScale is the first Max whose count no longer fits the narrow count
+// column's three digits.
+const wideScale = 1000
+
 // BarProps is one bar on a scale shared by its list or table: Max is the
-// largest value drawn on that scale, Label the already localised text at the
-// bar's tip.
+// largest value drawn on that scale, Label the value as already localised text,
+// shown beside the bar.
 type BarProps struct {
 	Value int64
 	Max   int64
@@ -26,7 +26,11 @@ type BarProps struct {
 func (p BarProps) width() string {
 	w := 0.0
 	if p.Value > 0 && p.Max > 0 {
-		w = max(float64(min(p.Value, p.Max))/float64(p.Max)*barReach, minBarWidth)
+		w = max(float64(min(p.Value, p.Max))/float64(p.Max)*100, minBarWidth)
 	}
 	return strconv.FormatFloat(w, 'f', 2, 64) + "%"
 }
+
+// wide depends on Max alone, so every row of a scale gets the same count
+// column and the same track.
+func (p BarProps) wide() bool { return p.Max >= wideScale }

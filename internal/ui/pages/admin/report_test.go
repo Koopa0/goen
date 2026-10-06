@@ -168,15 +168,15 @@ func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
 	if got := strings.Count(html, `class="goen-chartbar__fill"`); got != 3 {
 		t.Fatalf("report shows %d bars, want 3", got)
 	}
-	if got := strings.Count(html, `width="80.00%"`); got != 2 {
-		t.Errorf("report shows %d bars at the full reach, want the 2 tied sellers", got)
+	if got := strings.Count(html, `width="100.00%"`); got != 2 {
+		t.Errorf("report shows %d bars across the full track, want the 2 tied sellers", got)
 	}
-	if !strings.Contains(html, `width="20.00%"`) {
+	if !strings.Contains(html, `width="25.00%"`) {
 		t.Error("report does not draw 10 units at a quarter of 40")
 	}
-	for _, label := range []string{">40</text>", ">10</text>"} {
-		if !strings.Contains(html, label) {
-			t.Errorf("report omits the bar label %s", label)
+	for _, count := range []string{"40", "10"} {
+		if !strings.Contains(html, `<span class="goen-chartbar__label">`+count+`</span>`) {
+			t.Errorf("report omits the count %s beside its bar", count)
 		}
 	}
 	if !strings.Contains(html, "Alpha") || !strings.Contains(html, "Gamma") {

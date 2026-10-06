@@ -1,12 +1,16 @@
 package chart
 
-// Bar is a horizontal bar inside a list row or table cell. It is hidden from
-// assistive technology: the row's own text carries the value.
+// Bar is a horizontal bar inside a list row or table cell, with its value as
+// text beside it. It is hidden from assistive technology: the row's own text
+// carries the value.
 templ Bar(p BarProps) {
-	<svg class="goen-chartbar" width="100%" height="14" aria-hidden="true" focusable="false">
-		if p.Value > 0 {
-			<rect class="goen-chartbar__fill" x="0" y="2" width={ p.width() } height="10" rx="2"></rect>
-		}
-		<text class="goen-chartbar__label" x={ p.width() } dx="6" y="11">{ p.Label }</text>
-	</svg>
+	<div class={ "goen-chartbar", templ.KV("goen-chartbar--wide", p.wide()) } aria-hidden="true">
+		<svg width="100%" height="8" aria-hidden="true" focusable="false">
+			<line class="goen-chartbar__track" x1="0" x2="100%" y1="7.5" y2="7.5"></line>
+			if p.Value > 0 {
+				<rect class="goen-chartbar__fill" x="0" y="2" width={ p.width() } height="6"></rect>
+			}
+		</svg>
+		<span class="goen-chartbar__label">{ p.Label }</span>
+	</div>
 }
