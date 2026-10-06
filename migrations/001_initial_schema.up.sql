@@ -5299,7 +5299,7 @@ SET search_path = pg_catalog, public, pg_temp
 AS $$
     SELECT least(
                ord.subtotal - o.discount_cents,
-               ceil(ret.gross::numeric * (ord.subtotal - o.discount_cents)::numeric
+               floor(ret.gross::numeric * (ord.subtotal - o.discount_cents)::numeric
                     / (nullif(ord.subtotal, 0)::numeric * 100)) * 100
            )::bigint
          - accepted.frozen
