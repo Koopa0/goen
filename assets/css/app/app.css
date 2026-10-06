@@ -601,7 +601,7 @@ h3 {
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
   border-color: var(--ink);
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
 
@@ -2566,7 +2566,7 @@ h3 {
 }
 
 .goen-tile:focus-visible .goen-tile__media {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 
@@ -4200,7 +4200,7 @@ input.goen-check {
 }
 
 .goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -4736,7 +4736,7 @@ input.goen-check {
 }
 
 .goen-pdp__accsummary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 
@@ -5069,7 +5069,7 @@ input.goen-check {
 }
 
 .goen-pdp__star:has(.goen-pdp__starinput:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -5826,7 +5826,7 @@ input.goen-check {
 /* The card shows the focus its hidden radio has, or a keyboard user moving
    through the group would see nothing move. */
 .goen-checkout__ship:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
