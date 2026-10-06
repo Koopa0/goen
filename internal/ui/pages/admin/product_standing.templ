@@ -11,7 +11,7 @@ templ productStanding(v ProductView) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdStanding) }</h2>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdUnitsWeekly) }</h3>
 		if v.Sales.Unavailable {
-			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
 		} else if v.Sales.ShowsUnitColumns() {
 			@chart.Columns(v.Sales.UnitColumns(ctx))
 		} else {
