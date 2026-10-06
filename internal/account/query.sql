@@ -171,13 +171,6 @@ WHERE topic = 'account.password_reset'
 -- name: CartItemRows :many
 SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
 
--- The account row is the stable lock for deciding which of two guest carts is
--- the first one this user adopts. A SECURITY DEFINER function is required
--- because store has only narrow authentication-column UPDATE grants, not
--- authority for a general users row lock.
--- name: LockUserForCartAdoption :one
-SELECT lock_user_for_cart_adoption(@user_id::uuid);
-
 -- name: CartForUser :one
 SELECT id FROM carts WHERE user_id = $1;
 
@@ -248,7 +241,19 @@ INSERT INTO addresses (user_id, label, recipient_name, phone,
                        postal_code, city, district, street, is_default)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
--- name: LockUserForAddressDefault :one
+-- Every path that locks both the account row and its carts or addresses takes
+-- the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+-- default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
+-- SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
+-- UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
+-- only the cart, and non-default address writes take at most the foreign key's
+-- KEY SHARE. None of them takes the account row after a cart or address row,
+-- which keeps the order acyclic. Checkout's KEY SHARE does not wait for
+-- adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
+-- conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
+-- user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
+-- any row lock; store's column UPDATE on users is enough.
+-- name: LockUser :one
 SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
 
 -- Run in the same transaction as the set: addresses_one_default_per_user is unique.

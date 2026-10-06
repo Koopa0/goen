@@ -1513,7 +1513,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 				return id
 			},
 			credit: 200000,
-			want:   "店儲 NT$2,000 退回額度",
+			want:   "購物金 NT$2,000 退回餘額",
 			not:    "走 Stripe",
 		},
 		{
@@ -1525,7 +1525,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			},
 			card:   140000,
 			credit: 60000,
-			want:   "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
+			want:   "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額",
 		},
 		{
 			name: "card-only",
@@ -1536,7 +1536,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			},
 			card: 200000,
 			want: "卡款 NT$2,000 走 Stripe",
-			not:  "額度",
+			not:  "購物金",
 		},
 	}
 	for _, tt := range tests {
