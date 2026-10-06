@@ -4185,6 +4185,7 @@ input.goen-check {
   background: var(--photo);
   background-clip: content-box;
   border: var(--col-gap) solid var(--n-0);
+  box-sizing: border-box;
   display: block;
   height: auto;
   object-fit: contain;

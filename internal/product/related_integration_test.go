@@ -60,7 +60,11 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testin
 			t.Errorf("%s shows %d related products, want at most %d", slug, len(view.Related), product.RelatedCount)
 		}
 		prev := -1
+		shown := map[string]bool{}
+		fromOtherSubcategory := false
 		for _, tile := range view.Related {
+			shown[tile.Slug] = true
+			fromOtherSubcategory = fromOtherSubcategory || categoryOf[tile.Slug] != categoryOf[slug]
 			if tile.Slug == slug {
 				t.Errorf("%s lists itself as related", slug)
 			}
@@ -79,6 +83,15 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testin
 				t.Errorf("%s lists %s (sub-category match %t, in stock %t) after a lower-ranked product", slug, tile.Slug, rank < 2, tile.InStock)
 			}
 			prev = rank
+		}
+		// A product from another sub-category may only appear once every
+		// sibling has a place; sorting what is shown cannot see a missing one.
+		if fromOtherSubcategory {
+			for _, sibling := range slugs {
+				if sibling != slug && categoryOf[sibling] == categoryOf[slug] && !shown[sibling] {
+					t.Errorf("%s lists a product from another sub-category but leaves out its sibling %s", slug, sibling)
+				}
+			}
 		}
 	}
 }
