@@ -441,13 +441,6 @@ h3 {
   }
 }
 
-.goen-input--area {
-  height: auto;
-  line-height: var(--lh-normal);
-  min-height: 0;
-  padding: 0.5rem 0.75rem;
-  resize: vertical;
-}
 
 .ui-crumbs {
   align-items: center;
