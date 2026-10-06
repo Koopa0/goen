@@ -13,14 +13,7 @@ var (
 
 	KeyUnitBrands = countKey("unit.brands", "%d\u00a0個", "%d\u00a0brand", "%d\u00a0brands")
 
-	KeyDeptCampaign = key("dept.campaign", Message{ZhHant: "活動", En: "Campaign"})
-
 	KeyDeptCompareTitle = key("dept.compare.title", Message{ZhHant: "把規格擺在一起", En: "Specifications, side by side"})
-
-	KeyDeptCompareFoot = key("dept.compare.foot", Message{
-		ZhHant: "只列出至少兩件商品都標示的規格。",
-		En:     "Only specifications at least two of these products state are listed.",
-	})
 
 	// The colours' names joined into the story's title.
 	KeyDeptColourJoin = key("dept.colours.join", Message{ZhHant: "、", En: ", "})

@@ -3214,12 +3214,6 @@ input.goen-check {
   text-underline-offset: 3px;
 }
 
-.goen-deptcompare__foot {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  margin: var(--s-3) 0 0;
-}
-
 .goen-story {
   align-items: center;
   display: grid;
@@ -3240,7 +3234,7 @@ input.goen-check {
   text-wrap: balance;
 }
 
-:lang(zh-Hant) .goen-story__title {
+:lang(zh) .goen-story__title {
   font-family: var(--font-editorial);
 }
 
@@ -3306,20 +3300,6 @@ input.goen-check {
   }
 }
 
-@media (max-width: 767px) {
-  .goen-story__plates {
-    grid-auto-flow: column;
-    grid-auto-columns: 70%;
-    grid-template-columns: none;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-
-  .goen-story__plate {
-    scroll-snap-align: start;
-  }
-}
-
 @media (min-width: 1024px) {
   .goen-story {
     gap: clamp(32px, 5vw, 88px);
@@ -3358,14 +3338,14 @@ input.goen-check {
 @media (max-width: 639px) {
   .goen-compare__table td,
   .goen-compare__table th {
-    min-width: 8.5rem;
-    padding: 12px 8px;
+    min-width: 7.5rem;
+    padding: 12px 6px;
   }
 
   .goen-compare__table tbody th,
   .goen-compare__table thead th:first-child {
-    max-width: 5.5rem;
-    min-width: 5.5rem;
+    max-width: 4.5rem;
+    min-width: 4.5rem;
   }
 }
 

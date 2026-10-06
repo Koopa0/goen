@@ -1068,7 +1068,7 @@ WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
 ORDER BY c.ends_at, c.id
 LIMIT 1;
 
--- Per category of the department that holds at least two products on sale, its three
+-- Per category of the department that holds at least two products that can be bought, its three
 -- newest. A category is a candidate for the comparison; whether it may be compared
 -- is the caller's to say.
 -- name: DepartmentCompareCandidates :many
@@ -1144,7 +1144,7 @@ JOIN LATERAL (
 JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
 JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width
-    FROM product_images WHERE option_value_id = v.id ORDER BY position LIMIT 1
+    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
 ) img ON true
 ORDER BY v.position, v.id;
 

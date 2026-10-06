@@ -113,11 +113,11 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	grid := components.PeriodSpec{Description: "秋日選物", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday}, {}}}
 	notice := &DepartmentNotice{
 		Title: "秋日選物", Href: "/s/autumn",
-		Ends:   components.Stat{Label: "結束", Value: components.StatDate("10 月 30 日", "")},
+		Ends:   components.Stat{Label: "結束", Value: components.StatDate("10 月 30 日", "").WithDatetime("2026-10-30")},
 		Period: &grid,
 	}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
-	for _, want := range []string{`class="goen-deptnotice"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`} {
+	for _, want := range []string{`class="goen-deptnotice"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`, `datetime="2026-10-30"`} {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}
@@ -175,5 +175,32 @@ func TestTheFactLineFollowsTheTitleAndPrecedesTheSubCategories(t *testing.T) {
 	title, facts, chips := strings.Index(got, "<h1"), strings.Index(got, "ui-statline"), strings.Index(got, "goen-pagehead__chips")
 	if title < 0 || facts < 0 || chips < 0 || !(title < facts && facts < chips) {
 		t.Errorf("order title=%d facts=%d chips=%d, want title < facts < chips", title, facts, chips)
+	}
+}
+
+func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	got := renderComponent(t, ctx, Tile(ProductTile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
+	if want := `<span class="goen-tile__specs">14″ · 2.8K OLED</span>`; !strings.Contains(got, want) {
+		t.Errorf("tile omits %s", want)
+	}
+}
+
+func TestTheDepartmentFrontIsTheUnfilteredFirstPage(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		view ListingView
+		want bool
+	}{
+		{"first page", ListingView{Page: 1}, true},
+		{"no page given", ListingView{}, true},
+		{"second page", ListingView{Page: 2}, false},
+		{"filtered", ListingView{Page: 1, Filtered: true}, false},
+	} {
+		if got := tt.view.IsFront(); got != tt.want {
+			t.Errorf("%s: IsFront = %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }

@@ -51,7 +51,7 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 				t.Fatalf("featured product: %v", err)
 			}
 
-			head, err := s.DepartmentHead(ctx, departmentOf(t, product), false, true)
+			head, err := s.DepartmentHead(ctx, departmentOf(t, product), false, true, nil)
 			if err != nil {
 				t.Fatalf("DepartmentHead: %v", err)
 			}
@@ -67,7 +67,7 @@ func TestADepartmentCountsTheProductsItsListingHolds(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
 	slug := departmentOf(t, plainSlug(t))
-	head, err := s.DepartmentHead(ctx, slug, false, false)
+	head, err := s.DepartmentHead(ctx, slug, false, false, nil)
 	if err != nil {
 		t.Fatalf("DepartmentHead: %v", err)
 	}
@@ -80,5 +80,26 @@ func TestADepartmentCountsTheProductsItsListingHolds(t *testing.T) {
 	}
 	if head.Notice != nil || head.Preview != nil || head.Story != nil {
 		t.Error("a head read without slots carries a notice or an editorial")
+	}
+}
+
+// A department that compares lists its products with two specifications each.
+func TestAComparableShelfGivesEachTileItsSpecHighlights(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+	slug, _ := twoProductsWithSpecs(t)
+	dept := departmentOf(t, slug)
+	if _, err := pool.Exec(ctx, `UPDATE categories SET comparable = true WHERE slug = $1`, dept); err != nil {
+		t.Fatalf("make the department compare: %v", err)
+	}
+	view, err := s.Listing(ctx, dept, catalog.Filters{})
+	if err != nil {
+		t.Fatalf("Listing: %v", err)
+	}
+	if len(view.Products) != 1 || !view.Products[0].Comparable {
+		t.Fatalf("shelf holds %d products, want the one comparable product", len(view.Products))
+	}
+	if n := len(view.Products[0].Highlights); n != 2 {
+		t.Errorf("tile has %d highlights, want its 2 specifications", n)
 	}
 }

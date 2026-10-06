@@ -112,25 +112,9 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 // days are left; the last two days say so in the end's note instead.
 func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
 	now := s.now()
-	clock := ""
-	if !shoptime.Midnight(c.EndsAt).Equal(c.EndsAt) {
-		clock = shoptime.ClockText(c.EndsAt)
-	}
-	datetime := shoptime.LastDay(c.EndsAt, now).ISO()
-	if clock != "" {
-		datetime += "T" + clock
-	}
-	ends := components.Stat{
-		Label: i18n.T(ctx, i18n.KeySlideEnds),
-		Value: components.StatDate(pages.CampaignEndsOn(ctx, c.EndsAt, now), clock).WithDatetime(datetime),
-	}
+	ends := pages.CampaignEndStat(ctx, c.EndsAt, now)
 	stats := []components.Stat{{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, c.Products)}, ends}
-	switch left := shoptime.DaysLeft(now, c.EndsAt); {
-	case left <= 0:
-		stats[1].Note = i18n.T(ctx, i18n.KeyEndsToday)
-	case left == 1:
-		stats[1].Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
-	default:
+	if left := shoptime.DaysLeft(now, c.EndsAt); left > 1 {
 		stats = append(stats, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: pages.StatCountOf(ctx, i18n.KeyUnitDays, int64(left))})
 	}
 	return stats

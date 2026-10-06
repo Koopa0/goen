@@ -99,7 +99,7 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	grid := strings.Index(page, `class="goen-band__grid"`)
 	media := strings.Index(page, `class="goen-band__media"`)
 	body := strings.Index(page, `class="goen-band__body goen-pagehead__text"`)
-	if band < 0 || !(band < grid && grid < media && media < body) {
+	if band < 0 || band >= grid || grid >= media || media >= body {
 		t.Errorf("the head is not band, grid, media (the photograph first), body in that order:\n%s", page)
 	}
 }

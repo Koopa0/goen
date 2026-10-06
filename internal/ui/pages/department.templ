@@ -11,10 +11,10 @@ templ departmentFacts(h *DepartmentHead) {
 
 // The row says which campaign runs here and when it ends; the grid draws the whole period.
 templ departmentNotice(n *DepartmentNotice) {
-	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyDeptCampaign) }>
+	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
 		<div class="goen-deptnotice__in">
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
-				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyDeptCampaign) }</span>
+				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
 				<b>{ n.Title }</b>
 				<span aria-hidden="true">&rarr;</span>
 			</a>
@@ -40,10 +40,9 @@ templ comparePreview(p *ComparePreview) {
 		<header class="goen-deptcompare__head">
 			<h2 class="goen-deptcompare__title" id="dept-compare-title">{ i18n.T(ctx, i18n.KeyDeptCompareTitle) }</h2>
 			<p class="goen-deptcompare__meta">{ p.Category }</p>
-			<a class="goen-deptcompare__more" href={ templ.URL(p.Table.SelfHref()) }>{ i18n.T(ctx, i18n.KeyCompareSimilar) } <span aria-hidden="true">&rarr;</span></a>
+			<a class="goen-deptcompare__more" href={ templ.URL(p.Table.SelfHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) } <span aria-hidden="true">&rarr;</span></a>
 		</header>
 		@compareTable(p.Table, true)
-		<p class="goen-deptcompare__foot">{ i18n.T(ctx, i18n.KeyDeptCompareFoot) }</p>
 	</section>
 }
 

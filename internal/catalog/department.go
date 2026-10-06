@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -20,7 +19,7 @@ import (
 // editorial slot are read only when slots is true, which is the unfiltered first page: a page
 // of filtered results is not the department's front. compared is whether the department
 // puts its products side by side.
-func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool) (*pages.DepartmentHead, error) {
+func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool, offers map[uuid.UUID]bool) (*pages.DepartmentHead, error) {
 	facts, err := s.q.DepartmentFacts(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read facts of %q: %w", slug, err)
@@ -33,7 +32,7 @@ func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots
 		return nil, err
 	}
 	if compared {
-		if head.Preview, err = s.comparePreview(ctx, slug); err != nil {
+		if head.Preview, err = s.comparePreview(ctx, slug, offers); err != nil {
 			return nil, err
 		}
 	}
@@ -54,18 +53,7 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.Depar
 		return nil, fmt.Errorf("read campaign of %q: %w", slug, err)
 	}
 	now := s.now()
-	clock := ""
-	if !shoptime.Midnight(c.EndsAt).Equal(c.EndsAt) {
-		clock = shoptime.ClockText(c.EndsAt)
-	}
-	notice := &pages.DepartmentNotice{
-		Title: c.Title,
-		Href:  "/s/" + c.Slug,
-		Ends: components.Stat{
-			Label: i18n.T(ctx, i18n.KeySlideEnds),
-			Value: components.StatDate(pages.CampaignEndsOn(ctx, c.EndsAt, now), clock),
-		},
-	}
+	notice := &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, Ends: pages.CampaignEndStat(ctx, c.EndsAt, now)}
 	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, now); ok {
 		notice.Period = &period
 	}
@@ -74,11 +62,7 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.Depar
 
 // comparePreview tries the categories holding the most comparable products, each with its
 // three newest, and takes the first whose products share enough specifications.
-func (s *Store) comparePreview(ctx context.Context, slug string) (*pages.ComparePreview, error) {
-	offers, err := s.comparableCategories(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) comparePreview(ctx context.Context, slug string, offers map[uuid.UUID]bool) (*pages.ComparePreview, error) {
 	rows, err := s.q.DepartmentCompareCandidates(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read comparison candidates of %q: %w", slug, err)
