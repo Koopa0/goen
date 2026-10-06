@@ -491,12 +491,11 @@ func (s *Store) placeOrder(
 		// Erasure/adoption start at the user aggregate. Hold its KEY SHARE
 		// before checkoutCartSnapshot takes the cart row, so no path owns cart
 		// -> wait user while another owns user -> wait cart.
-		lockedUser, lockErr := q.LockUserForCheckout(ctx, userID.UUID)
-		if lockErr != nil {
+		if _, lockErr := q.LockUserForCheckout(ctx, userID.UUID); lockErr != nil {
+			if errors.Is(lockErr, pgx.ErrNoRows) {
+				return "", ErrNotFound
+			}
 			return "", fmt.Errorf("lock account for checkout: %w", lockErr)
-		}
-		if !lockedUser {
-			return "", ErrNotFound
 		}
 	}
 	terms, err := lockCheckoutTerms(
@@ -973,11 +972,12 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		}
 		return pages.OrderView{}, fmt.Errorf("read order: %w", err)
 	}
-	lines, err := s.q.OrderLinesByOrder(ctx, o.ID)
+	lines, err := s.q.OrderPageLines(ctx, db.OrderPageLinesParams{OrderID: o.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
 		return pages.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
+	now := time.Now()
 	view := pages.OrderView{
 		Number:       o.OrderNumber,
 		Status:       order.FulfillmentStatus(o.FulfillmentStatus),
@@ -995,13 +995,25 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
 		CreditCents: o.CreditCents,
 		TaxCents:    o.TaxCents,
-		PlacedAt:    shoptime.Minute(o.PlacedAt),
+		PlacedAt:    o.PlacedAt,
+		Now:         now,
+		Pickup:      o.PickupChain != "",
 	}
-	for _, l := range lines {
-		view.Lines = append(view.Lines, pages.OrderLine{
+	ids := make([]uuid.UUID, 0, len(lines))
+	byID := make(map[uuid.UUID]pages.OrderLine, len(lines))
+	for i := range lines {
+		l := &lines[i]
+		line := pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
-		})
+			ImageURL:       assets.ProductImageURL(l.ImageKey),
+			ImageSrcset:    assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
+			ImageAlt:       l.ImageAlt,
+			WarrantyMonths: int(l.WarrantyMonths.Int32),
+		}
+		view.Lines = append(view.Lines, line)
+		ids = append(ids, l.ID)
+		byID[l.ID] = line
 	}
 
 	events, err := s.q.OrderTimeline(ctx, o.ID)
@@ -1011,27 +1023,112 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
 			Kind: order.EventKind(e.Kind), Note: e.Note,
-			At: shoptime.Minute(e.OccurredAt),
+			At: e.OccurredAt,
 		})
 	}
 
 	if view.Invoice, err = s.orderInvoice(ctx, o.ID); err != nil {
 		return pages.OrderView{}, err
 	}
-
-	shipments, err := s.q.OrderTracking(ctx, o.ID)
-	if err != nil {
-		return pages.OrderView{}, fmt.Errorf("read order tracking: %w", err)
+	if view.Shipments, view.Unshipped, err = s.orderParcels(ctx, o.ID, ids, byID); err != nil {
+		return pages.OrderView{}, err
 	}
-	for _, sh := range shipments {
-		view.Shipments = append(view.Shipments, pages.OrderShipment{
-			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
-			ShippedAt:      shoptime.Minute(sh.ShippedAt),
-			DeliveredAt:    nullableTime(sh.DeliveredAt),
-			RescissionEnds: rescissionEnds(ctx, sh.DeliveredAt, sh.RescissionEnds),
-		})
+	if view.Returned, err = s.orderReturned(ctx, o.ID); err != nil {
+		return pages.OrderView{}, err
 	}
 	return view, nil
+}
+
+func (s *Store) orderParcels(
+	ctx context.Context, orderID uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
+) (parcels []pages.OrderShipment, unshipped []pages.OrderLine, err error) {
+	shipments, err := s.q.OrderTracking(ctx, orderID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read order tracking: %w", err)
+	}
+	if len(shipments) == 0 {
+		return nil, nil, nil
+	}
+	parcelLines, err := s.q.OrderParcelLines(ctx, orderID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read order parcels: %w", err)
+	}
+	registrations, err := s.q.OrderWarrantyRegistrations(ctx, orderID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read order warranties: %w", err)
+	}
+	parcels, unshipped = cutParcels(shipments, parcelLines, registrations, ids, byID)
+	return parcels, unshipped, nil
+}
+
+// cutParcels hands each parcel the units of the lines that went in it, and returns what no parcel carries yet. A
+// line's units are numbered across its parcels in shipment order, as RegisterWarranty numbers them, so a
+// registration belongs to the parcel its unit went in. A parcel not yet delivered carries no day: the database
+// reads shop_today() there.
+func cutParcels(
+	shipments []db.OrderTrackingRow, parcelLines []db.OrderParcelLinesRow, registrations []db.OrderWarrantyRegistrationsRow,
+	ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
+) (parcels []pages.OrderShipment, unshipped []pages.OrderLine) {
+	registered := make(map[uuid.UUID][]db.OrderWarrantyRegistrationsRow)
+	for _, r := range registrations {
+		registered[r.OrderLineID] = append(registered[r.OrderLineID], r)
+	}
+	shipped := make(map[uuid.UUID]int32, len(byID))
+	for i := range shipments {
+		sh := &shipments[i]
+		parcel := pages.OrderShipment{
+			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
+		}
+		if sh.DeliveredAt.Valid {
+			parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = sh.DeliveredAt.Time, sh.RescissionEnds, sh.GoodwillEnds
+		}
+		for _, pl := range parcelLines {
+			if pl.ShipmentID != sh.ID {
+				continue
+			}
+			share := byID[pl.OrderLineID]
+			share.Quantity = pl.Quantity
+			before := shipped[pl.OrderLineID]
+			for _, r := range registered[pl.OrderLineID] {
+				if int32(r.UnitNo) > before && int32(r.UnitNo) <= before+pl.Quantity {
+					share.Registered++
+					share.WarrantyUntil = r.ExpiresOn
+				}
+			}
+			shipped[pl.OrderLineID] = before + pl.Quantity
+			parcel.Lines = append(parcel.Lines, share)
+		}
+		parcels = append(parcels, parcel)
+	}
+	for _, id := range ids {
+		if left := byID[id].Quantity - shipped[id]; left > 0 {
+			rest := byID[id]
+			rest.Quantity = left
+			unshipped = append(unshipped, rest)
+		}
+	}
+	return parcels, unshipped
+}
+
+// orderReturned is nil until every unit the order sold is in a completed return.
+func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.OrderReturned, error) {
+	units, err := s.q.OrderReturnedUnits(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read returned units: %w", err)
+	}
+	if units.ReturnedUnits < units.OrderedUnits || units.OrderedUnits == 0 {
+		return nil, nil //nolint:nilnil // an order not returned in full is not an error
+	}
+	returns, err := s.q.OrderReturns(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read order returns: %w", err)
+	}
+	out := &pages.OrderReturned{}
+	for _, r := range returns {
+		out.At = r.PaidOutAt
+		out.RefundCents += r.RefundCents
+	}
+	return out, nil
 }
 
 func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.OrderInvoice, error) {
@@ -1143,20 +1240,6 @@ func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, line
 		}
 	}
 	return nil
-}
-
-func rescissionEnds(ctx context.Context, deliveredAt pgtype.Timestamptz, day time.Time) string {
-	if !deliveredAt.Valid {
-		return ""
-	}
-	return shoptime.DateText(ctx, shoptime.DateOf(day, time.Now()))
-}
-
-func nullableTime(t pgtype.Timestamptz) string {
-	if !t.Valid {
-		return ""
-	}
-	return shoptime.Minute(t.Time)
 }
 
 // spendCredit is bounded by the order total and the ledger refuses a balance

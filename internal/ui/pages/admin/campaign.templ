@@ -379,6 +379,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						class="goen-input"
 						id="c-alt"
 						name="alt"
+						value={ v.ImageAltDraft }
 						maxlength="200"
 						required
 						if v.HasErr("alt") {
@@ -398,6 +399,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						class="goen-input"
 						id="c-alt-en"
 						name="alt_en"
+						value={ v.ImageAltEnDraft }
 						maxlength="200"
 						if v.HasErr("alt_en") {
 							aria-invalid="true"

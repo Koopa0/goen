@@ -63,6 +63,58 @@ LEFT JOIN (
 GROUP BY d.day
 ORDER BY d.day;
 
+-- The newest committed order by when its money came in, which is read as
+-- admin/health reads funded_at (UninvoicedOrders). Orders refunded before
+-- shipment are left out, as RevenueBetween leaves them out; the total is
+-- RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
+-- Only orders placed since @since are looked at, so the dashboard does not read
+-- the whole history; the caller asks again with no bound when none qualifies.
+-- name: LatestPaidOrder :one
+SELECT o.order_number, f.total_cents,
+       coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+CROSS JOIN LATERAL (
+    SELECT coalesce(
+               (SELECT min(e.occurred_at) FROM order_events e
+                WHERE e.order_id = o.id AND e.kind = 'paid'),
+               (SELECT max(p.paid_at) FROM payments p
+                WHERE p.order_id = o.id AND p.status = 'succeeded'),
+               o.placed_at)::timestamptz AS funded_at,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+) f
+WHERE o.placed_at >= @since::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY f.funded_at DESC, o.id DESC
+LIMIT 1;
+
+-- The campaigns that were on at any time in [from_at, to_at), as the shop days
+-- they cover; a campaign's last day is the one its ends_at falls in, and an
+-- ends_at at midnight belongs to the day before.
+-- name: CampaignsBetween :many
+SELECT localized_name(c.title, c.title_en, @locale::text) AS title,
+       shop_day(c.starts_at) AS first_day,
+       shop_day(c.ends_at - interval '1 microsecond') AS last_day
+FROM sale_campaigns c
+WHERE c.is_active
+  AND c.starts_at < @to_at::timestamptz AND c.ends_at > @from_at::timestamptz
+ORDER BY c.starts_at, c.id;
+
+-- The shop day of the latest paid order placed before to_at, counted as
+-- PaidByShopDay counts; no row when there is none.
+-- name: LatestPaidDay :one
+SELECT shop_day(o.placed_at) AS day
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+WHERE o.placed_at < @to_at::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY o.placed_at DESC
+LIMIT 1;
+
 -- name: BestSellersBetween :many
 SELECT
     p.slug,

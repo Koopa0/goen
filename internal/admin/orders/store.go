@@ -48,16 +48,22 @@ type Invoices interface {
 	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
 }
 
-// Stock names the variants running low, for the dashboard; the stock desk
+// Stock ranks the SKUs by days cover, for the dashboard; the stock desk
 // implements it.
 type Stock interface {
-	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error)
 }
 
 // Health lists what the health desk judges to need a person, as dashboard
 // tasks; the health desk implements it.
 type Health interface {
 	Tasks(ctx context.Context) ([]admin.Task, error)
+}
+
+// Sales reads the dashboard's last seven days and its latest paid order; the
+// reports desk implements it.
+type Sales interface {
+	FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error
 }
 
 type Store struct {
@@ -67,13 +73,14 @@ type Store struct {
 	invoices Invoices
 	stock    Stock
 	health   Health
+	sales    Sales
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health) *Store {
-	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil {
-		panic("orders: NewStore requires a pool, refunds, invoices, stock and health")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health, sales Sales) *Store {
+	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil || sales == nil {
+		panic("orders: NewStore requires a pool, refunds, invoices, stock, health and sales")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health, sales: sales}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -86,8 +93,8 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		ReadyOrders:               sum.ReadyOrders,
 		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
 		PickingOrders:             sum.PickingOrders,
-		LowStock:                  sum.LowStock,
-		ActiveProducts:            sum.ActiveProducts,
+		PickingOldestSeconds:      sum.PickingOldestSeconds,
+		SoldOut:                   sum.SoldOut,
 		OpenMessages:              sum.OpenMessages,
 		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
 
@@ -109,10 +116,11 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	view.Low, err = s.stock.LowStock(ctx, 10)
+	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
 	if err != nil {
-		return admin.DashboardView{}, err
+		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
+	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }
@@ -121,6 +129,12 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 // still worth opening without it, so the caller decides what an error costs.
 func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
 	return s.health.Tasks(ctx)
+}
+
+// FillWeek is the last seven days of the shop's sales. The dashboard is still
+// worth opening without it, so the caller decides what an error costs.
+func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
+	return s.sales.FillWeek(ctx, view, now)
 }
 
 const DashboardRows = 8

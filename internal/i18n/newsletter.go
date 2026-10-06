@@ -38,9 +38,8 @@ var (
 	})
 
 	KeyNewsletterDoneBody = key("news.done.body", Message{
-		ZhHant: "%s 已經在名單上。不定期寄送；退訂連結在剛剛寄出的那封信裡。",
-		En: "%s is on the list. We send occasionally. The unsubscribe link is in the email " +
-			"we just sent.",
+		ZhHant: "你已訂閱 goen 電子報。不定期寄送；退訂連結在剛剛寄出的那封信裡。",
+		En:     "You are subscribed to the goen newsletter. We send occasionally. The unsubscribe link is in the email we just sent.",
 	})
 
 	KeyNewsletterLeaveTitle = key("news.leave.title", Message{
@@ -62,8 +61,8 @@ var (
 	KeyNewsletterLeft = key("news.left", Message{ZhHant: "已退訂", En: "Unsubscribed"})
 
 	KeyNewsletterLeftBody = key("news.left.body", Message{
-		ZhHant: "%s 不會再收到 goen 電子報。訂單相關的通知信不受影響。",
-		En:     "%s will not receive the goen newsletter again. Order notices are not affected.",
+		ZhHant: "你不會再收到 goen 電子報。訂單相關的通知信不受影響。",
+		En:     "You will not receive the goen newsletter again. Order notices are not affected.",
 	})
 
 	KeyNewsletterLinkDead = key("news.link.dead", Message{

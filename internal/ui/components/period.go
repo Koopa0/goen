@@ -19,6 +19,7 @@ type PeriodUnit string
 const (
 	PeriodMinute PeriodUnit = "minute"
 	PeriodDay    PeriodUnit = "day"
+	PeriodMonth  PeriodUnit = "month"
 )
 
 // CellState says where a cell lies against the present.
@@ -49,6 +50,9 @@ type PeriodSpec struct {
 	Description string
 	// TodayLabel is the word over the current cell.
 	TodayLabel string
+	// TodayAtStart says today is the day before the first cell, so the cells all lie ahead and
+	// the tick stands at the start.
+	TodayAtStart bool
 }
 
 func (p PeriodSpec) unitAttr() string {
@@ -101,6 +105,97 @@ func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Tim
 	}
 	return PeriodSpec{
 		Unit:        PeriodDay,
+		Cells:       cells,
+		Description: description,
+		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),
+	}, true
+}
+
+// ReturnPeriod is the right to return a parcel, drawn from the day after it was received to the last day goen
+// takes unused goods back: one cell a day, the mark on lastDay, the days after it the extension. The dates are
+// the database's own; pickup says the parcel was collected rather than delivered. ok is false when no cell
+// would lie between the two ends.
+func ReturnPeriod(ctx context.Context, received, lastDay, goodwillEnd, today shoptime.Date, pickup bool) (PeriodSpec, bool) {
+	total := shoptime.DaysBetween(received, goodwillEnd)
+	mark := shoptime.DaysBetween(received, lastDay) - 1
+	if total < 1 || total > maxPeriodCells || mark < 0 || mark >= total {
+		return PeriodSpec{}, false
+	}
+	// The first cell is the day after receipt, so today is the cell before it on the day of receipt.
+	at := shoptime.DaysBetween(received, today) - 1
+
+	cells := make([]PeriodCell, total)
+	for i := range cells {
+		switch {
+		case i < at:
+			cells[i].State = CellPast
+		case i == at:
+			cells[i].State = CellToday
+		}
+		cells[i].Extra = i > mark
+	}
+	cells[mark].Mark = true
+	cells[0].Label = shoptime.DateLabel(ctx, received.AddDays(1))
+	cells[mark].Label = shoptime.DateLabel(ctx, lastDay)
+	cells[total-1].Label = shoptime.DateLabel(ctx, goodwillEnd)
+
+	receipt := i18n.KeyOrderReceivedOn
+	if pickup {
+		receipt = i18n.KeyOrderCollectedOn
+	}
+	got, last, end := fmt.Sprintf(i18n.T(ctx, receipt), shoptime.DateText(ctx, received)), shoptime.DateText(ctx, lastDay), shoptime.DateText(ctx, goodwillEnd)
+	var description string
+	switch left := shoptime.DaysBetween(today, lastDay); {
+	case at < 0:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnStarts), got, last, end)
+	case left > 0:
+		description = i18n.Count(ctx, i18n.KeyPeriodReturnRunning, int64(left), got, last, end, shoptime.DateText(ctx, today), at+1, left)
+	case left == 0:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnLastDay), got, last, end)
+	case at < total:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnGoodwill), got, last, end)
+	default:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnOver), got, last, end)
+	}
+	return PeriodSpec{
+		Unit:         PeriodDay,
+		Cells:        cells,
+		Description:  description,
+		TodayLabel:   i18n.T(ctx, i18n.KeyPeriodToday),
+		TodayAtStart: at < 0,
+	}, true
+}
+
+// MonthPeriod is a warranty drawn from the month of the parcel's receipt to the month it ends, one cell a month.
+// months is the promise the order line copied; the end is the registered expiry. ok is false when the promise has
+// no months or more than a grid can draw.
+func MonthPeriod(ctx context.Context, received, until, today shoptime.Date, months int) (PeriodSpec, bool) {
+	if months < 1 || months > maxPeriodCells {
+		return PeriodSpec{}, false
+	}
+	at := shoptime.MonthsBetween(received, today)
+	cells := make([]PeriodCell, months)
+	for i := range cells {
+		switch {
+		case i < at:
+			cells[i].State = CellPast
+		case i == at:
+			cells[i].State = CellToday
+		}
+	}
+	cells[0].Label = shoptime.MonthLabel(received)
+	cells[months-1].Label = shoptime.MonthLabel(until)
+
+	from, to, now := shoptime.DateText(ctx, received), shoptime.DateText(ctx, until), shoptime.DateText(ctx, today)
+	n := int64(months)
+	var description string
+	if at >= months {
+		description = i18n.Count(ctx, i18n.KeyPeriodWarrantyEnded, n, from, to, months)
+	} else {
+		description = i18n.Count(ctx, i18n.KeyPeriodWarrantyRunning, n, from, to, months, now, at+1)
+	}
+	return PeriodSpec{
+		Unit:        PeriodMonth,
 		Cells:       cells,
 		Description: description,
 		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),

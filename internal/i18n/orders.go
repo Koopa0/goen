@@ -3,11 +3,6 @@ package i18n
 var (
 	KeyOrderPlaced = key("order.placed", Message{ZhHant: "訂單已送出", En: "Order placed"})
 
-	KeyOrderPlacedAt = key("order.placedat", Message{
-		ZhHant: "%s 送出",
-		En:     "Placed %s",
-	})
-
 	KeyOrderEmailNotice = key("order.email", Message{
 		ZhHant: "確認信將寄至 %s",
 		En:     "A confirmation is on its way to %s",
@@ -42,8 +37,6 @@ var (
 		En:     "Paid with store credit: cancelling returns the credit and voids this order's invoice.",
 	})
 
-	KeyOrderTracking = key("order.tracking", Message{ZhHant: "配送資訊", En: "Delivery"})
-
 	KeyOrderTrackingNo = key("order.tracking.no", Message{
 		ZhHant: "查詢編號 %s",
 		En:     "Tracking number %s",
@@ -60,6 +53,145 @@ var (
 	})
 
 	KeyOrderShippedAt = key("order.shippedat", Message{ZhHant: "%s 出貨", En: "Dispatched %s"})
+
+	KeyOrderFactPlaced = key("order.fact.placed", Message{ZhHant: "送出", En: "Placed"})
+
+	KeyOrderFactDelivered = key("order.fact.delivered", Message{ZhHant: "送達", En: "Delivered"})
+
+	KeyOrderFactCollected = key("order.fact.collected", Message{ZhHant: "取貨", En: "Collected"})
+
+	KeyOrderFactNote = key("order.fact.note", Message{ZhHant: "%s，%s", En: "%s, %s"})
+
+	KeyOrderFactCancelled = key("order.fact.cancelled", Message{ZhHant: "取消", En: "Cancelled"})
+
+	KeyOrderFactRefund = key("order.fact.refund", Message{ZhHant: "退款", En: "Refund"})
+
+	KeyOrderFactReturned = key("order.fact.returned", Message{ZhHant: "退貨完成", En: "Return completed"})
+
+	KeyOrderReturnedTitle = key("order.returned.title", Message{ZhHant: "退貨", En: "Returns"})
+
+	KeyOrderReturnedAll = key("order.returned.all", Message{
+		ZhHant: "這筆訂單的商品已全部退回並退款。",
+		En:     "Everything in this order has been returned and refunded.",
+	})
+
+	KeyOrderItems = key("order.items", Message{ZhHant: "商品", En: "Items"})
+
+	KeyOrderNotShipped = key("order.notshipped", Message{ZhHant: "尚未出貨", En: "Not shipped yet"})
+
+	KeyOrderParcelOf = key("order.parcel.of", Message{ZhHant: "包裹 %d／%d", En: "Parcel %d of %d"})
+
+	KeyOrderParcelsNote = key("order.parcels.note", Message{
+		ZhHant: "分成 %d 個包裹寄出，猶豫期每個包裹分開算。",
+		En:     "Sent in %d parcels; the right to cancel is counted for each parcel on its own.",
+	})
+
+	KeyOrderRescissionTitle = key("order.rescission.title", Message{
+		ZhHant: "猶豫期與退貨",
+		En:     "Right to cancel and returns",
+	})
+
+	KeyOrderLastDay = key("order.rescission.lastday", Message{ZhHant: "最後一天", En: "Last day to cancel"})
+
+	KeyOrderDaysLeft = key("order.rescission.daysleft", Message{ZhHant: "剩餘", En: "Days left"})
+
+	KeyOrderUnusedUntil = key("order.rescission.unuseduntil", Message{
+		ZhHant: "未使用退貨至",
+		En:     "Return unused goods by",
+	})
+
+	KeyOrderRescissionAwaits = countKey("order.rescission.awaits",
+		"猶豫期 %d 天，收到次日起算。",
+		"The right to cancel is %d day, counted from the day after you receive the goods.",
+		"The right to cancel is %d days, counted from the day after you receive the goods.")
+
+	KeyOrderRescissionAwaitsPickup = countKey("order.rescission.awaits.pickup",
+		"猶豫期 %d 天，取貨次日起算。",
+		"The right to cancel is %d day, counted from the day after you collect the goods.",
+		"The right to cancel is %d days, counted from the day after you collect the goods.")
+
+	KeyOrderPickupCounted = key("order.rescission.pickup", Message{
+		ZhHant: "超商取貨：從取貨的次日起算。",
+		En:     "Store pickup: counted from the day after you collect.",
+	})
+
+	KeyOrderReceivedOn = key("order.received.on", Message{ZhHant: "%s收到", En: "Received %s"})
+
+	KeyOrderCollectedOn = key("order.collected.on", Message{ZhHant: "%s取貨", En: "Collected %s"})
+
+	// The arguments of every return-window sentence are the receipt, the last day of the right to cancel
+	// and the last day goen takes unused goods back; the running one adds today, its number and the days left.
+	KeyPeriodReturnStarts = key("period.return.starts", Message{
+		ZhHant: "%[1]s；猶豫期從明天起算，到 %[2]s；未使用的商品可退到 %[3]s。",
+		En:     "%[1]s; the right to cancel runs from tomorrow, to %[2]s; unused goods can be returned until %[3]s.",
+	})
+
+	KeyPeriodReturnRunning = countKey("period.return.running",
+		"%[1]s；猶豫期到 %[2]s，今天 %[4]s是第 %[5]d 天，還有 %[6]d 天；未使用的商品可退到 %[3]s。",
+		"%[1]s; the right to cancel runs to %[2]s, today, %[4]s, is day %[5]d, with %[6]d day left; unused goods can be returned until %[3]s.",
+		"%[1]s; the right to cancel runs to %[2]s, today, %[4]s, is day %[5]d, with %[6]d days left; unused goods can be returned until %[3]s.")
+
+	KeyPeriodReturnLastDay = key("period.return.lastday", Message{
+		ZhHant: "%[1]s；猶豫期到 %[2]s，今天是最後一天；未使用的商品可退到 %[3]s。",
+		En:     "%[1]s; the right to cancel ends today, %[2]s; unused goods can be returned until %[3]s.",
+	})
+
+	KeyPeriodReturnGoodwill = key("period.return.goodwill", Message{
+		ZhHant: "%[1]s；猶豫期已於 %[2]s結束；未使用的商品仍可退到 %[3]s。",
+		En:     "%[1]s; the right to cancel ended on %[2]s; unused goods can still be returned until %[3]s.",
+	})
+
+	KeyPeriodReturnOver = key("period.return.over", Message{
+		ZhHant: "%[1]s；猶豫期已於 %[2]s結束，未使用退貨也已於 %[3]s截止。",
+		En:     "%[1]s; the right to cancel ended on %[2]s, and unused returns closed on %[3]s.",
+	})
+
+	KeyOrderWarranty = key("order.warranty", Message{ZhHant: "保固", En: "Warranty"})
+
+	KeyOrderWarrantyUntil = key("order.warranty.until", Message{ZhHant: "保固至", En: "Covered until"})
+
+	KeyOrderWarrantyFromDelivery = key("order.warranty.fromdelivery", Message{ZhHant: "送達日起算", En: "Counted from delivery"})
+
+	KeyOrderWarrantyFromCollection = key("order.warranty.fromcollection", Message{ZhHant: "取貨日起算", En: "Counted from collection"})
+
+	KeyOrderWarrantyAfterDelivery = key("order.warranty.afterdelivery", Message{
+		ZhHant: "送達後才能登錄",
+		En:     "you can register it once it is delivered",
+	})
+
+	KeyOrderWarrantyAfterCollection = key("order.warranty.aftercollection", Message{
+		ZhHant: "取貨後才能登錄",
+		En:     "you can register it once you have collected it",
+	})
+
+	KeyOrderWarrantyNeedsAccount = key("order.warranty.needsaccount", Message{
+		ZhHant: "登錄保固需要帳號",
+		En:     "registering it needs an account",
+	})
+
+	KeyOrderWarrantyNote = key("order.warranty.note", Message{ZhHant: "%s；%s", En: "%s; %s"})
+
+	KeyOrderWarrantyRegister = key("order.warranty.register", Message{ZhHant: "登錄保固", En: "Register the warranty"})
+
+	KeyPeriodWarrantyRunning = countKey("period.warranty.running",
+		"保固：%s至 %s，共 %d 個月；今天 %s在第 %d 個月。",
+		"Warranty: %s to %s, %d month; today, %s, is in month %d.",
+		"Warranty: %s to %s, %d months; today, %s, is in month %d.")
+
+	KeyPeriodWarrantyEnded = countKey("period.warranty.ended",
+		"保固：%s至 %s，共 %d 個月；已結束。",
+		"Warranty: %s to %s, %d month; ended.",
+		"Warranty: %s to %s, %d months; ended.")
+
+	KeyEventPlaced = key("order.event.placed", Message{ZhHant: "送出訂單", En: "Order placed"})
+
+	KeyEventPicking = key("order.event.picking", Message{ZhHant: "開始備貨", En: "Packing started"})
+
+	KeyEventShipped = key("order.event.shipped", Message{ZhHant: "出貨", En: "Dispatched"})
+
+	KeyEventDelivered = key("order.event.delivered", Message{ZhHant: "送達", En: "Delivered"})
+
+	KeyEventCancelled = key("order.event.cancelled", Message{ZhHant: "取消", En: "Cancelled"})
 
 	KeyOrderHistory = key("order.history", Message{ZhHant: "訂單紀錄", En: "Order history"})
 

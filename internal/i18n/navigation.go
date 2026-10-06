@@ -27,7 +27,7 @@ var (
 
 	KeyCartCount = countKey("nav.cart.count", "購物車，%s 件商品", "Cart, %s item", "Cart, %s items")
 
-	KeyDeals = key("nav.deals", Message{ZhHant: "限時優惠", En: "Deals"})
+	KeyDeals = key("nav.deals", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyLanguage = key("nav.language", Message{ZhHant: "語言", En: "Language"})
 
@@ -107,7 +107,7 @@ var (
 
 	KeyAdminQueueCampaigns = key("admin.queue.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
-	KeyAdminQueueCredit = key("admin.queue.credit", Message{ZhHant: "額度", En: "Credit"})
+	KeyAdminQueueCredit = key("admin.queue.credit", Message{ZhHant: "購物金", En: "Credit"})
 
 	KeyAdminQueueShipping = key("admin.queue.shipping", Message{ZhHant: "運費", En: "Delivery fees"})
 

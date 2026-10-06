@@ -34,6 +34,9 @@ templ statValue(s Stat) {
 		if s.Note != "" {
 			<span class="ui-statline__note">{ s.Note }</span>
 		}
+		if s.Trend != nil {
+			@s.Trend
+		}
 	</dd>
 }
 

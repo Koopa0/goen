@@ -82,6 +82,35 @@ SELECT slug AS compare_slug_b FROM products
 WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1 \gset
 INSERT INTO product_questions (product_id, user_id, body)
 VALUES (:'product_id', :'customer_id', '請問這款有支援快充嗎？盒裝裡面有附充電器嗎？');
+-- What the product editor's sales and reviews card draws: paid orders on nine
+-- shop days, so the weekly columns have axes, and six reviews of three star
+-- values, one of them hidden, so the spread is drawn and the hidden one stays out.
+WITH sale_orders AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
+                        shipping_cents, placed_at)
+    SELECT :'customer_id', v.id, sm.code, v.name, 0, now() - make_interval(days => 3 * n)
+    FROM generate_series(1, 9) AS n,
+         (SELECT v.id, v.name, v.method_id FROM shipping_method_versions v ORDER BY v.effective_at LIMIT 1) v
+         JOIN shipping_methods sm ON sm.id = v.method_id
+    RETURNING id
+), sale_lines AS (
+    INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
+    SELECT id, :'product_id', 'LAYOUT-STANDING', 'Standing chart fixture', 100, 1 + (row_number() OVER ())::int % 4
+    FROM sale_orders
+    RETURNING order_id
+)
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM sale_lines;
+SELECT open_payment(o.id, 'layout-sale-' || o.id, ol.unit_price_cents * ol.quantity)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
+SELECT capture_payment('layout-sale-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
+-- store cannot write hidden_at: the one-star review is hidden below, as admin,
+-- the way moderation hides one.
+INSERT INTO product_reviews (product_id, rating, body)
+SELECT :'product_id', r.rating, '版面檢查用的評價'
+FROM (VALUES (5), (5), (5), (4), (2), (1)) AS r (rating);
 INSERT INTO wishlist_items (user_id, product_id)
 VALUES (:'customer_id', :'product_id')
 ON CONFLICT (user_id, product_id) DO NOTHING;
@@ -95,6 +124,11 @@ SELECT mark_payment_event_unreconciled('evt_layout_check',
     'cancelled_order_capture: money arrived for an order that was already cancelled');
 
 SET ROLE admin;
+
+-- The fixture's one-star review, hidden by moderation: the rating spread counts
+-- visible reviews only.
+UPDATE product_reviews SET hidden_at = now()
+WHERE product_id = :'product_id' AND rating = 1 AND body = '版面檢查用的評價';
 
 -- Enough store credit to pay for all four customer orders outright, so
 -- neither needs a payment provider to leave pending.
@@ -399,6 +433,17 @@ JOIN order_shipment_lines sl ON sl.order_line_id = ol.id
 JOIN order_shipments s ON s.id = sl.shipment_id
 WHERE ol.order_id = :'invoice_id'
 RETURNING serial_number AS layout_serial \gset
+
+-- RETURN_FORM_ORDER is delivered with nothing returned: its order page draws the right-to-cancel grid and the
+-- registered warranty's months.
+INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
+SELECT ol.id, 1, o.user_id, 'LAYOUTSN' || translate(o.order_number, 'GO-', ''),
+       (shop_day(s.delivered_at) + make_interval(months => ol.warranty_months))::date
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN order_shipment_lines sl ON sl.order_line_id = ol.id
+JOIN order_shipments s ON s.id = sl.shipment_id
+WHERE ol.order_id = :'form_id' AND ol.warranty_months IS NOT NULL;
 
 INSERT INTO return_requests (order_id, requested_by_user_id, reason)
 VALUES (:'invoice_id', :'customer_id', '尺寸不合，想換一個顏色')
