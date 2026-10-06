@@ -58,7 +58,7 @@ var (
 
 	KeySubjectOrder = key("contact.subject.order", Message{ZhHant: "訂單問題", En: "An order"})
 
-	KeySubjectReturns = key("contact.subject.returns", Message{ZhHant: "退換貨", En: "Returns or exchanges"})
+	KeySubjectReturns = key("contact.subject.returns", Message{ZhHant: "退貨", En: "Returns"})
 
 	KeySubjectWarranty = key("contact.subject.warranty", Message{ZhHant: "保固維修", En: "Warranty or repair"})
 
@@ -116,9 +116,8 @@ var (
 	KeyAdminPageMessages = key("admin.page.messages", Message{ZhHant: "聯絡訊息", En: "Contact messages"})
 
 	KeyAdminMessagesLead = key("admin.messages.lead", Message{
-		ZhHant: "等最久的排在最前面 —— 三天前寫信的人比今天早上寫的更急，最新排在前面剛好把他埋掉。",
-		En: "The longest wait comes first — somebody who wrote three days ago is more urgent " +
-			"than somebody who wrote this morning, and newest-first would bury them exactly then.",
+		ZhHant: "尚未處理的訊息排在前面，其中等最久的排第一。",
+		En:     "Messages not yet handled come first, the longest wait at the top.",
 	})
 
 	KeyAdminMessagesOpen = key("admin.messages.open", Message{ZhHant: "待處理 %s", En: "%s open"})

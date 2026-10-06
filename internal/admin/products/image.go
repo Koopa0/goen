@@ -48,7 +48,7 @@ func (s *Store) AttachImage(
 			// would collide on the unique index. A missing product falls through
 			// to an insert that matches nothing.
 			if _, err := q.LockProductCatalogue(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
 				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
@@ -151,11 +151,11 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 				if errors.Is(err, pgx.ErrNoRows) {
 					return ErrNotFound
 				}
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			rows, err := q.ProductImageOrder(ctx, slug)
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return fmt.Errorf("read image order of %s: %w", slug, err)
 			}
 			at := -1
 			for i := range rows {

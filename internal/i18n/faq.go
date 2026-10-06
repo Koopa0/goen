@@ -6,7 +6,7 @@ var (
 	KeyFAQTitle = key("faq.title", Message{ZhHant: "常見問題", En: "Frequently asked questions"})
 
 	KeyFAQDescription = key("faq.description", Message{
-		ZhHant: "goen 的訂購、配送、退換貨與發票說明。",
+		ZhHant: "goen 的訂購、配送、退貨與發票說明。",
 		En:     "Ordering, delivery, returns and invoices at goen.",
 	})
 
@@ -18,9 +18,8 @@ var (
 
 var (
 	KeyAdminFaqpLead = key("admin.faqp.lead", Message{
-		ZhHant: "/faq 讀的就是這一份。改完不用重新部署 —— 這一頁就是那句話的門。",
-		En: "/faq reads exactly this list. An edit needs no redeploy — this page is that " +
-			"sentence's door.",
+		ZhHant: "/faq 顯示的就是這裡的問答，儲存後立即生效。",
+		En:     "This is what /faq shows. Changes go live as soon as you save.",
 	})
 
 	KeyAdminFaqpNoEnglish = key("admin.faqp.noenglish", Message{
@@ -63,9 +62,8 @@ var (
 	})
 
 	KeyAdminFaqpEnHint = key("admin.faqp.en.hint", Message{
-		ZhHant: "留空的話，英文訪客會讀到中文 —— 讀得懂，但看得出還沒翻。",
-		En: "Leave it empty and an English visitor reads the Chinese — legible, but " +
-			"visibly untranslated.",
+		ZhHant: "留空時，英文頁面會顯示中文。",
+		En:     "Leave it empty and English visitors see the Chinese.",
 	})
 
 	KeyAdminFaqpCurrent = key("admin.faqp.current", Message{

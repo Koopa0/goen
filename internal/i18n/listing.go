@@ -93,8 +93,6 @@ var (
 
 	KeyNextPage = key("listing.pager.next", Message{ZhHant: "下一頁", En: "Next"})
 
-	KeyFeaturedHeading = key("listing.featured", Message{ZhHant: "精選商品", En: "Featured"})
-
 	KeySubcategories = key("listing.subcategories", Message{ZhHant: "子分類", En: "Subcategories"})
 
 	KeyPageNumber = key("listing.pager.number", Message{ZhHant: "第 %s 頁", En: "Page %s"})

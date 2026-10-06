@@ -2,10 +2,13 @@ package admin
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -103,5 +106,172 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReportViewCompletion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		placed, committed int64
+		want              string
+	}{
+		{placed: 0, committed: 0, want: "—"},
+		{placed: 3, committed: 2, want: "2 of 3 orders"},
+		{placed: 3, committed: 1, want: "1 of 3 orders"},
+		{placed: 19, committed: 19, want: "19 of 19 orders"},
+		{placed: 20, committed: 1, want: "5%"},
+		{placed: 30, committed: 20, want: "67%"},
+		{placed: 40, committed: 1, want: "3%"},
+		{placed: 300, committed: 199, want: "66%"},
+		{placed: 200, committed: 199, want: "99%"},
+		{placed: 201, committed: 1, want: "1%"},
+		{placed: 200, committed: 200, want: "100%"},
+		{placed: 25, committed: 0, want: "0%"},
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tt := range tests {
+		view := ReportView{Placed: tt.placed, Committed: tt.committed}
+		got := view.Completion(ctx)
+		if got != tt.want {
+			t.Errorf("Completion() with %d of %d placed = %q, want %q", tt.committed, tt.placed, got, tt.want)
+		}
+	}
+}
+
+func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 7, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 2, Orders: 2, RevenueCents: 1000,
+	}))
+
+	counts := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), "2", "3")
+	if n := strings.Count(html, counts); n != 1 {
+		t.Errorf("the report shows %q %d times, want once", counts, n)
+	}
+}
+
+func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
+	t.Parallel()
+
+	// Orders of 1,000 each, so the sum of squares follows from the count.
+	period := func(orders int64) (revenue int64, squares float64) {
+		return orders * 100000, float64(orders) * 100000 * 100000
+	}
+	view := func(orders, prevOrders int64) ReportView {
+		revenue, squares := period(orders)
+		prevRevenue, prevSquares := period(prevOrders)
+		return ReportView{
+			Days: 30, Orders: orders, RevenueCents: revenue, RevenueSquares: squares,
+			Previous: PreviousFigures{Orders: prevOrders, RevenueCents: prevRevenue, RevenueSquares: prevSquares},
+		}
+	}
+	tests := []struct {
+		name                string
+		v                   ReportView
+		wantOrders, wantRev string
+	}{
+		{"no orders before", view(40, 0),
+			"No paid orders in the previous 30 days", "No paid orders in the previous 30 days"},
+		{"too few orders now", view(19, 40),
+			"Previous 30 days: 40", "Previous 30 days: NT$40,000"},
+		{"too few orders before", view(40, 19),
+			"Previous 30 days: 19", "Previous 30 days: NT$19,000"},
+		{"a change within the noise", view(60, 50),
+			"Previous 30 days: 50", "Previous 30 days: NT$50,000"},
+		{"ten percent more, within the noise", view(110, 100),
+			"Previous 30 days: 100", "Previous 30 days: NT$100,000"},
+		{"clearly more", view(150, 100),
+			"50% more than the previous 30 days", "50% more than the previous 30 days"},
+		{"clearly less", view(100, 150),
+			"33% less than the previous 30 days", "33% less than the previous 30 days"},
+		{"too small to round to a percent", view(1_000_000, 1_002_900),
+			"About the same as the previous 30 days", "About the same as the previous 30 days"},
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tt := range tests {
+		if got := tt.v.OrdersAgainst(ctx); got != tt.wantOrders {
+			t.Errorf("%s: OrdersAgainst() = %q, want %q", tt.name, got, tt.wantOrders)
+		}
+		if got := tt.v.RevenueAgainst(ctx); got != tt.wantRev {
+			t.Errorf("%s: RevenueAgainst() = %q, want %q", tt.name, got, tt.wantRev)
+		}
+	}
+}
+
+func TestReportCompletionAgainstThePreviousPeriod(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		previous PreviousFigures
+		want     string
+	}{
+		{"no orders placed before", PreviousFigures{}, "No orders in the previous 30 days"},
+		{"fewer than twenty placed before", PreviousFigures{Placed: 6, Committed: 0}, "Previous 30 days: 0 of 6 orders"},
+		{"twenty placed before", PreviousFigures{Placed: 20, Committed: 10}, "Previous 30 days: 50%"},
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tt := range tests {
+		v := ReportView{Days: 30, Previous: tt.previous}
+		if got := v.CompletionAgainst(ctx); got != tt.want {
+			t.Errorf("%s: CompletionAgainst() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+
+	zh := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		previous PreviousFigures
+		want     string
+	}{
+		{PreviousFigures{}, "前 30 天沒有訂單"},
+		{PreviousFigures{Placed: 6}, "前 30 天：0 / 6 筆"},
+	} {
+		v := ReportView{Days: 30, Previous: tt.previous}
+		if got := v.CompletionAgainst(zh); got != tt.want {
+			t.Errorf("CompletionAgainst(%+v) = %q, want %q", tt.previous, got, tt.want)
+		}
+	}
+}
+
+func TestReportRevenueNeedsMoreThanOrderCountToCallAChange(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	// Thirty orders each side, 20% apart in revenue, but one huge order now
+	// makes the sum of squares large enough that the gap is noise.
+	v := ReportView{
+		Days: 30, Orders: 30, RevenueCents: 1_200_000, RevenueSquares: 1e12,
+		Previous: PreviousFigures{Orders: 30, RevenueCents: 1_000_000, RevenueSquares: 1e11},
+	}
+	if got, want := v.RevenueAgainst(ctx), "Previous 30 days: NT$10,000"; got != want {
+		t.Errorf("RevenueAgainst() = %q, want %q", got, want)
+	}
+	v.RevenueSquares = 1e9
+	v.Previous.RevenueSquares = 1e9
+	if got, want := v.RevenueAgainst(ctx), "20% more than the previous 30 days"; got != want {
+		t.Errorf("RevenueAgainst() with small orders = %q, want %q", got, want)
+	}
+}
+
+func TestReportHeadingNamesBothPeriodsByShopDay(t *testing.T) {
+	t.Parallel()
+
+	at := func(m time.Month, d int) shoptime.Date {
+		return shoptime.DateOf(time.Date(2026, m, d, 4, 0, 0, 0, time.UTC), time.Date(2026, time.October, 5, 4, 0, 0, 0, time.UTC))
+	}
+	v := ReportView{
+		From: at(time.September, 6), To: at(time.October, 5),
+		Previous: PreviousFigures{From: at(time.August, 7), To: at(time.September, 5)},
+	}
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "9/6–10/5 · 對照 8/7–9/5",
+		i18n.En:     "Sep 6–Oct 5 · against Aug 7–Sep 5",
+	} {
+		if got := v.Heading(i18n.WithLocale(t.Context(), locale)); got != want {
+			t.Errorf("Heading() in %s = %q, want %q", locale, got, want)
+		}
 	}
 }

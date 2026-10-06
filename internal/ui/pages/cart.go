@@ -71,6 +71,7 @@ type CartView struct {
 	Lines         []CartLine
 	SubtotalCents int64
 	ItemCount     int64
+	MixedTaxTypes bool
 
 	ReorderAdded    int
 	ReorderSkipped  int
@@ -144,7 +145,7 @@ func (v CartView) Blocked() bool {
 	return false
 }
 
-func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() }
+func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() && !v.MixedTaxTypes }
 
 type ShippingChoice struct {
 	VersionID       string
@@ -207,6 +208,8 @@ type CheckoutView struct {
 	// PickupRefused: a store arrived that this browser cannot vouch for; the page echoes none of it.
 	PickupRefused bool
 }
+
+func (v *CheckoutView) HasShipping() bool { return len(v.Shipping) > 0 }
 
 // PickupStartAction is goen's own route, so what the shopper typed reaches only
 // goen; the carrier's map form is built on the page it answers.
@@ -703,7 +706,7 @@ func (s PaymentState) Key() i18n.Key {
 	}
 }
 
-// StateKey leaves paying to its own row, so a placed order stays 訂單成立 until it moves.
+// StateKey leaves paying to its own row, so a placed order stays 訂單已送出 until it moves.
 func (v *OrderView) StateKey() i18n.Key {
 	switch v.Status {
 	case order.FulfillmentPicking:

@@ -205,6 +205,11 @@ templ Orders(p layouts.Page, v OrdersView) {
 				</a>
 			}
 		</div>
+		if v.Status == QueuePicking && !v.Searching() {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/orders/picking/slips") {
+				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
+			}
+		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ v.EmptyText(ctx) }</p>
@@ -289,50 +294,7 @@ templ Order(p layouts.Page, v *OrderView) {
 		}
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
-				@components.Card(components.CardProps{Class: "goen-admin__op"}) {
-					<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</h2>
-					<ul class="goen-order__lines" role="list">
-						for _, l := range v.Lines {
-							<li class="goen-order__line">
-								<div>
-									<p class="goen-order__name">{ l.Name }</p>
-									if l.Label != "" {
-										<span class="goen-admin__meta">{ l.Label }</span>
-									}
-									<span class="goen-admin__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
-								</div>
-								<span class="goen-admin__linetotal">{ l.LineTotal() }</span>
-							</li>
-						}
-					</ul>
-				}
-				@components.Card(components.CardProps{Class: "goen-admin__op"}) {
-					<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
-					<dl class="ui-dl">
-						<div class="ui-dl__row">
-							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
-							<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
-						</div>
-						<div class="ui-dl__row">
-							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
-							<dd class="ui-dl__desc">{ v.Phone }</dd>
-						</div>
-						<div class="ui-dl__row">
-							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
-							<dd class="ui-dl__desc">{ v.Email }</dd>
-						</div>
-						<div class="ui-dl__row">
-							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt>
-							<dd class="ui-dl__desc">{ v.Address }</dd>
-						</div>
-						if v.HasInvoice() {
-							<div class="ui-dl__row">
-								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
-								<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
-							</div>
-						}
-					</dl>
-				}
+				@orderItemsAndDelivery(v)
 				if v.Correctable {
 					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }</h2>
@@ -449,9 +411,6 @@ templ Order(p layouts.Page, v *OrderView) {
 									if e.Unrecognized != "" {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
-									if e.Unrecognized != "" {
-										<span class="goen-admin__meta">{ e.Unrecognized }</span>
-									}
 									if e.Note != "" {
 										<span class="goen-admin__meta">{ e.Note }</span>
 									}
@@ -459,12 +418,6 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 						</ul>
 						<p class="goen-admin__hint">{ v.MailKeptText(ctx) }</p>
-					}
-				}
-				if v.HasCustomerNote() {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
-						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
-						<p class="goen-admin__note">{ v.CustomerNote }</p>
 					}
 				}
 				@components.Card(components.CardProps{Class: "goen-admin__op"}) {
@@ -685,34 +638,34 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "invoice-heading"}}) {
 					<h2 class="goen-admin__optitle" id="invoice-heading">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
+					if len(v.InvoiceDocuments) > 0 {
+						<ul class="goen-admin__timeline" role="list">
+							for _, d := range v.InvoiceDocuments {
+								<li class="goen-admin__event">
+									<span class="goen-admin__eventhead">
+										{ d.KindText(ctx) } { d.Number } · { d.Amount() }
+									</span>
+									if d.Voided() {
+										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+											{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
+										}
+									}
+									<span class="goen-admin__meta">{ d.IssuedAt }</span>
+									if d.ProviderRef != "" {
+										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
+									}
+									for _, l := range d.Lines {
+										<span class="goen-admin__meta">{ l.Line() }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
 						</p>
 					} else {
-						if len(v.InvoiceDocuments) > 0 {
-							<ul class="goen-admin__timeline" role="list">
-								for _, d := range v.InvoiceDocuments {
-									<li class="goen-admin__event">
-										<span class="goen-admin__eventhead">
-											{ d.KindText(ctx) } { d.Number } · { d.Amount() }
-										</span>
-										if d.Voided() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
-											}
-										}
-										<span class="goen-admin__meta">{ d.IssuedAt }</span>
-										if d.ProviderRef != "" {
-											<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
-										}
-										for _, l := range d.Lines {
-											<span class="goen-admin__meta">{ l.Line() }</span>
-										}
-									</li>
-								}
-							</ul>
-						}
 						if v.CanIssueInvoice() {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
@@ -917,4 +870,117 @@ templ variantTable(variants []Variant, back string) {
 			}
 		</tbody>
 	</table>
+}
+
+templ orderItemsAndDelivery(v *OrderView) {
+	@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</h2>
+		<ul class="goen-order__lines" role="list">
+			for _, l := range v.Lines {
+				<li class="goen-order__line">
+					<div>
+						<p class="goen-order__name">{ l.Name }</p>
+						if l.Label != "" {
+							<span class="goen-admin__meta">{ l.Label }</span>
+						}
+						<span class="goen-admin__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+					</div>
+					if !v.OutstandingQuantities {
+						<span class="goen-admin__linetotal">{ l.LineTotal() }</span>
+					}
+				</li>
+			}
+		</ul>
+	}
+	@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
+		<dl class="ui-dl">
+			<div class="ui-dl__row">
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
+				<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
+			</div>
+			<div class="ui-dl__row">
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
+				<dd class="ui-dl__desc">{ v.Phone }</dd>
+			</div>
+			<div class="ui-dl__row">
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
+				<dd class="ui-dl__desc">{ v.Email }</dd>
+			</div>
+			<div class="ui-dl__row">
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt>
+				<dd class="ui-dl__desc">{ v.Address }</dd>
+			</div>
+			if v.HasInvoice() {
+				<div class="ui-dl__row">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
+					<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
+				</div>
+			}
+		</dl>
+	}
+	if v.HasCustomerNote() {
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
+			<p class="goen-admin__note">{ v.CustomerNote }</p>
+		}
+	}
+}
+
+templ Picking(p layouts.Page, v *PickingView) {
+	@layouts.Admin(p, "orders") {
+		<div class="ui-page-head goen-admin__batchcontrols">
+			<div>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }</h1>
+				<p class="ui-page-head__sub">{ v.ScopeText(ctx) }</p>
+			</div>
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "/admin/orders?status=picking") {
+				{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }
+			}
+		</div>
+		if len(v.Totals) == 0 {
+			<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
+		} else {
+			<section class="goen-admin__picklist" aria-labelledby="pick-list-title">
+				<h2 class="goen-admin__optitle" id="pick-list-title">{ i18n.T(ctx, i18n.KeyAdminPickingTotals) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">SKU</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, l := range v.Totals {
+								<tr>
+									<td class="goen-admin__cellkey">{ l.SKU }</td>
+									<td>
+										{ l.Name }
+										if l.Label != "" {
+											<span class="goen-admin__meta">{ l.Label }</span>
+										}
+									</td>
+									<td class="goen-admin__cellnum">{ l.RemainingText() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
+		<div>
+			for _, slip := range v.Slips {
+				<section class="goen-admin__slip" aria-label={ slip.Number }>
+					<h2 class="goen-admin__optitle">{ slip.Number }</h2>
+					<p class="goen-admin__meta">{ slip.PlacedAt } · { slip.ShippingName }</p>
+					@orderItemsAndDelivery(slip)
+				</section>
+			}
+		</div>
+		<div class="goen-admin__batchcontrols">
+			@pages.ListPager(v.Bound)
+		</div>
+	}
 }

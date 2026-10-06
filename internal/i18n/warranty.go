@@ -108,6 +108,8 @@ var (
 		En:     "That serial number is already registered. Please check the number on the unit.",
 	})
 
+	KeyWarrantySerialTooLong = key("warranty.serial.toolong", Message{ZhHant: "序號請控制在 %d 個字元以內。", En: "Keep the serial number within %d characters."})
+
 	KeyWarrantyRefused = key("warranty.notice.refused", Message{
 		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達，或已經登錄過了。",
 		En:     "That cannot be registered — it may not have been delivered, or it is registered already.",
@@ -149,10 +151,8 @@ var (
 	KeyAdminPageWarranty = key("admin.page.warranty", Message{ZhHant: "保固查詢", En: "Warranty lookup"})
 
 	KeyAdminWarrantyLead = key("admin.warranty.lead", Message{
-		ZhHant: "用序號或訂單編號查一件的保固。兩個都要完全相符 —— 序號是從機身上唸出來的，訂單編號是從確認信上唸出來的，而登錄名單不是拿來瀏覽的。",
-		En: "Look a unit's cover up by serial number or order number. Both match exactly — a serial is " +
-			"read off the machine and an order number off a confirmation email, and a list of " +
-			"registrations is not something to browse.",
+		ZhHant: "用序號或訂單編號查詢單件商品的保固，兩者都要完全相符。",
+		En:     "Look up one unit's warranty by serial number or order number. Both must match exactly.",
 	})
 
 	KeyAdminWarrantySearch = key("admin.warranty.search", Message{ZhHant: "查詢保固", En: "Search warranties"})
@@ -163,17 +163,14 @@ var (
 	})
 
 	KeyAdminWarrantyNoneFound = key("admin.warranty.nonefound", Message{
-		ZhHant: "找不到「%s」的登錄紀錄。序號和訂單編號都是完全比對，如果是客人唸錯一碼就會查不到 —— 也可能是這一件根本沒登錄過。",
-		En: "No registration matches %q. Both fields match exactly, so one wrong character finds " +
-			"nothing — and it may simply never have been registered.",
+		ZhHant: "找不到「%s」的登錄紀錄。序號和訂單編號都要完全相符，請再核對一次；也可能這一件從未登錄。",
+		En:     "No registration matches %q. Both must match exactly, so check it again; the unit may also never have been registered.",
 	})
 
 	KeyAdminUnitNo = key("admin.unit.no", Message{ZhHant: "第 %s 件", En: "unit %s"})
 
 	KeyAdminWarrantyClock = key("admin.warranty.clock", Message{
-		ZhHant: "保固從送達那天起算，不是從出貨那天 —— 到期日是登錄當下用該筆包裹的送達時間和商品保固月數算出來的，存下來就不再變動。",
-		En: "Cover runs from the day the parcel ARRIVED, not the day it was dispatched. The end date is " +
-			"computed at registration from that parcel's delivery time and the product's term, and does " +
-			"not move afterwards.",
+		ZhHant: "保固從包裹送達當天起算，不是出貨日。到期日在登錄時依送達日與訂單上的保固月數算出，之後不再變動。",
+		En:     "Cover runs from the day the parcel was delivered, not the day it was dispatched. The end date is set at registration from that delivery date and the warranty term on the order, and does not change afterwards.",
 	})
 )

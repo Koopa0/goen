@@ -403,19 +403,16 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 		invoiceGateway = &invoice.Gateway{}
 	}
 	invoices := invoice.NewStore(adminPool, invoiceGateway)
-	var invoiceReader invoicing.Reader
 	var invoiceWriter invoicing.Writer
 	if invoices.Enabled() {
-		invoiceReader = invoices
 		invoiceWriter = invoices
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
 	checkup := health.NewStore(adminPool)
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
-	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
-	// A method value, not *health.Store: converting the store to an interface makes deadcode (x/tools v0.49.0) panic on outbox.Store's generic method.
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, orders.HealthFunc(checkup.Tasks)), sessionCloser(gateway), log)
+	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stockroom, log)

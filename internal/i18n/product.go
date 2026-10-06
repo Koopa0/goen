@@ -36,15 +36,8 @@ var (
 		En:     "That combination does not exist. Please choose again.",
 	})
 
-	// KeyAllSoldOut is the product with nothing left in any spec, distinct from
-	// KeySoldOut, which is one combination.
-	KeyAllSoldOut = key("pdp.allsoldout", Message{
-		ZhHant: "目前全部規格都已售完",
-		En:     "Every option is sold out",
-	})
-
 	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
-		ZhHant: "選一個規格，補貨時通知你。",
+		ZhHant: "選一個規格，有貨時通知你。",
 		En:     "Pick an option and we will tell you when it is back.",
 	})
 
@@ -53,12 +46,12 @@ var (
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 
 	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
-		ZhHant: "已經記下了，補貨時會寄信到 %s。",
+		ZhHant: "已經記下了，有貨時會寄信到 %s。",
 		En:     "Noted. We will email %s when it is back in stock.",
 	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
-		ZhHant: "已經記下了，補貨時會寄信給你。",
+		ZhHant: "已經記下了，有貨時會寄信給你。",
 		En:     "Noted. We will email you when it is back in stock.",
 	})
 
@@ -72,7 +65,7 @@ var (
 		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
 	})
 
-	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "補貨時通知我", En: "Notify me"})
+	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "有貨時通知我", En: "Notify me"})
 
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
 
@@ -98,7 +91,7 @@ var (
 		En:     "Free delivery over %s",
 	})
 
-	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天鑑賞期", En: "7 days to return"})
+	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天猶豫期", En: "7 days to return"})
 
 	KeyProductNotFound = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 
@@ -233,10 +226,8 @@ var (
 	})
 
 	KeyAdminProdWarrantyHint = key("admin.prod.warrantyhint", Message{
-		ZhHant: "每個商品可以不一樣 —— 電熱水壺和毛巾本來就不該是同一個數字。留空表示沒有提供保固，顧客就無法登錄保固（而不是給他一個系統自己編出來的期限）。",
-		En: "It is per product — a kettle and a towel were never going to carry the same " +
-			"number. Left blank it states no cover, and the customer then cannot register a " +
-			"warranty at all, rather than being given a term the system invented for them.",
+		ZhHant: "依商品填寫。留空表示不提供保固，顧客也無法登錄保固。",
+		En:     "Set per product. Leave it blank for no warranty; the customer then cannot register one.",
 	})
 
 	KeyAdminProdWarrantyNote = key("admin.prod.warrantynote", Message{

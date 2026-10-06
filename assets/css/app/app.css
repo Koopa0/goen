@@ -291,7 +291,7 @@ a:hover {
 
   /* Functional colours: a status says what it is by its words and its icon,
      the colour only agrees. Each ink clears 4.5:1 on its own tint. */
-  --star: #e0a400;
+  --star: #b07c00;
   --error: #b91c1c;
   --error-bg: #fef2f2;
   --error-outline: #fca5a5;
@@ -2074,45 +2074,6 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- One photograph, the width of the container, and a caption. ----- */
-
-.goen-promo-photo__link {
-  color: var(--n-900);
-  display: block;
-  text-decoration: none;
-}
-
-.goen-promo-photo__media {
-  aspect-ratio: 4 / 3;
-  background: var(--n-100);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-
-.goen-promo-photo__media img {
-  height: 100%;
-  object-fit: cover;
-  object-position: 84% 50%;
-  width: 100%;
-}
-
-.goen-promo-photo__caption {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-}
-
-.goen-promo-photo__link:hover .goen-promo-photo__media img {
-  opacity: 0.92;
-}
-
-.goen-promo-photo__link:hover .goen-home__more {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 /* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
    item renders only where a free-delivery threshold is configured. ----- */
 
@@ -2191,14 +2152,6 @@ h3 {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-promo-photo__media {
-    aspect-ratio: 21 / 9;
-  }
-
-  .goen-promo-photo__media img {
-    object-position: 70% 50%;
   }
 }
 
@@ -3043,25 +2996,6 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-/* The lead row: four larger cards before the grid. A phone scrolls them
-   sideways and the 1024 grid lays them four across. */
-.goen-featured__grid {
-  display: flex;
-  gap: 1rem;
-  list-style: none;
-  margin: 0 calc(-1 * var(--page-gutter));
-  overflow-x: auto;
-  padding: 0 var(--page-gutter);
-  scroll-padding-inline: var(--page-gutter);
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-}
-
-.goen-featured__grid > li {
-  flex: 0 0 10rem;
-  scroll-snap-align: start;
-}
-
 /* The running-promotions strip above the deals grid. A campaign is a
    destination and a marked-down product is an item; they must not read as the
    same kind of thing stacked together. */
@@ -3350,10 +3284,6 @@ a.goen-pager__step:hover {
     margin-inline: -1.5rem;
     padding-inline: 1.5rem;
   }
-
-  .goen-featured__grid > li {
-    flex-basis: 14rem;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -3421,15 +3351,6 @@ a.goen-pager__step:hover {
     object-fit: cover;
     position: absolute;
     width: 55%;
-  }
-
-  .goen-featured__grid {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 0;
-    overflow: visible;
-    padding: 0;
   }
 
   .goen-listing__layout {
@@ -4477,8 +4398,11 @@ a.goen-pager__step:hover {
   border-radius: var(--r-sm);
 }
 
+/* The outline carries the shape's 3:1 boundary on every state, and the fill is
+   3:1 on the form's ground and on the outline, so a selected star differs from
+   an empty one by shape and by contrast, not by hue. */
 .goen-pdp__starmark svg {
-  color: var(--n-300);
+  color: var(--n-900);
   display: block;
   fill: none;
   height: 1.75rem;
@@ -4486,15 +4410,23 @@ a.goen-pager__step:hover {
 }
 
 .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
-.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg {
-  color: var(--star);
+.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+.goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
+.goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
   fill: var(--star);
 }
 
-.goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
-.goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
-  color: var(--star);
-  fill: var(--star);
+@media (forced-colors: active) {
+  .goen-pdp__starmark svg {
+    color: CanvasText;
+  }
+
+  .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+  .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+  .goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
+  .goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
+    fill: CanvasText;
+  }
 }
 
 .goen-pdp__reviewbody.goen-input {
@@ -9510,6 +9442,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media print {
+  .goen-admin .goen-admin__batchcontrols,
   .goen-skip,
   .goen-adminbar,
   .goen-admin__nav,
@@ -9538,8 +9471,60 @@ form[data-request-pending] [aria-disabled="true"] {
     margin-bottom: 12px;
   }
 
+  .goen-admin__picklist,
+  .goen-admin__slip {
+    break-after: page;
+  }
+
+  .goen-admin__slip {
+    break-inside: avoid;
+  }
+
+  .goen-admin__slip:last-child {
+    break-after: auto;
+  }
+
+  .goen-admin__picklist .goen-admin__tablewrap {
+    overflow: visible;
+  }
+
   body {
     background: var(--bg);
     color: var(--fg);
+  }
+}
+
+/* Forced colours remove the chosen card's shadow and equalise its border.
+   The native radio keeps the checked mark the user's colour scheme supplies. */
+@media (forced-colors: active) {
+  .goen-checkout__ship > input[type=radio] {
+    align-self: center;
+    clip-path: none;
+    flex: none;
+    height: 1rem;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: 1rem;
+  }
+
+  .goen-checkout__shipname {
+    flex: 1;
+  }
+
+  /* Weight and underline keep the chosen label distinct from ordinary links. */
+  .goen-swatch--on:not(.goen-swatch--dot),
+  .goen-swatch--on:not(.goen-swatch--dot):hover {
+    font-weight: var(--fw-semibold);
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+
+  /* SVG preserves author colours, so its selected ring must follow the palette. */
+  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
+    outline-color: Highlight;
   }
 }

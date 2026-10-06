@@ -18,7 +18,8 @@ type ReturnsLine struct {
 	Label      string
 	UnitCents  int64
 	Returnable int32
-	Chosen     int32
+	Quantity   string
+	Refusal    string
 }
 
 func (l ReturnsLine) CanReturn() bool { return l.Returnable > 0 }
@@ -29,12 +30,20 @@ func (l ReturnsLine) Field() string { return "qty_" + l.ID }
 
 func (l ReturnsLine) Max() string { return strconv.FormatInt(int64(l.Returnable), 10) }
 
-func (l ReturnsLine) ChosenText() string {
-	if l.Chosen == 0 {
-		return ""
+func (l ReturnsLine) QuantityType() string {
+	// A number input sanitizes a malformed value to empty before the buyer can fix it.
+	if l.Quantity != "" {
+		if l.Quantity[0] == '+' {
+			return "text"
+		}
+		if _, err := strconv.ParseInt(l.Quantity, 10, 32); err != nil {
+			return "text"
+		}
 	}
-	return strconv.FormatInt(int64(l.Chosen), 10)
+	return "number"
 }
+
+func (l ReturnsLine) RefusalID() string { return l.Field() + "-error" }
 
 type ReturnsExisting struct {
 	Status     returns.Status
@@ -60,12 +69,14 @@ func (e ReturnsExisting) StatusText(ctx context.Context) string {
 }
 
 type ReturnsView struct {
-	Number   string
-	Reason   string
-	Lines    []ReturnsLine
-	Existing []ReturnsExisting
-	HasOpen  bool
-	Error    string
+	Number        string
+	Reason        string
+	Lines         []ReturnsLine
+	Existing      []ReturnsExisting
+	HasOpen       bool
+	HasDraft      bool
+	FormRefusal   string
+	ReasonRefusal string
 }
 
 func (v ReturnsView) Action() string { return "/orders/" + v.Number + "/return" }

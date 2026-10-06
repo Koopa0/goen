@@ -49,6 +49,9 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 						inputs[attrs["id"]] = attrs
 					}
 					if n.Type == html.ElementNode && n.Data == "p" && n.FirstChild != nil {
+						if _, exists := messages[attrs["id"]]; attrs["id"] != "" && exists {
+							t.Errorf("duplicate message ID %q", attrs["id"])
+						}
 						messages[attrs["id"]] = n.FirstChild.Data
 					}
 				}
