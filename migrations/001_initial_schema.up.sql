@@ -208,6 +208,12 @@ CREATE TRIGGER categories_acyclic
     BEFORE INSERT OR UPDATE OF parent_id ON categories
     FOR EACH ROW EXECUTE FUNCTION categories_reject_cycle();
 
+-- The unit an invoice line prints: not blank, at most six characters, no control characters.
+-- squawk warns about changing a domain's constraint on tables in use; this file creates it before any row exists.
+CREATE DOMAIN invoice_unit AS text
+    -- squawk-ignore ban-create-domain-with-constraint
+    CONSTRAINT invoice_unit_valid CHECK (VALUE ~ '[^[:space:]]' AND char_length(VALUE) <= 6 AND VALUE !~ '[[:cntrl:]]');
+
 CREATE TABLE products (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
     brand_id      uuid REFERENCES brands (id) ON DELETE RESTRICT,
@@ -247,9 +253,8 @@ CREATE TABLE products (
     CONSTRAINT products_label_net_unit_known CHECK (net_unit IS NULL OR net_unit IN ('g','kg','ml','l','piece')),
     CONSTRAINT products_label_age_sane CHECK (min_age_months IS NULL OR min_age_months BETWEEN 0 AND 216),
     tax_type text NOT NULL DEFAULT 'taxable',
-    invoice_unit text NOT NULL DEFAULT '個',
+    invoice_unit invoice_unit NOT NULL DEFAULT '個',
     CONSTRAINT products_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
-    CONSTRAINT products_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT products_warranty_months_sane
         CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
     CONSTRAINT products_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
@@ -2067,9 +2072,8 @@ CREATE TABLE order_lines (
     quantity         integer NOT NULL,
     position         integer NOT NULL DEFAULT 0,
     tax_type text NOT NULL DEFAULT 'taxable',
-    invoice_unit text NOT NULL DEFAULT '個',
+    invoice_unit invoice_unit NOT NULL DEFAULT '個',
     CONSTRAINT order_lines_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
-    CONSTRAINT order_lines_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT order_lines_sku_present CHECK (sku ~ '[^[:space:]]'),
     CONSTRAINT order_lines_product_name_present CHECK (product_name ~ '[^[:space:]]'),
     CONSTRAINT order_lines_unit_price_in_range
@@ -3679,7 +3683,7 @@ CREATE TABLE invoice_document_lines (
     unit_price_cents bigint NOT NULL,
     amount_cents  bigint NOT NULL,
     tax_type      text NOT NULL,
-    unit          text NOT NULL DEFAULT '個',
+    unit          invoice_unit NOT NULL DEFAULT '個',
     position      integer NOT NULL DEFAULT 0,
     CONSTRAINT invoice_document_lines_description_present CHECK (description ~ '[^[:space:]]'),
 	CONSTRAINT invoice_document_lines_description_bounded CHECK (char_length(description) <= 100),
@@ -3693,8 +3697,6 @@ CREATE TABLE invoice_document_lines (
     CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_tax_type_known
         CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt')),
-    CONSTRAINT invoice_document_lines_unit_valid
-        CHECK (unit ~ '[^[:space:]]' AND char_length(unit) <= 6 AND unit !~ '[[:cntrl:]]'),
     CONSTRAINT invoice_document_lines_position_in_range
         CHECK (position BETWEEN 0 AND 998)
 );
@@ -4192,10 +4194,14 @@ CREATE TABLE payment_webhook_events (
     -- distinguish a known event whose object this binary could not read
     -- (unreadable_event), paid money with no local payment row to attribute it
     -- to (unattributed_capture), paid money for an order already cancelled
-    -- (cancelled_order_capture), and verified money a stable local invariant
-    -- refused to post (refused_capture). Each is still marked processed because
-    -- Stripe would retry the same unresolvable facts; this durable reason is
-    -- what makes the required human action visible on /admin/health.
+    -- (cancelled_order_capture), verified money a stable local invariant
+    -- refused to post (refused_capture), a checkout completed by a delayed
+    -- payment method goen's stock hold cannot outlive (unsettled_session), and a
+    -- refund goen recorded as succeeded that Stripe reported failed
+    -- (refund_failed, followed by Stripe's failure code). Each is still marked
+    -- processed because Stripe would retry the same unresolvable facts; this
+    -- durable reason is what makes the required human action visible on
+    -- /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
@@ -5806,10 +5812,10 @@ BEGIN
         RETURN false;
     END IF;
     FOR i IN 1..v_count LOOP
+        IF NOT pg_input_is_valid(coalesce(v_lines -> (i - 1) ->> 'unit', ''), 'invoice_unit') THEN
+            RETURN false;
+        END IF;
         IF coalesce(v_lines -> (i - 1) ->> 'tax_type', '') NOT IN ('taxable', 'exempt')
-           OR coalesce(v_lines -> (i - 1) ->> 'unit', '') !~ '[^[:space:]]'
-           OR char_length(v_lines -> (i - 1) ->> 'unit') > 6
-           OR (v_lines -> (i - 1) ->> 'unit') ~ '[[:cntrl:]]'
            OR p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
            OR p_quantities[i] IS DISTINCT FROM
               ((v_lines -> (i - 1) ->> 'quantity')::integer)
@@ -5943,6 +5949,14 @@ BEGIN
 END;
 $$;
 
+-- An allowance prints one line, taxed as the first line of the invoice it reduces.
+CREATE FUNCTION first_invoice_line_tax_type(p_document_id uuid) RETURNS text
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT l.tax_type FROM invoice_document_lines l
+    WHERE l.document_id = p_document_id
+    ORDER BY l.position LIMIT 1
+$$;
+
 CREATE FUNCTION claim_invoice_allowance(
     p_original_id uuid,
     p_operation_id uuid,
@@ -6031,9 +6045,7 @@ BEGIN
         'lines', jsonb_build_array(jsonb_build_object(
             'description', '退貨折讓', 'quantity', 1,
             'unit_price_cents', v_amount, 'amount_cents', v_amount,
-                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
-                             WHERE l.document_id = v_original.id
-                             ORDER BY l.position LIMIT 1),
+                'tax_type', first_invoice_line_tax_type(v_original.id),
                 'unit', '個')))
     INTO v_payload
     FROM orders o JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -6411,9 +6423,7 @@ BEGIN
             '{lines}', jsonb_build_array(jsonb_build_object(
                 'description', '退貨折讓', 'quantity', 1,
                 'unit_price_cents', v_amount, 'amount_cents', v_amount,
-                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
-                             WHERE l.document_id = v_original.id
-                             ORDER BY l.position LIMIT 1),
+                'tax_type', first_invoice_line_tax_type(v_original.id),
                 'unit', '個'))),
         last_error = 'allowance_provider_invalid_refrozen',
         available_at = now(), lease_owner = NULL, lease_until = NULL,

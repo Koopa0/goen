@@ -71,7 +71,7 @@ func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	id, _ := admintest.ReturnedOrder(t, pool, 1)
-	err := s.Decide(ctx, id.String(), "rejected", " \t ", "", uuid.NullUUID{})
+	err := s.Decide(ctx, id.String(), "rejected", " \t ", "")
 	refused, ok := errors.AsType[*returns.FormRefusalError](err)
 	if !ok || refused.Kind != returnrules.RefuseRejectionReason || refused.Field != "resolution" {
 		t.Fatalf("blank rejection = %v, want resolution/rejection_reason", err)

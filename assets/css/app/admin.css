@@ -3113,6 +3113,56 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 3px;
 }
 
+/* Fourteen days under a figure: the earlier seven in the previous grey, the
+   last seven in the data colour. A day not yet over is an outline. */
+.goen-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-block-start: 12px;
+  max-width: 16rem;
+}
+
+.goen-spark svg {
+  display: block;
+  overflow: visible;
+}
+
+.goen-spark__base {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-spark__bar--previous {
+  fill: var(--chart-previous);
+}
+
+.goen-spark__bar--current {
+  fill: var(--chart-hue);
+}
+
+.goen-spark__bar--open {
+  fill: var(--bg);
+  stroke-width: 1.5;
+}
+
+.goen-spark__bar--previous.goen-spark__bar--open {
+  stroke: var(--chart-previous);
+}
+
+.goen-spark__bar--current.goen-spark__bar--open {
+  stroke: var(--chart-hue);
+}
+
+.goen-spark__keys {
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-regular);
+  justify-content: space-between;
+}
+
 @container (max-width: 519px) {
   .goen-chart__tick--minor {
     display: none;
@@ -3270,6 +3320,34 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__crosshair {
     stroke: CanvasText;
+  }
+
+  .goen-spark svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-spark__bar--current {
+    fill: CanvasText;
+  }
+
+  .goen-spark__bar--previous {
+    fill: GrayText;
+  }
+
+  .goen-spark__bar--open {
+    fill: Canvas;
+  }
+
+  .goen-spark__bar--current.goen-spark__bar--open {
+    stroke: CanvasText;
+  }
+
+  .goen-spark__bar--previous.goen-spark__bar--open {
+    stroke: GrayText;
+  }
+
+  .goen-spark__base {
+    stroke: transparent;
   }
 
   .goen-chart__level,

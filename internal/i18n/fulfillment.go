@@ -236,9 +236,9 @@ var (
 		En:     "This order is already in a final state.",
 	})
 
-	KeyAdminQueueLowOnly = key("admin.queue.lowonly", Message{
-		ZhHant: "僅低庫存",
-		En:     "Low stock only",
+	KeyAdminQueueSoldOutOnly = key("admin.queue.soldoutonly", Message{
+		ZhHant: "僅已售完",
+		En:     "Sold out only",
 	})
 
 	KeyAdminQueueNoVariants = key("admin.queue.novariants", Message{

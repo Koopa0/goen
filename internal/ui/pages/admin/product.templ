@@ -20,6 +20,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminProdLead) }
 				</p>
+				<p class="ui-page-head__sub">{ i18n.Count(ctx, i18n.KeyAdminProdPublished, v.Published, v.Published) }</p>
 			</div>
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "/admin/products/new") {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
@@ -437,7 +438,21 @@ templ productImages(v ProductView) {
 				@components.Label(components.LabelProps{For: "p-image"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdUpload) }
 				}
-				<input class="goen-input" id="p-image" name="image" type="file" accept="image/*" required/>
+				<input
+					class="goen-input"
+					id="p-image"
+					name="image"
+					type="file"
+					accept="image/*"
+					required
+					if v.HasErr("image") {
+						aria-invalid="true"
+						aria-describedby="p-image-error"
+					}
+				/>
+				if v.HasErr("image") {
+					<p class="ui-error-text" id="p-image-error" role="alert">{ v.Err("image") }</p>
+				}
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdUploadHint) }</p>
 			</div>
 			<div class="goen-admin__fields">
@@ -445,26 +460,68 @@ templ productImages(v ProductView) {
 					@components.Label(components.LabelProps{For: "p-alt"}) {
 						{ i18n.T(ctx, i18n.KeyAdminAltText) }
 					}
-					<input class="goen-input" id="p-alt" name="alt" required maxlength="200" placeholder={ altExample }/>
+					<input
+						class="goen-input"
+						id="p-alt"
+						name="alt"
+						value={ v.ImageUploadDraft.Alt }
+						if v.HasErr("alt") {
+							aria-invalid="true"
+							aria-describedby="p-alt-error"
+						}
+						required
+						maxlength="200"
+						placeholder={ altExample }
+					/>
+					if v.HasErr("alt") {
+						<p class="ui-error-text" id="p-alt-error" role="alert">{ v.Err("alt") }</p>
+					}
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
 				</div>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "p-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }
 					}
-					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="White ceramic mug, side view, handle on the right"/>
+					<input
+						class="goen-input"
+						id="p-alt-en"
+						name="alt_en"
+						value={ v.ImageUploadDraft.AltEn }
+						if v.HasErr("alt_en") {
+							aria-invalid="true"
+							aria-describedby="p-alt-en-error"
+						}
+						maxlength="200"
+						placeholder="White ceramic mug, side view, handle on the right"
+					/>
+					if v.HasErr("alt_en") {
+						<p class="ui-error-text" id="p-alt-en-error" role="alert">{ v.Err("alt_en") }</p>
+					}
 					<p class="goen-admin__hint">
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
 					</p>
 				</div>
-				if v.HasOptions() {
+				if v.HasOptions() || v.ImageUploadDraft.OptionValue != "" {
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "p-image-option"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }
 						}
-						<select class="goen-input" id="p-image-option" name="option_value" aria-describedby="p-image-option-hint">
-							@imageOptionChoices(v, "")
+						<select
+							class="goen-input"
+							id="p-image-option"
+							name="option_value"
+							if v.HasErr("image_option") {
+								aria-invalid="true"
+								aria-describedby="p-image-option-hint p-image-option-error"
+							} else {
+								aria-describedby="p-image-option-hint"
+							}
+						>
+							@imageOptionChoices(v, v.ImageUploadDraft.OptionValue)
 						</select>
+						if v.HasErr("image_option") {
+							<p class="ui-error-text" id="p-image-option-error" role="alert">{ v.Err("image_option") }</p>
+						}
 						<p class="goen-admin__hint" id="p-image-option-hint">{ i18n.T(ctx, i18n.KeyAdminProdImageOptionHint) }</p>
 					</div>
 				}
@@ -488,15 +545,48 @@ templ productImages(v ProductView) {
 							class="goen-input"
 							id={ "reuse-alt-" + img.Key }
 							name="alt"
+							if v.ImageReuseDraft.Digest == img.Key {
+								value={ v.ImageReuseDraft.Alt }
+								if v.HasErr("reuse_alt") {
+									aria-invalid="true"
+									aria-describedby={ "reuse-alt-" + img.Key + "-error" }
+								}
+							}
 							required
 							maxlength="200"
 							placeholder={ i18n.T(ctx, i18n.KeyAdminAltText) }
 						/>
+						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt") {
+							<p class="ui-error-text" id={ "reuse-alt-" + img.Key + "-error" } role="alert">{ v.Err("reuse_alt") }</p>
+						}
 						<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
-						<input class="goen-input" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
+						<input
+							class="goen-input"
+							id={ "reuse-alt-en-" + img.Key }
+							name="alt_en"
+							maxlength="200"
+							placeholder="English alt text"
+							if v.ImageReuseDraft.Digest == img.Key {
+								value={ v.ImageReuseDraft.AltEn }
+								if v.HasErr("reuse_alt_en") {
+									aria-invalid="true"
+									aria-describedby={ "reuse-alt-en-" + img.Key + "-error" }
+								}
+							}
+						/>
+						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt_en") {
+							<p class="ui-error-text" id={ "reuse-alt-en-" + img.Key + "-error" } role="alert">{ v.Err("reuse_alt_en") }</p>
+						}
+						{{ reuseAttrs := templ.Attributes{"id": "reuse-image-" + img.Key} }}
+						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_image") {
+							{{ reuseAttrs["aria-invalid"] = "true" }}
+							{{ reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key + "-error" }}
+							<p class="ui-error-text" id={ "reuse-image-" + img.Key + "-error" } role="alert">{ v.Err("reuse_image") }</p>
+						}
 						@components.Button(components.ButtonProps{
 							ButtonStyle: components.ButtonStyleOutline,
 							Size:        components.SizeSmall,
+							Attrs:       reuseAttrs,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminProdReuse) }
 						}
@@ -510,6 +600,9 @@ templ productImages(v ProductView) {
 // imageOptionChoices lists every option value, not only a colour: the schema has no
 // colour axis, only the shop's own names.
 templ imageOptionChoices(v ProductView, chosen string) {
+	if chosen != "" && !v.HasOptionValue(chosen) {
+		<option value={ chosen } selected>{ i18n.T(ctx, i18n.KeyAdminNoticeBadOption) }</option>
+	}
 	<option value="" selected?={ chosen == "" }>{ i18n.T(ctx, i18n.KeyAdminProdImageAnyOption) }</option>
 	for _, o := range v.Options {
 		if o.HasValues() {

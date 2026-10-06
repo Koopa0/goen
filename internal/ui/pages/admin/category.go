@@ -3,12 +3,14 @@ package admin
 import "github.com/koopa0/goen/internal/ui/components"
 
 type CategoryView struct {
-	Slug   string
-	Name   string
-	Tone   string // the category's own; "" inherits its department's
-	Image  Header
-	Notice components.Result
-	Errors map[string]string
+	ImageAltDraft   string
+	ImageAltEnDraft string
+	Slug            string
+	Name            string
+	Tone            string // the category's own; "" inherits its department's
+	Image           Header
+	Notice          components.Result
+	Errors          map[string]string
 }
 
 func (v CategoryView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
