@@ -6704,14 +6704,6 @@ SELECT (EXISTS (
       AND v.compare_at_price_cents IS NOT NULL
       AND v.compare_at_price_cents > v.price_cents
       AND v.stock_quantity > v.safety_stock
-) OR EXISTS (
-    SELECT 1 FROM sale_campaigns c
-    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-      AND EXISTS (
-          SELECT 1 FROM sale_campaign_products cp
-          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-          JOIN product_variants v ON v.product_id = p.id AND v.is_active
-          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ))::boolean AS offered
 `
 
