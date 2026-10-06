@@ -17,11 +17,14 @@ func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
 	if endsAt.After(now.AddDate(0, 0, 30)) {
 		return ""
 	}
-	return ShortDate(ctx, endsAt, now)
+	return shortDateText(ctx, shoptime.LastDay(endsAt, now))
 }
 
 func ShortDate(ctx context.Context, day, now time.Time) string {
-	d := shoptime.DateOf(day, now)
+	return shortDateText(ctx, shoptime.DateOf(day, now))
+}
+
+func shortDateText(ctx context.Context, d shoptime.Date) string {
 	key := i18n.KeyShortDate
 	if d.OtherYear {
 		key = i18n.KeyShortDateYear

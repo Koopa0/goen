@@ -69,6 +69,10 @@ func DateOf(t, now time.Time) Date {
 	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day(), OtherYear: t.Year() != In(now).Year()}
 }
 
+// LastDay is the last shop day a period ending at t still runs. The end is
+// exclusive, so a period ending at midnight ended the day before.
+func LastDay(t, now time.Time) Date { return DateOf(t.Add(-time.Minute), now) }
+
 func InputMinute(t time.Time) string { return In(t).Format("2006-01-02T15:04") }
 
 func ParseInputDay(s string) (time.Time, bool) {

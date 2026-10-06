@@ -139,6 +139,32 @@ func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
 	}
 }
 
+func TestLastDayIsTheDayBeforeAMidnightEnd(t *testing.T) {
+	t.Parallel()
+
+	utc := func(y int, m time.Month, d, h, min int) time.Time { return time.Date(y, m, d, h, min, 0, 0, time.UTC) }
+	now := utc(2026, 6, 1, 4, 0)
+	tests := []struct {
+		name string
+		end  time.Time
+		want shoptime.Date
+	}{
+		{"shop midnight", utc(2026, 10, 30, 16, 0), shoptime.Date{Year: 2026, Month: time.October, Day: 30}},
+		{"mid-day", utc(2026, 10, 30, 10, 0), shoptime.Date{Year: 2026, Month: time.October, Day: 30}},
+		{"one minute past midnight", utc(2026, 10, 30, 16, 1), shoptime.Date{Year: 2026, Month: time.October, Day: 31}},
+		{"23:59", utc(2026, 10, 31, 15, 59), shoptime.Date{Year: 2026, Month: time.October, Day: 31}},
+		{"midnight into a new month", utc(2026, 10, 31, 16, 0), shoptime.Date{Year: 2026, Month: time.October, Day: 31}},
+		{"midnight on the first", utc(2026, 11, 30, 16, 0), shoptime.Date{Year: 2026, Month: time.November, Day: 30}},
+		{"midnight into a new year", utc(2026, 12, 31, 16, 0), shoptime.Date{Year: 2026, Month: time.December, Day: 31}},
+		{"midnight ending the year", utc(2027, 1, 1, 16, 0), shoptime.Date{Year: 2027, Month: time.January, Day: 1, OtherYear: true}},
+	}
+	for _, tt := range tests {
+		if got := shoptime.LastDay(tt.end, now); got != tt.want {
+			t.Errorf("%s: LastDay = %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
 	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
 	field := shoptime.InputMinute(instant)
