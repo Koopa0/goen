@@ -301,7 +301,10 @@ func TestDemoShiftRefuses(t *testing.T) {
 		{
 			name: "an anchor_day after the database's date",
 			prepare: []func(*testing.T, *pgxpool.Pool){
-				seedCatalogue, func(t *testing.T, shop *pgxpool.Pool) { ageSnapshot(t, shop, 3) },
+				seedCatalogue, func(t *testing.T, shop *pgxpool.Pool) {
+					t.Helper()
+					ageSnapshot(t, shop, 3)
+				},
 			},
 			named:   itself,
 			anchor:  yesterday,
