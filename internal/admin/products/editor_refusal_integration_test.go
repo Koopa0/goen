@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -14,11 +15,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/newsletter"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
@@ -300,6 +305,125 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 				}
 				if diff := cmp.Diff(baseline, after); diff != "" {
 					t.Errorf("refusal changed attached images (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
+	staffCtx, _ := admintest.StaffContext(t, pool)
+	p := admintest.AdminRolePool(t, pool)
+	s := products.NewStore(p)
+	slug := admintest.DraftProduct(t, staffCtx, pool, s)
+	heroes := content.NewStore(p)
+	beforeImages, err := s.Images(staffCtx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeHeroes, err := heroes.HeroSlides(staffCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// An upload that reaches storage would show uploadfailed, not the lossless notice.
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(idle.Close)
+	log := slog.New(slog.DiscardHandler)
+	images := media.NewHandler(media.NewStore(idle), log)
+	mux := http.NewServeMux()
+	products.NewHandler(s, images, log).Routes(mux, admintest.BackOffice)
+	content.NewHandler(heroes, images, newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
+	lossless := []byte{
+		'R', 'I', 'F', 'F', 0x14, 0x00, 0x00, 0x00, 'W', 'E', 'B', 'P',
+		'V', 'P', '8', 'L', 0x08, 0x00, 0x00, 0x00,
+		0x2f, 0x3f, 0xc0, 0x0b, 0x00, 0x88, 0x88, 0x08,
+	}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(staffCtx, locale)
+		for _, tt := range []struct {
+			name, path, inputID, errorID string
+			fields                      map[string]string
+		}{
+			{
+				name: "product", path: "/admin/products/" + slug + "/images",
+				inputID: "p-image", errorID: "p-image-error",
+				fields: map[string]string{"alt": " 正面 ", "alt_en": " Front "},
+			},
+			{
+				name: "hero", path: "/admin/home",
+				inputID: "h-image", errorID: "h-image-error",
+				fields: map[string]string{
+					"headline": " 秋季新品 ", "primary_label": " 去看看 ", "primary_href": "/deals",
+					"alt": " 秋季新品主視覺 ", "alt_en": " Autumn collection ",
+				},
+			},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				var body bytes.Buffer
+				form := multipart.NewWriter(&body)
+				part, err := form.CreateFormFile("image", "photo.webp")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := part.Write(lossless); err != nil {
+					t.Fatal(err)
+				}
+				for name, value := range tt.fields {
+					if err := form.WriteField(name, value); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := form.Close(); err != nil {
+					t.Fatal(err)
+				}
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, tt.path, &body)
+				req.Header.Set("Content-Type", form.FormDataContentType())
+				res := httptest.NewRecorder()
+				mux.ServeHTTP(res, req)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("lossless upload = %d, want 422", res.Code)
+				}
+				admintest.AssertRefusedInput(t, res.Body.String(), tt.inputID, "")
+				doc, err := html.Parse(strings.NewReader(res.Body.String()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var reason strings.Builder
+				for n := range doc.Descendants() {
+					if n.Type != html.ElementNode {
+						continue
+					}
+					for _, a := range n.Attr {
+						if a.Key != "id" || a.Val != tt.errorID {
+							continue
+						}
+						for child := range n.Descendants() {
+							if child.Type == html.TextNode {
+								reason.WriteString(child.Data)
+							}
+						}
+					}
+				}
+				if got, want := reason.String(), i18n.T(ctx, i18n.KeyAdminNoticeLosslessWebP); got != want {
+					t.Errorf("lossless file error = %q, want %q", got, want)
+				}
+				afterImages, err := s.Images(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(beforeImages, afterImages); diff != "" {
+					t.Errorf("lossless refusal changed product images (-want +got):\n%s", diff)
+				}
+				afterHeroes, err := heroes.HeroSlides(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(beforeHeroes.Rows, afterHeroes.Rows); diff != "" {
+					t.Errorf("lossless refusal changed hero slides (-want +got):\n%s", diff)
 				}
 			})
 		}
