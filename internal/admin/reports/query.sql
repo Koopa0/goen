@@ -82,8 +82,6 @@ SELECT shop_day(o.placed_at) AS day
 FROM orders o
 JOIN committed_orders c ON c.id = o.id
 WHERE o.placed_at < @to_at::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY o.placed_at DESC
 LIMIT 1;
 
