@@ -33,11 +33,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				}
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		<ul class="goen-health" role="list">
 			@healthItem(v.OutboxHealthy(), i18n.T(ctx, i18n.KeyAdminHPOutboxName), v.OutboxText(ctx), i18n.T(ctx, i18n.KeyAdminHPOutboxNote))
 			@healthItem(v.SweeperHealthy(), i18n.T(ctx, i18n.KeyAdminHPHoldsName), v.SweeperText(ctx), i18n.T(ctx, i18n.KeyAdminHPHoldsNote))

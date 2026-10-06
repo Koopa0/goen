@@ -29,8 +29,8 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 	if !strings.Contains(html, `id="row-A-1"`) {
 		t.Error("the row has no anchor to return to")
 	}
-	if got := strings.Count(html, `name="return" value="/admin/stock?low=1&amp;after=T"`); got != 3 {
-		t.Errorf("%d forms post their place back, want price, adjust and active", got)
+	if got := strings.Count(html, `name="return" value="/admin/stock?low=1&amp;after=T"`); got != 4 {
+		t.Errorf("%d forms post their place back, want price, arrival, adjust and active", got)
 	}
 }
 

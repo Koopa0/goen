@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -13,19 +14,19 @@ type MessagesView struct {
 	web.Bound
 
 	Rows   []Message
-	Notice string
+	Notice components.Result
 }
 
 type Message struct {
-	ID          string
-	Name        string
-	Email       string
-	Subject     string
-	OrderRef    string
-	Message     string
-	Handled     bool
-	At          string
-	WaitingDays int
+	ID           string
+	Name         string
+	Email        string
+	SubjectLabel string
+	OrderRef     string
+	Message      string
+	Handled      bool
+	At           string
+	WaitingDays  int
 }
 
 func (v MessagesView) Empty() bool { return len(v.Rows) == 0 }

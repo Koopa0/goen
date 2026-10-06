@@ -2536,6 +2536,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.stock_quantity,
     pv.safety_stock,
     pv.is_active,
+    pv.preorder_release_on,
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
@@ -2583,6 +2584,7 @@ type AdminVariantsRow struct {
 	StockQuantity       int32
 	SafetyStock         int32
 	IsActive            bool
+	PreorderReleaseOn   pgtype.Date
 	Slug                string
 	ProductName         string
 	ProductStatus       string
@@ -2618,6 +2620,7 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 			&i.StockQuantity,
 			&i.SafetyStock,
 			&i.IsActive,
+			&i.PreorderReleaseOn,
 			&i.Slug,
 			&i.ProductName,
 			&i.ProductStatus,
@@ -8770,6 +8773,17 @@ func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.
 	return id, err
 }
 
+const lockUserForAddressDefault = `-- name: LockUserForAddressDefault :one
+SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+func (q *Queries) LockUserForAddressDefault(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForAddressDefault, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
 SELECT lock_user_for_cart_adoption($1::uuid)
 `
@@ -8843,14 +8857,15 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 }
 
 const lockVariantForChange = `-- name: LockVariantForChange :one
-SELECT stock_quantity, is_active, price_cents
+SELECT stock_quantity, is_active, price_cents, preorder_release_on
 FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
 `
 
 type LockVariantForChangeRow struct {
-	StockQuantity int32
-	IsActive      bool
-	PriceCents    int64
+	StockQuantity     int32
+	IsActive          bool
+	PriceCents        int64
+	PreorderReleaseOn pgtype.Date
 }
 
 // What a stock-desk write replaces, read under the row lock the write then
@@ -8859,7 +8874,12 @@ type LockVariantForChangeRow struct {
 func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockVariantForChangeRow, error) {
 	row := q.db.QueryRow(ctx, lockVariantForChange, id)
 	var i LockVariantForChangeRow
-	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
+	err := row.Scan(
+		&i.StockQuantity,
+		&i.IsActive,
+		&i.PriceCents,
+		&i.PreorderReleaseOn,
+	)
 	return i, err
 }
 
@@ -11598,6 +11618,7 @@ SELECT
     (pv.stock_quantity > pv.safety_stock) AS sellable,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.preorder_release_on,
+    coalesce(pv.preorder_release_on >= shop_today(), false)::boolean AS arrival_upcoming,
     coalesce(
         (SELECT array_agg(o.name ORDER BY o.position, o.id)
          FROM variant_option_values vov
@@ -11626,6 +11647,7 @@ type ProductVariantsRow struct {
 	Sellable            bool
 	SellableQuantity    int32
 	PreorderReleaseOn   pgtype.Date
+	ArrivalUpcoming     bool
 	OptionNames         []string
 	OptionValues        []string
 }
@@ -11649,6 +11671,7 @@ func (q *Queries) ProductVariants(ctx context.Context, productID uuid.UUID) ([]P
 			&i.Sellable,
 			&i.SellableQuantity,
 			&i.PreorderReleaseOn,
+			&i.ArrivalUpcoming,
 			&i.OptionNames,
 			&i.OptionValues,
 		); err != nil {
@@ -14869,6 +14892,21 @@ func (q *Queries) SetVariantActive(ctx context.Context, arg SetVariantActivePara
 	return err
 }
 
+const setVariantArrival = `-- name: SetVariantArrival :exec
+UPDATE product_variants SET preorder_release_on = $2::date
+WHERE id = $1
+`
+
+type SetVariantArrivalParams struct {
+	ID        uuid.UUID
+	ArrivalOn pgtype.Date
+}
+
+func (q *Queries) SetVariantArrival(ctx context.Context, arg SetVariantArrivalParams) error {
+	_, err := q.db.Exec(ctx, setVariantArrival, arg.ID, arg.ArrivalOn)
+	return err
+}
+
 const setVariantOptionValue = `-- name: SetVariantOptionValue :execrows
 INSERT INTO variant_option_values (product_id, variant_id, option_id, option_value_id)
 SELECT pv.product_id, pv.id, v.option_id, v.id
@@ -15682,10 +15720,9 @@ SELECT
     pv.sku,
     p.name AS product_name,
     p.slug,
-    pv.stock_quantity,
-    pv.safety_stock,
+    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
     sold.units::bigint AS units_sold,
-    (pv.stock_quantity::numeric
+    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
      / (sold.units::numeric / $1::integer))::integer AS days_cover
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
@@ -15698,7 +15735,7 @@ JOIN LATERAL (
       AND o.placed_at >= now() - make_interval(days => $1::integer)
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, pv.stock_quantity
+ORDER BY days_cover NULLS LAST, sellable_quantity
 LIMIT $2::integer
 `
 
@@ -15708,17 +15745,17 @@ type StockAtRiskParams struct {
 }
 
 type StockAtRiskRow struct {
-	SKU           string
-	ProductName   string
-	Slug          string
-	StockQuantity int32
-	SafetyStock   int32
-	UnitsSold     int64
-	DaysCover     int32
+	SKU              string
+	ProductName      string
+	Slug             string
+	SellableQuantity int32
+	UnitsSold        int64
+	DaysCover        int32
 }
 
 // days_cover is never NULL because the WHERE clause admits only variants that
-// sold something, so the divisor cannot be zero.
+// sold something, so the divisor cannot be zero. It divides what a sale may
+// still take: record_inventory_movement refuses to go below safety_stock.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
 	rows, err := q.db.Query(ctx, stockAtRisk, arg.WindowDays, arg.LimitTo)
 	if err != nil {
@@ -15732,8 +15769,7 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 			&i.SKU,
 			&i.ProductName,
 			&i.Slug,
-			&i.StockQuantity,
-			&i.SafetyStock,
+			&i.SellableQuantity,
 			&i.UnitsSold,
 			&i.DaysCover,
 		); err != nil {

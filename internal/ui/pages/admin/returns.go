@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -171,7 +172,7 @@ type ReturnsView struct {
 	web.Bound
 
 	Rows   []Return
-	Notice string
+	Notice components.Result
 	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without
 	// painting every other request on the queue.
 	Errors map[string]string
