@@ -189,7 +189,9 @@ FROM (VALUES (:'placed_id'::uuid, :'variant_id'::uuid, 1, 0),
              (:'invoice_id', :'variant_id', 1, 0),
              (:'form_id', :'variant_id', 1, 0),
              (:'picking_a_id', :'variant_id', 1, 0),
-             (:'picking_b_id', :'variant_id', 1, 0)) AS l (order_id, variant_id, quantity, position)
+             (:'picking_b_id', :'variant_id', 1, 0),
+             (:'picking_a_id', :'seller_variant_id', 500, 1),
+             (:'picking_b_id', :'seller_variant_id', 500, 1)) AS l (order_id, variant_id, quantity, position)
 JOIN product_variants pv ON pv.id = l.variant_id
 JOIN products p ON p.id = pv.product_id;
 
