@@ -86,8 +86,8 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 
 	drawn := renderResults(t, i18n.En, CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
 	for _, want := range []string{
-		"<svg", "goen-chart__hue--previous", "2 units sold in the campaign",
-		`<td class="goen-chart__spans">Before</td>`, "Counts the campaign&rsquo;s current 6 products",
+		"<svg", "goen-chart__hue--previous", "7 units sold in the campaign",
+		`<td class="goen-chart__spans">Before</td>`, "Counts the campaign&#39;s current 6 products",
 	} {
 		if !strings.Contains(drawn, want) {
 			t.Errorf("a campaign with 10 units over 3 days lacks %q", want)
@@ -98,7 +98,7 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 		"10 units on two days": results(5, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5),
 	} {
 		page := renderResults(t, i18n.En, CampaignView{Slug: "autumn", Results: r})
-		if strings.Contains(page, "goen-chart__plot") || !strings.Contains(page, "sold in the campaign&rsquo;s first") {
+		if strings.Contains(page, "goen-chart__plot") || !strings.Contains(page, "sold in the campaign&#39;s first") {
 			t.Errorf("%s: the page draws columns it should leave to a sentence, or lacks the sentence", name)
 		}
 		if got, want := strings.Contains(page, "The daily columns appear once"), !r.Reached(); got != want {

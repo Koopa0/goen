@@ -240,6 +240,7 @@ func (v *ReportView) PaidSentence(ctx context.Context) string {
 			period, len(withOrders), strings.Join(items, i18n.T(ctx, i18n.KeyChartListSeparator)))
 	case chart.DensitySparse:
 		return i18n.Count(ctx, i18n.KeyAdminRepSparseDays, int64(len(withOrders)), len(withOrders))
+	case chart.DensityFull:
 	}
 	return v.busiest(ctx)
 }

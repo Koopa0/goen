@@ -176,7 +176,7 @@ type plan struct {
 	window       bool
 }
 
-func place(cols []Column, day time.Time) (int, int) {
+func place(cols []Column, day time.Time) (index, days int) {
 	for i, c := range cols {
 		if !day.Before(c.Day) && day.Before(c.Day.AddDate(0, 0, c.Days)) {
 			return i, c.Days
@@ -273,18 +273,7 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		window[0].window = true
 		pl = append(window, pl...)
 	}
-	rows := make([]int, len(pl))
-	var placed []taken
-	deepest := 0
-	for k, sp := range pl {
-		_, _, _, left, right := nameAt(sp, n)
-		row := 0
-		for clashes(placed, row, left, right) {
-			row++
-		}
-		rows[k], deepest = row, max(deepest, row)
-		placed = append(placed, taken{left, right, row})
-	}
+	rows, deepest := stripRows(pl, n)
 
 	r := columns{Plain: !full, HasSpans: len(pl) > 0}
 	top := 22.0 // room for a value above the highest bar
@@ -295,50 +284,105 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	r.Height = int(r.Baseline) + axisBand
 	r.LabelY = r.Baseline + axisBand - 8
 
+	var scale int64
+	r.Grid, scale = columnsAxis(ctx, cols, full, r.Baseline)
+	previous := p.Previous
+	if grouped {
+		previous = 0
+	}
+	r.Bars, r.Values = barsOf(cols, scale, r.Baseline, full, p.Series.Partial, previous)
+	if p.Series.Partial {
+		lastDays := float64(cols[n-1].Days)
+		r.TodayX = percent((float64(n-1) + (lastDays-0.5)/lastDays) * band)
+	}
+	r.Strips = stripsOf(pl, rows, top, n, grouped, p.Series.Partial)
+	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
+	r.Rows = tableRows(ctx, p, cols, pl)
+
+	r.Note = p.Note
+	if grouped && cols[0].Days != daysPerColumn {
+		short := i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days)
+		r.Note = strings.TrimSpace(short + " " + p.Note)
+	}
+	return r
+}
+
+// stripRows puts each strip's name on the lowest row where it does not run into
+// the names already placed, and returns the rows and the deepest one used.
+func stripRows(pl []plan, n int) (rows []int, deepest int) {
+	rows = make([]int, len(pl))
+	placed := make([]taken, 0, len(pl))
+	for k, sp := range pl {
+		_, _, _, left, right := nameAt(sp, n)
+		row := 0
+		for clashes(placed, row, left, right) {
+			row++
+		}
+		rows[k], deepest = row, max(deepest, row)
+		placed = append(placed, taken{left, right, row})
+	}
+	return rows, deepest
+}
+
+// columnsAxis is the lines of the value axis and the value its top stands for.
+// Fewer than seven days with values have the baseline alone, and the highest
+// bar fills the area.
+func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64) (grid []gridLine, scale int64) {
+	for _, c := range cols {
+		scale = max(scale, c.Value)
+	}
+	if !full {
+		return []gridLine{{Y: baseline, Baseline: true}}, scale
+	}
+	step := axisStep(scale, MeasureCount)
+	lines := gridLines(scale, step)
+	scale = step * lines
+	divisor, suffix := i18n.AxisUnit(ctx, scale)
+	for k := range lines + 1 {
+		v := k * step
+		grid = append(grid, gridLine{
+			Y:     baseline - float64(v)/float64(scale)*columnsPlot,
+			Label: MeasureCount.axisText(v, divisor, suffix), Baseline: k == 0,
+		})
+	}
+	return grid, scale
+}
+
+// barsOf is a bar for each column with a value, and the value over it: over
+// every bar when few are drawn, else over the highest, the ones tied with it,
+// and today.
+func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, previous int) ([]bar, []valueLabel) {
+	n := len(cols)
+	band := 100 / float64(n)
+	share := barShare(n)
 	var peak int64
 	for _, c := range cols {
 		peak = max(peak, c.Value)
 	}
-	scale := peak
-	if full {
-		step := axisStep(peak, MeasureCount)
-		lines := gridLines(peak, step)
-		scale = step * lines
-		divisor, suffix := i18n.AxisUnit(ctx, scale)
-		for k := range lines + 1 {
-			v := k * step
-			r.Grid = append(r.Grid, gridLine{
-				Y:     r.Baseline - float64(v)/float64(scale)*columnsPlot,
-				Label: MeasureCount.axisText(v, divisor, suffix), Baseline: k == 0,
-			})
-		}
-	} else {
-		r.Grid = []gridLine{{Y: r.Baseline, Baseline: true}}
-	}
-	y := func(v int64) float64 { return r.Baseline - float64(v)/float64(scale)*columnsPlot }
-
-	share := barShare(n)
+	var bars []bar
+	var values []valueLabel
 	for i, c := range cols {
 		if c.Value <= 0 {
 			continue
 		}
 		h := math.Max(2, float64(c.Value)/float64(scale)*columnsPlot)
-		r.Bars = append(r.Bars, bar{
+		bars = append(bars, bar{
 			X: percent(float64(i)*band + (1-share)/2*band), Width: percent(share * band),
-			Y: r.Baseline - h, Height: h, Open: p.Series.Partial && i == n-1,
-			Previous: !grouped && i < p.Previous,
+			Y: baseline - h, Height: h, Open: partial && i == n-1,
+			Previous: i < previous,
 		})
 		if !full || c.Value == peak || i == n-1 {
-			r.Values = append(r.Values, valueLabel{
-				X: percent((float64(i) + 0.5) * band), Y: y(c.Value) - 6, Text: MeasureCount.text(c.Value),
+			values = append(values, valueLabel{
+				X: percent((float64(i) + 0.5) * band), Y: baseline - h - 6, Text: MeasureCount.text(c.Value),
 			})
 		}
 	}
-	if p.Series.Partial {
-		lastDays := float64(cols[n-1].Days)
-		r.TodayX = percent((float64(n-1) + (lastDays-0.5)/lastDays) * band)
-	}
+	return bars, values
+}
 
+func stripsOf(pl []plan, rows []int, top float64, n int, grouped, partial bool) []strip {
+	band := 100 / float64(n)
+	strips := make([]strip, 0, len(pl))
 	for k, sp := range pl {
 		text, at, anchor, _, _ := nameAt(sp, n)
 		s := strip{
@@ -353,40 +397,33 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 				s.Gaps = append(s.Gaps, percent(float64(i)*band))
 			}
 		}
-		if sp.runs && p.Series.Partial {
+		if sp.runs && partial {
 			s.TodayX = percent(sp.end * band)
 		}
-		r.Strips = append(r.Strips, s)
+		strips = append(strips, s)
 	}
+	return strips
+}
 
-	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
-
+// tableRows is the table: each column's day, its value, and the campaigns that
+// cover it, by name.
+func tableRows(ctx context.Context, p ColumnsProps, cols []Column, pl []plan) []columnRow {
+	n := len(cols)
 	names := make([][]string, n)
 	for _, sp := range pl {
 		i0, _ := place(cols, sp.first)
 		i1, _ := place(cols, sp.last)
 		for i := i0; i <= i1; i++ {
 			label := sp.label
-			if c := cols[i]; c.Days > 1 {
-				lo, hi := c.Day, c.Day.AddDate(0, 0, c.Days-1)
-				if sp.first.After(lo) {
-					lo = sp.first
-				}
-				if sp.last.Before(hi) {
-					hi = sp.last
-				}
-				if !lo.Equal(c.Day) || !hi.Equal(c.Day.AddDate(0, 0, c.Days-1)) {
-					days := axisDay(ctx, lo)
-					if !lo.Equal(hi) {
-						days += "–" + axisDay(ctx, hi)
-					}
-					label = fmt.Sprintf(i18n.T(ctx, i18n.KeyChartQualified), label, days)
-				}
+			if days := coveredDays(ctx, cols[i], sp.first, sp.last); days != "" {
+				label = fmt.Sprintf(i18n.T(ctx, i18n.KeyChartQualified), label, days)
 			}
 			names[i] = append(names[i], label)
 		}
 	}
 	separator := i18n.T(ctx, i18n.KeyChartListSeparator)
+	grouped := p.Series.Grouped()
+	rows := make([]columnRow, 0, n)
 	for i, c := range cols {
 		heading := axisDay(ctx, c.Day)
 		if grouped && c.Days != daysPerColumn {
@@ -395,34 +432,62 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		if i == n-1 && p.Series.Partial && p.PartialLabel != "" {
 			heading = fmt.Sprintf(i18n.T(ctx, i18n.KeyChartQualified), heading, p.PartialLabel)
 		}
-		r.Rows = append(r.Rows, columnRow{Heading: heading, Value: MeasureCount.text(c.Value), Spans: strings.Join(names[i], separator)})
+		rows = append(rows, columnRow{Heading: heading, Value: MeasureCount.text(c.Value), Spans: strings.Join(names[i], separator)})
 	}
-
-	r.Note = p.Note
-	if grouped && cols[0].Days != daysPerColumn {
-		short := i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days)
-		r.Note = strings.TrimSpace(short + " " + p.Note)
-	}
-	return r
+	return rows
 }
 
-// columnTicks labels the axis: every day of a week, else the Mondays, none too
-// near an end, and today at the end when the last day is still going; a long
-// chart, drawn in runs, labels the day each starts on.
+// coveredDays names the days of a column of several that a span between first
+// and last covers, or nothing when it covers them all.
+func coveredDays(ctx context.Context, c Column, first, last time.Time) string {
+	if c.Days <= 1 {
+		return ""
+	}
+	end := c.Day.AddDate(0, 0, c.Days-1)
+	lo, hi := c.Day, end
+	if first.After(lo) {
+		lo = first
+	}
+	if last.Before(hi) {
+		hi = last
+	}
+	if lo.Equal(c.Day) && hi.Equal(end) {
+		return ""
+	}
+	days := axisDay(ctx, lo)
+	if !lo.Equal(hi) {
+		days += "–" + axisDay(ctx, hi)
+	}
+	return days
+}
+
+// columnTicks labels the axis: a long chart, drawn in runs, labels the day each
+// starts on; otherwise the days tickDays picks, and every day of a week, and
+// today at the end when the last day is still going.
 func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
-	var ticks []dayTick
+	picked := map[int]bool{}
+	if !grouped {
+		days := make([]time.Time, n)
+		for i, c := range cols {
+			days[i] = c.Day
+		}
+		for _, i := range tickDays(days) {
+			picked[i] = true
+		}
+		picked[0] = n <= 7
+	}
+	ticks := make([]dayTick, 0, n)
 	for i, c := range cols {
+		if !grouped && !picked[i] && i != n-1 {
+			continue
+		}
 		t := dayTick{X: percent((float64(i) + 0.5) * band), Anchor: "middle", Label: axisDay(ctx, c.Day)}
 		switch {
 		case grouped:
 			t.Minor = (n-1-i)%3 != 0
 		case n <= 7:
 			t.Minor = (n-1-i)%2 == 1
-		case i == n-1:
-		case c.Day.Weekday() == time.Monday && i*100 >= 7*n && i*100 <= 93*n:
-		default:
-			continue
 		}
 		if i == n-1 {
 			if !grouped && today {

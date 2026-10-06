@@ -111,7 +111,7 @@ func lastOf(sums []int64) int64 {
 	return sums[len(sums)-1]
 }
 
-func newRunningTotal(ctx context.Context, p RunningTotalProps) runningTotal {
+func newRunningTotal(ctx context.Context, p *RunningTotalProps) runningTotal {
 	current, previous := cumulative(p.Current), cumulative(p.Previous)
 	n := len(current)
 

@@ -36,8 +36,10 @@ const DefaultWindow int32 = 30
 
 const maxRows = 10
 
-// ErrDailyRevenue is returned with a complete report whose daily chart could
-// not be read: the view is marked DailyUnavailable and is otherwise whole.
+// ErrDailyRevenue is returned with a complete report whose daily charts could
+// not be read: the view is marked DailyUnavailable and is otherwise whole. The
+// charts share their reads, the campaigns and the latest paid day among them,
+// so one failing leaves both without their drawing.
 var ErrDailyRevenue = errors.New("read daily revenue")
 
 // ReportAt reads the last days shop days up to now, and the same number before
@@ -55,8 +57,8 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, err
 	}
-	// The chart is one figure of the page: failing to read it must not take the
-	// tiles with it. It is read last, because a failed statement ends the snapshot.
+	// The daily charts are figures of the page: failing to read them must not take
+	// the tiles with them. It is read last, because a failed statement ends the snapshot.
 	daily, paid, err := dailyFigures(ctx, q, days, now)
 	if err != nil {
 		view.DailyUnavailable = true
