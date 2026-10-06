@@ -150,6 +150,11 @@ func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
 			t.Error("the status menu offers to cancel a funded order")
 		}
 	}
+	// ErrPaidCancel's notice sends staff to the refund before shipment.
+	if !view.RefundOffered || !view.RefundCreditPaid {
+		t.Errorf("RefundOffered=%t RefundCreditPaid=%t, want the store credit cancellation offered",
+			view.RefundOffered, view.RefundCreditPaid)
+	}
 
 	if _, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
 		t.Fatalf("status cancel of a credit-funded order = %v, want ErrPaidCancel", err)

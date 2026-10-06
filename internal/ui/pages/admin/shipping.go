@@ -7,12 +7,13 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 type ShippingView struct {
 	Methods            []ShippingMethod
 	Zones              []ShippingZone
-	Notice             string
+	Notice             components.Result
 	Errors             map[string]string
 	MethodDraft        MethodDraft
 	ZoneDraft          ZoneDraft

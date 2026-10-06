@@ -39,7 +39,7 @@ func TestShippingRowRefusalUsesTheDeskMessage(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			if got, want := i18n.T(ctx, notices["refused"]), i18n.T(ctx, i18n.KeyAdminShipRefused); got != want {
+			if got, want := i18n.T(ctx, notices["refused"].Key), i18n.T(ctx, i18n.KeyAdminShipRefused); got != want {
 				t.Errorf("row refusal=%q, want shipping message %q", got, want)
 			}
 		})

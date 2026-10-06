@@ -20,7 +20,7 @@ func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			req := httptest.NewRequestWithContext(ctx, "GET", "/admin/orders/GO-260929-000102?"+query+"=1", nil)
-			if got := web.Notice(req, notices); got == "" || got != i18n.T(ctx, key) {
+			if got := web.Notice(req, notices).Text; got == "" || got != i18n.T(ctx, key) {
 				t.Errorf("%s %s notice=%q", query, locale, got)
 			}
 		}
