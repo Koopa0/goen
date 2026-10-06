@@ -175,11 +175,11 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) homeView(ctx context.Context, heroAfter, bannerAfter string) (admin.HeroView, error) {
 	view, err := h.store.HeroSlides(ctx, heroAfter)
 	if err != nil {
-		return admin.HeroView{}, err
+		return admin.HeroView{}, nil
 	}
 	banners, err := h.store.Banners(ctx, bannerAfter)
 	if err != nil {
-		return admin.HeroView{}, err
+		return admin.HeroView{}, nil
 	}
 	view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	return view, nil
@@ -247,6 +247,7 @@ func (h *Handler) rejectBanner(
 		access.ServerError(w, r, h.log)
 		return
 	}
+	view.Rows = nil
 	view.Errors = errs
 	view.BannerDraft = admin.BannerDraft{
 		Message: f.Message, Short: f.Short, Code: f.Code,
@@ -324,6 +325,7 @@ func (h *Handler) rejectHeroSlide(
 		access.ServerError(w, r, h.log)
 		return
 	}
+	view.Banners = nil
 	view.Errors = errs
 	view.Draft = admin.HeroDraft{
 		Eyebrow: r.PostFormValue("eyebrow"), Headline: r.PostFormValue("headline"), Body: r.PostFormValue("body"),
