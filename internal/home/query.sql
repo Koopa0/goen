@@ -278,7 +278,6 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
-  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
@@ -297,7 +296,6 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
-  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
