@@ -234,6 +234,9 @@ INSERT INTO addresses (user_id, label, recipient_name, phone,
                        postal_code, city, district, street, is_default)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
+-- name: LockUserForAddressDefault :one
+SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
+
 -- Run in the same transaction as the set: addresses_one_default_per_user is unique.
 -- name: ClearDefaultAddress :exec
 UPDATE addresses SET is_default = false WHERE user_id = $1 AND is_default;
