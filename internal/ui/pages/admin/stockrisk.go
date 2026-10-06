@@ -216,7 +216,7 @@ const dashboardRunwayRows = 5
 
 // DashboardRunway keeps the first rows of a ranked days cover list for the
 // dashboard and counts the sold out SKUs that neither it nor the list lists.
-func DashboardRunway(listed []StockRisk, moreSoldOut int) ([]StockRisk, int) {
+func DashboardRunway(listed []StockRisk, moreSoldOut int) (shown []StockRisk, soldOutLeft int) {
 	if len(listed) <= dashboardRunwayRows {
 		return listed, moreSoldOut
 	}
