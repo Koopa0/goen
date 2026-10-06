@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -369,7 +370,8 @@ var abandonedEvents = map[stripe.EventType]bool{
 // here that yields nothing from every reader is a payload this binary could not
 // read — not an event goen does not act on, and the two must not share an arm.
 func actionable(ev *stripe.Event) bool {
-	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type])
+	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type] ||
+		ev.Type == stripe.EventTypeRefundFailed)
 }
 
 type webhookReadState uint8
@@ -402,6 +404,36 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 		return "", false
 	}
 	return sess.ID, true
+}
+
+// refundFailure is a refund Stripe reports failed after accepting it: a bank
+// can return a card refund days later, and the money goes back to the Stripe
+// balance.
+type refundFailure struct {
+	refundID string
+	// reason is Stripe's failure_reason, or "" when it sent none or one that is
+	// not a plain code: it reaches an operator's screen and a log line.
+	reason string
+}
+
+var refundFailureReason = regexp.MustCompile(`^[a-z_]{1,64}$`)
+
+func refundFailureFrom(ev *stripe.Event) (refundFailure, bool) {
+	if ev == nil || ev.Data == nil || ev.Type != stripe.EventTypeRefundFailed {
+		return refundFailure{}, false
+	}
+	var refund stripe.Refund
+	if err := json.Unmarshal(ev.Data.Raw, &refund); err != nil {
+		return refundFailure{}, false
+	}
+	if !ValidStripeID(refund.ID) {
+		return refundFailure{}, false
+	}
+	f := refundFailure{refundID: refund.ID}
+	if reason := string(refund.FailureReason); refundFailureReason.MatchString(reason) {
+		f.reason = reason
+	}
+	return f, true
 }
 
 // UnsettledSessionFrom reports the session id of a checkout the customer
