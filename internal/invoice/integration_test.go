@@ -3845,10 +3845,6 @@ func creditRefund(t *testing.T, userID uuid.UUID, orderNumber string, cents int6
 	}
 }
 
-// TestIssueFilesAnItemisationThatSumsToTheHeader drives Store.Issue and reads
-// what actually goes on the wire. The unit tests call discountLines and append
-// the 運費 line in the test body, so they lock the two helpers and not the order
-// Issue puts them in; nothing else in the tree drives Store.Issue.
 func TestCommitCountsSyntheticInvoiceItemsAtTheProviderBoundary(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
