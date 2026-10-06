@@ -37,18 +37,24 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
-// hexTokens reads the colour tokens from base.css, the sheet both layouts link.
+// hexTokens reads the colour tokens from every stylesheet. A token is declared
+// once, in base.css; a second declaration with another value in app.css or
+// admin.css would be read by neither test below, so it fails here.
 func hexTokens(t *testing.T) map[string]string {
 	t.Helper()
 
-	sheet, err := fs.ReadFile(files, BaseCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", BaseCSS, err)
-	}
 	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
+	for _, name := range []string{BaseCSS, AppCSS, AdminCSS} {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+			if had, seen := tokens[m[1]]; seen && had != m[2] {
+				t.Errorf("%s redeclares %s as #%s, was #%s", name, m[1], m[2], had)
+			} else if !seen {
+				tokens[m[1]] = m[2]
+			}
 		}
 	}
 	return tokens
@@ -65,7 +71,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
 		if tokens[name] == "" {
-			t.Fatalf("%s declares no hex value for %s", BaseCSS, name)
+			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 

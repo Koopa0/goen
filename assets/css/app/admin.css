@@ -32,26 +32,6 @@ a:hover {
   }
 }
 
-:root {
-  --page-gutter: 16px;
-  --page-width: 1280px;
-  /* The content column plus its gutters, for the pages that size themselves
-     with border-box: their text then starts where the header's does. */
-  --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
-}
-
-@media (min-width: 768px) {
-  :root {
-    --page-gutter: 24px;
-  }
-}
-
-@media (min-width: 1024px) {
-  :root {
-    --page-gutter: 32px;
-  }
-}
-
 .goen-shell {
   display: flex;
   flex-direction: column;

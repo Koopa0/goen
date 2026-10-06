@@ -371,3 +371,27 @@ body {
   /* A select's arrow, in --n-500. */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366666d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
+
+/* The one measurement every surface shares: a content column that stops at
+   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
+   the header bar's, the home page's and the footer grid's content edges and
+   fails when they disagree, so each reads the column from this one pair. */
+:root {
+  --page-gutter: 16px;
+  --page-width: 1280px;
+  /* The content column plus its gutters, for the pages that size themselves
+     with border-box: their text then starts where the header's does. */
+  --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-gutter: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-gutter: 32px;
+  }
+}
