@@ -15,6 +15,11 @@ templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
 	<p class="goen-admin__hint">
 		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, coverMinOrders, coverWarnDays, coverMaxRows) }
 	</p>
+	@StockRiskRows(rows, moreSoldOut, days)
+}
+
+// StockRiskRows is the rows alone, for a page that says its own lead.
+templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 	if len(rows) == 0 {
 		<div class="goen-admin__empty">
 			<p class="goen-admin__emptytitle">{ i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(days), days) }</p>

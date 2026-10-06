@@ -100,7 +100,7 @@ type DashboardView struct {
 	PendingOrders  int64
 	ReadyOrders    int64
 	PickingOrders  int64
-	LowStock       int64
+	SoldOut        int64
 	ActiveProducts int64
 	OpenMessages   int64
 	// PendingReturns is the requests nobody has decided, UninspectedReturns the
@@ -109,7 +109,10 @@ type DashboardView struct {
 	UninspectedReturns  int64
 	UnansweredQuestions int64
 	Recent              []OrderRow
-	Low                 []Variant
+	// Runway is the first of the days cover rows, RunwayMoreSoldOut the sold out
+	// SKUs they leave off.
+	Runway            []StockRisk
+	RunwayMoreSoldOut int
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
 	// HealthUnavailable is set when the health desk could not be read, so an
@@ -134,12 +137,10 @@ func (v DashboardView) DeskTasks() []Task {
 		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns"},
 		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions"},
 		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages"},
-		{Label: i18n.KeyAdminQueueStatLowStock, Count: v.LowStock, Href: "/admin/stock?low=1"},
+		{Label: i18n.KeyAdminQueueStatSoldOut, Count: v.SoldOut, Href: "/admin/reports#stock"},
 	}
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
-
-func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
 	web.Bound

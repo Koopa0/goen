@@ -89,50 +89,15 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				</div>
 			}
 		</section>
-		if v.HasLow() {
-			<section class="goen-admin__queue" aria-labelledby="low-heading">
-				<h2 class="goen-admin__heading" id="low-heading">
-					<a href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</a>
-				</h2>
-				<p class="goen-admin__hint">
-					{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
-				</p>
-				<div class="goen-admin__tablewrap">
-					<table class="ui-table goen-admin__table">
-						<thead>
-							<tr>
-								<th scope="col">SKU</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
-								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, x := range v.Low {
-								<tr>
-									<td class="goen-admin__cellkey">
-										<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
-									</td>
-									<td>
-										{ x.ProductName }
-										<span class="goen-admin__meta">{ x.Brand }</span>
-									</td>
-									<td class="goen-admin__cellnum">
-										{ x.StockText() } / { x.SafetyText() } /
-										<strong>{ x.SellableText() }</strong>
-									</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-				@components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
-					Size:        components.SizeSmall,
-				}, "/admin/stock?low=1") {
-					{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }
-				}
-			</section>
-		}
+		<section class="goen-admin__queue" aria-labelledby="runway-heading">
+			<h2 class="goen-admin__heading" id="runway-heading">
+				<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</a>
+			</h2>
+			@StockRiskRows(v.Runway, v.RunwayMoreSoldOut, CoverWindowDays)
+			<p class="goen-admin__hint">
+				<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminStockCoverReport) }</a>
+			</p>
+		</section>
 	}
 }
 

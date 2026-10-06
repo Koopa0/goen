@@ -2423,8 +2423,10 @@ SELECT
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
-    (SELECT count(*) FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
+    -- The SKUs the stock days cover lists as sold out.
+    (SELECT count(*) FROM product_variants pv JOIN products p ON p.id = pv.product_id
+     WHERE pv.is_active AND p.status = 'active'
+       AND pv.stock_quantity <= pv.safety_stock)::bigint AS sold_out,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
     (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
@@ -2448,7 +2450,7 @@ type AdminSummaryRow struct {
 	PendingOrders       int64
 	ReadyOrders         int64
 	PickingOrders       int64
-	LowStock            int64
+	SoldOut             int64
 	ActiveProducts      int64
 	OpenMessages        int64
 	PendingReturns      int64
@@ -2463,7 +2465,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.PendingOrders,
 		&i.ReadyOrders,
 		&i.PickingOrders,
-		&i.LowStock,
+		&i.SoldOut,
 		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.PendingReturns,
@@ -2564,7 +2566,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+WHERE ($2::boolean = false OR (pv.is_active AND pv.stock_quantity <= pv.safety_stock))
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
        OR p.name ILIKE '%' || $3::text || '%'

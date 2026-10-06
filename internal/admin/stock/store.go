@@ -265,22 +265,6 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 		})
 }
 
-// LowStock is the variants at or under their safety stock, the dashboard's
-// shortlist.
-func (s *Store) LowStock(ctx context.Context, limit int32) ([]admin.Variant, error) {
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{
-		Locale: string(i18n.FromContext(ctx)), LowOnly: true, RowLimit: limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read low stock: %w", err)
-	}
-	out := make([]admin.Variant, 0, len(rows))
-	for i := range rows {
-		out = append(out, variantRow(&rows[i]))
-	}
-	return out, nil
-}
-
 func variantRow(r *db.AdminVariantsRow) admin.Variant {
 	return admin.Variant{
 		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
