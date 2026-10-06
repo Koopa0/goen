@@ -3,6 +3,7 @@
 package campaigns_test
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // The shop's list, its count and the back office's reason each spell "has
@@ -100,6 +102,30 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 			if detail.Sellable != tt.want {
 				t.Errorf("AdminCampaign sellable = %v, want %v", detail.Sellable, tt.want)
 			}
+			if got := listRowSellable(t, office, slug); got != tt.want {
+				t.Errorf("AdminCampaigns sellable = %v, want %v", got, tt.want)
+			}
 		})
+	}
+}
+
+func listRowSellable(t *testing.T, office *campaigns.Store, slug string) bool {
+	t.Helper()
+	var after []string
+	for {
+		view, err := office.List(t.Context(), after...)
+		if err != nil {
+			t.Fatalf("read the back-office list: %v", err)
+		}
+		for _, r := range view.Rows {
+			if r.Slug == slug {
+				return r.Sellable
+			}
+		}
+		next, err := url.Parse(view.Next)
+		if err != nil || view.Next == "" {
+			t.Fatalf("campaign %s is not in the back-office list (next %q, %v)", slug, view.Next, err)
+		}
+		after = []string{next.Query().Get(web.KeysetParam)}
 	}
 }
