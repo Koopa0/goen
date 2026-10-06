@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -177,6 +178,19 @@ func assertCouponUsage(t *testing.T, baseCtx context.Context, desk *coupons.Stor
 			if diff := cmp.Diff([]int64{1, used, cents}, []int64{int64(row.MaxRedeem), row.Redeemed, row.GivenCents}); diff != "" {
 				t.Errorf("%s current quota and discount (-want +got):\n%s", locale.Tag(), diff)
 			}
+			wantState := "Used up"
+			if locale == i18n.ZhHant {
+				wantState = "已用完"
+			}
+			if used == 0 {
+				wantState = "Live"
+				if locale == i18n.ZhHant {
+					wantState = "使用中"
+				}
+			}
+			if row.State(ctx) != wantState || row.Live() != (used == 0) {
+				t.Errorf("%s coupon after %d active uses: state = %q, live = %t; want %q, %t", locale.Tag(), used, row.State(ctx), row.Live(), wantState, used == 0)
+			}
 		}
 		if !found {
 			t.Fatalf("coupon %s absent from list", code)
@@ -195,6 +209,69 @@ func assertCouponUsage(t *testing.T, baseCtx context.Context, desk *coupons.Stor
 		if !strings.Contains(text, want) {
 			t.Errorf("%s coupon row = %q, want usage %q", locale.Tag(), text, want)
 		}
+	}
+}
+
+func TestCouponExpiryKeepsTheShopMinute(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))
+	mux := http.NewServeMux()
+	coupons.NewHandler(desk, slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
+	for _, tt := range []struct {
+		name string
+		ends time.Time
+		want string
+	}{
+		{name: "UTC timestamp", ends: time.Date(2027, time.January, 2, 3, 4, 0, 0, time.UTC), want: "2027-01-02 11:04"},
+		{name: "no expiry"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			code := "EXPIRY-" + strings.ToUpper(uuid.NewString()[:8])
+			errs, err := desk.CreateCoupon(ctx, &coupons.Form{
+				Code: code, Description: "Coupon expiry", Kind: coupon.Amount,
+				Value: 100, PerCustomer: 1,
+			})
+			if err != nil || len(errs) != 0 {
+				t.Fatalf("CreateCoupon = %v, %v", errs, err)
+			}
+			if !tt.ends.IsZero() {
+				if _, updateErr := owner.Exec(ctx, `UPDATE coupons SET starts_at=$2, ends_at=$3 WHERE code=$1`, code, tt.ends.Add(-time.Hour), tt.ends); updateErr != nil {
+					t.Fatal(updateErr)
+				}
+			}
+			for _, locale := range i18n.Locales() {
+				localized := i18n.WithLocale(ctx, locale)
+				view, readErr := desk.Coupons(localized)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				found := false
+				for _, row := range view.Rows {
+					if row.Code == code {
+						found = true
+						if row.EndsAt != tt.want {
+							t.Errorf("%s coupon expiry = %q, want %q", locale.Tag(), row.EndsAt, tt.want)
+						}
+					}
+				}
+				if !found {
+					t.Fatalf("coupon %s absent from list", code)
+				}
+				response := httptest.NewRecorder()
+				mux.ServeHTTP(response, httptest.NewRequestWithContext(localized, http.MethodGet, "/admin/coupons", http.NoBody))
+				if response.Code != http.StatusOK {
+					t.Fatalf("GET /admin/coupons = %d, want 200", response.Code)
+				}
+				text := couponRowText(t, response.Body.String(), code)
+				if tt.want != "" && !strings.Contains(text, tt.want) {
+					t.Errorf("%s coupon row = %q, want expiry %q", locale.Tag(), text, tt.want)
+				}
+				if tt.want == "" && (strings.Contains(text, "Until ") || strings.Contains(text, "至 ")) {
+					t.Errorf("%s coupon without expiry renders an end: %q", locale.Tag(), text)
+				}
+			}
+		})
 	}
 }
 
