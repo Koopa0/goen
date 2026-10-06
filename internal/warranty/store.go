@@ -90,6 +90,8 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 				return ErrSerialTaken
 			case "warranty_registrations_unit_key":
 				return ErrNotRegistrable
+			case "warranty_registrations_serial_length":
+				return ErrSerialTooLong
 			case "warranty_unit_within_purchase":
 				return ErrNotRegistrable
 			}
