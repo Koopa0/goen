@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -102,7 +104,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrSerialTooLong):
 		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantySerialTooLong)
 	case errors.Is(err, ErrInvalid):
-		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantyRefused)
+		refusal := i18n.KeyWarrantyRefused
+		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("serial"))) > MaxSerialRunes {
+			refusal = i18n.KeyWarrantySerialTooLong
+		}
+		h.rejectRegistration(w, r, u.ID, refusal)
 	case errors.Is(err, ErrNotRegistrable), errors.Is(err, ErrNotFound):
 		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantyRefused)
 	default:
