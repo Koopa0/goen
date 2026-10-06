@@ -160,11 +160,9 @@ templ Register(p layouts.Page, v AuthView) {
 							{ i18n.T(ctx, i18n.KeyRegisterResend) }
 						}
 					</form>
-					if v.HasNotice() {
-						<p class="goen-auth__alt">
-							<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
-						</p>
-					}
+					<p class="goen-auth__alt">
+						<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
+					</p>
 				} else {
 					<form class="goen-auth__form" method="post" action="/register">
 						<input type="hidden" name="next" value={ v.Next }/>

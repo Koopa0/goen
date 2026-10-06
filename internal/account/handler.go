@@ -970,7 +970,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 	addr, err := h.store.RegistrationAddress(ctx, token)
 	if errors.Is(err, ErrVerifyInvalid) {
-		h.registrationDead(w, r, next)
+		h.registrationDead(w, r, "/account")
 		return
 	}
 	if err != nil {
@@ -1002,7 +1002,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrVerifyInvalid):
-		h.registrationDead(w, r, next)
+		h.registrationDead(w, r, "/account")
 	default:
 		h.log.ErrorContext(ctx, "complete registration", "error", err)
 		h.serverError(w, r)
