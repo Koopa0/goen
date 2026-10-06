@@ -1497,7 +1497,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 	attempt := 0
 	if raw := r.URL.Query().Get("confirmation"); raw != "" {
 		if raw == "done" {
-			view.PaymentConfirmationPending = false
+			view.PaymentConfirmationPending = true
 			return ""
 		}
 		parsed, err := strconv.Atoi(raw)
