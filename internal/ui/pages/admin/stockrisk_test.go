@@ -110,7 +110,7 @@ func TestRankKeepsTwoGroupsEachWithItsOwnCap(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	var rows []StockRisk
+	rows := make([]StockRisk, 0, 2*coverMaxRows+4)
 	for i := range coverMaxRows + 2 {
 		rows = append(rows, StockRisk{SKU: fmt.Sprintf("OUT-%02d", i), SoldOutAt: at.Add(time.Duration(i) * time.Hour)})
 	}
