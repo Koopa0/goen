@@ -620,3 +620,46 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 		t.Errorf("no hold naming %s in the ledger", number)
 	}
 }
+
+// The dashboard's sold-out count and the list it opens agree: a variant that is
+// not for sale is in neither.
+func TestAnInactiveVariantAtItsSafetyStockIsNotCountedAsSoldOut(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	s := stock.NewStore(owner)
+	dashboard := admintest.OrderStore(owner, admintest.Refunder{}, nil, nil)
+	read := func() (counted int64, listed int) {
+		t.Helper()
+		view, err := dashboard.Dashboard(ctx)
+		if err != nil {
+			t.Fatalf("Dashboard: %v", err)
+		}
+		low, err := s.Variants(ctx, true, "")
+		if err != nil {
+			t.Fatalf("Variants(low): %v", err)
+		}
+		return view.SoldOut, len(low.Variants)
+	}
+	counted, listed := read()
+
+	var variant uuid.UUID
+	if err := owner.QueryRow(ctx, `
+		SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id
+		WHERE v.is_active AND p.status = 'active' AND v.stock_quantity > v.safety_stock
+		ORDER BY v.id LIMIT 1`).Scan(&variant); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = stock_quantity WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if c, l := read(); c != counted+1 || l != listed+1 {
+		t.Fatalf("an active variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted+1, listed+1)
+	}
+
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if c, l := read(); c != counted || l != listed {
+		t.Errorf("an inactive variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted, listed)
+	}
+}
