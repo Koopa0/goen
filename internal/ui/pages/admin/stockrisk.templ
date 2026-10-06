@@ -15,6 +15,11 @@ templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
 	<p class="goen-admin__hint">
 		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, coverMinOrders, coverWarnDays, coverMaxRows) }
 	</p>
+	@StockRiskRows(rows, moreSoldOut, days)
+}
+
+// StockRiskRows is the rows without the report's lead.
+templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 	if len(rows) == 0 {
 		<div class="goen-admin__empty">
 			<p class="goen-admin__emptytitle">{ i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(days), days) }</p>
@@ -54,7 +59,7 @@ templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
 		</ul>
 		if moreSoldOut > 0 {
 			<p class="goen-admin__hint">
-				<a href="/admin/stock?low=1">{ i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut) }</a>
+				<a href="/admin/stock?soldout=1">{ i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut) }</a>
 			</p>
 		}
 	}

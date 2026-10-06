@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"strings"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
@@ -198,7 +197,7 @@ func (e AuditEntry) ActorText(ctx context.Context) string {
 // Money reports whether the entry recorded an amount.
 func (e AuditEntry) Money() bool {
 	for _, c := range e.Changes {
-		if strings.HasSuffix(c.Field, "_cents") {
+		if f, ok := e.field(c.Field); ok && f.amount != nil && f.amount(e) {
 			return true
 		}
 	}

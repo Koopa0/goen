@@ -63,6 +63,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						class="goen-input"
 						id="cat-alt"
 						name="alt"
+						value={ v.ImageAltDraft }
 						maxlength="200"
 						required
 						if v.HasErr("alt") {
@@ -82,6 +83,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						class="goen-input"
 						id="cat-alt-en"
 						name="alt_en"
+						value={ v.ImageAltEnDraft }
 						maxlength="200"
 						if v.HasErr("alt_en") {
 							aria-invalid="true"

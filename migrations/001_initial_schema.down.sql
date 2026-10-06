@@ -28,5 +28,16 @@ BEGIN
     LOOP
         EXECUTE 'DROP FUNCTION IF EXISTS ' || obj.signature || ' CASCADE';
     END LOOP;
+
+    FOR obj IN
+        SELECT t.oid::regtype AS name FROM pg_type t
+        WHERE t.typnamespace = 'public'::regnamespace AND t.typtype = 'd'
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d
+              WHERE d.objid = t.oid AND d.deptype = 'e'
+          )
+    LOOP
+        EXECUTE 'DROP DOMAIN IF EXISTS ' || obj.name || ' CASCADE';
+    END LOOP;
 END
 $$;

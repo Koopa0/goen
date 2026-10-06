@@ -407,3 +407,69 @@ func newsletterDisplayedMessageCount(t *testing.T, body, message string) int {
 	}
 	return count
 }
+
+func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		path    string
+		locale  i18n.Locale
+		heading string
+		body    string
+	}{
+		{name: "confirmation-En", handler: h.ConfirmPage, path: "/newsletter/confirm", locale: i18n.En, heading: "Subscribed", body: "You are subscribed to the goen newsletter. We send occasionally. The unsubscribe link is in the email we just sent."},
+		{name: "confirmation-ZhHant", handler: h.ConfirmPage, path: "/newsletter/confirm", locale: i18n.ZhHant, heading: "\u5df2\u8a02\u95b1", body: "\u4f60\u5df2\u8a02\u95b1 goen \u96fb\u5b50\u5831\u3002\u4e0d\u5b9a\u671f\u5bc4\u9001\uff1b\u9000\u8a02\u9023\u7d50\u5728\u525b\u525b\u5bc4\u51fa\u7684\u90a3\u5c01\u4fe1\u88e1\u3002"},
+		{name: "unsubscribe-En", handler: h.UnsubscribePage, path: "/newsletter/unsubscribe", locale: i18n.En, heading: "Unsubscribed", body: "You will not receive the goen newsletter again. Order notices are not affected."},
+		{name: "unsubscribe-ZhHant", handler: h.UnsubscribePage, path: "/newsletter/unsubscribe", locale: i18n.ZhHant, heading: "\u5df2\u9000\u8a02", body: "\u4f60\u4e0d\u6703\u518d\u6536\u5230 goen \u96fb\u5b50\u5831\u3002\u8a02\u55ae\u76f8\u95dc\u7684\u901a\u77e5\u4fe1\u4e0d\u53d7\u5f71\u97ff\u3002"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			const token = "private-confirmation-token"
+			const address = "private-mailbox@example.com"
+			var first string
+			for attempt := range 2 {
+				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
+					tt.path+"?done=1&token="+token+"&email="+address, http.NoBody)
+				res := httptest.NewRecorder()
+				tt.handler(res, req)
+				if res.Code != http.StatusOK {
+					t.Fatalf("acknowledgement GET = %d, want 200", res.Code)
+				}
+				body := res.Body.String()
+				for _, want := range []string{tt.heading, tt.body} {
+					if !strings.Contains(body, want) {
+						t.Errorf("acknowledgement omits %q", want)
+					}
+				}
+				for _, forbidden := range []string{token, address, `name="token"`, `class="notice__form"`, "%s", "%!("} {
+					if strings.Contains(body, forbidden) {
+						t.Errorf("acknowledgement contains %q", forbidden)
+					}
+				}
+				if got := res.Header().Values("Set-Cookie"); len(got) != 0 {
+					t.Errorf("acknowledgement Set-Cookie = %q, want none", got)
+				}
+				if attempt == 0 {
+					first = body
+				} else if body != first {
+					t.Error("refresh changed the acknowledgement")
+				}
+			}
+			for _, marker := range []string{"", "0", "yes"} {
+				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
+					tt.path+"?token="+token+"&done="+marker, http.NoBody)
+				res := httptest.NewRecorder()
+				tt.handler(res, req)
+				if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `name="token" value="`+token+`"`) ||
+					!strings.Contains(res.Body.String(), `method="post" action="`+tt.path+`"`) {
+					t.Errorf("unconfirmed GET done=%q lost the confirmation form: status %d", marker, res.Code)
+				}
+				if strings.Contains(res.Body.String(), tt.body) {
+					t.Errorf("unconfirmed GET done=%q claims completion", marker)
+				}
+			}
+		})
+	}
+}

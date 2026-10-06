@@ -134,9 +134,14 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		access.ServerError(w, r, h.log)
 		return
 	}
+	var altDraft, altEnDraft string
+	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
+		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
+	}
 	view := admin.CampaignView{
 		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
 		Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
 	}
 	// The results are one figure of the page: failing to read them must not
 	// take the editor with them.

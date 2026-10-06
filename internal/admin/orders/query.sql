@@ -150,7 +150,7 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
-    stock.low_stock,
+    stock.sold_out,
     active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
@@ -182,8 +182,11 @@ FROM
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
     (SELECT count(*)::bigint AS picking_orders FROM orders
      WHERE fulfillment_status = 'picking') picking,
-    (SELECT count(*)::bigint AS low_stock FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    -- The SKUs the stock days cover lists as sold out.
+    (SELECT count(*)::bigint AS sold_out FROM product_variants pv
+     JOIN products p ON p.id = pv.product_id
+     WHERE pv.is_active AND p.status = 'active'
+       AND pv.stock_quantity <= pv.safety_stock) stock,
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
