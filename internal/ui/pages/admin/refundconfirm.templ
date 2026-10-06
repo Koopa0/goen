@@ -20,7 +20,9 @@ templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminRetConfirmOrder) }</dt><dd class="ui-dl__desc">{ v.OrderNumber }</dd></div>
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount) }</dt><dd class="ui-dl__desc">{ v.Amount() }</dd></div>
 			</dl>
-			if ch := v.Channel(ctx); ch != "" {
+			if v.CreditPaid {
+				<p class="goen-admin__hint">{ v.CreditCancellation(ctx) }</p>
+			} else if ch := v.Channel(ctx); ch != "" {
 				<p class="goen-admin__hint">{ ch }</p>
 			}
 			<form method="post" action={ templ.SafeURL(v.Action()) } class="goen-admin__form">

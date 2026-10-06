@@ -325,10 +325,13 @@ func (v RefundConfirmation) Amount() string { return money.TWD(v.TotalCents) }
 // refund the staff member was not shown.
 func (v RefundConfirmation) Total() string { return strconv.FormatInt(v.TotalCents, 10) }
 
+// CreditCancellation is what confirming does to an order store credit alone
+// paid.
+func (v RefundConfirmation) CreditCancellation(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(v.CreditCents))
+}
+
 func (v RefundConfirmation) Channel(ctx context.Context) string {
-	if v.CreditPaid {
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(v.CreditCents))
-	}
 	return (&Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
 }
 

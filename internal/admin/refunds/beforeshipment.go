@@ -26,8 +26,9 @@ import (
 )
 
 // beforeShipmentRefundState reports whether the order page offers a refund before
-// shipment, and whether one is open for Resume. open_refund_before_shipment
-// re-derives both under the order lock.
+// shipment, and whether one is open for Resume. Under the order lock,
+// open_refund_before_shipment re-derives both for a committed order, and
+// orders_check_transition re-judges a cancelCreditPaid.
 func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
 	status := order.FulfillmentStatus(r.FulfillmentStatus)
 	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.StatusApproved
@@ -40,7 +41,7 @@ func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open boo
 // commits it only when packing starts, and store_credit_guard refuses to pay
 // credit back through a return on an uncommitted order, so its refund before
 // shipment is the customer's own cancellation run by staff: the spend is
-// reversed. CancelCreditPaidOrder re-derives this under the order lock.
+// reversed.
 func creditPaidPending(r *db.BeforeShipmentRefundRow) bool {
 	return r.PaidByCredit && !r.Committed && !r.HasReturn &&
 		order.FulfillmentStatus(r.FulfillmentStatus) == order.FulfillmentPending
@@ -330,12 +331,13 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	if err != nil {
 		return nil, fmt.Errorf("lock order %s: %w", number, err)
 	}
-	cancelled, err := q.CancelCreditPaidOrder(ctx, number)
-	if err != nil {
-		return nil, pgerr.WrapRefusal(fmt.Errorf("cancel %s: %w", number, err), refundstate.ErrRefused)
-	}
-	if cancelled == 0 {
-		return nil, fmt.Errorf("%w: order %s is no longer a pending order store credit paid", refundstate.ErrRefused, number)
+	// What moved the order since it was read is refused here, not re-tested:
+	// orders_history_frozen refuses cancelling a cancelled order again, and
+	// orders_paid_cancel_needs_refund one that packing or a card committed.
+	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
+		OrderNumber: number, Status: string(order.FulfillmentCancelled),
+	}); advanceErr != nil {
+		return nil, pgerr.WrapRefusal(fmt.Errorf("cancel %s: %w", number, advanceErr), refundstate.ErrRefused)
 	}
 	if settleErr := settleCreditPaidCancellation(ctx, q, orderID, number, note, actor); settleErr != nil {
 		return nil, settleErr

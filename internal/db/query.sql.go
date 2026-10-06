@@ -3427,31 +3427,6 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 	return items, nil
 }
 
-const cancelCreditPaidOrder = `-- name: CancelCreditPaidOrder :execrows
-UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE o.order_number = $1::text
-  AND o.fulfillment_status = 'pending'
-  AND NOT order_is_committed(o.id)
-  AND order_amount_after_credit(o.id) = 0
-  AND EXISTS (SELECT 1 FROM store_credit_entries s
-              WHERE s.order_id = o.id AND s.amount_cents < 0)
-  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id)
-`
-
-// A pending order store credit alone paid, cancelled by staff as its customer
-// could cancel it: the predicate is BeforeShipmentRefund's paid_by_credit on an
-// uncommitted pending order with no return, so a replay, or an order picked or
-// paid since the confirmation, cancels nothing. Run it after
-// LockOrderByNumber: a capture holds the order lock without updating the row,
-// so an UPDATE that waited for it would judge payment by an older snapshot.
-func (q *Queries) CancelCreditPaidOrder(ctx context.Context, orderNumber string) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelCreditPaidOrder, orderNumber)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const cancelLapsedOrder = `-- name: CancelLapsedOrder :execrows
 UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.id = $1

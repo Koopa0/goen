@@ -60,6 +60,9 @@ func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
 			!strings.Contains(page, `name="reason"`) || !strings.Contains(page, `name="total" value="500000"`) {
 			t.Errorf("%s credit-paid confirmation does not say the credit returns and the order cancels: %s", locale, page)
 		}
+		if strings.Contains(page, v.Channel(ctx)) {
+			t.Errorf("%s credit-paid confirmation repeats the payout channel %q beside the cancellation", locale, v.Channel(ctx))
+		}
 
 		body.Reset()
 		view := &OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPending, Funded: true, RefundOffered: true, RefundCreditPaid: true}

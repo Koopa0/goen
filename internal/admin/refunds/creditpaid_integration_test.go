@@ -173,9 +173,10 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 	check(t, "after the replays")
 }
 
-// The cancellation re-derives the order under its lock: whoever moved it while
-// the cancellation waited, a staff member starting to pack it or its customer
-// cancelling it, wins, and the cancellation records nothing.
+// Whoever moved the order while the cancellation waited on its lock, a staff
+// member starting to pack it or its customer cancelling it, wins: the database
+// refuses the cancellation (orders_paid_cancel_needs_refund,
+// orders_history_frozen) and it records nothing.
 func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
