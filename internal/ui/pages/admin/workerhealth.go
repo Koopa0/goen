@@ -263,9 +263,6 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 }
 
 func (r OpenRefund) NextStep(ctx context.Context) string {
-	if r.OrderNumber != "" {
-		return ""
-	}
 	var key i18n.Key
 	switch r.Status {
 	case refundstate.Pending:
