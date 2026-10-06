@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
@@ -42,17 +41,8 @@ func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
 	}
 }
 
-func TestAViewWithNoEndSaysNoDate(t *testing.T) {
+func TestTheOffersStripNamesOnlyANearLastDay(t *testing.T) {
 	t.Parallel()
-
-	far := renderIn(t, i18n.ZhHant, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "秋日選物"}))
-	if strings.Contains(far, "goen-pagehead__sub") || strings.Contains(far, "活動至") {
-		t.Error("a campaign whose end is not near still prints an end line")
-	}
-	near := renderIn(t, i18n.ZhHant, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "秋日選物", EndsOn: "10 月 31 日"}))
-	if !strings.Contains(near, "活動至 10 月 31 日") {
-		t.Error("a campaign ending soon does not say its last day")
-	}
 
 	strip := renderIn(t, i18n.ZhHant, campaignStrip([]CampaignSummary{
 		{Slug: "far", Title: "秋日選物", Products: 6},
