@@ -46,14 +46,14 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 			t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
 			s := catalog.NewStore(tx)
 			slug := "dept-" + uuid.NewString()[:8]
-			if _, err := tx.Exec(ctx, `
+			if _, err = tx.Exec(ctx, `
 				INSERT INTO sale_campaigns (slug, title, ends_at)
 				VALUES ($1, '測試活動', now() + interval '1 minute')`, slug); err != nil {
 				t.Fatalf("create campaign: %v", err)
 			}
 			featureNewProduct(t, tx, slug, tt.stock, "active")
 			var department string
-			if err := tx.QueryRow(ctx, `
+			if err = tx.QueryRow(ctx, `
 				SELECT cat.slug FROM products p JOIN sale_campaign_products cp ON cp.product_id = p.id
 				JOIN sale_campaigns c ON c.id = cp.campaign_id
 				JOIN categories cat ON cat.id = p.category_id WHERE c.slug = $1`, slug).Scan(&department); err != nil {
