@@ -1,23 +1,29 @@
 -- Brings a restored demo snapshot forward to today. The history
--- seed/demo_history.sql writes ends the day before it ran, the snapshot's
--- anchor day. Restored k days later (k = today's shop day - anchor_day), every
--- time in the snapshot moves k days on the shop's calendar, so the history ends
--- yesterday again. Only times and order numbers change: totals, stock and the
--- ledgers stay as they were.
+-- seed/demo_history.sql writes ends the day before it ran. Restored k days
+-- later, every time in the snapshot moves k days on the shop's calendar, so
+-- the history ends yesterday again. Only times and order numbers change:
+-- totals, stock and the ledgers stay as they were.
 --
 -- Run it after the restore and before goen starts, as a superuser (replica
 -- mode needs one), naming the database and the day the snapshot was taken:
 --
 --     psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<its name> -v anchor_day=YYYY-MM-DD -f seed/demo_shift.sql
 --
--- It refuses a database it was not named for, one the seed's catalogue did not
--- build, and one holding a payment that could be real: a cs_live_ session, or a
--- succeeded payment that is neither a Stripe test session (cs_test_) nor one of
--- the history's (cs_demo_). It also refuses when the history already reaches
--- anchor_day, which is what a second run on the same restore, or an anchor_day
--- earlier than the snapshot's, would find. The shift is a single DO block, so
--- a failure leaves the snapshot as it was restored. On the anchor day it
--- changes nothing.
+-- k counts from the database's own date: the day the seed's home-delivery
+-- rate takes effect, which seed/dev_catalog.sql puts at the shop's midnight of
+-- the day it ran, seed/demo_history.sql moves to the day it ran, and every
+-- shift moves with the rest. anchor_day must be that date. A snapshot taken that day
+-- holds nothing written later, so nothing lands after today. One already
+-- shifted is dated later than anchor_day; one taken on a later day than its
+-- date may hold rows written after it, which k days would carry past today.
+-- Both are refused.
+--
+-- It also refuses a database it was not named for, one the seed's catalogue
+-- did not build, and one holding a payment that could be real: a cs_live_
+-- session, or a succeeded payment that is neither a Stripe test session
+-- (cs_test_) nor one of the history's (cs_demo_). The shift is a single DO
+-- block, so a failure leaves the snapshot as it was restored. On the anchor
+-- day it changes nothing.
 --
 -- Times keep their time of day, so a row written on the anchor day later than
 -- the hour of the restore lies ahead of the clock until that hour. None of
@@ -57,6 +63,7 @@ DECLARE
     v_named  constant text := current_setting('demo_shift.database');
     v_given  constant text := current_setting('demo_shift.anchor_day');
     v_anchor date;
+    v_dated  date;
     v_days   integer;
     v_foreign text;
     v_stmt   text;
@@ -91,12 +98,19 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM inventory_movements WHERE reason = 'receipt' AND idempotency_key LIKE 'seed:%') THEN
         RAISE EXCEPTION 'this database holds no opening stock from seed/dev_catalog.sql: it is not the seeded demo';
     END IF;
-    IF EXISTS (SELECT 1 FROM orders o JOIN payments p ON p.order_id = o.id
-               WHERE p.provider_ref LIKE 'cs\_demo\_%' AND shop_day(o.placed_at) >= v_anchor) THEN
-        RAISE EXCEPTION 'orders from the history were placed on or after %: this snapshot was already shifted, or anchor_day is not the day it was taken', v_anchor;
+    -- Written with the opening stock in the seed's one transaction, and
+    -- append-only: a database that passed the check above holds it.
+    SELECT shop_day(effective_at) INTO STRICT v_dated
+    FROM shipping_method_versions
+    WHERE id = 'ffff0002-0000-4000-8000-000000000001';
+    IF v_dated > v_anchor THEN
+        RAISE EXCEPTION 'this database is dated %, after anchor_day %: it was already shifted, or anchor_day is not the day the snapshot was taken', v_dated, v_anchor;
+    END IF;
+    IF v_dated < v_anchor THEN
+        RAISE EXCEPTION 'this database is dated %, before anchor_day %: a snapshot taken after the day of its data may hold rows the shift would carry past today', v_dated, v_anchor;
     END IF;
 
-    v_days := shop_today() - v_anchor;
+    v_days := shop_today() - v_dated;
     IF v_days = 0 THEN
         RETURN;
     END IF;

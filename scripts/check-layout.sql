@@ -129,12 +129,23 @@ ORDER BY v.effective_at DESC LIMIT 1 \gset
 -- two sellers to compare. Its 1,000 units give the bars' count column four
 -- digits; they ride the two picking orders as two lines of 500, since a line
 -- holds at most 999. The cheapest variant in stock, so each line's credit fits
--- one grant; the receipt covers the holds, so its stock ends where it began.
+-- one grant; the receipt covers the holds, so its stock ends where it began. It
+-- is in another department than the first, which gives the department bars two
+-- rows to compare.
+WITH RECURSIVE up AS (
+    SELECT p.id AS product_id, c.id, c.parent_id FROM products p JOIN categories c ON c.id = p.category_id
+    UNION ALL
+    SELECT u.product_id, c.id, c.parent_id FROM up u JOIN categories c ON c.id = u.parent_id
+),
+department AS (SELECT product_id, id AS root_id FROM up WHERE parent_id IS NULL)
 SELECT pv.id AS seller_variant_id, pv.sku AS seller_sku, pv.price_cents * 500 AS seller_line_cents
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
+JOIN department d ON d.product_id = p.id
 WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
-  AND pv.product_id <> (SELECT product_id FROM product_variants WHERE id = :'variant_id')
+  AND d.root_id <> (SELECT dd.root_id FROM department dd
+                    JOIN product_variants fv ON fv.product_id = dd.product_id
+                    WHERE fv.id = :'variant_id')
 ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
 
 SET ROLE admin;
@@ -165,7 +176,7 @@ INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, distri
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
 -- A tier above the fixture customer's spend, so the customer page draws its meter.
-RESET ROLE;
+SET ROLE admin;
 INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
 VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
 ON CONFLICT DO NOTHING;

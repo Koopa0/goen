@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/postcode"
 )
 
 const maxZonePrefixes = 100
@@ -150,9 +151,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 }
 
 func parsePrefixes(ctx context.Context, list string) (prefixes []string, message string) {
-	fields := strings.FieldsFunc(list, func(r rune) bool {
-		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
-	})
+	fields := postcode.Fields(list)
 	if len(fields) == 0 {
 		return []string{}, ""
 	}

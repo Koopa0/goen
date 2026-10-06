@@ -869,16 +869,17 @@ func warrantyStoreRolePool(t *testing.T) *pgxpool.Pool {
 
 func TestWarrantySerialLengthIsEnforcedForTheStoreRole(t *testing.T) {
 	app := warrantyStoreRolePool(t)
+	uuidRunes := len(uuid.NewString())
 	for _, tc := range []struct {
 		name    string
 		serial  any
 		refused bool
 	}{
 		{name: "optional serial", serial: nil},
-		{name: "ascii boundary", serial: uuid.NewString() + strings.Repeat("A", 24)},
-		{name: "unicode boundary", serial: uuid.NewString() + strings.Repeat("界", 24)},
-		{name: "ascii overlong", serial: uuid.NewString() + strings.Repeat("A", 25), refused: true},
-		{name: "unicode overlong", serial: uuid.NewString() + strings.Repeat("界", 25), refused: true},
+		{name: "ascii boundary", serial: uuid.NewString() + strings.Repeat("A", warranty.MaxSerialRunes-uuidRunes)},
+		{name: "unicode boundary", serial: uuid.NewString() + strings.Repeat("界", warranty.MaxSerialRunes-uuidRunes)},
+		{name: "ascii overlong", serial: uuid.NewString() + strings.Repeat("A", warranty.MaxSerialRunes-uuidRunes+1), refused: true},
+		{name: "unicode overlong", serial: uuid.NewString() + strings.Repeat("界", warranty.MaxSerialRunes-uuidRunes+1), refused: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
