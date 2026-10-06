@@ -73,7 +73,7 @@ func (v CustomerView) HasNextTier() bool { return v.NextTierName != "" }
 func (v CustomerView) TierMeter() chart.MeterProps {
 	return chart.MeterProps{
 		Value: v.WindowSpendCents, Limit: v.NextTierCents, LimitLine: true,
-		Label: money.TWD(v.WindowSpendCents) + " / " + money.TWD(v.NextTierCents-v.WindowSpendCents),
+		Label: money.TWD(v.WindowSpendCents) + " / " + money.TWD(v.NextTierCents),
 	}
 }
 

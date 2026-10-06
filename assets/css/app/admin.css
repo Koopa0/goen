@@ -1029,8 +1029,8 @@ input.goen-check {
 
 .goen-admin__tier {
   display: grid;
-  gap: 8px;
-  margin: 16px 0;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
 }
 
 .goen-admin__tier p {

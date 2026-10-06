@@ -26,18 +26,21 @@ func TestCustomerTierShowsWhatIsLeftToTheNextTier(t *testing.T) {
 		sentence  string
 		wantMeter bool
 		wantFill  string
+		wantLabel string
 	}{
 		{
 			name:   "below a tier, zh",
 			view:   CustomerView{WindowDays: 365, WindowSpendCents: 320000, NextTierName: "金卡", NextTierCents: 500000},
 			locale: i18n.ZhHant, sentence: "近 365 天消費 NT$3,200，再消費 NT$1,800 可達 金卡。",
 			wantMeter: true, wantFill: `width="64.00%"`,
+			wantLabel: "NT$3,200 / NT$5,000",
 		},
 		{
 			name:   "below a tier, en",
 			view:   CustomerView{WindowDays: 365, WindowSpendCents: 320000, NextTierName: "Gold", NextTierCents: 500000},
 			locale: i18n.En, sentence: "NT$3,200 spent in the last 365 days; NT$1,800 more reaches Gold.",
 			wantMeter: true, wantFill: `width="64.00%"`,
+			wantLabel: "NT$3,200 / NT$5,000",
 		},
 		{
 			name:   "top tier shows the amount alone",
@@ -58,7 +61,7 @@ func TestCustomerTierShowsWhatIsLeftToTheNextTier(t *testing.T) {
 			t.Errorf("%s: Customer page has a meter = %v, want %v", tt.name, has, tt.wantMeter)
 		}
 		if tt.wantMeter {
-			for _, want := range []string{tt.wantFill, `goen-chartmeter__limit`} {
+			for _, want := range []string{tt.wantFill, `goen-chartmeter__limit`, tt.wantLabel} {
 				if !strings.Contains(got, want) {
 					t.Errorf("%s: Customer page lacks %s", tt.name, want)
 				}

@@ -17,6 +17,8 @@ LIMIT @row_limit::integer;
 -- Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 -- define them. No role predicate, deliberately: /admin/staff promotes an
 -- existing customer, whose order history must stay reachable from this page.
+-- The window spend and the next tier are what the account page judges tiers by,
+-- read the way it reads them.
 -- name: AdminCustomer :one
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
@@ -40,7 +42,6 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(nt.name, '')::text AS next_tier_name,
        coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
--- The spend the account page judges tiers by, read the way it reads it.
 CROSS JOIN LATERAL (SELECT member_spend(u.id, @window_days::integer, NULL)::bigint AS spend_cents) w
 LEFT JOIN LATERAL (
     SELECT localized_name(n.name, n.name_en, @locale::text) AS name, n.min_spend_cents

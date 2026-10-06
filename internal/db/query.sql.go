@@ -815,7 +815,8 @@ type AdminCustomerRow struct {
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-// The spend the account page judges tiers by, read the way it reads it.
+// The window spend and the next tier are what the account page judges tiers by,
+// read the way it reads them.
 func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
 	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
 	var i AdminCustomerRow
