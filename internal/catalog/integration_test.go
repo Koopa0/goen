@@ -424,8 +424,8 @@ func dealSlugs(t *testing.T, s *catalog.Store) (slugs []string, total int64) {
 		if len(view.Products) == 0 {
 			break
 		}
-		for _, tile := range view.Products {
-			slugs = append(slugs, tile.Slug)
+		for i := range view.Products {
+			slugs = append(slugs, view.Products[i].Slug)
 		}
 	}
 	return slugs, total
@@ -1407,8 +1407,8 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 			if err != nil {
 				t.Fatalf("newest products: %v", err)
 			}
-			for _, tile := range tiles {
-				if tile.Slug == product {
+			for i := range tiles {
+				if tile := &tiles[i]; tile.Slug == product {
 					if tile.InCampaign != tt.want {
 						t.Errorf("%s: InCampaign = %v, want %v", tt.name, tile.InCampaign, tt.want)
 					}
@@ -1425,8 +1425,8 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newest products: %v", err)
 		}
-		for _, tile := range tiles {
-			if tile.Slug == product {
+		for i := range tiles {
+			if tile := &tiles[i]; tile.Slug == product {
 				if tile.InCampaign || tile.CompareCents == 0 {
 					t.Errorf("a discounted product in no campaign: InCampaign = %v, CompareCents = %d, want false and its standing compare price", tile.InCampaign, tile.CompareCents)
 				}

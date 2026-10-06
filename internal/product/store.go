@@ -125,14 +125,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		AnySellable:  slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable }),
 	}
 	if view.SelectionOK {
-		view.VariantID = chosen.ID
-		view.SKU = chosen.SKU
-		view.PriceCents = chosen.PriceCents
-		view.CompareCents = chosen.CompareCents
-		view.Sellable = chosen.Sellable
-		view.Available = chosen.Available
-		view.ExpectedArrival = chosen.ExpectedArrival
-		view.ExpectedArrivalText = s.arrivalText(ctx, &view)
+		s.showChosenVariant(ctx, &view, &chosen)
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -159,6 +152,18 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		return pages.ProductView{}, err
 	}
 	return view, nil
+}
+
+// showChosenVariant puts the variant the shopper resolved to on the page.
+func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, chosen *Variant) {
+	view.VariantID = chosen.ID
+	view.SKU = chosen.SKU
+	view.PriceCents = chosen.PriceCents
+	view.CompareCents = chosen.CompareCents
+	view.Sellable = chosen.Sellable
+	view.Available = chosen.Available
+	view.ExpectedArrival = chosen.ExpectedArrival
+	view.ExpectedArrivalText = s.arrivalText(ctx, view)
 }
 
 func (s *Store) runningCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
