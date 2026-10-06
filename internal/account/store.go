@@ -595,8 +595,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress clears the previous default in the same transaction:
-// addresses_one_default_per_user is a unique partial index.
+// AddAddress locks the account first: under READ COMMITTED a clear cannot see
+// a default another transaction is setting.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -618,6 +618,10 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
+
+	if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
+		return fmt.Errorf("lock account for add address: %w", lockErr)
+	}
 
 	if a.Default {
 		if clearErr := q.ClearDefaultAddress(ctx, id); clearErr != nil {
@@ -684,6 +688,13 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
+
+	if _, lockErr := q.LockUserForAddressDefault(ctx, uid); lockErr != nil {
+		if errors.Is(lockErr, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("lock account for set default address: %w", lockErr)
+	}
 
 	if clearErr := q.ClearDefaultAddress(ctx, uid); clearErr != nil {
 		return fmt.Errorf("clear default address: %w", clearErr)

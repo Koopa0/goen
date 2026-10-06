@@ -110,7 +110,7 @@ templ Report(p layouts.Page, v *ReportView) {
 					<li class="goen-report__row">
 						<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
 						<span class="goen-admin__meta">{ item.SKU }</span>
-						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.StockText()) }</span>
+						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.SellableText()) }</span>
 						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSold), item.SoldText()) }</span>
 						if item.Urgent() {
 							@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
