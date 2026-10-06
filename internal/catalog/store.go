@@ -179,7 +179,8 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		PageSize: PageSize,
 	}
 
-	if err = s.withHighlights(ctx, view.Products); err != nil {
+	err = s.withHighlights(ctx, view.Products)
+	if err != nil {
 		return pages.ListingView{}, nil, err
 	}
 
