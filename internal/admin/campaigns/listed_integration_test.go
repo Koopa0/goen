@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// The shop's list, its count and the back office's reason each spell "has
-// something to buy" in their own SQL; the same fixtures must satisfy all three.
+// The shop's list, its count and the back office's reason must agree on which
+// campaign has something to buy.
 func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	shop := catalog.NewStore(pool)
