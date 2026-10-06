@@ -97,16 +97,17 @@ func (s *Store) FileCancellationAllowance(ctx context.Context, orderNumber strin
 	return nil
 }
 
-// EnqueueVoidDue writes the void a customer's cancellation owes, in the
-// cancellation's transaction.
+// EnqueueVoidDue writes the void a cancellation of an order store credit paid
+// owes, in the cancellation's transaction.
 func EnqueueVoidDue(ctx context.Context, q *db.Queries, due *outbox.InvoiceVoidDue) error {
 	return outbox.Enqueue(ctx, q, outbox.TopicInvoiceVoidDue, due.OrderNumber, due)
 }
 
-// ClaimVoidDue records the system's void of the invoice of an order its
-// customer cancelled; the reconciler sends it. The customer's own cancellation,
-// on a form that said the invoice would be voided, is the buyer's consent to the
-// void, which the shop must keep. An issue still in flight is waited for
+// ClaimVoidDue records the system's void of the invoice of a cancelled order;
+// the reconciler sends it. The buyer's consent to the void, which the shop must
+// keep, is the customer's own cancellation on a form that said the invoice would
+// be voided, or, when staff cancelled on the customer's word, the staff note and
+// its audit row, which carry the void's request id. An issue still in flight is waited for
 // through the outbox's retry, so the invoice owed when the credit was spent is
 // issued and then voided; with no 加值中心 configured it is withdrawn instead.
 // Past the void window nothing is claimed, and /admin/health lists the live

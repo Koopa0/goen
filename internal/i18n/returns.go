@@ -419,6 +419,19 @@ var (
 			"landed and the invoice is voided or credited.",
 	})
 
+	KeyAdminRefundCreditHint = key("admin.refund.credit.hint", Message{
+		ZhHant: "這筆訂單以購物金全額付款，還沒開始備貨。確認後訂單立即取消，購物金退回顧客的餘額，保留的庫存釋出，發票排入作廢。",
+		En: "Store credit paid this order in full and packing has not started. Confirming cancels it at once, " +
+			"returns the store credit to the customer's balance, releases its stock and queues its invoice to be voided.",
+	})
+
+	KeyAdminRefundCreditReturn = key("admin.refund.credit.return", Message{
+		ZhHant: "購物金 %s 退回顧客的餘額，訂單立即取消，發票排入作廢。",
+		En:     "Store credit of %s goes back to the customer's balance, the order is cancelled at once and its invoice is queued to be voided.",
+	})
+
+	KeyAdminRefundCreditCancel = key("admin.refund.credit.cancel", Message{ZhHant: "取消訂單並退回購物金", En: "Cancel the order and return the store credit"})
+
 	KeyAdminRefundOpen = key("admin.refund.open", Message{
 		ZhHant: "這筆訂單正在出貨前退款，已不能出貨。退款入帳、發票作廢或折讓後，按「繼續退款」取消訂單。",
 		En: "This order is being refunded before shipment and can no longer ship. Once the refund has " +

@@ -42,6 +42,8 @@ templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund"}}, "submit") {
 						if v.Resume {
 							{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
+						} else if v.CreditPaid {
+							{ i18n.T(ctx, i18n.KeyAdminRefundCreditCancel) }
 						} else {
 							{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 						}

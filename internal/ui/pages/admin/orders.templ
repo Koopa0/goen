@@ -588,7 +588,11 @@ templ Order(p layouts.Page, v *OrderView) {
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
-								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								if v.RefundCreditPaid {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundCreditHint) }</p>
+								} else {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								}
 							}
 						</form>
 					}
