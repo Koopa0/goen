@@ -25,6 +25,17 @@ type discountedOrder struct {
 	creditCents   int64
 }
 
+// wholeDollars reports whether every price, the discount and the delivery fee
+// are whole NT$, which is when every part of a return is refunded whole NT$ too.
+func (o discountedOrder) wholeDollars() bool {
+	for _, l := range o.lines {
+		if l.priceCents%100 != 0 {
+			return false
+		}
+	}
+	return o.discountCents%100 == 0 && o.deliveryCents%100 == 0
+}
+
 type placedOrder struct {
 	id      uuid.UUID
 	number  string
@@ -77,6 +88,16 @@ func TestAnOrderReturnedInPartsIsRefundedWhatItWouldBeAtOnce(t *testing.T) {
 			wantCard:   67900,
 			wantCredit: 30000,
 		},
+		{
+			// No rule keeps a price whole. On an order whose price is not, the
+			// rounded-up share would have the completing part claim more than
+			// was paid but for the cap.
+			name:     "2 × 75 cents, nothing off",
+			order:    discountedOrder{lines: []orderLine{{priceCents: 75, quantity: 2}}},
+			parts:    [][]int32{{1}, {1}},
+			want:     []int64{100, 50},
+			wantCard: 150,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -93,7 +114,7 @@ func TestAnOrderReturnedInPartsIsRefundedWhatItWouldBeAtOnce(t *testing.T) {
 				if offered != frozen {
 					t.Errorf("part %d offered %d while requested but froze %d on approval", i+1, offered, frozen)
 				}
-				if frozen%100 != 0 {
+				if tt.order.wholeDollars() && frozen%100 != 0 {
 					t.Errorf("part %d refund %d is not a whole NT$", i+1, frozen)
 				}
 				partsTotal += frozen

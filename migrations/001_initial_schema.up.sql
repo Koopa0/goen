@@ -2681,8 +2681,9 @@ CREATE TABLE return_requests (
     status             text NOT NULL DEFAULT 'requested',
     reason             text NOT NULL,
     resolution         text,
-    -- Frozen when a request is approved. Goods includes its proportional
-    -- discount; delivery is separate so one order can enforce one owner for it.
+    -- Frozen when a request is approved. Goods carries its cumulative share of
+    -- the discount (see return_goods_refundable_amount); delivery is separate so
+    -- one order can enforce one owner for it.
     -- Card and credit freeze the funding allocation at that SAME order lock: a
     -- failed provider attempt or later account erasure must not change which
     -- source a retry owes. Requested rows are previews and rejected rows reserve
