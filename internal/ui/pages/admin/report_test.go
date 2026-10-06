@@ -344,7 +344,7 @@ func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
 		},
 	}))
 
-	for _, want := range []string{"各館營收", "Audio", "Cables", "營收 NT$4,000", "營收 NT$1,000", `width="100.00%"`, `width="25.00%"`} {
+	for _, want := range []string{"各館商品銷售額", "Audio", "Cables", "商品銷售額 NT$4,000", "商品銷售額 NT$1,000", `width="100.00%"`, `width="25.00%"`} {
 		if !strings.Contains(html, want) {
 			t.Errorf("report lacks %q", want)
 		}
@@ -361,8 +361,8 @@ func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{i18n.En, "All of this period&#39;s revenue came from Audio: NT$4,000."},
-		{i18n.ZhHant, "這段期間的營收全部來自音響：NT$4,000。"},
+		{i18n.En, "All product sales in this period are in Audio: NT$4,000."},
+		{i18n.ZhHant, "這段期間的商品銷售額全部屬於音響：NT$4,000。"},
 	} {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
@@ -394,7 +394,7 @@ func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
 	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 	}))
-	if strings.Contains(html, "各館營收") {
+	if strings.Contains(html, "各館商品銷售額") {
 		t.Error("report shows a department heading with no departments")
 	}
 }

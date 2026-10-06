@@ -108,12 +108,12 @@ templ Report(p layouts.Page, v *ReportView) {
 				if len(v.Departments) == 1 {
 					<p>{ v.OnlyDepartment(ctx) }</p>
 				} else {
-					<ul class="goen-report__rows" role="list">
+					<ul class="goen-report__rows goen-report__departments" role="list">
 						{{ top := v.TopDepartment() }}
 						for _, d := range v.Departments {
 							<li class="goen-report__row">
 								<span class="goen-report__name">{ d.Name }</span>
-								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentRevenue), d.Revenue()) }</span>
+								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Revenue()) }</span>
 								<div class="goen-report__bar">
 									@chart.Bar(chart.BarProps{Value: d.RevenueCents, Max: top})
 								</div>

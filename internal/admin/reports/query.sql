@@ -59,7 +59,7 @@ LIMIT @limit_to::integer;
 
 -- A department is a top-level category; a product in a deeper one counts toward
 -- its root. The orders are those of RevenueBetween, so the departments add up to
--- the line part of its revenue. A line whose product is gone belongs to none.
+-- the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
 -- name: DepartmentRevenueBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL

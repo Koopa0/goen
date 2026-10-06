@@ -506,7 +506,8 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 }
 
-// A deeper category counts toward its root, the unpaid order toward none, and
+// A deeper category counts toward its root, an unpaid order and one refunded
+// before shipment toward none, and
 // together the departments are the revenue figure: the orders carry no discount,
 // shipping or tax.
 func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
@@ -528,6 +529,17 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	categoryOrder(t, idChild, 20000, true)
 	categoryOrder(t, idB, 5000, true)
 	categoryOrder(t, idB, 99999, false)
+	refunded := categoryOrder(t, idB, 77777, true)
+	var staff uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role) VALUES ('dept-staff-' || gen_random_uuid() || '@goen.invalid', 'staff')
+		RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT open_refund_before_shipment($1, 'department', $2, $3)`,
+		refunded, staff, "dept-"+refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
 	after, err := s.Report(ctx, 30)
 	if err != nil {
 		t.Fatalf("report: %v", err)
@@ -548,7 +560,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 		t.Errorf("department %q moved by %d, want 50000 (its own line and its child's)", rootA, got)
 	}
 	if got := now[rootB] - was[rootB]; got != 5000 {
-		t.Errorf("department %q moved by %d, want 5000 (the unpaid order is not revenue)", rootB, got)
+		t.Errorf("department %q moved by %d, want 5000 (neither the unpaid order nor the one refunded before shipment is revenue)", rootB, got)
 	}
 	if _, child := now[departmentName("child", suffix)]; child {
 		t.Error("a child category is listed as a department")
@@ -572,7 +584,7 @@ func newCategory(t *testing.T, name string, parent *uuid.UUID) uuid.UUID {
 }
 
 // categoryOrder places an order of one line of a new product in the category.
-func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) {
+func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) (number string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -595,7 +607,7 @@ func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) {
 		                    shipping_method_name, shipping_cents)
 		SELECT next_order_number(), v.id, sm.code, v.name, 0
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		ORDER BY v.effective_at LIMIT 1 RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -622,4 +634,5 @@ func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) {
 			t.Fatalf("capture: %v", err)
 		}
 	}
+	return number
 }
