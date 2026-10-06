@@ -24,6 +24,9 @@ func (m Message) in(l Locale) string {
 
 var messages = map[Key]Message{}
 
+// withoutEnglish holds the keys declared by zhOnly.
+var withoutEnglish = map[Key]bool{}
+
 func key(id string, m Message) Key {
 	if id == "" {
 		panic("i18n: a message needs an id")
@@ -36,6 +39,21 @@ func key(id string, m Message) Key {
 		panic(fmt.Sprintf("i18n: %s is declared twice: %q and %q", id, existing.ZhHant, m.ZhHant))
 	}
 	messages[k] = m
+	return k
+}
+
+// zhOnly is a word English has no use for, such as the counter 件 after a figure
+// that its label already names; English reads it as empty.
+func zhOnly(id, zhHant string) Key {
+	if id == "" || zhHant == "" {
+		panic("i18n: a zh-only message needs an id and a word")
+	}
+	k := Key(id)
+	if existing, taken := messages[k]; taken {
+		panic(fmt.Sprintf("i18n: %s is declared twice: %q and %q", id, existing.ZhHant, zhHant))
+	}
+	messages[k] = Message{ZhHant: zhHant, En: ""}
+	withoutEnglish[k] = true
 	return k
 }
 

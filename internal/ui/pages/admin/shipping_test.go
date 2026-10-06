@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -148,4 +149,152 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
+	t.Parallel()
+	const islands = "209 210 211 212 880 881 882 883 884 885 890 891 892 893 894 896 951 952"
+	islandDistricts := []string{
+		"209 連江縣南竿鄉", "210 連江縣北竿鄉", "211 連江縣莒光鄉", "212 連江縣東引鄉",
+		"880 澎湖縣馬公市", "881 澎湖縣西嶼鄉", "882 澎湖縣望安鄉", "883 澎湖縣七美鄉", "884 澎湖縣白沙鄉", "885 澎湖縣湖西鄉",
+		"890 金門縣金沙鎮", "891 金門縣金湖鎮", "892 金門縣金寧鄉", "893 金門縣金城鎮", "894 金門縣烈嶼鄉", "896 金門縣烏坵鄉",
+		"951 臺東縣綠島鄉", "952 臺東縣蘭嶼鄉",
+	}
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name      string
+			raw       string
+			districts []string
+			rows      string
+			draft     bool
+			newZone   bool
+			refused   bool
+		}{
+			{name: "stored island zone", raw: islands, districts: islandDistricts, rows: "18"},
+			{name: "refused existing zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", draft: true, refused: true},
+			{name: "cleared existing zone", rows: "3", draft: true},
+			{name: "refused new zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", newZone: true, refused: true},
+			{name: "blank new zone refusal", rows: "3", newZone: true, refused: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				view := ShippingView{Zones: []ShippingZone{
+					{ID: "islands", Name: "Islands", NameEn: "Islands", Prefixes: islands},
+					{ID: "neighbour", Name: "Neighbour", NameEn: "Neighbour", Prefixes: "100"},
+				}, Errors: map[string]string{}}
+				message := i18n.T(ctx, i18n.KeyFormZonePrefixRequired)
+				if tt.raw != "" {
+					message = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormZonePrefixShape), "<bad>")
+				}
+				if tt.draft {
+					view.PrefixDraft = ZonePrefixesDraft{ZoneID: "islands", Prefixes: tt.raw}
+					if tt.refused {
+						view.Errors["zone_prefixes"] = message
+					}
+				}
+				if tt.newZone {
+					view.ZoneDraft.Prefixes = tt.raw
+					if tt.refused {
+						view.Errors["prefixes"] = message
+					}
+				}
+				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				forms := shippingPrefixControls(t, body)
+				if len(forms) != 3 {
+					t.Fatalf("prefix editors = %d, want two zones and the new-zone form", len(forms))
+				}
+				wanted := map[string]shippingPrefixControl{
+					"pre-islands":   {Element: "textarea", Raw: islands, Rows: "18", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
+					"pre-neighbour": {Element: "textarea", Raw: "100", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/neighbour/prefixes", FullWidth: true, VisibleLabel: true, Districts: []string{"100 臺北市中正區"}},
+					"z-prefixes":    {Element: "textarea", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone", FullWidth: true, VisibleLabel: true, Required: true},
+				}
+				id := "pre-islands"
+				if tt.newZone {
+					id = "z-prefixes"
+				}
+				row := wanted[id]
+				row.Raw, row.Rows, row.Districts = tt.raw, tt.rows, tt.districts
+				if tt.refused {
+					row.Invalid, row.DescribedBy, row.Error = "true", id+"-error", message
+				}
+				wanted[id] = row
+				if diff := cmp.Diff(wanted, forms); diff != "" {
+					t.Errorf("zone prefix editors and their district lists (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+type shippingPrefixControl struct {
+	Element, Raw, Rows, Class         string
+	Method, FormClass, Action         string
+	Invalid, DescribedBy, Error       string
+	FullWidth, VisibleLabel, Required bool
+	Districts                         []string
+}
+
+func shippingPrefixControls(t *testing.T, body string) map[string]shippingPrefixControl {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controls := make(map[string]shippingPrefixControl)
+	for form := range doc.Descendants() {
+		if form.Type != html.ElementNode || form.Data != "form" {
+			continue
+		}
+		for node := range form.Descendants() {
+			if node.Type != html.ElementNode || attr(node, "name") != "prefixes" {
+				continue
+			}
+			id := attr(node, "id")
+			if _, exists := controls[id]; exists {
+				t.Fatalf("duplicate prefix control ID %q", id)
+			}
+			_, required := attrPresent(node, "required")
+			row := shippingPrefixControl{
+				Element: node.Data, Raw: shippingPrefixNodeText(node), Rows: attr(node, "rows"), Class: attr(node, "class"),
+				Method: attr(form, "method"), FormClass: attr(form, "class"), Action: attr(form, "action"),
+				Invalid: attr(node, "aria-invalid"), DescribedBy: attr(node, "aria-describedby"),
+				FullWidth: attr(form, "class") == "goen-admin__form", Required: required,
+			}
+			if node.Data == "input" {
+				row.Raw = attr(node, "value")
+			}
+			for ancestor := node.Parent; ancestor != nil && ancestor != form; ancestor = ancestor.Parent {
+				if strings.Contains(attr(ancestor, "class"), "goen-admin__fields") {
+					row.FullWidth = false
+				}
+			}
+			for child := range form.Descendants() {
+				if child.Type != html.ElementNode {
+					continue
+				}
+				if child.Data == "label" && attr(child, "for") == id {
+					row.VisibleLabel = !strings.Contains(attr(child, "class"), "goen-sr-only") && strings.TrimSpace(shippingPrefixNodeText(child)) != ""
+				}
+				if child.Data == "p" && attr(child, "id") == row.DescribedBy && row.DescribedBy != "" {
+					row.Error = shippingPrefixNodeText(child)
+				}
+				if child.Data == "li" {
+					row.Districts = append(row.Districts, strings.Join(strings.Fields(shippingPrefixNodeText(child)), " "))
+				}
+			}
+			controls[id] = row
+		}
+	}
+	return controls
+}
+
+func shippingPrefixNodeText(node *html.Node) string {
+	var text strings.Builder
+	for child := range node.Descendants() {
+		if child.Type == html.TextNode {
+			text.WriteString(child.Data)
+		}
+	}
+	return text.String()
 }

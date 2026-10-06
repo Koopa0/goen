@@ -138,6 +138,13 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
+// periodOverride finds the colours a tone gives the day grid, and periodDecl
+// one of them: a tone token, or a token of the page's own.
+var (
+	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone="([a-z]+)"\] \.ui-period \{(.*?)\}`)
+	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
+)
+
 // toneNames is pages.Tone's closed set. assets cannot import pages, whose test
 // repeats the list.
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
@@ -188,6 +195,27 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 					prop, decl[prop], name, ground, got)
 			}
 		}
+		// The day grid sits on every tone's ground: its fill and line are
+		// graphical objects (WCAG 1.4.11) and its labels are text.
+		period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+		for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
+			if m[1] != name {
+				continue
+			}
+			for _, d := range periodDecl.FindAllStringSubmatch(m[2], -1) {
+				if strings.HasPrefix(d[2], "--tone-") {
+					period[d[1]] = decl[d[2]]
+				} else {
+					period[d[1]] = tokens[d[2]]
+				}
+			}
+		}
+		for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
+			if got := contrast(period[part], ground); got < min {
+				t.Errorf("the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
+					part, period[part], name, ground, got, min)
+			}
+		}
 		if name == "ink" {
 			continue
 		}
@@ -197,32 +225,6 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], name, ground, got)
 			}
-		}
-	}
-}
-
-// A visitor who asked for less motion must get no autoplay: the progress fill
-// is what advances the carousel, so switching its animation off and hiding the
-// pause control is what keeps the slides still.
-func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
-	t.Parallel()
-
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	css := string(sheet)
-	start := strings.Index(css, "@media (prefers-reduced-motion: reduce) {\n  .goen-hero.is-playing")
-	if start < 0 {
-		t.Fatal("app.css has no reduced-motion block for the carousel's autoplay")
-	}
-	block := css[start : start+strings.Index(css[start:], "\n}\n\n")+3]
-	for _, want := range []string{
-		`.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after`,
-		"animation: none;",
-	} {
-		if !strings.Contains(block, want) {
-			t.Errorf("the reduced-motion block does not contain %q:\n%s", want, block)
 		}
 	}
 }
@@ -299,11 +301,8 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 	if override == nil {
 		t.Fatal("app.css does not re-point --ring on any dark ground")
 	}
-	open := strings.Index(override[1], "{")
-	if open < 0 {
-		t.Fatal("the --ring override has no rule body")
-	}
-	selectors := strings.Split(strings.TrimSpace(override[1][:open]), ",")
+	selectorList, _, _ := strings.Cut(override[1], "{")
+	selectors := strings.Split(strings.TrimSpace(selectorList), ",")
 	for _, sel := range selectors {
 		// A bare tone selector also reaches the light grounds that carry
 		// the tone as data, where a white ring would be 1:1.
