@@ -1110,7 +1110,8 @@ INSERT INTO shipping_methods (id, code, destination_kind, position) VALUES
 -- and this number are the same claim, so they change together. In effect from
 -- the shop's midnight rather than the hour the seed ran: seed/demo_shift.sql
 -- keeps that hour, and a demo restored earlier in the day would otherwise offer
--- no way to ship until then.
+-- no way to ship until then. It also dates the database by the home-delivery
+-- one.
 INSERT INTO shipping_method_versions (id, method_id, name, carrier, name_en, carrier_en,
                                       fee_cents, free_over_cents, effective_at) VALUES
     ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000,

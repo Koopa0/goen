@@ -238,12 +238,12 @@ templ productRow(r ProductRow) {
 		<section class="goen-home__section" aria-labelledby="row-heading">
 			<div class="goen-home__head">
 				@heading("row-heading", r.Title)
-				switch {
-					case r.HasLead():
-					case r.Campaign != nil:
+				if !r.HasLead() {
+					if r.Campaign != nil {
 						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
-					default:
+					} else {
 						@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
+					}
 				}
 			</div>
 			if r.Campaign != nil && !r.HasLead() {
