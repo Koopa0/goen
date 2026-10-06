@@ -168,10 +168,10 @@ func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
 func TestAwaitingPaymentAndPickingAreTasks(t *testing.T) {
 	t.Parallel()
 	want := []Task{
-		{Label: i18n.KeyAdminStatusPicking, Count: 2, Href: "/admin/orders?status=picking"},
+		{Label: i18n.KeyAdminStatusPicking, Count: 2, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: 7200},
 		{Label: i18n.KeyAdminQueueStatPending, Count: 4, Href: "/admin/orders?status=pending"},
 	}
-	if got := (&DashboardView{PendingOrders: 4, PickingOrders: 2}).DeskTasks(); !slices.Equal(got, want) {
+	if got := (&DashboardView{PendingOrders: 4, PickingOrders: 2, PickingOldestSeconds: 7200}).DeskTasks(); !slices.Equal(got, want) {
 		t.Errorf("DeskTasks() = %v, want %v", got, want)
 	}
 }
@@ -277,6 +277,7 @@ func TestElapsedValueUsesTheLargestWholeUnit(t *testing.T) {
 		{"one minute", time.Minute, i18n.En, "1\u00a0<small>minute ago</small>"},
 		{"minutes", 38 * time.Minute, i18n.En, "38\u00a0<small>minutes ago</small>"},
 		{"minutes in Chinese", 38 * time.Minute, i18n.ZhHant, "38\u00a0<small>分鐘前</small>"},
+		{"exactly an hour", time.Hour, i18n.En, "1\u00a0<small>hour ago</small>"},
 		{"an hour and a half", 90 * time.Minute, i18n.En, "1\u00a0<small>hour ago</small>"},
 		{"hours", 3*time.Hour + 59*time.Minute, i18n.En, "3\u00a0<small>hours ago</small>"},
 		{"days", 49 * time.Hour, i18n.En, "2\u00a0<small>days ago</small>"},
@@ -304,5 +305,17 @@ func TestTheWeekIsComparedAsTheReportCompares(t *testing.T) {
 	noisy := Week{Orders: 30, RevenueCents: 3100000, RevenueSquares: 1e18, Previous: PreviousFigures{Orders: 30, RevenueCents: 3000000, RevenueSquares: 1e18}}
 	if got, want := noisy.revenueAgainst(ctx), i18n.Count(ctx, i18n.KeyAdminRepPrevious, 7, 7, "NT$30,000"); got != want {
 		t.Errorf("revenueAgainst inside the noise = %q, want %q", got, want)
+	}
+}
+
+func TestTheWeekStatsKeyTheTwoPeriodsUnderTheirBars(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := DashboardView{Week: busyWeek()}
+	html := renderComponent(t, ctx, components.GlanceStatLine(view.WeekStats(ctx)))
+	for _, key := range []string{"Previous 7 days", "Last 7 days"} {
+		if got := strings.Count(html, "<span>"+key+"</span>"); got != 2 {
+			t.Errorf("%q is a key under %d of the two small charts, want 2", key, got)
+		}
 	}
 }

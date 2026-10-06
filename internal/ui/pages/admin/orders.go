@@ -103,6 +103,7 @@ type DashboardView struct {
 	// waiting item has waited, on the database's clock.
 	ReadyOldestSeconds        int64
 	PickingOrders             int64
+	PickingOldestSeconds      int64
 	LowStock                  int64
 	OpenMessages              int64
 	OpenMessagesOldestSeconds int64
@@ -159,7 +160,7 @@ func (t Task) AgeText(ctx context.Context) string {
 func (v *DashboardView) DeskTasks() []Task {
 	all := []Task{
 		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
-		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking"},
+		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: v.PickingOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatPending, Count: v.PendingOrders, Href: "/admin/orders?status=pending"},
 		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
 		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},

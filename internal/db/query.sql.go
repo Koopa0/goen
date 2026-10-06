@@ -2447,8 +2447,8 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
+    picking.picking_oldest_seconds,
     stock.low_stock,
-    active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
     requested.pending_returns,
@@ -2477,12 +2477,16 @@ FROM
      FROM orders o
      WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
-    (SELECT count(*)::bigint AS picking_orders FROM orders
-     WHERE fulfillment_status = 'picking') picking,
+    -- Waiting since a person took it into picking; an order moved there with no
+    -- event recorded falls back to when it was placed.
+    (SELECT count(*)::bigint AS picking_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'picking'),
+                o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
+     FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     (SELECT count(*)::bigint AS low_stock FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock) stock,
-    (SELECT count(*)::bigint AS active_products FROM products
-     WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
             coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds
@@ -2516,8 +2520,8 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
+	PickingOldestSeconds             int64
 	LowStock                         int64
-	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
 	PendingReturns                   int64
@@ -2539,8 +2543,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
+		&i.PickingOldestSeconds,
 		&i.LowStock,
-		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
 		&i.PendingReturns,
@@ -9010,7 +9014,8 @@ CROSS JOIN LATERAL (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
-WHERE NOT EXISTS (SELECT 1 FROM return_requests b
+WHERE o.placed_at >= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
                   WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 1
@@ -9026,8 +9031,10 @@ type LatestPaidOrderRow struct {
 // admin/health reads funded_at (UninvoicedOrders). Orders refunded before
 // shipment are left out, as RevenueBetween leaves them out; the total is
 // RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
-func (q *Queries) LatestPaidOrder(ctx context.Context) (LatestPaidOrderRow, error) {
-	row := q.db.QueryRow(ctx, latestPaidOrder)
+// Only orders placed since @since are looked at, so the dashboard does not read
+// the whole history; the caller asks again with no bound when none qualifies.
+func (q *Queries) LatestPaidOrder(ctx context.Context, since time.Time) (LatestPaidOrderRow, error) {
+	row := q.db.QueryRow(ctx, latestPaidOrder, since)
 	var i LatestPaidOrderRow
 	err := row.Scan(&i.OrderNumber, &i.TotalCents, &i.ElapsedSeconds)
 	return i, err

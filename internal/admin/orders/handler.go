@@ -66,7 +66,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.FillWeek(r.Context(), &view, time.Now()); err != nil {
 		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
-		view.WeekUnavailable = true
+		view.WeekUnavailable = !errors.Is(err, admin.ErrLatestPaid)
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }

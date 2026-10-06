@@ -67,6 +67,8 @@ ORDER BY d.day;
 -- admin/health reads funded_at (UninvoicedOrders). Orders refunded before
 -- shipment are left out, as RevenueBetween leaves them out; the total is
 -- RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
+-- Only orders placed since @since are looked at, so the dashboard does not read
+-- the whole history; the caller asks again with no bound when none qualifies.
 -- name: LatestPaidOrder :one
 SELECT o.order_number, f.total_cents,
        coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
@@ -83,7 +85,8 @@ CROSS JOIN LATERAL (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
-WHERE NOT EXISTS (SELECT 1 FROM return_requests b
+WHERE o.placed_at >= @since::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
                   WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 1;

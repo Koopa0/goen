@@ -430,3 +430,79 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 		t.Errorf("Elapsed = %v, want under a minute", view.Latest.Elapsed)
 	}
 }
+
+// The latest paid order is the one whose money came in last, which is not the
+// one placed last, and an order refunded before shipment is no sale.
+func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	latest := func(store *orders.Store) *admin.LatestPaid {
+		t.Helper()
+		var view admin.DashboardView
+		if err := store.FillWeek(t.Context(), &view, time.Now()); err != nil {
+			t.Fatalf("FillWeek: %v", err)
+		}
+		return view.Latest
+	}
+	place := func(pool *pgxpool.Pool, number string, ago time.Duration) {
+		t.Helper()
+		if _, err := pool.Exec(t.Context(), `UPDATE orders SET placed_at = now() - make_interval(secs => $2) WHERE order_number = $1`,
+			number, ago.Seconds()); err != nil {
+			t.Fatalf("place %s: %v", number, err)
+		}
+	}
+
+	// Placed first and paid last, against one placed later and paid earlier.
+	paidLast, _ := captureCardPaidAgo(t, isolated, time.Hour)
+	place(isolated, paidLast, 5*time.Hour)
+	paidFirst, _ := captureCardPaidAgo(t, isolated, 3*time.Hour)
+	place(isolated, paidFirst, 2*time.Hour)
+	if got := latest(s); got == nil || got.Number != paidLast {
+		t.Fatalf("Latest = %+v, want %s: paid last, though placed first", got, paidLast)
+	}
+
+	// A newer payment that was refunded before it shipped.
+	refunded, _ := captureCardPaidAgo(t, isolated, 10*time.Minute)
+	if _, err := isolated.Exec(t.Context(), `
+		INSERT INTO return_requests (order_id, reason, before_shipment)
+		SELECT id, '', true FROM orders WHERE order_number = $1`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	if got := latest(s); got == nil || got.Number != paidLast {
+		t.Fatalf("Latest = %+v, want %s: %s was refunded before shipment", got, paidLast, refunded)
+	}
+
+	// Nothing paid within the two periods read: the whole history is searched.
+	alone := admintest.Pool(t)
+	old, _ := captureCardPaidAgo(t, alone, 40*24*time.Hour)
+	place(alone, old, 40*24*time.Hour)
+	got := latest(admintest.OrderStore(alone, admintest.Refunder{}, nil, nil))
+	if got == nil || got.Number != old || got.Elapsed < 39*24*time.Hour {
+		t.Errorf("Latest = %+v, want %s paid 40 days ago", got, old)
+	}
+}
+
+// A picking order is as old as the moment a person took it into picking.
+func TestTheDashboardAgesAPickingOrderFromWhenItWasTaken(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	_, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	if _, err := isolated.Exec(t.Context(), `
+		INSERT INTO order_events (order_id, kind, occurred_at) VALUES ($1, 'picking', now() - interval '2 days')`,
+		orderID); err != nil {
+		t.Fatalf("record picking: %v", err)
+	}
+	view, err := s.Dashboard(t.Context())
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+	for _, task := range view.Tasks {
+		if task.Label == i18n.KeyAdminStatusPicking {
+			if !task.HasAge || task.AgeSeconds/86400 != 2 {
+				t.Errorf("picking task = %+v, want an age of 2 days", task)
+			}
+			return
+		}
+	}
+	t.Error("the dashboard lists no picking task")
+}

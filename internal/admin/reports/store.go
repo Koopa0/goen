@@ -81,7 +81,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 // FillWeek reads the last seven shop days of paid orders and revenue, and the
 // seven before them, into the dashboard, in one snapshot so the days add up to
 // the totals. The latest paid order is read last: failing to read it leaves the
-// rest standing, marked LatestUnavailable.
+// rest standing, marked LatestUnavailable and returned as ErrLatestPaid.
 func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
@@ -113,18 +113,29 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 	week.OrderDays = chart.SparklineProps{Previous: days[1].orders, Current: days[0].orders}
 	view.Week = week
 
-	latest, err := q.LatestPaidOrder(ctx)
+	latest, err := latestPaidOrder(ctx, q, before.from)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		view.Latest = nil
 	case err != nil:
 		view.LatestUnavailable = true
+		return fmt.Errorf("%w: %w", admin.ErrLatestPaid, err)
 	default:
 		view.Latest = &admin.LatestPaid{
 			Number: latest.OrderNumber, TotalCents: latest.TotalCents, Elapsed: time.Duration(latest.ElapsedSeconds) * time.Second,
 		}
 	}
 	return nil
+}
+
+// latestPaidOrder looks among the orders placed since the earlier of the two
+// periods already read, and only when none of them was paid among all of them.
+func latestPaidOrder(ctx context.Context, q *db.Queries, since time.Time) (db.LatestPaidOrderRow, error) {
+	latest, err := q.LatestPaidOrder(ctx, since)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return q.LatestPaidOrder(ctx, time.Time{})
+	}
+	return latest, err
 }
 
 // paidDays is one period's days, as revenue and as order counts.

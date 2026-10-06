@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 )
+
+// ErrLatestPaid is returned with a dashboard whose latest paid order could not
+// be read: the view is marked LatestUnavailable and is otherwise whole.
+var ErrLatestPaid = errors.New("read latest paid order")
 
 // WeekDays is how many shop days the dashboard's figures cover.
 const WeekDays = 7
@@ -62,9 +67,6 @@ func sparklines(ctx context.Context, p chart.SparklineProps) chart.SparklineProp
 // against the week before with their days drawn, then the latest paid order.
 func (v *DashboardView) WeekStats(ctx context.Context) []components.LinkedStat {
 	const reports = "/admin/reports?days=7"
-	if v.WeekUnavailable {
-		return nil
-	}
 	w := &v.Week
 	return []components.LinkedStat{
 		{Stat: components.Stat{

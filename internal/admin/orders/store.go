@@ -93,6 +93,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		ReadyOrders:               sum.ReadyOrders,
 		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
 		PickingOrders:             sum.PickingOrders,
+		PickingOldestSeconds:      sum.PickingOldestSeconds,
 		LowStock:                  sum.LowStock,
 		OpenMessages:              sum.OpenMessages,
 		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
