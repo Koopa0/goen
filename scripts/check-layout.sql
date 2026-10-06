@@ -106,9 +106,11 @@ SELECT open_payment(o.id, 'layout-sale-' || o.id, ol.unit_price_cents * ol.quant
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
 SELECT capture_payment('layout-sale-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
-INSERT INTO product_reviews (product_id, rating, body, hidden_at)
-SELECT :'product_id', r.rating, '版面檢查用的評價', CASE WHEN r.hidden THEN now() END
-FROM (VALUES (5, false), (5, false), (5, false), (4, false), (2, false), (1, true)) AS r (rating, hidden);
+-- store cannot write hidden_at: the one-star review is hidden below, as admin,
+-- the way moderation hides one.
+INSERT INTO product_reviews (product_id, rating, body)
+SELECT :'product_id', r.rating, '版面檢查用的評價'
+FROM (VALUES (5), (5), (5), (4), (2), (1)) AS r (rating);
 INSERT INTO wishlist_items (user_id, product_id)
 VALUES (:'customer_id', :'product_id')
 ON CONFLICT (user_id, product_id) DO NOTHING;
@@ -122,6 +124,11 @@ SELECT mark_payment_event_unreconciled('evt_layout_check',
     'cancelled_order_capture: money arrived for an order that was already cancelled');
 
 SET ROLE admin;
+
+-- The fixture's one-star review, hidden by moderation: the rating spread counts
+-- visible reviews only.
+UPDATE product_reviews SET hidden_at = now()
+WHERE product_id = :'product_id' AND rating = 1 AND body = '版面檢查用的評價';
 
 -- Enough store credit to pay for all four customer orders outright, so
 -- neither needs a payment provider to leave pending.
