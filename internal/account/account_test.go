@@ -776,3 +776,67 @@ func TestSavedAddressFoldsFullWidthDigits(t *testing.T) {
 		}
 	}
 }
+
+func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		path    string
+		locale  i18n.Locale
+		heading string
+		body    string
+	}{
+		{name: "verification-En", handler: h.VerifyPage, path: "/verify", locale: i18n.En, heading: "Address confirmed", body: "Your email address is confirmed. Everything we send you goes there from now on."},
+		{name: "verification-ZhHant", handler: h.VerifyPage, path: "/verify", locale: i18n.ZhHant, heading: "\u4fe1\u7bb1\u5df2\u78ba\u8a8d", body: "\u96fb\u5b50\u90f5\u4ef6\u5df2\u78ba\u8a8d\uff0c\u4e4b\u5f8c\u7684\u901a\u77e5\u4fe1\u90fd\u6703\u5bc4\u5230\u9019\u500b\u4fe1\u7bb1\u3002"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			const token = "private-confirmation-token"
+			const address = "private-mailbox@example.com"
+			var first string
+			for attempt := range 2 {
+				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
+					tt.path+"?done=1&token="+token+"&email="+address, http.NoBody)
+				res := httptest.NewRecorder()
+				tt.handler(res, req)
+				if res.Code != http.StatusOK {
+					t.Fatalf("acknowledgement GET = %d, want 200", res.Code)
+				}
+				body := res.Body.String()
+				for _, want := range []string{tt.heading, tt.body} {
+					if !strings.Contains(body, want) {
+						t.Errorf("acknowledgement omits %q", want)
+					}
+				}
+				for _, forbidden := range []string{token, address, `name="token"`, `class="notice__form"`, "%s", "%!("} {
+					if strings.Contains(body, forbidden) {
+						t.Errorf("acknowledgement contains %q", forbidden)
+					}
+				}
+				if got := res.Header().Values("Set-Cookie"); len(got) != 0 {
+					t.Errorf("acknowledgement Set-Cookie = %q, want none", got)
+				}
+				if attempt == 0 {
+					first = body
+				} else if body != first {
+					t.Error("refresh changed the acknowledgement")
+				}
+			}
+			for _, marker := range []string{"", "0", "yes"} {
+				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
+					tt.path+"?token="+token+"&done="+marker, http.NoBody)
+				res := httptest.NewRecorder()
+				tt.handler(res, req)
+				if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `name="token" value="`+token+`"`) ||
+					!strings.Contains(res.Body.String(), `method="post" action="`+tt.path+`"`) {
+					t.Errorf("unconfirmed GET done=%q lost the confirmation form: status %d", marker, res.Code)
+				}
+				if strings.Contains(res.Body.String(), tt.body) {
+					t.Errorf("unconfirmed GET done=%q claims completion", marker)
+				}
+			}
+		})
+	}
+}

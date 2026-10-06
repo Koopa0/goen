@@ -2424,7 +2424,7 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
-    stock.low_stock,
+    stock.sold_out,
     active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
@@ -2456,8 +2456,11 @@ FROM
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
     (SELECT count(*)::bigint AS picking_orders FROM orders
      WHERE fulfillment_status = 'picking') picking,
-    (SELECT count(*)::bigint AS low_stock FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    -- The SKUs the stock days cover lists as sold out.
+    (SELECT count(*)::bigint AS sold_out FROM product_variants pv
+     JOIN products p ON p.id = pv.product_id
+     WHERE pv.is_active AND p.status = 'active'
+       AND pv.stock_quantity <= pv.safety_stock) stock,
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
@@ -2493,7 +2496,7 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
-	LowStock                         int64
+	SoldOut                          int64
 	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
@@ -2516,7 +2519,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
-		&i.LowStock,
+		&i.SoldOut,
 		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
@@ -2621,7 +2624,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+WHERE ($2::boolean = false OR (pv.is_active AND p.status = 'active' AND pv.stock_quantity <= pv.safety_stock))
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
        OR p.name ILIKE '%' || $3::text || '%'
@@ -2636,7 +2639,7 @@ LIMIT $9::integer
 
 type AdminVariantsParams struct {
 	Locale        string
-	LowOnly       bool
+	SoldOutOnly   bool
 	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
@@ -2666,7 +2669,7 @@ type AdminVariantsRow struct {
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
 		arg.Locale,
-		arg.LowOnly,
+		arg.SoldOutOnly,
 		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,

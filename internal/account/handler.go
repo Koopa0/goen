@@ -888,6 +888,15 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	// The live address-verification token changes identity data; never compress it.
 	web.NoCompress(w)
 	ctx := r.Context()
+	if r.URL.Query().Get("done") == "1" {
+		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
+			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
+			pages.NewsletterActionView{
+				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
+				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
+			}))
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
 		pages.NewsletterActionView{
@@ -911,7 +920,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	if u, ok := user.FromContext(ctx); ok {
 		asker = u.ID
 	}
-	confirmed, err := h.store.ConfirmVerification(ctx, token, asker)
+	_, err := h.store.ConfirmVerification(ctx, token, asker)
 	switch {
 	case errors.Is(err, ErrVerifyNeedsPassword):
 		// A registration link reached the page for proving an address; it is
@@ -923,12 +932,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		back := "/verify?" + url.Values{"token": {token}}.Encode()
 		http.Redirect(w, r, "/signin?"+url.Values{"next": {back}}.Encode(), http.StatusSeeOther)
 	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			pages.NewsletterActionView{
-				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
-				Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyVerifyDoneBody), confirmed.Email),
-			}))
+		http.Redirect(w, r, "/verify?done=1", http.StatusSeeOther)
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrStaffAddress):
