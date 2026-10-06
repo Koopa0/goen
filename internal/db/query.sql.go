@@ -15676,10 +15676,9 @@ SELECT
     pv.sku,
     p.name AS product_name,
     p.slug,
-    pv.stock_quantity,
-    pv.safety_stock,
+    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
     sold.units::bigint AS units_sold,
-    (pv.stock_quantity::numeric
+    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
      / (sold.units::numeric / $1::integer))::integer AS days_cover
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
@@ -15692,7 +15691,7 @@ JOIN LATERAL (
       AND o.placed_at >= now() - make_interval(days => $1::integer)
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, pv.stock_quantity
+ORDER BY days_cover NULLS LAST, sellable_quantity
 LIMIT $2::integer
 `
 
@@ -15702,17 +15701,17 @@ type StockAtRiskParams struct {
 }
 
 type StockAtRiskRow struct {
-	SKU           string
-	ProductName   string
-	Slug          string
-	StockQuantity int32
-	SafetyStock   int32
-	UnitsSold     int64
-	DaysCover     int32
+	SKU              string
+	ProductName      string
+	Slug             string
+	SellableQuantity int32
+	UnitsSold        int64
+	DaysCover        int32
 }
 
 // days_cover is never NULL because the WHERE clause admits only variants that
-// sold something, so the divisor cannot be zero.
+// sold something, so the divisor cannot be zero. It divides what a sale may
+// still take: record_inventory_movement refuses to go below safety_stock.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
 	rows, err := q.db.Query(ctx, stockAtRisk, arg.WindowDays, arg.LimitTo)
 	if err != nil {
@@ -15726,8 +15725,7 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 			&i.SKU,
 			&i.ProductName,
 			&i.Slug,
-			&i.StockQuantity,
-			&i.SafetyStock,
+			&i.SellableQuantity,
 			&i.UnitsSold,
 			&i.DaysCover,
 		); err != nil {
