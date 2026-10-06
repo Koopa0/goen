@@ -129,9 +129,7 @@ func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 // report: the dashboard says so instead of dropping the payment and invoice tasks.
 func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	failing := orders.HealthFunc(func(context.Context) ([]admin.Task, error) {
-		return nil, errors.New("health desk down")
-	})
+	failing := healthDesk{err: errors.New("health desk down")}
 	notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
 	for _, tc := range []struct {
 		name string
@@ -139,7 +137,7 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 		want bool
 	}{
 		{"unreadable", failing, true},
-		{"readable", orders.HealthFunc(func(context.Context) ([]admin.Task, error) { return nil, nil }), false},
+		{"readable", healthDesk{}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := admintest.OrderDesk(admintest.OrderStoreWithHealth(pool, admintest.Refunder{}, nil, nil, tc.desk))
@@ -155,3 +153,7 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 		})
 	}
 }
+
+type healthDesk struct{ err error }
+
+func (d healthDesk) Tasks(context.Context) ([]admin.Task, error) { return nil, d.err }

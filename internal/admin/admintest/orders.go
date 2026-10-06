@@ -314,8 +314,7 @@ func (DisabledInvoiceWriter) FileAllowance(
 // OrderStore builds the order desk's store and the refunds, invoicing, stock and health
 // stores it reads through, all over p, as cmd/goen does.
 func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
-	// A method value, not *health.Store: converting the store to an interface makes deadcode (x/tools v0.49.0) panic on outbox.Store's generic method.
-	return OrderStoreWithHealth(p, refunder, reader, writer, orders.HealthFunc(health.NewStore(p).Tasks))
+	return OrderStoreWithHealth(p, refunder, reader, writer, health.NewStore(p))
 }
 
 // OrderStoreWithHealth is OrderStore with the health desk replaced, for a test
