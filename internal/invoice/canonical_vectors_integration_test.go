@@ -3,7 +3,6 @@
 package invoice
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -186,7 +185,6 @@ func assertCanonicalInvoiceVector(t *testing.T, vector invoiceArithmeticVector) 
 	if _, err := tx.Exec(ctx, `SET CONSTRAINTS orders_have_lines IMMEDIATE`); err != nil {
 		t.Fatalf("validate complete invoice vector order: %v", err)
 	}
-	plantCanonicalInvoiceArithmetic(t, tx, orderID, vector)
 	if _, err := tx.Exec(ctx, `SET LOCAL ROLE store`); err != nil {
 		t.Fatalf("read the invoice as store: %v", err)
 	}
@@ -222,74 +220,4 @@ func assertCanonicalInvoiceVector(t *testing.T, vector invoiceArithmeticVector) 
 	if total != vector.wantTotal {
 		t.Errorf("canonical invoice total = %d, want %d cents", total, vector.wantTotal)
 	}
-}
-
-func plantCanonicalInvoiceArithmetic(t *testing.T, tx pgx.Tx, orderID uuid.UUID, vector invoiceArithmeticVector) {
-	t.Helper()
-	var target, replacement string
-	switch {
-	case t.Name() == "TestDiscountAllocationDoesNotOverflowAtSchemaLimits":
-		target = "floor(gross * discount / subtotal)"
-		replacement = "floor((gross::bigint * discount::bigint)::numeric / subtotal)"
-	case strings.HasPrefix(t.Name(), "TestEveryLineMultipliesOut/"):
-		target = "floor(discounted_amount / quantity / 100)"
-		replacement = "floor(discounted_amount / 100)"
-	default:
-		return
-	}
-	ctx := t.Context()
-	if _, baselineRoleErr := tx.Exec(ctx, `SET LOCAL ROLE store`); baselineRoleErr != nil {
-		t.Fatalf("read original canonical fixture as store: %v", baselineRoleErr)
-	}
-	baselineRows, baselineQueryErr := tx.Query(ctx, `
-		SELECT description, quantity, unit_price_cents, amount_cents, tax_type, unit, line_position
-		FROM canonical_invoice_lines($1) ORDER BY line_position`, orderID)
-	if baselineQueryErr != nil {
-		t.Fatalf("read original canonical fixture before mutation: %v", baselineQueryErr)
-	}
-	baseline, baselineCollectErr := pgx.CollectRows(baselineRows, pgx.RowToStructByPos[canonicalInvoiceRow])
-	if baselineCollectErr != nil {
-		t.Fatalf("collect original canonical fixture before mutation: %v", baselineCollectErr)
-	}
-	if diff := cmp.Diff(vector.want, baseline); diff != "" {
-		t.Fatalf("original canonical fixture failed before mutation (-want +got):\n%s", diff)
-	}
-	t.Log("original canonical fixture matches all literal rows as store before mutation")
-	if _, resetRoleErr := tx.Exec(ctx, `RESET ROLE`); resetRoleErr != nil {
-		t.Fatalf("restore fixture owner for transaction-local mutation: %v", resetRoleErr)
-	}
-	const metadataQuery = `SELECT jsonb_build_object(
-		'oid', p.oid, 'owner', p.proowner, 'acl', p.proacl,
-		'definer', p.prosecdef, 'configuration', p.proconfig,
-		'args', p.proargtypes::text, 'allargs', p.proallargtypes,
-		'argmodes', p.proargmodes, 'argnames', p.proargnames,
-		'returns', p.prorettype, 'set', p.proretset,
-		'language', p.prolang, 'volatility', p.provolatile,
-		'strict', p.proisstrict, 'parallel', p.proparallel,
-		'leakproof', p.proleakproof, 'cost', p.procost, 'rows', p.prorows,
-		'kind', p.prokind, 'support', p.prosupport::text)::text
-		FROM pg_catalog.pg_proc p
-		WHERE p.oid = 'public.canonical_invoice_lines(uuid)'::regprocedure`
-	var before, definition string
-	if metadataErr := tx.QueryRow(ctx, metadataQuery).Scan(&before); metadataErr != nil {
-		t.Fatalf("read original canonical function attributes: %v", metadataErr)
-	}
-	if definitionErr := tx.QueryRow(ctx, `SELECT pg_get_functiondef('public.canonical_invoice_lines(uuid)'::regprocedure)`).Scan(&definition); definitionErr != nil {
-		t.Fatalf("read actual canonical production definition: %v", definitionErr)
-	}
-	if count := strings.Count(definition, target); count != 2 {
-		t.Fatalf("actual canonical target %q occurs %d times, want 2", target, count)
-	}
-	mutated := strings.ReplaceAll(definition, target, replacement)
-	if _, mutationErr := tx.Exec(ctx, mutated); mutationErr != nil {
-		t.Fatalf("plant actual canonical arithmetic expression: %v", mutationErr)
-	}
-	var after string
-	if attributesErr := tx.QueryRow(ctx, metadataQuery).Scan(&after); attributesErr != nil {
-		t.Fatalf("read mutated canonical function attributes: %v", attributesErr)
-	}
-	if before != after {
-		t.Fatalf("arithmetic mutation changed canonical identity, privileges or security: before=%s after=%s", before, after)
-	}
-	t.Logf("planted actual canonical expression %q -> %q in 2 places; identity, privileges and security unchanged", target, replacement)
 }
