@@ -411,9 +411,12 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 						<tbody>
 							for _, r := range v.OpenRefunds {
 								<tr>
-									<td class="goen-admin__cellkey">{ r.OrderNumber }</td>
+									<td class="goen-admin__cellkey"><a href={ templ.SafeURL("/admin/orders/" + r.OrderNumber) }>{ r.OrderNumber }</a></td>
 									<td class="goen-admin__cellnum">{ r.Amount() }</td>
-									<td>{ r.StatusText(ctx) }</td>
+									<td>
+										{ r.StatusText(ctx) }
+										<p class="goen-admin__hint">{ r.NextStep(ctx) }</p>
+									</td>
 									<td>{ r.Reference(ctx) }</td>
 									<td>{ r.Key }</td>
 									<td>{ r.Since }</td>

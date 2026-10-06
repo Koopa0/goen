@@ -372,13 +372,43 @@ var (
 	})
 
 	KeyHealthRefundFailed = key("health.refund.failed", Message{
-		ZhHant: "金流端拒絕了，錢沒有退出去，退貨也還沒結案",
-		En:     "The provider refused it: no money moved, and the return is still open",
+		ZhHant: "金流端拒絕了這筆退款，錢沒有退出去",
+		En:     "The provider refused this refund: no money moved",
 	})
 
 	KeyHealthRefundCancelled = key("health.refund.cancelled", Message{
-		ZhHant: "金流端取消了這筆退款，錢沒有退出去，請從退貨清單重新退款",
-		En:     "The provider cancelled it: no money moved; retry it from the returns queue",
+		ZhHant: "金流端取消了這筆退款，錢沒有退出去",
+		En:     "The provider cancelled this refund attempt: no money moved",
+	})
+
+	KeyHealthRefundPendingNext = key("health.refund.pending.next", Message{
+		ZhHant: "請在 Stripe 查詢退款結果。",
+		En:     "Check the refund status in Stripe.",
+	})
+
+	KeyHealthRefundActionNext = key("health.refund.action.next", Message{
+		ZhHant: "請先查看 Stripe 顯示的退款處理指示。",
+		En:     "Read the refund action instructions shown in Stripe first.",
+	})
+
+	KeyHealthRefundFailedNext = key("health.refund.failed.next", Message{
+		ZhHant: "請在 Stripe 查明退款失敗原因。",
+		En:     "Check why the refund failed in Stripe.",
+	})
+
+	KeyHealthRefundCancelledNext = key("health.refund.cancelled.next", Message{
+		ZhHant: "請在 Stripe 查明這筆退款被取消的原因。",
+		En:     "Check why this refund attempt was cancelled in Stripe.",
+	})
+
+	KeyHealthRefundRetryNext = key("health.refund.retry.next", Message{
+		ZhHant: "goen 不會自動接續這筆退款；訂單或退貨頁若提供「%s」或「%s」，才可使用該操作核對並繼續退款。",
+		En:     "goen does not automatically resume this refund; use “%s” or “%s” on the order or returns page only if offered to check and continue it.",
+	})
+
+	KeyHealthRefundExternalNext = key("health.refund.external.next", Message{
+		ZhHant: "goen 不會自動接續這筆退款；請依 Stripe 顯示的狀態與指示處理，此頁不提供重試操作。",
+		En:     "goen does not automatically resume this refund; follow the status and instructions shown in Stripe. This page offers no retry action.",
 	})
 )
 
