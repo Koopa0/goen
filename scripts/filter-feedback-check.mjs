@@ -109,11 +109,14 @@ const setup = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
   if (shell) shell.open = true;
   const probe = window.filterFeedbackCheck = {
-    box, form, note, requests: [], finished: new Set(),
+    box, form, note, requests: [], finished: new Set(), snapshots: new WeakMap(),
     message: note.textContent.trim(), timeout: htmx.config.defaultTimeout,
   };
   document.addEventListener('htmx:before:request', ({ detail }) => {
-    if (detail.ctx?.request?.form === form) probe.requests.push(detail.ctx);
+    if (detail.ctx?.request?.form === form) {
+      probe.requests.push(detail.ctx);
+      probe.snapshots.set(detail.ctx, probe.nextSnapshot);
+    }
   });
   document.addEventListener('htmx:finally:request', ({ detail }) => {
     if (detail.ctx?.request?.form === form) probe.finished.add(detail.ctx);
@@ -146,13 +149,19 @@ async function journey(connection, locale, width) {
     };
     const held = new Map();
     let mode = 'real';
+    let responseControl;
     let protocolFailure;
     const intercept = async ({ params }) => {
       const { requestId, request, networkId } = params;
       assert.equal(new URL(request.url).origin, origin);
       assert.equal(new URL(request.url).pathname, '/c/audio');
       assert.equal(request.headers['HX-Request'] || request.headers['hx-request'], 'true');
-      if (mode === 'reject') await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionClosed' });
+      if (mode === 'control') await send('Fetch.fulfillRequest', {
+        requestId, responseCode: responseControl.status,
+        responseHeaders: [{ name: 'Content-Type', value: 'text/html; charset=utf-8' }, ...responseControl.headers],
+        body: Buffer.from(responseControl.body).toString('base64'),
+      });
+      else if (mode === 'reject') await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionClosed' });
       else if (mode === 'http') await send('Fetch.fulfillRequest', { requestId, responseCode: 500, body: '' });
       else if (mode === 'hold' || mode === 'timeout') held.set(requestId, { networkId, url: request.url });
       else await send('Fetch.continueRequest', { requestId });
@@ -184,15 +193,15 @@ async function journey(connection, locale, width) {
     };
     await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/c/audio*', resourceType: 'Fetch', requestStage: 'Request' }] });
     await load();
-    const change = async () => {
+    const change = async (minPrice) => {
       if (protocolFailure) throw protocolFailure;
       const index = await evaluate(`(() => {
         const p = window.filterFeedbackCheck;
-        p.before = document.getElementById('listing-results');
-        p.markup = p.before.innerHTML;
-        p.url = location.href;
-        p.checked = p.box.checked;
+        const before = document.getElementById('listing-results');
+        p.nextSnapshot = { before, markup: before.innerHTML, url: location.href, checked: p.box.checked };
         const index = p.requests.length;
+        const minPrice = ${JSON.stringify(minPrice ?? null)};
+        if (minPrice !== null) p.form.elements.namedItem('min_price').value = String(minPrice);
         p.box.closest('details').open = true; p.box.focus(); p.box.click();
         return index;
       })()`);
@@ -202,6 +211,7 @@ async function journey(connection, locale, width) {
     const finished = (index) => waitFor(() => evaluate(`filterFeedbackCheck.finished.has(filterFeedbackCheck.requests[${index}])`), 'filter request did not finish');
     const state = (index) => evaluate(`(() => {
       const p = filterFeedbackCheck, ctx = p.requests[${index}];
+      const before = p.snapshots.get(ctx);
       const results = document.getElementById('listing-results');
       const chips = document.getElementById('filters-applied');
       const count = document.getElementById('listing-status');
@@ -211,16 +221,19 @@ async function journey(connection, locale, width) {
         hidden: p.note.hidden, visible: !p.note.hidden && getComputedStyle(p.note).display !== 'none' && p.note.getBoundingClientRect().height > 0,
         message: p.note.textContent.trim() === p.message, role: p.note.getAttribute('role'),
         response: !!ctx.response, ok: ctx.response?.raw?.ok === true, aborted: ctx.request.signal.aborted,
-        stale: results === p.before && results.innerHTML === p.markup,
-        swapped: results !== p.before, changed: p.box.checked !== p.checked,
-        focused: document.activeElement === p.box, urlUnchanged: location.href === p.url,
+        stale: results === before.before && results.innerHTML === before.markup,
+        swapped: results !== before.before, changed: p.box.checked !== before.checked,
+        focused: document.activeElement === p.box, urlUnchanged: location.href === before.url,
         stockURL: new URL(location.href).searchParams.get('in_stock') === (p.box.checked ? p.box.value : null),
+        urlMatchesResponse: location.href === ctx.response?.raw?.url,
         landmarks: !!results && !!chips && !!count,
         serverLandmarks: !!server?.getElementById('listing-results') && !!server?.getElementById('filters-applied') && !!server?.getElementById('listing-status'),
         chips: chips?.textContent, count: count?.textContent,
         stockChip: [...chips.querySelectorAll('.goen-filters__chip > span')].some(chip => chip.textContent.trim() === stockLabel) === p.box.checked,
         serverChips: server?.getElementById('filters-applied')?.textContent,
         serverCount: server?.getElementById('listing-status')?.textContent,
+        resultText: results?.textContent,
+        serverResultText: server?.getElementById('listing-results')?.textContent,
       };
     })()`);
     const report = (name, value, expected) => {
@@ -239,9 +252,10 @@ async function journey(connection, locale, width) {
       const index = await change();
       await finished(index);
       const result = await state(index);
-      report(name + ' recovery', result, { ok: true, swapped: true, hidden: true, focused: true, stockURL: true, stockChip: true, landmarks: true, serverLandmarks: true });
+      report(name + ' recovery', result, { ok: true, swapped: true, hidden: true, focused: true, stockURL: true, stockChip: true, urlMatchesResponse: true, landmarks: true, serverLandmarks: true });
       assert.equal(result.chips, result.serverChips, 'chips must match the successful server response');
       assert.equal(result.count, result.serverCount, 'count must match the successful server response');
+      assert.equal(result.resultText, result.serverResultText, 'results must match the successful server response');
       assert.ok(result.count.trim().length > 0, 'the successful server response must carry its result count');
     };
     for (const failure of ['transport rejection', 'timeout', 'HTTP failure']) {
@@ -252,7 +266,7 @@ async function journey(connection, locale, width) {
       report(failure, await state(index), {
         hidden: false, visible: true, message: true, role: 'alert',
         response: mode === 'http', stale: true, changed: true, focused: true,
-        ...(mode !== 'http' ? { urlUnchanged: true } : {}),
+        urlUnchanged: true,
         ...(mode === 'timeout' ? { aborted: true } : {}),
       });
       await recover(failure);
@@ -274,6 +288,358 @@ async function journey(connection, locale, width) {
     await finished(newer);
     report('replacement failure', await state(newer), { hidden: false, visible: true, response: false, stale: true, focused: true });
     await recover('replacement failure');
+
+    const requestURL = (index) => evaluate(`new URL(filterFeedbackCheck.requests[${index}].request.action, location.origin).href`);
+    const heldRequest = async (index) => {
+      const url = await requestURL(index);
+      return [...held].find(([, request]) => request.url === url);
+    };
+    const continueHeld = async (index) => {
+      const request = await heldRequest(index);
+      assert.ok(request, 'the controlled request must still be held');
+      await send('Fetch.continueRequest', { requestId: request[0] });
+      held.delete(request[0]);
+    };
+    const accepted = async (name, index) => {
+      const result = await state(index);
+      report(name, result, { ok: true, hidden: true, focused: true, stockURL: true, stockChip: true, urlMatchesResponse: true, landmarks: true, serverLandmarks: true });
+      report(name + ' response agreement', {
+        results: result.resultText === result.serverResultText,
+        chips: result.chips === result.serverChips,
+        count: result.count === result.serverCount,
+      }, { results: true, chips: true, count: true });
+    };
+
+    mode = 'real';
+    await load();
+    mode = 'hold';
+    await evaluate('htmx.config.defaultTimeout = 60000');
+    const first = await change(1);
+    await waitFor(async () => !!await heldRequest(first), 'first of three requests did not reach fetch');
+    const second = await change(2);
+    await waitFor(async () => !!await heldRequest(second), 'second of three requests did not reach fetch');
+    await finished(first);
+    const third = await change(3);
+    await waitFor(async () => !!await heldRequest(third), 'third of three requests did not reach fetch');
+    report('third replacement owns the queue', await state(second), { aborted: true });
+    await continueHeld(third);
+    await finished(third);
+    await accepted('third replacement success', third);
+    // On the defect, the second request is still live. Let its real response
+    // arrive last so the same journey records the stale swap as well.
+    if (await heldRequest(second)) await continueHeld(second);
+    await finished(second);
+    await accepted('third replacement survives older completion', third);
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.delayNextBody = true;
+      p.staleTriggers = 0;
+      document.addEventListener('filter-feedback-old-completed', () => { p.staleTriggers++; });
+      document.addEventListener('htmx:before:request', ({ detail: { ctx } }) => {
+        if (ctx.request?.form !== p.form || !p.delayNextBody) return;
+        p.delayNextBody = false;
+        const fetch = window.fetch.bind(window);
+        ctx.fetch = async (...args) => {
+          const response = await fetch(...args);
+          const text = await response.text();
+          const headers = new Headers(response.headers);
+          headers.set('HX-Trigger', 'filter-feedback-old-completed');
+          let release;
+          const body = new Promise(resolve => { release = () => resolve(text); });
+          p.delayedBody = { ctx, release };
+          // The real response bytes finish late despite cancellation. The
+          // probe header makes any stale response action independently visible.
+          return new Proxy(response, { get(target, key) {
+            if (key === 'text') return () => body;
+            if (key === 'headers') return headers;
+            const value = Reflect.get(target, key, target);
+            return typeof value === 'function' ? value.bind(target) : value;
+          } });
+        };
+      });
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const delayed = await change(4);
+    await waitFor(() => evaluate('!!filterFeedbackCheck.delayedBody'), 'real response body did not reach its delay');
+    mode = 'hold';
+    const middle = await change(5);
+    await waitFor(async () => !!await heldRequest(middle), 'middle replacement did not reach fetch');
+    mode = 'real';
+    const latest = await change(6);
+    await finished(middle);
+    await finished(latest);
+    await accepted('latest response before delayed body', latest);
+    await evaluate('filterFeedbackCheck.delayedBody.release()');
+    await finished(delayed);
+    report('delayed body belongs to an aborted request', await state(delayed), { aborted: true, response: true });
+    report('delayed response cannot fire its old trigger', await evaluate('({ triggers: filterFeedbackCheck.staleTriggers })'), { triggers: 0 });
+    await accepted('latest response survives delayed body', latest);
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.deferNextTransition = true;
+      document.addEventListener('htmx:before:swap', ({ detail: { ctx, tasks } }) => {
+        if (ctx.request?.form !== p.form) return;
+        const transition = p.deferNextTransition;
+        p.deferNextTransition = false;
+        for (const task of tasks) task.swapSpec = { ...task.swapSpec, transition };
+      });
+      p.originalTransition = document.startViewTransition;
+      let deferred = false;
+      document.startViewTransition = task => {
+        if (deferred) return p.originalTransition ? p.originalTransition.call(document, task) : { finished: Promise.resolve().then(task) };
+        deferred = true;
+        let resolve, reject;
+        const finished = new Promise((yes, no) => { resolve = yes; reject = no; });
+        p.releaseTransition = async () => {
+          try { await task(); resolve(); } catch (error) { reject(error); }
+        };
+        return { finished };
+      };
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const transition = await change(7);
+    await waitFor(() => evaluate('!!filterFeedbackCheck.releaseTransition'), 'real response did not queue its transition');
+    report('queued swap has not committed history', await state(transition), { response: true, stale: true, urlUnchanged: true });
+    mode = 'http';
+    const refusal = await change(8);
+    await finished(refusal);
+    report('replacement refusal keeps the successful page', await state(refusal), { response: true, stale: true, urlUnchanged: true, visible: true, message: true });
+    await evaluate('filterFeedbackCheck.releaseTransition()');
+    await finished(transition);
+    report('superseded transition cannot commit after refusal', await state(transition), { aborted: true, stale: true, urlUnchanged: true, visible: true, message: true });
+    await evaluate('document.startViewTransition = filterFeedbackCheck.originalTransition');
+    await recover('superseded transition');
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.holdNextAnimation = true;
+      document.addEventListener('htmx:before:swap', ({ detail: { ctx, tasks } }) => {
+        if (ctx.request?.form !== p.form) return;
+        const transition = p.holdNextAnimation;
+        p.holdNextAnimation = false;
+        for (const task of tasks) task.swapSpec = { ...task.swapSpec, transition };
+      });
+      p.originalTransition = document.startViewTransition;
+      let heldAnimation = false;
+      document.startViewTransition = task => {
+        if (heldAnimation) return p.originalTransition ? p.originalTransition.call(document, task) : { finished: Promise.resolve().then(task) };
+        heldAnimation = true;
+        const update = Promise.resolve().then(task);
+        const finished = update.then(() => new Promise(resolve => { p.releaseAnimation = resolve; }));
+        return { finished };
+      };
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const committed = await change(9);
+    await waitFor(() => evaluate('!!filterFeedbackCheck.releaseAnimation'), 'real response did not commit before its held animation');
+    await accepted('committed swap updates history before animation finishes', committed);
+    mode = 'http';
+    const refusedAfterCommit = await change(10);
+    await finished(refusedAfterCommit);
+    report('refusal preserves the committed swap during its animation', await state(refusedAfterCommit), { stale: true, urlUnchanged: true, visible: true, message: true });
+    await evaluate('filterFeedbackCheck.releaseAnimation()');
+    await finished(committed);
+    const committedState = await state(committed);
+    report('aborted animation retains committed response agreement', {
+      urlMatchesResponse: committedState.urlMatchesResponse,
+      results: committedState.resultText === committedState.serverResultText,
+      chips: committedState.chips === committedState.serverChips,
+      count: committedState.count === committedState.serverCount,
+      visible: committedState.visible,
+    }, { urlMatchesResponse: true, results: true, chips: true, count: true, visible: true });
+    await evaluate('document.startViewTransition = filterFeedbackCheck.originalTransition');
+    await recover('committed animation');
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.holdNextSettle = true;
+      p.sortProcessed = false;
+      p.originalTimeout = htmx.timeout;
+      document.getElementById('sort').setAttribute('data-filter-feedback-settle', 'old');
+      document.addEventListener('htmx:before:swap', ({ detail: { ctx, tasks } }) => {
+        if (ctx.request?.form !== p.form) return;
+        const hold = p.holdNextSettle;
+        p.holdNextSettle = false;
+        for (const task of tasks) {
+          const target = typeof task.target === 'string' ? document.querySelector(task.target) : task.target;
+          task.swapSpec = { ...task.swapSpec, transition: false,
+            ...(hold && target?.id === 'listing-sort' ? { settle: 60001 } : {}) };
+        }
+      });
+      document.addEventListener('htmx:after:process', ({ target }) => {
+        if (p.settlingSort && (target === p.settlingSort || target.contains?.(p.settlingSort))) p.sortProcessed = true;
+      });
+      htmx.timeout = function(interval) {
+        if (interval !== 60001) return p.originalTimeout.call(this, interval);
+        p.settlingSort = document.getElementById('sort');
+        return new Promise(resolve => { p.releaseSettle = resolve; });
+      };
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const settling = await change(11);
+    await waitFor(() => evaluate('!!filterFeedbackCheck.releaseSettle'), 'real content did not enter its controlled CSS settle');
+    await accepted('committed swap updates history before CSS settle finishes', settling);
+    report('CSS settle retains old attributes until restoration', await evaluate(`({
+      oldAttribute: filterFeedbackCheck.settlingSort.getAttribute('data-filter-feedback-settle') === 'old',
+      processed: filterFeedbackCheck.sortProcessed,
+    })`), { oldAttribute: true, processed: false });
+    mode = 'http';
+    const refusedDuringSettle = await change(12);
+    await finished(refusedDuringSettle);
+    report('refusal preserves committed content during CSS settle', await state(refusedDuringSettle), { stale: true, urlUnchanged: true, visible: true, message: true });
+    await evaluate('filterFeedbackCheck.releaseSettle()');
+    await finished(settling);
+    report('superseded committed CSS settle completes restoration and processing', await evaluate(`({
+      connected: filterFeedbackCheck.settlingSort.isConnected,
+      oldAttribute: filterFeedbackCheck.settlingSort.hasAttribute('data-filter-feedback-settle'),
+      processed: filterFeedbackCheck.sortProcessed,
+      settling: !!document.querySelector('.htmx-settling'),
+    })`), { connected: true, oldAttribute: false, processed: true, settling: false });
+    const settledState = await state(settling);
+    report('superseded CSS settle retains committed response agreement', {
+      urlMatchesResponse: settledState.urlMatchesResponse,
+      results: settledState.resultText === settledState.serverResultText,
+      chips: settledState.chips === settledState.serverChips,
+      count: settledState.count === settledState.serverCount,
+      visible: settledState.visible,
+    }, { urlMatchesResponse: true, results: true, chips: true, count: true, visible: true });
+    await evaluate('htmx.timeout = filterFeedbackCheck.originalTimeout');
+    await recover('committed CSS settle');
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.swapDelays = [];
+      p.originalTimeout = htmx.timeout;
+      let delayed = 0;
+      document.addEventListener('htmx:before:swap', ({ detail: { ctx, tasks } }) => {
+        if (ctx.request?.form !== p.form) return;
+        for (const task of tasks) task.swapSpec = { ...task.swapSpec, transition: false,
+          ...(task.type === 'main' && delayed < 2 ? { swap: 10001 + delayed++ } : {}) };
+      });
+      htmx.timeout = function(interval) {
+        if (interval !== 10001 && interval !== 10002) return p.originalTimeout.call(this, interval);
+        return new Promise(resolve => { p.swapDelays.push({ interval, release: resolve }); });
+      };
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const delayedSwapFirst = await change(13);
+    await waitFor(() => evaluate('filterFeedbackCheck.swapDelays.length === 1'), 'first real swap did not enter its delay');
+    const delayedSwapSecond = await change(14);
+    await waitFor(() => evaluate('filterFeedbackCheck.swapDelays.length === 2'), 'replacement real swap did not enter its later delay');
+    await evaluate('filterFeedbackCheck.swapDelays[0].release()');
+    await finished(delayedSwapFirst);
+    report('obsolete delayed swap preserves its replacement busy class', await evaluate(`({
+      aborted: filterFeedbackCheck.requests[${delayedSwapFirst}].request.signal.aborted,
+      busy: document.getElementById('listing-results').classList.contains('htmx-swapping'),
+      pending: !filterFeedbackCheck.finished.has(filterFeedbackCheck.requests[${delayedSwapSecond}]),
+    })`), { aborted: true, busy: true, pending: true });
+    report('obsolete delayed swap cannot insert or publish history', await state(delayedSwapFirst), { stale: true, urlUnchanged: true });
+    await evaluate('filterFeedbackCheck.swapDelays[1].release()');
+    await finished(delayedSwapSecond);
+    await accepted('replacement delayed swap commits its real response', delayedSwapSecond);
+    report('replacement delayed swap releases its busy class', await evaluate(`({ busy: !!document.querySelector('.htmx-swapping') })`), { busy: false });
+    await evaluate('htmx.timeout = filterFeedbackCheck.originalTimeout');
+    await recover('replacement delayed swap');
+
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.holdNextSwap = true;
+      p.originalTimeout = htmx.timeout;
+      document.addEventListener('htmx:before:swap', ({ detail: { ctx, tasks } }) => {
+        if (ctx.request?.form !== p.form) return;
+        const hold = p.holdNextSwap;
+        p.holdNextSwap = false;
+        for (const task of tasks) task.swapSpec = { ...task.swapSpec, transition: false,
+          ...(hold && task.type === 'main' ? { swap: 10003 } : {}) };
+      });
+      htmx.timeout = function(interval) {
+        if (interval !== 10003) return p.originalTimeout.call(this, interval);
+        return new Promise(resolve => { p.releaseSwap = resolve; });
+      };
+      htmx.config.defaultTimeout = 60000;
+    })()`);
+    const canceledSwap = await change(15);
+    await waitFor(() => evaluate('!!filterFeedbackCheck.releaseSwap'), 'real swap did not enter its isolated delay');
+    await evaluate(`filterFeedbackCheck.requests[${canceledSwap}].request.abort(); filterFeedbackCheck.releaseSwap()`);
+    await finished(canceledSwap);
+    report('isolated canceled delayed swap keeps its previous results and URL', await state(canceledSwap), { aborted: true, stale: true, urlUnchanged: true });
+    report('isolated canceled delayed swap releases its busy class', await evaluate(`({ busy: !!document.querySelector('.htmx-swapping') })`), { busy: false });
+    await evaluate('htmx.timeout = filterFeedbackCheck.originalTimeout');
+    await recover('isolated canceled delayed swap');
+
+    // These intercepted, isolated controls exercise the served vendor without
+    // submitting a write to the shop or replacing its insertion methods.
+    mode = 'real';
+    await load();
+    await evaluate(`(() => {
+      const p = filterFeedbackCheck;
+      p.form.removeAttribute('hx-get');
+      p.form.setAttribute('hx-post', '/c/audio');
+      p.form.setAttribute('method', 'post');
+      p.form.setAttribute('hx-status:422', 'swap:outerHTML');
+      p.form.removeAttribute('hx-select');
+      p.form.removeAttribute('hx-select-oob');
+    })()`);
+    responseControl = { status: 422, headers: [], body: '<div id="listing-results"><form data-filter-feedback-refused><input name="retained" value="submitted value" aria-invalid="true"></form></div>' };
+    mode = 'control';
+    const refusedForm = await change(16);
+    await finished(refusedForm);
+    report('POST 422 retains its refused form body and field', await evaluate(`(() => {
+      const p = filterFeedbackCheck, ctx = p.requests[${refusedForm}];
+      const field = document.querySelector('[data-filter-feedback-refused] input');
+      return { post: ctx.request.method === 'POST', status: ctx.response?.raw?.status,
+        retained: field?.value, invalid: field?.getAttribute('aria-invalid'),
+        urlUnchanged: location.href === p.snapshots.get(ctx).url };
+    })()`), { post: true, status: 422, retained: 'submitted value', invalid: 'true', urlUnchanged: true });
+
+    for (const action of ['false', 'push', 'replace']) {
+      mode = 'real';
+      await load();
+      await evaluate(`(() => {
+        const p = filterFeedbackCheck;
+        p.historyPushes = 0; p.historyReplaces = 0;
+        document.addEventListener('htmx:after:history:push', () => { p.historyPushes++; });
+        document.addEventListener('htmx:after:history:replace', () => { p.historyReplaces++; });
+      })()`);
+      const path = '/c/audio?compatibility=' + action;
+      responseControl = { status: 500, body: '', headers: action === 'false'
+        ? [{ name: 'HX-Push-Url', value: 'false' }, { name: 'HX-Replace-Url', value: 'false' }]
+        : [{ name: action === 'push' ? 'HX-Push-Url' : 'HX-Replace-Url', value: path }] };
+      mode = 'control';
+      const explicit = await change(17);
+      await finished(explicit);
+      report('explicit HX history ' + action + ' preserves its meaning', await evaluate(`(() => {
+        const p = filterFeedbackCheck, ctx = p.requests[${explicit}];
+        return { status: ctx.response?.raw?.status,
+          url: location.href, pushes: p.historyPushes, replaces: p.historyReplaces };
+      })()`), { status: 500, url: origin + (action === 'false' ? '/c/audio' : path),
+        pushes: action === 'push' ? 1 : 0, replaces: action === 'replace' ? 1 : 0 });
+    }
+
+    mode = 'real';
+    await load();
+    report('manual swap without a request or signal inserts content', await evaluate(`(async () => {
+      const p = filterFeedbackCheck, url = location.href;
+      await htmx.swap({ sourceElement: p.form, target: document.getElementById('listing-results'),
+        swap: 'innerHTML', text: '<p data-filter-feedback-manual>manual content</p>' });
+      return { inserted: document.querySelector('[data-filter-feedback-manual]')?.textContent === 'manual content',
+        urlUnchanged: location.href === url };
+    })()`), { inserted: true, urlUnchanged: true });
+    await recover('manual swap');
     if (protocolFailure) throw protocolFailure;
   } finally {
     stopPaused?.();
