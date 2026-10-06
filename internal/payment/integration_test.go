@@ -2532,18 +2532,23 @@ func advanceToPicking(t *testing.T, number string) {
 
 func adminRolePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
+	return rolePool(t, "admin")
+}
+
+func rolePool(t *testing.T, role string) *pgxpool.Pool {
+	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
 	if err != nil {
-		t.Fatalf("parse admin-role pool: %v", err)
+		t.Fatalf("parse %s-role pool: %v", role, err)
 	}
 	cfg.MaxConns = 1
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{"admin"}.Sanitize())
+		_, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize())
 		return roleErr
 	}
 	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
-		t.Fatalf("open admin-role pool: %v", err)
+		t.Fatalf("open %s-role pool: %v", role, err)
 	}
 	t.Cleanup(p.Close)
 	return p
