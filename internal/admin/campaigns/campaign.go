@@ -131,7 +131,7 @@ func (s *Store) Image(ctx context.Context, slug string) (admin.Header, string, e
 }
 
 func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
-	row, err := s.q.AdminCampaign(ctx, db.AdminCampaignParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
+	row, err := s.q.AdminCampaign(ctx, db.AdminCampaignParams{Slug: slug, Locale: string(i18n.ZhHant)})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.CampaignDetail{}, ErrNotFound
