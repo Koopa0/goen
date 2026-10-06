@@ -8,8 +8,8 @@ var (
 	KeyAdminCreditAmountError         = key("admin.credit.amount_error", Message{ZhHant: "請輸入 1 至 100,000 元的整數金額。", En: "Enter a whole-dollar amount from NT$1 to NT$100,000."})
 	KeyAdminCreditReasonError         = key("admin.credit.reason_error", Message{ZhHant: "請填寫 1 至 200 字的發放事由。", En: "Enter a reason between 1 and 200 characters."})
 	KeyAdminCreditReview              = key("admin.credit.review", Message{ZhHant: "核對顧客與金額", En: "Review recipient and amount"})
-	KeyAdminCreditConfirm             = key("admin.credit.confirm", Message{ZhHant: "確認發放額度", En: "Confirm credit grant"})
-	KeyAdminCreditCustomer            = key("admin.credit.customer", Message{ZhHant: "收取額度的顧客", En: "Credit recipient"})
+	KeyAdminCreditConfirm             = key("admin.credit.confirm", Message{ZhHant: "確認發放購物金", En: "Confirm credit grant"})
+	KeyAdminCreditCustomer            = key("admin.credit.customer", Message{ZhHant: "收取購物金的顧客", En: "Credit recipient"})
 	KeyAdminCreditBalance             = key("admin.credit.balance", Message{ZhHant: "目前餘額", En: "Current balance"})
 	KeyAdminCreditEdit                = key("admin.credit.edit", Message{ZhHant: "返回修改", En: "Back to edit"})
 	KeyAdminCreditUnknown             = key("admin.credit.unknown", Message{ZhHant: "找不到這個 Email 的會員，請核對後再試。", En: "No customer has that email. Check the address and try again."})
@@ -19,7 +19,7 @@ var (
 	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "購物金", En: "Store credit"})
 
 	KeyAdminCreditLead = key("admin.credit.lead", Message{
-		ZhHant: "發放的額度會在該會員下次結帳時自動折抵。金額以「元」為單位。",
+		ZhHant: "發放的購物金會在該會員下次結帳時自動折抵。金額以「元」為單位。",
 		En: "Credit granted here is spent automatically at that customer's next checkout. " +
 			"Amounts are in whole New Taiwan dollars.",
 	})
@@ -30,12 +30,12 @@ var (
 
 	KeyAdminCreditReason = key("admin.credit.reason", Message{ZhHant: "事由", En: "Reason"})
 
-	KeyAdminCreditGrant = key("admin.credit.grant", Message{ZhHant: "發放額度", En: "Grant credit"})
+	KeyAdminCreditGrant = key("admin.credit.grant", Message{ZhHant: "發放購物金", En: "Grant credit"})
 
 	KeyAdminCreditRecent = key("admin.credit.recent", Message{ZhHant: "最近的異動", En: "Recent postings"})
 
 	KeyAdminCreditEmpty = key("admin.credit.empty", Message{
-		ZhHant: "還沒有任何額度異動。",
+		ZhHant: "還沒有任何購物金異動。",
 		En:     "No credit postings yet.",
 	})
 )
