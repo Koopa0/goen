@@ -827,41 +827,6 @@ if (process.env.PLACED_TOKEN) {
   });
 }
 
-// DIAGNOSTIC PROBE (do not merge): what runs past 320px at 200% text on the reports and customer pages.
-{
-  const diag = (name, value) => console.log('DIAG ' + name + ' ' + JSON.stringify(value));
-  const ev = async (expression) => (await send(ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value;
-  const WIDE = `(async () => {
-    await document.fonts.ready;
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const vw = 320;
-    const name = (e) => e.tagName.toLowerCase() + '.' + String(e.className.baseVal ?? e.className).split(' ').filter(Boolean).join('.');
-    const inScroller = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return name(p); } return null; };
-    const style = (e) => { const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { el: name(e), left: +r.left.toFixed(1), right: +r.right.toFixed(1), w: +r.width.toFixed(1), display: cs.display, ws: cs.whiteSpace, minW: cs.minWidth, width: cs.width, ox: cs.overflowX, cols: cs.gridTemplateColumns, flex: cs.flex, font: cs.fontSize, pad: cs.paddingLeft + ' ' + cs.paddingRight, text: e.children.length ? '' : e.textContent.trim().slice(0, 28) }; };
-    const all = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > vw + 0.5 && !inScroller(e); });
-    const outermost = all.filter((e) => !all.includes(e.parentElement));
-    const chains = outermost.slice(0, 12).map((e) => { const chain = []; for (let p = e; p && p.tagName !== 'MAIN' && chain.length < 6; p = p.parentElement) chain.push(style(p)); return chain; });
-    return { scrollWidth: document.body.scrollWidth, wideCount: all.length, wide: all.slice(0, 40).map(style), chains };
-  })()`;
-  if (process.env.ADMIN_TOKEN) {
-    await send(ws, 'Network.enable');
-    await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
-    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
-    for (const path of ['/admin/reports', '/admin/customers/' + (process.env.CUSTOMER_ID || '')]) {
-      await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
-      const target = ORIGIN + path;
-      await send(ws, 'Page.navigate', { url: target });
-      await settled(ws, 'diag ' + path, target);
-      await ev("document.documentElement.style.fontSize = '200%'");
-      diag('overflow ' + path.replace(/[0-9a-f-]{36}/, '{id}') + ' 320 at 200%', await ev(WIDE));
-    }
-  } else {
-    console.log('DIAG no ADMIN_TOKEN');
-  }
-  console.log('DIAG done: the diagnostic probe stops here');
-  process.exit(1);
-}
-
 for (const want of EXPECTED) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width,
@@ -3952,6 +3917,51 @@ const auditReflow = async () => {
 
 await proveTargetSizeGates();
 await auditAccessibility();
+// DIAGNOSTIC PROBE (do not merge): at the reflow pass's data, what runs past 320px at 200% on the reports and customer pages.
+{
+  const diag = (name, value) => console.log('DIAG ' + name + ' ' + JSON.stringify(value));
+  const ev = async (expression) => (await send(ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value;
+  const WIDE = `(async () => {
+    await document.fonts.ready;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const vw = 320;
+    const name = (e) => e.tagName.toLowerCase() + '.' + String(e.className.baseVal ?? e.className).split(' ').filter(Boolean).join('.');
+    const inScroller = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return true; } return false; };
+    const box = (e) => { const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { el: name(e), left: +r.left.toFixed(1), right: +r.right.toFixed(1), w: +r.width.toFixed(1), display: cs.display, ws: cs.whiteSpace, wrap: cs.overflowWrap, font: cs.fontSize, cols: cs.gridTemplateColumns, text: e.children.length ? '' : e.textContent.trim().slice(0, 28) }; };
+    const all = [...document.querySelectorAll('body *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > vw + 0.5 && !inScroller(e) && !e.closest('svg svg'); });
+    const outermost = all.filter((e) => !all.includes(e.parentElement));
+    return { scrollWidth: document.body.scrollWidth, details: [...document.querySelectorAll('details')].map((d) => name(d) + (d.open ? ':open' : ':closed')),
+      outermost: outermost.slice(0, 15).map((e) => { const chain = []; for (let p = e; p && p !== document.body && chain.length < 5; p = p.parentElement) chain.push(box(p)); return chain; }),
+      values: [...document.querySelectorAll('.goen-report__value')].map(box) };
+  })()`;
+  const open = async (path) => {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+    const target = ORIGIN + path;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, 'diag ' + path, target);
+    await ev("document.documentElement.style.fontSize = '200%'");
+  };
+  await send(ws, 'Network.enable');
+  await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN || '', domain: '127.0.0.1', path: '/' });
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+  const customer = '/admin/customers/' + (process.env.CUSTOMER_ID || '');
+  for (const path of ['/admin/reports', customer]) {
+    await open(path);
+    diag('end-of-run ' + path.replace(/[0-9a-f-]{36}/, '{id}'), await ev(WIDE));
+  }
+  for (const [label, path, js] of [
+    ['reports: figure wraps anywhere', '/admin/reports', "document.querySelectorAll('.goen-report__value').forEach((e) => { e.style.overflowWrap = 'anywhere'; })"],
+    ['reports: figure wraps anywhere, table scrolls', '/admin/reports', "document.querySelectorAll('.goen-report__value').forEach((e) => { e.style.overflowWrap = 'anywhere'; }); document.querySelectorAll('.goen-chart__table').forEach((t) => { const w = document.createElement('div'); w.style.overflowX = 'auto'; t.replaceWith(w); w.append(t); })"],
+    ['customer: meter wraps', customer, "document.querySelectorAll('.goen-chartmeter').forEach((m) => { m.style.display = 'flex'; m.style.flexWrap = 'wrap'; m.style.columnGap = '12px'; m.querySelector('svg').style.flex = '1 1 4rem'; const l = m.querySelector('.goen-chartmeter__label'); l.style.whiteSpace = 'normal'; })"],
+  ]) {
+    await open(path);
+    await ev(js);
+    diag('what-if ' + label, await ev(WIDE));
+  }
+  console.log('DIAG done: the diagnostic probe stops here');
+  process.exit(1);
+}
+
 await auditReflow();
 
 ws.close();
