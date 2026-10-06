@@ -157,8 +157,8 @@ SELECT
                  (SELECT min(e.occurred_at) FROM order_events e
                   WHERE e.order_id = o.id AND e.kind = 'paid'),
                  (SELECT max(p.paid_at) FROM payments p
-                  WHERE p.order_id = o.id AND p.status = 'succeeded'),
-                 o.placed_at))), 0), 0)::bigint
+                  WHERE p.order_id = o.id AND p.status = 'succeeded')
+                 ))), 0), 0)::bigint
      FROM orders o WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) AS ready_oldest_seconds,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
@@ -176,7 +176,7 @@ SELECT
        AND EXISTS (SELECT 1 FROM return_request_lines rl
                    WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
     )::bigint AS uninspected_returns,
-    (SELECT coalesce(greatest(extract(epoch FROM now() - min(r.decided_at)), 0), 0)::bigint
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(r.created_at)), 0), 0)::bigint
      FROM return_requests r
      WHERE r.status = 'approved' AND NOT r.before_shipment
        AND EXISTS (SELECT 1 FROM return_request_lines rl
