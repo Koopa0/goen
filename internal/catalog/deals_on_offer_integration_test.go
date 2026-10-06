@@ -14,14 +14,15 @@ import (
 func TestDealsOnOfferNeedsAProductOrACampaignThatCanBeBought(t *testing.T) {
 	tests := []struct {
 		name string
-		// product is a variant price, compare-at price and stock; campaign puts it on a running campaign.
+		// price, compare and stock describe the product's one variant (compare 0 is none); campaign
+		// features it on a running campaign, which needs a compare-at price even if it shows no saving.
 		price, compare, stock int
 		campaign              bool
 		want                  bool
 	}{
 		{name: "discounted but out of stock, on a campaign", price: 1000, compare: 2000, stock: 0, campaign: true, want: false},
 		{name: "a discounted product in stock", price: 1000, compare: 2000, stock: 5, want: true},
-		{name: "a campaign with a product that is not discounted", price: 1000, compare: 0, stock: 5, campaign: true, want: true},
+		{name: "a campaign whose product shows no saving", price: 1000, compare: 1000, stock: 5, campaign: true, want: true},
 		{name: "a product that is not discounted, on no campaign", price: 1000, compare: 0, stock: 5, want: false},
 	}
 	for _, tt := range tests {
@@ -34,6 +35,7 @@ func TestDealsOnOfferNeedsAProductOrACampaignThatCanBeBought(t *testing.T) {
 			t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
 			// The seed's own deals must not decide the answer.
 			for _, q := range []string{
+				`DELETE FROM sale_campaign_products`,
 				`UPDATE product_variants SET compare_at_price_cents = NULL`,
 				`UPDATE sale_campaigns SET is_active = false`,
 			} {

@@ -1020,7 +1020,9 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
+		// Archived first: an active product may not lose its last variant.
 		for _, q := range []string{
+			`UPDATE products SET status = 'archived' WHERE slug = ANY($1)`,
 			`DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE slug = ANY($1))`,
 			`DELETE FROM products WHERE slug = ANY($1)`,
 		} {
