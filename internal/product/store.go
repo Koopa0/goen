@@ -366,5 +366,5 @@ func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
 	if v.ExpectedArrival.IsZero() {
 		return ""
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, v.ExpectedArrival, s.now()))
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), shoptime.DateText(ctx, shoptime.DateOf(v.ExpectedArrival, s.now())))
 }
