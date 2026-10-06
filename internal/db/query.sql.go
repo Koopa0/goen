@@ -790,49 +790,29 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
-       w.spend_cents AS window_spend_cents,
-       coalesce(nt.name, '')::text AS next_tier_name,
-       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points
 FROM users u
-CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
-LEFT JOIN LATERAL (
-    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
-    FROM membership_tiers n
-    WHERE n.min_spend_cents > w.spend_cents
-    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
-WHERE u.id = $3
+WHERE u.id = $1
 `
 
-type AdminCustomerParams struct {
-	WindowDays int32
-	Locale     string
-	UserID     uuid.UUID
-}
-
 type AdminCustomerRow struct {
-	ID               uuid.UUID
-	Email            string
-	FullName         string
-	Phone            string
-	CreatedAt        time.Time
-	Verified         bool
-	Orders           int64
-	Spent            int64
-	CreditCents      int64
-	Points           int64
-	WindowSpendCents int64
-	NextTierName     string
-	NextTierCents    int64
+	ID          uuid.UUID
+	Email       string
+	FullName    string
+	Phone       string
+	CreatedAt   time.Time
+	Verified    bool
+	Orders      int64
+	Spent       int64
+	CreditCents int64
+	Points      int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-// The window spend and the next tier are what the account page judges tiers by,
-// read the way it reads them.
-func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
+func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, id)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -845,9 +825,6 @@ func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (A
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
-		&i.WindowSpendCents,
-		&i.NextTierName,
-		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -2447,7 +2424,7 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
-    stock.low_stock,
+    stock.sold_out,
     active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
@@ -2479,8 +2456,11 @@ FROM
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
     (SELECT count(*)::bigint AS picking_orders FROM orders
      WHERE fulfillment_status = 'picking') picking,
-    (SELECT count(*)::bigint AS low_stock FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    -- The SKUs the stock days cover lists as sold out.
+    (SELECT count(*)::bigint AS sold_out FROM product_variants pv
+     JOIN products p ON p.id = pv.product_id
+     WHERE pv.is_active AND p.status = 'active'
+       AND pv.stock_quantity <= pv.safety_stock) stock,
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
@@ -2516,7 +2496,7 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
-	LowStock                         int64
+	SoldOut                          int64
 	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
@@ -2539,7 +2519,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
-		&i.LowStock,
+		&i.SoldOut,
 		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
@@ -2644,7 +2624,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+WHERE ($2::boolean = false OR (pv.is_active AND p.status = 'active' AND pv.stock_quantity <= pv.safety_stock))
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
        OR p.name ILIKE '%' || $3::text || '%'
@@ -2659,7 +2639,7 @@ LIMIT $9::integer
 
 type AdminVariantsParams struct {
 	Locale        string
-	LowOnly       bool
+	SoldOutOnly   bool
 	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
@@ -2689,7 +2669,7 @@ type AdminVariantsRow struct {
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
 		arg.Locale,
-		arg.LowOnly,
+		arg.SoldOutOnly,
 		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,
@@ -4797,6 +4777,25 @@ func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionVa
 		return nil, err
 	}
 	return items, nil
+}
+
+const categoryTone = `-- name: CategoryTone :one
+WITH RECURSIVE trail AS (
+    SELECT c.id, c.parent_id, c.tone, 0 AS depth FROM categories c WHERE c.id = $1
+    UNION ALL
+    SELECT c.id, c.parent_id, c.tone, t.depth + 1
+    FROM categories c JOIN trail t ON c.id = t.parent_id
+)
+SELECT coalesce((SELECT tone FROM trail WHERE tone IS NOT NULL ORDER BY depth LIMIT 1), 'stone')::text AS tone
+`
+
+// The tone is the nearest one up the category's trail, the rule of
+// CategoryBySlug.
+func (q *Queries) CategoryTone(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, categoryTone, id)
+	var tone string
+	err := row.Scan(&tone)
+	return tone, err
 }
 
 const checkoutAttempt = `-- name: CheckoutAttempt :one
@@ -9554,44 +9553,42 @@ func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.
 	return id, err
 }
 
-const lockUserForAddressDefault = `-- name: LockUserForAddressDefault :one
+const lockUser = `-- name: LockUser :one
 SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
-func (q *Queries) LockUserForAddressDefault(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockUserForAddressDefault, userID)
+// Every path that locks both the account row and its carts or addresses takes
+// the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+// default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
+// SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
+// UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
+// only the cart, and non-default address writes take at most the foreign key's
+// KEY SHARE. None of them takes the account row after a cart or address row,
+// which keeps the order acyclic. Checkout's KEY SHARE does not wait for
+// adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
+// conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
+// user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
+// any row lock; store's column UPDATE on users is enough.
+func (q *Queries) LockUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUser, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
-SELECT lock_user_for_cart_adoption($1::uuid)
-`
-
-// The account row is the stable lock for deciding which of two guest carts is
-// the first one this user adopts. A SECURITY DEFINER function is required
-// because store has only narrow authentication-column UPDATE grants, not
-// authority for a general users row lock.
-func (q *Queries) LockUserForCartAdoption(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, lockUserForCartAdoption, userID)
-	var lock_user_for_cart_adoption bool
-	err := row.Scan(&lock_user_for_cart_adoption)
-	return lock_user_for_cart_adoption, err
-}
-
 const lockUserForCheckout = `-- name: LockUserForCheckout :one
-SELECT lock_user_for_checkout($1::uuid)
+SELECT id FROM users WHERE id = $1::uuid FOR KEY SHARE
 `
 
 // Logged-in checkout writes several user foreign keys after it owns the cart.
 // Acquire their natural KEY SHARE first so account erasure and cart adoption use
 // the same user -> cart order. Guest checkout has no user and skips this query.
-func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bool, error) {
+// Lock order and privilege: see LockUser in internal/account/query.sql.
+func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockUserForCheckout, userID)
-	var lock_user_for_checkout bool
-	err := row.Scan(&lock_user_for_checkout)
-	return lock_user_for_checkout, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
@@ -13722,6 +13719,15 @@ func (q *Queries) RejectInvoiceOperation(ctx context.Context, arg RejectInvoiceO
 }
 
 const relatedProducts = `-- name: RelatedProducts :many
+WITH RECURSIVE up AS (
+    SELECT c.id, c.parent_id FROM categories c WHERE c.id = $3
+    UNION ALL
+    SELECT c.id, c.parent_id FROM categories c JOIN up ON c.id = up.parent_id
+), department AS (
+    SELECT id FROM up WHERE parent_id IS NULL
+    UNION ALL
+    SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+)
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
@@ -13790,16 +13796,16 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = $2
-  AND p.id <> $3
-ORDER BY p.published_at DESC, p.id DESC
+  AND p.category_id IN (SELECT id FROM department)
+  AND p.id <> $2
+ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
 type RelatedProductsParams struct {
 	Locale     string
-	CategoryID uuid.UUID
 	ExcludeID  uuid.UUID
+	CategoryID uuid.UUID
 	RowLimit   int32
 }
 
@@ -13820,11 +13826,14 @@ type RelatedProductsRow struct {
 	ImageHeight         int32
 }
 
+// The department is the root of the product's category and everything under
+// it; the product's own sub-category leads, and within each group what can be
+// bought comes before what is sold out.
 func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams) ([]RelatedProductsRow, error) {
 	rows, err := q.db.Query(ctx, relatedProducts,
 		arg.Locale,
-		arg.CategoryID,
 		arg.ExcludeID,
+		arg.CategoryID,
 		arg.RowLimit,
 	)
 	if err != nil {

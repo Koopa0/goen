@@ -233,24 +233,11 @@ func UploadNotice(err error) i18n.Key {
 		return i18n.KeyAdminNoticeTooBig
 	case errors.Is(err, ErrNotAnImage):
 		return i18n.KeyAdminNoticeNotImage
+	case errors.Is(err, ErrLosslessWebP):
+		return i18n.KeyAdminNoticeLosslessWebP
+	case errors.Is(err, ErrBusy):
+		return i18n.KeyAdminNoticeUploadBusy
 	default:
 		return i18n.KeyAdminNoticeUploadFailed
-	}
-}
-
-// UploadQuery is UploadNotice for a redirect: the query parameter the page reads
-// to show the notice, with the two refusals a form can act on named as well.
-func UploadQuery(err error) string {
-	switch {
-	case errors.Is(err, ErrTooLarge):
-		return "toobig=1"
-	case errors.Is(err, ErrNotAnImage):
-		return "notimage=1"
-	case errors.Is(err, ErrLosslessWebP):
-		return "losslesswebp=1"
-	case errors.Is(err, ErrBusy):
-		return "uploadbusy=1"
-	default:
-		return "uploadfailed=1"
 	}
 }

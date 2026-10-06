@@ -11,10 +11,10 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -36,6 +36,9 @@ const (
 )
 
 func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
+	if detail == "" {
+		return string(cause)
+	}
 	return string(cause) + ": " + detail
 }
 
@@ -579,11 +582,8 @@ func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) 
 	if status != refundstate.Succeeded {
 		return nil
 	}
-	detail := "a refund goen recorded as succeeded failed at Stripe"
-	if o.refundFailure.reason != "" {
-		detail += " (" + o.refundFailure.reason + ")"
-	}
-	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, detail))
+	// The sentence a person reads is on /admin/health, in the viewer's language.
+	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, o.refundFailure.reason))
 }
 
 func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {

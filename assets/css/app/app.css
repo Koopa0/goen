@@ -4105,7 +4105,8 @@ input.goen-check {
    row's own position in the document never changed, so the compensation was the
    whole of the movement. It is switched off here, on the page, rather than on
    the region that swaps — the node the browser anchors to is below that region,
-   which is why doing it there had no effect. */
+   which is why doing it there had no effect. The band below the buy box is such
+   a node too, so it is switched off there as well. */
 .goen-pdp {
   display: flex;
   flex-direction: column;
@@ -4114,6 +4115,10 @@ input.goen-check {
   max-width: var(--page-width);
   overflow-anchor: none;
   padding: 1.5rem var(--page-gutter) 4rem;
+}
+
+.goen-pdp--after {
+  padding-top: 0;
 }
 
 .goen-pdp__intro {
@@ -4155,13 +4160,13 @@ input.goen-check {
 }
 
 .goen-pdp__shot {
-  aspect-ratio: 1;
-  background: var(--photo);
+  background: var(--tone-ground);
   border-radius: var(--r-lg);
   grid-column: 1 / -1;
   grid-row: 1;
   margin: 0;
   overflow: hidden;
+  padding: clamp(0.75rem, 2.2vw, 2rem);
 }
 
 .goen-pdp__pick:not(:checked) ~ .goen-pdp__shot {
@@ -4169,45 +4174,61 @@ input.goen-check {
 }
 
 .goen-pdp__shotimg {
+  aspect-ratio: 4 / 3;
+  background: var(--photo);
+  background-clip: content-box;
+  border: var(--col-gap) solid var(--n-0);
+  box-sizing: border-box;
   display: block;
-  height: 100%;
+  height: auto;
   object-fit: contain;
   width: 100%;
 }
 
 .goen-pdp__shot--empty {
   align-items: center;
-  color: var(--n-500);
+  aspect-ratio: 4 / 3;
+  color: var(--tone-muted);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
 }
 
 .goen-pdp__thumb {
-  aspect-ratio: 1;
-  background: var(--photo);
-  border-radius: var(--r-md);
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   grid-row: 2;
   min-width: 0;
-  overflow: hidden;
+  padding-bottom: 0.375rem;
 }
 
 .goen-pdp__thumbimg {
+  aspect-ratio: 4 / 3;
+  background: var(--photo);
+  border-radius: 2px;
   display: block;
-  height: 100%;
+  height: auto;
   object-fit: contain;
   width: 100%;
 }
 
 .goen-pdp__pick:checked ~ .goen-pdp__thumb {
-  outline: 2px solid var(--n-900);
-  outline-offset: 2px;
+  border-bottom-color: var(--n-900);
 }
 
 .goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .goen-pdp__thumb {
+    border-bottom-color: Canvas;
+  }
+
+  .goen-pdp__pick:checked ~ .goen-pdp__thumb {
+    border-bottom-color: CanvasText;
+  }
 }
 
 /* Buy column. scroll-margin-top is for the visitor with no script: adding to
@@ -4825,6 +4846,33 @@ input.goen-check {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
+}
+
+.goen-band--product {
+  margin-block: 0 4rem;
+  overflow-anchor: none;
+}
+
+.goen-band--product .goen-pdp__desc {
+  margin-bottom: 0;
+}
+
+.goen-band--product .goen-pdp__sectiontitle,
+.goen-band--product .goen-pdp__prose {
+  color: var(--tone-text);
+}
+
+.goen-band--product .goen-pdp__brand {
+  color: var(--tone-muted);
+}
+
+/* No photograph: the copy sits on the page's own column, as the hero's does. */
+.goen-band--text .goen-band__grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.goen-band--text .goen-band__body {
+  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
 }
 
 /* Similar products are a 4-up row from 1024 and two across below: four tiles

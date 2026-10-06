@@ -45,16 +45,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":           web.Done(i18n.KeyAdminNoticeOK),
-	"refused":      web.Refused(i18n.KeyAdminNoticeRefused),
-	"toobig":       web.Refused(i18n.KeyAdminNoticeTooBig),
-	"notimage":     web.Refused(i18n.KeyAdminNoticeNotImage),
-	"losslesswebp": web.Refused(i18n.KeyAdminNoticeLosslessWebP),
-	"uploadfailed": web.Failed(i18n.KeyAdminNoticeUploadFailed),
-	"uploadbusy":   web.Failed(i18n.KeyAdminNoticeUploadBusy),
-	"saved":        web.Done(i18n.KeyAdminNoticeSaved),
-	"sent":         web.Done(i18n.KeyAdminNoticeSent),
-	"already":      web.Done(i18n.KeyAdminNoticeAlready),
+	"ok":      web.Done(i18n.KeyAdminNoticeOK),
+	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
+	"saved":   web.Done(i18n.KeyAdminNoticeSaved),
+	"sent":    web.Done(i18n.KeyAdminNoticeSent),
+	"already": web.Done(i18n.KeyAdminNoticeAlready),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
@@ -262,13 +257,6 @@ func (h *Handler) rejectBanner(
 // checked before the image is decoded, so a refused slide stores nothing.
 func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	upload, err := h.images.OpenUpload(w, r, "image")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		//nolint:gosec // G710: UploadQuery returns one of five fixed parameters
-		http.Redirect(w, r, "/admin/home?"+media.UploadQuery(err), http.StatusSeeOther)
-		return
-	}
-	defer upload.Close()
 
 	f := &HeroForm{
 		Eyebrow:        r.PostFormValue("eyebrow"),
@@ -288,17 +276,23 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		ImageAltEn:     r.PostFormValue("alt_en"),
 		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
+	if err != nil {
+		h.log.WarnContext(r.Context(), "hero image", "error", err)
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		return
+	}
+	if upload != nil {
+		defer upload.Close()
+	}
 	if errs := f.Validate(r.Context()); len(errs) > 0 {
 		h.rejectHeroSlide(w, r, f, errs)
 		return
 	}
 	if upload != nil {
 		obj, storeErr := upload.Store(r.Context())
-		// A file no decoder accepts leaves the slide on the built-in artwork.
-		if storeErr != nil && !errors.Is(storeErr, media.ErrNotAnImage) {
+		if storeErr != nil {
 			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			//nolint:gosec // G710: UploadQuery returns one of five fixed parameters
-			http.Redirect(w, r, "/admin/home?"+media.UploadQuery(storeErr), http.StatusSeeOther)
+			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(storeErr))})
 			return
 		}
 		f.ImageKey = obj.Digest
@@ -326,13 +320,13 @@ func (h *Handler) rejectHeroSlide(
 	}
 	view.Errors = errs
 	view.Draft = admin.HeroDraft{
-		Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
-		PrimaryLabel: f.PrimaryLabel, PrimaryHref: r.PostFormValue("primary_href"),
-		SecondLabel: f.SecondLabel, SecondHref: r.PostFormValue("second_href"),
-		ImageKey: f.ImageKey, ImageAlt: f.ImageAlt, Days: r.PostFormValue("days"),
-		EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
-		PrimaryLabelEn: f.PrimaryLabelEn, SecondLabelEn: f.SecondLabelEn,
-		ImageAltEn: f.ImageAltEn,
+		Eyebrow: r.PostFormValue("eyebrow"), Headline: r.PostFormValue("headline"), Body: r.PostFormValue("body"),
+		PrimaryLabel: r.PostFormValue("primary_label"), PrimaryHref: r.PostFormValue("primary_href"),
+		SecondLabel: r.PostFormValue("second_label"), SecondHref: r.PostFormValue("second_href"),
+		ImageKey: f.ImageKey, ImageAlt: r.PostFormValue("alt"), Days: r.PostFormValue("days"),
+		EyebrowEn: r.PostFormValue("eyebrow_en"), HeadlineEn: r.PostFormValue("headline_en"), BodyEn: r.PostFormValue("body_en"),
+		PrimaryLabelEn: r.PostFormValue("primary_label_en"), SecondLabelEn: r.PostFormValue("second_label_en"),
+		ImageAltEn: r.PostFormValue("alt_en"),
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))

@@ -161,15 +161,15 @@ func coldRecommendationPool(t *testing.T, p *pgxpool.Pool, d *coldRecommendation
 	config.MinIdleConns = 0
 	config.ConnConfig.Tracer = d
 	config.BeforeConnect = d.beforeConnect
-	pool, err := pgxpool.NewWithConfig(t.Context(), config)
+	cold, err := pgxpool.NewWithConfig(t.Context(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	d.mu.Lock()
-	d.pool = pool
+	d.pool = cold
 	d.mu.Unlock()
-	t.Cleanup(pool.Close)
-	return pool
+	t.Cleanup(cold.Close)
+	return cold
 }
 
 //nolint:rowserrcheck // The sqlc caller owns and checks the returned rows.
@@ -472,10 +472,10 @@ func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing
 	for _, query := range []string{"RelatedProducts", "BoughtTogether"} {
 		t.Run(query, func(t *testing.T) {
 			d := &coldRecommendationRead{query: query}
-			pool := coldRecommendationPool(t, p, d)
+			cold := coldRecommendationPool(t, p, d)
 			var log bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&log, nil))
-			h := product.NewHandler(product.NewStore(pool, logger), logger, "https://goen.example")
+			h := product.NewHandler(product.NewStore(cold, logger), logger, "https://goen.example")
 			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 			doc := assertBuyBoxIntact(t, recommendationResponse(t, ctx, h, &want), &want)
@@ -487,7 +487,7 @@ func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing
 				}
 			}
 			assertRecommendationQueriesDrained(t, p)
-			if acquired := pool.Stat().AcquiredConns(); acquired != 0 {
+			if acquired := cold.Stat().AcquiredConns(); acquired != 0 {
 				t.Errorf("cold %s: acquired connections = %d, want 0", query, acquired)
 			}
 			d.mu.Lock()
@@ -523,9 +523,9 @@ func TestColdRecommendationAcquisitionKeepsParentCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			d := &coldRecommendationRead{query: query, cancelParent: cancel}
-			pool := coldRecommendationPool(t, p, d)
+			cold := coldRecommendationPool(t, p, d)
 			logger := slog.New(slog.DiscardHandler)
-			h := product.NewHandler(product.NewStore(pool, logger), logger, "https://goen.example")
+			h := product.NewHandler(product.NewStore(cold, logger), logger, "https://goen.example")
 			res := recommendationResponse(t, ctx, h, &want)
 			d.mu.Lock()
 			defer d.mu.Unlock()
@@ -638,20 +638,20 @@ func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T)
 			config.MinConns = 0
 			config.MinIdleConns = 0
 			config.ConnConfig.Tracer = d
-			pool, err := pgxpool.NewWithConfig(setupCtx, config)
+			single, err := pgxpool.NewWithConfig(setupCtx, config)
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.pool = pool
-			defer pool.Close()
-			conn, err := pool.Acquire(setupCtx)
+			d.pool = single
+			defer single.Close()
+			conn, err := single.Acquire(setupCtx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			conn.Release()
 			var log bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&log, nil))
-			h := product.NewHandler(product.NewStore(pool, logger), logger, "https://goen.example")
+			h := product.NewHandler(product.NewStore(single, logger), logger, "https://goen.example")
 			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 			started := time.Now()
@@ -679,7 +679,7 @@ func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T)
 				t.Error("saturated acquisition did not omit only its own recommendation section")
 			}
 
-			if acquired := pool.Stat().AcquiredConns(); acquired != 0 {
+			if acquired := single.Stat().AcquiredConns(); acquired != 0 {
 				t.Errorf("saturated acquired connections = %d, want 0", acquired)
 			}
 		})

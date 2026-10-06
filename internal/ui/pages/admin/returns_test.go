@@ -112,7 +112,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name: "card-only Traditional Chinese",
 			card: 140000, locale: i18n.ZhHant,
-			want: "卡款 NT$1,400 走 Stripe", not: "額度",
+			want: "卡款 NT$1,400 走 Stripe", not: "購物金",
 		},
 		{
 			name: "card-only English",
@@ -122,7 +122,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name:   "credit-only Traditional Chinese",
 			credit: 200000, locale: i18n.ZhHant,
-			want: "店儲 NT$2,000 退回額度", not: "Stripe",
+			want: "購物金 NT$2,000 退回餘額", not: "Stripe",
 		},
 		{
 			name:   "credit-only English",
@@ -132,7 +132,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name: "split Traditional Chinese",
 			card: 140000, credit: 60000, locale: i18n.ZhHant,
-			want: "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
+			want: "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額",
 		},
 		{
 			name: "split English",
@@ -198,7 +198,7 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 			StatusText: "已同意", Window: "within", Decided: true,
 			CardRefundCents: 140000, CreditRefundCents: 60000,
 		})
-		want := "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度"
+		want := "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額"
 		if !strings.Contains(page, want) {
 			t.Errorf("split HTML lacks %q", want)
 		}
@@ -211,7 +211,7 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 			StatusText: "待處理", Window: "within",
 		})
 		for _, frozen := range []string{
-			"卡款 NT$", "店儲 NT$",
+			"卡款 NT$", "購物金 NT$",
 			i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetPayoutCard),
 			i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetPayoutCredit),
 		} {

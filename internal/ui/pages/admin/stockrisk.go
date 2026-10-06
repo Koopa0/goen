@@ -210,3 +210,22 @@ func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 	listed = append(listed, rest[:min(len(rest), coverMaxRows)]...)
 	return listed, len(soldOut) - shown
 }
+
+// dashboardRunwayRows is how many of the days cover rows the dashboard lists.
+const dashboardRunwayRows = 5
+
+// DashboardRunway keeps the first rows of a ranked days cover list that are not
+// sold out: the sold-out task row already counts those and links to them. cut
+// reports that rows were left off.
+func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool) {
+	for _, r := range listed {
+		if r.Estimate().State == CoverSoldOut {
+			continue
+		}
+		if len(kept) == dashboardRunwayRows {
+			return kept, true
+		}
+		kept = append(kept, r)
+	}
+	return kept, false
+}

@@ -17,8 +17,9 @@ func Done(k i18n.Key) NoticeEntry    { return NoticeEntry{Outcome: components.Ou
 func Refused(k i18n.Key) NoticeEntry { return NoticeEntry{Outcome: components.OutcomeRefused, Key: k} }
 func Failed(k i18n.Key) NoticeEntry  { return NoticeEntry{Outcome: components.OutcomeFailed, Key: k} }
 
-// Notice is what a redirect asks a page to show: the entry for the first
-// parameter of the request that is set to 1.
+// Notice is what a redirect asks a page to show: the entry whose name is a
+// query parameter set to 1. A redirect sets one; if several are set, which one
+// shows is unspecified.
 func Notice(r *http.Request, entries map[string]NoticeEntry) components.Result {
 	q := r.URL.Query()
 	for name, e := range entries {

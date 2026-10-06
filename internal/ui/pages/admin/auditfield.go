@@ -19,30 +19,32 @@ type auditField struct {
 	label i18n.Key
 	// text renders one recorded value; nil prints it as stored.
 	text func(ctx context.Context, e AuditEntry, value string) string
+	// amount reports whether the value is a sum of money; nil means it is not.
+	amount func(e AuditEntry) bool
 }
 
 // auditFields is keyed by the stored key, or "table.key" where the same key
 // means something else on another table.
 var auditFields = map[string]auditField{
-	"amount_cents":                     {i18n.KeyAdminColAmount, centsText},
-	"card_refund_cents":                {i18n.KeyAdminPayRefundCard, centsText},
-	"credit_refund_cents":              {i18n.KeyAdminPayRefundCredit, centsText},
-	"credit_returned_cents":            {i18n.KeyAdminPayRefundCredit, centsText},
-	"refrozen_amount_cents":            {i18n.KeyAuditFieldRefrozen, centsText},
-	"price_cents":                      {i18n.KeyAdminQueuePrice, centsText},
-	"compare_at_cents":                 {i18n.KeyAdminQueueComparePrice, centsText},
-	"fee_cents":                        {i18n.KeyAuditFieldFee, centsText},
-	"free_over_cents":                  {i18n.KeyAuditFieldFreeOver, centsText},
-	"surcharge_cents":                  {i18n.KeyAuditFieldSurcharge, centsText},
-	"membership_tiers.min_spend_cents": {i18n.KeyAdminTierColThreshold, centsText},
-	"carrier":                          {i18n.KeyAdminColCarrier, carrierText},
-	"orders.status":                    {i18n.KeyAdminColStatus, fulfillmentText},
-	"decision":                         {i18n.KeyAuditFieldDecision, returnDecisionText},
-	"entitlement":                      {i18n.KeyAuditFieldEntitlement, entitlementText},
-	"policy_window":                    {i18n.KeyAuditFieldPolicyWindow, policyWindowText},
-	"coupons.kind":                     {i18n.KeyAdminCoupKind, couponKindText},
-	"coupons.value":                    {i18n.KeyAuditFieldCouponValue, couponValueText},
-	"user_id":                          {i18n.KeyAdminActorCustomer, customerText},
+	"amount_cents":                     {i18n.KeyAdminColAmount, centsText, isAmount},
+	"card_refund_cents":                {i18n.KeyAdminPayRefundCard, centsText, isAmount},
+	"credit_refund_cents":              {i18n.KeyAdminPayRefundCredit, centsText, isAmount},
+	"credit_returned_cents":            {i18n.KeyAdminPayRefundCredit, centsText, isAmount},
+	"refrozen_amount_cents":            {i18n.KeyAuditFieldRefrozen, centsText, isAmount},
+	"price_cents":                      {i18n.KeyAdminQueuePrice, centsText, isAmount},
+	"compare_at_cents":                 {i18n.KeyAdminQueueComparePrice, centsText, isAmount},
+	"fee_cents":                        {i18n.KeyAuditFieldFee, centsText, isAmount},
+	"free_over_cents":                  {i18n.KeyAuditFieldFreeOver, centsText, isAmount},
+	"surcharge_cents":                  {i18n.KeyAuditFieldSurcharge, centsText, isAmount},
+	"membership_tiers.min_spend_cents": {i18n.KeyAdminTierColThreshold, centsText, isAmount},
+	"carrier":                          {i18n.KeyAdminColCarrier, carrierText, nil},
+	"orders.status":                    {i18n.KeyAdminColStatus, fulfillmentText, nil},
+	"decision":                         {i18n.KeyAuditFieldDecision, returnDecisionText, nil},
+	"entitlement":                      {i18n.KeyAuditFieldEntitlement, entitlementText, nil},
+	"policy_window":                    {i18n.KeyAuditFieldPolicyWindow, policyWindowText, nil},
+	"coupons.kind":                     {i18n.KeyAdminCoupKind, couponKindText, nil},
+	"coupons.value":                    {i18n.KeyAuditFieldCouponValue, couponValueText, couponValueIsAmount},
+	"user_id":                          {i18n.KeyAdminActorCustomer, customerText, nil},
 }
 
 func (e AuditEntry) field(key string) (auditField, bool) {
@@ -88,6 +90,11 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 	}
 	return rows
 }
+
+func isAmount(AuditEntry) bool { return true }
+
+// couponValueIsAmount: only an amount coupon's value is money; a percentage's is not.
+func couponValueIsAmount(e AuditEntry) bool { return coupon.Kind(e.recorded("kind")) == coupon.Amount }
 
 func centsText(_ context.Context, _ AuditEntry, value string) string {
 	n, err := strconv.ParseInt(value, 10, 64)
