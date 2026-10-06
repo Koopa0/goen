@@ -37,8 +37,7 @@ func (f *failedDecisionAudit) TraceQueryStart(ctx context.Context, _ *pgx.Conn, 
 	if !ok || !id.Valid || id.UUID != f.returnID || !f.fired.CompareAndSwap(false, true) {
 		return ctx
 	}
-	// Cancel only the actual audit query, after the decision write. The request
-	// remains live so the handler can render its failure and the transaction can roll back.
+	// Keep the request live so the handler can render the failure after rollback.
 	query, cancel := context.WithCancel(context.WithValue(ctx, failedDecisionAuditKey{}, true))
 	cancel()
 	return query
@@ -121,6 +120,124 @@ func TestReturnDecisionAuditFailureDoesNotClaimApproval(t *testing.T) {
 				got.ProviderPayments = paid.Load()
 				if diff := cmp.Diff(decisionState{Status: "requested"}, got); diff != "" {
 					t.Errorf("failed decision state (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+type failedPayoutReadKey struct{}
+
+type failedPayoutRead struct {
+	returnID uuid.UUID
+	fired    atomic.Int64
+	failed   atomic.Int64
+}
+
+func (f *failedPayoutRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if !strings.HasPrefix(data.SQL, "-- name: ReturnPayoutFacts :many\n") || len(data.Args) != 1 {
+		return ctx
+	}
+	ids, ok := data.Args[0].([]uuid.UUID)
+	if !ok || len(ids) != 1 || ids[0] != f.returnID {
+		return ctx
+	}
+	f.fired.Add(1)
+	// The request stays live so a committed approval can still report payout recovery.
+	query, cancel := context.WithCancel(context.WithValue(ctx, failedPayoutReadKey{}, true))
+	cancel()
+	return query
+}
+
+func (f *failedPayoutRead) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if marked, _ := ctx.Value(failedPayoutReadKey{}).(bool); marked && errors.Is(data.Err, context.Canceled) {
+		f.failed.Add(1)
+	}
+}
+
+func TestCommittedReturnPayoutReadFailureOffersRecovery(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, phase := range []struct {
+			name  string
+			retry bool
+		}{
+			{name: "first approval"},
+			{name: "approved retry", retry: true},
+		} {
+			t.Run(string(locale)+"/"+phase.name, func(t *testing.T) {
+				staff, _ := admintest.StaffContext(t, pool)
+				ctx := i18n.WithLocale(staff, locale)
+				id, _ := admintest.ReturnedOrder(t, pool, 1)
+				fault := &failedPayoutRead{returnID: id}
+				cfg := pool.Config().Copy()
+				cfg.MaxConns = 2
+				cfg.ConnConfig.Tracer = fault
+				cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+					_, err := conn.Exec(ctx, "SET ROLE admin")
+					return err
+				}
+				traced, err := pgxpool.NewWithConfig(t.Context(), cfg)
+				if err != nil {
+					t.Fatalf("open traced payout pool: %v", err)
+				}
+				t.Cleanup(traced.Close)
+				var role string
+				if err := traced.QueryRow(ctx, "SELECT current_user").Scan(&role); err != nil || role != "admin" {
+					t.Fatalf("current_user = %q, want admin: %v", role, err)
+				}
+				var paid atomic.Int64
+				mux := http.NewServeMux()
+				handlerOver(storeOver(traced, admintest.Refunder{Sent: &paid})).Routes(mux, admintest.BackOffice)
+				post := func() *httptest.ResponseRecorder {
+					form := url.Values{"decision": {"approved"}, "confirm": {"approved"}, "resolution": {"Recorded approval"}}
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/returns/"+id.String()+"/decide", strings.NewReader(form.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					res := httptest.NewRecorder()
+					mux.ServeHTTP(res, req)
+					return res
+				}
+				type committedState struct {
+					Status, Resolution string
+					Decided            bool
+					Refunds, Audits    int
+					ProviderPayments   int64
+				}
+				readState := func() committedState {
+					t.Helper()
+					var got committedState
+					if err := pool.QueryRow(ctx, `
+						SELECT r.status, coalesce(r.resolution, ''), r.decided_at IS NOT NULL,
+						       (SELECT count(*) FROM refunds WHERE return_request_id = r.id),
+						       (SELECT count(*) FROM audit_events WHERE entity_table = 'return_requests' AND entity_id = r.id)
+						FROM return_requests r WHERE r.id = $1`, id).Scan(&got.Status, &got.Resolution, &got.Decided, &got.Refunds, &got.Audits); err != nil {
+						t.Fatalf("read committed approval: %v", err)
+					}
+					got.ProviderPayments = paid.Load()
+					return got
+				}
+				wantState := committedState{Status: "approved", Resolution: "Recorded approval", Decided: true, Audits: 1}
+				wantFaults := int64(1)
+				if phase.retry {
+					post()
+					if diff := cmp.Diff(wantState, readState()); diff != "" {
+						t.Fatalf("approved retry fixture (-want +got):\n%s", diff)
+					}
+					wantFaults = 2
+				}
+				res := post()
+				if fault.fired.Load() != wantFaults || fault.failed.Load() != wantFaults || ctx.Err() != nil {
+					t.Fatalf("payout read fault fired/failed = %d/%d, request error = %v; want %d cancelled queries with a live request", fault.fired.Load(), fault.failed.Load(), ctx.Err(), wantFaults)
+				}
+				type response struct {
+					Status   int
+					Location string
+				}
+				wantResponse := response{Status: http.StatusSeeOther, Location: "/admin/returns?refundfailed=1"}
+				if diff := cmp.Diff(wantResponse, response{Status: res.Code, Location: res.Header().Get("Location")}); diff != "" {
+					t.Errorf("committed payout failure response (-want +got):\n%s", diff)
+				}
+				if diff := cmp.Diff(wantState, readState()); diff != "" {
+					t.Errorf("committed payout failure state (-want +got):\n%s", diff)
 				}
 			})
 		}
