@@ -6188,21 +6188,15 @@ input.goen-check {
 }
 
 /* Beside a thumbnail, at large text, a grid can be narrower than its two end labels side by side: the last
-   label drops to a second line, and the grid keeps room for it. */
-.goen-line--order .ui-period {
-  padding-bottom: calc(14px + 2.6rem);
-}
-
+   label drops one label line, and its cell's margin grows the grid to hold it. */
 @container period (width < 8rem) {
-  .goen-line--order .ui-period > i:last-child small {
-    top: calc(8px + 0.125rem + 1.3 * var(--t-12) + 2px);
+  .goen-line--order .ui-period > i:last-child {
+    margin-block-end: calc(1.3 * var(--t-12));
   }
-}
 
-.goen-line__act {
-  color: var(--accent);
-  font-size: var(--fs-14);
-  text-underline-offset: 3px;
+  .goen-line--order .ui-period > i:last-child small {
+    top: calc(8px + 0.125rem + 1.3 * var(--t-12));
+  }
 }
 
 @media (max-width: 30rem) {
