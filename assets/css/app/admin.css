@@ -3009,6 +3009,35 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 2;
 }
 
+/* No column for the line ends: the plot takes what they would. */
+.goen-chart__frame--noends {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__level {
+  fill: none;
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__safety,
+.goen-chart__receipt {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+/* A name over a line is set on a halo of the page's own colour, so the line
+   does not run through its letters. */
+.goen-chart__annotation {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+}
+
 @container (max-width: 519px) {
   .goen-chart__tick--minor {
     display: none;
@@ -3111,6 +3140,17 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__todaymark {
     stroke: Highlight;
+  }
+
+  .goen-chart__level,
+  .goen-chart__safety,
+  .goen-chart__receipt {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__annotation {
+    fill: CanvasText;
+    stroke: Canvas;
   }
 
   .goen-chart__label,

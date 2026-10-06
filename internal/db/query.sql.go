@@ -17020,6 +17020,83 @@ func (q *Queries) VariantProductSelection(ctx context.Context, id uuid.UUID) (Va
 	return i, err
 }
 
+const variantStockByDay = `-- name: VariantStockByDay :many
+WITH v AS (
+    SELECT id, stock_quantity FROM product_variants WHERE sku = $3::text
+), moved AS (
+    SELECT shop_day(m.created_at) AS day,
+           sum(m.delta) AS delta,
+           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
+           count(*) AS moves
+    FROM inventory_movements m
+    JOIN v ON v.id = m.variant_id
+    WHERE m.created_at >= $4::timestamptz
+    GROUP BY 1
+)
+SELECT d.day::date AS day,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       coalesce(t.received, 0)::integer AS received,
+       coalesce(t.receipts, 0)::integer AS receipts,
+       coalesce(t.moves, 0)::integer AS moves
+FROM v
+CROSS JOIN generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN moved t ON t.day = d.day::date
+ORDER BY d.day
+`
+
+type VariantStockByDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	SKU      string
+	FromAt   time.Time
+}
+
+type VariantStockByDayRow struct {
+	Day      time.Time
+	Stock    int32
+	Received int32
+	Receipts int32
+	Moves    int32
+}
+
+// The stock at the end of each shop day from first_day to last_day, worked back
+// from stock_quantity through the movements after that day. The column and the
+// ledger are read in this one statement, so a movement committed meanwhile is in
+// both or in neither; the movements are bounded below only, because the column
+// already holds every one of them. record_inventory_movement writes both, so the
+// two agree. A day without movements is included.
+func (q *Queries) VariantStockByDay(ctx context.Context, arg VariantStockByDayParams) ([]VariantStockByDayRow, error) {
+	rows, err := q.db.Query(ctx, variantStockByDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.SKU,
+		arg.FromAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VariantStockByDayRow{}
+	for rows.Next() {
+		var i VariantStockByDayRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Stock,
+			&i.Received,
+			&i.Receipts,
+			&i.Moves,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const wishlistHas = `-- name: WishlistHas :one
 SELECT EXISTS (
     SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id
