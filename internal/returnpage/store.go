@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -89,12 +90,13 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 			Returnable: l.Returnable,
 		})
 	}
+	now := time.Now()
 	for i := range existing {
 		e := &existing[i]
 		o.Existing = append(o.Existing, Existing{
 			Status: e.Status, Reason: e.Reason, Resolution: e.Resolution.String,
-			CreatedAt: shoptime.Minute(e.CreatedAt),
-			DecidedAt: nullableTime(e.DecidedAt),
+			CreatedAt: shoptime.DateTimeText(ctx, e.CreatedAt, now),
+			DecidedAt: nullableTime(ctx, e.DecidedAt, now),
 		})
 	}
 	return o, nil
@@ -188,11 +190,11 @@ func returnLineError(lineID uuid.UUID, err error) error {
 	return fmt.Errorf("add return line for order line %s: %w", lineID, err)
 }
 
-func nullableTime(t pgtype.Timestamptz) string {
+func nullableTime(ctx context.Context, t pgtype.Timestamptz, now time.Time) string {
 	if !t.Valid {
 		return ""
 	}
-	return shoptime.Minute(t.Time)
+	return shoptime.DateTimeText(ctx, t.Time, now)
 }
 
 // parseWanted repeats the database's check so it becomes a message on the form.
