@@ -2424,8 +2424,8 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
+    picking.picking_oldest_seconds,
     stock.sold_out,
-    active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
     requested.pending_returns,
@@ -2454,15 +2454,19 @@ FROM
      FROM orders o
      WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
-    (SELECT count(*)::bigint AS picking_orders FROM orders
-     WHERE fulfillment_status = 'picking') picking,
+    -- Waiting since a person took it into picking; an order moved there with no
+    -- event recorded falls back to when it was placed.
+    (SELECT count(*)::bigint AS picking_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'picking'),
+                o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
+     FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     -- The SKUs the stock days cover lists as sold out.
     (SELECT count(*)::bigint AS sold_out FROM product_variants pv
      JOIN products p ON p.id = pv.product_id
      WHERE pv.is_active AND p.status = 'active'
        AND pv.stock_quantity <= pv.safety_stock) stock,
-    (SELECT count(*)::bigint AS active_products FROM products
-     WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
             coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds
@@ -2496,8 +2500,8 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
+	PickingOldestSeconds             int64
 	SoldOut                          int64
-	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
 	PendingReturns                   int64
@@ -2519,8 +2523,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
+		&i.PickingOldestSeconds,
 		&i.SoldOut,
-		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
 		&i.PendingReturns,
@@ -8993,6 +8997,48 @@ func (q *Queries) LatestPaidDay(ctx context.Context, toAt time.Time) (time.Time,
 	return day, err
 }
 
+const latestPaidOrder = `-- name: LatestPaidOrder :one
+SELECT o.order_number, f.total_cents,
+       coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+CROSS JOIN LATERAL (
+    SELECT coalesce(
+               (SELECT min(e.occurred_at) FROM order_events e
+                WHERE e.order_id = o.id AND e.kind = 'paid'),
+               (SELECT max(p.paid_at) FROM payments p
+                WHERE p.order_id = o.id AND p.status = 'succeeded'),
+               o.placed_at)::timestamptz AS funded_at,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+) f
+WHERE o.placed_at >= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY f.funded_at DESC, o.id DESC
+LIMIT 1
+`
+
+type LatestPaidOrderRow struct {
+	OrderNumber    string
+	TotalCents     int64
+	ElapsedSeconds int64
+}
+
+// The newest committed order by when its money came in, which is read as
+// admin/health reads funded_at (UninvoicedOrders). Orders refunded before
+// shipment are left out, as RevenueBetween leaves them out; the total is
+// RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
+// Only orders placed since @since are looked at, so the dashboard does not read
+// the whole history; the caller asks again with no bound when none qualifies.
+func (q *Queries) LatestPaidOrder(ctx context.Context, since time.Time) (LatestPaidOrderRow, error) {
+	row := q.db.QueryRow(ctx, latestPaidOrder, since)
+	var i LatestPaidOrderRow
+	err := row.Scan(&i.OrderNumber, &i.TotalCents, &i.ElapsedSeconds)
+	return i, err
+}
+
 const leaseInvoiceOperation = `-- name: LeaseInvoiceOperation :one
 SELECT lease_invoice_operation(
     $1::uuid, $2::uuid, $3::interval
@@ -11160,6 +11206,112 @@ func (q *Queries) OrderNumbersByProviderRef(ctx context.Context, providerRefs []
 	return items, nil
 }
 
+const orderPageLines = `-- name: OrderPageLines :many
+SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       ol.warranty_months,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    -- The photograph that shows the line's own option value, else the product's first.
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
+`
+
+type OrderPageLinesParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
+
+type OrderPageLinesRow struct {
+	ID             uuid.UUID
+	SKU            string
+	ProductName    string
+	VariantLabel   pgtype.Text
+	UnitPriceCents int64
+	Quantity       int32
+	WarrantyMonths pgtype.Int4
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
+}
+
+// The customer's order page: each line with its photograph and its warranty promise.
+func (q *Queries) OrderPageLines(ctx context.Context, arg OrderPageLinesParams) ([]OrderPageLinesRow, error) {
+	rows, err := q.db.Query(ctx, orderPageLines, arg.Locale, arg.OrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderPageLinesRow{}
+	for rows.Next() {
+		var i OrderPageLinesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.UnitPriceCents,
+			&i.Quantity,
+			&i.WarrantyMonths,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderParcelLines = `-- name: OrderParcelLines :many
+SELECT sl.shipment_id, sl.order_line_id, sl.quantity
+FROM order_shipment_lines sl
+JOIN order_shipments s ON s.id = sl.shipment_id
+WHERE sl.order_id = $1
+ORDER BY s.shipped_at, s.id, sl.order_line_id
+`
+
+type OrderParcelLinesRow struct {
+	ShipmentID  uuid.UUID
+	OrderLineID uuid.UUID
+	Quantity    int32
+}
+
+// Which lines, and how many of each, went in which parcel, in the order OrderTracking lists the parcels.
+func (q *Queries) OrderParcelLines(ctx context.Context, orderID uuid.UUID) ([]OrderParcelLinesRow, error) {
+	rows, err := q.db.Query(ctx, orderParcelLines, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderParcelLinesRow{}
+	for rows.Next() {
+		var i OrderParcelLinesRow
+		if err := rows.Scan(&i.ShipmentID, &i.OrderLineID, &i.Quantity); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const orderPaymentFacts = `-- name: OrderPaymentFacts :one
 SELECT ARRAY(
            SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
@@ -11280,6 +11432,67 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 			&i.Reason,
 			&i.Staff,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderReturnedUnits = `-- name: OrderReturnedUnits :one
+SELECT
+    coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
+    coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+              JOIN return_requests rr ON rr.id = rl.return_request_id
+              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units
+`
+
+type OrderReturnedUnitsRow struct {
+	OrderedUnits  int64
+	ReturnedUnits int64
+}
+
+// Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
+func (q *Queries) OrderReturnedUnits(ctx context.Context, orderID uuid.UUID) (OrderReturnedUnitsRow, error) {
+	row := q.db.QueryRow(ctx, orderReturnedUnits, orderID)
+	var i OrderReturnedUnitsRow
+	err := row.Scan(&i.OrderedUnits, &i.ReturnedUnits)
+	return i, err
+}
+
+const orderReturns = `-- name: OrderReturns :many
+SELECT coalesce(
+           greatest((SELECT max(rf.succeeded_at) FROM refunds rf
+                     WHERE rf.return_request_id = rr.id AND rf.status = 'succeeded'),
+                    (SELECT max(e.created_at) FROM store_credit_entries e
+                     WHERE e.idempotency_key = 'return-credit:' || rr.id::text)),
+           rr.decided_at)::timestamptz AS paid_out_at,
+       (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
+FROM return_requests rr
+WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+ORDER BY paid_out_at, rr.id
+`
+
+type OrderReturnsRow struct {
+	PaidOutAt   time.Time
+	RefundCents int64
+}
+
+// The completed returns, with the money each sent back and the day it was paid out: the later of the card
+// refund and the credit posting, or the decision for a return that sent nothing back.
+func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturnsRow, error) {
+	rows, err := q.db.Query(ctx, orderReturns, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderReturnsRow{}
+	for rows.Next() {
+		var i OrderReturnsRow
+		if err := rows.Scan(&i.PaidOutAt, &i.RefundCents); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -11502,21 +11715,26 @@ func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (O
 }
 
 const orderTracking = `-- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at,
-       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends
+SELECT id, carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
+       coalesce(shop_day(delivered_at) + 14, shop_today())::date AS goodwill_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
 type OrderTrackingRow struct {
+	ID             uuid.UUID
 	Carrier        string
 	TrackingNumber string
 	ShippedAt      time.Time
 	DeliveredAt    pgtype.Timestamptz
 	RescissionEnds time.Time
+	GoodwillEnds   time.Time
 }
 
-// rescission_ends is shop_today() for a parcel not yet delivered: sqlc cannot type a
-// nullable date from an expression, so a reader checks delivered_at, never the date.
+// rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
+// type a nullable date from an expression, so a reader checks delivered_at, never the dates.
+// goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
+// holds the 14 to that function.
 func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]OrderTrackingRow, error) {
 	rows, err := q.db.Query(ctx, orderTracking, orderID)
 	if err != nil {
@@ -11527,12 +11745,48 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	for rows.Next() {
 		var i OrderTrackingRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Carrier,
 			&i.TrackingNumber,
 			&i.ShippedAt,
 			&i.DeliveredAt,
 			&i.RescissionEnds,
+			&i.GoodwillEnds,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderWarrantyRegistrations = `-- name: OrderWarrantyRegistrations :many
+SELECT w.order_line_id, w.unit_no, w.expires_on
+FROM warranty_registrations w
+JOIN order_lines ol ON ol.id = w.order_line_id
+WHERE ol.order_id = $1
+ORDER BY w.order_line_id, w.unit_no
+`
+
+type OrderWarrantyRegistrationsRow struct {
+	OrderLineID uuid.UUID
+	UnitNo      int16
+	ExpiresOn   time.Time
+}
+
+func (q *Queries) OrderWarrantyRegistrations(ctx context.Context, orderID uuid.UUID) ([]OrderWarrantyRegistrationsRow, error) {
+	rows, err := q.db.Query(ctx, orderWarrantyRegistrations, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderWarrantyRegistrationsRow{}
+	for rows.Next() {
+		var i OrderWarrantyRegistrationsRow
+		if err := rows.Scan(&i.OrderLineID, &i.UnitNo, &i.ExpiresOn); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -12739,6 +12993,17 @@ func (q *Queries) PublishShippingVersion(ctx context.Context, arg PublishShippin
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const publishedProductCount = `-- name: PublishedProductCount :one
+SELECT count(*)::bigint FROM products WHERE status = 'active'
+`
+
+func (q *Queries) PublishedProductCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, publishedProductCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const putMedia = `-- name: PutMedia :exec

@@ -13,6 +13,9 @@ WHERE (NOT @has_cursor::boolean OR (p.updated_at < @after_at::timestamptz)
 ORDER BY p.updated_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
+-- name: PublishedProductCount :one
+SELECT count(*)::bigint FROM products WHERE status = 'active';
+
 -- name: AdminProduct :one
 SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.warranty_months, 0)::integer AS warranty_months,
