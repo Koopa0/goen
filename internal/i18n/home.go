@@ -29,6 +29,9 @@ var (
 
 	KeyRuleRescission = key("home.rules.rescission", Message{ZhHant: "猶豫期", En: "Right to cancel"})
 
+	// KeyUnitMonths counts months wherever a term is stated: the number first, then the unit.
+	KeyUnitMonths = countKey("unit.months", "%d 個月", "%d month", "%d months")
+
 	KeyRuleUnitDays = key("home.rules.unit.days", Message{ZhHant: "天", En: "days"})
 
 	KeyRuleRescissionNote = key("home.rules.rescission.note", Message{
@@ -108,8 +111,6 @@ var (
 	KeyUnitItems = countKey("unit.items", "%d\u00a0件", "%d\u00a0item", "%d\u00a0items")
 
 	KeyUnitCategories = countKey("unit.categories", "%d\u00a0類", "%d\u00a0category", "%d\u00a0categories")
-
-	KeyUnitMonths = countKey("unit.months", "%d\u00a0個月", "%d\u00a0month", "%d\u00a0months")
 
 	KeyUnitDays = countKey("unit.days", "%d\u00a0天", "%d\u00a0day", "%d\u00a0days")
 

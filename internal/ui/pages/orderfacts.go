@@ -96,7 +96,7 @@ func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []componen
 	}
 	return []components.Stat{
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: StatCountOf(ctx, i18n.KeyUnitDays, left)},
+		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, countUnit(ctx, i18n.KeyUnitDays, left))},
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
 	}
 }
@@ -142,7 +142,7 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 	}
 	facts := []components.Stat{{
 		Label: i18n.T(ctx, i18n.KeyOrderWarranty),
-		Value: StatCountOf(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths)),
+		Value: components.StatCount(int64(l.WarrantyMonths), countUnit(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths))),
 		Note:  note,
 	}}
 	if l.Registered > 0 {

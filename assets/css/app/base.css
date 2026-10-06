@@ -183,7 +183,8 @@ body {
 .ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
-.ui-statline--wide, .ui-statline--glance { max-width: none; }
+.ui-statline--wide, .ui-statline--glance, .ui-statline--pairs { max-width: none; }
+.ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
 .ui-statline--s { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
 .ui-statline--s > div { flex: 0 1 auto; min-width: min(7rem, 100%); padding-top: 0.375rem; }
 .ui-statline--s dd { font-size: var(--t-16); font-weight: 400; letter-spacing: 0; }
