@@ -3775,10 +3775,11 @@ input.goen-check {
   }
 }
 
-/* For the same reason a phone's campaign notice is its name and the day grid, whose last
-   label is the end date. */
+/* For the same reason a phone's campaign notice drops its end line where the day grid
+   stands beside it, whose last label is the end date. A campaign too long for a grid
+   keeps the line. */
 @media (max-width: 767px) {
-  .goen-deptnotice .ui-statline {
+  .goen-deptnotice__in:has(> .ui-period) > .ui-statline {
     display: none;
   }
 }
