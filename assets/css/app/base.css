@@ -178,6 +178,26 @@ body {
 .ui-stat__label { font-family: var(--font-sans); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
 
+/* ---------- Stat line: a label, a figure with its unit and one note, each under its own hairline ----------
+   Space and size are rem, so they grow with the reader's text; nothing here needs a style attribute. */
+
+.ui-statline { --stat-min: 6.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--stat-min)), 1fr)); gap: var(--s-4) var(--s-5); max-width: 44rem; margin: 0; }
+.ui-statline > div { min-width: 0; padding-top: 0.625rem; border-top: 1px solid var(--fg); }
+.ui-statline dt { font-size: var(--t-12); line-height: 1.4; color: var(--fg-muted); letter-spacing: 0.02em; }
+.ui-statline dd { margin: 0.125rem 0 0; font-size: var(--t-24); font-weight: var(--fw-display); line-height: 1.25; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; word-break: keep-all; overflow-wrap: break-word; }
+.ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
+.ui-statline__pre { margin-right: 0.08em; }
+.ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
+.ui-statline--wide { max-width: none; }
+/* one stat keeps a column's width; it never stretches into a divider */
+.ui-statline:has(> :only-child) { grid-template-columns: minmax(0, 18rem); }
+/* four stats read as two rows of two, never three and one; when two columns of --stat-min do not fit
+   (large text on a phone), one stat per row */
+@media (max-width: 700px) { .ui-statline:has(> :nth-child(4):last-child) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); } }
+/* a phone: the figure steps down and the columns stay wide enough that a figure never breaks
+   (two across at 320, one in a narrow card) */
+@media (max-width: 420px) { .ui-statline { --stat-min: 7.5rem; column-gap: var(--s-4); } .ui-statline dd { font-size: var(--t-20); overflow-wrap: normal; } }
+
 /* ---------- Breadcrumbs ---------- */
 
 .ui-crumbs { display: flex; align-items: center; gap: 8px; font-size: var(--fs-14); color: var(--n-500); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
@@ -461,6 +481,10 @@ body {
    is red. The label rules are container queries in rem, so they follow the
    reader's text size. */
 .ui-period {
+  --period-fill: var(--mark);
+  --period-line: var(--edge);
+  --period-label: var(--fg);
+  --period-note: var(--fg-muted);
   container: period / inline-size;
   display: flex;
   gap: 2px;
@@ -485,7 +509,7 @@ body {
 }
 
 .ui-period > i {
-  border-bottom: 1px solid var(--edge);
+  border-bottom: 1px solid var(--period-line);
   container: cell / inline-size;
   flex: 1 1 0;
   height: 4px;
@@ -494,11 +518,11 @@ body {
 }
 
 .ui-period > i[data-cell] {
-  border-bottom: 4px solid var(--mark);
+  border-bottom: 4px solid var(--period-fill);
 }
 
 .ui-period > i[data-cell="today"]::before {
-  border-left: 2px solid var(--mark);
+  border-left: 2px solid var(--period-fill);
   bottom: 0;
   content: "";
   height: 16px;
@@ -508,7 +532,7 @@ body {
 
 .ui-period b {
   bottom: calc(16px + 0.25rem);
-  color: var(--fg);
+  color: var(--period-label);
   font-size: var(--t-12);
   font-weight: var(--fw-medium);
   left: 50%;
@@ -519,7 +543,7 @@ body {
 }
 
 .ui-period small {
-  color: var(--fg-muted);
+  color: var(--period-note);
   font-size: var(--t-12);
   font-variant-numeric: tabular-nums lining-nums;
   left: 0;

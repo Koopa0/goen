@@ -1,0 +1,41 @@
+package components
+
+// The label comes before the figure in the document, so a screen reader hears what is counted first.
+templ StatLine(stats []Stat, variant StatLineVariant) {
+	if items := shown(stats); len(items) > 0 {
+		<dl class={ variant.class() }>
+			for _, s := range items {
+				<div>
+					<dt>{ s.Label }</dt>
+					<dd>
+						@figure(s.Value)
+						if s.Note != "" {
+							<span class="ui-statline__note">{ s.Note }</span>
+						}
+					</dd>
+				</div>
+			}
+		</dl>
+	}
+}
+
+// A figure that is a point in time is read by machines too, so it is a time element.
+templ figure(v StatValue) {
+	if v.datetime != "" {
+		<time datetime={ v.datetime }>
+			@plainFigure(v)
+		</time>
+	} else {
+		@plainFigure(v)
+	}
+}
+
+templ plainFigure(v StatValue) {
+	if len(v.date) > 0 {
+		@templ.Raw(v.dateHTML())
+	} else if v.pre != "" {
+		<small class="ui-statline__pre">{ v.pre }</small>{ v.figure }
+	} else {
+		{ v.figure + "\u00a0" }<small>{ v.unit }</small>
+	}
+}

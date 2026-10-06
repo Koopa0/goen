@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -69,4 +70,231 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []struct {
+		locale i18n.Locale
+		badge  string
+		body   string
+	}{
+		{locale: i18n.ZhHant, badge: "結帳未提供", body: "顧客結帳時看不到超商取貨：還沒接上綠界物流。這要由架站的人設定。"},
+		{locale: i18n.En, badge: "Not offered at checkout", body: "Customers cannot pick this at checkout: ECPay logistics is not connected yet. Whoever runs the server sets that up."},
+	} {
+		for _, tt := range []struct {
+			name        string
+			destination destination.Kind
+			unavailable bool
+		}{
+			{name: "unavailable pickup", destination: destination.PickupPoint, unavailable: true},
+			{name: "working pickup", destination: destination.PickupPoint},
+			{name: "home delivery", destination: destination.Address},
+		} {
+			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale.locale)
+				view := ShippingView{Methods: []ShippingMethod{{
+					MethodID: "method", VersionID: "version", Code: "internal_method_code",
+					Name: "Method name", Destination: tt.destination, Active: true,
+					PickupUnavailable: tt.unavailable,
+				}}}
+				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				doc, err := html.Parse(strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var badges []string
+				for n := range doc.Descendants() {
+					if n.Type != html.ElementNode || n.Data != "h2" {
+						continue
+					}
+					var text strings.Builder
+					for child := range n.Descendants() {
+						if child.Type == html.TextNode {
+							text.WriteString(child.Data)
+						}
+					}
+					if !strings.Contains(text.String(), "Method name") {
+						continue
+					}
+					for child := range n.Descendants() {
+						if child.Type != html.ElementNode || child.Data != "span" || attr(child, "class") != "goen-badge goen-badge--warn" {
+							continue
+						}
+						var label strings.Builder
+						for part := range child.Descendants() {
+							if part.Type == html.TextNode {
+								label.WriteString(part.Data)
+							}
+						}
+						badges = append(badges, strings.TrimSpace(label.String()))
+					}
+				}
+				var wantBadges []string
+				if tt.unavailable {
+					wantBadges = []string{locale.badge}
+				}
+				if diff := cmp.Diff(wantBadges, badges); diff != "" {
+					t.Errorf("method heading warning (-want +got):\n%s", diff)
+				}
+				if got := strings.Contains(body, locale.body); got != tt.unavailable {
+					t.Errorf("pickup setup explanation present = %t, want %t: %q", got, tt.unavailable, locale.body)
+				}
+				for _, forbidden := range []string{"GOEN_", "internal_method_code"} {
+					if strings.Contains(body, forbidden) {
+						t.Errorf("delivery page still exposes %q", forbidden)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
+	t.Parallel()
+	const islands = "209 210 211 212 880 881 882 883 884 885 890 891 892 893 894 896 951 952"
+	islandDistricts := []string{
+		"209 連江縣南竿鄉", "210 連江縣北竿鄉", "211 連江縣莒光鄉", "212 連江縣東引鄉",
+		"880 澎湖縣馬公市", "881 澎湖縣西嶼鄉", "882 澎湖縣望安鄉", "883 澎湖縣七美鄉", "884 澎湖縣白沙鄉", "885 澎湖縣湖西鄉",
+		"890 金門縣金沙鎮", "891 金門縣金湖鎮", "892 金門縣金寧鄉", "893 金門縣金城鎮", "894 金門縣烈嶼鄉", "896 金門縣烏坵鄉",
+		"951 臺東縣綠島鄉", "952 臺東縣蘭嶼鄉",
+	}
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name      string
+			raw       string
+			districts []string
+			rows      string
+			draft     bool
+			newZone   bool
+			refused   bool
+		}{
+			{name: "stored island zone", raw: islands, districts: islandDistricts, rows: "18"},
+			{name: "refused existing zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", draft: true, refused: true},
+			{name: "cleared existing zone", rows: "3", draft: true},
+			{name: "refused new zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", newZone: true, refused: true},
+			{name: "blank new zone refusal", rows: "3", newZone: true, refused: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				view := ShippingView{Zones: []ShippingZone{
+					{ID: "islands", Name: "Islands", NameEn: "Islands", Prefixes: islands},
+					{ID: "neighbour", Name: "Neighbour", NameEn: "Neighbour", Prefixes: "100"},
+				}, Errors: map[string]string{}}
+				message := i18n.T(ctx, i18n.KeyFormZonePrefixRequired)
+				if tt.raw != "" {
+					message = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormZonePrefixShape), "<bad>")
+				}
+				if tt.draft {
+					view.PrefixDraft = ZonePrefixesDraft{ZoneID: "islands", Prefixes: tt.raw}
+					if tt.refused {
+						view.Errors["zone_prefixes"] = message
+					}
+				}
+				if tt.newZone {
+					view.ZoneDraft.Prefixes = tt.raw
+					if tt.refused {
+						view.Errors["prefixes"] = message
+					}
+				}
+				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				forms := shippingPrefixControls(t, body)
+				if len(forms) != 3 {
+					t.Fatalf("prefix editors = %d, want two zones and the new-zone form", len(forms))
+				}
+				wanted := map[string]shippingPrefixControl{
+					"pre-islands": {Element: "textarea", Raw: islands, Rows: "18", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
+					"pre-neighbour": {Element: "textarea", Raw: "100", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/neighbour/prefixes", FullWidth: true, VisibleLabel: true, Districts: []string{"100 臺北市中正區"}},
+					"z-prefixes": {Element: "textarea", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone", FullWidth: true, VisibleLabel: true, Required: true},
+				}
+				id := "pre-islands"
+				if tt.newZone {
+					id = "z-prefixes"
+				}
+				row := wanted[id]
+				row.Raw, row.Rows, row.Districts = tt.raw, tt.rows, tt.districts
+				if tt.refused {
+					row.Invalid, row.DescribedBy, row.Error = "true", id+"-error", message
+				}
+				wanted[id] = row
+				if diff := cmp.Diff(wanted, forms); diff != "" {
+					t.Errorf("zone prefix editors and their district lists (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+type shippingPrefixControl struct {
+	Element, Raw, Rows, Class         string
+	Method, FormClass, Action         string
+	Invalid, DescribedBy, Error       string
+	FullWidth, VisibleLabel, Required bool
+	Districts                         []string
+}
+
+func shippingPrefixControls(t *testing.T, body string) map[string]shippingPrefixControl {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controls := make(map[string]shippingPrefixControl)
+	for form := range doc.Descendants() {
+		if form.Type != html.ElementNode || form.Data != "form" {
+			continue
+		}
+		for node := range form.Descendants() {
+			if node.Type != html.ElementNode || attr(node, "name") != "prefixes" {
+				continue
+			}
+			id := attr(node, "id")
+			if _, exists := controls[id]; exists {
+				t.Fatalf("duplicate prefix control ID %q", id)
+			}
+			_, required := attrPresent(node, "required")
+			row := shippingPrefixControl{
+				Element: node.Data, Raw: shippingPrefixNodeText(node), Rows: attr(node, "rows"), Class: attr(node, "class"),
+				Method: attr(form, "method"), FormClass: attr(form, "class"), Action: attr(form, "action"),
+				Invalid: attr(node, "aria-invalid"), DescribedBy: attr(node, "aria-describedby"),
+				FullWidth: attr(form, "class") == "goen-admin__form", Required: required,
+			}
+			if node.Data == "input" {
+				row.Raw = attr(node, "value")
+			}
+			for ancestor := node.Parent; ancestor != nil && ancestor != form; ancestor = ancestor.Parent {
+				if strings.Contains(attr(ancestor, "class"), "goen-admin__fields") {
+					row.FullWidth = false
+				}
+			}
+			for child := range form.Descendants() {
+				if child.Type != html.ElementNode {
+					continue
+				}
+				if child.Data == "label" && attr(child, "for") == id {
+					row.VisibleLabel = !strings.Contains(attr(child, "class"), "goen-sr-only") && strings.TrimSpace(shippingPrefixNodeText(child)) != ""
+				}
+				if child.Data == "p" && attr(child, "id") == row.DescribedBy && row.DescribedBy != "" {
+					row.Error = shippingPrefixNodeText(child)
+				}
+				if child.Data == "li" {
+					row.Districts = append(row.Districts, strings.Join(strings.Fields(shippingPrefixNodeText(child)), " "))
+				}
+			}
+			controls[id] = row
+		}
+	}
+	return controls
+}
+
+func shippingPrefixNodeText(node *html.Node) string {
+	var text strings.Builder
+	for child := range node.Descendants() {
+		if child.Type == html.TextNode {
+			text.WriteString(child.Data)
+		}
+	}
+	return text.String()
 }

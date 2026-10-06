@@ -133,6 +133,42 @@ func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
 	}
 }
 
+// TestARefundStripeFailedNamesItsOrderAndAmount: the alarm for a refund goen
+// recorded as succeeded is worked from the order and the sum to repay, and only
+// that event carries them and the instruction.
+func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := &WorkerHealthView{UnreconciledEvents: []UnreconciledEvent{
+		{
+			EventID: "evt_refund_failed", Type: "refund.failed", Ref: "re_3Q1abc",
+			Reason:            "refund_failed: a refund goen recorded as succeeded failed at Stripe (lost_or_stolen_card)",
+			RefundOrderNumber: "GO-261006-000003", RefundCents: 120000,
+		},
+		{
+			EventID: "evt_unreadable", Type: "checkout.session.completed", Ref: "cs_test_1",
+			Reason: "unreadable_event: goen could not read a checkout.session.completed it acts on",
+		},
+	}}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	for _, want := range []string{
+		`href="/admin/orders/GO-261006-000003"`,
+		money.TWD(120000),
+		"lost_or_stolen_card",
+		`name="event" value="evt_refund_failed"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the failed refund's row does not carry %s", want)
+		}
+	}
+	if got := strings.Count(html, `href="/admin/orders/`); got != 1 {
+		t.Errorf("the page links %d orders, want only the failed refund's", got)
+	}
+	if got := strings.Count(html, i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe)); got != 1 {
+		t.Errorf("the repay instruction appears %d times, want once, on the failed refund", got)
+	}
+}
+
 func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -195,12 +231,62 @@ func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
 	}
 }
 
-func TestOpenDisputeAmountIsNTOnlyForTWD(t *testing.T) {
+func TestOpenDisputeAmount(t *testing.T) {
 	t.Parallel()
-	if got := (OpenDispute{AmountCents: 129000, Currency: "twd"}).Amount(); got != money.TWD(129000) {
-		t.Errorf("twd Amount() = %q, want %q", got, money.TWD(129000))
+	tests := []struct {
+		name     string
+		currency string
+		amount   int64
+		want     string
+	}{
+		{name: "shop currency", currency: "twd", amount: 129000, want: "NT$1,290"},
+		{name: "US dollars", currency: "usd", amount: 5000, want: "USD"},
+		{name: "Japanese yen", currency: "jpy", amount: 5000, want: "JPY"},
+		{name: "Bahraini dinars", currency: "bhd", amount: 5000, want: "BHD"},
 	}
-	if got := (OpenDispute{AmountCents: 5000, Currency: "usd"}).Amount(); got != "USD 5000" {
-		t.Errorf("usd Amount() = %q, want the code and Stripe's minor units", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := (OpenDispute{AmountCents: tt.amount, Currency: tt.currency}).Amount(); got != tt.want {
+				t.Errorf("Amount(%q, %d) = %q, want %q", tt.currency, tt.amount, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+	}{
+		{name: "Traditional Chinese", locale: i18n.ZhHant},
+		{name: "English", locale: i18n.En},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			view := &WorkerHealthView{
+				Disputes: DisputeState{Configured: true, Items: []OpenDispute{
+					{URL: "https://dashboard.stripe.com/disputes/dp_usd", AmountCents: 5000, Currency: "usd"},
+					{URL: "https://dashboard.stripe.com/disputes/dp_twd", AmountCents: 129000, Currency: "twd"},
+				}},
+			}
+			html := renderComponent(t, ctx, Health(layouts.Page{Title: "health"}, view))
+			for _, want := range []string{
+				`<td class="goen-admin__cellnum">USD</td>`,
+				`<td class="goen-admin__cellnum">NT$1,290</td>`,
+				`href="https://dashboard.stripe.com/disputes/dp_usd"`,
+				`href="https://dashboard.stripe.com/disputes/dp_twd"`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Errorf("Health() does not contain %q", want)
+				}
+			}
+			if strings.Contains(html, "5000") {
+				t.Error("Health() exposes the foreign dispute's minor-unit figure 5000")
+			}
+		})
 	}
 }

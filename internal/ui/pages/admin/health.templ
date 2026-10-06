@@ -133,7 +133,15 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td class="goen-admin__cellkey">{ u.EventID }</td>
 									<td>{ u.Type }</td>
 									<td>{ u.Ref }</td>
-									<td>{ u.Reason }</td>
+									<td>
+										if u.RefundOrderNumber != "" {
+											<a href={ templ.SafeURL("/admin/orders/" + u.RefundOrderNumber) }>{ u.RefundOrderNumber }</a> · { u.RefundAmount() }
+											<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe) }</span>
+											<span class="goen-admin__meta">{ u.Reason }</span>
+										} else {
+											{ u.Reason }
+										}
+									</td>
 									<td>{ u.Since }</td>
 									<td class="goen-admin__cellactions">
 										<form method="post" action="/admin/health/reconcile">

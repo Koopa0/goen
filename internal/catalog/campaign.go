@@ -49,14 +49,14 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
-	total, err := s.q.RunningCampaignsCount(ctx)
+func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
+	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {
 		return pages.CampaignPage{}, fmt.Errorf("count campaigns: %w", err)
 	}
 	page = max(1, min(page, maxPage, max(1, int((total+CampaignPageSize-1)/CampaignPageSize))))
 	view := pages.CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
-	rows, err := s.q.RunningCampaigns(ctx, db.RunningCampaignsParams{
+	rows, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{
 		PageSize: CampaignPageSize, PageOffset: int32((page - 1) * CampaignPageSize), Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
@@ -87,6 +87,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,

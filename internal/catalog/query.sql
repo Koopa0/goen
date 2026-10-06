@@ -155,6 +155,37 @@ SELECT
           )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -296,6 +327,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -417,6 +479,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -517,6 +610,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -612,18 +736,37 @@ LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text AND c.is_active
   AND c.starts_at <= now() AND c.ends_at > now();
 
--- name: RunningCampaigns :many
+-- A campaign is listed only while a published featured product can be bought,
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.ends_at,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
+       c.starts_at, c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products cp
+        JOIN products p ON p.id = cp.product_id
+        WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ORDER BY c.ends_at, c.id
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
--- name: RunningCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns
-WHERE is_active AND starts_at <= now() AND ends_at > now();
+-- The same listing as ListedCampaigns, counted.
+-- name: ListedCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock);
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many
@@ -650,6 +793,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,

@@ -42,14 +42,9 @@ type HeroSlide struct {
 	// Fact is the sentence an editor wrote under a scheduled slide's title.
 	Fact string
 	// Stats are the figures a campaign or department slide states about itself.
-	Stats  []SlideStat
+	Stats  []components.Stat
 	Period *components.PeriodSpec
 	CTA    CTA
-}
-
-// SlideStat is a labelled figure on a slide; Note is the short line under it.
-type SlideStat struct {
-	Label, Value, Note string
 }
 
 // TitleLong is a title that steps down a size so it never pushes the button

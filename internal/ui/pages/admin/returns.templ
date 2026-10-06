@@ -200,10 +200,10 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<fieldset class="goen-admin__inspectline">
 										<legend class="goen-admin__meta">{ l.Line() }</legend>
 										<div class="ui-field">
-											<label class="ui-label" for={ "recv-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetReceivedQty) }</label>
+											<label class="ui-label" for={ "recv-" + r.ID + "-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetReceivedQty) }</label>
 											<input
 												class="ui-input"
-												id={ "recv-" + l.OrderLineID }
+												id={ "recv-" + r.ID + "-" + l.OrderLineID }
 												type="number"
 												name={ "received_" + l.OrderLineID }
 												value={ l.ReceivedField() }
@@ -218,10 +218,10 @@ templ Returns(p layouts.Page, v ReturnsView) {
 										</div>
 										if l.Restockable {
 											<div class="ui-field">
-												<label class="ui-label" for={ "stock-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetRestockedQty) }</label>
+												<label class="ui-label" for={ "stock-" + r.ID + "-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetRestockedQty) }</label>
 												<input
 													class="ui-input"
-													id={ "stock-" + l.OrderLineID }
+													id={ "stock-" + r.ID + "-" + l.OrderLineID }
 													type="number"
 													name={ "restocked_" + l.OrderLineID }
 													value={ l.RestockedField() }
@@ -237,10 +237,10 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetNoVariant) }</p>
 										}
 										<div class="ui-field">
-											<label class="ui-label" for={ "note-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetNote) }</label>
+											<label class="ui-label" for={ "note-" + r.ID + "-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetNote) }</label>
 											<input
 												class="ui-input"
-												id={ "note-" + l.OrderLineID }
+												id={ "note-" + r.ID + "-" + l.OrderLineID }
 												name={ "note_" + l.OrderLineID }
 												value={ l.DraftNote }
 												maxlength="500"

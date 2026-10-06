@@ -37,7 +37,38 @@ SELECT
         SELECT 1 FROM product_variants
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
-    ) AS in_stock
+    ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
@@ -71,21 +102,6 @@ ORDER BY (SELECT cp.position FROM sale_campaign_products cp
           WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id) NULLS LAST,
          p.published_at DESC, p.id
 LIMIT @max_tiles::integer;
-
--- The running campaigns, soonest-ending first. The window is judged against the
--- database's clock, which wrote the timestamps.
--- name: HomeCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.starts_at, c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT @max_campaigns::integer;
 
 -- The scheduled slides in the order an editor queued them by `position`. The
 -- window is judged against the database's clock, which wrote the timestamps.

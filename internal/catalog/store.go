@@ -16,8 +16,9 @@ import (
 )
 
 type Store struct {
-	q   *db.Queries
-	now func() time.Time
+	q        *db.Queries
+	now      func() time.Time
+	noPickup bool
 }
 
 func NewStore(dbtx db.DBTX) *Store {
@@ -25,6 +26,32 @@ func NewStore(dbtx db.DBTX) *Store {
 		panic("catalog: NewStore requires a database handle")
 	}
 	return &Store{q: db.New(dbtx), now: time.Now}
+}
+
+// WithoutPickup is for a deployment whose store map is not configured: checkout
+// offers no pickup there, so what this store describes must not either.
+func (s *Store) WithoutPickup() *Store {
+	c := *s
+	c.noPickup = true
+	return &c
+}
+
+func (s *Store) ShopRules(ctx context.Context) (pages.ShopRules, error) {
+	return ShopRules(ctx, s.q, !s.noPickup)
+}
+
+// ShopRules reads the rules the shop states about itself. withPickup is false where
+// checkout offers no pickup, so a threshold or floor must not count it.
+func ShopRules(ctx context.Context, q *db.Queries, withPickup bool) (pages.ShopRules, error) {
+	freeOver, err := q.FreeDeliveryThreshold(ctx, withPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+	lowestFee, err := q.LowestDeliveryFee(ctx, withPickup)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
+	}
+	return pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: withPickup}, nil
 }
 
 // Listing uses one set of descendant ids for the listing, the count and the
@@ -254,6 +281,7 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
@@ -280,6 +308,7 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
@@ -330,6 +359,7 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
