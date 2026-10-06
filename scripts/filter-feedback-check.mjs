@@ -109,9 +109,11 @@ async function journey(connection, locale, width) {
     const waitFor = async (predicate, description) => {
       const deadline = Date.now() + 15000;
       while (!await predicate()) {
+        if (protocolFailure) throw protocolFailure;
         if (Date.now() >= deadline) throw new Error(description);
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
+      if (protocolFailure) throw protocolFailure;
     };
     const held = new Map();
     let mode = 'real';
