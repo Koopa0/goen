@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -66,6 +67,15 @@ func (c Coupon) Used(ctx context.Context) string {
 		s += fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponGiven), money.TWD(c.GivenCents))
 	}
 	return s
+}
+
+// UsesMeter draws the uses against the total limit; only a coupon with a limit has one.
+func (c Coupon) UsesMeter() chart.MeterProps {
+	return chart.MeterProps{
+		Value: c.Redeemed,
+		Limit: int64(c.MaxRedeem),
+		Label: fmt.Sprintf("%d / %d", c.Redeemed, c.MaxRedeem),
+	}
 }
 
 func (c Coupon) State(ctx context.Context) string {
