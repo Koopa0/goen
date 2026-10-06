@@ -8,12 +8,14 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -21,6 +23,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -430,5 +434,87 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
 	if err != nil || cv.Tone != pages.ToneInk {
 		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
+	}
+}
+
+func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
+	staffCtx, _ := admintest.StaffContext(t, pool)
+	p := admintest.AdminRolePool(t, pool)
+	s := taxonomy.NewStore(p)
+	log := slog.New(slog.DiscardHandler)
+	mux := http.NewServeMux()
+	taxonomy.NewHandler(s, media.NewHandler(media.NewStore(p), log), log).Routes(mux, admintest.BackOffice)
+	slug := "recover-category-" + uuid.NewString()[:8]
+	ctx := staffCtx
+	if errs, err := s.CreateCategory(ctx, &taxonomy.Form{Slug: slug, Name: "Recovery department"}); err != nil || len(errs) > 0 {
+		t.Fatalf("create header fixture: %v %v", errs, err)
+	}
+	var valid bytes.Buffer
+	if err := png.Encode(&valid, image.NewRGBA(image.Rect(0, 0, 16, 6))); err != nil {
+		t.Fatal(err)
+	}
+	post := func(ctx context.Context, fields map[string]string, picture []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		var body bytes.Buffer
+		form := multipart.NewWriter(&body)
+		for name, value := range fields {
+			if err := form.WriteField(name, value); err != nil {
+				t.Fatal(err)
+			}
+		}
+		part, err := form.CreateFormFile("image", "header.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(picture); err != nil {
+			t.Fatal(err)
+		}
+		if err := form.Close(); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/categories/"+slug+"/image", &body)
+		req.Header.Set("Content-Type", form.FormDataContentType())
+		res := httptest.NewRecorder()
+		mux.ServeHTTP(res, req)
+		return res
+	}
+	if res := post(ctx, map[string]string{"alt": "Saved header", "alt_en": "Saved English header"}, valid.Bytes()); res.Code != http.StatusSeeOther {
+		t.Fatalf("save control = %d, want 303", res.Code)
+	}
+	baseline, err := s.CategoryHeader(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(staffCtx, locale)
+		for _, tt := range []struct {
+			name, alt, altEn, field string
+			picture                 []byte
+		}{
+			{name: "corrupt image", alt: " 原始中文說明 ", altEn: " Raw English description ", field: "cat-image", picture: []byte("corrupt PNG")},
+			{name: "invalid primary description", alt: strings.Repeat("界", 201), altEn: " Raw English description ", field: "cat-alt", picture: valid.Bytes()},
+			{name: "invalid English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), field: "cat-alt-en", picture: valid.Bytes()},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				res := post(ctx, map[string]string{"alt": tt.alt, "alt_en": tt.altEn}, tt.picture)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("refused header = %d, want 422", res.Code)
+				}
+				for id, want := range map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn} {
+					input := admintest.InputElementByID(t, res.Body.String(), id)
+					if got := admintest.InputAttribute(t, input, "value"); got != want {
+						t.Errorf("draft %q = %q, want %q", id, got, want)
+					}
+				}
+				admintest.AssertRefusedInput(t, res.Body.String(), tt.field, map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn}[tt.field])
+				after, err := s.CategoryHeader(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(baseline, after); diff != "" {
+					t.Errorf("refusal changed saved header (-want +got):\n%s", diff)
+				}
+			})
+		}
 	}
 }

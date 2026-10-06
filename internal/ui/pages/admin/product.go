@@ -112,6 +112,16 @@ type ProductView struct {
 	SpecDraft         SpecDraft
 	Sales             ProductSales
 	Ratings           ProductRatings
+	ImageUploadDraft  ProductImageUploadDraft
+	ImageReuseDraft   ProductImageReuseDraft
+}
+
+type ProductImageUploadDraft struct {
+	Alt, AltEn, OptionValue string
+}
+
+type ProductImageReuseDraft struct {
+	Digest, Alt, AltEn string
 }
 
 type SpecDraft struct {
@@ -214,6 +224,17 @@ func (v *ProductView) NeedsVariant() bool { return !v.IsNew && len(v.Variants) =
 func (v *ProductView) OptionsFrozen() bool { return !v.IsNew && len(v.Variants) > 0 }
 
 func (v *ProductView) HasOptions() bool { return len(v.Options) > 0 }
+
+func (v *ProductView) HasOptionValue(id string) bool {
+	for _, option := range v.Options {
+		for _, value := range option.Values {
+			if value.ID == id {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func (v *ProductView) OptionAction() string {
 	return "/admin/products/" + v.Slug + "/options"

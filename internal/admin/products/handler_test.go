@@ -1,13 +1,19 @@
 package products
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/media"
+	"github.com/google/go-cmp/cmp"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
@@ -16,7 +22,6 @@ func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list the package: %v", err)
 	}
-	// "?name=1", and a bare "name=1" returned by attachReason.
 	param := regexp.MustCompile(`[?"]([a-z]+)=1`)
 	sent := map[string]bool{}
 	for _, name := range names {
@@ -31,12 +36,7 @@ func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
 			sent[m[1]] = true
 		}
 	}
-	// The upload refusals are written by media.UploadQuery, not as literals.
-	for _, refusal := range []error{media.ErrTooLarge, media.ErrNotAnImage, media.ErrLosslessWebP, media.ErrBusy} {
-		name, _, _ := strings.Cut(media.UploadQuery(refusal), "=")
-		sent[name] = true
-	}
-	if len(sent) < 8 {
+	if len(sent) < 5 {
 		t.Fatalf("only %d redirect parameters found; the parser stopped matching", len(sent))
 	}
 	for name := range sent {
@@ -48,5 +48,38 @@ func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
 		if !sent[name] {
 			t.Errorf("notice %q names a parameter no redirect writes", name)
 		}
+	}
+}
+
+func TestAttachImageRefusalNamesOnlyTheRefusedField(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		err   error
+		alt   string
+		field string
+		key   i18n.Key
+	}{
+		{name: "empty primary description", err: ErrInvalid, alt: " \t ", field: "alt", key: i18n.KeyFormHeroAlt},
+		{name: "long primary description", err: ErrInvalid, alt: strings.Repeat("界", 201), field: "alt", key: i18n.KeyFormHeroAlt},
+		{name: "bounded primary and long English description", err: ErrInvalid, alt: strings.Repeat("界", 200), field: "alt_en", key: i18n.KeyFormCampaignAltEnLong},
+		{name: "wrong product option", err: ErrNotThisProductsOption, alt: "Picture", field: "image_option", key: i18n.KeyAdminNoticeBadOption},
+		{name: "attachment rule refusal", err: ErrRefused, alt: "Picture", field: "image", key: i18n.KeyAdminNoticeAttachRefused},
+		{name: "lock timeout", err: &pgconn.PgError{Code: "55P03"}, alt: "Picture"},
+		{name: "insert fault", err: &pgconn.PgError{Code: "XX000"}, alt: "Picture"},
+		{name: "permission fault", err: &pgconn.PgError{Code: "42501"}, alt: "Picture"},
+		{name: "cancelled request", err: context.Canceled, alt: "Picture"},
+		{name: "lost pool", err: errors.New("pool closed"), alt: "Picture"},
+		{name: "no error", alt: "Picture"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, err := range []error{tt.err, fmt.Errorf("attach: %w", tt.err)} {
+				field, key := attachImageRefusal(err, tt.alt)
+				if diff := cmp.Diff([]string{tt.field, string(tt.key)}, []string{field, string(key)}); diff != "" {
+					t.Errorf("attach image refusal (-want +got):\n%s", diff)
+				}
+			}
+		})
 	}
 }

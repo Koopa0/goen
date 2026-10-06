@@ -192,11 +192,11 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 			LabelEn: sp.LabelEn, ValueEn: sp.ValueEn,
 		})
 	}
-	if err = s.loadChoices(ctx, &view); err != nil {
+	if err := s.loadChoices(ctx, &view); err != nil {
 		return admin.ProductView{}, err
 	}
-	err = s.standing(ctx, p.ID, time.Now(), &view)
-	return view, err
+	standingErr := s.standing(ctx, p.ID, time.Now(), &view)
+	return view, standingErr
 }
 
 func productReadError(slug string, err error) error {

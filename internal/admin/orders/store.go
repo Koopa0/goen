@@ -48,10 +48,10 @@ type Invoices interface {
 	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
 }
 
-// Stock names the variants running low, for the dashboard; the stock desk
+// Stock ranks the SKUs by days cover, for the dashboard; the stock desk
 // implements it.
 type Stock interface {
-	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error)
 }
 
 // Health lists what the health desk judges to need a person, as dashboard
@@ -86,7 +86,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		ReadyOrders:               sum.ReadyOrders,
 		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
 		PickingOrders:             sum.PickingOrders,
-		LowStock:                  sum.LowStock,
+		SoldOut:                   sum.SoldOut,
 		ActiveProducts:            sum.ActiveProducts,
 		OpenMessages:              sum.OpenMessages,
 		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
@@ -109,10 +109,11 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	view.Low, err = s.stock.LowStock(ctx, 10)
+	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
 	if err != nil {
-		return admin.DashboardView{}, err
+		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
+	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }

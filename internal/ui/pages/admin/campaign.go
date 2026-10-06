@@ -101,6 +101,9 @@ type CampaignDetail struct {
 type CampaignView struct {
 	CampaignDetail
 
+	ImageAltDraft   string
+	ImageAltEnDraft string
+
 	Slug     string
 	Term     string
 	Matches  []CampaignProduct
