@@ -24,6 +24,10 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		"refundretry":    components.OutcomeFailed,
 		"invoicepending": components.OutcomeFailed,
 		"invoicingoff":   components.OutcomeRefused,
+		"refundpending":  components.OutcomeFailed,
+		"cancelinvoice":  components.OutcomeFailed,
+		"invoicefailed":  components.OutcomeFailed,
+		"allowfailed":    components.OutcomeFailed,
 	}
 	for name, want := range pinned {
 		if got := notices[name].Outcome; got != want {
