@@ -198,7 +198,7 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 	if inUse, ok := errors.AsType[*ZoneInUseError](err); ok {
 		switch inUse.Use {
 		case ZoneUsedByPrefixes:
-			http.Redirect(w, r, "/admin/shipping?zoneprefixes=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/shipping?zoneversions=1", http.StatusSeeOther)
 		case ZoneUsedByVersions:
 			http.Redirect(w, r, "/admin/shipping?zoneversions=1", http.StatusSeeOther)
 		default:
