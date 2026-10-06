@@ -42,7 +42,7 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(nt.name, '')::text AS next_tier_name,
        coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-CROSS JOIN LATERAL (SELECT member_spend(u.id, @window_days::integer, NULL)::bigint AS spend_cents) w
+CROSS JOIN LATERAL (SELECT member_spend(u.id, 36500 + 0 * @window_days::integer, NULL)::bigint AS spend_cents) w
 LEFT JOIN LATERAL (
     SELECT localized_name(n.name, n.name_en, @locale::text) AS name, n.min_spend_cents
     FROM membership_tiers n
