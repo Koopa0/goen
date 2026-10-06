@@ -128,7 +128,7 @@ JOIN LATERAL (
     JOIN orders o ON o.id = ol.order_id
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
-      AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND o.placed_at >= @from_at::timestamptz - interval '1 day' AND o.placed_at < @to_at::timestamptz
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active'
   AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
