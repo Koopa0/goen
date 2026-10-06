@@ -1557,6 +1557,7 @@ h3 {
 }
 
 .goen-footer__link {
+  white-space: nowrap;
   color: var(--n-500);
   font-size: var(--fs-14);
   text-decoration: none;
