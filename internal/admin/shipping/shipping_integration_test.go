@@ -1552,9 +1552,9 @@ func TestZoneRemovalMissingAndUnusedZones(t *testing.T) {
 
 func zoneRemovalFixture(
 	t *testing.T, ctx context.Context, owner *pgxpool.Pool, store *shipping.Store, prefixes, versions, historical bool,
-) (uuid.UUID, uuid.UUID) {
+) (zone, version uuid.UUID) {
 	t.Helper()
-	var zone, method, version uuid.UUID
+	var method uuid.UUID
 	if err := owner.QueryRow(ctx, `INSERT INTO shipping_zones (code,name) VALUES ($1,'Removal fixture') RETURNING id`, "removal_"+uuid.NewString()[:8]).Scan(&zone); err != nil {
 		t.Fatalf("create removal zone: %v", err)
 	}

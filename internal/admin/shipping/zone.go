@@ -155,24 +155,28 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 		if n != 0 {
 			return nil
 		}
-		zones, readErr := q.AdminShippingZones(ctx)
-		if readErr != nil {
-			return fmt.Errorf("read shipping zone deletion blocker: %w", readErr)
-		}
-		for i := range zones {
-			if zones[i].ID != zoneID {
-				continue
-			}
-			// The prefix lock keeps this count stable. With no prefixes, the
-			// DELETE's only other blocker is a delivery-version reference.
-			use := ZoneUsedByVersions
-			if zones[i].PrefixCount > 0 {
-				use = ZoneUsedByPrefixes
-			}
-			return &ZoneInUseError{Use: use}
-		}
-		return ErrNotFound
+		return zoneRemovalRefusal(ctx, q, zoneID)
 	})
+}
+
+func zoneRemovalRefusal(ctx context.Context, q *db.Queries, zoneID uuid.UUID) error {
+	zones, readErr := q.AdminShippingZones(ctx)
+	if readErr != nil {
+		return fmt.Errorf("read shipping zone deletion blocker: %w", readErr)
+	}
+	for i := range zones {
+		if zones[i].ID != zoneID {
+			continue
+		}
+		// The prefix lock keeps this count stable. With no prefixes, the
+		// DELETE's only other blocker is a delivery-version reference.
+		use := ZoneUsedByVersions
+		if zones[i].PrefixCount > 0 {
+			use = ZoneUsedByPrefixes
+		}
+		return &ZoneInUseError{Use: use}
+	}
+	return ErrNotFound
 }
 
 func parsePrefixes(ctx context.Context, list string) (prefixes []string, message string) {
