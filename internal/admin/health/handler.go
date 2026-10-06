@@ -27,14 +27,19 @@ type Handler struct {
 	store    *Store
 	messages *outbox.Store
 	pools    []NamedPool
+	disputes DisputeSource
 	log      *slog.Logger
 }
 
-func NewHandler(store *Store, messages *outbox.Store, pools []NamedPool, log *slog.Logger) *Handler {
+// NewHandler returns the health page's handler. disputes may be nil, which
+// leaves the disputes row off the page.
+func NewHandler(
+	store *Store, messages *outbox.Store, pools []NamedPool, disputes DisputeSource, log *slog.Logger,
+) *Handler {
 	if store == nil || messages == nil || log == nil {
 		panic("health: NewHandler requires a store, an outbox and a logger")
 	}
-	return &Handler{store: store, messages: messages, pools: pools, log: log}
+	return &Handler{store: store, messages: messages, pools: pools, disputes: disputes, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
@@ -168,6 +173,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = web.Notice(r, notices)
 	view.Pools = h.poolHealth()
+	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
 	web.Render(w, r, h.log, http.StatusOK, admin.Health(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }

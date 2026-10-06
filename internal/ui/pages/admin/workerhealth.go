@@ -41,6 +41,7 @@ type WorkerHealthView struct {
 	Uninvoiced                   []UninvoicedOrder
 	CancelledOrderInvoiceCount   int64
 	CancelledOrderInvoices       []CancelledOrderInvoice
+	Disputes                     DisputeState
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -96,7 +97,7 @@ func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
-		v.CancelledOrderInvoicesResolved()
+		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
 }
 
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
@@ -304,3 +305,35 @@ func (v *WorkerHealthView) Tasks() []Task {
 	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds)
 	return tasks
 }
+
+// DisputeState is what Stripe said about disputes awaiting the shop's answer.
+// Unknown means the read failed or timed out, which is not the same as none.
+type DisputeState struct {
+	Configured bool
+	Unknown    bool
+	Items      []OpenDispute
+}
+
+func (d DisputeState) Healthy() bool { return !d.Configured || (!d.Unknown && len(d.Items) == 0) }
+
+func (d DisputeState) Text(ctx context.Context) string {
+	switch {
+	case d.Unknown:
+		return i18n.T(ctx, i18n.KeyHealthDisputesUnknown)
+	case len(d.Items) == 0:
+		return i18n.T(ctx, i18n.KeyHealthDisputesClear)
+	default:
+		return i18n.Count(ctx, i18n.KeyHealthDisputesOpen, int64(len(d.Items)), len(d.Items))
+	}
+}
+
+// OpenDispute is a card dispute the shop can still answer. OrderNumber is empty
+// when no goen payment matches it.
+type OpenDispute struct {
+	URL         string
+	OrderNumber string
+	AmountCents int64
+	RespondBy   string
+}
+
+func (d OpenDispute) Amount() string { return money.TWD(d.AmountCents) }

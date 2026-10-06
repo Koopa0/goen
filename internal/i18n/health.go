@@ -55,6 +55,34 @@ var (
 		En:     "Refunds that have not completed, including any interrupted on the way to Stripe. None of them closes on its own.",
 	})
 
+	KeyAdminHPDisputesName = key("admin.hp.disputes.name", Message{ZhHant: "待回應的爭議款", En: "Disputes"})
+
+	KeyAdminHPDisputesNote = key("admin.hp.disputes.note", Message{
+		ZhHant: "即時向 Stripe 查詢。持卡人提出爭議後，期限內沒有回應，款項就會被收回。",
+		En:     "Read live from Stripe. A dispute takes the money back unless the shop responds before its deadline.",
+	})
+
+	KeyAdminHPDisputesHeading = key("admin.hp.disputes.heading", Message{
+		ZhHant: "等你回應的爭議款",
+		En:     "Disputes waiting for a response",
+	})
+
+	KeyAdminHPColRespondBy = key("admin.hp.col.respondby", Message{ZhHant: "回應期限", En: "Respond by"})
+
+	KeyAdminHPColDispute = key("admin.hp.col.dispute", Message{ZhHant: "爭議款", En: "Dispute"})
+
+	KeyAdminHPDisputeOpen = key("admin.hp.dispute.open", Message{ZhHant: "到 Stripe 處理", En: "Open in Stripe"})
+
+	KeyAdminHPDisputeNoOrder = key("admin.hp.dispute.noorder", Message{
+		ZhHant: "找不到對應的訂單",
+		En:     "No matching order",
+	})
+
+	KeyAdminHPDisputeNoDeadline = key("admin.hp.dispute.nodeadline", Message{
+		ZhHant: "銀行不接受回應",
+		En:     "The bank accepts no response",
+	})
+
 	KeyAdminHPHousekeepingName = key("admin.hp.housekeeping.name", Message{
 		ZhHant: "清理",
 		En:     "Housekeeping",
@@ -285,6 +313,21 @@ var (
 		ZhHant: "沒有卡住的退款",
 		En:     "No refunds stuck",
 	})
+
+	KeyHealthDisputesClear = key("health.disputes.clear", Message{
+		ZhHant: "沒有等待回應的爭議款",
+		En:     "No disputes waiting for a response",
+	})
+
+	KeyHealthDisputesUnknown = key("health.disputes.unknown", Message{
+		ZhHant: "無法向 Stripe 查詢，不知道有沒有等待回應的爭議款，請直接到 Stripe 確認",
+		En:     "Stripe could not be read, so whether a dispute is waiting is unknown; check Stripe directly",
+	})
+
+	KeyHealthDisputesOpen = countKey("health.disputes.open",
+		"%d 筆爭議款等待回應，期限內沒有回應，款項就會被收回",
+		"%d dispute is waiting for a response; unanswered by its deadline, the money is taken back",
+		"%d disputes are waiting for a response; unanswered by their deadlines, the money is taken back")
 
 	KeyHealthRefundsStuck = key("health.refunds.stuck", Message{
 		ZhHant: "%d 筆退款尚未完成，顧客還沒收到款項",
