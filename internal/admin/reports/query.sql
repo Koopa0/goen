@@ -57,8 +57,6 @@ LEFT JOIN (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day;
