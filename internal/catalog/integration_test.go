@@ -573,6 +573,9 @@ func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			slug := campaign(t, "listed-"+uuid.NewString()[:8])
+			t.Cleanup(func() {
+				_, _ = pool.Exec(context.WithoutCancel(ctx), `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, slug)
+			})
 			if tt.stock >= 0 {
 				featureNewProduct(t, pool, slug, tt.stock, tt.status)
 			}
