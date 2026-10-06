@@ -4103,7 +4103,7 @@ a.goen-pager__step:hover {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
 }
 
 .goen-pdp__reviewlayout {

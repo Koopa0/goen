@@ -69,7 +69,11 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__brand">{ t.Brand }</span>
 			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
-			@tilePrice(t)
+			@tilePrice(t) {
+				if t.SoldOut() {
+					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+				}
+			}
 			if t.HasChoiceOfColour() {
 				@tileColours(t)
 			}
@@ -90,9 +94,7 @@ templ tilePrice(t ProductTile) {
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 			<s class="goen-tile__was">{ t.Compare() }</s>
 		}
-		if t.SoldOut() {
-			<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
-		}
+		{ children... }
 	</span>
 }
 

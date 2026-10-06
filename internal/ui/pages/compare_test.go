@@ -353,3 +353,17 @@ func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestComparisonSaysSoldOutOncePerSoldOutColumn(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	got := renderComponent(t, ctx, Compare(layouts.Page{Title: "比較"}, CompareView{
+		Products: []CompareProduct{
+			{Slug: "a", Name: "A", PriceCents: 100000},
+			{Slug: "b", Name: "B", PriceCents: 100000, InStock: true},
+		},
+	}))
+	if n := strings.Count(got, i18n.T(ctx, i18n.KeySoldOut)); n != 1 {
+		t.Errorf("Compare with one sold-out product says sold out %d times, want 1", n)
+	}
+}

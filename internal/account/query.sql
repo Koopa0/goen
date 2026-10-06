@@ -280,11 +280,30 @@ SELECT
         WHERE cv.option_id = (
             SELECT co.id FROM product_options co
             WHERE co.product_id = p.id
-              AND EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id)
-              AND NOT EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id AND x.swatch_hex IS NULL)
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
             ORDER BY co.position, co.id
             LIMIT 1
         )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
     ), ARRAY[]::text[])::text[] AS colours,
     -- The one variant a product has, when it has only one and it is in stock:
     -- the only case where saying "add to cart" names what goes in the cart.
