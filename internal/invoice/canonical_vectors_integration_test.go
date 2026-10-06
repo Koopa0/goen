@@ -36,6 +36,7 @@ type invoiceArithmeticVector struct {
 	want               []canonicalInvoiceRow
 }
 
+// ECPay rejects an item total that differs from SalesAmount with error 5000022.
 func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 	for _, tt := range []invoiceArithmeticVector{
 		{
@@ -73,6 +74,30 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 			items:    []invoiceArithmeticItem{{name: "A", price: 99900, quantity: 1}},
 			discount: 14985, wantTotal: 84900,
 			want: []canonicalInvoiceRow{{Description: "A", Quantity: 1, UnitPriceCents: 84900, AmountCents: 84900, TaxType: "taxable", Unit: "個", Position: 0}},
+		},
+		{
+			name: "a discount cent goes to the larger remainder",
+			items: []invoiceArithmeticItem{
+				{name: "A", price: 10000, quantity: 1},
+				{name: "B", price: 20000, quantity: 1},
+			},
+			discount: 301, wantTotal: 29600,
+			want: []canonicalInvoiceRow{
+				{Description: "A", Quantity: 1, UnitPriceCents: 9900, AmountCents: 9900, TaxType: "taxable", Unit: "個", Position: 0},
+				{Description: "B", Quantity: 1, UnitPriceCents: 19700, AmountCents: 19700, TaxType: "taxable", Unit: "個", Position: 1},
+			},
+		},
+		{
+			name: "tied remainders give the cent to the earlier line",
+			items: []invoiceArithmeticItem{
+				{name: "A", price: 10000, quantity: 1},
+				{name: "B", price: 10000, quantity: 1},
+			},
+			discount: 201, wantTotal: 19700,
+			want: []canonicalInvoiceRow{
+				{Description: "A", Quantity: 1, UnitPriceCents: 9800, AmountCents: 9800, TaxType: "taxable", Unit: "個", Position: 0},
+				{Description: "B", Quantity: 1, UnitPriceCents: 9900, AmountCents: 9900, TaxType: "taxable", Unit: "個", Position: 1},
+			},
 		},
 		{
 			name: "a discount split across lines",
