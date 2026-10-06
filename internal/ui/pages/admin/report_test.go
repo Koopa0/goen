@@ -433,7 +433,6 @@ func TestRunningTotalCaptionAndSourceLineUseTheTilesWordingAndTheCutTime(t *test
 	}
 }
 
-<<<<<<< HEAD
 // paidView is a period of n shop days up to Monday 2026-10-05, with the paid
 // orders of the days at the given indexes, and the clock it is counted up to.
 func paidView(n int, at map[int]int64) ReportView {
@@ -592,7 +591,9 @@ func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	}
 	if strings.Contains(html, "No paid orders Sep") {
 		t.Error("a chart that could not be read is told as a period without orders")
-=======
+	}
+}
+
 func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
 	t.Parallel()
 
@@ -656,6 +657,5 @@ func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
 	}))
 	if strings.Contains(html, "各館商品銷售額") {
 		t.Error("report shows a department heading with no departments")
->>>>>>> origin/main
 	}
 }

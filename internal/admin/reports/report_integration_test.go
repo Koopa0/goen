@@ -882,7 +882,6 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	}
 }
 
-<<<<<<< HEAD
 // The same orders as the tile counts, a day at a time: the unpaid order, the
 // one refunded before shipment and the ones outside the period are on no day.
 func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
@@ -1055,7 +1054,8 @@ func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 	if got := *view.Paid.Latest; got.Month != time.May || got.Day != 3 {
 		t.Errorf("the latest paid order was on %d-%d, want 5-3", got.Month, got.Day)
 	}
-=======
+}
+
 // A deeper category counts toward its root. An unpaid order and one refunded
 // before shipment count toward none. Together the departments are the revenue
 // figure, since the orders carry no discount, shipping or tax.
@@ -1186,5 +1186,4 @@ func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) (
 		}
 	}
 	return number
->>>>>>> origin/main
 }
