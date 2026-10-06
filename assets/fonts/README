@@ -51,8 +51,8 @@ different version is a deliberate upgrade with a new set of digests, not a
 silent drift.
 
 Both are VARIABLE fonts, so one file per subset covers every weight goen
-paints. That is why there are 108 Noto Sans TC files and not 432: the static
-build needs one file per subset per weight.
+paints. That is why there are 108 Noto Sans TC files and not 324: the static
+build needs one file per subset per weight, and goen paints three.
 
 The weight a browser can draw is the range fonts.css declares, clamped to the
 range of the file's own wght axis. Google's CSS declares 350-600 for Noto Sans
@@ -62,8 +62,11 @@ themselves are wider, read with fontTools' fvar table on the files as vendored:
   Noto Sans TC     wght 100-900   every one of the 108 files
   Instrument Sans  wght 400-700   both files
 
-The 350 goen sets figures in lies inside both axes, and
-TestFontStylesheetMatchesTheEmbeddedFonts holds the declared ranges.
+Figures come from Instrument Sans, whose lightest weight is 400, so text set at
+350 draws its digits and Latin at 400 while Noto Sans TC draws Han glyphs at
+350. That pairing is deliberate: the Han stroke at 350 matches Instrument Sans
+at 400 (see the ruling on #1333). TestFontStylesheetMatchesTheEmbeddedFonts
+holds the declared ranges.
 
 Instrument Sans keeps only its Latin subsets. Google serves it in no other
 script, and a character outside the ranges here falls to Noto Sans TC and then
