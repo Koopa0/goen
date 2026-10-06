@@ -79,3 +79,15 @@ func TestDistrictTableMatchesTheCompleteOfficialSnapshot(t *testing.T) {
 		t.Errorf("district snapshot postal codes = %d, want 368", got)
 	}
 }
+
+func TestFieldsSplitsOnEveryPrefixSeparator(t *testing.T) {
+	t.Parallel()
+	got := Fields("100, 300;600\n880\r\n209\t817  819")
+	want := []string{"100", "300", "600", "880", "209", "817", "819"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Fields mismatch (-want +got):\n%s", diff)
+	}
+	if got := Fields(" ,;\n"); len(got) != 0 {
+		t.Errorf("Fields of separators only = %q, want none", got)
+	}
+}

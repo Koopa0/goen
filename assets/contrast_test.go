@@ -138,12 +138,16 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
-// periodOverride finds the colours a tone gives the day grid, and periodDecl
-// one of them: a tone token, or a token of the page's own.
+// periodOverride finds the colours a head gives the day grid on its tone, and
+// periodDecl one of them: a tone token, or a token of the page's own.
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.(?:goen-hero__slide|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
 )
+
+// toneHeads are the heads that lay the day grid on a tone's ground: the home
+// hero, the department and campaign head, and the lead tile.
+var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
 // toneNames is pages.Tone's closed set. assets cannot import pages, whose test
 // repeats the list.
@@ -196,25 +200,29 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 					prop, decl[prop], name, ground, got)
 			}
 		}
-		// The day grid sits on every tone's ground: its fill and line are
-		// graphical objects (WCAG 1.4.11) and its labels are text.
-		period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
-		for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
-			if m[1] != "" && m[1] != name {
-				continue
-			}
-			for _, d := range periodDecl.FindAllStringSubmatch(m[2], -1) {
-				if strings.HasPrefix(d[2], "--tone-") {
-					period[d[1]] = decl[d[2]]
-				} else {
-					period[d[1]] = tokens[d[2]]
+		// The day grid sits on the tone's ground under each head: its fill and
+		// line are graphical objects (WCAG 1.4.11) and its labels are text.
+		// Each head starts from the page's tokens and takes only its own
+		// overrides, so one head's rules cannot stand in for another's.
+		for _, head := range toneHeads {
+			period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+			for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
+				if m[1] != head || (m[2] != "" && m[2] != name) {
+					continue
+				}
+				for _, d := range periodDecl.FindAllStringSubmatch(m[3], -1) {
+					if strings.HasPrefix(d[2], "--tone-") {
+						period[d[1]] = decl[d[2]]
+					} else {
+						period[d[1]] = tokens[d[2]]
+					}
 				}
 			}
-		}
-		for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
-			if got := contrast(period[part], ground); got < min {
-				t.Errorf("the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
-					part, period[part], name, ground, got, min)
+			for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
+				if got := contrast(period[part], ground); got < min {
+					t.Errorf("%s: the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
+						head, part, period[part], name, ground, got, min)
+				}
 			}
 		}
 		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
@@ -321,6 +329,29 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 		if got := contrast(tokens[override[2]], bg); got < 3 {
 			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
 				override[2], tokens[override[2]], bg, got)
+		}
+	}
+}
+
+// A focus outline that names its own colour skips the re-pointed --ring and
+// can land on a ground it does not read on. Only "none" (the ring is drawn on
+// another element), "transparent" (the field draws its own border) and the
+// error colour on an invalid field are allowed.
+func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
+	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
+	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+			if !allowed.MatchString(strings.TrimSpace(o[1])) {
+				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+			}
 		}
 	}
 }
