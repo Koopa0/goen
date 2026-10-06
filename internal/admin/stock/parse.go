@@ -3,6 +3,10 @@ package stock
 import (
 	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // maxAdjustment bounds one stock correction: large enough for a delivery,
@@ -26,4 +30,20 @@ func ParseReceipt(s string) (int32, bool) {
 		return 0, false
 	}
 	return int32(n), true
+}
+
+func ParseArrival(raw string) (pgtype.Date, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return pgtype.Date{}, true
+	}
+	day, ok := shoptime.ParseInputDay(raw)
+	return pgtype.Date{Time: day, Valid: ok}, ok
+}
+
+func arrivalInput(day pgtype.Date) string {
+	if !day.Valid || day.InfinityModifier != pgtype.Finite {
+		return ""
+	}
+	return shoptime.Day(day.Time)
 }
