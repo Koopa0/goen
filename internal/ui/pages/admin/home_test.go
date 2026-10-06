@@ -8,10 +8,108 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			for _, tt := range []struct {
+				name                     string
+				active, inWindow, showing bool
+				zhState, enState         string
+				zhToggle, enToggle       string
+				nextActive               string
+			}{
+				{name: "off outside window", zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
+				{name: "off inside window", inWindow: true, zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
+				{name: "active outside window", active: true, zhState: "不在期間內", enState: "Outside its window", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+				{name: "eligible", active: true, inWindow: true, zhState: "可顯示", enState: "Eligible to show", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+				{name: "showing", active: true, inWindow: true, showing: true, zhState: "顯示中", enState: "Showing", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := i18n.WithLocale(t.Context(), locale)
+					view := HeroView{Rows: []HeroSlide{{ID: "scheduled", Headline: "店家原文", Active: tt.active, InWindow: tt.inWindow}}}
+					if tt.showing {
+						view.Carousel = []pages.HeroSlide{{Source: pages.SlideScheduled, ID: "scheduled"}}
+					}
+					doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Home(layouts.Page{}, &view))))
+					if err != nil {
+						t.Fatal(err)
+					}
+					var form *html.Node
+					for n := range doc.Descendants() {
+						if n.Type == html.ElementNode && n.Data == "form" && homeAttribute(n, "action") == "/admin/home/scheduled/active" {
+							if form != nil {
+								t.Fatal("scheduled slide has two toggle forms")
+							}
+							form = n
+						}
+					}
+					if form == nil {
+						t.Fatal("scheduled slide has no toggle form")
+					}
+					row := form.Parent
+					for row != nil && (row.Type != html.ElementNode || row.Data != "li") {
+						row = row.Parent
+					}
+					if row == nil {
+						t.Fatal("scheduled slide toggle is outside its row")
+					}
+					type controls struct {
+						Headlines, States, Buttons, ButtonTypes, NextActive, InputTypes []string
+						Method                                                        string
+					}
+					got := controls{Method: homeAttribute(form, "method")}
+					for n := range row.Descendants() {
+						if n.Type != html.ElementNode || n.Data != "span" {
+							continue
+						}
+						class := homeAttribute(n, "class")
+						if class == "goen-admin__sku" {
+							got.Headlines = append(got.Headlines, homeText(n))
+						}
+						if class == "ui-badge" || strings.HasPrefix(class, "ui-badge ") {
+							got.States = append(got.States, homeText(n))
+						}
+					}
+					for n := range form.Descendants() {
+						if n.Type != html.ElementNode {
+							continue
+						}
+						if n.Data == "button" {
+							got.Buttons = append(got.Buttons, homeText(n))
+							got.ButtonTypes = append(got.ButtonTypes, homeAttribute(n, "type"))
+						}
+						if n.Data == "input" && homeAttribute(n, "name") == "active" {
+							got.NextActive = append(got.NextActive, homeAttribute(n, "value"))
+							got.InputTypes = append(got.InputTypes, homeAttribute(n, "type"))
+						}
+					}
+					state, toggle := tt.zhState, tt.zhToggle
+					if locale == i18n.En {
+						state, toggle = tt.enState, tt.enToggle
+					}
+					want := controls{
+						Headlines: []string{"店家原文"}, States: []string{state}, Buttons: []string{toggle},
+						ButtonTypes: []string{"submit"}, NextActive: []string{tt.nextActive}, InputTypes: []string{"hidden"}, Method: "post",
+					}
+					if diff := cmp.Diff(want, got); diff != "" {
+						t.Errorf("scheduled hero controls (-want +got):\n%s", diff)
+					}
+				})
+			}
+		})
+	}
+}
 
 // TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros holds that the banner form's
 // errors are keyed apart from the hero form's: both sit on one page and share
