@@ -2212,6 +2212,7 @@ input.goen-check {
   font-size: var(--fs-ed-24);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
 }
 
 /* The two lists under the figures. Not tables: every cell already carries its
@@ -2884,16 +2885,18 @@ form[data-request-pending] [aria-disabled="true"] {
 
 /* A meter is a square-ended 10px track with its used part in hue. The unfilled
    part is the track, so a coupon with room left reads as room left. */
+/* Where the count does not fit beside the bar, it goes under it and wraps. */
 .goen-chartmeter {
   align-items: center;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 12px;
-  grid-template-columns: minmax(4rem, 1fr) auto;
+  gap: 4px 12px;
 }
 
 .goen-chartmeter svg {
   display: block;
+  flex: 1 1 4rem;
 }
 
 .goen-chartmeter__track {
@@ -2911,7 +2914,6 @@ form[data-request-pending] [aria-disabled="true"] {
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
-  white-space: nowrap;
 }
 
 /* A bar over its range. The 1.5px range and the ink reference line are the
@@ -3199,6 +3201,12 @@ form[data-request-pending] [aria-disabled="true"] {
   color: var(--fg-muted);
   cursor: pointer;
   font-size: var(--fs-13);
+}
+
+/* A table is two-dimensional, so on a narrow screen with large text it scrolls in
+   its own box rather than the page (WCAG 1.4.10). */
+.goen-chart__scroll {
+  overflow-x: auto;
 }
 
 .goen-chart__table {

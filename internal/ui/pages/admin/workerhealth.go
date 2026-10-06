@@ -262,6 +262,28 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 	}
 }
 
+func (r OpenRefund) NextStep(ctx context.Context) string {
+	var key i18n.Key
+	switch r.Status {
+	case refundstate.Pending:
+		key = i18n.KeyHealthRefundPendingNext
+	case refundstate.RequiresAction:
+		key = i18n.KeyHealthRefundActionNext
+	case refundstate.Failed:
+		key = i18n.KeyHealthRefundFailedNext
+	case refundstate.Cancelled:
+		key = i18n.KeyHealthRefundCancelledNext
+	default:
+		return i18n.T(ctx, i18n.KeyHealthRefundExternalNext)
+	}
+	next := i18n.T(ctx, key)
+	if strings.HasPrefix(r.Key, "return:") {
+		return next + " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundRetryNext),
+			i18n.T(ctx, i18n.KeyAdminRefundResume), i18n.T(ctx, i18n.KeyAdminRetRetryPayout))
+	}
+	return next + " " + i18n.T(ctx, i18n.KeyHealthRefundExternalNext)
+}
+
 func (r OpenRefund) Reference(ctx context.Context) string {
 	if r.ProviderRef == "" {
 		return i18n.T(ctx, i18n.KeyHealthNoRef)
