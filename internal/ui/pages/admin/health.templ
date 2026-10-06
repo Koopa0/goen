@@ -44,6 +44,86 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		<details class="goen-disclosure goen-admin__queue" id="system-status">
+			<summary class="goen-disclosure__summary">{ i18n.T(ctx, i18n.KeyAdminHPSystemStatus) }</summary>
+			<div class="goen-disclosure__panel">
+				<ul class="goen-health" role="list">
+					@healthItem(v.OutboxHealthy(), i18n.T(ctx, i18n.KeyAdminHPOutboxName), v.OutboxText(ctx), i18n.T(ctx, i18n.KeyAdminHPOutboxNote))
+					@healthItem(v.SweeperHealthy(), i18n.T(ctx, i18n.KeyAdminHPHoldsName), v.SweeperText(ctx), i18n.T(ctx, i18n.KeyAdminHPHoldsNote))
+					@healthItem(v.RecommendHealthy(), i18n.T(ctx, i18n.KeyAdminHPProjectionName), v.RecommendText(ctx), i18n.T(ctx, i18n.KeyAdminHPProjectionNote))
+					@healthItem(v.RefundsHealthy(), i18n.T(ctx, i18n.KeyAdminHPRefundsName), v.RefundsText(ctx), i18n.T(ctx, i18n.KeyAdminHPRefundsNote))
+					if v.Disputes.Configured {
+						@healthItem(v.Disputes.Healthy(), i18n.T(ctx, i18n.KeyAdminHPDisputesName), v.Disputes.Text(ctx), i18n.T(ctx, i18n.KeyAdminHPDisputesNote))
+					}
+					@healthItem(v.HousekeepingHealthy(), i18n.T(ctx, i18n.KeyAdminHPHousekeepingName), v.HousekeepingText(ctx), i18n.T(ctx, i18n.KeyAdminHPHousekeepingNote))
+				</ul>
+				if len(v.Pools) > 0 {
+					<section class="goen-admin__queue" aria-labelledby="pools-heading">
+						<h2 class="goen-admin__heading" id="pools-heading">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHeading) }</h2>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHint) }</p>
+						<div class="goen-admin__tablewrap">
+							<table class="ui-table goen-admin__table">
+								<thead>
+									<tr>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPool) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolMax) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquired) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolIdle) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolTotal) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquires) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolEmpty) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolWait) }</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, p := range v.Pools {
+										<tr>
+											<td class="goen-admin__cellkey">{ p.Name }</td>
+											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Max)) }</td>
+											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Acquired)) }</td>
+											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Idle)) }</td>
+											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Total)) }</td>
+											<td class="goen-admin__cellnum">{ strconv.FormatInt(p.TotalAcquires, 10) }</td>
+											<td class="goen-admin__cellnum">{ strconv.FormatInt(p.EmptyAcquires, 10) }</td>
+											<td class="goen-admin__cellnum">{ p.AcquireWait.Round(time.Millisecond).String() }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</section>
+				}
+				if len(v.Stuck) > 0 {
+					<section class="goen-admin__queue" aria-labelledby="stuck-heading">
+						<h2 class="goen-admin__heading" id="stuck-heading">{ i18n.T(ctx, i18n.KeyAdminHPStuckHeading) }</h2>
+						<div class="goen-admin__tablewrap">
+							<table class="ui-table goen-admin__table">
+								<thead>
+									<tr>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColTopic) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColNextRetry) }</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, m := range v.Stuck {
+										<tr>
+											<td class="goen-admin__cellkey">{ m.Topic }</td>
+											<td>{ m.Key }</td>
+											<td class="goen-admin__cellnum">{ m.AttemptsText() }</td>
+											<td>{ m.Reason(ctx) }</td>
+											<td>{ m.NextAttempt }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</section>
+				}
+			</div>
+		</details>
 		if len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0 {
 			<div id="events-heading">
 				if len(v.UnreconciledEvents) > 0 {
@@ -372,86 +452,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			</section>
 		}
-		<details class="goen-disclosure goen-admin__queue" id="system-status">
-			<summary class="goen-disclosure__summary">{ i18n.T(ctx, i18n.KeyAdminHPSystemStatus) }</summary>
-			<div class="goen-disclosure__panel">
-				<ul class="goen-health" role="list">
-					@healthItem(v.OutboxHealthy(), i18n.T(ctx, i18n.KeyAdminHPOutboxName), v.OutboxText(ctx), i18n.T(ctx, i18n.KeyAdminHPOutboxNote))
-					@healthItem(v.SweeperHealthy(), i18n.T(ctx, i18n.KeyAdminHPHoldsName), v.SweeperText(ctx), i18n.T(ctx, i18n.KeyAdminHPHoldsNote))
-					@healthItem(v.RecommendHealthy(), i18n.T(ctx, i18n.KeyAdminHPProjectionName), v.RecommendText(ctx), i18n.T(ctx, i18n.KeyAdminHPProjectionNote))
-					@healthItem(v.RefundsHealthy(), i18n.T(ctx, i18n.KeyAdminHPRefundsName), v.RefundsText(ctx), i18n.T(ctx, i18n.KeyAdminHPRefundsNote))
-					if v.Disputes.Configured {
-						@healthItem(v.Disputes.Healthy(), i18n.T(ctx, i18n.KeyAdminHPDisputesName), v.Disputes.Text(ctx), i18n.T(ctx, i18n.KeyAdminHPDisputesNote))
-					}
-					@healthItem(v.HousekeepingHealthy(), i18n.T(ctx, i18n.KeyAdminHPHousekeepingName), v.HousekeepingText(ctx), i18n.T(ctx, i18n.KeyAdminHPHousekeepingNote))
-				</ul>
-				if len(v.Pools) > 0 {
-					<section class="goen-admin__queue" aria-labelledby="pools-heading">
-						<h2 class="goen-admin__heading" id="pools-heading">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHeading) }</h2>
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHint) }</p>
-						<div class="goen-admin__tablewrap">
-							<table class="ui-table goen-admin__table">
-								<thead>
-									<tr>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPool) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolMax) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquired) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolIdle) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolTotal) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquires) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolEmpty) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolWait) }</th>
-									</tr>
-								</thead>
-								<tbody>
-									for _, p := range v.Pools {
-										<tr>
-											<td class="goen-admin__cellkey">{ p.Name }</td>
-											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Max)) }</td>
-											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Acquired)) }</td>
-											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Idle)) }</td>
-											<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Total)) }</td>
-											<td class="goen-admin__cellnum">{ strconv.FormatInt(p.TotalAcquires, 10) }</td>
-											<td class="goen-admin__cellnum">{ strconv.FormatInt(p.EmptyAcquires, 10) }</td>
-											<td class="goen-admin__cellnum">{ p.AcquireWait.Round(time.Millisecond).String() }</td>
-										</tr>
-									}
-								</tbody>
-							</table>
-						</div>
-					</section>
-				}
-				if len(v.Stuck) > 0 {
-					<section class="goen-admin__queue" aria-labelledby="stuck-heading">
-						<h2 class="goen-admin__heading" id="stuck-heading">{ i18n.T(ctx, i18n.KeyAdminHPStuckHeading) }</h2>
-						<div class="goen-admin__tablewrap">
-							<table class="ui-table goen-admin__table">
-								<thead>
-									<tr>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColTopic) }</th>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
-										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColNextRetry) }</th>
-									</tr>
-								</thead>
-								<tbody>
-									for _, m := range v.Stuck {
-										<tr>
-											<td class="goen-admin__cellkey">{ m.Topic }</td>
-											<td>{ m.Key }</td>
-											<td class="goen-admin__cellnum">{ m.AttemptsText() }</td>
-											<td>{ m.Reason(ctx) }</td>
-											<td>{ m.NextAttempt }</td>
-										</tr>
-									}
-								</tbody>
-							</table>
-						</div>
-					</section>
-				}
-			</div>
-		</details>
+
 	}
 }
 
