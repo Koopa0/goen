@@ -12,7 +12,7 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := VariantsView{
-		LowOnly: true, Return: "/admin/stock?low=1&after=T",
+		SoldOutOnly: true, Return: "/admin/stock?soldout=1&after=T",
 		Variants: []Variant{{SKU: "A-1", ProductName: "x"}},
 	}
 	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
@@ -23,13 +23,13 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 	if got := strings.Count(bar, `aria-current="page"`); got != 1 {
 		t.Errorf("%d filters are marked current, want 1", got)
 	}
-	if !strings.Contains(html, `href="/admin/stock?low=1" aria-current="page"`) {
+	if !strings.Contains(html, `href="/admin/stock?soldout=1" aria-current="page"`) {
 		t.Error("the low-stock filter is not the one marked current")
 	}
 	if !strings.Contains(html, `id="row-A-1"`) {
 		t.Error("the row has no anchor to return to")
 	}
-	if got := strings.Count(html, `name="return" value="/admin/stock?low=1&amp;after=T"`); got != 4 {
+	if got := strings.Count(html, `name="return" value="/admin/stock?soldout=1&amp;after=T"`); got != 4 {
 		t.Errorf("%d forms post their place back, want price, arrival, adjust and active", got)
 	}
 }
@@ -57,16 +57,16 @@ func TestTheStockListSearchesAndTellsVariantsApartByTheirOptions(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := VariantsView{
-		LowOnly: true, Term: "koto",
+		SoldOutOnly: true, Term: "koto",
 		Variants: []Variant{{SKU: "KOTO-CBL-1", ProductName: "x", Options: []string{"黑", "L"}}},
 	}
 	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
 
 	for _, want := range []string{
-		`action="/admin/stock"`, `name="q" value="koto"`, `name="low" value="1"`,
+		`action="/admin/stock"`, `name="q" value="koto"`, `name="soldout" value="1"`,
 		`for="stock-search"`, i18n.T(ctx, i18n.KeyAdminStockSearch),
 		"黑 · L",
-		`href="/admin/stock?q=koto"`, `href="/admin/stock?low=1&amp;q=koto"`,
+		`href="/admin/stock?q=koto"`, `href="/admin/stock?q=koto&amp;soldout=1"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("stock list lacks %q", want)

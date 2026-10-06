@@ -97,47 +97,16 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				</div>
 			}
 		</section>
-		if v.HasLow() {
-			<section class="goen-admin__queue" aria-labelledby="low-heading">
-				<h2 class="goen-admin__heading" id="low-heading">
-					<a href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</a>
+		if len(v.Runway) > 0 {
+			<section class="goen-admin__queue" aria-labelledby="runway-heading">
+				<h2 class="goen-admin__heading" id="runway-heading">
+					<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</a>
 				</h2>
-				<p class="goen-admin__hint">
-					{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
-				</p>
-				<div class="goen-admin__tablewrap">
-					<table class="ui-table goen-admin__table">
-						<thead>
-							<tr>
-								<th scope="col">SKU</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
-								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, x := range v.Low {
-								<tr>
-									<td class="goen-admin__cellkey">
-										<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
-									</td>
-									<td>
-										{ x.ProductName }
-										<span class="goen-admin__meta">{ x.Brand }</span>
-									</td>
-									<td class="goen-admin__cellnum">
-										{ x.StockText() } / { x.SafetyText() } /
-										<strong>{ x.SellableText() }</strong>
-									</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-				@components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
-					Size:        components.SizeSmall,
-				}, "/admin/stock?low=1") {
-					{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }
+				@StockRiskRows(v.Runway, 0, CoverWindowDays)
+				if v.RunwayCut {
+					<p class="goen-admin__hint">
+						<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayRest) }</a>
+					</p>
 				}
 			</section>
 		}
@@ -729,8 +698,8 @@ templ Variants(p layouts.Page, v VariantsView) {
 		<section aria-labelledby="stock-list-heading">
 			<h2 class="goen-sr-only" id="stock-list-heading">{ i18n.T(ctx, i18n.KeyAdminStockList) }</h2>
 			<form class="goen-admin__search" method="get" action="/admin/stock">
-				if v.LowOnly {
-					<input type="hidden" name="low" value="1"/>
+				if v.SoldOutOnly {
+					<input type="hidden" name="soldout" value="1"/>
 				}
 				<label class="goen-sr-only" for="stock-search">{ i18n.T(ctx, i18n.KeyAdminStockSearch) }</label>
 				<input
@@ -748,17 +717,17 @@ templ Variants(p layouts.Page, v VariantsView) {
 				<a
 					class="ui-filter"
 					href={ templ.SafeURL(v.AllHref()) }
-					if !v.LowOnly {
+					if !v.SoldOutOnly {
 						aria-current="page"
 					}
 				>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
 				<a
 					class="ui-filter"
-					href={ templ.SafeURL(v.LowHref()) }
-					if v.LowOnly {
+					href={ templ.SafeURL(v.SoldOutHref()) }
+					if v.SoldOutOnly {
 						aria-current="page"
 					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
+				>{ i18n.T(ctx, i18n.KeyAdminQueueSoldOutOnly) }</a>
 			</div>
 			if v.Empty() && !v.PastEnd {
 				<div class="ui-empty">

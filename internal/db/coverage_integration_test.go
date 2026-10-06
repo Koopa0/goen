@@ -5,6 +5,7 @@ package db_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"regexp"
@@ -67,10 +68,11 @@ func TestCheckConstraintNamesAreUnique(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conname, count(*)
 		FROM pg_constraint c
-		JOIN pg_class tbl ON tbl.oid = c.conrelid
+		LEFT JOIN pg_class tbl ON tbl.oid = c.conrelid
 		WHERE c.contype = 'c'
 		  AND c.connamespace = 'public'::regnamespace
-		  AND tbl.relname <> 'schema_migrations'
+		  AND (c.conrelid <> 0 OR c.contypid <> 0)
+		  AND tbl.relname IS DISTINCT FROM 'schema_migrations'
 		GROUP BY c.conname
 		HAVING count(*) > 1
 		ORDER BY 1`)
@@ -340,10 +342,11 @@ func liveCheckConstraints(t *testing.T) []string {
 		-- Keyed on the bare name, which TestCheckConstraintNamesAreUnique holds globally unique.
 		SELECT c.conname
 		FROM pg_constraint c
-		JOIN pg_class t ON t.oid = c.conrelid
+		LEFT JOIN pg_class t ON t.oid = c.conrelid
 		WHERE c.contype = 'c'
 		  AND c.connamespace = 'public'::regnamespace
-		  AND t.relname <> 'schema_migrations'
+		  AND (c.conrelid <> 0 OR c.contypid <> 0)
+		  AND t.relname IS DISTINCT FROM 'schema_migrations'
 		ORDER BY 1`)
 	if err != nil {
 		t.Fatalf("read check constraints: %v", err)
@@ -1340,5 +1343,67 @@ func TestDefinerCorpusIncludesUpdateAndDelete(t *testing.T) {
 		if !slices.Contains(tables, want) {
 			t.Errorf("definer corpus omitted %s", want)
 		}
+	}
+}
+
+// The invoice unit is one domain; each column that holds one and the function that
+// compares a provider payload to it must refuse what the domain refuses.
+func TestInvoiceUnitDomainRefusesBadUnits(t *testing.T) {
+	statements := map[string]string{
+		"products":               `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',%s);`,
+		"order_lines":            `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,%s);`,
+		"invoice_document_lines": `INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position) VALUES ('99990001-0000-4000-8000-000000000000','Unit fixture',1,100,100,'exempt',%s,0);`,
+	}
+	units := []struct {
+		name, literal string
+		valid         bool
+	}{
+		{"six characters", `repeat('箱',6)`, true},
+		{"seven characters", `repeat('箱',7)`, false},
+		{"trailing newline", `E'個\n'`, false},
+		{"blank", `'  '`, false},
+	}
+	for table, statement := range statements {
+		for _, unit := range units {
+			t.Run(table+"/"+unit.name, func(t *testing.T) {
+				err := run(t, fmt.Sprintf(statement, unit.literal))
+				if unit.valid {
+					if err != nil {
+						t.Fatalf("%s refused %s: %v", table, unit.literal, err)
+					}
+					return
+				}
+				code, name := constraintViolation(err)
+				if code != "23514" || name != "invoice_unit_valid" {
+					t.Fatalf("%s with %s: SQLSTATE %q constraint %q, want 23514 invoice_unit_valid (err %v)", table, unit.literal, code, name, err)
+				}
+			})
+		}
+	}
+}
+
+func TestInvoiceOperationLinesMatchRefusesBadUnits(t *testing.T) {
+	for _, unit := range []struct {
+		name string
+		json string
+		want bool
+	}{
+		{"six characters", `"箱箱箱箱箱箱"`, true},
+		{"seven characters", `"箱箱箱箱箱箱箱"`, false},
+		{"control character", `"個\n"`, false},
+		{"blank", `" "`, false},
+		{"absent", `null`, false},
+	} {
+		t.Run(unit.name, func(t *testing.T) {
+			payload := `{"lines":[{"tax_type":"taxable","unit":` + unit.json + `,"description":"d","quantity":1,"unit_price_cents":100,"amount_cents":100}]}`
+			var got bool
+			if err := schemaPool(t).QueryRow(t.Context(),
+				`SELECT invoice_operation_lines_match($1::jsonb, ARRAY['d'], ARRAY[1], ARRAY[100::bigint], ARRAY[100::bigint])`, payload).Scan(&got); err != nil {
+				t.Fatalf("invoice_operation_lines_match: %v", err)
+			}
+			if got != unit.want {
+				t.Fatalf("invoice_operation_lines_match with unit %s = %v, want %v", unit.json, got, unit.want)
+			}
+		})
 	}
 }

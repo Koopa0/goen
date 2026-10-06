@@ -41,6 +41,23 @@ var (
 	ErrRefused = errors.New("shipping: refused")
 )
 
+type ZoneUse string
+
+const (
+	ZoneUsedByPrefixes ZoneUse = "postal prefixes"
+	ZoneUsedByVersions ZoneUse = "delivery versions"
+)
+
+type ZoneInUseError struct {
+	Use ZoneUse
+}
+
+func (e *ZoneInUseError) Error() string {
+	return "shipping: zone in use by " + string(e.Use)
+}
+
+func (e *ZoneInUseError) Unwrap() error { return ErrInUse }
+
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
