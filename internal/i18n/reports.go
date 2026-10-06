@@ -87,3 +87,36 @@ var (
 
 	KeyAdminRepSold = key("admin.rep.sold", Message{ZhHant: "近期售出 %s", En: "%s sold recently"})
 )
+
+var (
+	KeyAdminRepRunning = key("admin.rep.running", Message{ZhHant: "累計營收（NT$）", En: "Revenue so far (NT$)"})
+
+	// %[1]d is the number of days, %[2]s the revenue, %[3]s how it stands against
+	// the previous period.
+	KeyAdminRepRunningCaption = countKey("admin.rep.running.caption",
+		"%[1]d 天營收 %[2]s，%[3]s。",
+		"Revenue over %[1]d day: %[2]s. %[3]s.",
+		"Revenue over %[1]d days: %[2]s. %[3]s.")
+
+	// %s is the time of day both periods are counted up to.
+	KeyAdminRepRunningNote = key("admin.rep.running.note", Message{
+		ZhHant: "只計入已付款的訂單，依下單時間。今天到 %[1]s 為止，前期同樣算到 %[1]s。",
+		En:     "Paid orders only, by the time placed. Today is counted up to %[1]s, and so is the previous period.",
+	})
+
+	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
+		ZhHant: "這張圖的資料暫時無法取得。",
+		En:     "This chart’s data is unavailable right now.",
+	})
+
+	KeyAdminRepThisPeriod = key("admin.rep.thisperiod", Message{ZhHant: "本期", En: "This period"})
+
+	KeyAdminRepPreviousPeriod = key("admin.rep.previousperiod", Message{ZhHant: "前期", En: "Previous"})
+
+	KeyAdminRepDate = key("admin.rep.date", Message{ZhHant: "日期", En: "Date"})
+
+	KeyAdminRepTotal = key("admin.rep.total", Message{ZhHant: "合計", En: "Total"})
+
+	// The last day of the table, which is not over: %s is the time of day.
+	KeyAdminRepUntil = key("admin.rep.until", Message{ZhHant: "到 %s 為止", En: "up to %s"})
+)

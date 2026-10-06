@@ -36,14 +36,20 @@ func TWD(cents int64) string {
 	if negative {
 		dollars = -dollars
 	}
-	digits := strconv.FormatInt(dollars, 10)
-
 	var b strings.Builder
-	b.Grow(len(digits) + len(digits)/3 + len("-NT$"))
 	if negative {
 		b.WriteByte('-')
 	}
 	b.WriteString("NT$")
+	b.WriteString(grouped(dollars))
+	return b.String()
+}
+
+// grouped is a non-negative whole number with a comma between thousands.
+func grouped(n int64) string {
+	digits := strconv.FormatInt(n, 10)
+	var b strings.Builder
+	b.Grow(len(digits) + len(digits)/3)
 	for i := range len(digits) { // digits is ASCII
 		if i > 0 && (len(digits)-i)%3 == 0 {
 			b.WriteByte(',')
@@ -51,6 +57,19 @@ func TWD(cents int64) string {
 		b.WriteByte(digits[i])
 	}
 	return b.String()
+}
+
+// Short is the digits of a non-negative amount in whole dollars counted in
+// divisor dollars, with one decimal when it is not whole: 25_000_000 cents over
+// a divisor of 10_000 is "25", and 12_500_000 is "12.5". The unit's name is the
+// caller's, since it depends on the language.
+func Short(cents, divisor int64) string {
+	dollars := cents / 100
+	whole, rest := dollars/divisor, dollars%divisor
+	if tenths := rest * 10 / divisor; tenths > 0 {
+		return grouped(whole) + "." + strconv.FormatInt(tenths, 10)
+	}
+	return grouped(whole)
 }
 
 // ParseDollars reads a whole-dollar price typed in a form and returns cents. A

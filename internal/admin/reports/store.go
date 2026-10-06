@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -38,9 +39,7 @@ func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error
 
 // ReportAt is Report as of now.
 func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.ReportView, error) {
-	if !validWindow(days) {
-		days = DefaultWindow
-	}
+	days = window(days)
 	current, before := periods(now, int(days))
 
 	revenue, err := s.q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
@@ -111,6 +110,54 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 		})
 	}
 	return view, nil
+}
+
+// DailyRevenue reads each shop day's paid revenue over the same two periods
+// ReportAt reads, so the days add up to its revenue.
+func (s *Store) DailyRevenue(ctx context.Context, days int32, now time.Time) (admin.DailyRevenue, error) {
+	current, before := periods(now, int(window(days)))
+	thisPeriod, err := s.dailySeries(ctx, current)
+	if err != nil {
+		return admin.DailyRevenue{}, err
+	}
+	previous, err := s.dailySeries(ctx, before)
+	if err != nil {
+		return admin.DailyRevenue{}, err
+	}
+	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, nil
+}
+
+func (s *Store) dailySeries(ctx context.Context, span period) (chart.Series, error) {
+	rows, err := s.q.PaidByShopDay(ctx, db.PaidByShopDayParams{
+		FirstDay: shopDate(span.from), LastDay: shopDate(span.to.Add(-time.Nanosecond)),
+		FromAt: span.from, ToAt: span.to,
+	})
+	if err != nil {
+		return chart.Series{}, fmt.Errorf("read paid revenue by day: %w", err)
+	}
+	series := chart.Series{Partial: endsMidDay(span), Buckets: make([]chart.Bucket, 0, len(rows))}
+	for _, r := range rows {
+		series.Buckets = append(series.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
+	}
+	return series, nil
+}
+
+// shopDate is the shop day t falls on, as the date a query takes.
+func shopDate(t time.Time) time.Time {
+	y, m, d := shoptime.In(t).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// endsMidDay is whether the period's last shop day is cut short.
+func endsMidDay(p period) bool {
+	return !p.to.Equal(shoptime.Midnight(p.to))
+}
+
+func window(days int32) int32 {
+	if validWindow(days) {
+		return days
+	}
+	return DefaultWindow
 }
 
 // validWindow is an allowlist, never a range: it reaches a scanning query.

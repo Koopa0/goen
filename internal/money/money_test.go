@@ -112,3 +112,27 @@ func TestParseDollarsTakesBlankAsZeroAndBoundsTheRest(t *testing.T) {
 		}
 	}
 }
+
+func TestShort(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		cents   int64
+		divisor int64
+		want    string
+	}{
+		{"zero", 0, 10_000, "0"},
+		{"whole units", 200_000_000, 10_000, "200"},
+		{"a half step keeps its decimal", 12_500_000, 10_000, "12.5"},
+		{"a quarter of a unit", 2_500_000, 10_000, "2.5"},
+		{"thousands", 50_000_000, 1_000, "500"},
+		{"a unit of one groups the digits", 250_000, 1, "2,500"},
+		{"below the first tenth is dropped", 10_009_900, 10_000, "10"},
+		{"hundred million", 30_000_000_000, 100_000_000, "3"},
+	} {
+		if got := money.Short(tt.cents, tt.divisor); got != tt.want {
+			t.Errorf("%s: Short(%d, %d) = %q, want %q", tt.name, tt.cents, tt.divisor, got, tt.want)
+		}
+	}
+}

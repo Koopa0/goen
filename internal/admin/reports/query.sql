@@ -40,6 +40,29 @@ FROM (
                       WHERE b.order_id = o.id AND b.before_shipment)
 ) t;
 
+-- One row per shop day from first_day to last_day, a day without orders
+-- included. The orders and their total are RevenueBetween's, so the days add up
+-- to its revenue. The bounds are cut on the shop's clock by the caller.
+-- name: PaidByShopDay :many
+SELECT
+    d.day::date AS day,
+    count(t.total)::bigint AS orders,
+    coalesce(sum(t.total), 0)::bigint AS revenue_cents
+FROM generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+    FROM orders o
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day;
+
 -- name: BestSellersBetween :many
 SELECT
     p.slug,

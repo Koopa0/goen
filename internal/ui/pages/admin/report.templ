@@ -78,6 +78,13 @@ templ Report(p layouts.Page, v *ReportView) {
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminRepNote) }
 			</p>
+			if v.DailyUnavailable {
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepRunning) }</h2>
+				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+			} else if v.ShowsRunningTotal() {
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepRunning) }</h2>
+				@chart.RunningTotal(v.RunningTotal(ctx))
+			}
 			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepSellers) }</h2>
 			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepGrossNote) }</p>
 			if len(v.Sellers) == 0 {

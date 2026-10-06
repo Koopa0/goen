@@ -180,3 +180,15 @@ func TestMidnightIsTheStartOfTheShopDay(t *testing.T) {
 		}
 	}
 }
+
+func TestClockIsTheShopsTimeOfDay(t *testing.T) {
+	t.Parallel()
+
+	// 07:20 UTC is 15:20 in Taipei, whatever zone the value carries.
+	instant := time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC)
+	for _, in := range []time.Time{instant, instant.In(time.FixedZone("", -5*3600))} {
+		if got, want := shoptime.Clock(in), "15:20"; got != want {
+			t.Errorf("Clock(%v) = %q, want %q", in, got, want)
+		}
+	}
+}

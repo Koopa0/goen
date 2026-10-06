@@ -83,6 +83,9 @@ func ParseInputMinute(s string) (time.Time, bool) {
 	return t, err == nil
 }
 
+// Clock is the shop's time of day, as 15:20.
+func Clock(t time.Time) string { return In(t).Format("15:04") }
+
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 
 func Second(t time.Time) string { return In(t).Format("2006-01-02 15:04:05") }

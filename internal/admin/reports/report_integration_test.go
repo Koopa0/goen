@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
@@ -502,5 +503,108 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 	if got, want := after.Previous.Placed-before.Previous.Placed, int64(2); got != want {
 		t.Errorf("the previous period gained %d placed orders, want %d", got, want)
+	}
+}
+
+// Seven shop days up to Sunday 2023-11-12 15:20 start on 11-06, the seven
+// before them on 10-30 and stop at 11-05 15:20. The orders that are left out
+// are each of a different kind, so that a day count that took them in would add
+// to more than the tile.
+func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-11-12 15:20:00")
+
+	for _, order := range []struct {
+		placed string
+		cents  int64
+		paid   bool
+	}{
+		{"2023-11-12 15:19:00", 1_00, true},
+		{"2023-11-12 15:21:00", 2_00, true},    // after now
+		{"2023-11-10 23:59:00", 4_00, true},    // the last minute of its shop day
+		{"2023-11-11 00:01:00", 8_00, true},    // the first minute of the next
+		{"2023-11-08 12:00:00", 16_00, false},  // never paid
+		{"2023-11-06 00:01:00", 32_00, true},   // this period's first day
+		{"2023-11-05 15:19:00", 64_00, true},   // previous period, before its cut
+		{"2023-11-05 15:21:00", 128_00, true},  // after the cut
+		{"2023-10-30 00:01:00", 256_00, true},  // previous period's first day
+		{"2023-10-29 23:59:00", 512_00, true},  // before it
+		{"2023-09-15 10:00:00", 1024_00, true}, // only the 90 days reach it
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, order.cents, order.paid, &moment)
+	}
+	// Refunded in full before it shipped: no revenue, so on no day.
+	moment := at("2023-11-09 10:00:00")
+	refunded := reportOrderAt(t, 2048_00, true, &moment)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+
+	for _, days := range []int32{7, 30, 90} {
+		view, err := s.ReportAt(ctx, days, now)
+		if err != nil {
+			t.Fatalf("report of %d days: %v", days, err)
+		}
+		daily, err := s.DailyRevenue(ctx, days, now)
+		if err != nil {
+			t.Fatalf("daily revenue of %d days: %v", days, err)
+		}
+		for _, c := range []struct {
+			name   string
+			series chart.Series
+			want   int64
+		}{
+			{"this period", daily.Current, view.RevenueCents},
+			{"previous period", daily.Previous, view.Previous.RevenueCents},
+		} {
+			var sum int64
+			zeroDays := 0
+			for _, b := range c.series.Buckets {
+				sum += b.Value
+				if b.Value == 0 {
+					zeroDays++
+				}
+			}
+			if sum != c.want {
+				t.Errorf("%d days, %s: the days add up to %d cents, want the tile's %d", days, c.name, sum, c.want)
+			}
+			if len(c.series.Buckets) != int(days) {
+				t.Errorf("%d days, %s: %d days drawn, want %d", days, c.name, len(c.series.Buckets), days)
+			}
+			if zeroDays == 0 {
+				t.Errorf("%d days, %s: no day without orders, want the empty days present as zeros", days, c.name)
+			}
+			if !c.series.Partial {
+				t.Errorf("%d days, %s: not marked as ending mid-day", days, c.name)
+			}
+		}
+		if daily.Cut != "15:20" {
+			t.Errorf("%d days: cut at %q, want 15:20", days, daily.Cut)
+		}
+	}
+
+	daily, err := s.DailyRevenue(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("daily revenue: %v", err)
+	}
+	if got, want := daily.Current.Buckets[0].Value, int64(32_00); got != want {
+		t.Errorf("the first shop day (11-06) holds %d cents, want %d", got, want)
+	}
+	if got, want := daily.Current.Buckets[4].Value, int64(4_00); got != want {
+		t.Errorf("11-10 holds %d cents, want %d: 23:59 is still that day", got, want)
+	}
+	if got, want := daily.Current.Buckets[5].Value, int64(8_00); got != want {
+		t.Errorf("11-11 holds %d cents, want %d", got, want)
 	}
 }
