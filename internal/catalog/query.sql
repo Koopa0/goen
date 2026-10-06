@@ -818,18 +818,11 @@ WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
       JOIN product_variants v ON v.product_id = p.id AND v.is_active
       WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock);
 
--- Whether /deals has anything to buy: a discounted product that can be bought,
--- or a campaign ListedCampaigns lists. The header asks on every page; each half
--- stops at its first row. Its plan has not been measured.
+-- Whether /deals has anything to buy: a campaign ListedCampaigns lists, which is
+-- what DealProducts lists the products of. The header asks on every page; it
+-- stops at the first row. Its plan has not been measured.
 -- name: DealsHaveSomethingToBuy :one
-SELECT (EXISTS (
-    SELECT 1 FROM products p
-    JOIN product_variants v ON v.product_id = p.id AND v.is_active
-    WHERE p.status = 'active'
-      AND v.compare_at_price_cents IS NOT NULL
-      AND v.compare_at_price_cents > v.price_cents
-      AND v.stock_quantity > v.safety_stock
-) OR EXISTS (
+SELECT EXISTS (
     SELECT 1 FROM sale_campaigns c
     WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
       AND EXISTS (
@@ -837,7 +830,7 @@ SELECT (EXISTS (
           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
           JOIN product_variants v ON v.product_id = p.id AND v.is_active
           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
-))::boolean AS offered;
+)::boolean AS offered;
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many

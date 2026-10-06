@@ -49,7 +49,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-// DealsOnOffer is whether /deals has a product to buy or a campaign to list.
+// DealsOnOffer is whether a running campaign has something to buy, which is what /deals lists.
 func (s *Store) DealsOnOffer(ctx context.Context) (bool, error) {
 	offered, err := s.q.DealsHaveSomethingToBuy(ctx)
 	if err != nil {
