@@ -623,6 +623,61 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 }
 
+// The dashboard's sold-out count and the stock desk's sold-out filter agree: a
+// variant that is not for sale, or whose product is not active, is in neither.
+func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, owner)
+	s := stock.NewStore(owner)
+	dashboard := admintest.OrderStore(owner, admintest.Refunder{}, nil, nil)
+	read := func() (counted int64, listed int) {
+		t.Helper()
+		view, err := dashboard.Dashboard(ctx)
+		if err != nil {
+			t.Fatalf("Dashboard: %v", err)
+		}
+		soldOut, err := s.Variants(ctx, true, "")
+		if err != nil {
+			t.Fatalf("Variants(sold out): %v", err)
+		}
+		return view.SoldOut, len(soldOut.Variants)
+	}
+	counted, listed := read()
+
+	var variant uuid.UUID
+	if err := owner.QueryRow(ctx, `
+		SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id
+		WHERE v.is_active AND p.status = 'active' AND v.stock_quantity > v.safety_stock
+		ORDER BY v.id LIMIT 1`).Scan(&variant); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = stock_quantity WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if c, l := read(); c != counted+1 || l != listed+1 {
+		t.Fatalf("an active variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted+1, listed+1)
+	}
+
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if c, l := read(); c != counted || l != listed {
+		t.Errorf("an inactive variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted, listed)
+	}
+
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []string{"draft", "archived"} {
+		if _, err := owner.Exec(ctx, `UPDATE products SET status = $2 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`, variant, status); err != nil {
+			t.Fatal(err)
+		}
+		if c, l := read(); c != counted || l != listed {
+			t.Errorf("a %s product's variant at its safety stock: counted %d and listed %d, want %d and %d", status, c, l, counted, listed)
+		}
+	}
+}
+
 func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
