@@ -99,14 +99,14 @@ test-integration: gen
 #
 # Run `make run` in another shell first.
 #
-# LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
-# one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
 # Where the run keeps its browser profile, axe-core and fixture env; the scripts
 # read it from the environment. A test points it at a temporary directory so
 # nothing is written inside the repository tree.
 LAYOUT_DIR ?= .layout-chrome
 export LAYOUT_DIR
 
+# LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
+# one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
 check-layout-run: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 # The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
 # to lead COLOUR_SLUG's gallery once that value is chosen.
