@@ -837,7 +837,7 @@ for (const want of EXPECTED) {
 const FILTER_SHELL_PROBE = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
   const form = document.querySelector('.goen-filters');
-  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const input = document.querySelector('.goen-filters #sort');
   const summary = document.querySelector('.goen-filters__shell-summary');
   const formRect = form ? form.getBoundingClientRect() : null;
   const inputRect = input ? input.getBoundingClientRect() : null;
@@ -983,10 +983,9 @@ const LISTING_PROBE = `(() => {
       .slice(0, 6).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     rail: Math.abs(rail.y - results.y) < 2 ? 'beside' : 'stacked',
     tiles: cols('.goen-tiles__grid > li'),
-    // The filter rail takes 272px out of the row, so a column count copied from
-    // the home page produced 156px cards here — narrower than the same card on
-    // a 375px phone. Column count alone would not have caught that; the width
-    // is what the visitor sees.
+    // A column count copied from the home page once produced 156px cards here —
+    // narrower than the same card on a 375px phone. Column count alone would not
+    // have caught that; the width is what the visitor sees.
     cardWidth: (() => {
       const c = document.querySelector('.goen-tiles__grid > li');
       return c ? +c.getBoundingClientRect().width.toFixed(1) : 0;
@@ -1224,11 +1223,11 @@ const proveListingFilterJourney = async (label, locale) => {
   const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
   assertMobileResultsLayout(`${label} filtered`, filteredLayout);
   // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
-  // still fits once the filter rail has taken its width out of the row, which is
-  // a question only the desktop layout can answer — its own declaration says
+  // still fits the grid's columns, which is a question only the desktop layout
+  // can answer — its own declaration says
   // "Only checked where the row has `toolbar`", and the two call sites that honour
   // that are assertDesktopResultsLayout and the `want.toolbar` guard
-  // on the LISTING rows. This journey runs at 375, where the rail is stacked and
+  // on the LISTING rows. This journey runs at 375, where the filters are stacked and
   // EXPECTED requires two columns; two columns in a 343px content area is a
   // 163.5px card, so asserting 200 here contradicts the artboard the same file
   // declares. Adding it back makes the two assertions unsatisfiable together.
@@ -1293,6 +1292,7 @@ const proveListingDesktopResize = async (label, locale) => {
     const before = document.getElementById('listing-results');
     // Extra facets can put stock below the viewport. Bring the control into
     // view before measuring whether the results update itself moves the page.
+    box.closest('details').open = true;
     box.scrollIntoView({ block: 'center', behavior: 'instant' });
     box.focus({ preventScroll: true });
     const y = window.scrollY;

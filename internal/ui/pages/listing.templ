@@ -120,7 +120,7 @@ templ listingFilters(v ListingView) {
 				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
 				<div class="goen-filters__menus">
 					for _, group := range v.Facets {
-						<details class="goen-filters__group" data-popover>
+						<details class="goen-filters__group" name="filters" data-popover>
 							<summary class="goen-filters__summary">{ group.Label }</summary>
 							<div class="goen-filters__options">
 								for position, option := range group.Options {
@@ -133,7 +133,7 @@ templ listingFilters(v ListingView) {
 							</div>
 						</details>
 					}
-					<details class="goen-filters__group" data-popover>
+					<details class="goen-filters__group" name="filters" data-popover>
 						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
 						<div class="goen-filters__options">
 							<label class="goen-filters__option">
@@ -142,12 +142,11 @@ templ listingFilters(v ListingView) {
 							</label>
 						</div>
 					</details>
-					<details class="goen-filters__group" data-popover>
+					<details class="goen-filters__group" name="filters" data-popover>
 						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
 						<div class="goen-filters__prices">
 							<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
-							// ui-input is what check-layout.mjs looks for to decide the desktop rail
-							// rendered and to measure its tap sweep; app.css writes the recipe.
+							// ui-input is what check-layout.mjs measures in its tap sweep; app.css writes the recipe.
 							<input
 								class="ui-input"
 								id="min-price"

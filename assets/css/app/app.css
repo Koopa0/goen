@@ -2380,9 +2380,10 @@ input.goen-check {
    content column the header and the footer use, a page head, and then whatever
    the page is about.
 
-   The filters are a native <details> at every width. Above 1024 its summary is
-   hidden and ::details-content is forced open, because a descendant display
-   rule alone cannot override the closed details slot in Chrome.
+   The filters are a native <details> at every width. Above 1024, where the
+   browser has ::details-content, its summary is hidden and the slot is forced
+   open, because a descendant display rule alone cannot override the closed
+   details slot in Chrome; elsewhere the toolbar stays behind its summary.
    ------------------------------------------------------------------------ */
 
 .goen-listing {
@@ -2743,6 +2744,7 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
 /* The next page is a link under a line that says how far along the run is. */

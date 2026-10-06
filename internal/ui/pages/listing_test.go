@@ -119,11 +119,11 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 	if strings.Contains(form, `class="goen-filters__group" open`) || strings.Contains(form, `data-popover open`) {
 		t.Error("a facet menu is open before the shopper opens it")
 	}
-	if !strings.Contains(form, `<details class="goen-filters__group" data-popover>`) {
+	if !strings.Contains(form, `<details class="goen-filters__group" name="filters" data-popover>`) {
 		t.Error("a facet is not a disclosure menu")
 	}
 
-	if strings.Index(html, `class="goen-listing__count"`) > strings.Index(html, `id="listing-results"`) {
+	if count := strings.Index(html, `class="goen-listing__count"`); count < 0 || count > strings.Index(html, `id="listing-results"`) {
 		t.Error("the count is not in the toolbar above the results")
 	}
 
