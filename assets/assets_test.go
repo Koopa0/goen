@@ -55,6 +55,7 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 	names := []string{
 		assets.BaseCSS,
 		assets.AppCSS,
+		assets.AdminCSS,
 		assets.HTMXJS,
 		assets.AppJS,
 		assets.MarkSVG,
