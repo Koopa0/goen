@@ -120,7 +120,7 @@ func NewCampaignSchedule(ctx context.Context, title string, items int64, startsA
 
 // CardFacts are what is left, when it is shown, and then when it ends: the
 // facts of a card whose item count is its link.
-func (s CampaignSchedule) CardFacts() []components.Stat {
+func (s *CampaignSchedule) CardFacts() []components.Stat {
 	if s.DaysLeft.Label == "" {
 		return []components.Stat{s.Ends}
 	}

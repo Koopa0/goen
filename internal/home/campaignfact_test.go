@@ -30,7 +30,8 @@ func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
 		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"剩餘3\u00a0天", "結束10月12日\u00a018:00"}},
 		{"last day", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"結束10月9日今天結束"}},
 	} {
-		stats := s.campaignSchedule(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}).CardFacts()
+		schedule := s.campaignSchedule(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		stats := schedule.CardFacts()
 		got := make([]string, 0, len(stats))
 		for i := range stats {
 			var b strings.Builder

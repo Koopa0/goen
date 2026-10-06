@@ -131,8 +131,9 @@ func TestCardFactsPutDaysLeftBeforeTheEndAndOmitItInTheLastTwoDays(t *testing.T)
 		{"days left", day(11), []string{"剩餘", "結束"}},
 		{"tomorrow", day(4), []string{"結束"}},
 	} {
-		facts := NewCampaignSchedule(ctx, "秋日選物", 3, day(1), tt.endsAt, scheduleNow).CardFacts()
-		var got []string
+		schedule := NewCampaignSchedule(ctx, "秋日選物", 3, day(1), tt.endsAt, scheduleNow)
+		facts := schedule.CardFacts()
+		got := make([]string, 0, len(facts))
 		for i := range facts {
 			got = append(got, facts[i].Label)
 		}
