@@ -3217,6 +3217,52 @@ form[data-request-pending] [aria-disabled="true"] {
   margin: 8px 0 0;
 }
 
+/* The readout (goen.js): the day under the pointer, read out of the table below
+   the chart. It sits in the flow under the plot, so it never covers a column; its
+   height is held while it is empty so showing it moves nothing. Nothing moves. */
+.goen-chart__hit {
+  fill: transparent;
+}
+
+.goen-chart__hit--on {
+  fill: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+.goen-chart__crosshair {
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* Only where scripts run, so a page without them is unchanged. The padding, not
+   a margin, keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. Its height is held for the longest line,
+   which runs to two on a narrow figure. */
+.goen-chart__readout {
+  display: none;
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+@media (scripting: enabled) {
+  .goen-chart__readout {
+    display: block;
+    min-height: calc(var(--fs-13) * var(--lh-normal));
+    padding-block-start: 8px;
+  }
+
+  .goen-chart__readout:empty {
+    visibility: hidden;
+  }
+
+  @container (max-width: 519px) {
+    .goen-chart__readout {
+      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
+    }
+  }
+}
+
 /* Forced colours: the SVG names its own system colours. The line is
    CanvasText, the previous one GrayText, the wash and the grid, which the one
    grey of a forced palette could not tell from the line, step aside. The
@@ -3265,6 +3311,15 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__todaymark {
     stroke: Highlight;
+  }
+
+  .goen-chart__hit--on {
+    fill: transparent;
+    stroke: Highlight;
+  }
+
+  .goen-chart__crosshair {
+    stroke: CanvasText;
   }
 
   .goen-spark svg {
