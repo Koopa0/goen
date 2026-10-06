@@ -1013,6 +1013,16 @@ input.goen-check {
   }
 }
 
+.goen-admin__tier {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+}
+
+.goen-admin__tier p {
+  margin: 0;
+}
+
 /* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
 .goen-admin__stats > .ui-statline {
   grid-column: 1 / -1;
@@ -1121,6 +1131,14 @@ input.goen-check {
   font-size: var(--fs-13);
   line-height: var(--lh-normal);
   margin: 0;
+}
+
+/* The days cover rows above the stock list keep the page's own rhythm. */
+.goen-admin__cover {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 /* The second line of a cell or a card: who, when, which brand. */
@@ -1833,6 +1851,31 @@ input.goen-check {
   gap: 12px;
   justify-content: space-between;
   padding: 12px 16px;
+}
+
+.goen-admin__task--alert {
+  border-color: var(--warn);
+}
+
+.goen-admin__taskfigure {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+}
+
+.goen-admin__taskfigure .goen-admin__cellnum {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-regular);
+}
+
+.goen-admin__task:first-child .goen-admin__cellnum {
+  font-size: var(--fs-ed-30);
+  line-height: 1;
+}
+
+.goen-admin__taskage {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
 }
 
 /* Worker health. One box per worker, marked at the edge when it needs
@@ -2839,6 +2882,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chartmeter__limit {
+  fill: var(--chart-annotation);
+}
+
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
@@ -2905,6 +2952,10 @@ form[data-request-pending] [aria-disabled="true"] {
     fill: CanvasText;
   }
 
+  .goen-chartmeter__limit {
+    fill: CanvasText;
+  }
+
   .goen-chartmeter__track {
     fill: Canvas;
     stroke: CanvasText;
@@ -2925,5 +2976,262 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chartrangebar__track {
     stroke: transparent;
+  }
+}
+
+/* A figure: the sentence it makes, the drawing, the same data as a table, and
+   where the figures come from. The drawing is three SVGs side by side, the
+   axis, the plot and the line ends, so that a label never has to fit inside a
+   plot that stretches. The plot has no viewBox of its own: its text stays the
+   size it is written at, at any width. */
+.goen-chart {
+  container-type: inline-size;
+  margin: 0;
+}
+
+.goen-chart__caption {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-medium);
+  margin-block-end: 20px;
+}
+
+.goen-chart__frame {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 6.5rem;
+}
+
+.goen-chart__frame svg {
+  display: block;
+  overflow: visible;
+}
+
+.goen-chart__label,
+.goen-chart__endvalue {
+  fill: var(--chart-label);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-chart__endname,
+.goen-chart__today {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__grid {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chart__baseline {
+  stroke: var(--chart-annotation);
+}
+
+.goen-chart__current,
+.goen-chart__previous {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.goen-chart__current {
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__previous {
+  stroke: var(--chart-previous);
+  stroke-width: 1.5;
+}
+
+.goen-chart__wash {
+  fill: var(--chart-hue);
+  fill-opacity: 0.08;
+}
+
+/* Today is not over, so its end is drawn open: a filled one would say the day
+   is final. */
+.goen-chart__end--current {
+  fill: var(--chart-hue);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__end--previous {
+  fill: var(--chart-previous);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__end--open {
+  fill: var(--bg);
+}
+
+.goen-chart__end--current.goen-chart__end--open {
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chart__end--previous.goen-chart__end--open {
+  stroke: var(--chart-previous);
+  stroke-width: 1.5;
+}
+
+.goen-chart__todaymark {
+  stroke: var(--mark, #26395a);
+  stroke-width: 2;
+}
+
+/* No column for the line ends: the plot takes what they would. */
+.goen-chart__frame--noends {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__level {
+  fill: none;
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__safety,
+.goen-chart__receipt {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+/* A name over a line is set on a halo of the page's own colour, so the line
+   does not run through its letters. */
+.goen-chart__annotation {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+}
+
+@container (max-width: 519px) {
+  .goen-chart__tick--minor {
+    display: none;
+  }
+}
+
+.goen-chart__data {
+  margin-block-start: 12px;
+}
+
+.goen-chart__data summary {
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--fs-13);
+}
+
+.goen-chart__table {
+  border-collapse: collapse;
+  font-size: var(--fs-13);
+  margin-block-start: 8px;
+  width: 100%;
+}
+
+.goen-chart__table th,
+.goen-chart__table td {
+  border-block-end: 1px solid var(--chart-grid);
+  padding: 6px 8px 6px 0;
+  text-align: start;
+}
+
+.goen-chart__table td,
+.goen-chart__table tfoot th {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-chart__table td {
+  text-align: end;
+}
+
+.goen-chart__table thead th:not(:first-child) {
+  text-align: end;
+}
+
+.goen-chart__table tfoot {
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 8px 0 0;
+}
+
+/* Forced colours: the SVG names its own system colours. The line is
+   CanvasText, the previous one GrayText, the wash and the grid, which the one
+   grey of a forced palette could not tell from the line, step aside. The
+   labels are set to CanvasText, since forced-color-adjust is off. */
+@media (forced-colors: active) {
+  .goen-chart__frame svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chart__current,
+  .goen-chart__baseline {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__previous {
+    stroke: GrayText;
+  }
+
+  .goen-chart__wash,
+  .goen-chart__grid:not(.goen-chart__baseline) {
+    fill: transparent;
+    stroke: transparent;
+  }
+
+  .goen-chart__end--current {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__end--previous {
+    fill: GrayText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__end--open {
+    fill: Canvas;
+  }
+
+  .goen-chart__end--current.goen-chart__end--open {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__end--previous.goen-chart__end--open {
+    stroke: GrayText;
+  }
+
+  .goen-chart__todaymark {
+    stroke: Highlight;
+  }
+
+  .goen-chart__level,
+  .goen-chart__safety,
+  .goen-chart__receipt {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__annotation {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__label,
+  .goen-chart__endname,
+  .goen-chart__endvalue,
+  .goen-chart__today {
+    fill: CanvasText;
   }
 }

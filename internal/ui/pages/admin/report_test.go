@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -330,5 +331,170 @@ func TestReportHeadingNamesBothPeriodsByShopDay(t *testing.T) {
 		if got := v.Heading(i18n.WithLocale(t.Context(), locale)); got != want {
 			t.Errorf("Heading() in %s = %q, want %q", locale, got, want)
 		}
+	}
+}
+
+// dailyView is a period of thirty days, with orders on the first orderDays of
+// them, each of NT$1,000, and a previous period of the same shape.
+func dailyView(orderDays int) ReportView {
+	series := func(each int64) chart.Series {
+		s := chart.Series{Partial: true}
+		for i := range 30 {
+			b := chart.Bucket{Day: time.Date(2026, 9, 6+i, 0, 0, 0, 0, time.UTC)}
+			if i < orderDays {
+				b.Value = each
+			}
+			s.Buckets = append(s.Buckets, b)
+		}
+		return s
+	}
+	orders := int64(orderDays) * 30
+	return ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: orders, Committed: orders,
+		Orders: orders, RevenueCents: orders * 100000, RevenueSquares: float64(orders) * 1e10,
+		Previous: PreviousFigures{Orders: orders, RevenueCents: orders * 100000, RevenueSquares: float64(orders) * 1e10},
+		Daily:    DailyRevenue{Current: series(3_000_000), Previous: series(3_000_000), Cut: "15:20"},
+	}
+}
+
+func TestRunningTotalsAreDrawnFromSevenDaysWithOrders(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		orderDays int
+		want      bool
+	}{
+		{6, false},
+		{7, true},
+	} {
+		v := dailyView(tc.orderDays)
+		html := renderToString(t, Report(layouts.Page{Title: "報表"}, &v))
+		if got := strings.Contains(html, `class="goen-chart"`); got != tc.want {
+			t.Errorf("a period with orders on %d days draws the running totals = %v, want %v", tc.orderDays, got, tc.want)
+		}
+		if got := strings.Contains(html, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRepRunning)); got != tc.want {
+			t.Errorf("a period with orders on %d days shows the running totals heading = %v, want %v", tc.orderDays, got, tc.want)
+		}
+		if !strings.Contains(html, `class="goen-report__figures"`) {
+			t.Errorf("a period with orders on %d days loses its tiles", tc.orderDays)
+		}
+	}
+}
+
+func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	v := dailyView(7)
+	v.Daily = DailyRevenue{}
+	v.DailyUnavailable = true
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
+
+	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
+		t.Errorf("the page does not say the chart is unavailable: want %s", want)
+	}
+	if strings.Contains(html, `class="goen-chart"`) {
+		t.Error("an unreadable chart is drawn")
+	}
+	if !strings.Contains(html, `class="goen-report__figures"`) {
+		t.Error("an unreadable chart takes the tiles with it")
+	}
+}
+
+func TestRunningTotalCaptionAndSourceLineUseTheTilesWordingAndTheCutTime(t *testing.T) {
+	t.Parallel()
+
+	en := i18n.WithLocale(t.Context(), i18n.En)
+	zh := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	// 210 orders of NT$1,000 on each side, so the revenue gap is noise.
+	same := dailyView(7)
+	if got, want := same.RunningTotal(en).Caption, "Revenue over 30 days: NT$210,000. Previous 30 days: NT$210,000."; got != want {
+		t.Errorf("caption without a difference = %q, want %q", got, want)
+	}
+	// Far more orders now: the sentence is the tile's, a percentage.
+	more := dailyView(7)
+	more.Previous.Orders, more.Previous.RevenueCents, more.Previous.RevenueSquares = 100, 10_000_000, 1e12
+	more.Orders, more.RevenueCents, more.RevenueSquares = 400, 40_000_000, 4e12
+	if got, want := more.RunningTotal(zh).Caption, "30 天營收 NT$400,000，比前 30 天多 300%。"; got != want {
+		t.Errorf("caption with a difference = %q, want %q", got, want)
+	}
+	if got, want := more.RunningTotal(zh).Note, "只計入已付款的訂單，依下單時間。今天到 15:20 為止，前 30 天同樣算到 15:20。"; got != want {
+		t.Errorf("source line = %q, want %q", got, want)
+	}
+	if got, want := more.RunningTotal(zh).Previous.Label, "前 30 天"; got != want {
+		t.Errorf("previous legend label = %q, want %q: the page's one name for that period", got, want)
+	}
+	if got, want := more.RunningTotal(en).Previous.Label, "Previous 30 days"; got != want {
+		t.Errorf("previous legend label = %q, want %q", got, want)
+	}
+	if got, want := more.RunningTotal(en).PartialLabel, "up to 15:20"; got != want {
+		t.Errorf("last row's label = %q, want %q", got, want)
+	}
+}
+
+func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
+		Departments: []Department{
+			{Name: "Audio", SalesCents: 400000},
+			{Name: "Cables", SalesCents: 100000},
+		},
+	}))
+
+	for _, want := range []string{"各館商品銷售額", "Audio", "Cables", "商品銷售額 NT$4,000", "商品銷售額 NT$1,000", `width="100.00%"`, `width="25.00%"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("report lacks %q", want)
+		}
+	}
+	if got := strings.Count(html, `class="goen-chartbar__fill"`); got != 2 {
+		t.Errorf("report draws %d department bars, want 2", got)
+	}
+}
+
+func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.En, "All product sales in this period are in Audio: NT$4,000."},
+		{i18n.ZhHant, "這段期間的商品銷售額全部屬於音響：NT$4,000。"},
+	} {
+		t.Run(string(tt.locale), func(t *testing.T) {
+			t.Parallel()
+			name := "Audio"
+			if tt.locale == i18n.ZhHant {
+				name = "音響"
+			}
+			var b bytes.Buffer
+			view := ReportView{
+				Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+				Departments: []Department{{Name: name, SalesCents: 400000}},
+			}
+			if err := Report(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(b.String(), tt.want) {
+				t.Errorf("report lacks %q", tt.want)
+			}
+			if strings.Contains(b.String(), "goen-chartbar") {
+				t.Error("report draws a bar for a single department")
+			}
+		})
+	}
+}
+
+func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+	}))
+	if strings.Contains(html, "各館商品銷售額") {
+		t.Error("report shows a department heading with no departments")
 	}
 }

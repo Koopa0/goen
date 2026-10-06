@@ -8,12 +8,37 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // CampaignEndsOn is the last day a campaign runs, said the short way.
 func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
 	return shoptime.DateText(ctx, shoptime.LastDay(endsAt, now))
+}
+
+// CampaignEndStat is the campaign's last day as a stat, with the time of day when it does not end at
+// midnight; the last two days say so in its note.
+func CampaignEndStat(ctx context.Context, endsAt, now time.Time) components.Stat {
+	clock := ""
+	if !shoptime.Midnight(endsAt).Equal(endsAt) {
+		clock = shoptime.ClockText(endsAt)
+	}
+	datetime := shoptime.LastDay(endsAt, now).ISO()
+	if clock != "" {
+		datetime += "T" + clock
+	}
+	stat := components.Stat{
+		Label: i18n.T(ctx, i18n.KeySlideEnds),
+		Value: components.StatDate(CampaignEndsOn(ctx, endsAt, now), clock).WithDatetime(datetime),
+	}
+	switch left := shoptime.DaysLeft(now, endsAt); {
+	case left <= 0:
+		stat.Note = i18n.T(ctx, i18n.KeyEndsToday)
+	case left == 1:
+		stat.Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
+	}
+	return stat
 }
 
 type CampaignSummary struct {

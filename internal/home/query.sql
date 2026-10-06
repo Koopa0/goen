@@ -178,7 +178,10 @@ JOIN categories r ON r.id = c.parent_id AND r.parent_id IS NULL
 ORDER BY c.position, c.name, c.id;
 
 -- How many active products each root holds across its whole subtree: a
--- department with fewer than three has no band to show.
+-- department with fewer than three has no band to show, and the header prints
+-- it beside each department in the phone menu, so it runs on every page with a
+-- header. Unlike the header's other reads it counts the catalogue, not the
+-- categories, and its plan has not been measured.
 -- name: HomeDepartmentStock :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL
@@ -284,8 +287,9 @@ WHERE sm.is_active
 -- pickup there, so a floor or threshold that counted it would promise a price
 -- nobody can choose.
 -- MIN across methods: the strip states one floor, and the honest one is the
--- lowest fee any active method charges. coalesce AND cast, because min() over
--- an empty set is NULL and sqlc types the result as non-null.
+-- lowest fee any active method charges; a method that is always free charges
+-- none, so it is not the fee below the threshold. coalesce AND cast, because
+-- min() over an empty set is NULL and sqlc types the result as non-null.
 -- name: LowestDeliveryFee :one
 SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
@@ -293,6 +297,7 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);

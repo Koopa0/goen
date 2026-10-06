@@ -40,6 +40,29 @@ FROM (
                       WHERE b.order_id = o.id AND b.before_shipment)
 ) t;
 
+-- One row per shop day from first_day to last_day, a day without orders
+-- included. The orders and their total are RevenueBetween's, so the days add up
+-- to its revenue. The bounds are cut on the shop's clock by the caller.
+-- name: PaidByShopDay :many
+SELECT
+    d.day::date AS day,
+    count(t.total)::bigint AS orders,
+    coalesce(sum(t.total), 0)::bigint AS revenue_cents
+FROM generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+    FROM orders o
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day;
+
 -- name: BestSellersBetween :many
 SELECT
     p.slug,
@@ -95,6 +118,30 @@ LEFT JOIN brands b ON b.id = p.brand_id
 ORDER BY r.units DESC, s.units DESC, p.name, p.slug
 LIMIT @limit_to::integer;
 
+-- A department is a top-level category; a product in a deeper one counts toward
+-- its root. The orders are those of RevenueBetween, so the departments add up to
+-- the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
+-- name: DepartmentSalesBetween :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root_id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT
+    localized_name(d.name, d.name_en, @locale::text) AS name,
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN committed_orders c ON c.id = o.id
+JOIN products p ON p.id = ol.product_id
+JOIN tree t ON t.id = p.category_id
+JOIN categories d ON d.id = t.root_id
+WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+GROUP BY d.id, d.name, d.name_en, d.position
+ORDER BY sales_cents DESC, d.position, d.id;
+
 -- NOT a conversion rate: goen collects no traffic data. This is the fraction of
 -- started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
 -- function call — measured at 106 ms over 14,000 orders against 7.7 ms.
@@ -105,39 +152,3 @@ SELECT
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz;
-
--- Every active variant that sold in [from_at, to_at) or has nothing a sale may
--- take. Sales are counted in orders as well as units: the report's sample size
--- is the orders, since one order of ten units is one event. Ranking and the
--- estimate are the page's.
--- name: StockAtRisk :many
-SELECT
-    pv.id AS variant_id,
-    pv.sku,
-    p.name AS product_name,
-    p.slug,
-    pv.stock_quantity,
-    pv.safety_stock,
-    sold.units::bigint AS units_sold,
-    sold.orders::bigint AS orders_sold
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-JOIN LATERAL (
-    SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
-    FROM order_lines ol
-    JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
-    WHERE ol.variant_id = pv.id
-      AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
-) sold ON true
-WHERE pv.is_active AND p.status = 'active'
-  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
-ORDER BY pv.sku;
-
--- The ledger since from_at, from which a variant's stock at from_at is rolled
--- back and the days it had anything to sell are counted.
--- name: StockMovementsSince :many
-SELECT m.variant_id, m.created_at, m.delta
-FROM inventory_movements m
-WHERE m.variant_id = ANY(@variant_ids::uuid[]) AND m.created_at >= @from_at::timestamptz
-ORDER BY m.variant_id, m.created_at, m.id;
