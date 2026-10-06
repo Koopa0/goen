@@ -136,12 +136,22 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: "稽核測試"},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
 			ActorKind: admin.ActorStaff, Actor: "稽核測試"},
-		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoicePending, ActorKind: admin.ActorSystem},
+		// The store has no invoice writer, so nothing will send the void.
+		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: admin.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)
+	}
+	enabled, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{}).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order(%s) with e-invoicing on: %v", number, err)
+	}
+	for _, e := range enabled.Timeline {
+		if e.Label == i18n.KeyAuditInvoiceVoid && e.Status != i18n.KeyAdminTimelineInvoicePending {
+			t.Errorf("with e-invoicing on, the unsent void reads %q, want %q", e.Status, i18n.KeyAdminTimelineInvoicePending)
+		}
 	}
 	for _, e := range view.Timeline {
 		if e.Label == i18n.KeyAdminTimelineProvider && e.Note != "checkout.session.completed" {
