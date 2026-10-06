@@ -61,7 +61,7 @@ func TestDealsOnOfferNeedsAProductOrACampaignThatCanBeBought(t *testing.T) {
 				if _, err = tx.Exec(ctx, `
 					INSERT INTO product_variants
 					    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-					SELECT id, upper(replace($1, '-', '')) || $2::text, $3, NULLIF($4, 0), $5, 0, $2
+					SELECT id, upper(replace($1::text, '-', '')) || $2::int::text, $3::bigint, NULLIF($4::bigint, 0), $5::int, 0, $2::int
 					FROM products WHERE slug = $1`, slug, i, v.price, v.compare, v.stock); err != nil {
 					t.Fatalf("create variant: %v", err)
 				}
