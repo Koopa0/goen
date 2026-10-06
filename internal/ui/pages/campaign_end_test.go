@@ -22,15 +22,19 @@ func TestACampaignNamesItsLastDayOnlyWithinThirtyDays(t *testing.T) {
 		endsAt time.Time
 		want   string
 	}{
-		{"29 days", i18n.ZhHant, now, now.AddDate(0, 0, 29), "10 月 31 日"},
-		{"30 days", i18n.ZhHant, now, now.AddDate(0, 0, 30), "11 月 1 日"},
+		{"midnight end", i18n.ZhHant, now, time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
+		{"midnight end into a month", i18n.ZhHant, now, time.Date(2026, 10, 31, 16, 0, 0, 0, time.UTC), "10\u00a0月 31\u00a0日"},
+		{"23:59 end", i18n.ZhHant, now, time.Date(2026, 10, 30, 15, 59, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
+		{"mid-day end", i18n.ZhHant, now, time.Date(2026, 10, 30, 4, 0, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
+		{"29 days", i18n.ZhHant, now, now.AddDate(0, 0, 29), "10\u00a0月 31\u00a0日"},
+		{"30 days", i18n.ZhHant, now, now.AddDate(0, 0, 30), "11\u00a0月 1\u00a0日"},
 		{"31 days", i18n.ZhHant, now, now.AddDate(0, 0, 31), ""},
-		{"29 days in English", i18n.En, now, now.AddDate(0, 0, 29), "Oct 31"},
+		{"29 days in English", i18n.En, now, now.AddDate(0, 0, 29), "Oct\u00a031"},
 		{"31 days in English", i18n.En, now, now.AddDate(0, 0, 31), ""},
 		{"a year", i18n.ZhHant, now, now.AddDate(1, 0, 0), ""},
 		{"past any duration", i18n.ZhHant, now, time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC), ""},
-		{"into next year", i18n.ZhHant, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "2027 年 1 月 5 日"},
-		{"into next year in English", i18n.En, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "Jan 5, 2027"},
+		{"into next year", i18n.ZhHant, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "2027\u00a0年 1\u00a0月 5\u00a0日"},
+		{"into next year in English", i18n.En, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "Jan\u00a05, 2027"},
 	} {
 		got := CampaignEndsOn(i18n.WithLocale(t.Context(), tt.locale), tt.endsAt, tt.now)
 		if got != tt.want {

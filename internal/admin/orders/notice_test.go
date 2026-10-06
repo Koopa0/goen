@@ -22,6 +22,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		"paidcancel":     components.OutcomeRefused,
 		"voidfailed":     components.OutcomeFailed,
 		"refundretry":    components.OutcomeFailed,
+		"cancelretry":    components.OutcomeFailed,
 		"invoicepending": components.OutcomeFailed,
 		"invoicingoff":   components.OutcomeRefused,
 		"refundpending":  components.OutcomeFailed,

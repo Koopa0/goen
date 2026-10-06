@@ -22,7 +22,7 @@ func TestExpectedArrivalPrecedesNotificationWithoutOfferingAStocklessPurchase(t 
 		t.Run(string(locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			v := ProductView{Slug: "arrival", SelectionOK: true, Exact: true, VariantID: "v", SKU: "A", ExpectedArrival: day, ExpectedArrivalText: fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), ShortDate(ctx, day, time.Date(2028, 1, 1, 0, 0, 0, 0, time.UTC)))}
+			v := ProductView{Slug: "arrival", SelectionOK: true, Exact: true, VariantID: "v", SKU: "A", ExpectedArrival: day, ExpectedArrivalText: fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), shoptime.DateText(ctx, shoptime.DateOf(day, time.Date(2028, 1, 1, 0, 0, 0, 0, time.UTC))))}
 			markup := renderComponent(t, ctx, productBuy(&v))
 			arrival := strings.Index(markup, v.ArrivalText())
 			notify := strings.Index(markup, `action="/p/arrival/notify"`)

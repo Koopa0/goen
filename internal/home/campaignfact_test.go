@@ -22,12 +22,12 @@ func TestACampaignFactNamesOnlyANearLastDay(t *testing.T) {
 		key    i18n.Key
 		want   string
 	}{
-		{"hero, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignFact, "6 件商品 · 至 10 月 31 日"},
-		{"row, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignRowFact, "6 件商品，至 10 月 31 日"},
+		{"hero, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignFact, "6 件商品 · 至 10\u00a0月 31\u00a0日"},
+		{"row, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignRowFact, "6 件商品，至 10\u00a0月 31\u00a0日"},
 		{"hero, a year off", now.AddDate(1, 0, 0), i18n.KeyHomeCampaignFact, "6 件商品"},
 		{"row, a year off", now.AddDate(1, 0, 0), i18n.KeyHomeCampaignRowFact, "6 件商品"},
 	} {
-		got := s.campaignFact(ctx, &db.HomeCampaignsRow{EndsAt: tt.endsAt, Products: 6}, tt.key)
+		got := s.campaignFact(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}, tt.key)
 		if got != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
 		}

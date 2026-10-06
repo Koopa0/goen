@@ -3,6 +3,7 @@ package email
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) {
@@ -73,23 +74,51 @@ func TestACancellationSaysNothingWasChargedOnlyWhenNoMoneyArrived(t *testing.T) 
 
 // The delivery and collection mails state the last day of the statutory right
 // of return when the order has a delivered parcel, and no day when it has not.
+// The year is 2099 so the day is never in the shop's current year.
 func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
 	t.Parallel()
+	day := time.Date(2099, 10, 9, 4, 0, 0, 0, time.UTC)
+	want := map[string]string{"zh-Hant": "2099\u00a0年 10\u00a0月 9\u00a0日", "en": "Oct\u00a09, 2099"}
 	for _, kind := range []TerminalKind{TerminalDelivered, TerminalCollected} {
 		for _, locale := range []string{"en", "zh-Hant"} {
-			for _, day := range []string{"2026-10-09", ""} {
+			for _, delivered := range []bool{true, false} {
 				n, sink := notifier(t)
 				to := TerminalRecipient{
 					Address: "reader@example.com", Name: "Reader", Locale: locale,
-					OrderNumber: "GO-260101-000001", RescissionEnds: day,
+					OrderNumber: "GO-260101-000001",
+				}
+				if delivered {
+					to.RescissionEnds = day
 				}
 				if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: kind}, to); err != nil {
 					t.Fatal(err)
 				}
-				if got := strings.Contains(sink.msg.Body, "2026-10-09"); got != (day != "") {
-					t.Errorf("%s/%s day=%q: body names the day = %t:\n%s", kind, locale, day, got, sink.msg.Body)
+				if got := strings.Contains(sink.msg.Body, want[locale]); got != delivered {
+					t.Errorf("%s/%s delivered=%t: body names %q = %t:\n%s", kind, locale, delivered, want[locale], got, sink.msg.Body)
+				}
+				if strings.Contains(sink.msg.Body, "2099-10-09") {
+					t.Errorf("%s/%s: the day is written as ISO:\n%s", kind, locale, sink.msg.Body)
 				}
 			}
+		}
+	}
+}
+
+// A payment-deadline cancellation carries no rescission sentence, whatever day
+// the recipient holds.
+func TestACancellationMailSaysNothingOfTheRightToReturn(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []string{"en", "zh-Hant"} {
+		n, sink := notifier(t)
+		to := TerminalRecipient{
+			Address: "reader@example.com", Name: "Reader", Locale: locale,
+			OrderNumber: "GO-260101-000001", RescissionEnds: time.Date(2099, 10, 9, 4, 0, 0, 0, time.UTC),
+		}
+		if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: TerminalCancelledByPaymentDeadline}, to); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(sink.msg.Body, "2099") {
+			t.Errorf("%s: a cancellation names a return day:\n%s", locale, sink.msg.Body)
 		}
 	}
 }

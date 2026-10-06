@@ -22,10 +22,10 @@ stripe-*.txt
 # Notes, briefs, review transcripts and decision records. The code is the
 # specification; a spec beside it becomes a second answer that drifts.
 /docs/*
-# The figures ARCHITECTURE.md draws, with the script that renders them.
+# The figures ARCHITECTURE.md shows; only the PNGs are published.
 !/docs/architecture/
-# The renderer writes each SVG on its way to the PNG; only the PNG is published.
-/docs/architecture/*.svg
+/docs/architecture/*
+!/docs/architecture/*.png
 /branding/
 
 # Product photography. The images the site serves live in PostgreSQL.

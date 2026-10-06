@@ -15,37 +15,46 @@ var (
 
 	KeySectionCategories = key("home.categories", Message{ZhHant: "館別", En: "Departments"})
 
-	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
+	KeySectionRules = key("home.rules", Message{ZhHant: "購物規則", En: "Shop rules"})
 
-	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
-		ZhHant: "保固期內送修來回免運，保固在訂單頁登錄。",
-		En:     "Repairs under warranty travel free both ways. Register the warranty from your order page.",
+	KeyRuleHold = key("home.rules.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
+
+	KeyRuleUnitMinutes = key("home.rules.unit.minutes", Message{ZhHant: "分鐘", En: "min"})
+
+	// %s is the minutes a customer has to start paying.
+	KeyRuleHoldNote = key("home.rules.hold.note", Message{
+		ZhHant: "送出訂單起算；%s 分鐘內開始付款",
+		En:     "From placing the order; start paying within %s min",
 	})
+
+	KeyRuleRescission = key("home.rules.rescission", Message{ZhHant: "猶豫期", En: "Right to cancel"})
+
+	KeyRuleUnitDays = key("home.rules.unit.days", Message{ZhHant: "天", En: "days"})
+
+	KeyRuleRescissionNote = key("home.rules.rescission.note", Message{
+		ZhHant: "收到次日起算，退貨運費由 goen 負擔",
+		En:     "From the day after delivery; goen pays the return postage",
+	})
+
+	KeyRuleReturn = key("home.rules.return", Message{ZhHant: "未使用退貨", En: "Unused returns"})
+
+	KeyRuleReturnNote = key("home.rules.return.note", Message{
+		ZhHant: "收到次日起算；包裝配件齊全，運費自付",
+		En:     "From the day after delivery; unused and complete, you pay the postage",
+	})
+
+	KeyRuleFreeDelivery = key("home.rules.delivery", Message{ZhHant: "免運門檻", En: "Free delivery"})
 
 	// %s is the lowest fee, interpolated from shipping_method_versions: a literal
 	// here is a promise that stops agreeing with what checkout charges.
-	KeyTrustShippingBody = key("home.trust.shipping", Message{
-		ZhHant: "宅配與超商取貨皆適用；未達門檻運費 %s 起。",
-		En:     "Home delivery or store pickup. Below that, delivery is from %s.",
+	KeyRuleFreeDeliveryNote = key("home.rules.delivery.note", Message{
+		ZhHant: "宅配與超商取貨；未達門檻運費 %s 起",
+		En:     "Home delivery or store pickup; below it, from %s",
 	})
 
-	KeyTrustShippingHomeBody = key("home.trust.shipping.home", Message{
-		ZhHant: "未達門檻運費 %s 起。",
-		En:     "Below that, delivery is from %s.",
-	})
-
-	// A numbered landing window here is a second SLA next to /returns, which
-	// leaves the day to the card issuer.
-	KeyTrustReturnsBody = key("home.trust.returns", Message{
-		ZhHant: "在訂單頁申請退貨，退貨運費由 goen 負擔。",
-		En:     "Start a return from your order page. We pay the postage.",
-	})
-
-	KeyTrustPayment = key("home.trust.payment", Message{ZhHant: "付款安全", En: "Secure payment"})
-
-	KeyTrustPaymentBody = key("home.trust.payment.body", Message{
-		ZhHant: "刷卡由 Stripe 處理，卡號不經過 goen。",
-		En:     "Stripe handles the card. Your number never touches a goen server.",
+	KeyRuleFreeDeliveryHomeNote = key("home.rules.delivery.home.note", Message{
+		ZhHant: "未達門檻運費 %s 起",
+		En:     "Below it, delivery is from %s",
 	})
 
 	KeyHeroHeadline = key("home.hero.headline", Message{
@@ -79,9 +88,9 @@ var (
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
 	// for a day outside the shop's current year.
-	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d 月 %[3]d 日", En: "%[1]s %[3]d"})
+	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d\u00a0月 %[3]d\u00a0日", En: "%[1]s\u00a0%[3]d"})
 
-	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d 年 %[2]d 月 %[3]d 日", En: "%[1]s %[3]d, %[4]d"})
+	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d\u00a0年 %[2]d\u00a0月 %[3]d\u00a0日", En: "%[1]s\u00a0%[3]d, %[4]d"})
 
 	// %s is a department's name.
 	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})

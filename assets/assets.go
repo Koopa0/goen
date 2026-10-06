@@ -29,10 +29,13 @@ const Prefix = "/static/"
 // Asset names referenced by templates. Keep in sync with [required].
 const (
 	// BaseCSS carries the tokens, the element defaults and the shared
-	// primitives, and is linked before AppCSS: a value set in both is
-	// settled by source order.
-	BaseCSS  = "css/app/base.css"
+	// primitives, and is linked before AppCSS and AdminCSS: a value set in
+	// either is settled by source order.
+	BaseCSS = "css/app/base.css"
+	// AppCSS is the storefront's stylesheet; AdminCSS is the back office's,
+	// and the back office does not link AppCSS.
 	AppCSS   = "css/app/app.css"
+	AdminCSS = "css/app/admin.css"
 	FontsCSS = "css/app/fonts.css"
 	// InstrumentSansLatinWOFF2 is the one face worth a preload: every page
 	// paints Latin before it paints anything else, and the browser cannot
@@ -125,6 +128,7 @@ func departmentMedia(slugs ...string) []string {
 var required = []string{
 	BaseCSS,
 	AppCSS,
+	AdminCSS,
 	FontsCSS,
 	InstrumentSansLatinWOFF2,
 	SpeculationRules,

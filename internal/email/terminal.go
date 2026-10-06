@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 type TerminalKind string
@@ -35,8 +37,9 @@ type OrderTerminal struct {
 // TerminalRecipient is resolved at delivery, never retained in the outbox.
 type TerminalRecipient struct {
 	Address, Name, Locale, OrderNumber string
-	// RescissionEnds is the last day to return the goods, or "".
-	RescissionEnds string
+	// RescissionEnds is the last day to return the goods; the zero time before
+	// any delivery.
+	RescissionEnds time.Time
 }
 
 // SendOrderTerminal reports an order fact without promising a new delivery. A
@@ -67,8 +70,8 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, m *OrderTerminal, to Te
 		return fmt.Errorf("unknown terminal order notice %q", m.Kind)
 	}
 	text := fmt.Sprintf(i18n.T(ctx, body), to.OrderNumber, n.orderURL(to.OrderNumber))
-	if to.RescissionEnds != "" && (m.Kind == TerminalDelivered || m.Kind == TerminalCollected) {
-		text += "\n\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRescissionEnds), to.RescissionEnds)
+	if !to.RescissionEnds.IsZero() && (m.Kind == TerminalDelivered || m.Kind == TerminalCollected) {
+		text += "\n\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRescissionEnds), shoptime.DateText(ctx, shoptime.DateOf(to.RescissionEnds, time.Now())))
 	}
 	return n.send(ctx, &Message{To: to.Address, Subject: fmt.Sprintf(i18n.T(ctx, subject), to.OrderNumber), Body: n.letter(ctx, to.Name, text)})
 }
