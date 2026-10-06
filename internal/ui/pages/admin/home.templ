@@ -242,7 +242,7 @@ templ Home(p layouts.Page, v *HeroView) {
 									if v.IsShowing(slide) {
 										<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHomeShowing) }</span>
 									} else {
-										<span class="ui-badge">{ slide.State() }</span>
+										<span class="ui-badge">{ slide.State(ctx) }</span>
 									}
 								</div>
 								if slide.ImageURL() != "" {
@@ -260,7 +260,7 @@ templ Home(p layouts.Page, v *HeroView) {
 									}
 									<form method="post" action={ templ.SafeURL(slide.ToggleAction()) }>
 										<input type="hidden" name="active" value={ slide.NextActive() }/>
-										<button class="ui-btn ui-btn--secondary" type="submit">{ slide.ToggleLabel() }</button>
+										<button class="ui-btn ui-btn--secondary" type="submit">{ slide.ToggleLabel(ctx) }</button>
 									</form>
 								</div>
 							</li>
