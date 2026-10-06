@@ -4,10 +4,99 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			rendered := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(layouts.Page{}, ReturnsView{
+				Rows: []Return{
+					{ID: "return-a", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
+						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+					{ID: "return-b", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
+						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+				},
+			}))
+			document, err := html.Parse(strings.NewReader(rendered))
+			if err != nil {
+				t.Fatalf("parse returns page: %v", err)
+			}
+			attribute := func(n *html.Node, name string) string {
+				for _, a := range n.Attr {
+					if a.Key == name {
+						return a.Val
+					}
+				}
+				return ""
+			}
+			ids := make(map[string]int)
+			forms := make(map[string]*html.Node)
+			var visit func(*html.Node)
+			visit = func(n *html.Node) {
+				if id := attribute(n, "id"); id != "" {
+					ids[id]++
+				}
+				if n.Type == html.ElementNode && n.Data == "form" {
+					forms[attribute(n, "action")] = n
+				}
+				for child := n.FirstChild; child != nil; child = child.NextSibling {
+					visit(child)
+				}
+			}
+			visit(document)
+			for id, count := range ids {
+				if count != 1 {
+					t.Errorf("document id %q appears %d times, want once", id, count)
+				}
+			}
+			for _, returnID := range []string{"return-a", "return-b"} {
+				action := "/admin/returns/" + returnID + "/inspect"
+				form := forms[action]
+				if form == nil {
+					t.Fatalf("inspection form %q is missing", action)
+				}
+				controls := make(map[string]string)
+				labels := make(map[string]int)
+				var inspect func(*html.Node)
+				inspect = func(n *html.Node) {
+					if n.Type == html.ElementNode {
+						switch n.Data {
+						case "input":
+							controls[attribute(n, "id")] = attribute(n, "name")
+						case "label":
+							labels[attribute(n, "for")]++
+						}
+					}
+					for child := n.FirstChild; child != nil; child = child.NextSibling {
+						inspect(child)
+					}
+				}
+				inspect(form)
+				for _, field := range []struct{ prefix, name string }{
+					{"recv", "received_shared-line"}, {"stock", "restocked_shared-line"}, {"note", "note_shared-line"},
+				} {
+					id := field.prefix + "-" + returnID + "-shared-line"
+					if got := controls[id]; got != field.name {
+						t.Errorf("%s control %q name = %q, want %q", action, id, got, field.name)
+					}
+					if got := labels[id]; got != 1 {
+						t.Errorf("%s labels targeting %q = %d, want 1", action, id, got)
+					}
+					if got := ids[id]; got != 1 {
+						t.Errorf("document id %q appears %d times, want once", id, got)
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 	t.Parallel()
