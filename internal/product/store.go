@@ -153,20 +153,28 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Options = append(view.Options, po)
 	}
 
-	campaign, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
-		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
-	})
-	switch {
-	case err == nil:
-		view.Campaign = pages.NewProductCampaign(ctx, campaign.Slug, campaign.Title, campaign.StartsAt, campaign.EndsAt, s.now())
-	case !errors.Is(err, pgx.ErrNoRows):
-		return pages.ProductView{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
+	view.Campaign, err = s.runningCampaign(ctx, p.ID, slug)
+	if err != nil {
+		return pages.ProductView{}, err
 	}
 
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return pages.ProductView{}, err
 	}
 	return view, nil
+}
+
+func (s *Store) runningCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
+	c, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pages.ProductCampaign{}, nil
+	}
+	if err != nil {
+		return pages.ProductCampaign{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
+	}
+	return pages.NewProductCampaign(ctx, c.Slug, c.Title, c.StartsAt, c.EndsAt, s.now()), nil
 }
 
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {

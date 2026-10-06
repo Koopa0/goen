@@ -94,3 +94,25 @@ func TestACardStrikesItsPriceOnlyForACampaignProduct(t *testing.T) {
 		}
 	}
 }
+
+func TestThePickedVariantMustBeReducedForTheSourceLine(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		compare  int64
+		sellable bool
+	}{
+		{"full price", 0, true},
+		{"sold out", 48000, false},
+	} {
+		v := ProductView{
+			Name: "Mug", SelectionOK: true, Exact: true, Sellable: tt.sellable,
+			PriceCents: 43200, CompareCents: tt.compare, Campaign: runningCampaign(t, i18n.ZhHant),
+		}
+		got := buyBox(t, i18n.ZhHant, &v)
+		if strings.Contains(got, "活動價") || strings.Contains(got, "goen-pdp__source") {
+			t.Errorf("%s variant in a running campaign is called a campaign price", tt.name)
+		}
+	}
+}

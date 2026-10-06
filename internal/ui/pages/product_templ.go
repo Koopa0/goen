@@ -1104,7 +1104,7 @@ func productBuy(v *ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.Campaign.Running() {
+			if v.OnSale() {
 				before, after := v.Campaign.Source(ctx)
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "<p class=\"goen-pdp__source\">")
 				if templ_7745c5c3_Err != nil {

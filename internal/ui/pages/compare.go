@@ -41,21 +41,21 @@ type CompareProduct struct {
 	ImageAlt       string
 }
 
-func (p CompareProduct) PriceTile() ProductTile {
+func (p *CompareProduct) PriceTile() ProductTile {
 	return ProductTile{
 		PriceCents: p.PriceCents, CompareCents: p.CompareCents, InCampaign: p.InCampaign,
 		PriceVaries: p.PriceVaries, InStock: p.InStock,
 	}
 }
 
-func (p CompareProduct) Stock(ctx context.Context) string {
+func (p *CompareProduct) Stock(ctx context.Context) string {
 	if p.InStock {
 		return i18n.T(ctx, i18n.KeyInStock)
 	}
 	return i18n.T(ctx, i18n.KeySoldOut)
 }
 
-func (p CompareProduct) RatingText() string {
+func (p *CompareProduct) RatingText() string {
 	if p.RatingCount == 0 {
 		return "—"
 	}
@@ -63,7 +63,7 @@ func (p CompareProduct) RatingText() string {
 		" (" + strconv.FormatInt(p.RatingCount, 10) + ")"
 }
 
-func (p CompareProduct) Warranty(ctx context.Context) string {
+func (p *CompareProduct) Warranty(ctx context.Context) string {
 	switch {
 	case p.WarrantyMonths == 0:
 		return "—"

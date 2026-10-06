@@ -1069,8 +1069,8 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 			"variant carries no discount, and this page is about discounts",
 			tile.PriceCents)
 	}
-	if !tile.OnSale() {
-		t.Error("a product on the sale page shows no sale badge, because the variant " +
+	if tile.CompareCents <= tile.PriceCents {
+		t.Error("a product on the sale page shows no compare price, because the variant " +
 			"it was priced on is not the one that is marked down")
 	}
 

@@ -38,10 +38,10 @@ func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
 	}
 
 	campaign := "page-" + uuid.NewString()[:8]
-	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, campaign); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, campaign); err != nil {
 		t.Fatalf("create campaign: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err = pool.Exec(ctx, `
 		INSERT INTO sale_campaign_products (campaign_id, product_id)
 		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaign, slug); err != nil {
 		t.Fatalf("feature: %v", err)
@@ -58,11 +58,14 @@ func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
 		"ended":        `UPDATE sale_campaigns SET starts_at = now() - interval '30 days', ends_at = now() - interval '1 day' WHERE slug = $1`,
 		"not started":  `UPDATE sale_campaigns SET starts_at = now() + interval '1 day', ends_at = now() + interval '30 days' WHERE slug = $1`,
 		"switched off": `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`,
+		"nothing left to buy": `UPDATE product_variants SET stock_quantity = 0
+			WHERE product_id IN (SELECT cp.product_id FROM sale_campaign_products cp
+			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`,
 	} {
-		if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET starts_at = now() - interval '1 day', ends_at = now() + interval '7 days', is_active = true WHERE slug = $1`, campaign); err != nil {
+		if _, err = pool.Exec(ctx, `UPDATE sale_campaigns SET starts_at = now() - interval '1 day', ends_at = now() + interval '7 days', is_active = true WHERE slug = $1`, campaign); err != nil {
 			t.Fatalf("reset: %v", err)
 		}
-		if _, err := pool.Exec(ctx, setup, campaign); err != nil {
+		if _, err = pool.Exec(ctx, setup, campaign); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		view, err = store.Load(ctx, slug, nil)
