@@ -54,7 +54,7 @@ func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
 				}
 				form.Set(tt.field, tt.refused)
 				post := func() *httptest.ResponseRecorder {
-					req := httptest.NewRequest(http.MethodPost, "/admin/coupons", strings.NewReader(form.Encode())).WithContext(ctx)
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/coupons", strings.NewReader(form.Encode()))
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 					response := httptest.NewRecorder()
 					mux.ServeHTTP(response, req)
