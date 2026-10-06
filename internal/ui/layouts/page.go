@@ -36,11 +36,14 @@ type ShareImage struct {
 }
 
 type NavItem struct {
-	Slug     string
-	Name     string
-	Href     string
-	Children []NavItem
-	Picks    []NavPick
+	Slug string
+	Name string
+	Href string
+	// ProductCount is how many active products the department holds across its
+	// sub-categories; 0 is left unprinted.
+	ProductCount int
+	Children     []NavItem
+	Picks        []NavPick
 }
 
 // NavPick carries a Price that is already rendered, "from" included where variants differ: the
@@ -66,6 +69,27 @@ func TopNavFrom(ctx context.Context) []NavItem {
 		return nil
 	}
 	return items
+}
+
+type dealsKey struct{}
+
+// WithDeals says whether the deals page has something to buy. It is set in middleware
+// beside the department row, which it shares a row with.
+func WithDeals(ctx context.Context, open bool) context.Context {
+	return context.WithValue(ctx, dealsKey{}, open)
+}
+
+// HasDeals is false outside the middleware: a link to a page with nothing on it is the
+// worse mistake.
+func HasDeals(ctx context.Context) bool {
+	open, ok := ctx.Value(dealsKey{}).(bool)
+	return ok && open
+}
+
+// departmentRow reports whether the second row has anything to say: a single
+// department with no deals is the whole shop, and a row with one link in it is noise.
+func departmentRow(ctx context.Context) bool {
+	return len(TopNavFrom(ctx)) > 1 || HasDeals(ctx)
 }
 
 type originKey struct{}
@@ -119,7 +143,9 @@ type footerLink struct {
 func (l footerLink) Label(ctx context.Context) string { return i18n.T(ctx, l.Key) }
 
 var (
-	footerShopping = [...]footerLink{
+	footerHelp = [...]footerLink{
+		{Key: i18n.KeyContact, Href: "/contact"},
+		{Key: i18n.KeyFAQ, Href: "/faq"},
 		{Key: i18n.KeyShippingPolicy, Href: "/shipping"},
 		{Key: i18n.KeyPaymentPolicy, Href: "/payment"},
 		{Key: i18n.KeyReturnsPolicy, Href: "/returns"},
@@ -127,8 +153,6 @@ var (
 	}
 	footerAbout = [...]footerLink{
 		{Key: i18n.KeyFooterAbout, Href: "/about"},
-		{Key: i18n.KeyContact, Href: "/contact"},
-		{Key: i18n.KeyFAQ, Href: "/faq"},
 		{Key: i18n.KeyTermsPolicy, Href: "/terms"},
 		{Key: i18n.KeyPrivacyPolicy, Href: "/privacy"},
 	}
@@ -158,4 +182,18 @@ func cartLabel(ctx context.Context, count int) string {
 	}
 	// Substituted, not appended: the two languages put the count in different places.
 	return i18n.Count(ctx, i18n.KeyCartCount, int64(count), strconv.Itoa(count))
+}
+
+// languageShown is the language the storefront's switch names: the one a click changes
+// to. The back office's bar names the one that is on.
+func languageShown(current i18n.Locale, showOther bool) i18n.Locale {
+	if !showOther {
+		return current
+	}
+	for _, l := range i18n.Locales() {
+		if l != current {
+			return l
+		}
+	}
+	return current
 }

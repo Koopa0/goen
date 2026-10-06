@@ -20,7 +20,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 						if photo.Shown() {
 							// Low priority: the stylesheet drops the photograph below 1024, where an eager
 							// image is still fetched and must not compete with the tiles.
-							@bandMedia("goen-pagehead__photo", photo, onWell, "25rem", false)
+							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@components.Breadcrumb(components.BreadcrumbProps{

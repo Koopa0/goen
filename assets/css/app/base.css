@@ -444,6 +444,7 @@ body {
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
+  --chart-label: var(--fg-muted);
 }
 
 /* The one measurement every surface shares: a content column that stops at
@@ -473,7 +474,7 @@ body {
 }
 
 /* ---------- Period ----------
-   A stored start and end drawn to scale, one cell per day. A cell has no width
+   A stored start and end drawn to scale, one cell per day or per minute. A cell has no width
    of its own: the count of cells is the data. Elapsed cells are a 4px --mark
    fill, today is filled with a tick, cells to come are a 1px --edge. Only 今天
    sits above the line; below it only the two ends. Nothing animates and nothing
@@ -492,8 +493,14 @@ body {
 }
 
 /* Fifteen cells or more: a 2px gap would eat a third of a 288px line at 320px. */
-.ui-period:has(> i:nth-child(15)) {
+.ui-period:has(> i:nth-child(15)):not([data-unit="minute"]) {
   gap: 1px;
+}
+
+/* Sixty minutes are one line: the cells touch, and one gap splits the span
+   after the deadline from the cells before it. */
+.ui-period[data-unit="minute"] {
+  gap: 0;
 }
 
 .ui-period:has(> i:nth-child(15)) > i:nth-child(-n + 3) b {
@@ -623,13 +630,39 @@ body {
   }
 }
 
+.ui-period > i[data-mark]::before {
+  border-left: 2px solid var(--mark);
+  bottom: 0;
+  content: "";
+  height: 16px;
+  position: absolute;
+  right: -2px;
+}
+
+.ui-period[data-unit="minute"] > i[data-mark] + i {
+  margin-left: 2px;
+}
+
+.ui-period > i[data-mark] small {
+  left: auto;
+  right: 0;
+}
+
+/* Under 12rem the deadline's time would meet the end's: its tick stays. */
+@container period (width < 12rem) {
+  .ui-period[data-unit="minute"] > i[data-mark] small {
+    display: none;
+  }
+}
+
 /* Thickness carries elapsed from to come, and Highlight draws the tick. */
 @media (forced-colors: active) {
   .ui-period > i {
     border-bottom-color: CanvasText;
   }
 
-  .ui-period > i[data-cell="today"]::before {
+  .ui-period > i[data-cell="today"]::before,
+  .ui-period > i[data-mark]::before {
     border-left-color: Highlight;
   }
 }

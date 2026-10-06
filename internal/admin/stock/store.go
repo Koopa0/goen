@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -359,4 +360,51 @@ func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) err
 		}
 		return nil
 	})
+}
+
+// DaysCover ranks the SKUs that sold or are sold out over the last shop days,
+// at least admin.CoverWindowDays of them, and counts the sold out ones the
+// list leaves off. The stock and the ledger it is rolled back through are read
+// in one snapshot, so a movement between the two reads cannot shift the level.
+func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error) {
+	from := shoptime.Midnight(now).AddDate(0, 0, 1-max(days, admin.CoverWindowDays))
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, 0, fmt.Errorf("begin stock snapshot: %w", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	q := s.q.WithTx(tx)
+
+	rows, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: from, ToAt: now})
+	if err != nil {
+		return nil, 0, fmt.Errorf("read stock at risk: %w", err)
+	}
+	ids := make([]uuid.UUID, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].VariantID
+	}
+	moves := map[uuid.UUID][]movement{}
+	if len(ids) > 0 {
+		ledger, err := q.StockMovementsSince(ctx, db.StockMovementsSinceParams{VariantIds: ids, FromAt: from})
+		if err != nil {
+			return nil, 0, fmt.Errorf("read stock movements: %w", err)
+		}
+		for i := range ledger {
+			m := &ledger[i]
+			moves[m.VariantID] = append(moves[m.VariantID], movement{at: m.CreatedAt, delta: m.Delta})
+		}
+	}
+	risk := make([]admin.StockRisk, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		risk = append(risk, admin.StockRisk{
+			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
+			Sellable: max(r.StockQuantity-r.SafetyStock, 0),
+			Sold:     r.UnitsSold, Orders: r.OrdersSold,
+			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, from, now, moves[r.VariantID]),
+			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, now, moves[r.VariantID]),
+		})
+	}
+	listed, moreSoldOut = admin.RankStockRisk(risk)
+	return listed, moreSoldOut, nil
 }
