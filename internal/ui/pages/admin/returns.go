@@ -306,13 +306,16 @@ func (v ReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + 
 
 // RefundConfirmation is a refund before shipment, before it moves money.
 // Resume means the refund is already open, its split frozen and its reason
-// recorded.
+// recorded. CreditPaid is a pending order store credit alone paid: confirming
+// cancels it at once and returns the credit, as its customer's own
+// cancellation would.
 type RefundConfirmation struct {
 	OrderNumber   string
 	TotalCents    int64
 	CardCents     int64
 	CreditCents   int64
 	Resume        bool
+	CreditPaid    bool
 	Reason        string
 	ReasonInvalid bool
 }
@@ -322,6 +325,12 @@ func (v RefundConfirmation) Amount() string { return money.TWD(v.TotalCents) }
 // Total is the amount the confirming POST repeats; a different figure is a
 // refund the staff member was not shown.
 func (v RefundConfirmation) Total() string { return strconv.FormatInt(v.TotalCents, 10) }
+
+// CreditCancellation is what confirming does to an order store credit alone
+// paid.
+func (v RefundConfirmation) CreditCancellation(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(v.CreditCents))
+}
 
 func (v RefundConfirmation) Channel(ctx context.Context) string {
 	return (&Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)

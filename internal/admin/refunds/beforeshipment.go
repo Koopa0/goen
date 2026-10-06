@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returns"
@@ -25,14 +26,25 @@ import (
 )
 
 // beforeShipmentRefundState reports whether the order page offers a refund before
-// shipment, and whether one is open for Resume. open_refund_before_shipment
-// re-derives both under the order lock.
+// shipment, and whether one is open for Resume. Under the order lock,
+// open_refund_before_shipment re-derives both for a committed order, and
+// orders_check_transition re-judges a cancelCreditPaid.
 func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
 	status := order.FulfillmentStatus(r.FulfillmentStatus)
 	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.StatusApproved
-	offered = r.Committed && !r.Shipped && !r.HasReturn &&
+	offered = (r.Committed || creditPaidPending(r)) && !r.Shipped && !r.HasReturn &&
 		(status == order.FulfillmentPending || status == order.FulfillmentPicking)
 	return offered, open
+}
+
+// creditPaidPending is a pending order store credit alone paid. The database
+// commits it only when packing starts, and store_credit_guard refuses to pay
+// credit back through a return on an uncommitted order, so its refund before
+// shipment is the customer's own cancellation run by staff: the spend is
+// reversed.
+func creditPaidPending(r *db.BeforeShipmentRefundRow) bool {
+	return r.PaidByCredit && !r.Committed && !r.HasReturn &&
+		order.FulfillmentStatus(r.FulfillmentStatus) == order.FulfillmentPending
 }
 
 // FillOrder puts the refund before shipment on the order page, offered or open
@@ -44,6 +56,7 @@ func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number str
 		return false, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
 	view.RefundOffered, view.RefundOpen = beforeShipmentRefundState(&refund)
+	view.RefundCreditPaid = view.RefundOffered && creditPaidPending(&refund)
 	return refund.ReturnRequestID.Valid, nil
 }
 
@@ -63,14 +76,16 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 	return admin.RefundConfirmation{
 		OrderNumber: number, TotalCents: row.TotalCents,
 		CardCents: row.CardCents, CreditCents: row.CreditCents, Resume: open,
+		CreditPaid: offered && creditPaidPending(&row),
 	}, nil
 }
 
 // RefundBeforeShipment refunds a paid order nothing has shipped from, in full,
 // and cancels it once the money has settled and the invoice is resolved. Each
 // step is durable before the next, so pressing it again resumes the first one
-// that did not finish. The Checkout Sessions returned are the cancelled order's,
-// for the caller to close at Stripe.
+// that did not finish. A pending order store credit alone paid is cancelled at
+// once instead (cancelCreditPaid). The Checkout Sessions returned are the
+// cancelled order's, for the caller to close at Stripe.
 func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string) ([]string, error) {
 	if !returns.ValidResolution(reason) {
 		return nil, fmt.Errorf("%w: refund reason exceeds %d characters",
@@ -81,6 +96,14 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		return nil, fmt.Errorf("%w: refund before shipment", audit.ErrNoActor)
 	}
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
+
+	state, err := s.q.BeforeShipmentRefund(ctx, number)
+	switch {
+	case err == nil && creditPaidPending(&state):
+		return s.cancelCreditPaid(ctx, number, reason, actor)
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		return nil, fmt.Errorf("read refund before shipment of %s: %w", number, err)
+	}
 
 	returnID, err := s.q.OpenRefundBeforeShipment(ctx, db.OpenRefundBeforeShipmentParams{
 		OrderNumber: number, Reason: strings.TrimSpace(reason),
@@ -283,5 +306,97 @@ func recordStaffCancellation(
 	}
 	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: refundedCents > 0,
+	})
+}
+
+// cancelCreditPaid does what the customer's own cancellation does
+// (internal/cart), as staff: the order is cancelled, its stock released, its
+// credit spend reversed and its 統一發票 void queued.
+func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, actor uuid.NullUUID) ([]string, error) {
+	note := strings.TrimSpace(reason)
+	if note == "" {
+		return nil, fmt.Errorf("%w: cancelling %s needs a note", ErrInvalid, number)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin cancelling %s: %w", number, err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	q := s.q.WithTx(tx)
+
+	orderID, err := q.LockOrderByNumber(ctx, number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock order %s: %w", number, err)
+	}
+	// What moved the order since it was read is refused here, not re-tested:
+	// orders_history_frozen refuses cancelling a cancelled order again, and
+	// orders_paid_cancel_needs_refund one that packing or a card committed.
+	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
+		OrderNumber: number, Status: string(order.FulfillmentCancelled),
+	}); advanceErr != nil {
+		return nil, pgerr.WrapRefusal(fmt.Errorf("cancel %s: %w", number, advanceErr), refundstate.ErrRefused)
+	}
+	if settleErr := settleCreditPaidCancellation(ctx, q, orderID, number, note, actor); settleErr != nil {
+		return nil, settleErr
+	}
+	sessions, err := q.OpenSessionsForOrder(ctx, number)
+	if err != nil {
+		return nil, fmt.Errorf("read open checkout sessions of %s: %w", number, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit cancelling %s: %w", number, err)
+	}
+	return sessions, nil
+}
+
+// settleCreditPaidCancellation runs in the transaction that cancelled the
+// order. The note says how the buyer asked for or agreed to the cancellation;
+// with this audit row it is their consent to the void, so the void's request id
+// is this request's. The note is kept off the order event, which the customer's
+// order page shows.
+func settleCreditPaidCancellation(
+	ctx context.Context, q *db.Queries, orderID uuid.UUID, number, note string, actor uuid.NullUUID,
+) error {
+	// Stock and credit come back after the status change: release_reservation
+	// and store_credit_guard both refuse while the order is a live checkout.
+	held, err := q.HeldReservationsForOrder(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read holds of %s: %w", number, err)
+	}
+	for _, id := range held {
+		if releaseErr := q.ReleaseReservation(ctx, id); releaseErr != nil {
+			return fmt.Errorf("release hold %s of %s: %w", id, number, releaseErr)
+		}
+	}
+	returnedCents, err := q.ReverseOrderCredit(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("return store credit spent on %s: %w", number, err)
+	}
+
+	err = q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
+		OrderID: orderID, Kind: string(order.EventCancelled), ActorUserID: actor,
+	})
+	if err != nil {
+		return fmt.Errorf("record order event: %w", err)
+	}
+	err = audit.In(ctx, q, audit.Event{
+		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
+		After: map[string]any{
+			"number": number, "status": string(order.FulfillmentCancelled),
+			"note": note, "credit_returned_cents": returnedCents,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	err = invoice.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{OrderNumber: number, Trigger: web.RequestID(ctx)})
+	if err != nil {
+		return err
+	}
+	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
+		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: returnedCents > 0,
 	})
 }
