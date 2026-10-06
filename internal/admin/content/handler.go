@@ -325,15 +325,7 @@ func (h *Handler) rejectHeroSlide(
 		return
 	}
 	view.Errors = errs
-	view.Draft = admin.HeroDraft{
-		Eyebrow: r.PostFormValue("eyebrow"), Headline: r.PostFormValue("headline"), Body: r.PostFormValue("body"),
-		PrimaryLabel: r.PostFormValue("primary_label"), PrimaryHref: r.PostFormValue("primary_href"),
-		SecondLabel: r.PostFormValue("second_label"), SecondHref: r.PostFormValue("second_href"),
-		ImageKey: f.ImageKey, ImageAlt: r.PostFormValue("alt"), Days: r.PostFormValue("days"),
-		EyebrowEn: r.PostFormValue("eyebrow_en"), HeadlineEn: r.PostFormValue("headline_en"), BodyEn: r.PostFormValue("body_en"),
-		PrimaryLabelEn: r.PostFormValue("primary_label_en"), SecondLabelEn: r.PostFormValue("second_label_en"),
-		ImageAltEn: r.PostFormValue("alt_en"),
-	}
+	view.Draft = admin.HeroDraft{ImageKey: f.ImageKey}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }

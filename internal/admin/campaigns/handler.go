@@ -135,7 +135,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	}
 	var altDraft, altEnDraft string
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
-		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
+		altDraft, altEnDraft = "", ""
 	}
 	web.Render(w, r, h.log, status, admin.CampaignForm(
 		layouts.Page{Title: detail.Title}, admin.CampaignView{
