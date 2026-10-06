@@ -6719,6 +6719,35 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered
+`
+
+// Whether /deals has anything to buy: a discounted product that can be bought,
+// or a campaign ListedCampaigns lists. The header asks on every page; each half
+// stops at its first row. Its plan has not been measured.
+func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
+	var offered bool
+	err := row.Scan(&offered)
+	return offered, err
+}
+
 const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
@@ -7700,7 +7729,10 @@ type HomeDepartmentStockRow struct {
 }
 
 // How many active products each root holds across its whole subtree: a
-// department with fewer than three has no band to show.
+// department with fewer than three has no band to show, and the header prints
+// it beside each department in the phone menu, so it runs on every page with a
+// header. Unlike the header's other reads it counts the catalogue, not the
+// categories, and its plan has not been measured.
 func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
 	rows, err := q.db.Query(ctx, homeDepartmentStock)
 	if err != nil {
@@ -11045,6 +11077,68 @@ func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, er
 	var paid_by_credit bool
 	err := row.Scan(&paid_by_credit)
 	return paid_by_credit, err
+}
+
+const paidByShopDay = `-- name: PaidByShopDay :many
+SELECT
+    d.day::date AS day,
+    count(t.total)::bigint AS orders,
+    coalesce(sum(t.total), 0)::bigint AS revenue_cents
+FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+    FROM orders o
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type PaidByShopDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	FromAt   time.Time
+	ToAt     time.Time
+}
+
+type PaidByShopDayRow struct {
+	Day          time.Time
+	Orders       int64
+	RevenueCents int64
+}
+
+// One row per shop day from first_day to last_day, a day without orders
+// included. The orders and their total are RevenueBetween's, so the days add up
+// to its revenue. The bounds are cut on the shop's clock by the caller.
+func (q *Queries) PaidByShopDay(ctx context.Context, arg PaidByShopDayParams) ([]PaidByShopDayRow, error) {
+	rows, err := q.db.Query(ctx, paidByShopDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.FromAt,
+		arg.ToAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaidByShopDayRow{}
+	for rows.Next() {
+		var i PaidByShopDayRow
+		if err := rows.Scan(&i.Day, &i.Orders, &i.RevenueCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -72,7 +73,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 	s := reports.NewStore(p)
 	h := reports.NewHandler(s, slog.New(slog.DiscardHandler))
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("read empty report: %v", err)
 		}
@@ -86,7 +87,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		t.Fatalf("settle the older refund request: %v", err)
 	}
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("read refund-only report: %v", err)
 		}
@@ -211,7 +212,7 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 	onlyTheOtherOrder := func(state string) {
 		t.Helper()
 		for _, days := range []int32{7, 30, 90} {
-			view, err := s.Report(ctx, days)
+			view, err := s.ReportAt(ctx, days, time.Now())
 			if err != nil {
 				t.Fatalf("read report: %v", err)
 			}
