@@ -84,13 +84,6 @@ func TWD(cents int64) string { return twd(cents) }
 
 func twd(cents int64) string { return money.TWD(cents) }
 
-func FreeDeliveryText(cents int64) string {
-	if cents <= 0 {
-		return ""
-	}
-	return twd(cents)
-}
-
 // The first two rows at the widest grid, which is also the first four of a
 // phone's: a second row starts inside a 900px-tall window, and a lazy photograph
 // there appears after the page has painted.

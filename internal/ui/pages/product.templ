@@ -512,7 +512,7 @@ templ productBuyBar(v *ProductView) {
 				@icons.Cart()
 				<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
 			}
-		} else if v.SoldOut() {
+		} else if v.NotifyOffered() {
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
 				{ i18n.T(ctx, i18n.KeyRestockHeading) }
 			}

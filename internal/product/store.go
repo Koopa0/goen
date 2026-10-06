@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/productlabel"
@@ -102,18 +103,13 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 
 	chosen, exact := Resolve(variants, sel)
 
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
-	}
-
-	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
-	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read lowest delivery fee: %w", err)
+		return pages.ProductView{}, err
 	}
 
 	view := pages.ProductView{
-		Rules:        pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
+		Rules:        rules,
 		Slug:         p.Slug,
 		Name:         p.Name,
 		Summary:      p.Summary,

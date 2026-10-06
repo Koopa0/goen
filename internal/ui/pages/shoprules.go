@@ -24,7 +24,7 @@ type ShopRules struct {
 }
 
 func (r ShopRules) Stats(ctx context.Context) []components.Stat {
-	stats := []components.Stat{
+	return []components.Stat{
 		r.holdStat(ctx),
 		r.rescissionStat(ctx),
 		{
@@ -32,8 +32,8 @@ func (r ShopRules) Stats(ctx context.Context) []components.Stat {
 			Value: components.StatCount(ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 		},
+		r.freeDeliveryStat(ctx),
 	}
-	return append(stats, r.freeDeliveryStat(ctx))
 }
 
 func (r ShopRules) holdStat(ctx context.Context) components.Stat {
