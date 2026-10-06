@@ -3442,6 +3442,54 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 	return items, nil
 }
 
+const campaignBySlug = `-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.starts_at, c.ends_at,
+       c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = $2::text AND c.is_active
+`
+
+type CampaignBySlugParams struct {
+	Locale string
+	Slug   string
+}
+
+type CampaignBySlugRow struct {
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
+}
+
+// Any active campaign by its slug, inside its window or not: the page says
+// honestly whether it has not started or has ended.
+func (q *Queries) CampaignBySlug(ctx context.Context, arg CampaignBySlugParams) (CampaignBySlugRow, error) {
+	row := q.db.QueryRow(ctx, campaignBySlug, arg.Locale, arg.Slug)
+	var i CampaignBySlugRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Tone,
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageWidth,
+	)
+	return i, err
+}
+
 const campaignProducts = `-- name: CampaignProducts :many
 SELECT
     p.slug,
@@ -3526,7 +3574,7 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id
+ORDER BY in_stock DESC, cp.position, p.id
 `
 
 type CampaignProductsParams struct {
@@ -3553,6 +3601,7 @@ type CampaignProductsRow struct {
 }
 
 // Ordered by the position the back office set: a campaign is merchandising.
+// Sellable products first, then the position the back office set.
 func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsParams) ([]CampaignProductsRow, error) {
 	rows, err := q.db.Query(ctx, campaignProducts, arg.CampaignID, arg.Locale)
 	if err != nil {
@@ -3579,6 +3628,51 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.ImageWidth,
 			&i.ImageHeight,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const campaignsBetween = `-- name: CampaignsBetween :many
+SELECT localized_name(c.title, c.title_en, $1::text) AS title,
+       shop_day(c.starts_at) AS first_day,
+       shop_day(c.ends_at - interval '1 microsecond') AS last_day
+FROM sale_campaigns c
+WHERE c.is_active
+  AND c.starts_at < $2::timestamptz AND c.ends_at > $3::timestamptz
+ORDER BY c.starts_at, c.id
+`
+
+type CampaignsBetweenParams struct {
+	Locale string
+	ToAt   time.Time
+	FromAt time.Time
+}
+
+type CampaignsBetweenRow struct {
+	Title    string
+	FirstDay time.Time
+	LastDay  time.Time
+}
+
+// The campaigns that were on at any time in [from_at, to_at), as the shop days
+// they cover; a campaign's last day is the one its ends_at falls in, and an
+// ends_at at midnight belongs to the day before.
+func (q *Queries) CampaignsBetween(ctx context.Context, arg CampaignsBetweenParams) ([]CampaignsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, campaignsBetween, arg.Locale, arg.ToAt, arg.FromAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignsBetweenRow{}
+	for rows.Next() {
+		var i CampaignsBetweenRow
+		if err := rows.Scan(&i.Title, &i.FirstDay, &i.LastDay); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -6654,7 +6748,8 @@ SELECT
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
+    SELECT price_cents, compare_at_price_cents,
+           (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (compare_at_price_cents IS NOT NULL
@@ -6679,6 +6774,9 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
+    -- A discount that can be bought comes before a deeper one that cannot: the
+    -- variant the tile shows, not any variant of the product.
+    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -8876,6 +8974,26 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 	return items, nil
 }
 
+const latestPaidDay = `-- name: LatestPaidDay :one
+SELECT shop_day(o.placed_at) AS day
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+WHERE o.placed_at < $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY o.placed_at DESC
+LIMIT 1
+`
+
+// The shop day of the latest paid order placed before to_at, counted as
+// PaidByShopDay counts; no row when there is none.
+func (q *Queries) LatestPaidDay(ctx context.Context, toAt time.Time) (time.Time, error) {
+	row := q.db.QueryRow(ctx, latestPaidDay, toAt)
+	var day time.Time
+	err := row.Scan(&day)
+	return day, err
+}
+
 const leaseInvoiceOperation = `-- name: LeaseInvoiceOperation :one
 SELECT lease_invoice_operation(
     $1::uuid, $2::uuid, $3::interval
@@ -8958,7 +9076,7 @@ type ListedCampaignsRow struct {
 }
 
 // A campaign is listed only while a published featured product can be bought,
-// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
 func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -9436,44 +9554,42 @@ func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.
 	return id, err
 }
 
-const lockUserForAddressDefault = `-- name: LockUserForAddressDefault :one
+const lockUser = `-- name: LockUser :one
 SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
-func (q *Queries) LockUserForAddressDefault(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockUserForAddressDefault, userID)
+// Every path that locks both the account row and its carts or addresses takes
+// the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+// default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
+// SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
+// UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
+// only the cart, and non-default address writes take at most the foreign key's
+// KEY SHARE. None of them takes the account row after a cart or address row,
+// which keeps the order acyclic. Checkout's KEY SHARE does not wait for
+// adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
+// conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
+// user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
+// any row lock; store's column UPDATE on users is enough.
+func (q *Queries) LockUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUser, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
-SELECT lock_user_for_cart_adoption($1::uuid)
-`
-
-// The account row is the stable lock for deciding which of two guest carts is
-// the first one this user adopts. A SECURITY DEFINER function is required
-// because store has only narrow authentication-column UPDATE grants, not
-// authority for a general users row lock.
-func (q *Queries) LockUserForCartAdoption(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, lockUserForCartAdoption, userID)
-	var lock_user_for_cart_adoption bool
-	err := row.Scan(&lock_user_for_cart_adoption)
-	return lock_user_for_cart_adoption, err
-}
-
 const lockUserForCheckout = `-- name: LockUserForCheckout :one
-SELECT lock_user_for_checkout($1::uuid)
+SELECT id FROM users WHERE id = $1::uuid FOR KEY SHARE
 `
 
 // Logged-in checkout writes several user foreign keys after it owns the cart.
 // Acquire their natural KEY SHARE first so account erasure and cart adoption use
 // the same user -> cart order. Guest checkout has no user and skips this query.
-func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bool, error) {
+// Lock order and privilege: see LockUser in internal/account/query.sql.
+func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockUserForCheckout, userID)
-	var lock_user_for_checkout bool
-	err := row.Scan(&lock_user_for_checkout)
-	return lock_user_for_checkout, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
@@ -14975,51 +15091,6 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 		return nil, err
 	}
 	return items, nil
-}
-
-const runningCampaign = `-- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title, c.ends_at,
-       c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = $2::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now()
-`
-
-type RunningCampaignParams struct {
-	Locale string
-	Slug   string
-}
-
-type RunningCampaignRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
-}
-
-// The window is judged against the database's clock, which wrote the timestamps.
-func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams) (RunningCampaignRow, error) {
-	row := q.db.QueryRow(ctx, runningCampaign, arg.Locale, arg.Slug)
-	var i RunningCampaignRow
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Title,
-		&i.EndsAt,
-		&i.Tone,
-		&i.ImageKey,
-		&i.ImageAlt,
-		&i.ImageWidth,
-	)
-	return i, err
 }
 
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
