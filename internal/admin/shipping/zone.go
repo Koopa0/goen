@@ -139,14 +139,39 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 		Action: audit.ActionDeleteShippingZone, Table: "shipping_zones",
 		ID: audit.EntityID(zoneID),
 	}, func(ctx context.Context, q *db.Queries) error {
+		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		}
+		if _, lockErr := q.LockShippingZone(ctx, zoneID); lockErr != nil {
+			if errors.Is(lockErr, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("lock shipping zone: %w", lockErr)
+		}
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)
 		if execErr != nil {
 			return pgerr.WrapRefusal(execErr, ErrRefused)
 		}
-		if n == 0 {
-			return ErrInUse
+		if n != 0 {
+			return nil
 		}
-		return nil
+		zones, readErr := q.AdminShippingZones(ctx)
+		if readErr != nil {
+			return fmt.Errorf("read shipping zone deletion blocker: %w", readErr)
+		}
+		for i := range zones {
+			if zones[i].ID != zoneID {
+				continue
+			}
+			// The prefix lock keeps this count stable. With no prefixes, the
+			// DELETE's only other blocker is a delivery-version reference.
+			use := ZoneUsedByVersions
+			if zones[i].PrefixCount > 0 {
+				use = ZoneUsedByPrefixes
+			}
+			return &ZoneInUseError{Use: use}
+		}
+		return ErrNotFound
 	})
 }
 
