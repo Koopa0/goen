@@ -32,7 +32,7 @@ import (
 
 func healthHandler(p *pgxpool.Pool) *health.Handler {
 	log := slog.New(slog.DiscardHandler)
-	return health.NewHandler(health.NewStore(p), outbox.NewStore(p, log), nil, log)
+	return health.NewHandler(health.NewStore(p), outbox.NewStore(p, log), nil, nil, log)
 }
 
 func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
