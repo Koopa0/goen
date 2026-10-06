@@ -21,5 +21,5 @@ WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
   AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
   AND a.atttypid IN ('timestamptz'::regtype, 'timestamp'::regtype, 'date'::regtype)
   AND c.relname NOT IN ('sessions', 'password_reset_tokens', 'email_verifications', 'newsletter_confirmations',
-                        'carts', 'cart_items', 'checkout_attempts',
+                        'carts', 'cart_items', 'checkout_attempts', 'order_access_grants',
                         'order_number_counters');
