@@ -1255,6 +1255,14 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	if refundRows != 0 {
 		t.Errorf("%d refunds written for a REJECTED return", refundRows)
 	}
+	var refundable int64
+	if err := pool.QueryRow(ctx,
+		`SELECT return_refundable_amount($1)`, requestID).Scan(&refundable); err != nil {
+		t.Fatalf("read the refundable amount: %v", err)
+	}
+	if refundable != 0 {
+		t.Errorf("a rejected return shows %d refundable, want 0", refundable)
+	}
 
 	var status, resolution string
 	if err := pool.QueryRow(ctx,

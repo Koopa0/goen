@@ -32,7 +32,7 @@ templ letterHTML(lang, header string, body []paragraph) {
 									}
 									for _, s := range line {
 										if s.link {
-											<a href={ templ.URL(s.text) } style="color:#2a75ba;text-decoration:underline;word-break:break-all;">{ s.text }</a>
+											<a href={ templ.URL(s.text) } style="color:#26395a;text-decoration:underline;word-break:break-all;">{ s.text }</a>
 										} else {
 											{ s.text }
 										}
