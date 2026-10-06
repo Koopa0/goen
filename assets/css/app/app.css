@@ -304,7 +304,7 @@ h3 {
 
 .goen-btn:focus-visible,
 .goen-swatch:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -4530,8 +4530,9 @@ a.goen-pager__step:hover {
   --tone-muted: var(--n-500);
 }
 
-[data-tone="ink"],
-.goen-promo {
+.goen-promo,
+.goen-pagehead[data-tone="ink"],
+.goen-hero__slide[data-tone="ink"] {
   --ring: var(--n-0);
 }
 

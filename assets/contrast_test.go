@@ -132,7 +132,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 }
 
 // toneBlock finds a [data-tone="…"] rule and its declarations.
-var toneBlock = regexp.MustCompile(`(?s)\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
+var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 
 // toneDecl finds one declaration inside a tone block. The value is a hex colour
 // or a var() naming a token.
@@ -295,14 +295,22 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 		}
 	}
 
-	override := regexp.MustCompile(`(?s)\[data-tone="ink"\],\s*\.goen-promo \{\s*--ring: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	override := regexp.MustCompile(`(?s)((?:[^{}]*)\{[^{}]*--ring: var\((--[a-z0-9-]+)\);)`).FindStringSubmatch(string(sheet))
 	if override == nil {
-		t.Fatal("app.css does not re-point --ring on the promo bar and the ink tone")
+		t.Fatal("app.css does not re-point --ring on any dark ground")
+	}
+	selectors := strings.Split(strings.TrimSpace(override[1][:strings.Index(override[1], "{")]), ",")
+	for _, sel := range selectors {
+		// A bare tone selector also reaches the light grounds that carry
+		// the tone as data, where a white ring would be 1:1.
+		if strings.HasPrefix(strings.TrimSpace(sel), "[data-tone") {
+			t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", strings.TrimSpace(sel))
+		}
 	}
 	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
-		if got := contrast(tokens[override[1]], bg); got < 3 {
+		if got := contrast(tokens[override[2]], bg); got < 3 {
 			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
-				override[1], tokens[override[1]], bg, got)
+				override[2], tokens[override[2]], bg, got)
 		}
 	}
 }
