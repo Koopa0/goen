@@ -133,11 +133,19 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	stock, err := s.q.HomeDepartmentStock(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read nav department sizes: %w", err)
+	}
+	size := make(map[uuid.UUID]int, len(stock))
+	for i := range stock {
+		size[stock[i].ID] = int(stock[i].Products)
+	}
 	items := make([]layouts.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		items = append(items, layouts.NavItem{
-			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, Children: children[r.ID], Picks: picks[r.ID],
+			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: size[r.ID], Children: children[r.ID], Picks: picks[r.ID],
 		})
 	}
 	return items, nil

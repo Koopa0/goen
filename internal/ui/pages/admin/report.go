@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
 )
 
 type Seller struct {
@@ -63,6 +64,17 @@ type ReportView struct {
 	// ReturnedErr is why Returned could not be read; the rest of the report
 	// does not depend on it.
 	ReturnedErr error
+	Daily       DailyRevenue
+	// DailyUnavailable is set when the days could not be read, so the running
+	// totals say so rather than read as a period without orders.
+	DailyUnavailable bool
+}
+
+// DailyRevenue is each shop day's paid revenue in this period and in the one
+// before it, and the time of day both periods are counted up to.
+type DailyRevenue struct {
+	Current, Previous chart.Series
+	Cut               string
 }
 
 // PreviousFigures are the period of as many shop days before this one, up to
@@ -143,6 +155,31 @@ func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64
 		return i18n.Count(ctx, i18n.KeyAdminRepMore, int64(days), days, percent)
 	}
 	return i18n.Count(ctx, i18n.KeyAdminRepLess, int64(days), days, percent)
+}
+
+// ShowsRunningTotal reports whether this period has days with orders enough to
+// draw its running total.
+func (v *ReportView) ShowsRunningTotal() bool {
+	return v.Daily.Current.Density() == chart.DensityFull
+}
+
+// RunningTotal is the chart of the days, with the revenue sentence as its
+// caption: the tile's own wording, so the two cannot disagree.
+func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
+	current, previous := v.Daily.Current, v.Daily.Previous
+	current.Label = i18n.Count(ctx, i18n.KeyAdminRepLastDays, int64(v.Days), v.Days)
+	previous.Label = i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, int64(v.Days), v.Days)
+	return chart.RunningTotalProps{
+		Current: current, Previous: previous,
+		Measure: chart.MeasureMoney,
+		Caption: i18n.Count(ctx, i18n.KeyAdminRepRunningCaption, int64(v.Days),
+			v.Days, v.Revenue(), v.RevenueAgainst(ctx)),
+		Note:               i18n.Count(ctx, i18n.KeyAdminRepRunningNote, int64(v.Days), v.Days, v.Daily.Cut),
+		PreviousDayHeading: i18n.Count(ctx, i18n.KeyAdminRepPreviousDate, int64(v.Days), v.Days),
+		DayHeading:         i18n.T(ctx, i18n.KeyAdminRepDate),
+		TotalLabel:         i18n.T(ctx, i18n.KeyAdminRepTotal),
+		PartialLabel:       fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), v.Daily.Cut),
+	}
 }
 
 func (v *ReportView) previous(ctx context.Context, figure string) string {

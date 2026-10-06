@@ -136,3 +136,40 @@ var (
 		En:     "Returns data is unavailable right now.",
 	})
 )
+
+var (
+	KeyAdminRepRunning = key("admin.rep.running", Message{ZhHant: "累計營收（NT$）", En: "Revenue so far (NT$)"})
+
+	// %[1]d is the number of days, %[2]s the revenue, %[3]s how it stands against
+	// the previous period.
+	KeyAdminRepRunningCaption = countKey("admin.rep.running.caption",
+		"%[1]d 天營收 %[2]s，%[3]s。",
+		"Revenue over %[1]d day: %[2]s. %[3]s.",
+		"Revenue over %[1]d days: %[2]s. %[3]s.")
+
+	// %[1]d is the number of days in the period, %[2]s the time of day both
+	// periods are counted up to.
+	KeyAdminRepRunningNote = countKey("admin.rep.running.note",
+		"只計入已付款的訂單，依下單時間。今天到 %[2]s 為止，前 %[1]d 天同樣算到 %[2]s。",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d day.",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d days.")
+
+	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
+		ZhHant: "這張圖的資料暫時無法取得。",
+		En:     "This chart's data is unavailable right now.",
+	})
+
+	KeyAdminRepLastDays = countKey("admin.rep.lastdays", "近 %d 天", "Last %d day", "Last %d days")
+
+	KeyAdminRepPreviousDays = countKey("admin.rep.previousdays", "前 %d 天", "Previous %d day", "Previous %d days")
+
+	// The table column that names the previous period's day on each row.
+	KeyAdminRepPreviousDate = countKey("admin.rep.previousdate", "前 %d 天的日期", "Date in the previous %d day", "Date in the previous %d days")
+
+	KeyAdminRepDate = key("admin.rep.date", Message{ZhHant: "日期", En: "Date"})
+
+	KeyAdminRepTotal = key("admin.rep.total", Message{ZhHant: "合計", En: "Total"})
+
+	// The last day of the table, which is not over: %s is the time of day.
+	KeyAdminRepUntil = key("admin.rep.until", Message{ZhHant: "到 %s 為止", En: "up to %s"})
+)

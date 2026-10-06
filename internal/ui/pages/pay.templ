@@ -22,6 +22,10 @@ templ Pay(p layouts.Page, v PayView) {
 						{ i18n.T(ctx, i18n.KeyPayBody) }
 					}
 				</p>
+				@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain)
+				if period, ok := v.Hold.Period(ctx); ok {
+					@components.Period(period)
+				}
 			</div>
 			if v.Cancelled && !v.Closed() {
 				@components.Notice(components.NoticeProps{
@@ -102,9 +106,9 @@ templ Pay(p layouts.Page, v PayView) {
 							{ i18n.T(ctx, i18n.KeyPaySandbox) }
 						}
 					}
-					if v.StartBy != "" {
+					if !v.Hold.StartBy.IsZero() {
 						<p class="goen-pay__assurance">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.StartBy) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.Hold.StartByText()) }
 						</p>
 					}
 					<form method="post" action={ templ.SafeURL(v.Action()) }>

@@ -790,29 +790,49 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
+       w.spend_cents AS window_spend_cents,
+       coalesce(nt.name, '')::text AS next_tier_name,
+       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-WHERE u.id = $1
+CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
+LEFT JOIN LATERAL (
+    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
+    FROM membership_tiers n
+    WHERE n.min_spend_cents > w.spend_cents
+    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
+WHERE u.id = $3
 `
 
+type AdminCustomerParams struct {
+	WindowDays int32
+	Locale     string
+	UserID     uuid.UUID
+}
+
 type AdminCustomerRow struct {
-	ID          uuid.UUID
-	Email       string
-	FullName    string
-	Phone       string
-	CreatedAt   time.Time
-	Verified    bool
-	Orders      int64
-	Spent       int64
-	CreditCents int64
-	Points      int64
+	ID               uuid.UUID
+	Email            string
+	FullName         string
+	Phone            string
+	CreatedAt        time.Time
+	Verified         bool
+	Orders           int64
+	Spent            int64
+	CreditCents      int64
+	Points           int64
+	WindowSpendCents int64
+	NextTierName     string
+	NextTierCents    int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, id)
+// The window spend and the next tier are what the account page judges tiers by,
+// read the way it reads them.
+func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -825,6 +845,9 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
+		&i.WindowSpendCents,
+		&i.NextTierName,
+		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -2415,60 +2438,112 @@ func (q *Queries) AdminShippingZones(ctx context.Context) ([]AdminShippingZonesR
 
 const adminSummary = `-- name: AdminSummary :one
 SELECT
+    pending.pending_orders,
+    ready.ready_orders,
+    ready.ready_oldest_seconds,
+    picking.picking_orders,
+    stock.low_stock,
+    active.active_products,
+    messages.open_messages,
+    messages.open_messages_oldest_seconds,
+    requested.pending_returns,
+    requested.pending_returns_oldest_seconds,
+    uninspected.uninspected_returns,
+    uninspected.uninspected_returns_oldest_seconds,
+    questions.unanswered_questions,
+    questions.unanswered_questions_oldest_seconds
+FROM
     -- Genuinely UNPAID, not merely pending: an order funded by store credit or
     -- a full discount sits at pending for good, and counting it here sends
     -- somebody looking for money that has already arrived.
-    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0)::bigint AS pending_orders,
-    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
-    (SELECT count(*) FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
-    (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
-    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    (SELECT count(*)::bigint AS pending_orders FROM orders o
+     WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0) pending,
+    -- Waiting since the order was funded, as admin/health reads it
+    -- (UninvoicedOrders); placed_at is the fallback for an order store credit
+    -- paid in full, which has no payment and no paid event.
+    (SELECT count(*)::bigint AS ready_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'paid'),
+                (SELECT max(p.paid_at) FROM payments p
+                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
+                o.placed_at))), 0), 0)::bigint AS ready_oldest_seconds
+     FROM orders o
+     WHERE o.fulfillment_status = 'pending'
+       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
+    (SELECT count(*)::bigint AS picking_orders FROM orders
+     WHERE fulfillment_status = 'picking') picking,
+    (SELECT count(*)::bigint AS low_stock FROM product_variants
+     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    (SELECT count(*)::bigint AS active_products FROM products
+     WHERE status = 'active') active,
+    (SELECT count(*)::bigint AS open_messages,
+            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+                AS open_messages_oldest_seconds
+     FROM contact_messages WHERE handled_at IS NULL) messages,
+    (SELECT count(*)::bigint AS pending_returns,
+            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+                AS pending_returns_oldest_seconds
+     FROM return_requests WHERE status = 'requested') requested,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
-    (SELECT count(*) FROM return_requests r
+    (SELECT count(*)::bigint AS uninspected_returns,
+            coalesce(greatest(extract(epoch FROM now() - min(r.decided_at)), 0), 0)::bigint
+                AS uninspected_returns_oldest_seconds
+     FROM return_requests r
      WHERE r.status = 'approved' AND NOT r.before_shipment
        AND EXISTS (SELECT 1 FROM return_request_lines rl
-                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
-    )::bigint AS uninspected_returns,
+                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)) uninspected,
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
-    (SELECT count(*) FROM product_questions q
+    (SELECT count(*)::bigint AS unanswered_questions,
+            coalesce(greatest(extract(epoch FROM now() - min(q.created_at)), 0), 0)::bigint
+                AS unanswered_questions_oldest_seconds
+     FROM product_questions q
      WHERE q.hidden_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM product_answers a
-                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
-    )::bigint AS unanswered_questions
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)) questions
 `
 
 type AdminSummaryRow struct {
-	PendingOrders       int64
-	ReadyOrders         int64
-	PickingOrders       int64
-	LowStock            int64
-	ActiveProducts      int64
-	OpenMessages        int64
-	PendingReturns      int64
-	UninspectedReturns  int64
-	UnansweredQuestions int64
+	PendingOrders                    int64
+	ReadyOrders                      int64
+	ReadyOldestSeconds               int64
+	PickingOrders                    int64
+	LowStock                         int64
+	ActiveProducts                   int64
+	OpenMessages                     int64
+	OpenMessagesOldestSeconds        int64
+	PendingReturns                   int64
+	PendingReturnsOldestSeconds      int64
+	UninspectedReturns               int64
+	UninspectedReturnsOldestSeconds  int64
+	UnansweredQuestions              int64
+	UnansweredQuestionsOldestSeconds int64
 }
 
+// Each desk is read once: its count and the age of its oldest item come from
+// the same rows, so the two cannot follow different rules. An age is how long
+// ago the oldest item began waiting, on the database's clock.
 func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 	row := q.db.QueryRow(ctx, adminSummary)
 	var i AdminSummaryRow
 	err := row.Scan(
 		&i.PendingOrders,
 		&i.ReadyOrders,
+		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
 		&i.LowStock,
 		&i.ActiveProducts,
 		&i.OpenMessages,
+		&i.OpenMessagesOldestSeconds,
 		&i.PendingReturns,
+		&i.PendingReturnsOldestSeconds,
 		&i.UninspectedReturns,
+		&i.UninspectedReturnsOldestSeconds,
 		&i.UnansweredQuestions,
+		&i.UnansweredQuestionsOldestSeconds,
 	)
 	return i, err
 }
@@ -3583,7 +3658,9 @@ func (q *Queries) CancelPayment(ctx context.Context, providerRef string) error {
 }
 
 const cancelledOrderInvoices = `-- name: CancelledOrderInvoices :many
-SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(o.cancelled_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.fulfillment_status = 'cancelled'
@@ -3599,11 +3676,12 @@ LIMIT 50
 `
 
 type CancelledOrderInvoicesRow struct {
-	OrderNumber string
-	Number      string
-	AmountCents int64
-	IssuedAt    time.Time
-	Total       int64
+	OrderNumber   string
+	Number        string
+	AmountCents   int64
+	IssuedAt      time.Time
+	Total         int64
+	OldestSeconds int64
 }
 
 // Issued invoices of cancelled orders that nothing relieved and nothing is
@@ -3625,6 +3703,7 @@ func (q *Queries) CancelledOrderInvoices(ctx context.Context, olderThan pgtype.I
 			&i.AmountCents,
 			&i.IssuedAt,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -6696,6 +6775,35 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered
+`
+
+// Whether /deals has anything to buy: a discounted product that can be bought,
+// or a campaign ListedCampaigns lists. The header asks on every page; each half
+// stops at its first row. Its plan has not been measured.
+func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
+	var offered bool
+	err := row.Scan(&offered)
+	return offered, err
+}
+
 const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
@@ -6979,6 +7087,243 @@ func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneCo
 	row := q.db.QueryRow(ctx, deliveryZoneComparison, arg.NewPostalCode, arg.OrderID)
 	var i DeliveryZoneComparisonRow
 	err := row.Scan(&i.Erased, &i.OldResolved, &i.SameZone)
+	return i, err
+}
+
+const departmentCampaign = `-- name: DepartmentCampaign :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $2::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.starts_at, c.ends_at
+FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
+        AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT 1
+`
+
+type DepartmentCampaignParams struct {
+	Locale string
+	Slug   string
+}
+
+type DepartmentCampaignRow struct {
+	Slug     string
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// The first running campaign that features a product of the department which can be
+// bought: ListedCampaigns' test, narrowed to the department's own products.
+func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
+	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
+	var i DepartmentCampaignRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+	)
+	return i, err
+}
+
+const departmentColourStory = `-- name: DepartmentColourStory :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $2::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+story AS (
+    SELECT p.id
+    FROM products p
+    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants sv
+          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
+    GROUP BY p.id
+    HAVING count(DISTINCT v.id) >= 3
+    ORDER BY p.published_at DESC, p.id DESC
+    LIMIT 1
+)
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, $1::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
+    coalesce(b.name, '') AS brand,
+    mv.price_cents AS price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    localized_name(v.value, v.value_en, $1::text) AS colour,
+    v.swatch_hex::text AS swatch,
+    img.storage_key AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width
+FROM story s
+JOIN products p ON p.id = s.id
+LEFT JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width
+    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
+) img ON true
+ORDER BY v.position, v.id
+`
+
+type DepartmentColourStoryParams struct {
+	Locale string
+	Slug   string
+}
+
+type DepartmentColourStoryRow struct {
+	Slug                string
+	Name                string
+	Summary             string
+	Brand               string
+	PriceCents          int64
+	PriceVaries         bool
+	CompareAtPriceCents pgtype.Int8
+	Colour              string
+	Swatch              string
+	ImageKey            string
+	ImageAlt            string
+	ImageWidth          int32
+}
+
+// The newest product of the department with three or more colours that each have a
+// photograph, and those colours with the first photograph of each, in the order the
+// product lists them. A swatch marks a colour: the schema leaves it NULL on a value
+// that is not one.
+func (q *Queries) DepartmentColourStory(ctx context.Context, arg DepartmentColourStoryParams) ([]DepartmentColourStoryRow, error) {
+	rows, err := q.db.Query(ctx, departmentColourStory, arg.Locale, arg.Slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentColourStoryRow{}
+	for rows.Next() {
+		var i DepartmentColourStoryRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Summary,
+			&i.Brand,
+			&i.PriceCents,
+			&i.PriceVaries,
+			&i.CompareAtPriceCents,
+			&i.Colour,
+			&i.Swatch,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const departmentCompareCandidates = `-- name: DepartmentCompareCandidates :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $1::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT category_id, slug FROM held
+WHERE held >= 2 AND nth <= 3
+ORDER BY held DESC, category_id, nth
+`
+
+type DepartmentCompareCandidatesRow struct {
+	CategoryID uuid.UUID
+	Slug       string
+}
+
+// Per category of the department that holds at least two products that can be bought, its three
+// newest. A category is a candidate for the comparison; whether it may be compared
+// is the caller's to say.
+func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) ([]DepartmentCompareCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, departmentCompareCandidates, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentCompareCandidatesRow{}
+	for rows.Next() {
+		var i DepartmentCompareCandidatesRow
+		if err := rows.Scan(&i.CategoryID, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const departmentFacts = `-- name: DepartmentFacts :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $1::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT
+    (SELECT count(*) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
+    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
+     WHERE r.slug = $1::text)::bigint AS categories,
+    (SELECT count(DISTINCT p.brand_id) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
+`
+
+type DepartmentFactsRow struct {
+	Products   int64
+	Categories int64
+	Brands     int64
+}
+
+// What a department says about itself under its head: the products it holds across
+// its whole subtree, the sub-categories directly under it, and the brands of those
+// products.
+func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
+	row := q.db.QueryRow(ctx, departmentFacts, slug)
+	var i DepartmentFactsRow
+	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
 	return i, err
 }
 
@@ -7733,7 +8078,10 @@ type HomeDepartmentStockRow struct {
 }
 
 // How many active products each root holds across its whole subtree: a
-// department with fewer than three has no band to show.
+// department with fewer than three has no band to show, and the header prints
+// it beside each department in the phone menu, so it runs on every page with a
+// header. Unlike the header's other reads it counts the catalogue, not the
+// categories, and its plan has not been measured.
 func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
 	rows, err := q.db.Query(ctx, homeDepartmentStock)
 	if err != nil {
@@ -8659,6 +9007,50 @@ func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const listingHighlights = `-- name: ListingHighlights :many
+SELECT slug, value FROM (
+    SELECT p.slug, localized_name(s.value, s.value_en, $1::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY($2::text[])
+) ranked
+WHERE nth <= 2
+ORDER BY slug, nth
+`
+
+type ListingHighlightsParams struct {
+	Locale string
+	Slugs  []string
+}
+
+type ListingHighlightsRow struct {
+	Slug  string
+	Value string
+}
+
+// The first two specifications each product lists, for the line under its name on a
+// department whose products are compared.
+func (q *Queries) ListingHighlights(ctx context.Context, arg ListingHighlightsParams) ([]ListingHighlightsRow, error) {
+	rows, err := q.db.Query(ctx, listingHighlights, arg.Locale, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListingHighlightsRow{}
+	for rows.Next() {
+		var i ListingHighlightsRow
+		if err := rows.Scan(&i.Slug, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const liveInvoice = `-- name: LiveInvoice :one
@@ -10399,6 +10791,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `
@@ -11049,6 +11470,68 @@ func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, er
 	var paid_by_credit bool
 	err := row.Scan(&paid_by_credit)
 	return paid_by_credit, err
+}
+
+const paidByShopDay = `-- name: PaidByShopDay :many
+SELECT
+    d.day::date AS day,
+    count(t.total)::bigint AS orders,
+    coalesce(sum(t.total), 0)::bigint AS revenue_cents
+FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+    FROM orders o
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type PaidByShopDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	FromAt   time.Time
+	ToAt     time.Time
+}
+
+type PaidByShopDayRow struct {
+	Day          time.Time
+	Orders       int64
+	RevenueCents int64
+}
+
+// One row per shop day from first_day to last_day, a day without orders
+// included. The orders and their total are RevenueBetween's, so the days add up
+// to its revenue. The bounds are cut on the shop's clock by the caller.
+func (q *Queries) PaidByShopDay(ctx context.Context, arg PaidByShopDayParams) ([]PaidByShopDayRow, error) {
+	rows, err := q.db.Query(ctx, paidByShopDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.FromAt,
+		arg.ToAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaidByShopDayRow{}
+	for rows.Next() {
+		var i PaidByShopDayRow
+		if err := rows.Scan(&i.Day, &i.Orders, &i.RevenueCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec
@@ -16191,7 +16674,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
@@ -16320,7 +16803,9 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
            AS can_authorize_resend,
-       count(*) OVER () AS total
+       count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(op.created_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
@@ -16347,6 +16832,7 @@ type StrandedInvoiceClaimsRow struct {
 	CreatedAt          time.Time
 	CanAuthorizeResend bool
 	Total              int64
+	OldestSeconds      int64
 }
 
 // Durable e-invoice operations which either explicitly alarmed or have remained
@@ -16375,6 +16861,7 @@ func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceC
 			&i.CreatedAt,
 			&i.CanAuthorizeResend,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -16554,7 +17041,9 @@ func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAcce
 }
 
 const uninvoicedOrders = `-- name: UninvoicedOrders :many
-SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total
+SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(f.funded_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM orders o
 CROSS JOIN LATERAL (
     SELECT coalesce(
@@ -16581,10 +17070,11 @@ LIMIT 50
 `
 
 type UninvoicedOrdersRow struct {
-	OrderNumber string
-	FundedAt    time.Time
-	AmountCents int64
-	Total       int64
+	OrderNumber   string
+	FundedAt      time.Time
+	AmountCents   int64
+	Total         int64
+	OldestSeconds int64
 }
 
 // Orders with money received and no invoice operation at all, read without
@@ -16608,6 +17098,7 @@ func (q *Queries) UninvoicedOrders(ctx context.Context, olderThan pgtype.Interva
 			&i.FundedAt,
 			&i.AmountCents,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -17403,6 +17894,83 @@ func (q *Queries) VariantProductSelection(ctx context.Context, id uuid.UUID) (Va
 	var i VariantProductSelectionRow
 	err := row.Scan(&i.Slug, &i.OptionNames, &i.OptionValues)
 	return i, err
+}
+
+const variantStockByDay = `-- name: VariantStockByDay :many
+WITH v AS (
+    SELECT id, stock_quantity FROM product_variants WHERE sku = $3::text
+), moved AS (
+    SELECT shop_day(m.created_at) AS day,
+           sum(m.delta) AS delta,
+           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
+           count(*) AS moves
+    FROM inventory_movements m
+    JOIN v ON v.id = m.variant_id
+    WHERE m.created_at >= $4::timestamptz
+    GROUP BY 1
+)
+SELECT d.day::date AS day,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       coalesce(t.received, 0)::integer AS received,
+       coalesce(t.receipts, 0)::integer AS receipts,
+       coalesce(t.moves, 0)::integer AS moves
+FROM v
+CROSS JOIN generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN moved t ON t.day = d.day::date
+ORDER BY d.day
+`
+
+type VariantStockByDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	SKU      string
+	FromAt   time.Time
+}
+
+type VariantStockByDayRow struct {
+	Day      time.Time
+	Stock    int32
+	Received int32
+	Receipts int32
+	Moves    int32
+}
+
+// The stock at the end of each shop day from first_day to last_day, worked back
+// from stock_quantity through the movements after that day. The column and the
+// ledger are read in this one statement, so a movement committed meanwhile is in
+// both or in neither; the movements are bounded below only, because the column
+// already holds every one of them. record_inventory_movement writes both, so the
+// two agree. A day without movements is included.
+func (q *Queries) VariantStockByDay(ctx context.Context, arg VariantStockByDayParams) ([]VariantStockByDayRow, error) {
+	rows, err := q.db.Query(ctx, variantStockByDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.SKU,
+		arg.FromAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VariantStockByDayRow{}
+	for rows.Next() {
+		var i VariantStockByDayRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Stock,
+			&i.Received,
+			&i.Receipts,
+			&i.Moves,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const wishlistHas = `-- name: WishlistHas :one
