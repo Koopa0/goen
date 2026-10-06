@@ -428,10 +428,11 @@ body {
   --chart-annotation: var(--fg);
 }
 
-/* The one measurement every surface shares: a content column that stops at
-   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
-   the header bar's, the home page's and the footer grid's content edges and
-   fails when they disagree, so each reads the column from this one pair. */
+/* The back office's content column: it stops at 1280px inside a gutter of
+   16 / 24 / 32px. app.css sets the storefront's own pair after this, and
+   `scripts/check-layout.mjs` compares the header bar's, the home page's and
+   the footer grid's content edges and fails when they disagree, so each reads
+   the column from that one pair. */
 :root {
   --page-gutter: 16px;
   --page-width: 1280px;
