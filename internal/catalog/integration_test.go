@@ -537,7 +537,7 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 		)
 		INSERT INTO product_variants
 		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, 5, 0, 0 FROM p`, slug); err != nil {
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
 	if _, err := db.Exec(ctx, `
