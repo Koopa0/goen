@@ -91,6 +91,11 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyCartStockShort) }
 							}
 						}
+						if v.MixedTaxTypes {
+							@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
+							}
+						}
 						<div class="goen-summary__actions">
 							if v.CanCheckout() {
 								@components.ButtonLink(components.ButtonProps{

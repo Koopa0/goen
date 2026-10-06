@@ -3,6 +3,7 @@ package layoutcheck_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -61,19 +64,46 @@ func TestCheckLayoutLaunchesTheResolvedChrome(t *testing.T) {
 		t.Skip("the google-chrome-stable probe ordering is exercised on Linux")
 	}
 
+	for _, scenario := range []string{"normal-return", "canceled-run"} {
+		t.Run(scenario, func(t *testing.T) {
+			binDir := t.TempDir()
+			t.Run("probe", func(t *testing.T) {
+				probeResolvedChrome(t, binDir, scenario)
+			})
+			assertLayoutChromeExited(t, binDir)
+		})
+	}
+}
+
+func probeResolvedChrome(t *testing.T, binDir, scenario string) {
+	t.Helper()
+
 	ctx := t.Context()
 	root := repoRoot(t)
 	t.Cleanup(func() { os.RemoveAll(filepath.Join(root, ".layout-chrome")) })
 
-	binDir := t.TempDir()
 	launchLog := filepath.Join(binDir, "launch.log")
 	fakeChrome := filepath.Join(binDir, "google-chrome-stable")
 	//nolint:gosec // G306: test fixture must be executable
 	if err := os.WriteFile(fakeChrome, []byte(fmt.Sprintf(`#!/bin/sh
+printf %%s "$$" > %q
 printf %%s "$0" > %q
 exec sleep 3600
-`, launchLog)), 0o755); err != nil {
+`, filepath.Join(binDir, "fixture.pid"), launchLog)), 0o755); err != nil {
 		t.Fatalf("write fake chrome: %v", err)
+	}
+
+	refusedFetch := filepath.Join(binDir, "refused-fetch")
+	//nolint:gosec // G306: the executable fixture prevents network access after browser launch
+	if err := os.WriteFile(filepath.Join(binDir, "curl"), []byte(fmt.Sprintf(`#!/bin/sh
+for arg do
+    case "$arg" in
+        *axe.min.js) : > %q; exit 1 ;;
+    esac
+done
+exec /usr/bin/curl "$@"
+`, refusedFetch)), 0o755); err != nil {
+		t.Fatalf("write controlled curl refusal: %v", err)
 	}
 
 	var lc net.ListenConfig
@@ -105,8 +135,10 @@ exec sleep 3600
 	//nolint:gosec // G204: makePath comes from exec.LookPath("make")
 	cmd := exec.CommandContext(runCtx, makePath, "check-layout", "GOEN_URL="+goenURL)
 	cmd.Dir = root
-	// binDir must precede /usr/bin so the resolver picks the fake chrome, while
-	// /usr/bin still supplies curl for the server probe recipe line.
+	// Canceling only make skips the wrapper's trap; the controlled fetch refusal
+	// finishes the recipe while its owner can still read the browser PID.
+	cmd.Cancel = nil
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Env = append(envWithoutChrome(os.Environ()),
 		"PATH="+binDir+":/usr/bin",
 		"GOEN_DATABASE_URL=postgres://layout-check-test.invalid/db",
@@ -115,18 +147,33 @@ exec sleep 3600
 		t.Fatalf("start make check-layout: %v", err)
 	}
 	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
+		waitErr := cmd.Wait()
+		if err, ok := errors.AsType[*exec.ExitError](waitErr); !ok || err.ExitCode() != 2 {
+			t.Errorf("make check-layout exit = %v, want the controlled recipe failure", waitErr)
 		}
-		_ = cmd.Wait()
+		if _, err := os.Stat(refusedFetch); err != nil {
+			t.Errorf("controlled axe fetch refusal was not reached: %v", err)
+		}
 	})
 
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	launchCtx, stopLaunch := context.WithTimeout(ctx, 10*time.Second)
+	defer stopLaunch()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		if _, statErr := os.Stat(launchLog); statErr == nil {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-launchCtx.Done():
+			t.Fatalf("check-layout never launched the resolved browser: %v", launchCtx.Err())
+		case <-ticker.C:
+		}
+	}
+
+	if scenario == "canceled-run" {
+		cancel()
+		return
 	}
 
 	//nolint:gosec // G304: launchLog is under t.TempDir()
@@ -140,6 +187,52 @@ exec sleep 3600
 	}
 	if strings.TrimSpace(string(got)) != want {
 		t.Fatalf("launch argv[0] = %q, want %q", strings.TrimSpace(string(got)), want)
+	}
+}
+
+func assertLayoutChromeExited(t *testing.T, binDir string) {
+	t.Helper()
+	//nolint:gosec // G304: the PID is recorded by this test's fixture under t.TempDir
+	body, err := os.ReadFile(filepath.Join(binDir, "fixture.pid"))
+	if err != nil {
+		t.Fatalf("read fixture PID: %v", err)
+	}
+	pid, err := strconv.Atoi(string(body))
+	if err != nil || pid <= 0 {
+		t.Fatalf("fixture PID = %q, want a positive integer: %v", body, err)
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		t.Fatalf("find fixture PID %d: %v", pid, err)
+	}
+	t.Cleanup(func() {
+		// A failing reproducer must not leave its own one-hour sleeper behind.
+		if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
+			t.Errorf("kill recorded fixture PID %d: %v", pid, err)
+		}
+		if err := process.Release(); err != nil {
+			t.Errorf("release recorded fixture PID %d: %v", pid, err)
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		err := process.Signal(syscall.Signal(0))
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("probe recorded fixture PID %d: %v", pid, err)
+		}
+		select {
+		case <-ctx.Done():
+			t.Errorf("fixture PID %d is still running after probe cleanup, want the recorded process gone", pid)
+			return
+		case <-ticker.C:
+		}
 	}
 }
 

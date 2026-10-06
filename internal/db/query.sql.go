@@ -1472,7 +1472,7 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id,
+       p.brand_id, p.category_id, p.tax_type, p.invoice_unit,
        coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
        coalesce(p.domestic_party_name, '') AS domestic_party_name,
        coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
@@ -1497,6 +1497,8 @@ type AdminProductRow struct {
 	PublishedAt          pgtype.Timestamptz
 	BrandID              uuid.NullUUID
 	CategoryID           uuid.UUID
+	TaxType              string
+	InvoiceUnit          string
 	Origin               string
 	OriginEn             string
 	DomesticPartyName    string
@@ -1525,6 +1527,8 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 		&i.PublishedAt,
 		&i.BrandID,
 		&i.CategoryID,
+		&i.TaxType,
+		&i.InvoiceUnit,
 		&i.Origin,
 		&i.OriginEn,
 		&i.DomesticPartyName,
@@ -3717,6 +3721,7 @@ SELECT
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.is_active,
     p.status AS product_status,
+    p.tax_type,
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.warranty_note,
@@ -3779,6 +3784,7 @@ type CartLinesRow struct {
 	SellableQuantity    int32
 	IsActive            bool
 	ProductStatus       string
+	TaxType             string
 	Slug                string
 	Name                string
 	WarrantyNote        pgtype.Text
@@ -3812,6 +3818,7 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.SellableQuantity,
 			&i.IsActive,
 			&i.ProductStatus,
+			&i.TaxType,
 			&i.Slug,
 			&i.Name,
 			&i.WarrantyNote,
@@ -7928,7 +7935,7 @@ func (q *Queries) InvalidateResetTokens(ctx context.Context, userID uuid.UUID) e
 
 const invoiceDocumentLines = `-- name: InvoiceDocumentLines :many
 SELECT l.document_id, l.id, l.description, l.quantity, l.unit_price_cents,
-       l.amount_cents, l.tax_type
+       l.amount_cents, l.tax_type, l.unit
 FROM invoice_document_lines l
 WHERE l.document_id = ANY($1::uuid[])
 ORDER BY l.document_id, l.position, l.id
@@ -7942,6 +7949,7 @@ type InvoiceDocumentLinesRow struct {
 	UnitPriceCents int64
 	AmountCents    int64
 	TaxType        string
+	Unit           string
 }
 
 // What one filed document says was sold; a shop reconciling an invoice against
@@ -7963,6 +7971,7 @@ func (q *Queries) InvoiceDocumentLines(ctx context.Context, documentIds []uuid.U
 			&i.UnitPriceCents,
 			&i.AmountCents,
 			&i.TaxType,
+			&i.Unit,
 		); err != nil {
 			return nil, err
 		}
@@ -8150,7 +8159,9 @@ SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
        ARRAY(SELECT l.amount_cents FROM invoice_document_lines l
              WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS line_amount_cents,
        ARRAY(SELECT l.tax_type FROM invoice_document_lines l
-             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types,
+       ARRAY(SELECT l.unit FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS units
 FROM invoice_documents d
 WHERE d.original_id = $1::uuid AND d.kind = 'allowance'
 ORDER BY d.issued_at, d.id
@@ -8167,6 +8178,7 @@ type KnownAllowancesRow struct {
 	UnitPriceCents  []int64
 	LineAmountCents []int64
 	TaxTypes        []string
+	Units           []string
 }
 
 // Complete immutable local facts for every allowance represented against the
@@ -8194,6 +8206,7 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
 			&i.TaxTypes,
+			&i.Units,
 		); err != nil {
 			return nil, err
 		}
@@ -8637,6 +8650,23 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const lockProductInvoiceLine = `-- name: LockProductInvoiceLine :one
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE
+`
+
+type LockProductInvoiceLineRow struct {
+	ID          uuid.UUID
+	TaxType     string
+	InvoiceUnit string
+}
+
+func (q *Queries) LockProductInvoiceLine(ctx context.Context, slug string) (LockProductInvoiceLineRow, error) {
+	row := q.db.QueryRow(ctx, lockProductInvoiceLine, slug)
+	var i LockProductInvoiceLineRow
+	err := row.Scan(&i.ID, &i.TaxType, &i.InvoiceUnit)
+	return i, err
 }
 
 const lockProductLabel = `-- name: LockProductLabel :one
@@ -14710,6 +14740,21 @@ func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) err
 	return err
 }
 
+const setProductInvoiceLine = `-- name: SetProductInvoiceLine :exec
+UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1
+`
+
+type SetProductInvoiceLineParams struct {
+	ID          uuid.UUID
+	TaxType     string
+	InvoiceUnit string
+}
+
+func (q *Queries) SetProductInvoiceLine(ctx context.Context, arg SetProductInvoiceLineParams) error {
+	_, err := q.db.Exec(ctx, setProductInvoiceLine, arg.ID, arg.TaxType, arg.InvoiceUnit)
+	return err
+}
+
 const setProductLabel = `-- name: SetProductLabel :exec
 UPDATE products SET origin = nullif($1::text, ''), origin_en = nullif($2::text, ''),
     domestic_party_name = nullif($3::text, ''),
@@ -15325,6 +15370,17 @@ func (q *Queries) ShippingVersion(ctx context.Context, arg ShippingVersionParams
 		&i.FreeOverCents,
 	)
 	return i, err
+}
+
+const shippingVersionMethod = `-- name: ShippingVersionMethod :one
+SELECT method_id FROM shipping_method_versions WHERE id = $1
+`
+
+func (q *Queries) ShippingVersionMethod(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, shippingVersionMethod, id)
+	var method_id uuid.UUID
+	err := row.Scan(&method_id)
+	return method_id, err
 }
 
 const shippingZoneFor = `-- name: ShippingZoneFor :one

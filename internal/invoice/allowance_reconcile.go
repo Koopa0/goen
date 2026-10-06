@@ -24,25 +24,22 @@ func knownAllowanceLines(
 	descriptions []string,
 	quantities []int32,
 	unitPriceCents, amountCents []int64,
-	taxTypes []string,
+	taxTypes, units []string,
 ) ([]Line, bool) {
 	count := len(descriptions)
 	if count == 0 || len(quantities) != count || len(unitPriceCents) != count ||
-		len(amountCents) != count || len(taxTypes) != count {
+		len(amountCents) != count || len(taxTypes) != count || len(units) != count {
 		return nil, false
 	}
 	lines := make([]Line, count)
 	for i, description := range descriptions {
-		if i >= len(quantities) || i >= len(unitPriceCents) ||
-			i >= len(amountCents) || i >= len(taxTypes) {
-			return nil, false
-		}
-		if taxTypes[i] != "taxable" {
+		if (TaxType(taxTypes[i]) != Taxable && TaxType(taxTypes[i]) != Exempt) || !ItemUnit(units[i]).Valid() {
 			return nil, false
 		}
 		lines[i] = Line{
 			Description: description, Quantity: quantities[i],
 			UnitPriceCents: unitPriceCents[i], AmountCents: amountCents[i],
+			TaxType: TaxType(taxTypes[i]), Unit: ItemUnit(units[i]),
 		}
 	}
 	return lines, true
