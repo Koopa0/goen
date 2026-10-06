@@ -100,4 +100,28 @@ var (
 	KeyAdminRepMayRun      = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
 	KeyAdminRepFewSold     = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
 	KeyAdminRepMoreSoldOut = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
+
+	KeyAdminRepReturned = key("admin.rep.returned", Message{ZhHant: "退貨最多的商品", En: "Products returned most"})
+
+	KeyAdminRepReturnedNote = key("admin.rep.returned.note", Message{
+		ZhHant: "計入已同意與已完成的退貨件數，對照這段期間下單的售出件數；待處理與未同意的申請不計，期間內較新的訂單還可能再退。出貨前全額退款的訂單不計入，所以售出件數可能比熱賣商品少。件數相同時，售出多的在前。",
+		En: "Counts units on approved and completed returns against units sold on the orders placed in this period. " +
+			"Open and declined requests are left out, and recent orders may still be returned. " +
+			"Orders refunded before shipment are not counted, so sold units can be fewer than under Best sellers. " +
+			"Equal counts are listed with the larger sale first.",
+	})
+
+	KeyAdminRepReturnedCounts = countKey("admin.rep.returned.counts", "%s / %s 件", "%s / %s unit", "%s / %s units")
+
+	KeyAdminRepReturnedShare = key("admin.rep.returned.share", Message{ZhHant: "%s 退貨", En: "%s returned"})
+
+	KeyAdminRepReturnedOne = key("admin.rep.returned.one", Message{
+		ZhHant: "只有 1 件商品有退貨：%s，%s。",
+		En:     "Only one product had returns: %s, %s.",
+	})
+
+	KeyAdminRepReturnedUnavailable = key("admin.rep.returned.unavailable", Message{
+		ZhHant: "退貨資料暫時無法取得。",
+		En:     "Returns data is unavailable right now.",
+	})
 )
