@@ -295,10 +295,14 @@ FROM (
     WHERE e.order_id = @order_id
     UNION ALL
     -- awaiting_buyer is a sent online allowance, which waits on the buyer's
-    -- consent rather than on goen.
+    -- consent rather than on goen. not_sent is an operation nothing will send
+    -- while no 加值中心 is configured.
     SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
            CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
-                THEN 'awaiting_buyer' ELSE op.status END,
+                THEN 'awaiting_buyer'
+                WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT @invoicing_enabled::boolean
+                THEN 'not_sent'
+                ELSE op.status END,
            op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id

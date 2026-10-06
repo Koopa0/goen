@@ -14,6 +14,7 @@ import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusi
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
+const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
 
@@ -28,7 +29,7 @@ const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/,
 // that so the checker could get in would mean auditing a page no visitor is
 // served. A CDP evaluation runs outside the page's CSP and leaves the document
 // exactly as a visitor receives it.
-const AXE_SOURCE = process.env.AXE_SOURCE || '.layout-chrome/axe.min.js';
+const AXE_SOURCE = process.env.AXE_SOURCE || `${LAYOUT_DIR}/axe.min.js`;
 const AXE_BASELINE = process.env.AXE_BASELINE || 'scripts/axe-baseline.json';
 
 // One width. Every rule asked for below is a property of the document rather
@@ -237,12 +238,19 @@ const ADMIN = [
   // report two best sellers, one at four digits, paid orders on seven shop days with a period total of seven digits (the running totals' .goen-chart), and a return of a quarter of the
   // second's units, so the row waits for the returned-products bar, the one with
   // the most text; without it the page measured is the one-sentence state.
+  // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
+  // with a campaign over them. Seven paid days give the full drawing, and the
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 1 day to
+  // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
   // and the warning; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports columns 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
   // .goen-report__departments .goen-chartbar: the two best sellers are in two
   // departments, so the row waits for the department bars; without them it
   // measured the page with one department or none.
@@ -441,7 +449,7 @@ async function pageSocket() {
 function chromeStartupReport() {
   const lines = [];
   try {
-    const pid = Number(readFileSync('.layout-chrome/pid', 'utf8'));
+    const pid = Number(readFileSync(`${LAYOUT_DIR}/pid`, 'utf8'));
     try {
       process.kill(pid, 0);
       lines.push(`Chrome (pid ${pid}) is still running`);
@@ -898,7 +906,7 @@ const PERIOD_PROBE = `(() => {
   return { periods: periods.length, problems };
 })()`;
 
-for (const route of ['/', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) {
+for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) {
   for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
     const at = 'period labels ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });

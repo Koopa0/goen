@@ -1878,6 +1878,18 @@ h3 {
   --period-note: var(--tone-muted);
 }
 
+.goen-pagehead[data-tone] .ui-period {
+  --period-fill: var(--tone-mark);
+  --period-line: var(--tone-edge);
+}
+
+.goen-pagehead[data-tone="ink"] .ui-period {
+  --period-fill: var(--tone-text);
+  --period-line: var(--tone-muted);
+  --period-label: var(--tone-text);
+  --period-note: var(--tone-muted);
+}
+
 .goen-hero__actions {
   display: flex;
   flex-wrap: wrap;
@@ -3567,6 +3579,7 @@ input.goen-check {
    notice, and the one editorial the data chose. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
+  color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-statline > div {
@@ -7725,20 +7738,18 @@ input.goen-check {
   padding: 1.5rem 1.25rem;
 }
 
-.goen-campaign__band .goen-pagehead__eyebrow {
-  color: var(--accent-text);
-  font-size: var(--fs-14);
-}
-
 .goen-campaign__band .goen-pagehead__title {
   font-size: 2.25rem;
   line-height: 1.25;
   text-wrap: balance;
 }
 
-.goen-campaign__band .goen-pagehead__sub {
-  color: var(--n-500);
-  font-size: 1rem;
+.goen-campaign__band .ui-statline {
+  margin-top: 1rem;
+}
+
+.goen-campaign__band .ui-period {
+  margin-top: 0.5rem;
 }
 
 /* ----- Wider than a phone ----- */
