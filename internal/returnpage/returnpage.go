@@ -60,8 +60,26 @@ func (r *Request) Validate() error {
 }
 
 func validReturnReason(reason string) bool {
+	return validateReturnReason(reason) == reasonValid
+}
+
+type reasonValidation string
+
+const (
+	reasonValid               reasonValidation = ""
+	reasonTooLong             reasonValidation = "too long"
+	reasonUnsupportedControls reasonValidation = "unsupported controls"
+)
+
+func validateReturnReason(reason string) reasonValidation {
 	reason = strings.TrimSpace(reason)
-	return utf8.RuneCountInString(reason) <= MaxReasonRunes && !strings.ContainsFunc(reason, func(c rune) bool {
+	if utf8.RuneCountInString(reason) > MaxReasonRunes {
+		return reasonTooLong
+	}
+	if strings.ContainsFunc(reason, func(c rune) bool {
 		return unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r'
-	})
+	}) {
+		return reasonUnsupportedControls
+	}
+	return reasonValid
 }

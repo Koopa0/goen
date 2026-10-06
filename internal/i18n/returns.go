@@ -52,7 +52,9 @@ var (
 
 	KeyReturnQuantityInvalid = key("returns.quantity.invalid", Message{ZhHant: "請填寫零或以上的整數。", En: "Enter a whole number of zero or more."})
 
-	KeyReturnReasonInvalid = key("returns.reason.invalid", Message{ZhHant: "退貨原因最多 500 字，請移除無法顯示的字元。", En: "Keep the optional reason within 500 characters and remove unsupported characters."})
+	KeyReturnReasonTooLong = key("returns.reason.toolong", Message{ZhHant: "退貨原因最多 500 字。", En: "Keep the optional reason within 500 characters."})
+
+	KeyReturnReasonUnsupportedControls = key("returns.reason.unsupportedcontrols", Message{ZhHant: "請移除退貨原因中不支援的控制字元。", En: "Remove unsupported control characters from the optional reason."})
 
 	KeyReturnAlreadyOpen = key("returns.alreadyopen", Message{
 		ZhHant: "這筆訂單已經有一筆還在處理中的退貨申請。",
