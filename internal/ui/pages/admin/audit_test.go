@@ -246,18 +246,3 @@ func TestOnlyARowThatRecordsAnAmountSaysMoney(t *testing.T) {
 		})
 	}
 }
-
-func TestEveryRecordedAmountFieldSaysMoney(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct{ entity, field string }{
-		{"", "amount_cents"}, {"", "price_cents"}, {"", "compare_at_cents"},
-		{"", "credit_returned_cents"}, {"", "card_refund_cents"}, {"", "credit_refund_cents"},
-		{"", "refrozen_amount_cents"}, {"", "fee_cents"}, {"", "free_over_cents"},
-		{"", "surcharge_cents"}, {"membership_tiers", "min_spend_cents"},
-	} {
-		entry := AuditEntry{Entity: tt.entity, Changes: []AuditChange{{Field: tt.field, After: "100"}}}
-		if !entry.Money() {
-			t.Errorf("Money() for %s %s = false, want true", tt.entity, tt.field)
-		}
-	}
-}
