@@ -14142,6 +14142,85 @@ func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]Ret
 	return items, nil
 }
 
+const returnedProductsBetween = `-- name: ReturnedProductsBetween :many
+WITH period_lines AS (
+    SELECT ol.id, ol.product_id, ol.quantity
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+), sold AS (
+    SELECT product_id, sum(quantity)::bigint AS units
+    FROM period_lines GROUP BY product_id
+), returned AS (
+    SELECT pl.product_id, sum(rl.quantity)::bigint AS units
+    FROM return_request_lines rl
+    JOIN return_requests rr ON rr.id = rl.return_request_id
+    JOIN period_lines pl ON pl.id = rl.order_line_id
+    WHERE rr.status IN ('approved', 'completed')
+    GROUP BY pl.product_id
+)
+SELECT
+    p.slug,
+    p.name,
+    coalesce(b.name, '') AS brand,
+    r.units AS returned_units,
+    s.units AS sold_units
+FROM returned r
+JOIN sold s ON s.product_id = r.product_id
+JOIN products p ON p.id = r.product_id
+LEFT JOIN brands b ON b.id = p.brand_id
+ORDER BY r.units DESC, s.units DESC, p.name, p.slug
+LIMIT $1::integer
+`
+
+type ReturnedProductsBetweenParams struct {
+	LimitTo int32
+	FromAt  time.Time
+	ToAt    time.Time
+}
+
+type ReturnedProductsBetweenRow struct {
+	Slug          string
+	Name          string
+	Brand         string
+	ReturnedUnits int64
+	SoldUnits     int64
+}
+
+// Units on decided-yes returns (approved or completed) against units sold, both
+// counted over the orders placed in the period, so a product's returned never
+// exceeds its sold. Orders refunded before shipment are left out of both, as in
+// RevenueBetween: no goods came back. Ties on the count fall to the larger sale,
+// then the name, so the list does not reshuffle between reads.
+func (q *Queries) ReturnedProductsBetween(ctx context.Context, arg ReturnedProductsBetweenParams) ([]ReturnedProductsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, returnedProductsBetween, arg.LimitTo, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReturnedProductsBetweenRow{}
+	for rows.Next() {
+		var i ReturnedProductsBetweenRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Brand,
+			&i.ReturnedUnits,
+			&i.SoldUnits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const returnsForOrder = `-- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
 FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment

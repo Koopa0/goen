@@ -50,6 +50,10 @@ type ReportView struct {
 	Windows     []int32
 	From, To    shoptime.Date
 	Previous    PreviousFigures
+	Returned    []ReturnedProduct
+	// ReturnedErr is why Returned could not be read; the rest of the report
+	// does not depend on it.
+	ReturnedErr error
 }
 
 // PreviousFigures are the period of as many shop days before this one, up to
