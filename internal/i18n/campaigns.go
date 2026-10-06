@@ -1,9 +1,13 @@
 package i18n
 
 var (
-	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "限時活動", En: "Limited-time offer"})
+	KeyCampaignsRunning = key("campaign.running", Message{ZhHant: "進行中的活動", En: "Running campaigns"})
 
-	KeyCampaignEndsAt = key("campaign.endsat", Message{ZhHant: "活動至 %s", En: "Until %s"})
+	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
+
+	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
+
+	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
 
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",
@@ -21,8 +25,8 @@ var (
 	})
 
 	KeyCampaignDescription = key("campaign.description", Message{
-		ZhHant: "%s — goen 限時優惠",
-		En:     "%s — a limited-time offer from goen",
+		ZhHant: "%s — goen 優惠",
+		En:     "%s — deals at goen",
 	})
 
 	KeyCampaignProducts = countKey("campaign.products", "%s 件商品", "%s product", "%s products")
@@ -35,16 +39,14 @@ var (
 	// %s is the last day, after the product count on the offers page.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
-	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
+	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})
 
 	KeyCampaignNotFoundBody = key("campaign.notfound.body", Message{
-		ZhHant: "這個活動可能已經結束了。看看目前的優惠。",
-		En:     "That promotion has probably ended. Have a look at what is running now.",
+		ZhHant: "找不到這個活動。看看目前的優惠。",
+		En:     "We could not find that campaign. See the deals running now.",
 	})
 
-	KeyDeals2 = key("deals.eyebrow", Message{ZhHant: "優惠", En: "Offers"})
-
-	KeyDealsTitle = key("deals.title", Message{ZhHant: "現正優惠", En: "On sale now"})
+	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
 )
@@ -135,7 +137,7 @@ var (
 		En:     "A campaign runs 1 to 90 days.",
 	})
 
-	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "限時活動", En: "Campaigns"})
+	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
 	KeyAdminCampaignOff = key("admin.campaign.off", Message{ZhHant: "已停用", En: "Switched off"})
 

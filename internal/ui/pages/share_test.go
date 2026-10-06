@@ -41,7 +41,7 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 			CampaignMeta(ctx, "秋日選物", Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"}),
 			[]string{
 				`og:title" content="秋日選物 · goen"`,
-				`og:description" content="秋日選物 — goen 限時優惠"`,
+				`og:description" content="秋日選物 — goen 優惠"`,
 				`og:image" content="https://goen.test/static/media/campaigns/autumn.webp?v=1"`,
 			},
 		},
