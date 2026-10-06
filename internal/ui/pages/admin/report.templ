@@ -79,14 +79,14 @@ templ Report(p layouts.Page, v *ReportView) {
 			</p>
 			if v.DailyUnavailable {
 				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepRunning) }</h2>
-				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
 			} else if v.ShowsRunningTotal() {
 				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepRunning) }</h2>
 				@chart.RunningTotal(v.RunningTotal(ctx))
 			}
 			<h2 class="goen-admin__subhead">{ v.PaidHeading(ctx) }</h2>
 			if v.DailyUnavailable {
-				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
 			} else if v.ShowsPaidColumns() {
 				@chart.Columns(v.PaidColumns(ctx))
 			} else {

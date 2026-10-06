@@ -43,7 +43,7 @@ LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text;
 
 -- name: AdminCampaign :one
-SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+SELECT c.title, localized_name(c.title, c.title_en, @locale::text) AS label, c.starts_at, c.ends_at, c.is_active,
        (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
        EXISTS (
            SELECT 1 FROM sale_campaign_products cp
@@ -61,6 +61,31 @@ SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = @slug::text FOR UPDAT
 UPDATE sale_campaigns
 SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz
 WHERE slug = @slug::text;
+
+-- The units of the products on the campaign's list that each shop day from
+-- first_day to last_day sold, a day without any included. The orders are
+-- PaidByShopDay's: committed, and not refunded before shipment. order_lines
+-- records no campaign, so it is the list as it is now. The bounds are cut on the
+-- shop's clock by the caller.
+-- name: CampaignDailyUnits :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+      AND ol.product_id IN (SELECT cp.product_id
+                            FROM sale_campaign_products cp
+                            JOIN sale_campaigns sc ON sc.id = cp.campaign_id
+                            WHERE sc.slug = @slug::text)
+    GROUP BY shop_day(o.placed_at)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day;
 
 -- Archived products are left out: a campaign on one shows nothing.
 -- name: AdminCampaignProductSearch :many
