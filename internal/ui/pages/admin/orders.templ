@@ -681,9 +681,6 @@ templ Variants(p layouts.Page, v VariantsView) {
 		if v.ShowCover {
 			<section class="goen-admin__cover">
 				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
-				<p class="goen-admin__hint">
-					<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminStockCoverReport) }</a>
-				</p>
 			</section>
 		}
 		<form class="goen-admin__search" method="get" action="/admin/stock">

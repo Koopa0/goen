@@ -563,8 +563,8 @@ type VariantsView struct {
 	LowOnly  bool
 	Term     string
 	Notice   components.Result
-	// ShowCover is set on the first page only: the days cover rows are not
-	// repeated on every page of the list.
+	// ShowCover is set on the desk's opening page only: not on a search, the
+	// sold out filter or a later page of the list.
 	ShowCover   bool
 	AtRisk      []StockRisk
 	MoreSoldOut int

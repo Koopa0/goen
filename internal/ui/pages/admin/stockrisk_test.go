@@ -275,7 +275,6 @@ func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
 			t.Errorf("%s: sold out row at %d, estimated row at %d, want sold out first", loc, out, est)
 		}
 		for _, want := range []string{
-			i18n.T(ctx, i18n.KeyAdminStockCoverReport), `href="/admin/reports#stock"`,
 			i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, 3, 3), "goen-chartrangebar",
 		} {
 			if !strings.Contains(html, want) {
