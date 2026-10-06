@@ -218,7 +218,7 @@ const ADMIN = [
   // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
   // one at four digits, so a row without a bar measured the one-seller page.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
-  // receipt twenty days back, so its row carries the range bar, the range text
+  // ledger that starts twenty days back, so its row carries the range bar, the range text
   // and the warning; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
