@@ -37,9 +37,9 @@ type StatValue struct {
 	unit   string
 }
 
-// StatCount is a number and the unit it counts, joined so that they never part across lines.
+// StatCount is a number and the unit it counts, joined so that they never part across lines; the unit may be empty.
 func StatCount(n int64, unit string) StatValue {
-	if n < 0 || unit == "" {
+	if n < 0 {
 		return StatValue{}
 	}
 	return StatValue{figure: strconv.FormatInt(n, 10), unit: unit}

@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -1660,5 +1661,19 @@ func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
 	open := strings.LastIndex(html[:i], "<button")
 	if tag := html[open : i+strings.Index(html[i:], ">")]; !strings.Contains(tag, "formnovalidate") {
 		t.Errorf("the remove button does not skip the form's validation: %s", tag)
+	}
+}
+
+func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	var b strings.Builder
+	facts := CartView{ItemCount: 2, SubtotalCents: 200}.Facts(ctx)
+	if err := components.StatLine(facts, components.StatLinePlain).Render(ctx, &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := b.String()
+	if !strings.Contains(html, "<dt>Items</dt><dd>2 </dd>") || strings.Contains(html, "pcs") {
+		t.Errorf("English item count = %s, want the bare number under Items", html)
 	}
 }
