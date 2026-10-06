@@ -27,7 +27,7 @@ func TestRegistrationDeadOffersAnotherRegistrationLink(t *testing.T) {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			page := html.UnescapeString(renderComponent(t, ctx, RegistrationDead(layouts.Page{Title: "Registration"})))
+			page := html.UnescapeString(renderComponent(t, ctx, RegistrationDead(layouts.Page{Title: "Registration"}, "/checkout?stage=delivery")))
 			if !strings.Contains(page, tt.body) || strings.Contains(page, tt.wrong) {
 				t.Errorf("registration refusal lacks %q or still gives account-page directions", tt.body)
 			}
@@ -54,7 +54,7 @@ func TestRegistrationDeadOffersAnotherRegistrationLink(t *testing.T) {
 				}
 				break
 			}
-			if diff := cmp.Diff(struct{ Href, Text string }{"/register?resend=1", tt.link}, struct{ Href, Text string }{recovery.Href, recovery.Text}); diff != "" {
+			if diff := cmp.Diff(struct{ Href, Text string }{"/register?next=%2Fcheckout%3Fstage%3Ddelivery&resend=1", tt.link}, struct{ Href, Text string }{recovery.Href, recovery.Text}); diff != "" {
 				t.Errorf("registration recovery link (-want +got):\n%s", diff)
 			}
 			if !strings.Contains(recovery.Class, "--primary") {

@@ -64,7 +64,7 @@ func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
 				}
 				rec := httptest.NewRecorder()
 				registrationRecoveryRoutes(h).ServeHTTP(rec, cartForm(ctx, "/register/complete", url.Values{
-					"token": {token}, "password": {cartOwnerPassword}, "next": {"/account"},
+					"token": {token}, "password": {cartOwnerPassword}, "next": {"/checkout?stage=delivery"},
 				}))
 				if expiry != nil && (!expiry.fired.Load() || expiry.err != nil) {
 					t.Fatalf("expiry after the first live lookup fired = %v, error %v", expiry.fired.Load(), expiry.err)
@@ -75,7 +75,7 @@ func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
 				body := html.UnescapeString(rec.Body.String())
 				wantBody, wantLink := registrationRecoveryCopy(locale)
 				if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(body, wantBody) ||
-					!strings.Contains(body, wantLink) || !strings.Contains(body, `href="/register?resend=1"`) {
+					!strings.Contains(body, wantLink) || !strings.Contains(body, `href="/register?next=%2Fcheckout%3Fstage%3Ddelivery&resend=1"`) {
 					t.Errorf("dead registration = %d, want 422 with %q and its resend link; body=%s", rec.Code, wantBody, body)
 				}
 				if strings.Contains(body, "from your account page.") || strings.Contains(body, "請到會員中心重新寄一次。") ||
@@ -89,44 +89,79 @@ func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
 
 func TestRegistrationRecoveryFormResendsWithoutAPendingCookie(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		t.Run(string(locale), func(t *testing.T) {
-			ctx := i18n.WithLocale(t.Context(), locale)
-			store := account.NewStore(accountStorePool(t, "registration-resend-"+uuid.NewString()))
-			h := account.NewHandler(store, nil, slog.New(slog.DiscardHandler), false, nil)
-			addr, token := recoveryRegistration(t, h, store)
-			expireRegistrationLink(t, token)
-			mux := registrationRecoveryRoutes(h)
-			page := httptest.NewRecorder()
-			mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/register?resend=1", http.NoBody))
-			if page.Code != http.StatusOK {
-				t.Fatalf("registration resend page = %d, want 200", page.Code)
-			}
-			if strings.Contains(page.Body.String(), `id="register-sent"`) {
-				t.Error("the resend form says mail was sent before anyone requested it")
-			}
-			form := readRegistrationResendForm(t, page.Body.String())
-			form.Set("email", addr)
-			sent := httptest.NewRecorder()
-			mux.ServeHTTP(sent, cartForm(ctx, "/register/resend", form))
-			if sent.Code != http.StatusSeeOther || sent.Header().Get("Location") != "/register?sent=1&again=1" {
-				t.Fatalf("resend from the recovered form = %d %q, want 303 /register?sent=1&again=1", sent.Code, sent.Header().Get("Location"))
-			}
-			if n := followUpRegistrations(t, store, addr, neverTold(t)); n != 1 {
-				t.Fatalf("resending queued %d registration requests, want 1", n)
-			}
-			fresh, next := queuedLink(t, addr)
-			if fresh == token || next != "/account" {
-				t.Fatalf("resend kept the dead token or lost its landing: next=%q", next)
-			}
-			completed := httptest.NewRecorder()
-			mux.ServeHTTP(completed, cartForm(ctx, "/register/complete", url.Values{
-				"token": {fresh}, "password": {cartOwnerPassword}, "next": {next},
-			}))
-			if completed.Code != http.StatusSeeOther || completed.Header().Get("Location") != "/account" {
-				t.Fatalf("the resent link = %d %q, want 303 /account", completed.Code, completed.Header().Get("Location"))
-			}
-			sessionCookie(t, completed)
-		})
+		for _, tt := range []struct {
+			name, next, wantNext, wantHref string
+		}{
+			{name: "checkout", next: "/checkout?stage=delivery", wantNext: "/checkout?stage=delivery", wantHref: "/register?next=%2Fcheckout%3Fstage%3Ddelivery&resend=1"},
+			{name: "external landing", next: "https://example.com/checkout", wantNext: "/account", wantHref: "/register?next=%2Faccount&resend=1"},
+		} {
+			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				store := account.NewStore(accountStorePool(t, "registration-resend-"+uuid.NewString()))
+				h := account.NewHandler(store, nil, slog.New(slog.DiscardHandler), false, nil)
+				addr, token := recoveryRegistration(t, h, store)
+				expireRegistrationLink(t, token)
+				mux := registrationRecoveryRoutes(h)
+				dead := httptest.NewRecorder()
+				mux.ServeHTTP(dead, cartForm(ctx, "/register/complete", url.Values{
+					"token": {token}, "password": {cartOwnerPassword}, "next": {tt.next},
+				}))
+				if dead.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("dead registration page = %d, want 422", dead.Code)
+				}
+				href := registrationRecoveryHref(t, dead.Body.String(), locale)
+				if href != tt.wantHref {
+					t.Errorf("registration recovery href = %q, want %q", href, tt.wantHref)
+				}
+				page := httptest.NewRecorder()
+				mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, href, http.NoBody))
+				if page.Code != http.StatusOK {
+					t.Fatalf("registration resend page = %d, want 200", page.Code)
+				}
+				if strings.Contains(page.Body.String(), `id="register-sent"`) {
+					t.Error("the resend form says mail was sent before anyone requested it")
+				}
+				correction := "信箱打錯了？換一個重新註冊"
+				if locale == i18n.En {
+					correction = "Wrong address? Register again"
+				}
+				if strings.Contains(html.UnescapeString(page.Body.String()), correction) {
+					t.Errorf("the resend entry offers address correction %q before any address was entered", correction)
+				}
+				form := readRegistrationResendForm(t, page.Body.String(), tt.wantNext)
+				form.Set("email", addr)
+				sent := httptest.NewRecorder()
+				mux.ServeHTTP(sent, cartForm(ctx, "/register/resend", form))
+				if sent.Code != http.StatusSeeOther || sent.Header().Get("Location") != "/register?sent=1&again=1" {
+					t.Fatalf("resend from the recovered form = %d %q, want 303 /register?sent=1&again=1", sent.Code, sent.Header().Get("Location"))
+				}
+				sentRequest := httptest.NewRequestWithContext(ctx, http.MethodGet, sent.Header().Get("Location"), http.NoBody)
+				for _, cookie := range sent.Result().Cookies() {
+					sentRequest.AddCookie(cookie)
+				}
+				sentPage := httptest.NewRecorder()
+				mux.ServeHTTP(sentPage, sentRequest)
+				if sentPage.Code != http.StatusOK || !strings.Contains(sentPage.Body.String(), `id="register-sent"`) ||
+					!strings.Contains(html.UnescapeString(sentPage.Body.String()), correction) {
+					t.Error("the sent page lost its notice or address correction link")
+				}
+				if n := followUpRegistrations(t, store, addr, neverTold(t)); n != 1 {
+					t.Fatalf("resending queued %d registration requests, want 1", n)
+				}
+				fresh, next := queuedLink(t, addr)
+				if fresh == token || next != tt.wantNext {
+					t.Fatalf("the resent link kept the dead token = %v, next = %q, want a new token landing at %q", fresh == token, next, tt.wantNext)
+				}
+				completed := httptest.NewRecorder()
+				mux.ServeHTTP(completed, cartForm(ctx, "/register/complete", url.Values{
+					"token": {fresh}, "password": {cartOwnerPassword}, "next": {next},
+				}))
+				if completed.Code != http.StatusSeeOther || completed.Header().Get("Location") != tt.wantNext {
+					t.Fatalf("the resent link = %d %q, want 303 %s", completed.Code, completed.Header().Get("Location"), tt.wantNext)
+				}
+				sessionCookie(t, completed)
+			})
+		}
 	}
 }
 
@@ -145,7 +180,7 @@ func TestDeadEmailChangeLinksKeepTheirAccountDirections(t *testing.T) {
 				want = "It may have been used already, or be more than two days old. Ask for another from your account page."
 			}
 			if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(rec.Body.String()), want) ||
-				strings.Contains(rec.Body.String(), `href="/register?resend=1"`) {
+				strings.Contains(rec.Body.String(), `href="/register?`) {
 				t.Errorf("dead email change = %d, want its account-page sentence %q without registration recovery", rec.Code, want)
 			}
 		})
@@ -192,13 +227,36 @@ func registrationRecoveryCopy(locale i18n.Locale) (body, link string) {
 	return "這個註冊連結已失效（已經用過，或超過兩天）。請重新寄一封註冊信。", "重新寄註冊信"
 }
 
+func registrationRecoveryHref(t *testing.T, page string, locale i18n.Locale) string {
+	t.Helper()
+	_, wantLabel := registrationRecoveryCopy(locale)
+	z := htmlparse.NewTokenizer(strings.NewReader(page))
+	for z.Next() != htmlparse.ErrorToken {
+		token := z.Token()
+		if token.Type != htmlparse.StartTagToken || token.Data != "a" {
+			continue
+		}
+		var href string
+		for _, attr := range token.Attr {
+			if attr.Key == "href" {
+				href = attr.Val
+			}
+		}
+		if z.Next() == htmlparse.TextToken && strings.TrimSpace(string(z.Text())) == wantLabel {
+			return href
+		}
+	}
+	t.Fatalf("the dead registration page has no recovery link labelled %q", wantLabel)
+	return ""
+}
+
 type registrationResendForm struct {
 	Method, Action, EmailID, LabelFor, EmailType string
 	Required                                     bool
 	Values                                       url.Values
 }
 
-func readRegistrationResendForm(t *testing.T, page string) url.Values {
+func readRegistrationResendForm(t *testing.T, page, next string) url.Values {
 	t.Helper()
 	root, err := htmlparse.Parse(strings.NewReader(page))
 	if err != nil {
@@ -237,7 +295,7 @@ func readRegistrationResendForm(t *testing.T, page string) url.Values {
 	visit(root, false)
 	want := registrationResendForm{
 		Method: "post", Action: "/register/resend", EmailID: "email", LabelFor: "email", EmailType: "email", Required: true,
-		Values: url.Values{"email": {""}, "next": {"/account"}},
+		Values: url.Values{"email": {""}, "next": {next}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("the recovered resend form without a cookie (-want +got):\n%s", diff)
