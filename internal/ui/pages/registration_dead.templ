@@ -18,7 +18,7 @@ templ RegistrationDead(p layouts.Page, next string) {
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyVerifyDeadTitle) }</h1>
 			<p class="notice__body">{ i18n.T(ctx, i18n.KeyRegisterDeadBody) }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, templ.URL("/register?" + url.Values{"resend": {"1"}, "next": {next}}.Encode())) {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, templ.URL("/register?"+url.Values{"resend": {"1"}, "next": {next}}.Encode())) {
 					{ i18n.T(ctx, i18n.KeyRegisterResend) }
 				}
 				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
