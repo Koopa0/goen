@@ -818,6 +818,11 @@ type ShippingZonePrefix struct {
 	ZoneID uuid.UUID
 }
 
+// The single definition of a sold order: committed, and not refunded before shipment.
+type SoldOrder struct {
+	ID uuid.UUID
+}
+
 type StaffTotpCredential struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
