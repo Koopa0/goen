@@ -9,15 +9,9 @@ templ RunningTotal(p RunningTotalProps) {
 		{{ r := newRunningTotal(ctx, p) }}
 		@frame(p.Caption, p.Note, runningTotalTable(p, r)) {
 			<div class="goen-chart__frame">
-				<svg class="goen-chart__yaxis" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
-					for _, g := range r.Grid {
-						<text class="goen-chart__label" x="100%" dx="-8" y={ px(g.Y) } dy="0.32em" text-anchor="end">{ g.Label }</text>
-					}
-				</svg>
+				@valueLabels(r.axes)
 				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
-					for _, g := range r.Grid {
-						<line class={ "goen-chart__grid", templ.KV("goen-chart__baseline", g.Baseline) } x1="0" x2="100%" y1={ px(g.Y) } y2={ px(g.Y) }></line>
-					}
+					@gridRules(r.axes)
 					<svg x="0" y="0" width="100%" height={ strconv.Itoa(r.Height) } viewBox={ "0 0 1000 " + strconv.Itoa(r.Height) } preserveAspectRatio="none">
 						<polygon class="goen-chart__wash" points={ r.Area }></polygon>
 						<polyline class="goen-chart__previous" points={ r.PrevLine } vector-effect="non-scaling-stroke"></polyline>
@@ -25,17 +19,7 @@ templ RunningTotal(p RunningTotalProps) {
 					</svg>
 					<circle class={ "goen-chart__end goen-chart__end--previous", templ.KV("goen-chart__end--open", r.PreviousEnd.Open) } cx="100%" cy={ px(r.PreviousEnd.Y) } r="3.5"></circle>
 					<circle class={ "goen-chart__end goen-chart__end--current", templ.KV("goen-chart__end--open", r.CurrentEnd.Open) } cx="100%" cy={ px(r.CurrentEnd.Y) } r="4"></circle>
-					for _, t := range r.Ticks {
-						<text
-							class={ "goen-chart__label", templ.KV("goen-chart__tick--minor", t.Minor), templ.KV("goen-chart__today", t.Today) }
-							x={ t.X }
-							y={ px(r.LabelY) }
-							text-anchor={ t.Anchor }
-						>{ t.Label }</text>
-						if t.Today {
-							<line class="goen-chart__todaymark" x1="100%" x2="100%" y1={ px(r.Baseline) } y2={ px(r.Baseline + 6) }></line>
-						}
-					}
+					@dayLabels(r.axes)
 				</svg>
 				<svg class="goen-chart__ends" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
 					@endText(r.PrevLabel, "previous")
