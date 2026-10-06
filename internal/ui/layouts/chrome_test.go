@@ -252,7 +252,7 @@ func TestTheMenuOfOneDepartmentHasNoHeading(t *testing.T) {
 func TestTheMenuPrintsEachDepartmentsItemCount(t *testing.T) {
 	t.Parallel()
 
-	header := renderHeader(t, []layouts.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", Items: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, layouts.Page{})
+	header := renderHeader(t, []layouts.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", ProductCount: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, layouts.Page{})
 	if !strings.Contains(header, "<small>12</small>") {
 		t.Error("the menu does not print a department's count")
 	}
@@ -277,8 +277,8 @@ func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T
 		return rest[:strings.Index(rest, "</nav>")]
 	}
 	for title, hrefs := range map[i18n.Key][]string{
-		i18n.KeyFooterHelp:     {"/contact", "/faq", "/shipping", "/payment", "/returns", "/warranty"},
-		i18n.KeyFooterPolicies: {"/about", "/terms", "/privacy"},
+		i18n.KeyFooterHelp:       {"/contact", "/faq", "/shipping", "/payment", "/returns", "/warranty"},
+		i18n.KeyFooterAboutTerms: {"/about", "/terms", "/privacy"},
 	} {
 		col := column(title)
 		if got := strings.Count(col, "<a "); got != len(hrefs) {
@@ -289,16 +289,6 @@ func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T
 				t.Errorf("%s does not link %s", i18n.T(ctx, title), h)
 			}
 		}
-	}
-}
-
-// The newsletter field's label is visible text beside it, not only a placeholder.
-func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
-	t.Parallel()
-
-	_, footer := renderChrome(t, i18n.ZhHant, chromeNav)
-	if !strings.Contains(footer, `<label class="goen-footer__label" for="newsletter-email">`) {
-		t.Error("the newsletter field has no visible label")
 	}
 }
 

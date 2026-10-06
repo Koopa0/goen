@@ -444,13 +444,17 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx := layouts.WithTopNav(r.Context(), items)
-		next.ServeHTTP(w, r.WithContext(layouts.WithDeals(ctx, dealsHaveStock())))
+		next.ServeHTTP(w, r.WithContext(withNav(r.Context(), items)))
 	})
 }
 
-// dealsHaveStock is the one place that decides whether the header offers the deals page.
-func dealsHaveStock() bool { return true }
+func withNav(ctx context.Context, items []layouts.NavItem) context.Context {
+	return layouts.WithDeals(layouts.WithTopNav(ctx, items), dealsOffered())
+}
+
+// dealsOffered is true until #1204's "the deals page has something to buy" predicate
+// replaces this body.
+func dealsOffered() bool { return true }
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back
 // office.

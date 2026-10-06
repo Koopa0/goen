@@ -650,19 +650,22 @@ h3 {
 
 /* ---------- Header ----------
 
-   One 4rem row on a hairline: the brand, the departments, a quiet search
-   field, and the account, wishlist and cart icons. Static and not sticky on
-   purpose: a bar that follows the scroll takes 64px out of an 844px phone and
-   moves every scroll position the follow-up issues are measured against.
+   Two rows on a hairline. The bar: the brand, a search field underlined on the
+   3:1 line, and the language, account, wishlist and cart controls. Under it the
+   departments, always on a row of their own (see .goen-header__nav). Static and
+   not sticky on purpose: a bar that follows the scroll takes 64px out of an
+   844px phone and moves every scroll position the follow-up issues are
+   measured against.
 
-   A department with sub-categories shows a full-width panel under the bar on
-   hover or focus. The panel hangs from .goen-header, which is why nothing
-   between the two is positioned.
+   From 1024 a department with sub-categories shows a full-width panel under
+   the row on hover or focus. The panel hangs from .goen-header, which is why
+   nothing between the two is positioned.
 
-   Below 1024 the departments move into a native <details data-menu> and the
-   search field wraps onto its own row. `assets/js/goen.js` closes the menu on
-   Escape and on an outside click; nothing here needs script to open it. The
-   language control is not in the header: the footer carries it once.
+   Below 1024 the menu button opens a native <details data-menu> that covers
+   the page with every department, the account links and the language; the
+   search field wraps onto its own row of the bar. `assets/js/goen.js` closes
+   the menu on Escape and on an outside click; nothing here needs script to
+   open it.
    ------------------------------------------------------------------------ */
 
 .goen-header {
@@ -711,6 +714,7 @@ h3 {
 .goen-header__wordmark {
   font-size: var(--fs-18);
   font-weight: var(--fw-semibold);
+  letter-spacing: -0.03em;
 }
 
 /* The departments, always on a row of their own under the bar, in either
@@ -769,8 +773,9 @@ h3 {
   }
 }
 
-/* The panels are for a pointer and a keyboard on a wide row; below 1024 the
-   drawer is where a department's children are reached. */
+/* The panels are for a pointer and a keyboard on a wide row. Below 1024 the
+   menu lists the departments only, so a department's sub-categories are
+   reached from its own page. */
 @media (max-width: 1023px) {
   .goen-header__nav .goen-dept__panel {
     display: none !important;
@@ -1266,7 +1271,7 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  height: var(--drawer-room, calc(100dvh - 4rem));
+  height: var(--drawer-room, calc(100dvh - 7rem));
   left: 0;
   overflow-y: auto;
   padding: 12px;
@@ -1296,8 +1301,8 @@ h3 {
   color: var(--n-900);
   display: flex;
   font-size: var(--fs-16);
-  justify-content: space-between;
   font-weight: var(--fw-medium);
+  justify-content: space-between;
   min-height: 44px;
   padding: 0 12px;
   text-decoration: none;
@@ -1390,11 +1395,6 @@ h3 {
 
   .goen-header__brand {
     margin-right: 0;
-  }
-
-  .goen-header__mark {
-    height: 28px;
-    width: 28px;
   }
 
   .goen-header__search {
@@ -1535,13 +1535,6 @@ h3 {
   line-height: var(--lh-normal);
   margin: 0.5rem 0 0;
   text-wrap: pretty;
-}
-
-.goen-footer__label {
-  color: var(--n-900);
-  flex: 0 0 100%;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
 }
 
 .goen-footer__signup {

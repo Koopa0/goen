@@ -132,7 +132,7 @@
     const fit = () => {
       if (!drawer || !menu.open) return;
       const bottom = menu.closest(".goen-header__bar")?.getBoundingClientRect().bottom ?? 0;
-      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
+      menu.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
     };
     menu.addEventListener("toggle", fit);
     window.addEventListener("resize", fit);
@@ -163,7 +163,14 @@
     };
     centre();
     document.fonts?.ready.then(centre);
-    window.addEventListener("resize", centre);
+    // A phone's toolbar collapsing fires resize without changing the width, and
+    // would snap back a row the shopper has scrolled.
+    let width = window.innerWidth;
+    window.addEventListener("resize", () => {
+      if (window.innerWidth === width) return;
+      width = window.innerWidth;
+      centre();
+    });
   }
 
   /*

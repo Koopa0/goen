@@ -917,3 +917,55 @@ func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
 		t.Fatal("no department showed a product, so this compared nothing")
 	}
 }
+
+func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
+	ctx := t.Context()
+	var big, small, sub uuid.UUID
+	for _, c := range []struct {
+		id         *uuid.UUID
+		slug       string
+		parentSlug string
+	}{
+		{&big, "navcount-big", ""},
+		{&small, "navcount-small", ""},
+		{&sub, "navcount-big-sub", "navcount-big"},
+	} {
+		var parent any
+		if c.parentSlug != "" {
+			parent = big
+		}
+		if err := pool.QueryRow(ctx,
+			`INSERT INTO categories (slug, name, parent_id) VALUES ($1, $1, $2) RETURNING id`,
+			c.slug, parent).Scan(c.id); err != nil {
+			t.Fatalf("insert category %s: %v", c.slug, err)
+		}
+	}
+	for _, p := range []struct {
+		slug, status string
+		category     uuid.UUID
+	}{
+		{"navcount-a", "active", big},
+		{"navcount-b", "active", sub},
+		{"navcount-c", "draft", big},
+		{"navcount-d", "active", small},
+	} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO products (category_id, slug, name, status, published_at) VALUES ($1, $2, $2, $3, now())`,
+			p.category, p.slug, p.status); err != nil {
+			t.Fatalf("insert product %s: %v", p.slug, err)
+		}
+	}
+
+	items, err := home.NewStore(pool).Nav(i18n.WithLocale(ctx, i18n.ZhHant))
+	if err != nil {
+		t.Fatalf("nav: %v", err)
+	}
+	got := map[string]int{}
+	for _, n := range items {
+		got[n.Slug] = n.ProductCount
+	}
+	if got["navcount-big"] != 2 || got["navcount-small"] != 1 {
+		t.Errorf("department counts = big %d, small %d; want 2 (one in a sub-category, the draft left out) and 1",
+			got["navcount-big"], got["navcount-small"])
+	}
+}

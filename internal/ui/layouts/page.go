@@ -39,11 +39,11 @@ type NavItem struct {
 	Slug string
 	Name string
 	Href string
-	// Items is how many active products the department holds across its sub-categories;
-	// 0 is left unprinted.
-	Items    int
-	Children []NavItem
-	Picks    []NavPick
+	// ProductCount is how many active products the department holds across its
+	// sub-categories; 0 is left unprinted.
+	ProductCount int
+	Children     []NavItem
+	Picks        []NavPick
 }
 
 // NavPick carries a Price that is already rendered, "from" included where variants differ: the
