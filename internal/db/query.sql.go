@@ -13160,7 +13160,6 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
 ORDER BY in_stock DESC, (p.category_id = $3) DESC, p.published_at DESC, p.id DESC
 LIMIT $4::integer
