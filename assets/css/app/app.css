@@ -3341,11 +3341,12 @@ input.goen-check {
 }
 
 /* A phone's chips scroll sideways in one row; a wrapped second row would push
-   the first product down. */
+   the first product down. The row bleeds by the gutter, which is in px: a rem
+   bleed grows with the reader's text and runs past the screen. */
 .goen-pagehead__chips {
-  margin-inline: -1rem;
+  margin-inline: calc(var(--page-gutter) * -1);
   overflow-x: auto;
-  padding-inline: 1rem;
+  padding-inline: var(--page-gutter);
   scrollbar-width: none;
 }
 
@@ -3761,6 +3762,14 @@ input.goen-check {
   }
 }
 
+/* For the same reason a phone's campaign notice is its name and the day grid, whose last
+   label is the end date. */
+@media (max-width: 767px) {
+  .goen-deptnotice .ui-statline {
+    display: none;
+  }
+}
+
 /* Where products are put side by side, a row holds five and a card says what it is under
    its name. */
 .goen-tile__specs {
@@ -3911,11 +3920,6 @@ input.goen-check {
   .goen-pager--more {
     flex-direction: column;
     justify-content: center;
-  }
-
-  .goen-pagehead__chips {
-    margin-inline: -1.5rem;
-    padding-inline: 1.5rem;
   }
 }
 
