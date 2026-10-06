@@ -536,15 +536,20 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 	}
 }
 
+// listedSlugs reads every page: other tests commit listed campaigns, so one
+// page of CampaignPageSize rows need not hold the campaign under test.
 func listedSlugs(t *testing.T, s *catalog.Store) []string {
 	t.Helper()
-	view, err := s.ListedCampaigns(t.Context(), 1)
-	if err != nil {
-		t.Fatalf("running campaigns: %v", err)
-	}
-	out := make([]string, 0, len(view.Rows))
-	for _, r := range view.Rows {
-		out = append(out, r.Slug)
+	var out []string
+	for page, last := 1, 1; page <= last; page++ {
+		view, err := s.ListedCampaigns(t.Context(), page)
+		if err != nil {
+			t.Fatalf("running campaigns page %d: %v", page, err)
+		}
+		last = int((view.Total + catalog.CampaignPageSize - 1) / catalog.CampaignPageSize)
+		for _, r := range view.Rows {
+			out = append(out, r.Slug)
+		}
 	}
 	return out
 }
@@ -568,6 +573,9 @@ func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			slug := campaign(t, "listed-"+uuid.NewString()[:8])
+			t.Cleanup(func() {
+				_, _ = pool.Exec(context.WithoutCancel(ctx), `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, slug)
+			})
 			if tt.stock >= 0 {
 				featureNewProduct(t, pool, slug, tt.stock, tt.status)
 			}
@@ -715,7 +723,8 @@ func constraintName(err error) (code, name string) {
 func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
-	slugs := activeSlugs(t, 5)
+	// One past pages.MaxCompare, so the ceiling cases follow the constant.
+	slugs := activeSlugs(t, pages.MaxCompare+1)
 
 	tests := []struct {
 		name string
@@ -723,8 +732,8 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 		want int
 	}{
 		{"two products", slugs[:2], 2},
-		{"the ceiling", slugs[:4], 4},
-		{"past the ceiling", slugs, 4},
+		{"the ceiling", slugs[:pages.MaxCompare], pages.MaxCompare},
+		{"past the ceiling", slugs, pages.MaxCompare},
 		{"a repeat is one column", []string{slugs[0], slugs[0], slugs[1]}, 2},
 		{"an unknown slug is dropped", []string{slugs[0], "no-such-product", slugs[1]}, 2},
 		{"nothing at all", nil, 0},
