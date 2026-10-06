@@ -1,6 +1,7 @@
 package layouts
 
 import (
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -20,7 +21,7 @@ import (
 templ Admin(p Page, current string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-		@documentHead(p)
+		@documentHead(p, assets.AdminCSS)
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@adminBar()

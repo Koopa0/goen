@@ -5,9 +5,11 @@ package refunds
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
 )
@@ -18,6 +20,9 @@ var (
 	// ErrUnsettled is a refund before shipment whose card refund Stripe
 	// accepted and has not settled; the order stays open until a resume sees it land.
 	ErrUnsettled = errors.New("refunds: the refund is recorded and has not settled")
+	// ErrCancellationIncomplete means the money, refunded event and points
+	// settled; Resume must finish cancellation without another payout.
+	ErrCancellationIncomplete = fmt.Errorf("%w: the order cancellation did not complete", refundstate.ErrIncomplete)
 )
 
 type Store struct {

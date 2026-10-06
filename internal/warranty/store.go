@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -110,6 +111,7 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 	if err != nil {
 		return nil, fmt.Errorf("read warranties: %w", err)
 	}
+	now := time.Now()
 	out := make([]pages.Warranty, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -117,8 +119,8 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 			Name: r.ProductName, Label: r.VariantLabel.String,
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
-			RegisteredAt: shoptime.Day(r.RegisteredAt),
-			ExpiresOn:    shoptime.Day(r.ExpiresOn),
+			RegisteredAt: shoptime.DateText(ctx, shoptime.DateOf(r.RegisteredAt, now)),
+			ExpiresOn:    shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now)),
 			InForce:      r.InForce,
 		})
 	}
