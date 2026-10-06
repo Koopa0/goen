@@ -236,7 +236,7 @@ func TestCouponExpiryKeepsTheShopMinute(t *testing.T) {
 				t.Fatalf("CreateCoupon = %v, %v", errs, err)
 			}
 			if !tt.ends.IsZero() {
-				if _, updateErr := owner.Exec(ctx, `UPDATE coupons SET ends_at=$2 WHERE code=$1`, code, tt.ends); updateErr != nil {
+				if _, updateErr := owner.Exec(ctx, `UPDATE coupons SET starts_at=$2, ends_at=$3 WHERE code=$1`, code, tt.ends.Add(-time.Hour), tt.ends); updateErr != nil {
 					t.Fatal(updateErr)
 				}
 			}
