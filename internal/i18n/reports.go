@@ -85,16 +85,54 @@ var (
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
-		ZhHant: "依這段期間的銷售速度估算庫存還能賣幾天，最快賣完的排在前面。",
-		En:     "Sorted by how many days the stock will last at this period's rate of sale, shortest first.",
+		ZhHant: "依近 %[1]d 天的銷量估算還能賣幾天，已售完的日子不計入速率。已售完的排在最前面，最多列 %[4]d 個；其餘由短到長，也最多 %[4]d 個；條是估計的天數，細線是 90%% 區間，豎線標在 %[3]d 天；已售完和估計少於 %[3]d 天的標 ▲。近 %[1]d 天至少要有 %[2]d 筆訂單才估算。",
+		En:     "Days of stock left at the rate of the last %[1]d days, leaving out the days it was sold out. Sold out first, at most %[4]d; then the shortest, also at most %[4]d. The bar is the estimate, the thin line its 90%% range and the vertical line marks %[3]d days; ▲ marks a sold out item or an estimate under %[3]d days. An estimate needs at least %[2]d orders in the last %[1]d days.",
 	})
 
-	KeyAdminRepStockEmpty = key("admin.rep.stock.empty", Message{
-		ZhHant: "沒有需要注意的庫存。",
-		En:     "No stock needs attention.",
+	KeyAdminRepStockEmpty = countKey("admin.rep.stock.empty",
+		"近 %d 天沒有銷售，也沒有已售完的商品，無法估算還能賣幾天。",
+		"No sales in the last %d day and nothing sold out, so there is nothing to estimate.",
+		"No sales in the last %d days and nothing sold out, so there is nothing to estimate.")
+
+	KeyAdminRepLeft = key("admin.rep.left", Message{ZhHant: "可售 %s", En: "%s sellable"})
+
+	KeyAdminRepSold = key("admin.rep.sold", Message{
+		ZhHant: "近 %[1]d 天售出 %[2]s（%[3]s）",
+		En:     "%[2]s sold in the last %[1]d days (%[3]s)",
 	})
 
-	KeyAdminRepLeft = key("admin.rep.left", Message{ZhHant: "剩 %s", En: "%s left"})
+	KeyAdminRepUnitCount  = countKey("admin.rep.unitcount", "%d 件", "%d unit", "%d units")
+	KeyAdminRepOrderCount = countKey("admin.rep.ordercount", "%d 筆訂單", "%d order", "%d orders")
 
-	KeyAdminRepSold = key("admin.rep.sold", Message{ZhHant: "近期售出 %s", En: "%s sold recently"})
+	KeyAdminRepAbout       = countKey("admin.rep.about", "約 %d 天", "About %d day", "About %d days")
+	KeyAdminRepBeyond      = countKey("admin.rep.beyond", "%d 天以上", "More than %d day", "More than %d days")
+	KeyAdminRepRange       = countKey("admin.rep.range", "90%% 區間 %[2]s–%[3]s 天", "90%% range: %[2]s–%[3]s day", "90%% range: %[2]s–%[3]s days")
+	KeyAdminRepWithin      = countKey("admin.rep.within", "%d 天內會賣完", "Runs out within %d day", "Runs out within %d days")
+	KeyAdminRepMayRun      = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
+	KeyAdminRepFewSold     = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
+	KeyAdminRepMoreSoldOut = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
+
+	KeyAdminRepReturned = key("admin.rep.returned", Message{ZhHant: "退貨最多的商品", En: "Products returned most"})
+
+	KeyAdminRepReturnedNote = key("admin.rep.returned.note", Message{
+		ZhHant: "計入已同意與已完成的退貨件數，對照這段期間下單的售出件數；待處理與未同意的申請不計，期間內較新的訂單還可能再退。出貨前全額退款的訂單不計入，所以售出件數可能比熱賣商品少。件數相同時，售出多的在前。",
+		En: "Counts units on approved and completed returns against units sold on the orders placed in this period. " +
+			"Open and declined requests are left out, and recent orders may still be returned. " +
+			"Orders refunded before shipment are not counted, so sold units can be fewer than under Best sellers. " +
+			"Equal counts are listed with the larger sale first.",
+	})
+
+	KeyAdminRepReturnedCounts = countKey("admin.rep.returned.counts", "%s / %s 件", "%s / %s unit", "%s / %s units")
+
+	KeyAdminRepReturnedShare = key("admin.rep.returned.share", Message{ZhHant: "%s 退貨", En: "%s returned"})
+
+	KeyAdminRepReturnedOne = key("admin.rep.returned.one", Message{
+		ZhHant: "只有 1 件商品有退貨：%s，%s。",
+		En:     "Only one product had returns: %s, %s.",
+	})
+
+	KeyAdminRepReturnedUnavailable = key("admin.rep.returned.unavailable", Message{
+		ZhHant: "退貨資料暫時無法取得。",
+		En:     "Returns data is unavailable right now.",
+	})
 )

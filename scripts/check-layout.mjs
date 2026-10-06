@@ -216,12 +216,25 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  // The marker is the department bars: scripts/check-layout.sql gives the report
-  // two best sellers, one at four digits, in two departments, so a row without
-  // them measured the page with one department or none.
-  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
+  // report two best sellers, one at four digits, and a return of a quarter of the
+  // second's units, so the row waits for the returned-products bar, the one with
+  // the most text; without it the page measured is the one-sentence state.
+  // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
+  // ledger that starts twenty days back, so its row carries the range bar, the range text
+  // and the warning; without it the rows measured say only that sales are too few.
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  // .goen-report__departments .goen-chartbar: the two best sellers are in two
+  // departments, so the row waits for the department bars; without them it
+  // measured the page with one department or none.
+  { label: 'admin reports departments 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   // .goen-chartmeter: scripts/check-layout.sql adds a coupon with a total limit,

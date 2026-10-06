@@ -288,6 +288,67 @@ SELECT record_audit_event(:'staff_id', 'order.advance', 'orders', id, NULL,
     jsonb_build_object('number', order_number, 'status', 'delivered'))
 FROM orders WHERE id IN (:'invoice_id', :'form_id');
 
+-- Ten paid orders of one unit on a SKU with twelve sellable and a ledger that
+-- starts twenty days back, so the stock section of /admin/reports estimates
+-- it: about 24 days, a range that reaches past 30, a warning and the range
+-- bar. Placed and funded as the picking orders above are; the receipt covers
+-- the ten holds. The seed's receipt is the whole stock the SKU began with, so
+-- it moves back twenty days, as seed/demo_history.sql moves it: nothing was
+-- there to sell before it.
+SELECT pv.id AS estimate_variant_id, pv.stock_quantity AS estimate_stock, pv.safety_stock AS estimate_safety
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
+  AND pv.product_id NOT IN (SELECT product_id FROM product_variants
+                            WHERE id IN (:'variant_id', :'seller_variant_id'))
+ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+UPDATE inventory_movements SET created_at = now() - interval '20 days'
+WHERE variant_id = :'estimate_variant_id' AND reason = 'receipt' AND idempotency_key LIKE 'seed:%';
+SET LOCAL session_replication_role = origin;
+SET ROLE admin;
+SELECT record_inventory_movement(:'estimate_variant_id', 12 + :estimate_safety - :estimate_stock, 'adjustment',
+    'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id')
+WHERE :estimate_stock <> 12 + :estimate_safety;
+SELECT record_inventory_movement(:'estimate_variant_id', 10, 'receipt',
+    'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
+SELECT grant_store_credit(:'customer_id', pv.price_cents + :ship_cents + 100, 'Estimate fixture', :'staff_id', gen_random_uuid())
+FROM product_variants pv, generate_series(1, 10) WHERE pv.id = :'estimate_variant_id';
+
+SET ROLE store;
+
+WITH placed AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents
+    FROM generate_series(1, 10)
+    RETURNING id
+)
+SELECT array_agg(id) AS estimate_orders FROM placed \gset
+INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name,
+                         warranty_note, warranty_months, unit_price_cents, quantity, position)
+SELECT o.id, p.id, pv.id, pv.sku, p.name, p.warranty_note, p.warranty_months, pv.price_cents, 1, 0
+FROM unnest(:'estimate_orders'::uuid[]) AS o (id)
+JOIN product_variants pv ON pv.id = :'estimate_variant_id'
+JOIN products p ON p.id = pv.product_id;
+SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
+                      'hold:' || order_id || ':' || variant_id)
+FROM order_lines WHERE order_id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO order_events (order_id, kind) SELECT id, 'placed' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+SELECT spend_store_credit(id, -order_amount_after_credit(id)) FROM orders WHERE id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
+SELECT id, 'member_carrier', 'Layout packer', 'layout-cust@goen.invalid' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT id, 'layout-cust@goen.invalid', 'Layout packer', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+
+SET ROLE admin;
+
+UPDATE orders SET fulfillment_status = 'picking' WHERE id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO order_events (order_id, kind) SELECT id, 'paid' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+INSERT INTO order_events (order_id, kind, actor_user_id)
+SELECT id, 'picking', :'staff_id' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+
 SET ROLE store;
 
 -- Registered before the return, which takes the unit off what may be
@@ -327,6 +388,22 @@ SELECT return_payout_outstanding(:'return_id') AS payout_outstanding \gset
 \if :payout_outstanding
 DO $$ BEGIN RAISE EXCEPTION 'the layout return is approved but its payout is incomplete'; END $$;
 \endif
+
+-- A second product with returns, so /admin/reports draws the returned-products
+-- bars rather than the one-sentence state: a quarter of the second best seller's
+-- 1,000 units, the row with the longest text on the page. The parcel never
+-- shipped, so the rows go in with triggers off, completed with nothing owed.
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+INSERT INTO return_requests (order_id, requested_by_user_id, reason, status, decided_at,
+                             goods_refund_cents, card_refund_cents, credit_refund_cents)
+VALUES (:'picking_a_id', :'customer_id', '版面檢查：退貨商品列', 'completed', now(), 0, 0, 0)
+RETURNING id AS returned_row_id \gset
+INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+SELECT order_id, :'returned_row_id', id, 250 FROM order_lines
+WHERE order_id = :'picking_a_id' AND variant_id = :'seller_variant_id';
+SET LOCAL session_replication_role = origin;
+SET ROLE admin;
 
 -- The invoice on INVOICE_ORDER, filed as the invoice worker files one: claim,
 -- lease, send, settle with the provider's number. The doors answer a refusal
