@@ -1,5 +1,4 @@
-/* ============================================================
-   goen — back office.
+/* =====================================================   goen — back office.
 
    Linked by layouts.Admin after base.css, and by nothing else; app.css is
    the storefront's and the back office does not load it. The rules for the
@@ -1013,6 +1012,16 @@ input.goen-check {
   }
 }
 
+.goen-admin__tier {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+}
+
+.goen-admin__tier p {
+  margin: 0;
+}
+
 /* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
 .goen-admin__stats > .ui-statline {
   grid-column: 1 / -1;
@@ -1121,6 +1130,14 @@ input.goen-check {
   font-size: var(--fs-13);
   line-height: var(--lh-normal);
   margin: 0;
+}
+
+/* The days cover rows above the stock list keep the page's own rhythm. */
+.goen-admin__cover {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 /* The second line of a cell or a card: who, when, which brand. */
@@ -1833,6 +1850,31 @@ input.goen-check {
   gap: 12px;
   justify-content: space-between;
   padding: 12px 16px;
+}
+
+.goen-admin__task--alert {
+  border-color: var(--warn);
+}
+
+.goen-admin__taskfigure {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+}
+
+.goen-admin__taskfigure .goen-admin__cellnum {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-regular);
+}
+
+.goen-admin__task:first-child .goen-admin__cellnum {
+  font-size: var(--fs-ed-30);
+  line-height: 1;
+}
+
+.goen-admin__taskage {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
 }
 
 /* Worker health. One box per worker, marked at the edge when it needs
@@ -2839,6 +2881,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chartmeter__limit {
+  fill: var(--chart-annotation);
+}
+
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
@@ -2902,6 +2948,10 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 
   .goen-chartmeter__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartmeter__limit {
     fill: CanvasText;
   }
 
@@ -3033,6 +3083,35 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 2;
 }
 
+/* No column for the line ends: the plot takes what they would. */
+.goen-chart__frame--noends {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__level {
+  fill: none;
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__safety,
+.goen-chart__receipt {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+/* A name over a line is set on a halo of the page's own colour, so the line
+   does not run through its letters. */
+.goen-chart__annotation {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+}
+
 @container (max-width: 519px) {
   .goen-chart__tick--minor {
     display: none;
@@ -3095,7 +3174,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chart__hit--on {
-  fill: rgb(24 24 27 / 0.05);
+  fill: color-mix(in srgb, var(--fg) 5%, transparent);
 }
 
 .goen-chart__crosshair {
@@ -3171,6 +3250,18 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__crosshair {
     stroke: CanvasText;
+  }
+
+=======
+  .goen-chart__level,
+  .goen-chart__safety,
+  .goen-chart__receipt {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__annotation {
+    fill: CanvasText;
+    stroke: Canvas;
   }
 
   .goen-chart__label,

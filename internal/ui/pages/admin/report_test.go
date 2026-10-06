@@ -504,7 +504,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 	}
 	html := renderComponent(t, en, Report(layouts.Page{Title: "Reports"}, &v))
 	for _, want := range []string{
-		"Paid orders per day (orders)",
+		"Paid orders per day",
 		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
 		`<p class="goen-chart__note">Paid orders only, by the time placed. Today is counted up to 15:20.</p>`,
 		`<th scope="col" data-readout="series">Paid orders</th>`,
@@ -563,7 +563,7 @@ func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T)
 	// 90 days up to 10/5 start on 7/8. The busiest 7 days start on 9/29.
 	v := paidView(90, map[int]int64{0: 1, 40: 2, 60: 3, 83: 5, 85: 4, 88: 2, 89: 1})
 	en := i18n.WithLocale(t.Context(), i18n.En)
-	if got, want := v.PaidHeading(en), "Paid orders per 7 days (orders)"; got != want {
+	if got, want := v.PaidHeading(en), "Paid orders per 7 days"; got != want {
 		t.Errorf("PaidHeading = %q, want %q", got, want)
 	}
 	if got, want := spaced(v.PaidSentence(en)), "The busiest stretch was the 7 days from Sep 29, with 12 orders."; got != want {
@@ -573,7 +573,7 @@ func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T)
 		t.Errorf("the table's day heading = %q, want %q", got, want)
 	}
 	thirty := paidView(30, nil)
-	if got, want := thirty.PaidHeading(en), "Paid orders per day (orders)"; got != want {
+	if got, want := thirty.PaidHeading(en), "Paid orders per day"; got != want {
 		t.Errorf("PaidHeading of 30 days = %q, want %q", got, want)
 	}
 }
@@ -591,5 +591,71 @@ func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	}
 	if strings.Contains(html, "No paid orders Sep") {
 		t.Error("a chart that could not be read is told as a period without orders")
+	}
+}
+
+func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
+		Departments: []Department{
+			{Name: "Audio", SalesCents: 400000},
+			{Name: "Cables", SalesCents: 100000},
+		},
+	}))
+
+	for _, want := range []string{"各館商品銷售額", "Audio", "Cables", "商品銷售額 NT$4,000", "商品銷售額 NT$1,000", `width="100.00%"`, `width="25.00%"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("report lacks %q", want)
+		}
+	}
+	if got := strings.Count(html, `class="goen-chartbar__fill"`); got != 2 {
+		t.Errorf("report draws %d department bars, want 2", got)
+	}
+}
+
+func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.En, "All product sales in this period are in Audio: NT$4,000."},
+		{i18n.ZhHant, "這段期間的商品銷售額全部屬於音響：NT$4,000。"},
+	} {
+		t.Run(string(tt.locale), func(t *testing.T) {
+			t.Parallel()
+			name := "Audio"
+			if tt.locale == i18n.ZhHant {
+				name = "音響"
+			}
+			var b bytes.Buffer
+			view := ReportView{
+				Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+				Departments: []Department{{Name: name, SalesCents: 400000}},
+			}
+			if err := Report(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(b.String(), tt.want) {
+				t.Errorf("report lacks %q", tt.want)
+			}
+			if strings.Contains(b.String(), "goen-chartbar") {
+				t.Error("report draws a bar for a single department")
+			}
+		})
+	}
+}
+
+func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+	}))
+	if strings.Contains(html, "各館商品銷售額") {
+		t.Error("report shows a department heading with no departments")
 	}
 }

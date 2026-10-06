@@ -129,12 +129,23 @@ ORDER BY v.effective_at DESC LIMIT 1 \gset
 -- two sellers to compare. Its 1,000 units give the bars' count column four
 -- digits; they ride the two picking orders as two lines of 500, since a line
 -- holds at most 999. The cheapest variant in stock, so each line's credit fits
--- one grant; the receipt covers the holds, so its stock ends where it began.
+-- one grant; the receipt covers the holds, so its stock ends where it began. It
+-- is in another department than the first, which gives the department bars two
+-- rows to compare.
+WITH RECURSIVE up AS (
+    SELECT p.id AS product_id, c.id, c.parent_id FROM products p JOIN categories c ON c.id = p.category_id
+    UNION ALL
+    SELECT u.product_id, c.id, c.parent_id FROM up u JOIN categories c ON c.id = u.parent_id
+),
+department AS (SELECT product_id, id AS root_id FROM up WHERE parent_id IS NULL)
 SELECT pv.id AS seller_variant_id, pv.sku AS seller_sku, pv.price_cents * 500 AS seller_line_cents
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
+JOIN department d ON d.product_id = p.id
 WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
-  AND pv.product_id <> (SELECT product_id FROM product_variants WHERE id = :'variant_id')
+  AND d.root_id <> (SELECT dd.root_id FROM department dd
+                    JOIN product_variants fv ON fv.product_id = dd.product_id
+                    WHERE fv.id = :'variant_id')
 ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
 
 SET ROLE admin;
@@ -163,6 +174,13 @@ INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'var
 -- Checkout's saved-address select must be exercised as a signed-in customer.
 INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street, is_default)
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
+
+-- A tier above the fixture customer's spend, so the customer page draws its meter.
+SET ROLE admin;
+INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
+VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
+ON CONFLICT DO NOTHING;
+SET ROLE store;
 
 -- Five orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
@@ -407,6 +425,22 @@ SELECT return_payout_outstanding(:'return_id') AS payout_outstanding \gset
 \if :payout_outstanding
 DO $$ BEGIN RAISE EXCEPTION 'the layout return is approved but its payout is incomplete'; END $$;
 \endif
+
+-- A second product with returns, so /admin/reports draws the returned-products
+-- bars rather than the one-sentence state: a quarter of the second best seller's
+-- 1,000 units, the row with the longest text on the page. The parcel never
+-- shipped, so the rows go in with triggers off, completed with nothing owed.
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+INSERT INTO return_requests (order_id, requested_by_user_id, reason, status, decided_at,
+                             goods_refund_cents, card_refund_cents, credit_refund_cents)
+VALUES (:'picking_a_id', :'customer_id', '版面檢查：退貨商品列', 'completed', now(), 0, 0, 0)
+RETURNING id AS returned_row_id \gset
+INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+SELECT order_id, :'returned_row_id', id, 250 FROM order_lines
+WHERE order_id = :'picking_a_id' AND variant_id = :'seller_variant_id';
+SET LOCAL session_replication_role = origin;
+SET ROLE admin;
 
 -- The invoice on INVOICE_ORDER, filed as the invoice worker files one: claim,
 -- lease, send, settle with the provider's number. The doors answer a refusal

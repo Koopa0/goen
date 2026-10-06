@@ -152,7 +152,8 @@ LIMIT 50;
 -- pending beyond several worker polls. Succeeded evidence and a staff claim's
 -- rejection, which that person saw, are not an active health alarm. A system
 -- issue's rejection was seen by nobody, so it stays while the order still owes
--- an invoice and no later issue exists.
+-- an invoice and no later issue exists. With no 加值中心 configured an operation
+-- never sent is waiting for one, not stranded; one already sent stays.
 -- name: StrandedInvoiceClaims :many
 SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
@@ -165,11 +166,14 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
            AS can_authorize_resend,
-       count(*) OVER () AS total
+       count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(op.created_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
-   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes'
+       AND (@invoicing_enabled::boolean OR op.send_attempts > 0))
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
             OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
@@ -187,7 +191,9 @@ LIMIT 50;
 -- operations existed, owe no claim. Newest first, so the order that just went
 -- wrong is on top; the total says how many more there are.
 -- name: UninvoicedOrders :many
-SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total
+SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(f.funded_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM orders o
 CROSS JOIN LATERAL (
     SELECT coalesce(
@@ -217,7 +223,9 @@ LIMIT 50;
 -- 加值中心 was configured to send one. One with an operation still active is on
 -- the stranded-claims list instead.
 -- name: CancelledOrderInvoices :many
-SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(o.cancelled_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.fulfillment_status = 'cancelled'

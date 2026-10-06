@@ -11,6 +11,7 @@
    ============================================================ */
 
 :root {
+  --col-gap: clamp(16px, 1.7vw, 24px);
   /* The brand names are the accent under the spelling the shared
      primitives were written against. They follow --accent rather than
      repeating it, so the accent moves in one place. */
@@ -182,7 +183,8 @@ body {
 .ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
-.ui-statline--wide, .ui-statline--glance { max-width: none; }
+.ui-statline--wide, .ui-statline--glance, .ui-statline--pairs { max-width: none; }
+.ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
 .ui-statline--glance dt a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 0.2em; }
 .ui-statline--glance dt a:hover { text-decoration-color: currentcolor; }
 /* one stat keeps a column's width; it never stretches into a divider */
@@ -376,6 +378,7 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+  --font-editorial: 'Noto Serif TC', serif;
 
   --fw-display: 350;
 
@@ -445,16 +448,19 @@ body {
   --chart-label: var(--fg-muted);
 }
 
-/* The one measurement every surface shares: a content column that stops at
-   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
-   the header bar's, the home page's and the footer grid's content edges and
-   fails when they disagree, so each reads the column from this one pair. */
+/* The back office's content column: it stops at 1280px inside a gutter of
+   16 / 24 / 32px. app.css sets the storefront's own pair after this, and
+   `scripts/check-layout.mjs` compares the header bar's, the home page's and
+   the footer grid's content edges and fails when they disagree, so each reads
+   the column from that one pair. */
 :root {
   --page-gutter: 16px;
   --page-width: 1280px;
   /* The content column plus its gutters, for the pages that size themselves
      with border-box: their text then starts where the header's does. */
   --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
+  /* Where the content column starts on a full-bleed band. */
+  --page-edge: max(var(--page-gutter), calc((100vw - var(--page-width)) / 2 + var(--page-gutter)));
 }
 
 @media (min-width: 768px) {
@@ -470,7 +476,7 @@ body {
 }
 
 /* ---------- Period ----------
-   A stored start and end drawn to scale, one cell per day. A cell has no width
+   A stored start and end drawn to scale, one cell per day or per minute. A cell has no width
    of its own: the count of cells is the data. Elapsed cells are a 4px --mark
    fill, today is filled with a tick, cells to come are a 1px --edge. Only 今天
    sits above the line; below it only the two ends. Nothing animates and nothing
@@ -489,8 +495,14 @@ body {
 }
 
 /* Fifteen cells or more: a 2px gap would eat a third of a 288px line at 320px. */
-.ui-period:has(> i:nth-child(15)) {
+.ui-period:has(> i:nth-child(15)):not([data-unit="minute"]) {
   gap: 1px;
+}
+
+/* Sixty minutes are one line: the cells touch, and one gap splits the span
+   after the deadline from the cells before it. */
+.ui-period[data-unit="minute"] {
+  gap: 0;
 }
 
 .ui-period:has(> i:nth-child(15)) > i:nth-child(-n + 3) b {
@@ -620,13 +632,39 @@ body {
   }
 }
 
+.ui-period > i[data-mark]::before {
+  border-left: 2px solid var(--mark);
+  bottom: 0;
+  content: "";
+  height: 16px;
+  position: absolute;
+  right: -2px;
+}
+
+.ui-period[data-unit="minute"] > i[data-mark] + i {
+  margin-left: 2px;
+}
+
+.ui-period > i[data-mark] small {
+  left: auto;
+  right: 0;
+}
+
+/* Under 12rem the deadline's time would meet the end's: its tick stays. */
+@container period (width < 12rem) {
+  .ui-period[data-unit="minute"] > i[data-mark] small {
+    display: none;
+  }
+}
+
 /* Thickness carries elapsed from to come, and Highlight draws the tick. */
 @media (forced-colors: active) {
   .ui-period > i {
     border-bottom-color: CanvasText;
   }
 
-  .ui-period > i[data-cell="today"]::before {
+  .ui-period > i[data-cell="today"]::before,
+  .ui-period > i[data-mark]::before {
     border-left-color: Highlight;
   }
 }

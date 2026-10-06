@@ -128,36 +128,50 @@ func (s *Store) FollowUpRegistration(
 }
 
 func (s *Store) Authenticate(ctx context.Context, email, password string) (user.User, error) {
+	row, err := s.verifiedCredentials(ctx, email, password)
+	if err != nil {
+		return user.User{}, err
+	}
+	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
+		return user.User{}, fmt.Errorf("touch last login: %w", err)
+	}
+	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
+}
+
+// ConfirmPassword checks the verified account's password without recording a sign-in.
+func (s *Store) ConfirmPassword(ctx context.Context, email, password string) error {
+	_, err := s.verifiedCredentials(ctx, email, password)
+	return err
+}
+
+func (s *Store) verifiedCredentials(ctx context.Context, email, password string) (db.UserByEmailRow, error) {
 	// Refuse this before reading the account, or the outcomes are
 	// distinguishable: burnHashTime returns immediately at this length while
 	// VerifyPassword does not. Every password_hash writer in account goes
 	// through HashPassword, which refuses an input over this same bound.
 	if len(password) > MaxPasswordBytes {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
 
 	row, err := s.q.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			burnHashTime(password)
-			return user.User{}, ErrBadCredentials
+			return db.UserByEmailRow{}, ErrBadCredentials
 		}
-		return user.User{}, fmt.Errorf("read user: %w", err)
+		return db.UserByEmailRow{}, fmt.Errorf("read user: %w", err)
 	}
 	if !passwordMatches(row.PasswordHash, password) {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
 	// After the hash, so an unproved account costs what a wrong password does.
 	// Its password was chosen by whoever registered the address, who has not
 	// yet shown they read the mailbox, and a different answer would say which
 	// registrations created an account.
 	if !row.Verified {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
-	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
-		return user.User{}, fmt.Errorf("touch last login: %w", err)
-	}
-	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
+	return row, nil
 }
 
 // passwordMatches costs an account with no password the hash a wrong password
@@ -595,8 +609,9 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress locks the account first: under READ COMMITTED a clear cannot see
-// a default another transaction is setting.
+// AddAddress locks the account first when the new address is the default:
+// under READ COMMITTED a clear cannot see a default another transaction is
+// setting. A non-default insert touches no default, so it takes no lock.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -619,11 +634,10 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
-		return fmt.Errorf("lock account for add address: %w", lockErr)
-	}
-
 	if a.Default {
+		if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
+			return fmt.Errorf("lock account for add address: %w", lockErr)
+		}
 		if clearErr := q.ClearDefaultAddress(ctx, id); clearErr != nil {
 			return fmt.Errorf("clear default address: %w", clearErr)
 		}

@@ -71,6 +71,17 @@ var (
 	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
 	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費；不是上方的營收。", En: "Product gross is the tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping. It is not the revenue above."})
 
+	KeyAdminRepDepartments     = key("admin.rep.departments", Message{ZhHant: "各館商品銷售額", En: "Product sales by department"})
+	KeyAdminRepDepartmentsNote = key("admin.rep.departments.note", Message{
+		ZhHant: "商品銷售額按含稅成交單價乘數量計算，商品依目前所在的館別歸類；折扣與運費按訂單計，不分館：各館加總減去訂單折扣、加上運費，就是上方的營收。出貨前全額退款的訂單不計入。",
+		En:     "Product sales are the tax-inclusive sale unit price multiplied by quantity, with each product counted in the department it is in now. Discounts and shipping belong to the order, not a department: the departments' total, less order discounts and plus shipping, is the revenue above. Orders fully refunded before shipment are left out.",
+	})
+	KeyAdminRepDepartmentOnly = key("admin.rep.departments.only", Message{
+		ZhHant: "這段期間的商品銷售額全部屬於%s：%s。",
+		En:     "All product sales in this period are in %s: %s.",
+	})
+	KeyAdminRepDepartmentSales = key("admin.rep.departments.sales", Message{ZhHant: "商品銷售額 %s", En: "Product sales %s"})
+
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
@@ -100,6 +111,30 @@ var (
 	KeyAdminRepMayRun      = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
 	KeyAdminRepFewSold     = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
 	KeyAdminRepMoreSoldOut = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
+
+	KeyAdminRepReturned = key("admin.rep.returned", Message{ZhHant: "退貨最多的商品", En: "Products returned most"})
+
+	KeyAdminRepReturnedNote = key("admin.rep.returned.note", Message{
+		ZhHant: "計入已同意與已完成的退貨件數，對照這段期間下單的售出件數；待處理與未同意的申請不計，期間內較新的訂單還可能再退。出貨前全額退款的訂單不計入，所以售出件數可能比熱賣商品少。件數相同時，售出多的在前。",
+		En: "Counts units on approved and completed returns against units sold on the orders placed in this period. " +
+			"Open and declined requests are left out, and recent orders may still be returned. " +
+			"Orders refunded before shipment are not counted, so sold units can be fewer than under Best sellers. " +
+			"Equal counts are listed with the larger sale first.",
+	})
+
+	KeyAdminRepReturnedCounts = countKey("admin.rep.returned.counts", "%s / %s 件", "%s / %s unit", "%s / %s units")
+
+	KeyAdminRepReturnedShare = key("admin.rep.returned.share", Message{ZhHant: "%s 退貨", En: "%s returned"})
+
+	KeyAdminRepReturnedOne = key("admin.rep.returned.one", Message{
+		ZhHant: "只有 1 件商品有退貨：%s，%s。",
+		En:     "Only one product had returns: %s, %s.",
+	})
+
+	KeyAdminRepReturnedUnavailable = key("admin.rep.returned.unavailable", Message{
+		ZhHant: "退貨資料暫時無法取得。",
+		En:     "Returns data is unavailable right now.",
+	})
 )
 
 var (
@@ -140,9 +175,9 @@ var (
 )
 
 var (
-	KeyAdminRepDaily = key("admin.rep.daily", Message{ZhHant: "每日已付款訂單（筆）", En: "Paid orders per day (orders)"})
+	KeyAdminRepDaily = key("admin.rep.daily", Message{ZhHant: "每日已付款訂單（筆）", En: "Paid orders per day"})
 
-	KeyAdminRepEvery7Days = key("admin.rep.every7days", Message{ZhHant: "每 7 天已付款訂單（筆）", En: "Paid orders per 7 days (orders)"})
+	KeyAdminRepEvery7Days = key("admin.rep.every7days", Message{ZhHant: "每 7 天已付款訂單（筆）", En: "Paid orders per 7 days"})
 
 	KeyAdminRepCampaign = key("admin.rep.campaign", Message{ZhHant: "活動", En: "Campaign"})
 

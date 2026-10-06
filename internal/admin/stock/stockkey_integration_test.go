@@ -5,6 +5,7 @@ package stock_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -73,7 +74,7 @@ func TestAGoodsReceiptSurvivesStockReturningAndAReplayIsOneDelivery(t *testing.T
 		t.Fatal(err)
 	}
 	keyOf := func() string {
-		view, err := s.Movements(ctx, sku)
+		view, err := s.Movements(ctx, sku, time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}

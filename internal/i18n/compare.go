@@ -57,7 +57,7 @@ var (
 	})
 
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
-		ZhHant: "裡從商品頁加入比較，最多四個。",
+		ZhHant: "裡從商品頁加入比較，最多五個。",
 		En:     ".",
 	})
 
@@ -73,8 +73,8 @@ var (
 	// KeyCompareLimit is on the form rather than only in the empty state: ticking
 	// six and being shown four is a cap that never said so.
 	KeyCompareLimit = key("compare.limit", Message{
-		ZhHant: "最多比較四個",
-		En:     "Up to four at a time",
+		ZhHant: "最多比較五個",
+		En:     "Up to five at a time",
 	})
 
 	KeyCompareFull = key("compare.full", Message{
