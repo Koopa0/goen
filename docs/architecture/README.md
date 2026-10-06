@@ -1,6 +1,6 @@
 # Architecture figures
 
-English PNGs and SVGs for goen's architecture. Labels, layout and export
+English PNG figures for goen's architecture. Labels, layout and export
 settings are defined in `render_diagrams.py`.
 
 | File stem | PNG dimensions |
@@ -23,8 +23,8 @@ python docs/architecture/render_diagrams.py
 
 Options:
 
-- `--svg-only`: regenerate SVGs without Inkscape.
+- `--svg-only`: write only the intermediate SVGs, without Inkscape.
 - `--only 02`: regenerate one figure (`01` through `05`).
 
-The script replaces matching files in this directory. PNGs are exported at
-twice the SVG dimensions.
+The script replaces matching files in this directory. It draws each figure as
+an SVG and exports the PNG at twice its size; the SVGs are not tracked.
