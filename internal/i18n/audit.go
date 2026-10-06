@@ -20,6 +20,7 @@ var (
 	KeyAuditStockReceive = key("audit.stock.receive", Message{ZhHant: "進貨", En: "Receive stock"})
 
 	KeyAuditVariantReprice = key("audit.variant.reprice", Message{ZhHant: "調整售價", En: "Change price"})
+	KeyAuditVariantArrival = key("audit.variant.arrival", Message{ZhHant: "設定預計到貨日", En: "Set expected arrival"})
 
 	KeyAuditVariantRetire = key("audit.variant.retire", Message{ZhHant: "規格上下架", En: "Variant availability"})
 

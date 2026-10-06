@@ -246,8 +246,8 @@ a:hover {
 
    The neutrals carry no chroma, because the product photographs sit on a
    chroma-free #f9f9f9 and any tint in the page would show as an edge around
-   them. Colour is spent in two places only: the accent, and the functional
-   hues a status needs.
+   them. Colour is spent in three places only: the accent, the functional
+   hues a status needs, and the one chart data colour, --chart-hue.
    ------------------------------------------------------------------------ */
 
 :root {
@@ -286,6 +286,8 @@ a:hover {
   --border: var(--n-200);
   --border-faint: var(--n-100);
   --border-strong: var(--n-300);
+  /* Controls need 3:1 against their ground: 5.7:1 on white, 5.2:1 on n-100. */
+  --control-boundary: var(--n-500);
   --elevated: var(--n-100);
   --overlay: var(--n-100);
 
@@ -304,10 +306,10 @@ a:hover {
 
   --font-display: var(--font-sans);
 
-  /* One family for everything, headings included. Noto Sans TC follows Inter
-     so Han is covered by a face that sits beside it rather than under a
-     second personality. */
-  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* One family for everything, headings included. Noto Sans TC follows
+     Instrument Sans so Han is covered by a face that sits beside it rather
+     than under a second personality. */
+  --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;
@@ -584,6 +586,16 @@ h3 {
   color: var(--fg);
 }
 
+.goen-notice__lead {
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .goen-notice--danger {
+    border: 2px solid CanvasText;
+  }
+}
+
 /* A quantity field with a step on each side, as one control. The field is the
    control and the buttons are the enhancement: they are out of sight until the
    stylesheet is told scripting is on, so a browser without it -- or without the
@@ -679,7 +691,7 @@ h3 {
   font-family: inherit;
   font-size: var(--fs-16);
   height: 2.75rem;
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   padding: 0.25rem 0.75rem;
   width: 100%;
@@ -1103,11 +1115,10 @@ h3 {
   width: 16px;
 }
 
-/* A grey field with no border until it is used, then the same inward outline
-   every control draws. */
+/* The search field needs a visible boundary at rest on the header ground. */
 .goen-header .goen-header__field {
   background: var(--n-100);
-  outline-color: transparent;
+  outline-color: var(--control-boundary);
   padding-left: 40px;
 }
 
@@ -2074,45 +2085,6 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- One photograph, the width of the container, and a caption. ----- */
-
-.goen-promo-photo__link {
-  color: var(--n-900);
-  display: block;
-  text-decoration: none;
-}
-
-.goen-promo-photo__media {
-  aspect-ratio: 4 / 3;
-  background: var(--n-100);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-
-.goen-promo-photo__media img {
-  height: 100%;
-  object-fit: cover;
-  object-position: 84% 50%;
-  width: 100%;
-}
-
-.goen-promo-photo__caption {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-}
-
-.goen-promo-photo__link:hover .goen-promo-photo__media img {
-  opacity: 0.92;
-}
-
-.goen-promo-photo__link:hover .goen-home__more {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 /* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
    item renders only where a free-delivery threshold is configured. ----- */
 
@@ -2191,14 +2163,6 @@ h3 {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-promo-photo__media {
-    aspect-ratio: 21 / 9;
-  }
-
-  .goen-promo-photo__media img {
-    object-position: 70% 50%;
   }
 }
 
@@ -2747,7 +2711,7 @@ input.goen-check {
   color: var(--fg);
   font-family: inherit;
   font-size: var(--fs-16);
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   min-height: 44px;
   min-width: 0;
@@ -5293,7 +5257,7 @@ a.goen-pager__step:hover {
   font-family: inherit;
   font-size: var(--fs-16);
   height: 2.75rem;
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   padding: 0.25rem 2.5rem 0.25rem 0.75rem;
   width: 100%;
@@ -6303,7 +6267,7 @@ a.goen-pager__step:hover {
 .goen-qa__form .ui-input:focus,
 .goen-qa__form .ui-input:hover {
   background: transparent;
-  border-color: var(--n-300);
+  border-color: var(--control-boundary);
 }
 
 /* One control, not a bar: the form asks for a number and then offers the one
@@ -8892,6 +8856,10 @@ a.goen-pager__step:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.goen-report__bar {
+  flex: 1 0 100%;
+}
+
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
      what a staff member checks against whatever they are about to press.
@@ -9489,6 +9457,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media print {
+  .goen-admin .goen-admin__batchcontrols,
   .goen-skip,
   .goen-adminbar,
   .goen-admin__nav,
@@ -9517,8 +9486,151 @@ form[data-request-pending] [aria-disabled="true"] {
     margin-bottom: 12px;
   }
 
+  .goen-admin__picklist,
+  .goen-admin__slip {
+    break-after: page;
+  }
+
+  .goen-admin__slip {
+    break-inside: avoid;
+  }
+
+  .goen-admin__slip:last-child {
+    break-after: auto;
+  }
+
+  .goen-admin__picklist .goen-admin__tablewrap {
+    overflow: visible;
+  }
+
   body {
     background: var(--bg);
     color: var(--fg);
+  }
+}
+
+/* Forced colours remove the chosen card's shadow and equalise its border.
+   The native radio keeps the checked mark the user's colour scheme supplies. */
+@media (forced-colors: active) {
+  .goen-checkout__ship > input[type=radio] {
+    align-self: center;
+    clip-path: none;
+    flex: none;
+    height: 1rem;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: 1rem;
+  }
+
+  .goen-checkout__shipname {
+    flex: 1;
+  }
+
+  /* Weight and underline keep the chosen label distinct from ordinary links. */
+  .goen-swatch--on:not(.goen-swatch--dot),
+  .goen-swatch--on:not(.goen-swatch--dot):hover {
+    font-weight: var(--fw-semibold);
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+
+  /* SVG preserves author colours, so its selected ring must follow the palette. */
+  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
+    outline-color: Highlight;
+  }
+}
+
+/* ---------- Charts ----------
+
+   One data colour. Its contrast against the page grounds is held by
+   assets/contrast_test.go, so it stays a six-digit hex. Position, length and
+   the row's own text carry the meaning, never the hue alone.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --chart-hue: #007f69;
+  --chart-previous: #8e8e96;
+  --chart-grid: var(--n-200);
+  --chart-annotation: var(--fg);
+}
+
+/* A bar and its count. Thick over thin, like the day grid's filled and open
+   cells: 6px of hue for the value, a hairline for the rest of the scale. Every
+   row of a scale gets the same count column, so the tracks, and the bars drawn
+   on them, stay comparable. */
+.goen-chartbar {
+  align-items: center;
+  display: grid;
+  font-size: var(--fs-14);
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
+}
+
+.goen-chartbar svg {
+  display: block;
+}
+
+.goen-chartbar__track {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chartbar__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartbar__label {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-regular);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 479px) {
+  .goen-chartbar {
+    grid-template-columns: minmax(0, 1fr) 1.75rem;
+  }
+}
+
+/* The narrow column holds three digits. A count is never cut, so a scale that
+   reaches four widens the column on every one of its rows. */
+.goen-chartbar--wide {
+  grid-template-columns: minmax(0, 1fr) 6ch;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-chartbar__fill {
+    animation: goen-chart-grow 420ms var(--ease-standard) backwards;
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+  }
+}
+
+@keyframes goen-chart-grow {
+  from {
+    scale: 0 1;
+  }
+}
+
+/* The SVG names its own system colours rather than relying on which
+   properties a browser forces. A forced palette has one grey, so the
+   hairline steps aside; the count is HTML and is forced like any text. */
+@media (forced-colors: active) {
+  .goen-chartbar svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartbar__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartbar__track {
+    stroke: transparent;
   }
 }

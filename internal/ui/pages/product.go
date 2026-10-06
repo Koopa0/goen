@@ -7,11 +7,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -139,6 +142,7 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
+	LabelFacts   *productlabel.Facts
 	Saved        bool
 	Slug         string
 	Name         string
@@ -160,14 +164,16 @@ type ProductView struct {
 	SelectionOK bool
 	Exact       bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
-	PriceVaries  bool
-	AnySellable  bool
-	VariantID    string
-	SKU          string
-	PriceCents   int64
-	CompareCents int64
-	Sellable     bool
-	Available    int32
+	PriceVaries         bool
+	AnySellable         bool
+	VariantID           string
+	SKU                 string
+	PriceCents          int64
+	CompareCents        int64
+	Sellable            bool
+	ExpectedArrival     time.Time
+	ExpectedArrivalText string
+	Available           int32
 
 	Rating         float64
 	RatingCount    int64
@@ -494,3 +500,16 @@ func (v *ProductView) AlreadyComparing() bool {
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+
+func (v *ProductView) ArrivalDay() string { return shoptime.Day(v.ExpectedArrival) }
+
+func (v *ProductView) ArrivalText() string {
+	if !v.SoldOut() || v.ExpectedArrival.IsZero() {
+		return ""
+	}
+	return v.ExpectedArrivalText
+}
+
+func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
+	return v.LabelFacts.Rows(ctx)
+}

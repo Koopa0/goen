@@ -6,7 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// A table rather than a list: every band carries the same four facts and a column of
+// A table rather than a list: every tier carries the same four facts and a column of
 // thresholds is read down.
 templ Tiers(p layouts.Page, v TiersView) {
 	@layouts.Admin(p, "tiers") {
@@ -19,11 +19,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminTierEmpty) }</p>
@@ -33,7 +29,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColBand) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColTier) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColThreshold) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColMembers) }</th>

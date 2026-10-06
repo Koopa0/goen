@@ -20,11 +20,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
@@ -215,11 +211,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				}
 			</form>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampWindow) }</h2>
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.WindowAction()) }>

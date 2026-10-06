@@ -34,10 +34,10 @@ const (
 	BaseCSS  = "css/app/base.css"
 	AppCSS   = "css/app/app.css"
 	FontsCSS = "css/app/fonts.css"
-	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
-	// before it paints anything else, and the browser cannot discover a font
-	// until it has parsed the stylesheet that names it.
-	InterLatinWOFF2 = "fonts/inter/latin.woff2"
+	// InstrumentSansLatinWOFF2 is the one face worth a preload: every page
+	// paints Latin before it paints anything else, and the browser cannot
+	// discover a font until it has parsed the stylesheet that names it.
+	InstrumentSansLatinWOFF2 = "fonts/instrument-sans/latin.woff2"
 	// SpeculationRules is the document the Speculation-Rules header names. It
 	// is an asset rather than an inline <script type="speculationrules">
 	// because the policy admits no inline script, and it is one document for
@@ -96,18 +96,13 @@ var categoryImages = map[string]string{
 
 const productMediaPrefix = "media/products/"
 
-// requiredMedia is the photography the storefront names by file: the promotional
-// banners, the six department photographs (1600px, each with a -800 and a -400
-// rendition) and the campaign headers. The
-// headers sit under media/products/ because a campaign's image_key is resolved
-// by the product-image function.
+// requiredMedia is the photography the storefront names by file: the six
+// department photographs (1600px, each with a -800 and a -400 rendition) and
+// the campaign headers. The headers sit under media/products/ because a
+// campaign's image_key is resolved by the product-image function.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
-	PromoDesk,
-	PromoDesk800,
-	"media/promo/promo-morning-table.webp",
-	"media/promo/promo-morning-table-800.webp",
 	"media/products/campaign-autumn.webp",
 	"media/products/campaign-autumn-400.webp",
 	"media/products/campaign-autumn-800.webp",
@@ -131,7 +126,7 @@ var required = []string{
 	BaseCSS,
 	AppCSS,
 	FontsCSS,
-	InterLatinWOFF2,
+	InstrumentSansLatinWOFF2,
 	SpeculationRules,
 	HTMXJS,
 	AppJS,
@@ -215,17 +210,6 @@ func URL(name string) string {
 func Has(name string) bool {
 	_, ok := catalogue.digests[name]
 	return ok
-}
-
-// PromoDesk is the home page's promotional band photograph; its -800 rendition
-// sits beside it.
-const (
-	PromoDesk    = "media/promo/promo-desk.webp"
-	PromoDesk800 = "media/promo/promo-desk-800.webp"
-)
-
-func PromoDeskSrcset() string {
-	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
 }
 
 func rendition(name string, width int) string {

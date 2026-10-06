@@ -233,6 +233,7 @@ type InvoiceDocumentLine struct {
 	UnitPriceCents int64
 	AmountCents    int64
 	TaxType        string
+	Unit           string
 	Position       int32
 }
 
@@ -410,6 +411,8 @@ type OrderLine struct {
 	UnitPriceCents int64
 	Quantity       int32
 	Position       int32
+	TaxType        string
+	InvoiceUnit    string
 }
 
 type OrderNumberCounter struct {
@@ -509,22 +512,32 @@ type PaymentWebhookEvent struct {
 }
 
 type Product struct {
-	ID             uuid.UUID
-	BrandID        uuid.NullUUID
-	CategoryID     uuid.UUID
-	Slug           string
-	Name           string
-	Summary        pgtype.Text
-	Description    string
-	NameEn         pgtype.Text
-	SummaryEn      pgtype.Text
-	DescriptionEn  pgtype.Text
-	WarrantyNote   pgtype.Text
-	WarrantyMonths pgtype.Int4
-	Status         string
-	PublishedAt    pgtype.Timestamptz
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   uuid.UUID
+	BrandID              uuid.NullUUID
+	CategoryID           uuid.UUID
+	Slug                 string
+	Name                 string
+	Summary              pgtype.Text
+	Description          string
+	NameEn               pgtype.Text
+	SummaryEn            pgtype.Text
+	DescriptionEn        pgtype.Text
+	WarrantyNote         pgtype.Text
+	WarrantyMonths       pgtype.Int4
+	Status               string
+	PublishedAt          pgtype.Timestamptz
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	Origin               pgtype.Text
+	OriginEn             pgtype.Text
+	DomesticPartyName    pgtype.Text
+	DomesticPartyPhone   pgtype.Text
+	DomesticPartyAddress pgtype.Text
+	NetQuantity          pgtype.Numeric
+	NetUnit              pgtype.Text
+	MinAgeMonths         pgtype.Int2
+	TaxType              string
+	InvoiceUnit          string
 }
 
 type ProductAnswer struct {

@@ -78,6 +78,11 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
 			</div>
+			if v.Refusal != "" {
+				@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "warranty-refusal"}) {
+					{ v.Refusal }
+				}
+			}
 			if v.Notice != "" {
 				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "warranty-notice"}) {
 					{ v.Notice }
@@ -116,17 +121,10 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 									@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
 										{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
 									}
-									@components.Input(components.FieldProps{
-										ID:   "serial-" + line.ID,
-										Name: "serial",
-										Type: "text",
-										Attrs: templ.Attributes{
-											"aria-describedby": "serial-hint-" + line.ID,
-											"autocomplete":     "off",
-											"maxlength":        "60",
-											"placeholder":      i18n.T(ctx, i18n.KeySerialPlaceholder),
-										},
-									})
+									@components.Input(line.serialField(ctx))
+									if line.SerialRefusal != "" {
+										<p class="ui-error-text" id={ "serial-" + line.ID + "-error" } role="alert">{ line.SerialRefusal }</p>
+									}
 									<p class="goen-warranty__hint" id={ "serial-hint-" + line.ID }>
 										{ i18n.T(ctx, i18n.KeySerialHint) }
 									</p>

@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -41,6 +42,7 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin", ac.RequireStaff(h.Dashboard))
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
+	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))
@@ -174,7 +176,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &refusal)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipment refused", "order", number, "error", err)
-		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminNoticeRefused})
+		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminDispatchRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		access.ServerError(w, r, h.log)
@@ -188,7 +190,9 @@ type shipRefusal struct {
 // rejectShip re-renders the order with everything staff typed, the carrier, the
 // tracking number and each line's quantity, and the refused control marked,
 // because re-typing a long tracking number after every mistake is the cost a
-// redirect would put on the warehouse.
+// redirect would put on the warehouse. An order that no longer takes a dispatch
+// has no form to refill, so its notice names the carrier and number instead:
+// the parcel may already be out of the door.
 func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *shipRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
@@ -207,7 +211,13 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view.ShipCarrierError = say(refusal.carrier)
 	view.TrackingError = say(refusal.tracking)
 	view.ShipQtyError = say(refusal.quantity)
-	view.Notice = say(refusal.notice)
+	if refusal.notice != "" {
+		text := say(refusal.notice)
+		if refusal.notice == i18n.KeyAdminDispatchRefused {
+			text = fmt.Sprintf(text, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
+		}
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
+	}
 	view.ShipQty = map[string]string{}
 	for i := range view.Shippable {
 		id := view.Shippable[i].OrderLineID
@@ -274,32 +284,33 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-var notices = map[string]i18n.Key{
-	"ok":             i18n.KeyAdminNoticeOK,
-	"refused":        i18n.KeyAdminNoticeRefused,
-	"shipped":        i18n.KeyAdminNoticeShipped,
-	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
-	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
-	"refunded":       i18n.KeyAdminNoticeRefunded,
-	"refundpending":  i18n.KeyAdminNoticeRefundPending,
-	"cancelinvoice":  i18n.KeyAdminNoticeCancelInvoice,
-	"refundretry":    i18n.KeyAdminNoticeRefundRetry,
-	"unfunded":       i18n.KeyAdminNoticeUnfunded,
-	"owesparcel":     i18n.KeyAdminNoticeOwesParcel,
-	"invoiced":       i18n.KeyAdminNoticeInvoiced,
-	"voided":         i18n.KeyAdminNoticeVoided,
-	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
-	"noinvoice":      i18n.KeyAdminNoticeNoInvoice,
-	"invoicefailed":  i18n.KeyAdminNoticeInvoiceFailed,
-	"invoicepending": i18n.KeyAdminNoticeInvoicePending,
-	"allowed":        i18n.KeyAdminNoticeAllowed,
-	"allowsent":      i18n.KeyAdminNoticeAllowSent,
-	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
-	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
-	"voidreason":     i18n.KeyAdminNoticeVoidReason,
-	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
-	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
+var notices = map[string]web.NoticeEntry{
+	"ok":             web.Done(i18n.KeyAdminNoticeOK),
+	"refused":        web.Refused(i18n.KeyAdminNoticeRefused),
+	"shipped":        web.Done(i18n.KeyAdminNoticeShipped),
+	"toolate":        web.Refused(i18n.KeyAdminNoticeTooLate),
+	"deliveryneeds":  web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
+	"paidcancel":     web.Refused(i18n.KeyAdminNoticePaidCancel),
+	"refunded":       web.Done(i18n.KeyAdminNoticeRefunded),
+	"refundpending":  web.Failed(i18n.KeyAdminNoticeRefundPending),
+	"cancelinvoice":  web.Failed(i18n.KeyAdminNoticeCancelInvoice),
+	"refundretry":    web.Failed(i18n.KeyAdminNoticeRefundRetry),
+	"unfunded":       web.Refused(i18n.KeyAdminNoticeUnfunded),
+	"owesparcel":     web.Refused(i18n.KeyAdminNoticeOwesParcel),
+	"invoiced":       web.Done(i18n.KeyAdminNoticeInvoiced),
+	"voided":         web.Done(i18n.KeyAdminNoticeVoided),
+	"hasinvoice":     web.Refused(i18n.KeyAdminNoticeHasInvoice),
+	"noinvoice":      web.Refused(i18n.KeyAdminNoticeNoInvoice),
+	"invoicefailed":  web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
+	"invoicingoff":   web.Refused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending": web.Failed(i18n.KeyAdminNoticeInvoicePending),
+	"allowed":        web.Done(i18n.KeyAdminNoticeAllowed),
+	"allowsent":      web.Done(i18n.KeyAdminNoticeAllowSent),
+	"allowtoomuch":   web.Refused(i18n.KeyAdminNoticeAllowTooMuch),
+	"allowclaimed":   web.Refused(i18n.KeyAdminNoticeAllowClaimed),
+	"voidreason":     web.Refused(i18n.KeyAdminNoticeVoidReason),
+	"voidfailed":     web.Failed(i18n.KeyAdminNoticeVoidFailed),
+	"allowfailed":    web.Failed(i18n.KeyAdminNoticeAllowFailed),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {

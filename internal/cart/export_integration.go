@@ -39,3 +39,5 @@ func (s *Store) PlaceOrder(
 		ctx, cartID, userID, shippingVersionID, addr, inv, couponCode, shown, attemptID,
 	)
 }
+
+var FreeDeliveryFor = freeDeliveryFor

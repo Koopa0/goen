@@ -123,8 +123,11 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 func (h *Handler) TakesPayment() bool { return h.sessions != nil }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	cartID, ok := h.existingCart(r)
+	cartID, found, ok := h.requestCart(w, r)
 	if !ok {
+		return
+	}
+	if !found {
 		view := pages.CartView{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
 		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 		return
@@ -191,6 +194,9 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			return
+		}
 		h.log.ErrorContext(r.Context(), "open cart", "error", err)
 		h.serverError(w, r)
 		return
@@ -216,9 +222,8 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok := h.existingCart(r)
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	variantID, err := uuid.Parse(r.PostFormValue("variant"))
@@ -258,9 +263,8 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
-	cartID, ok := h.existingCart(r)
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	view, err := h.checkoutView(r.Context(), cartID, ownerOf(r))
@@ -292,12 +296,10 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	// The chosen method lives in the URL only, so the choice works with
 	// scripting off.
-	if ship := chosen.Ship; ship != "" {
-		for i := range view.Shipping {
-			if view.Shipping[i].VersionID == ship {
-				view.Chosen = ship
-			}
-		}
+	if slices.ContainsFunc(view.Shipping, func(choice pages.ShippingChoice) bool {
+		return choice.VersionID == chosen.Ship
+	}) {
+		view.Chosen = chosen.Ship
 	}
 	view.Destination = destinationOf(view.Shipping, view.Chosen)
 	// The 發票 choice travels the same way: it decides which field the form asks
@@ -322,6 +324,10 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		view.RecipientMe = view.OffersTheProfile() && matchesAccountRecipient(view.Profile, view.Address.Name, view.Address.Phone)
 	}
 	status := h.applyReturnedStore(r, &view)
+	if !view.HasShipping() {
+		h.renderCheckout(w, r, status, &view)
+		return
+	}
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "checkout has no valid shipping choice", "error", err)
@@ -460,9 +466,8 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok := h.existingCart(r)
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	guess, ok := h.reserveCouponGuess(w, r, cartID)
@@ -519,9 +524,8 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 // PickupMap serves a page with nothing the shopper typed on it or in its URL.
 func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 	const back = "/checkout?draft=1"
-	cartID, ok := h.existingCart(r)
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	draft, found, err := h.store.checkoutDraft(r.Context(), cartID)
@@ -679,6 +683,11 @@ func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
 func (h *Handler) renderCheckout(
 	w http.ResponseWriter, r *http.Request, status int, view *pages.CheckoutView,
 ) {
+	if !view.HasShipping() {
+		view.Chosen = ""
+		view.QuoteID = ""
+		view.Destination = ""
+	}
 	h.offerTheStoreMap(w, r, view)
 	web.Render(w, r, h.log, status, pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 }
@@ -758,9 +767,8 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok := h.existingCart(r)
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	attemptID, attemptErr := parseCheckoutAttemptID(r.PostFormValue("idempotency"))
@@ -938,6 +946,15 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	couponErr, missed := h.resolveCoupon(r, &view)
+	if couponErr != "" {
+		view.Errors = map[string]string{"coupon": couponErr}
+	}
+	if !view.HasShipping() {
+		return &checkoutSubmission{
+			view: view, address: addr, invoice: inv,
+			couponErr: couponErr, couponMissed: missed,
+		}, true
+	}
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	if shipErr == nil {
 		if quoteErr := h.quoteCheckoutShipping(
@@ -946,9 +963,6 @@ func (h *Handler) checkoutSubmission(
 			h.log.ErrorContext(r.Context(), "quote shipping", "error", quoteErr)
 			view.Repriced = i18n.T(r.Context(), i18n.KeyShippingUnpriceable)
 		}
-	}
-	if couponErr != "" {
-		view.Errors = map[string]string{"coupon": couponErr}
 	}
 	if shipErr == nil && view.Repriced == "" {
 		if quoteErr := setCheckoutQuoteID(cartID, &view); quoteErr != nil {
@@ -970,6 +984,13 @@ func (h *Handler) validateCheckoutSubmission(
 	cartID uuid.UUID,
 	submission *checkoutSubmission,
 ) (checkoutQuoteID, bool) {
+	if !submission.view.HasShipping() {
+		if submission.couponErr != "" {
+			submission.view.Errors = map[string]string{"coupon": submission.couponErr}
+		}
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+		return checkoutQuoteID{}, false
+	}
 	errs := checkoutErrors(
 		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
 	)
@@ -1022,6 +1043,9 @@ func (h *Handler) answerPlacement(
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 	case errors.Is(err, ErrTooManyItems):
 		view.Repriced = i18n.T(r.Context(), i18n.KeyCartLineLimit)
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
+	case errors.Is(err, ErrMixedTaxTypes):
+		view.Repriced = i18n.T(r.Context(), i18n.KeyCartMixedTaxTypes)
 		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	case errors.Is(err, ErrCreditChanged):
 		h.answerCreditChanged(w, r, cartID, view)
@@ -1122,7 +1146,10 @@ func (h *Handler) answerMissingShipping(
 		h.serverError(w, r)
 		return
 	}
-	view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
+	view.Errors = nil
+	if view.HasShipping() {
+		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
+	}
 	if err := setCheckoutQuoteID(cartID, view); err != nil {
 		h.log.ErrorContext(r.Context(), "build replacement shipping quote", "error", err)
 		h.serverError(w, r)
@@ -1181,10 +1208,6 @@ func (h *Handler) refreshCheckoutState(
 	if err != nil {
 		return err
 	}
-	if len(choices) == 0 {
-		return errors.New("cart: checkout has no current shipping choice")
-	}
-
 	view.Cart = cartView
 	view.Shipping = choices
 	view.CouponApplied = ""
@@ -1199,6 +1222,12 @@ func (h *Handler) refreshCheckoutState(
 		return fmt.Errorf("read current store credit: %w", err)
 	}
 	view.AvailableCreditCents = balance
+	if !view.HasShipping() {
+		view.Chosen = ""
+		view.QuoteID = ""
+		view.Destination = ""
+		return nil
+	}
 
 	if !slices.ContainsFunc(choices, func(choice pages.ShippingChoice) bool {
 		return choice.VersionID == view.Chosen
@@ -1459,23 +1488,29 @@ const (
 	paymentReturnRefreshChecks  = 3
 )
 
-// paymentReturnRefresh bounds the untrusted return hint so an unpaid customer
-// regains the payment and cancellation controls even when no webhook arrives.
+// A browser return is not payment evidence. Keep that hint when bounded checks
+// end so a delayed webhook cannot turn it into an invitation to pay again.
 func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
 		return ""
 	}
 	attempt := 0
 	if raw := r.URL.Query().Get("confirmation"); raw != "" {
+		if raw == "done" {
+			view.PaymentConfirmationPending = true
+			return ""
+		}
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 0 || parsed >= paymentReturnRefreshChecks {
 			return ""
 		}
 		attempt = parsed
 	}
-	next := "/orders/" + url.PathEscape(view.Number)
+	next := "/orders/" + url.PathEscape(view.Number) + "?paid=1&confirmation="
 	if attempt < paymentReturnRefreshChecks-1 {
-		next += "?paid=1&confirmation=" + strconv.Itoa(attempt+1)
+		next += strconv.Itoa(attempt + 1)
+	} else {
+		next += "done"
 	}
 	return next
 }
@@ -1493,6 +1528,9 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	// empty one.
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			return
+		}
 		h.log.ErrorContext(r.Context(), "cart for reorder", "error", err)
 		h.serverError(w, r)
 		return
@@ -1645,6 +1683,10 @@ func checkoutQuoteIDForView(cartID uuid.UUID, view *pages.CheckoutView) (checkou
 }
 
 func setCheckoutQuoteID(cartID uuid.UUID, view *pages.CheckoutView) error {
+	if !view.HasShipping() {
+		view.QuoteID = ""
+		return nil
+	}
 	id, err := checkoutQuoteIDForView(cartID, view)
 	if err != nil {
 		view.QuoteID = ""
@@ -1666,23 +1708,52 @@ func invoiceChoices(ctx context.Context) []pages.InvoiceChoice {
 }
 
 // A GET must not create a cart: a crawler would leave a row per visit.
-func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
-	id, ok, _ := h.lookupCart(r.Context(), r)
-	return id, ok
+func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool, error) {
+	id, ok, _, err := h.lookupCart(r.Context(), r)
+	return id, ok, err
+}
+
+func (h *Handler) requestCart(w http.ResponseWriter, r *http.Request) (id uuid.UUID, found, ok bool) {
+	id, found, err := h.existingCart(r)
+	if err == nil {
+		return id, found, true
+	}
+	if errors.Is(r.Context().Err(), context.Canceled) {
+		return uuid.Nil, false, false
+	}
+	h.log.ErrorContext(r.Context(), "read request cart", "error", err)
+	h.serverError(w, r)
+	return uuid.Nil, false, false
+}
+
+func (h *Handler) requiredCart(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, found, ok := h.requestCart(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !found {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 // A signed-in create attaches user_id so the next add does not mint an unowned
 // cart the account can never see through the cookie. Create recovers a
 // carts_one_per_user collision by rereading the winner.
 func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUID, error) {
-	if id, ok := h.existingCart(r); ok {
+	id, ok, err := h.existingCart(r)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if ok {
 		return id, nil
 	}
 	token, err := NewToken()
 	if err != nil {
 		return uuid.Nil, err
 	}
-	id, err := h.store.Create(r.Context(), token, ownerOf(r))
+	id, err = h.store.Create(r.Context(), token, ownerOf(r))
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -1695,23 +1766,29 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 // cart, and stale reports a cookie naming one. After a merge-adopt the cookie
 // names the deleted guest row, so a signed-in miss falls through to the account
 // cart.
-func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID, ok, stale bool) {
+func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID, ok, stale bool, lookupErr error) {
 	owner := ownerOf(r)
 	if token := ReadCookie(r, h.secure); token != "" {
 		tokenCart, err := h.store.ByToken(ctx, token, owner)
 		if err == nil {
-			return tokenCart, true, false
+			return tokenCart, true, false, nil
+		}
+		if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
+			return uuid.Nil, false, false, err
 		}
 		stale = errors.Is(err, ErrNotYourCart)
 	}
 	if !owner.Valid {
-		return uuid.Nil, false, stale
+		return uuid.Nil, false, stale, nil
 	}
 	accountCart, err := h.store.ForUser(ctx, owner.UUID.String())
-	if err != nil {
-		return uuid.Nil, false, stale
+	if errors.Is(err, ErrNotFound) {
+		return uuid.Nil, false, stale, nil
 	}
-	return accountCart, true, stale
+	if err != nil {
+		return uuid.Nil, false, stale, err
+	}
+	return accountCart, true, stale, nil
 }
 
 // wishlistPath is the one page besides a product an add-to-cart form may send
@@ -1776,9 +1853,9 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
-	id, ok, _ := h.lookupCart(ctx, r)
-	return id, ok
+func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error) {
+	id, ok, _, err := h.lookupCart(ctx, r)
+	return id, ok, err
 }
 
 // ForgetCart keeps the cookie only for a guest cart no account owns: an
@@ -1815,7 +1892,14 @@ func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
 // cart sets its own cookie after this one.
 func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, ok, stale := h.lookupCart(r.Context(), r)
+		id, ok, stale, lookupErr := h.lookupCart(r.Context(), r)
+		if lookupErr != nil {
+			if !errors.Is(r.Context().Err(), context.Canceled) {
+				h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		if stale {
 			expireCookie(w, cookieName(h.secure), h.secure)
 		}

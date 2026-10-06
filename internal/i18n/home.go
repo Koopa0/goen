@@ -13,7 +13,7 @@ var (
 		En:     "We cannot show the home page right now. Please try again shortly.",
 	})
 
-	KeySectionCategories = key("home.categories", Message{ZhHant: "依館別選購", En: "Shop by department"})
+	KeySectionCategories = key("home.categories", Message{ZhHant: "館別", En: "Departments"})
 
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
@@ -54,10 +54,6 @@ var (
 	})
 
 	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
-
-	KeyHomePromoTitle = key("home.promo.title", Message{ZhHant: "書桌上的日常", En: "Everyday things for the desk"})
-
-	KeyHomePromoLink = key("home.promo.link", Message{ZhHant: "去看看", En: "Take a look"})
 
 	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
 

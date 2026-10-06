@@ -1107,14 +1107,19 @@ INSERT INTO shipping_methods (id, code, destination_kind, position) VALUES
     ('ffff0001-0000-4000-8000-000000000002', 'store_pickup', 'pickup_point', 1);
 
 -- free_over_cents is the 滿 NT$3,000 免運 the storefront advertises. The copy
--- and this number are the same claim, so they change together.
+-- and this number are the same claim, so they change together. In effect from
+-- the shop's midnight rather than the hour the seed ran: seed/demo_shift.sql
+-- keeps that hour, and a demo restored earlier in the day would otherwise offer
+-- no way to ship until then.
 INSERT INTO shipping_method_versions (id, method_id, name, carrier, name_en, carrier_en,
-                                      fee_cents, free_over_cents) VALUES
-    ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000),
+                                      fee_cents, free_over_cents, effective_at) VALUES
+    ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000,
+     shop_today()::timestamp AT TIME ZONE 'Asia/Taipei'),
     -- No carrier on the pickup version: which one carries the parcel follows
     -- from the STORE the customer picks, and naming one here would put
     -- 7-ELEVEN on a label bound for a 全家.
-    ('ffff0002-0000-4000-8000-000000000002', 'ffff0001-0000-4000-8000-000000000002', '超商取貨', NULL, 'Convenience store pickup', NULL, 6000, 300000);
+    ('ffff0002-0000-4000-8000-000000000002', 'ffff0001-0000-4000-8000-000000000002', '超商取貨', NULL, 'Convenience store pickup', NULL, 6000, 300000,
+     shop_today()::timestamp AT TIME ZONE 'Asia/Taipei');
 
 -- 離島. The prefixes are the real ones: 澎湖 880-885, 金門 890-896,
 -- 連江(馬祖) 209-212, and 綠島/蘭嶼 951/952 which are 台東 postcodes but are
@@ -1143,12 +1148,11 @@ INSERT INTO membership_tiers (code, name, name_en, min_spend_cents,
     ('gold',     '金卡會員', 'Gold',     5000000,  13000, 2),
     ('platinum', '白金會員', 'Platinum', 15000000, 15000, 3);
 
--- Two campaigns on the new departments. The discount is the variant's price against its compare-at price,
--- 10% off, and the guard trigger refuses a featured product without one. The window starts a day ago and runs a
--- year because the demo restores a snapshot nightly.
 INSERT INTO sale_campaigns (id, slug, title, title_en, image_key, image_alt, image_alt_en, starts_at, ends_at) VALUES
-    ('000002dc-0000-4000-8000-0000000002dc', 'autumn-picks', '秋日選物', 'Autumn picks', 'campaign-autumn.webp', '秋日色調的書與杯', 'Books and a mug in autumn colours', now() - interval '1 day', now() + interval '365 days'),
-    ('000002dd-0000-4000-8000-0000000002dd', 'tea-coffee-week', '茶與咖啡週', 'Tea and coffee week', 'campaign-tea-week.webp', '茶具與茶葉', 'A tea set and tea leaves', now() - interval '1 day', now() + interval '365 days');
+    ('000002dc-0000-4000-8000-0000000002dc', 'autumn-picks', '秋日選物', 'Autumn picks', 'campaign-autumn.webp', '秋日色調的書與杯', 'Books and a mug in autumn colours',
+     (shop_today() - 20)::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 10)::timestamp AT TIME ZONE 'Asia/Taipei'),
+    ('000002dd-0000-4000-8000-0000000002dd', 'tea-coffee-week', '茶與咖啡週', 'Tea and coffee week', 'campaign-tea-week.webp', '茶具與茶葉', 'A tea set and tea leaves',
+     (shop_today() - 3)::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 4)::timestamp AT TIME ZONE 'Asia/Taipei');
 
 UPDATE sale_campaigns SET tone = 'paper' WHERE slug = 'autumn-picks';
 UPDATE sale_campaigns SET tone = 'sage' WHERE slug = 'tea-coffee-week';
@@ -1197,7 +1201,7 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('退貨', '哪些商品可以退貨？',
      '只有「已出貨」的商品可以申請退貨，而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消，不需要走退貨流程。', 10),
     ('退貨', '退款什麼時候會收到？',
-     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；額度退回後可立刻使用。', 20),
+     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which

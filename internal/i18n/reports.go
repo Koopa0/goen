@@ -15,6 +15,26 @@ var (
 		En:     "No orders at all in this period",
 	})
 
+	// %[1]s is the month's English abbreviation, %[2]d its number, %[3]d the day.
+	KeyAdminRepDay = key("admin.rep.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
+
+	// The period's first and last day, then the previous period's.
+	KeyAdminRepPeriods = key("admin.rep.periods", Message{ZhHant: "%s–%s · 對照 %s–%s", En: "%s–%s · against %s–%s"})
+
+	// %[1]d is the number of days in the period, %[2]d the percentage.
+	KeyAdminRepMore = countKey("admin.rep.more", "比前 %[1]d 天多 %[2]d%%", "%[2]d%% more than the previous %[1]d day", "%[2]d%% more than the previous %[1]d days")
+
+	KeyAdminRepLess = countKey("admin.rep.less", "比前 %[1]d 天少 %[2]d%%", "%[2]d%% less than the previous %[1]d day", "%[2]d%% less than the previous %[1]d days")
+
+	KeyAdminRepSame = countKey("admin.rep.same", "和前 %d 天相近", "About the same as the previous %d day", "About the same as the previous %d days")
+
+	// %[1]d is the number of days, %[2]s the figure the previous period had.
+	KeyAdminRepPrevious = countKey("admin.rep.previous", "前 %[1]d 天：%[2]s", "Previous %[1]d day: %[2]s", "Previous %[1]d days: %[2]s")
+
+	KeyAdminRepNoPrevious = countKey("admin.rep.noprevious", "前 %d 天沒有已付款訂單", "No paid orders in the previous %d day", "No paid orders in the previous %d days")
+
+	KeyAdminRepNoOrders = countKey("admin.rep.noorders", "前 %d 天沒有訂單", "No orders in the previous %d day", "No orders in the previous %d days")
+
 	KeyAdminRepRevenue = key("admin.rep.revenue", Message{ZhHant: "營收", En: "Revenue"})
 
 	KeyAdminRepPaidOrders = key("admin.rep.paidorders", Message{ZhHant: "已付款訂單", En: "Paid orders"})

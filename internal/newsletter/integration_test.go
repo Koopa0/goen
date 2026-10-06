@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -240,6 +241,7 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 	}
 	leave := tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
 
+	var first time.Time
 	for i := range 2 {
 		got, err := s.Unsubscribe(t.Context(), leave)
 		if err != nil {
@@ -247,6 +249,18 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 		}
 		if got != email {
 			t.Errorf("Unsubscribe returned %q, want %q", got, email)
+		}
+		if i == 0 {
+			// Age this fixture's first opt-out so the second database now()
+			// cannot equal it, without sleeping or relying on clock precision.
+			if err := pool.QueryRow(t.Context(), `
+				UPDATE newsletter_subscribers
+				SET confirmed_at = confirmed_at - interval '1 day',
+				    unsubscribed_at = unsubscribed_at - interval '1 day'
+				WHERE lower(email) = lower($1)
+				RETURNING unsubscribed_at`, email).Scan(&first); err != nil {
+				t.Fatalf("record first opt-out: %v", err)
+			}
 		}
 	}
 
@@ -258,12 +272,14 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 		t.Error("the address is still on the list after unsubscribing")
 	}
 
-	// The FIRST moment is kept, not the most recent click.
-	var moved bool
+	var repeated time.Time
 	if err := pool.QueryRow(t.Context(), `
-		SELECT unsubscribed_at < now() - interval '1 microsecond'
-		FROM newsletter_subscribers WHERE lower(email) = lower($1)`, email).Scan(&moved); err != nil {
-		t.Fatalf("read unsubscribed_at: %v", err)
+		SELECT unsubscribed_at
+		FROM newsletter_subscribers WHERE lower(email) = lower($1)`, email).Scan(&repeated); err != nil {
+		t.Fatalf("read repeated opt-out: %v", err)
+	}
+	if !repeated.Equal(first) {
+		t.Errorf("repeated opt-out time = %s, want first opt-out %s", repeated, first)
 	}
 }
 

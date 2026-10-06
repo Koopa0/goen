@@ -68,6 +68,19 @@ templ Product(p layouts.Page, v *ProductView) {
 						}
 					</div>
 				}
+				if len(v.LabelRows(ctx))>0 {
+					<section class="goen-pdp__desc" aria-labelledby="product-label-heading">
+						<h2 class="goen-pdp__sectiontitle" id="product-label-heading">{ i18n.T(ctx,i18n.KeyProductLabel) }</h2>
+						<dl class="goen-pdp__speclist">
+							for _, fact := range v.LabelRows(ctx) {
+								<div class="goen-pdp__specrow">
+									<dt class="goen-pdp__specterm">{ i18n.T(ctx,fact.Term) }</dt>
+									<dd class="goen-pdp__specvalue">{ fact.Value }</dd>
+								</div>
+							}
+						</dl>
+					</section>
+				}
 				<details class="goen-pdp__acc">
 					<summary class="goen-pdp__accsummary">
 						<h2 id="delivery-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
@@ -318,6 +331,11 @@ templ productBuy(v *ProductView) {
 		}
 		@productAddForm(v)
 		if v.SoldOut() {
+			if v.ArrivalText() != "" {
+				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
+					<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
+				}
+			}
 			@productNotifyForm(v)
 		}
 		@productLinks(v)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
@@ -18,6 +19,10 @@ import (
 // digestPath is the only shape a media URL may have, checked before the
 // database is touched.
 var digestPath = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// Original reads include pool acquisition and must finish before the server
+// stops accepting response writes after 30 seconds.
+const originalReadTimeout = 25 * time.Second
 
 type Handler struct {
 	store      *Store
@@ -70,23 +75,28 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 		contentType string
 		data        []byte
 		err         error
+		timeout     = RenderTimeout
 	)
 	if width > 0 {
 		contentType, data, err = h.renditions.rendition(r.Context(), digest, width)
 	} else {
-		contentType, data, err = h.store.Bytes(r.Context(), digest)
+		timeout = originalReadTimeout
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		contentType, data, err = h.store.Bytes(ctx, digest)
 	}
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrNotFound):
 			http.NotFound(w, r)
 		case errors.Is(err, context.Canceled):
-			// The caller left; nobody is listening. Canceled ONLY: the render
-			// detaches from the caller, so a deadline here is goen's own
-			// failure and an empty 200 would be cached as a success.
+			// The caller left; nobody is listening. Canceled ONLY: WriteTimeout
+			// does not give the request a deadline, so a deadline here is goen's
+			// own (RenderTimeout or originalReadTimeout), and an empty 200
+			// would be cached as a success.
 		case errors.Is(err, context.DeadlineExceeded):
-			h.log.ErrorContext(r.Context(), "image render timed out", "digest", digest,
-				"width", width, "timeout", RenderTimeout)
+			h.log.ErrorContext(r.Context(), "serve image timed out", "digest", digest,
+				"width", width, "timeout", timeout)
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, "503", http.StatusServiceUnavailable)
 		default:

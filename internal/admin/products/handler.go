@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -37,6 +38,8 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/products/new", ac.RequireStaff(h.New))
 	mux.HandleFunc("GET /admin/products/{slug}", ac.RequireStaff(h.Edit))
 	mux.HandleFunc("POST /admin/products/{slug}", ac.RequireStaff(h.Update))
+	mux.HandleFunc("POST /admin/products/{slug}/label", ac.RequireStaff(h.ProductLabel))
+	mux.HandleFunc("POST /admin/products/{slug}/invoice-line", ac.RequireStaff(h.ProductInvoiceLine))
 	mux.HandleFunc("POST /admin/products/{slug}/status", ac.RequireStaff(h.Publish))
 	mux.HandleFunc("POST /admin/products/{slug}/variants", ac.RequireStaff(h.AddVariant))
 	mux.HandleFunc("POST /admin/products/{slug}/options", ac.RequireStaff(h.AddOption))
@@ -50,19 +53,19 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":            i18n.KeyAdminNoticeOK,
-	"refused":       i18n.KeyAdminNoticeRefused,
-	"imageneeds":    i18n.KeyAdminNoticeImageNeeds,
-	"toobig":        i18n.KeyAdminNoticeTooBig,
-	"notimage":      i18n.KeyAdminNoticeNotImage,
-	"losslesswebp":  i18n.KeyAdminNoticeLosslessWebP,
-	"uploadfailed":  i18n.KeyAdminNoticeUploadFailed,
-	"uploadbusy":    i18n.KeyAdminNoticeUploadBusy,
-	"attachrefused": i18n.KeyAdminNoticeAttachRefused,
-	"noalt":         i18n.KeyAdminNoticeNoAlt,
-	"badoption":     i18n.KeyAdminNoticeBadOption,
-	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
+var notices = map[string]web.NoticeEntry{
+	"ok":            web.Done(i18n.KeyAdminNoticeOK),
+	"refused":       web.Refused(i18n.KeyAdminNoticeRefused),
+	"imageneeds":    web.Refused(i18n.KeyAdminNoticeImageNeeds),
+	"toobig":        web.Refused(i18n.KeyAdminNoticeTooBig),
+	"notimage":      web.Refused(i18n.KeyAdminNoticeNotImage),
+	"losslesswebp":  web.Refused(i18n.KeyAdminNoticeLosslessWebP),
+	"uploadfailed":  web.Failed(i18n.KeyAdminNoticeUploadFailed),
+	"uploadbusy":    web.Failed(i18n.KeyAdminNoticeUploadBusy),
+	"attachrefused": web.Refused(i18n.KeyAdminNoticeAttachRefused),
+	"noalt":         web.Refused(i18n.KeyAdminNoticeNoAlt),
+	"badoption":     web.Refused(i18n.KeyAdminNoticeBadOption),
+	"specfailed":    web.Failed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +142,7 @@ func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductVi
 	return view, nil
 }
 
-func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
+func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice components.Result) {
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -415,7 +418,19 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	if err := h.store.DetachImage(r.Context(), slug, r.PostFormValue("digest")); err != nil {
-		h.log.WarnContext(r.Context(), "detach image", "error", err, "slug", slug)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "detach image refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
+		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -436,7 +451,8 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
-		h.renderProduct(w, r, http.StatusUnprocessableEntity, i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale))
+		h.renderProduct(w, r, http.StatusUnprocessableEntity,
+			components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)})
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
@@ -479,7 +495,6 @@ func (h *Handler) optionWrite(
 	errs, err := write(slug)
 	switch {
 	case err != nil:
-		h.log.WarnContext(r.Context(), "write product option", "error", err, "slug", slug)
 		// A constraint the form has a control for is a refusal and not a
 		// missing product. Without this the page tells a staff member who
 		// mistyped a colour that the product they are looking at is gone.
@@ -487,7 +502,18 @@ func (h *Handler) optionWrite(
 			h.editProductWithErrors(w, r, slug, refused, &productDrafts{variant: draft})
 			return
 		}
-		access.NotFound(w, r, h.log)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "write product option refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
@@ -529,7 +555,19 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 	if err := h.store.RemoveSpec(r.Context(), slug, r.PostFormValue("spec")); err != nil {
-		h.log.WarnContext(r.Context(), "remove spec", "error", err, "slug", slug)
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		if errors.Is(err, ErrRefused) {
+			h.log.WarnContext(r.Context(), "remove spec refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "remove spec", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
+		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)

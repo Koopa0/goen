@@ -12,7 +12,13 @@ SELECT
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, @locale::text) AS category_name,
-    c.parent_id AS category_parent_id
+    c.parent_id AS category_parent_id,
+    coalesce(localized_name(coalesce(p.origin, p.origin_en), p.origin_en, @locale::text), '')::text AS origin,
+    coalesce(p.domestic_party_name, '') AS domestic_party_name,
+    coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
+    coalesce(p.domestic_party_address, '') AS domestic_party_address,
+    coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
+    coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
@@ -68,6 +74,7 @@ SELECT
     (pv.stock_quantity > pv.safety_stock) AS sellable,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.preorder_release_on,
+    coalesce(pv.preorder_release_on >= shop_today(), false)::boolean AS arrival_upcoming,
     coalesce(
         (SELECT array_agg(o.name ORDER BY o.position, o.id)
          FROM variant_option_values vov

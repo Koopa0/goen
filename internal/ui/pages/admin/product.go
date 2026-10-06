@@ -8,7 +8,10 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -47,7 +50,7 @@ type ProductsView struct {
 	web.Bound
 
 	Rows   []Product
-	Notice string
+	Notice components.Result
 }
 
 func (v ProductsView) Empty() bool { return len(v.Rows) == 0 }
@@ -79,6 +82,8 @@ func (v ProductVariant) StockText(ctx context.Context) string {
 }
 
 type ProductView struct {
+	LabelInput        *productlabel.Input
+	InvoiceTerms      *invoice.LineTerms
 	IsNew             bool
 	Slug              string
 	Name              string
@@ -102,7 +107,7 @@ type ProductView struct {
 	Options           []Option
 	Specs             []Spec
 	Errors            map[string]string
-	Notice            string
+	Notice            components.Result
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
 }
@@ -255,3 +260,23 @@ const (
 	specLabelExample = "容量"              // i18n-exempt: as above
 	specValueExample = "350 ml"          // i18n-exempt: as above
 )
+
+func (v *ProductView) LabelAction() string { return "/admin/products/" + v.Slug + "/label" }
+
+func (v *ProductView) labelInput() *productlabel.Input {
+	if v.LabelInput == nil {
+		return &productlabel.Input{}
+	}
+	return v.LabelInput
+}
+
+func (v *ProductView) InvoiceLineAction() string {
+	return "/admin/products/" + v.Slug + "/invoice-line"
+}
+
+func (v *ProductView) invoiceTerms() invoice.LineTerms {
+	if v.InvoiceTerms == nil {
+		return invoice.LineTerms{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}
+	}
+	return *v.InvoiceTerms
+}

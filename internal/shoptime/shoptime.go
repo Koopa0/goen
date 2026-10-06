@@ -37,6 +37,14 @@ func In(t time.Time) time.Time { return t.In(location()) }
 // Day is the shop's calendar day, as shop_day answers it in SQL.
 func Day(t time.Time) string { return In(t).Format("2006-01-02") }
 
+// Midnight is the start of t's shop day. Step back whole days with AddDate: the
+// wall clock stays midnight, which adding 24 hours would not across a zone
+// change.
+func Midnight(t time.Time) time.Time {
+	y, m, d := In(t).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, location())
+}
+
 // DayIf is Day for a timestamp that may be absent, as a nullable column is: the
 // empty string when it is.
 func DayIf(t time.Time, present bool) string {
@@ -62,6 +70,11 @@ func DateOf(t, now time.Time) Date {
 }
 
 func InputMinute(t time.Time) string { return In(t).Format("2006-01-02T15:04") }
+
+func ParseInputDay(s string) (time.Time, bool) {
+	t, err := time.ParseInLocation("2006-01-02", s, location())
+	return t, err == nil && t.Year() > 0
+}
 
 // ParseInputMinute reads what a datetime-local field posts as a minute on the
 // shop's clock.

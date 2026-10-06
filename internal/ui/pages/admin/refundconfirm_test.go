@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"fmt"
+	"html"
 	"strings"
 	"testing"
 
@@ -36,6 +38,40 @@ func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
 				strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundErrReason)) != v.ReasonInvalid {
 				t.Fatalf("%s invalid=%t reason marking disagrees", locale, v.ReasonInvalid)
 			}
+		}
+	}
+}
+
+// A pending order store credit alone paid is cancelled at once: the
+// confirmation says the credit goes back and the order page does not promise a
+// refund that waits on the card and the invoice.
+func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		var body strings.Builder
+		v := RefundConfirmation{OrderNumber: "GO-260929-000001", TotalCents: 500000, CreditCents: 500000, CreditPaid: true}
+		if err := ConfirmRefund(layouts.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
+			t.Fatal(err)
+		}
+		page := html.UnescapeString(body.String())
+		if !strings.Contains(page, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), pages.TWD(500000))) ||
+			!strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditCancel)) ||
+			!strings.Contains(page, `name="reason"`) || !strings.Contains(page, `name="total" value="500000"`) {
+			t.Errorf("%s credit-paid confirmation does not say the credit returns and the order cancels: %s", locale, page)
+		}
+		if strings.Contains(page, v.Channel(ctx)) {
+			t.Errorf("%s credit-paid confirmation repeats the payout channel %q beside the cancellation", locale, v.Channel(ctx))
+		}
+
+		body.Reset()
+		view := &OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPending, Funded: true, RefundOffered: true, RefundCreditPaid: true}
+		if err := Order(layouts.Page{Title: "order"}, view).Render(ctx, &body); err != nil {
+			t.Fatal(err)
+		}
+		page = html.UnescapeString(body.String())
+		if !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditHint)) || strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundHint)) {
+			t.Errorf("%s order page of a credit-paid order does not describe its cancellation", locale)
 		}
 	}
 }

@@ -155,3 +155,28 @@ func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
 		}
 	}
 }
+
+func TestMidnightIsTheStartOfTheShopDay(t *testing.T) {
+	t.Parallel()
+
+	utc := func(y int, m time.Month, d, h, min int) time.Time { return time.Date(y, m, d, h, min, 0, 0, time.UTC) }
+	tests := []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{"afternoon", utc(2026, 10, 5, 7, 20), "2026-10-05 00:00"},
+		{"23:59 the day before", utc(2026, 10, 4, 15, 59), "2026-10-04 00:00"},
+		{"00:01 on the day", utc(2026, 10, 4, 16, 1), "2026-10-05 00:00"},
+		{"exactly midnight", utc(2026, 10, 4, 16, 0), "2026-10-05 00:00"},
+	}
+	for _, tt := range tests {
+		got := shoptime.Midnight(tt.at)
+		if shoptime.Minute(got) != tt.want {
+			t.Errorf("%s: Midnight(%s) = %s, want %s", tt.name, tt.at, shoptime.Minute(got), tt.want)
+		}
+		if elsewhere := shoptime.Midnight(tt.at.In(mustLoad(t, "America/New_York"))); !elsewhere.Equal(got) {
+			t.Errorf("%s: Midnight depends on the zone the value carries: %s against %s", tt.name, elsewhere, got)
+		}
+	}
+}
