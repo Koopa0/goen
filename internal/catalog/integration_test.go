@@ -1036,6 +1036,9 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		SELECT slug FROM p`).Scan(&slug); err != nil {
 		t.Fatalf("build a product whose discount is on the dearer variant: %v", err)
 	}
+	if err := feature(t, campaign(t, "split-"+uuid.NewString()[:8]), slug); err != nil {
+		t.Fatalf("feature the product: %v", err)
+	}
 
 	view, err := s.Deals(ctx, 1)
 	if err != nil {
@@ -1057,8 +1060,8 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 			"variant carries no discount, and this page is about discounts",
 			tile.PriceCents)
 	}
-	if tile.CompareCents <= tile.PriceCents {
-		t.Error("a product on the sale page shows no compare price, because the variant " +
+	if !tile.OnSale() {
+		t.Error("a product on the sale page shows no sale badge, because the variant " +
 			"it was priced on is not the one that is marked down")
 	}
 
