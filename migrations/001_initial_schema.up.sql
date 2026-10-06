@@ -4192,10 +4192,14 @@ CREATE TABLE payment_webhook_events (
     -- distinguish a known event whose object this binary could not read
     -- (unreadable_event), paid money with no local payment row to attribute it
     -- to (unattributed_capture), paid money for an order already cancelled
-    -- (cancelled_order_capture), and verified money a stable local invariant
-    -- refused to post (refused_capture). Each is still marked processed because
-    -- Stripe would retry the same unresolvable facts; this durable reason is
-    -- what makes the required human action visible on /admin/health.
+    -- (cancelled_order_capture), verified money a stable local invariant
+    -- refused to post (refused_capture), a checkout completed by a delayed
+    -- payment method goen's stock hold cannot outlive (unsettled_session), and a
+    -- refund goen recorded as succeeded that Stripe reported failed
+    -- (refund_failed, followed by Stripe's failure code). Each is still marked
+    -- processed because Stripe would retry the same unresolvable facts; this
+    -- durable reason is what makes the required human action visible on
+    -- /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
