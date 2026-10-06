@@ -34,6 +34,9 @@ var (
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
+	// invoicingOff is a deployment with no 加值中心: an invoice operation nothing
+	// has sent is waiting for one to be configured, not stranded.
+	invoicingOff bool
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
@@ -41,6 +44,13 @@ func NewStore(pool *pgxpool.Pool) *Store {
 		panic("health: NewStore requires a pool")
 	}
 	return &Store{pool: pool, q: db.New(pool)}
+}
+
+// WithInvoicing says whether e-invoicing is configured. A store starts as if it were.
+func (s *Store) WithInvoicing(enabled bool) *Store {
+	c := *s
+	c.invoicingOff = !enabled
+	return &c
 }
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
@@ -110,7 +120,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 
 	// 折讓 claims the provider never answered. Whether ECPay filed is not knowable
 	// from here, so the claim survives as a row only a person can settle.
-	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
 		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
@@ -154,7 +164,7 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 		UnreconciledPayments: row.UnreconciledPayments,
 		MaxExpiredHolds:      MaxExpiredHolds,
 	}
-	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
 		return nil, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
