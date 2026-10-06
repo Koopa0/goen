@@ -93,6 +93,52 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	}
 }
 
+// TestTheListingControlsWorkWithoutScript holds the three controls the shopper
+// reaches for: each facet a closed disclosure, the sort a native select inside
+// the GET form beside a submit button, and the next page a link.
+func TestTheListingControlsWorkWithoutScript(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{
+		Slug: "audio", Name: "耳機與音響", Total: 45, Page: 1, PageSize: 20, Query: "in_stock=1",
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
+	}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	form := html[strings.Index(html, `<form class="goen-filters"`):]
+	form = form[:strings.Index(form, `</form>`)]
+	for _, want := range []string{`method="get"`, `<select class="ui-select" id="sort" name="sort">`, `type="submit"`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("the filter form lacks %q; the sort would need script", want)
+		}
+	}
+	if strings.Contains(form, `class="goen-filters__group" open`) || strings.Contains(form, `data-popover open`) {
+		t.Error("a facet menu is open before the shopper opens it")
+	}
+	if !strings.Contains(form, `<details class="goen-filters__group" data-popover>`) {
+		t.Error("a facet is not a disclosure menu")
+	}
+
+	if strings.Index(html, `class="goen-listing__count"`) > strings.Index(html, `id="listing-results"`) {
+		t.Error("the count is not in the toolbar above the results")
+	}
+
+	more := `<a class="goen-btn goen-btn--outline" href="/c/audio?in_stock=1&amp;page=2" rel="next">` + i18n.T(ctx, i18n.KeyShowMore) + `</a>`
+	if !strings.Contains(html, more) {
+		t.Errorf("the next page is not a link to ?page=2:\n%s", html)
+	}
+	if !strings.Contains(html, `<progress class="goen-pager__progress" value="1" max="3"`) {
+		t.Error("the pager draws no progress line")
+	}
+
+	last := view
+	last.Page = 3
+	if got := renderToString(t, Listing(ListingMeta(ctx, last), last)); strings.Contains(got, `rel="next"`) {
+		t.Error("the last page offers a next page")
+	}
+}
+
 // TestFilteredListingFocusesResults holds where a filter submission should
 // leave keyboard focus: on the results region, not back at the page top.
 func TestFilteredListingFocusesResults(t *testing.T) {
@@ -439,41 +485,6 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	}
 }
 
-// A run of pages stays one row: both ends, the neighbours of the current page,
-// and a gap wherever pages are left out.
-func TestThePagerKeepsBothEndsAndTheNeighboursOfTheCurrentPage(t *testing.T) {
-	t.Parallel()
-	href := func(n int) string { return fmt.Sprintf("?page=%d", n) }
-	label := func(links []PageLink) string {
-		var parts []string
-		for _, l := range links {
-			switch {
-			case l.Gap:
-				parts = append(parts, "…")
-			case l.Current:
-				parts = append(parts, "["+l.Label+"]")
-			default:
-				parts = append(parts, l.Label)
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-	for _, c := range []struct {
-		current, pages int
-		want           string
-	}{
-		{1, 1, "[1]"},
-		{2, 3, "1 [2] 3"},
-		{1, 9, "[1] 2 … 9"},
-		{5, 9, "1 … 4 [5] 6 … 9"},
-		{9, 9, "1 … 8 [9]"},
-	} {
-		if got := label(pageWindow(c.current, c.pages, href)); got != c.want {
-			t.Errorf("page %d of %d: %q, want %q", c.current, c.pages, got, c.want)
-		}
-	}
-}
-
 // A search that finds nothing sends the shopper to the departments, which the
 // header already lists.
 func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
@@ -500,7 +511,7 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 
 	for _, want := range []string{
 		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
-		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML"`,
+		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML"`,
 		`id="listing-status" class="goen-sr-only" role="status" aria-live="polite"`,
 		`class="goen-btn goen-btn--primary goen-btn--block goen-filters__apply"`,
 	} {
