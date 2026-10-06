@@ -256,6 +256,13 @@ templ productBuy(v *ProductView) {
 					}
 				}
 			</div>
+			if v.Campaign.Running() {
+				{{ before, after := v.Campaign.Source(ctx) }}
+				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }</p>
+				if v.Campaign.HasPeriod {
+					@components.Period(v.Campaign.Period)
+				}
+			}
 		}
 		if v.Summary != "" {
 			<p class="goen-pdp__lede">{ v.Summary }</p>

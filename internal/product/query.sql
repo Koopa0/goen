@@ -143,6 +143,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -271,6 +281,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -366,3 +386,19 @@ INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, @user_id, @body::text, true
 FROM product_questions q
 WHERE q.id = @question_id AND q.hidden_at IS NULL;
+
+-- The running campaign featuring a product, by the rule of the in_campaign
+-- column of the cards; the one that ends first when several do.
+-- name: RunningCampaignOfProduct :one
+SELECT fc.slug, localized_name(fc.title, fc.title_en, @locale::text) AS title,
+       fc.starts_at, fc.ends_at
+FROM sale_campaign_products fp
+JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+WHERE fp.product_id = @product_id::uuid AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+      JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+      WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+ORDER BY fc.ends_at, fc.id
+LIMIT 1;

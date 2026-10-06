@@ -168,7 +168,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	sale := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true}
+	sale := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, InCampaign: true}
 	page := renderComponent(t, ctx, Tile(sale))
 	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
 		t.Error("a reduced tile draws an on-sale chip")

@@ -885,6 +885,7 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistIt
 				PriceCents:   r.MinPriceCents,
 				PriceVaries:  r.PriceVaries,
 				CompareCents: r.CompareAtPriceCents.Int64,
+				InCampaign:   r.InCampaign,
 				Rating:       r.Rating,
 				RatingCount:  r.RatingCount,
 				InStock:      r.InStock,

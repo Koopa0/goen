@@ -3231,6 +3231,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -3315,6 +3325,7 @@ type BoughtTogetherRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -3348,6 +3359,7 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -3385,6 +3397,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -3468,6 +3490,7 @@ type CampaignProductsRow struct {
 	TilePriceCents      int64
 	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -3496,6 +3519,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -4262,6 +4286,16 @@ SELECT
           AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -4412,6 +4446,7 @@ type CategoryListingRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -4456,6 +4491,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -5076,6 +5112,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -5126,6 +5172,7 @@ type CompareProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -5157,6 +5204,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -6531,6 +6579,16 @@ SELECT
         WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
     ))::boolean AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -6622,6 +6680,7 @@ type DealProductsRow struct {
 	TilePriceCents      int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -6658,6 +6717,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -7752,6 +7812,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
@@ -7848,6 +7918,7 @@ type HomeTilesRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	ImageKey            string
@@ -7885,6 +7956,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.ImageKey,
@@ -9702,6 +9774,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -9780,6 +9862,7 @@ type NewestProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -9809,6 +9892,7 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -13074,6 +13158,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -13152,6 +13246,7 @@ type RelatedProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -13183,6 +13278,7 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -14403,6 +14499,47 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 	return i, err
 }
 
+const runningCampaignOfProduct = `-- name: RunningCampaignOfProduct :one
+SELECT fc.slug, localized_name(fc.title, fc.title_en, $1::text) AS title,
+       fc.starts_at, fc.ends_at
+FROM sale_campaign_products fp
+JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+WHERE fp.product_id = $2::uuid AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+      JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+      WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+ORDER BY fc.ends_at, fc.id
+LIMIT 1
+`
+
+type RunningCampaignOfProductParams struct {
+	Locale    string
+	ProductID uuid.UUID
+}
+
+type RunningCampaignOfProductRow struct {
+	Slug     string
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// The running campaign featuring a product, by the rule of the in_campaign
+// column of the cards; the one that ends first when several do.
+func (q *Queries) RunningCampaignOfProduct(ctx context.Context, arg RunningCampaignOfProductParams) (RunningCampaignOfProductRow, error) {
+	row := q.db.QueryRow(ctx, runningCampaignOfProduct, arg.Locale, arg.ProductID)
+	var i RunningCampaignOfProductRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+	)
+	return i, err
+}
+
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
 UPDATE carts SET checkout_draft = $1::jsonb, checkout_draft_at = now()
 WHERE id = $2
@@ -14492,6 +14629,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -14647,6 +14794,7 @@ type SearchProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -14689,6 +14837,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -17257,6 +17406,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -17343,6 +17502,7 @@ type WishlistItemsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -17373,6 +17533,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,

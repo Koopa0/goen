@@ -3,6 +3,9 @@ package i18n
 var (
 	KeySectionDescription = key("pdp.description", Message{ZhHant: "商品說明", En: "Description"})
 
+	// KeyCampaignPrice is the source of a campaign price: the campaign, then the date its last day falls on.
+	KeyCampaignPrice = key("pdp.campaignprice", Message{ZhHant: "%s活動價，至 %s", En: "%s price, until %s"})
+
 	KeySectionSpecs = key("pdp.specs", Message{ZhHant: "規格", En: "Specifications"})
 
 	KeySectionWarranty = key("pdp.warranty", Message{ZhHant: "保固", En: "Warranty"})

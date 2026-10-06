@@ -153,6 +153,16 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Options = append(view.Options, po)
 	}
 
+	campaign, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
+		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
+	})
+	switch {
+	case err == nil:
+		view.Campaign = pages.NewProductCampaign(ctx, campaign.Slug, campaign.Title, campaign.StartsAt, campaign.EndsAt, s.now())
+	case !errors.Is(err, pgx.ErrNoRows):
+		return pages.ProductView{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
+	}
+
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return pages.ProductView{}, err
 	}
@@ -289,6 +299,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
 			ImageURL:    assets.ProductImageURL(r.ImageKey),
 			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
@@ -327,6 +338,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,

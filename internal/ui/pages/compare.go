@@ -31,6 +31,7 @@ type CompareProduct struct {
 	PriceCents     int64
 	PriceVaries    bool
 	CompareCents   int64
+	InCampaign     bool
 	Rating         float64
 	RatingCount    int64
 	InStock        bool
@@ -42,7 +43,7 @@ type CompareProduct struct {
 
 func (p CompareProduct) PriceTile() ProductTile {
 	return ProductTile{
-		PriceCents: p.PriceCents, CompareCents: p.CompareCents,
+		PriceCents: p.PriceCents, CompareCents: p.CompareCents, InCampaign: p.InCampaign,
 		PriceVaries: p.PriceVaries, InStock: p.InStock,
 	}
 }

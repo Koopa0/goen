@@ -1363,3 +1363,89 @@ func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
 		}
 	}
 }
+
+// discountedProduct creates an active product with one discounted variant
+// holding stock, featured by no campaign.
+func discountedProduct(t *testing.T, stock int) string {
+	t.Helper()
+	slug := "discounted-" + uuid.NewString()
+	if _, err := pool.Exec(t.Context(), `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '折扣商品', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	return slug
+}
+
+func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	tests := []struct {
+		name  string
+		setup string
+		want  bool
+	}{
+		{"running", ``, true},
+		{"already ended", `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
+			ends_at = now() - interval '1 day' WHERE slug = $1`, false},
+		{"not started yet", `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
+			ends_at = now() + interval '30 days' WHERE slug = $1`, false},
+		{"switched off", `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, false},
+		{"nothing left to buy", `UPDATE product_variants SET stock_quantity = 0
+			WHERE product_id IN (SELECT cp.product_id FROM sale_campaign_products cp
+			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			product := discountedProduct(t, 5)
+			slug := campaign(t, "card-"+uuid.NewString()[:8])
+			if err := feature(t, slug, product); err != nil {
+				t.Fatalf("feature: %v", err)
+			}
+			if tt.setup != "" {
+				if _, err := pool.Exec(ctx, tt.setup, slug); err != nil {
+					t.Fatalf("setup: %v", err)
+				}
+			}
+			tiles, err := s.NewestProducts(ctx, 50)
+			if err != nil {
+				t.Fatalf("newest products: %v", err)
+			}
+			for _, tile := range tiles {
+				if tile.Slug == product {
+					if tile.InCampaign != tt.want {
+						t.Errorf("%s: InCampaign = %v, want %v", tt.name, tile.InCampaign, tt.want)
+					}
+					return
+				}
+			}
+			t.Fatalf("%s: product %s is not among the newest 50", tt.name, product)
+		})
+	}
+
+	t.Run("featured by none", func(t *testing.T) {
+		product := discountedProduct(t, 5)
+		tiles, err := s.NewestProducts(ctx, 50)
+		if err != nil {
+			t.Fatalf("newest products: %v", err)
+		}
+		for _, tile := range tiles {
+			if tile.Slug == product {
+				if tile.InCampaign || tile.CompareCents == 0 {
+					t.Errorf("a discounted product in no campaign: InCampaign = %v, CompareCents = %d, want false and its standing compare price", tile.InCampaign, tile.CompareCents)
+				}
+				return
+			}
+		}
+		t.Fatalf("product %s is not among the newest 50", product)
+	})
+}
