@@ -277,7 +277,7 @@ func (r OpenRefund) NextStep(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyHealthRefundExternalNext)
 	}
 	next := i18n.T(ctx, key)
-	if strings.HasPrefix(r.Key, "return:") {
+	if strings.HasPrefix(r.Key, "") {
 		return next + " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundRetryNext),
 			i18n.T(ctx, i18n.KeyAdminRefundResume), i18n.T(ctx, i18n.KeyAdminRetRetryPayout))
 	}
