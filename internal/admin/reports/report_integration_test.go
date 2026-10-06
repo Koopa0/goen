@@ -848,7 +848,9 @@ func newCategory(t *testing.T, name string, parent *uuid.UUID) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		INSERT INTO categories (parent_id, slug, name) VALUES ($1, 'dept-' || gen_random_uuid(), $2)
+		INSERT INTO categories (parent_id, slug, name, position)
+		SELECT $1::uuid, 'dept-' || gen_random_uuid(), $2,
+		       coalesce(max(position), 0) + 1 FROM categories WHERE parent_id IS NOT DISTINCT FROM $1::uuid
 		RETURNING id`, parent, name).Scan(&id); err != nil {
 		t.Fatalf("create category: %v", err)
 	}
