@@ -37,8 +37,6 @@ var (
 		En:     "Paid with store credit: cancelling returns the credit and voids this order's invoice.",
 	})
 
-	KeyOrderTracking = key("order.tracking", Message{ZhHant: "配送資訊", En: "Delivery"})
-
 	KeyOrderTrackingNo = key("order.tracking.no", Message{
 		ZhHant: "查詢編號 %s",
 		En:     "Tracking number %s",
@@ -104,15 +102,15 @@ var (
 
 	KeyOrderUnitDays = key("order.unit.days", Message{ZhHant: "天", En: "days"})
 
-	KeyOrderRescissionAwaits = key("order.rescission.awaits", Message{
-		ZhHant: "猶豫期 7 天，收到次日起算。",
-		En:     "The right to cancel is 7 days, counted from the day after you receive the goods.",
-	})
+	KeyOrderRescissionAwaits = countKey("order.rescission.awaits",
+		"猶豫期 %d 天，收到次日起算。",
+		"The right to cancel is %d day, counted from the day after you receive the goods.",
+		"The right to cancel is %d days, counted from the day after you receive the goods.")
 
-	KeyOrderRescissionAwaitsPickup = key("order.rescission.awaits.pickup", Message{
-		ZhHant: "猶豫期 7 天，取貨次日起算。",
-		En:     "The right to cancel is 7 days, counted from the day after you collect the goods.",
-	})
+	KeyOrderRescissionAwaitsPickup = countKey("order.rescission.awaits.pickup",
+		"猶豫期 %d 天，取貨次日起算。",
+		"The right to cancel is %d day, counted from the day after you collect the goods.",
+		"The right to cancel is %d days, counted from the day after you collect the goods.")
 
 	KeyOrderPickupCounted = key("order.rescission.pickup", Message{
 		ZhHant: "超商取貨：從取貨的次日起算。",

@@ -2,6 +2,7 @@ package pages
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func orderDay(day int) time.Time { return time.Date(2026, 10, day, 0, 0, 0, 0, t
 
 func deliveredOn(day int, lines ...OrderLine) OrderShipment {
 	return OrderShipment{
-		Carrier: carrier.BlackCat, Tracking: "T" + string(rune('0'+day)),
+		Carrier: carrier.BlackCat, Tracking: "T" + strconv.Itoa(day),
 		ShippedAt:      time.Date(2026, 10, day-1, 2, 0, 0, 0, time.UTC),
 		DeliveredAt:    time.Date(2026, 10, day, 7, 20, 0, 0, time.UTC),
 		RescissionEnds: orderDay(day + 7), GoodwillEnds: orderDay(day + 14),
@@ -153,11 +154,12 @@ func TestACancelledOrderHasNoRightToCancelAndNoReturn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			html := orderPage(t, &OrderView{
 				Status: order.FulfillmentCancelled, SubtotalCents: 590000, Timeline: tt.timeline,
 				Lines: []OrderLine{headphones()},
 			})
-			for _, banned := range []string{"申請退貨", "猶豫期", "剩餘", "個月"} {
+			for _, banned := range []string{"申請退貨", "猶豫期", "剩餘", "退貨完成", "已全部退回", "個月"} {
 				if strings.Contains(html, banned) {
 					t.Errorf("a cancelled order still says %q", banned)
 				}
