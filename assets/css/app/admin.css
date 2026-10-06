@@ -990,41 +990,32 @@ input.goen-check {
   max-width: 68ch;
 }
 
-/* The figures a shift starts with. A counted grid with tracks that may shrink
-   to nothing, not auto-fit: a track whose minimum is a length is floored by it,
-   and one screen on this row has a stat label base.css refuses to wrap,
-   which took the whole page sideways at 375. */
-/* As many tiles as fit a figure, counted by the browser rather than by hand at
-   three widths. A back-office figure is money as often as it is a count — a
-   customer's lifetime spend, their store credit — and a six-figure sum at the
-   editorial size needs about 13rem of tile. Counted by hand it did not get it:
-   two across at 375 put the number outside its tile and the page scrolling
-   sideways, and five across at 1280 asks for five tiles out of a column the
-   rail has already taken 15rem from. The floor is the measurement; the count
-   follows from it, at every width and from whatever the rail leaves. */
+/* The newsletter screen's three counts, as many tiles as fit a 13rem floor. */
 .goen-admin__stats {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }
 
-/* A phone shows two tiles a row: the figure steps down so a seven-digit amount
-   stays inside a tile half the column wide. */
+/* A phone shows two tiles a row, the figure stepped down to fit. */
 @media (max-width: 479px) {
   .goen-admin__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .goen-admin__stats .goen-stat,
-  .goen-admin__stats .ui-stat {
+  .goen-admin__stats .goen-stat {
     padding: 12px;
   }
 
-  .goen-admin__stats .goen-stat__value,
-  .goen-admin__stats .ui-stat__value {
+  .goen-admin__stats .goen-stat__value {
     font-size: var(--fs-ed-20);
     overflow-wrap: anywhere;
   }
+}
+
+/* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
+.goen-admin__stats > .ui-statline {
+  grid-column: 1 / -1;
 }
 
 .goen-stat {
@@ -1032,33 +1023,17 @@ input.goen-check {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-1);
-  color: inherit;
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
   padding: 16px;
-  text-decoration: none;
-  transition:
-    border-color var(--dur-base) var(--ease-standard),
-    box-shadow var(--dur-base) var(--ease-standard);
-}
-
-.goen-stat:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-2);
 }
 
 .goen-stat__label {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-normal);
-}
-
-.goen-stat__note {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
   line-height: var(--lh-normal);
 }
 
@@ -1278,17 +1253,6 @@ input.goen-check {
 
 .goen-admin .ui-table tbody .goen-admin__cellkey {
   color: var(--fg);
-}
-
-.goen-admin__stats .ui-stat {
-  min-width: 0;
-}
-
-/* The shared stat label does not wrap, so a long one is wider than
-   its grid track and takes the page sideways with it. The screens still on
-   that component are measured at 375 by the layout gate. */
-.goen-admin__stats .ui-stat__label {
-  white-space: normal;
 }
 
 .goen-admin__row--low td {
@@ -2250,6 +2214,14 @@ input.goen-check {
   flex: 1 0 100%;
 }
 
+/* The sentence beside a warned estimate; the triangle repeats it for a reader
+   who scans the column. */
+.goen-report__warn {
+  color: var(--warn);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
      what a staff member checks against whatever they are about to press.
@@ -2873,6 +2845,42 @@ form[data-request-pending] [aria-disabled="true"] {
   white-space: nowrap;
 }
 
+/* A bar over its range. The 1.5px range and the ink reference line are the
+   annotation; the row's text says the same in words. */
+.goen-chartrangebar svg {
+  display: block;
+}
+
+.goen-chartrangebar__track {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chartrangebar__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartrangebar__range,
+.goen-chartrangebar__cap {
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chartrangebar__mark {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-chartrangebar__fill {
+    animation: goen-chart-grow 420ms var(--ease-standard) backwards;
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+  }
+}
+
 /* The SVG names its own system colours rather than relying on which
    properties a browser forces. A forced palette has one grey, so the
    hairline steps aside; the count is HTML and is forced like any text. */
@@ -2901,5 +2909,21 @@ form[data-request-pending] [aria-disabled="true"] {
     fill: Canvas;
     stroke: CanvasText;
     stroke-width: 2;
+  }
+
+  .goen-chartrangebar svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartrangebar__fill,
+  .goen-chartrangebar__range,
+  .goen-chartrangebar__cap,
+  .goen-chartrangebar__mark {
+    fill: CanvasText;
+    stroke: CanvasText;
+  }
+
+  .goen-chartrangebar__track {
+    stroke: transparent;
   }
 }

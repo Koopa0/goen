@@ -504,6 +504,31 @@ func TestTheDemoAccountButtonSignsInWhereScriptRuns(t *testing.T) {
 	}
 }
 
+// TestTheCarouselMovesOnlyOnTheVisitorsInput: nothing starts by itself, so the
+// script holds no timer, no animation hook and no autoplay switch (WCAG 2.2.2).
+func TestTheCarouselMovesOnlyOnTheVisitorsInput(t *testing.T) {
+	t.Parallel()
+
+	script := requestAsset(t, assets.AppJS, "", "").Body.String()
+	start := strings.Index(script, "function carousel()")
+	if start < 0 {
+		t.Fatalf("served %s has no carousel function", assets.AppJS)
+	}
+	body := script[start:]
+	if end := strings.Index(body, "\n  }\n"); end > 0 {
+		body = body[:end]
+	}
+	for _, banned := range []string{"setInterval", "setTimeout", "requestAnimationFrame", "animationend", "autoplay"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("served %s's carousel contains %q: a slide would move without the visitor", assets.AppJS, banned)
+		}
+	}
+	sheet := requestAsset(t, assets.AppCSS, "", "").Body.String()
+	if strings.Contains(sheet, "goen-hero-progress") {
+		t.Errorf("served %s still draws the carousel's autoplay progress", assets.AppCSS)
+	}
+}
+
 // TestACartQuantityAppliesItselfWhereScriptRuns holds the two halves of one
 // promise: the script submits a quantity form on change, and the stylesheet
 // retires the 更新 button only for a browser that runs it. Dropping either

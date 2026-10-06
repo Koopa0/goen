@@ -193,7 +193,7 @@ async function journey(connection, locale, width) {
         p.url = location.href;
         p.checked = p.box.checked;
         const index = p.requests.length;
-        p.box.focus(); p.box.click();
+        p.box.closest('details').open = true; p.box.focus(); p.box.click();
         return index;
       })()`);
       await waitFor(() => evaluate(`filterFeedbackCheck.requests.length > ${index}`), 'filter request did not start');

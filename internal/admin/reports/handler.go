@@ -3,6 +3,8 @@
 package reports
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -43,7 +45,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	if view.ReturnedErr != nil {
+	if view.ReturnedErr != nil && !errors.Is(view.ReturnedErr, context.Canceled) {
 		h.log.ErrorContext(r.Context(), "read returned products", "error", view.ReturnedErr)
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Report(

@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -303,50 +304,185 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
+func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	roomy := soldVariant(t, 9, 5, 10)
-	atSafety := soldVariant(t, 5, 5, 10)
+	// One more sold out SKU than the list holds, so the count is at least 1
+	// whatever the seed leaves, and a SKU of ten orders that must still show.
+	idle := make([]string, 0, 11)
+	for range 11 {
+		_, sku := newVariant(t, 2, 2)
+		idle = append(idle, sku)
+	}
+	estimatedID, estimated := newVariant(t, 10, 5)
+	for range 10 {
+		orderOnVariant(t, estimatedID, estimated, 1, nil)
+	}
 
-	view, err := s.Report(ctx, 30)
+	now := time.Now()
+	raw, err := db.New(pool).StockAtRisk(ctx, db.StockAtRiskParams{
+		FromAt: now.AddDate(0, 0, -30), ToAt: now.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("read stock at risk: %v", err)
+	}
+	for _, sku := range idle {
+		if !slices.ContainsFunc(raw, func(r db.StockAtRiskRow) bool { return r.SKU == sku }) {
+			t.Errorf("StockAtRisk lacks %s: sold out with no orders, it must still be a candidate", sku)
+		}
+	}
+
+	view, err := s.Report(ctx, 7)
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
-	rowOf := func(sku string) (int, bool) {
-		for i, r := range view.AtRisk {
-			if r.SKU == sku {
-				return i, true
-			}
+	if view.StockDays != 30 {
+		t.Errorf("a 7 day report reads stock over %d days, want 30", view.StockDays)
+	}
+	var soldOut int
+	afterSoldOut := true
+	for i, r := range view.AtRisk {
+		if r.Estimate().State != admin.CoverSoldOut {
+			continue
 		}
-		return 0, false
+		soldOut++
+		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+			afterSoldOut = false
+		}
 	}
-	roomyAt, ok := rowOf(roomy)
-	if !ok {
-		t.Fatalf("report lacks %s", roomy)
+	if soldOut != 10 || view.MoreSoldOut < 1 {
+		t.Errorf("%d sold out rows listed with %d left off, want 10 and the rest counted", soldOut, view.MoreSoldOut)
 	}
-	atSafetyAt, ok := rowOf(atSafety)
-	if !ok {
-		t.Fatalf("report lacks %s", atSafety)
+	if !afterSoldOut {
+		t.Error("a sold out row follows a row that is not sold out")
 	}
-	if got := view.AtRisk[roomyAt]; got.DaysCover != 12 || got.Sellable != 4 {
-		t.Errorf("stock 9, safety 5, 10 sold in 30 days: days %d sellable %d, want 12 and 4",
-			got.DaysCover, got.Sellable)
-	}
-	if got := view.AtRisk[atSafetyAt]; got.DaysCover != 0 || got.Sellable != 0 {
-		t.Errorf("stock at its safety level: days %d sellable %d, want 0 and 0",
-			got.DaysCover, got.Sellable)
-	}
-	if atSafetyAt > roomyAt {
-		t.Errorf("a SKU at its safety level is row %d, after the SKU with days to spare at row %d",
-			atSafetyAt, roomyAt)
+	row, ok := stockRow(&view, estimated)
+	switch {
+	case !ok:
+		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
+	case row.Estimate().State != admin.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
+		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
+			row.Sellable, row.Sold, row.Orders)
 	}
 }
 
-// soldVariant makes an active variant holding stock with the given safety level
-// and one paid order of sold units, and returns its SKU.
-func soldVariant(t *testing.T, stock, safety, sold int) string {
+func TestStockWindowIsWholeShopDays(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	variantID, sku := newVariant(t, 20, 2)
+	for _, placed := range []string{
+		"2024-02-09 23:59:00", // before the first of 30 shop days
+		"2024-02-10 00:01:00", // inside
+		"2024-03-10 15:21:00", // after now
+	} {
+		moment := shopMoment(t, placed)
+		orderOnVariant(t, variantID, sku, 1, &moment)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	row, ok := stockRow(&view, sku)
+	if !ok {
+		t.Fatalf("report lacks %s", sku)
+	}
+	if row.Orders != 1 || row.Sold != 1 {
+		t.Errorf("orders at 02-09 23:59, 02-10 00:01 and 03-10 15:21 over 30 shop days to 03-10 15:20: %d orders, %d units, want 1 and 1",
+			row.Orders, row.Sold)
+	}
+}
+
+func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	// Stock 10 over safety 2, received on 02-25: nothing to sell before, so the
+	// 30 shop days from 02-10 hold 14 days 15 hours 20 minutes of stock.
+	inStockID, inStock := newVariant(t, 10, 2)
+	receipt := shopMoment(t, "2024-02-25 00:00:00")
+	ledger(t, inStockID, 10, "receipt", receipt)
+	sold := shopMoment(t, "2024-03-09 10:00:00")
+	orderOnVariant(t, inStockID, inStock, 1, &sold)
+
+	// Two sold out variants that ran out on different days: the later is first.
+	earlierID, earlier := newVariant(t, 2, 2)
+	ledger(t, earlierID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, earlierID, -5, "adjustment", shopMoment(t, "2024-03-05 12:00:00"))
+	laterID, later := newVariant(t, 2, 2)
+	ledger(t, laterID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, laterID, -5, "adjustment", shopMoment(t, "2024-03-08 12:00:00"))
+
+	view, err := s.ReportAt(ctx, 30, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	row, ok := stockRow(&view, inStock)
+	if !ok {
+		t.Fatalf("report lacks %s", inStock)
+	}
+	if want := 14*24*time.Hour + 15*time.Hour + 20*time.Minute; row.InStock != want {
+		t.Errorf("received on 02-25 into a window from 02-10 to 03-10 15:20: in stock %v, want %v", row.InStock, want)
+	}
+	laterAt, laterOK := indexOf(&view, later)
+	earlierAt, earlierOK := indexOf(&view, earlier)
+	if !laterOK || !earlierOK {
+		t.Fatalf("report lacks a sold out variant: %s listed %v, %s listed %v", later, laterOK, earlier, earlierOK)
+	}
+	if laterAt > earlierAt {
+		t.Errorf("the SKU that ran out on 03-08 is row %d, after the one that ran out on 03-05 at row %d", laterAt, earlierAt)
+	}
+	if got := view.AtRisk[laterAt].SoldOutAt; !got.Equal(shopMoment(t, "2024-03-08 12:00:00")) {
+		t.Errorf("ran out at %v, want 2024-03-08 12:00", got)
+	}
+}
+
+func indexOf(view *admin.ReportView, sku string) (int, bool) {
+	for i, r := range view.AtRisk {
+		if r.SKU == sku {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func stockRow(view *admin.ReportView, sku string) (admin.StockRisk, bool) {
+	i, ok := indexOf(view, sku)
+	if !ok {
+		return admin.StockRisk{}, false
+	}
+	return view.AtRisk[i], true
+}
+
+func shopMoment(t *testing.T, wallClock string) time.Time {
+	t.Helper()
+	moment, err := shoptime.ParseSecond(wallClock)
+	if err != nil {
+		t.Fatalf("parse %q: %v", wallClock, err)
+	}
+	return moment
+}
+
+// ledger writes a movement as the ledger would have it at the time, without
+// touching the stock the variant already holds.
+func ledger(t *testing.T, variantID uuid.UUID, delta int, reason string, at time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key, created_at)
+		VALUES ($1, $2, $3, 'admin', 'report-' || gen_random_uuid(), $4)`,
+		variantID, delta, reason, at); err != nil {
+		t.Fatalf("write movement: %v", err)
+	}
+}
+
+// newVariant makes an active variant holding stock with the given safety level.
+func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -356,7 +492,7 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 	}
 	defer pgtx.Rollback(ctx, tx)
 
-	var productID, variantID uuid.UUID
+	var productID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		SELECT b.id, c.id, 'runway-' || gen_random_uuid(), '庫存天數商品', 'draft', now()
@@ -365,28 +501,45 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 		RETURNING id`).Scan(&productID); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	var sku string
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
 		VALUES ($1, 'RUNWAY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, $2, $3)
-		RETURNING id, sku`, productID, stock, safety).Scan(&variantID, &sku); err != nil {
+		RETURNING id, sku`, productID, stock, safety).Scan(&id, &sku); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return id, sku
+}
+
+// orderOnVariant places one paid order of units on the variant at placedAt, or
+// now when it is nil.
+func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, placedAt *time.Time) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
-		                    shipping_method_name, shipping_cents)
-		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		                    shipping_method_name, shipping_cents, placed_at)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0, coalesce($1::timestamptz, now())
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`, placedAt).Scan(&orderID); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, sold); err != nil {
+		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, units); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -400,18 +553,14 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 		t.Fatalf("commit: %v", err)
 	}
 	ref := "runway_" + orderID.String()
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(units)); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(units)); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
-	return sku
 }
 
-// Seven shop days up to Sunday 2024-03-10 15:20 are 03-04 00:00 to now; the
-// seven before them are 02-26 00:00 to 03-03 15:20, the same hour of day. The
-// date is long past, so only these orders fall in either period.
 func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
@@ -507,14 +656,24 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 }
 
-func TestReturnedProductsCountOnlyApprovedUnitsAgainstTheirOwnSales(t *testing.T) {
+func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	decided := soldVariant(t, 20, 0, 12)
-	returnUnits(t, decided, 3, "approved")
-	pending := soldVariant(t, 20, 0, 5)
-	returnUnits(t, pending, 2, "requested")
+	countedID, counted := newVariant(t, 20, 0)
+	orderOnVariant(t, countedID, counted, 12, nil)
+	returnUnits(t, orderOf(t, counted, false), 3, "approved")
+	// The same product, sold before the window and returned: it is neither in
+	// the units sold nor in the units returned.
+	before := time.Now().AddDate(0, 0, -60)
+	orderOnVariant(t, countedID, counted, 8, &before)
+	returnUnits(t, orderOf(t, counted, true), 4, "approved")
+	undecidedID, undecided := newVariant(t, 20, 0)
+	orderOnVariant(t, undecidedID, undecided, 5, nil)
+	returnUnits(t, orderOf(t, undecided, false), 2, "requested")
+	declinedID, declined := newVariant(t, 20, 0)
+	orderOnVariant(t, declinedID, declined, 6, nil)
+	returnUnits(t, orderOf(t, declined, false), 2, "rejected")
 
 	view, err := s.Report(ctx, 30)
 	if err != nil {
@@ -525,10 +684,12 @@ func TestReturnedProductsCountOnlyApprovedUnitsAgainstTheirOwnSales(t *testing.T
 	}
 	var got *admin.ReturnedProduct
 	for i, p := range view.Returned {
-		if p.Slug == productSlug(t, pending) {
-			t.Errorf("an undecided return listed %q with %d returned", p.Slug, p.Returned)
-		}
-		if p.Slug == productSlug(t, decided) {
+		switch p.Slug {
+		case productSlug(t, undecided):
+			t.Errorf("an open return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, declined):
+			t.Errorf("a declined return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, counted):
 			got = &view.Returned[i]
 		}
 	}
@@ -538,6 +699,19 @@ func TestReturnedProductsCountOnlyApprovedUnitsAgainstTheirOwnSales(t *testing.T
 	if got.Returned != 3 || got.Sold != 12 {
 		t.Errorf("returned/sold = %d/%d, want 3/12", got.Returned, got.Sold)
 	}
+}
+
+// orderOf is the newest order of sku, or the oldest.
+func orderOf(t *testing.T, sku string, oldest bool) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		SELECT ol.order_id FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+		WHERE ol.sku = $1
+		ORDER BY CASE WHEN $2 THEN o.placed_at END, o.placed_at DESC LIMIT 1`, sku, oldest).Scan(&id); err != nil {
+		t.Fatalf("read the order of %s: %v", sku, err)
+	}
+	return id
 }
 
 func productSlug(t *testing.T, sku string) string {
@@ -551,9 +725,9 @@ func productSlug(t *testing.T, sku string) string {
 	return slug
 }
 
-// returnUnits ships the paid order that sold sku and asks for qty of its units
+// returnUnits ships the paid order and asks for qty of its one line's units
 // back, then moves the request to status.
-func returnUnits(t *testing.T, sku string, qty int, status string) {
+func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -563,12 +737,12 @@ func returnUnits(t *testing.T, sku string, qty int, status string) {
 	}
 	defer pgtx.Rollback(ctx, tx)
 
-	var orderID, lineID uuid.UUID
+	var lineID uuid.UUID
 	var sold int
 	if err := tx.QueryRow(ctx, `
-		SELECT order_id, id, quantity FROM order_lines WHERE sku = $1`, sku).
-		Scan(&orderID, &lineID, &sold); err != nil {
-		t.Fatalf("read the sale of %s: %v", sku, err)
+		SELECT id, quantity FROM order_lines WHERE order_id = $1`, orderID).
+		Scan(&lineID, &sold); err != nil {
+		t.Fatalf("read the sale on order %s: %v", orderID, err)
 	}
 	admintest.MoveOrderToShipped(t, tx, orderID)
 	var shipmentID, requestID uuid.UUID

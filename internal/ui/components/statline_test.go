@@ -81,3 +81,50 @@ func TestStatLineVariantsAndNoStyleAttribute(t *testing.T) {
 		}
 	}
 }
+
+func renderGlance(t *testing.T, stats []LinkedStat) string {
+	t.Helper()
+	var b strings.Builder
+	if err := GlanceStatLine(stats).Render(t.Context(), &b); err != nil {
+		t.Fatalf("GlanceStatLine: %v", err)
+	}
+	return b.String()
+}
+
+func TestGlanceStatLineLinksTheLabelNotTheFigure(t *testing.T) {
+	t.Parallel()
+	got := renderGlance(t, []LinkedStat{
+		{Stat: Stat{Label: "待處理", Value: StatNumber(3)}, Href: "/admin/orders?status=pending"},
+		{Stat: Stat{Label: "上架商品", Value: StatNumber(0)}, Href: "/admin/products"},
+	})
+	for _, want := range []string{
+		`<dl class="ui-statline ui-statline--glance">`,
+		`<dt><a href="/admin/orders?status=pending">待處理</a></dt><dd>3`,
+		`<dt><a href="/admin/products">上架商品</a></dt><dd>0`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("GlanceStatLine = %s\nwant it to contain %q", got, want)
+		}
+	}
+}
+
+func TestGlanceStatLineRequiresAnHref(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if recover() == nil {
+			t.Error("GlanceStatLine with a stat that has no Href did not panic")
+		}
+	}()
+	renderGlance(t, []LinkedStat{{Stat: Stat{Label: "待處理", Value: StatNumber(3)}}})
+}
+
+func TestStatNumberPrintsABareCount(t *testing.T) {
+	t.Parallel()
+	got := renderStatLine(t, []Stat{{Label: "訂單數", Value: StatNumber(0)}}, StatLinePlain)
+	if want := "<dd>0"; !strings.Contains(got, want) {
+		t.Errorf("StatLine with StatNumber(0) = %s\nwant it to contain %q", got, want)
+	}
+	if got := renderStatLine(t, []Stat{{Label: "訂單數", Value: StatNumber(-1)}}, StatLinePlain); got != "" {
+		t.Errorf("StatLine with StatNumber(-1) = %q, want nothing", got)
+	}
+}

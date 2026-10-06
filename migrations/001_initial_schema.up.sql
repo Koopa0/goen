@@ -7115,9 +7115,7 @@ $$;
 -- An account can sign in concurrently from two browser tabs, each carrying a
 -- different guest cart. The partial unique index on carts.user_id detects two
 -- first adopters only after both have already decided that no account cart
--- exists; serialize that decision on the stable account row instead. store has
--- only narrow authentication-column UPDATE grants, not authority for a general
--- users row lock, so the lock lives behind this narrow door.
+-- exists; serialize that decision on the stable account row instead.
 CREATE FUNCTION lock_user_for_cart_adoption(p_user_id uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN

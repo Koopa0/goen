@@ -10,14 +10,14 @@ import (
 templ returnedProducts(v *ReportView) {
 	if v.ReturnedErr != nil {
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepReturned) }</h2>
-		<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepReturnedUnavailable) }</p>
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepReturnedUnavailable) }</p>
 	} else if len(v.Returned) > 0 {
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepReturned) }</h2>
 		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepReturnedNote) }</p>
 		if len(v.Returned) == 1 {
 			<p>{ v.ReturnedOne(ctx) }</p>
 		} else {
-			<ul class="goen-report__rows" role="list">
+			<ul class="goen-report__rows goen-report__rows--returned" role="list">
 				{{ top := v.TopReturned() }}
 				for _, item := range v.Returned {
 					<li class="goen-report__row">
