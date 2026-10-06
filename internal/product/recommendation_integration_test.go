@@ -562,3 +562,126 @@ func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 		t.Errorf("core read failure returned %d, want 500", res.Code)
 	}
 }
+
+type saturatedRecommendationKey struct{}
+
+type saturatedRecommendationRead struct {
+	mu         sync.Mutex
+	pool       *pgxpool.Pool
+	preceding  string
+	armed      bool
+	held       *pgxpool.Conn
+	setupErr   error
+	saturated  bool
+	acquireErr error
+	reached    bool
+}
+
+func (d *saturatedRecommendationRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	return context.WithValue(ctx, recommendationQueryKey{}, strings.HasPrefix(data.SQL, "-- name: "+d.preceding+" "))
+}
+
+func (d *saturatedRecommendationRead) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if ctx.Value(recommendationQueryKey{}) == true && data.Err == nil {
+		d.mu.Lock()
+		d.armed = true
+		d.mu.Unlock()
+	}
+}
+
+func (d *saturatedRecommendationRead) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
+	if ctx.Value(saturatedRecommendationKey{}) != nil {
+		return ctx
+	}
+	d.mu.Lock()
+	armed := d.armed
+	d.armed = false
+	d.mu.Unlock()
+	if !armed {
+		return ctx
+	}
+	// The preceding rows have released their connection; reserve it before the optional acquire.
+	held, err := d.pool.Acquire(context.WithValue(ctx, saturatedRecommendationKey{}, "holder"))
+	d.mu.Lock()
+	d.held, d.setupErr, d.reached = held, err, true
+	d.saturated = err == nil && d.pool.Stat().AcquiredConns() == 1 && d.pool.Stat().IdleConns() == 0
+	d.mu.Unlock()
+	return context.WithValue(ctx, saturatedRecommendationKey{}, "optional")
+}
+
+func (d *saturatedRecommendationRead) TraceAcquireEnd(ctx context.Context, _ *pgxpool.Pool, data pgxpool.TraceAcquireEndData) {
+	if ctx.Value(saturatedRecommendationKey{}) != "optional" {
+		return
+	}
+	d.mu.Lock()
+	d.acquireErr = data.Err
+	held := d.held
+	d.held = nil
+	d.mu.Unlock()
+	if held != nil {
+		held.Release()
+	}
+}
+
+func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T) {
+	p, want, productID := recommendationFixture(t)
+	for _, op := range []struct{ query, preceding, operation, missing, retained string }{
+		{"RelatedProducts", "ProductReviews", "related_products", "related-heading", "also-heading"},
+		{"BoughtTogether", "RelatedProducts", "bought_together", "also-heading", "related-heading"},
+	} {
+		t.Run(op.query, func(t *testing.T) {
+			setupCtx, setupCancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer setupCancel()
+			d := &saturatedRecommendationRead{preceding: op.preceding}
+			config := p.Config()
+			config.MaxConns = 1
+			config.MinConns = 0
+			config.MinIdleConns = 0
+			config.ConnConfig.Tracer = d
+			pool, err := pgxpool.NewWithConfig(setupCtx, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.pool = pool
+			defer pool.Close()
+			conn, err := pool.Acquire(setupCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn.Release()
+			var log bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&log, nil))
+			h := product.NewHandler(product.NewStore(pool, logger), logger, "https://goen.example")
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			started := time.Now()
+			res := recommendationResponse(t, ctx, h, &want)
+			d.mu.Lock()
+			reached, saturated, setupErr, acquireErr := d.reached, d.saturated, d.setupErr, d.acquireErr
+			d.mu.Unlock()
+			if !reached || !saturated || setupErr != nil || !errors.Is(acquireErr, context.DeadlineExceeded) {
+				t.Errorf("saturated %s: reached = %t, saturated = %t, holder error = %v, acquisition error = %v, want held sole connection and deadline exceeded", op.query, reached, saturated, setupErr, acquireErr)
+			}
+			elapsed := time.Since(started)
+			t.Logf("saturated %s: reached=%t saturated=%t holder_error=%v acquire_error=%v elapsed=%s parent_error=%v diagnostic=%q", op.query, reached, saturated, setupErr, acquireErr, elapsed, ctx.Err(), log.String())
+			if ctx.Err() != nil || elapsed >= 2*time.Second {
+				t.Errorf("saturated %s: response = %s, parent error = %v, want live parent and response before 2s of 3s", op.query, elapsed, ctx.Err())
+			}
+			var record map[string]any
+			if err := json.Unmarshal(log.Bytes(), &record); err != nil {
+				t.Errorf("saturated diagnostic = %q: %v", log.String(), err)
+			}
+			if record["msg"] != "product recommendations unavailable" || record["operation"] != op.operation || record["product_id"] != productID.String() || record["request_id"] != "req-optional-read" || record["reason"] != "timed_out" {
+				t.Errorf("saturated diagnostic = %v, want one product recommendations unavailable record for %s, reason timed_out", record, op.operation)
+			}
+			doc := assertBuyBoxIntact(t, res, &want)
+			if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
+				t.Error("saturated acquisition did not omit only its own recommendation section")
+			}
+
+			if acquired := pool.Stat().AcquiredConns(); acquired != 0 {
+				t.Errorf("saturated acquired connections = %d, want 0", acquired)
+			}
+		})
+	}
+}

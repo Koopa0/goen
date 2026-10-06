@@ -30,12 +30,21 @@ const (
 
 const recommendationReadBudget = 150 * time.Millisecond
 
+const recommendationAcquireBudget = 5 * time.Second
+
+// Pool reads hold their connection; transaction-bound reads keep their existing queries.
 func (s *Store) recommendationQueries(ctx context.Context) (*db.Queries, context.Context, func(), error) {
 	q := s.q
 	release := func() {}
 	if pool, ok := s.dbtx.(*pgxpool.Pool); ok {
 		// Dialing a replacement connection must not consume the optional query budget.
-		conn, err := pool.Acquire(ctx)
+		budget := recommendationAcquireBudget
+		if deadline, ok := ctx.Deadline(); ok {
+			budget = min(budget, time.Until(deadline)/4)
+		}
+		acquireCtx, cancel := context.WithTimeout(ctx, budget)
+		conn, err := pool.Acquire(acquireCtx)
+		cancel()
 		if err != nil {
 			return nil, nil, nil, err
 		}
