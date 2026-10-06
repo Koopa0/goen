@@ -633,11 +633,10 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
-		return fmt.Errorf("lock account for add address: %w", lockErr)
-	}
-
 	if a.Default {
+		if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
+			return fmt.Errorf("lock account for add address: %w", lockErr)
+		}
 		if clearErr := q.ClearDefaultAddress(ctx, id); clearErr != nil {
 			return fmt.Errorf("clear default address: %w", clearErr)
 		}

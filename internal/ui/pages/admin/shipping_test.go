@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -297,4 +298,15 @@ func shippingPrefixNodeText(node *html.Node) string {
 		}
 	}
 	return text.String()
+}
+
+func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
+	t.Parallel()
+	var got []string
+	for _, e := range zonePrefixEntries("100, 300\n100;300 600") {
+		got = append(got, e.Prefix)
+	}
+	if want := []string{"100", "300", "600"}; !slices.Equal(got, want) {
+		t.Errorf("zonePrefixEntries prefixes = %q, want %q", got, want)
+	}
 }
