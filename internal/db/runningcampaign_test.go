@@ -1,8 +1,8 @@
 package db_test
 
 import (
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -42,18 +42,19 @@ func squash(s string) string {
 func TestEveryRunningCampaignCopyIsTheSameText(t *testing.T) {
 	t.Parallel()
 
-	files, err := filepath.Glob("../*/query.sql")
+	root := os.DirFS("..")
+	files, err := fs.Glob(root, "*/query.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	nested, err := filepath.Glob("../*/*/query.sql")
+	nested, err := fs.Glob(root, "*/*/query.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := squash(runningCampaignFeaturing)
 	copies := map[string]int{}
 	for _, file := range append(files, nested...) {
-		src, err := os.ReadFile(file)
+		src, err := fs.ReadFile(root, file)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +100,8 @@ func closing(s string, open int) int {
 		case '(':
 			depth++
 		case ')':
-			if depth--; depth == 0 {
+			depth--
+			if depth == 0 {
 				return i
 			}
 		}
