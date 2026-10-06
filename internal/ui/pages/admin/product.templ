@@ -117,6 +117,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 				<a href="#sec-options">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</a>
 				<a href="#sec-variants">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</a>
 				<a href="#sec-specs">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</a>
+				<a href="#sec-standing">{ i18n.T(ctx, i18n.KeyAdminProdStanding) }</a>
 			</nav>
 		}
 		@productDetails(v)
@@ -127,6 +128,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 			@productOptions(v)
 			@productVariants(v)
 			@productSpecs(v)
+			@productStanding(v)
 		}
 	}
 }
