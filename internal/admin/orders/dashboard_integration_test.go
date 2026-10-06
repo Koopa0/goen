@@ -255,6 +255,20 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	if task, _ := readyAge(); task.AgeSeconds/86400 != 3 {
 		t.Errorf("a card order paid three days ago is %d days old, want 3", task.AgeSeconds/86400)
 	}
+
+	// The latest paid order is funded when the ready-orders age says: it is the
+	// only committed order, so the two read one funded_at through two queries.
+	var view admin.DashboardView
+	if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+		t.Fatalf("FillWeek: %v", err)
+	}
+	task, _ := readyAge()
+	if view.Latest == nil || view.Latest.Number != cardNumber {
+		t.Fatalf("Latest = %+v, want %s", view.Latest, cardNumber)
+	}
+	if got, want := int64(view.Latest.Elapsed.Seconds()), task.AgeSeconds; got < want-60 || got > want+60 {
+		t.Errorf("the latest paid order was funded %d s ago, the ready-orders age says %d s", got, want)
+	}
 }
 
 // The age of an approved return that nobody has opened starts at the decision,
@@ -374,4 +388,121 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 		t.Fatalf("read order number: %v", err)
 	}
 	return number, paidAt
+}
+
+// The last week is the report's figures: a paid order counts on its day and is
+// the latest; an order still awaiting payment is neither, though it is newer.
+func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	read := func() admin.DashboardView {
+		t.Helper()
+		var view admin.DashboardView
+		if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+			t.Fatalf("FillWeek: %v", err)
+		}
+		return view
+	}
+
+	empty := read()
+	if empty.Latest != nil || empty.LatestUnavailable || empty.Week.Orders != 0 {
+		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Week.Orders)
+	}
+	if got := len(empty.Week.OrderDays.Current.Buckets) + len(empty.Week.OrderDays.Previous.Buckets); got != 14 {
+		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
+	}
+
+	number, _ := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	admintest.PlaceUnpaidOrder(t, isolated)
+
+	view := read()
+	if view.Week.Orders != 1 || view.Week.RevenueCents != 100000 {
+		t.Errorf("week = %d orders, %d cents, want 1 and 100000: the unpaid order is not a sale", view.Week.Orders, view.Week.RevenueCents)
+	}
+	today := view.Week.RevenueDays.Current.Buckets
+	if got := today[len(today)-1].Value; got != 100000 {
+		t.Errorf("today's revenue = %d, want 100000", got)
+	}
+	if view.Latest == nil || view.Latest.Number != number || view.Latest.TotalCents != 100000 {
+		t.Fatalf("Latest = %+v, want %s for 100000, not the newer unpaid order", view.Latest, number)
+	}
+	if view.Latest.Elapsed < 0 || view.Latest.Elapsed > time.Minute {
+		t.Errorf("Elapsed = %v, want under a minute", view.Latest.Elapsed)
+	}
+}
+
+// The latest paid order is the one whose money came in last, which is not the
+// one placed last, and an order refunded before shipment is no sale.
+func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	latest := func(store *orders.Store) *admin.LatestPaid {
+		t.Helper()
+		var view admin.DashboardView
+		if err := store.FillWeek(t.Context(), &view, time.Now()); err != nil {
+			t.Fatalf("FillWeek: %v", err)
+		}
+		return view.Latest
+	}
+	place := func(pool *pgxpool.Pool, number string, ago time.Duration) {
+		t.Helper()
+		if _, err := pool.Exec(t.Context(), `UPDATE orders SET placed_at = now() - make_interval(secs => $2) WHERE order_number = $1`,
+			number, ago.Seconds()); err != nil {
+			t.Fatalf("place %s: %v", number, err)
+		}
+	}
+
+	// Placed first and paid last, against one placed later and paid earlier.
+	paidLast, _ := captureCardPaidAgo(t, isolated, time.Hour)
+	place(isolated, paidLast, 5*time.Hour)
+	paidFirst, _ := captureCardPaidAgo(t, isolated, 3*time.Hour)
+	place(isolated, paidFirst, 2*time.Hour)
+	if got := latest(s); got == nil || got.Number != paidLast {
+		t.Errorf("Latest = %+v, want %s: paid last, though placed first", got, paidLast)
+	}
+
+	// A newer payment that was refunded before it shipped.
+	refunded, _ := captureCardPaidAgo(t, isolated, 10*time.Minute)
+	if _, err := isolated.Exec(t.Context(), `
+		INSERT INTO return_requests (order_id, reason, before_shipment)
+		SELECT id, '', true FROM orders WHERE order_number = $1`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	if got := latest(s); got == nil || got.Number != paidLast {
+		t.Errorf("Latest = %+v, want %s: %s was refunded before shipment", got, paidLast, refunded)
+	}
+
+	// Nothing paid within the two periods read: the whole history is searched.
+	alone := admintest.Pool(t)
+	old, _ := captureCardPaidAgo(t, alone, 40*24*time.Hour)
+	place(alone, old, 40*24*time.Hour)
+	got := latest(admintest.OrderStore(alone, admintest.Refunder{}, nil, nil))
+	if got == nil || got.Number != old || got.Elapsed < 39*24*time.Hour {
+		t.Errorf("Latest = %+v, want %s paid 40 days ago", got, old)
+	}
+}
+
+// A picking order is as old as the moment a person took it into picking.
+func TestTheDashboardAgesAPickingOrderFromWhenItWasTaken(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	_, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	if _, err := isolated.Exec(t.Context(), `
+		INSERT INTO order_events (order_id, kind, occurred_at) VALUES ($1, 'picking', now() - interval '2 days')`,
+		orderID); err != nil {
+		t.Fatalf("record picking: %v", err)
+	}
+	view, err := s.Dashboard(t.Context())
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+	for _, task := range view.Tasks {
+		if task.Label == i18n.KeyAdminStatusPicking {
+			if !task.HasAge || task.AgeSeconds/86400 != 2 {
+				t.Errorf("picking task = %+v, want an age of 2 days", task)
+			}
+			return
+		}
+	}
+	t.Error("the dashboard lists no picking task")
 }

@@ -49,8 +49,10 @@ func (p Product) Sellable() bool { return p.Status == pages.ProductActive && p.V
 type ProductsView struct {
 	web.Bound
 
-	Rows   []Product
-	Notice components.Result
+	Rows []Product
+	// Published is how many products the shop sells now, over every page of Rows.
+	Published int64
+	Notice    components.Result
 }
 
 func (v ProductsView) Empty() bool { return len(v.Rows) == 0 }
