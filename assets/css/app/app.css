@@ -2615,6 +2615,15 @@ input.goen-check {
   margin-top: 8px;
 }
 
+.goen-filters__sort {
+  display: contents;
+}
+
+.goen-filters__sort:empty,
+.goen-listing__count:empty {
+  display: none;
+}
+
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
@@ -2624,6 +2633,12 @@ input.goen-check {
   gap: 8px 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
+}
+
+.goen-search-sort .goen-listing__count {
+  align-items: center;
+  display: flex;
+  min-height: 44px;
 }
 
 .goen-search-sort .goen-filters__field {

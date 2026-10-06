@@ -108,7 +108,7 @@ templ listingFilters(v ListingView) {
 				hx-trigger="change delay:300ms"
 				hx-target="#listing-results"
 				hx-select="#listing-results"
-				hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML"
+				hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"
 				hx-swap="outerHTML"
 				hx-push-url="true"
 				hx-sync="this:replace"
@@ -173,7 +173,12 @@ templ listingFilters(v ListingView) {
 					</details>
 				</div>
 				<div class="goen-filters__end">
-					@sortField(v.SortOptions(ctx))
+					// Nothing to sort when nothing is listed; the box stays so a swap can fill it.
+					<div id="listing-sort" class="goen-filters__sort">
+						if !v.Empty() {
+							@sortField(v.SortOptions(ctx))
+						}
+					</div>
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStylePrimary,
 						Block:       true,
@@ -184,7 +189,11 @@ templ listingFilters(v ListingView) {
 				</div>
 			</form>
 		</details>
-		<p class="goen-listing__count" id="listing-count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+		<p class="goen-listing__count" id="listing-count" aria-hidden="true">
+			if !v.Empty() {
+				{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }
+			}
+		</p>
 		// Shown by script when an update fails: the old results stay and this says why.
 		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 		// Announced from here, a region that stays while the results around it are
@@ -277,9 +286,6 @@ templ Search(p layouts.Page, v SearchView) {
 						{ i18n.T(ctx, i18n.KeySearchHeading) }
 					}
 				</h1>
-				if v.Searched() {
-					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
-				}
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
@@ -336,6 +342,7 @@ templ Search(p layouts.Page, v SearchView) {
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeySearchSortApply) }
 					}
+					<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
 				</form>
 				<div id="search-results">
 					@compareForm(AnyComparable(v.Products)) {

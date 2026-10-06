@@ -142,6 +142,60 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 	}
 }
 
+// TestAnEmptyListingHasNoCountAndNoSort: the empty state carries the message, and
+// the toolbar keeps only what can still change the result.
+func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	empty := ListingView{Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true}
+	html := renderToString(t, Listing(ListingMeta(ctx, empty), empty))
+
+	if strings.Contains(html, `id="sort"`) {
+		t.Error("an empty listing offers a sort")
+	}
+	if !strings.Contains(html, `<p class="goen-listing__count" id="listing-count" aria-hidden="true"></p>`) {
+		t.Error("an empty listing prints a count in the toolbar, or its box is gone so a swap has nothing to fill")
+	}
+	if !strings.Contains(html, `<div id="listing-sort" class="goen-filters__sort"></div>`) {
+		t.Error("the sort box is not empty, or is gone so a swap has nothing to fill")
+	}
+	if !strings.Contains(html, `goen-filters__apply`) {
+		t.Error("the apply button is gone with the sort")
+	}
+
+	full := ListingView{
+		Slug: "audio", Name: "耳機與音響", Total: 1,
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+	}
+	got := renderToString(t, Listing(ListingMeta(ctx, full), full))
+	if !strings.Contains(got, `id="listing-count" aria-hidden="true">共 1 件商品</p>`) || !strings.Contains(got, `id="sort"`) {
+		t.Error("a listing with products lacks its count or sort")
+	}
+}
+
+// TestTheSearchCountSitsBesideTheSort: the head carries the query only.
+func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := SearchView{
+		Query: "nimbus", Total: 3, Page: 1, PageSize: 20,
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+	}
+	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
+
+	_, form, ok := strings.Cut(html, `<form class="goen-search-sort"`)
+	if !ok {
+		t.Fatal("the search has no sort form")
+	}
+	form, _, _ = strings.Cut(form, `</form>`)
+	if !strings.Contains(form, `<p class="goen-listing__count">找到 3 件商品</p>`) {
+		t.Errorf("the count is not in the sort toolbar:\n%s", form)
+	}
+	if strings.Contains(html, "goen-pagehead__sub") {
+		t.Error("the page head still carries a count line")
+	}
+}
+
 // TestFilteredListingFocusesResults holds where a filter submission should
 // leave keyboard focus: on the results region, not back at the page top.
 func TestFilteredListingFocusesResults(t *testing.T) {
@@ -514,7 +568,7 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 
 	for _, want := range []string{
 		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
-		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML"`,
+		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"`,
 		`id="listing-status" class="goen-sr-only" role="status" aria-live="polite"`,
 		`class="goen-btn goen-btn--primary goen-btn--block goen-filters__apply"`,
 	} {
