@@ -61,15 +61,50 @@ type tableRow struct {
 	Heading, Current, PreviousDay, Previous string
 }
 
+// axes is the value axis and the day axis a chart stands on.
+type axes struct {
+	Height           int
+	Baseline, LabelY float64
+	Grid             []gridLine
+	Ticks            []dayTick
+}
+
+// newAxes lays out the axes for values from 0 to top and the shop days of
+// buckets, with top of the plot plotTop pixels down. It returns the axes and
+// where on them a value sits.
+func newAxes(ctx context.Context, top int64, m Measure, buckets []Bucket, plotTop float64) (a axes, y func(int64) float64) {
+	step := axisStep(top, m)
+	lines := gridLines(top, step)
+	axisTop := step * lines
+
+	whole := axisTop
+	if m == MeasureMoney {
+		whole /= 100
+	}
+	divisor, suffix := i18n.AxisUnit(ctx, whole)
+
+	y = func(v int64) float64 {
+		return plotTop + plotHeight*(1-float64(v)/float64(axisTop))
+	}
+	baseline := y(0)
+	a = axes{
+		Height: int(plotTop) + plotHeight + axisBand, Baseline: baseline, LabelY: baseline + axisBand - 8,
+		Ticks: ticksFor(ctx, buckets),
+	}
+	for k := range lines + 1 {
+		v := k * step
+		a.Grid = append(a.Grid, gridLine{Y: y(v), Label: m.axisText(v, divisor, suffix), Baseline: k == 0})
+	}
+	return a, y
+}
+
 // runningTotal is everything RunningTotal draws, worked out.
 type runningTotal struct {
-	Height                      int
-	Baseline, LabelY            float64
-	Grid                        []gridLine
+	axes
+
 	Area, CurrentLine, PrevLine string
 	CurrentEnd, PreviousEnd     endPoint
 	CurrentLabel, PrevLabel     endLabel
-	Ticks                       []dayTick
 	Rows                        []tableRow
 	Total                       tableRow
 }
@@ -115,27 +150,9 @@ func newRunningTotal(ctx context.Context, p *RunningTotalProps) runningTotal {
 	current, previous := cumulative(p.Current), cumulative(p.Previous)
 	n := len(current)
 
-	top := max(lastOf(current), lastOf(previous))
-	step := axisStep(top, p.Measure)
-	lines := gridLines(top, step)
-	axisTop := step * lines
-
-	whole := axisTop
-	if p.Measure == MeasureMoney {
-		whole /= 100
-	}
-	divisor, suffix := i18n.AxisUnit(ctx, whole)
-
-	y := func(v int64) float64 {
-		return plotTop + plotHeight*(1-float64(v)/float64(axisTop))
-	}
-	baseline := y(0)
-
-	r := runningTotal{Height: plotTop + plotHeight + axisBand, Baseline: baseline, LabelY: baseline + axisBand - 8}
-	for k := range lines + 1 {
-		v := k * step
-		r.Grid = append(r.Grid, gridLine{Y: y(v), Label: p.Measure.axisText(v, divisor, suffix), Baseline: k == 0})
-	}
+	ax, y := newAxes(ctx, max(lastOf(current), lastOf(previous)), p.Measure, p.Current.Buckets, plotTop)
+	baseline := ax.Baseline
+	r := runningTotal{axes: ax}
 
 	line := func(sums []int64) string {
 		var b strings.Builder
@@ -156,7 +173,6 @@ func newRunningTotal(ctx context.Context, p *RunningTotalProps) runningTotal {
 	r.CurrentLabel = endLabel{Name: p.Current.Label, Total: p.Measure.text(lastOf(current)), NameY: nameC}
 	r.PrevLabel = endLabel{Name: p.Previous.Label, Total: p.Measure.text(lastOf(previous)), NameY: nameP}
 
-	r.Ticks = ticksFor(ctx, p.Current.Buckets)
 	for i, b := range p.Current.Buckets {
 		heading := axisDay(ctx, b.Day)
 		if i == n-1 && p.Current.Partial && p.PartialLabel != "" {

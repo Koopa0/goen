@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -429,7 +430,7 @@ func onlyVisitorPaths(mw func(http.Handler) http.Handler, next http.Handler) htt
 //
 // Every method, not just GET: a rejected form re-renders its own page at 422,
 // which is exactly when a visitor is most likely to navigate away.
-func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Handler {
+func withTopNav(next http.Handler, store *home.Store, deals *catalog.Store, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !navPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -444,8 +445,25 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithTopNav(r.Context(), items)))
+		next.ServeHTTP(w, r.WithContext(withNav(r.Context(), items, dealsOnOffer(r.Context(), deals, log))))
 	})
+}
+
+func withNav(ctx context.Context, items []layouts.NavItem, deals bool) context.Context {
+	return layouts.WithDeals(layouts.WithTopNav(ctx, items), deals)
+}
+
+// dealsOnOffer is false when the read fails, like the department row beside it: a link
+// to a page with nothing on it is the worse mistake.
+func dealsOnOffer(ctx context.Context, deals *catalog.Store, log *slog.Logger) bool {
+	offered, err := deals.DealsOnOffer(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			log.ErrorContext(ctx, "read whether deals are on offer", "error", err)
+		}
+		return false
+	}
+	return offered
 }
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back

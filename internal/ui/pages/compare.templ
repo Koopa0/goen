@@ -58,91 +58,7 @@ templ Compare(p layouts.Page, v CompareView) {
 				@compareSuggestions(v)
 				@comparePicker(v)
 			} else {
-				<div class="goen-compare__scroll">
-					<table class="goen-compare__table">
-						<caption class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareCaption) }</caption>
-						<thead>
-							<tr>
-								<th scope="col">
-									<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareRowLabel) }</span>
-								</th>
-								for _, item := range v.Products {
-									<th scope="col">
-										<div class="goen-compare__head">
-											if item.ImageURL != "" {
-												<img
-													class="goen-compare__image"
-													src={ item.ImageURL }
-													srcset={ item.ImageSrcset }
-													sizes="96px"
-													alt={ item.ImageAlt }
-													loading="lazy"
-													width="160"
-													height="120"
-												/>
-											}
-											<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-											if item.Brand != "" {
-												<span class="goen-compare__brand">{ item.Brand }</span>
-											}
-											// A link, not a form button: the comparison set is the URL, so removing writes nothing.
-											<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
-												{ i18n.T(ctx, i18n.KeyRemove) }
-											</a>
-										</div>
-									</th>
-								}
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowPrice) }</th>
-								for _, item := range v.Products {
-									<td class="goen-compare__price">
-										@tilePrice(item.PriceTile())
-									</td>
-								}
-							</tr>
-							<tr>
-								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowStock) }</th>
-								for _, item := range v.Products {
-									<td>{ item.Stock(ctx) }</td>
-								}
-							</tr>
-							<tr>
-								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowRating) }</th>
-								for _, item := range v.Products {
-									<td>{ item.RatingText() }</td>
-								}
-							</tr>
-							<tr>
-								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowWarranty) }</th>
-								for _, item := range v.Products {
-									<td>{ item.Warranty(ctx) }</td>
-								}
-							</tr>
-							<tr>
-								<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowCategory) }</th>
-								for _, item := range v.Products {
-									<td>{ item.Category }</td>
-								}
-							</tr>
-							for _, row := range v.Rows {
-								<tr class={ templ.KV("is-partial", !row.Comparable(v.Count())), templ.KV("is-differs", row.Marked(v.Count())) }>
-									<th scope="row">
-										{ row.Label }
-										if row.Marked(v.Count()) {
-											<span class="goen-sr-only">{ " · " + i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
-										}
-									</th>
-									for i := range v.Products {
-										<td>{ row.Value(i) }</td>
-									}
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
+				@compareTable(v, false)
 			}
 		</div>
 	}
@@ -222,4 +138,102 @@ templ compareSuggestions(v CompareView) {
 			<a href={ templ.SafeURL(v.ShelfHref()) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareBrowse), v.Products[0].Category) } <span aria-hidden="true">&rarr;</span></a>
 		</p>
 	}
+}
+
+// The table /compare shows and the department page previews: preview leaves out the rows every
+// product has and the links that change the set, and keeps the specifications.
+templ compareTable(v CompareView, preview bool) {
+	<div class="goen-compare__scroll">
+		<table class="goen-compare__table">
+			<caption class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareCaption) }</caption>
+			<thead>
+				<tr>
+					<th scope="col">
+						<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareRowLabel) }</span>
+					</th>
+					for _, item := range v.Products {
+						<th scope="col">
+							<div class="goen-compare__head">
+								if item.ImageURL != "" {
+									<img
+										class="goen-compare__image"
+										src={ item.ImageURL }
+										srcset={ item.ImageSrcset }
+										sizes="96px"
+										alt={ item.ImageAlt }
+										loading="lazy"
+										width="160"
+										height="120"
+									/>
+								}
+								<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
+								if item.Brand != "" {
+									<span class="goen-compare__brand">{ item.Brand }</span>
+								}
+								if preview {
+									<span class="goen-compare__price">
+										@tilePrice(item.PriceTile())
+									</span>
+								} else {
+									// A link, not a form button: the comparison set is the URL, so removing writes nothing.
+									<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
+										{ i18n.T(ctx, i18n.KeyRemove) }
+									</a>
+								}
+							</div>
+						</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				if !preview {
+					<tr>
+						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowPrice) }</th>
+						for _, item := range v.Products {
+							<td class="goen-compare__price">
+								@tilePrice(item.PriceTile())
+							</td>
+						}
+					</tr>
+					<tr>
+						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowStock) }</th>
+						for _, item := range v.Products {
+							<td>{ item.Stock(ctx) }</td>
+						}
+					</tr>
+					<tr>
+						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowRating) }</th>
+						for _, item := range v.Products {
+							<td>{ item.RatingText() }</td>
+						}
+					</tr>
+					<tr>
+						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowWarranty) }</th>
+						for _, item := range v.Products {
+							<td>{ item.Warranty(ctx) }</td>
+						}
+					</tr>
+					<tr>
+						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowCategory) }</th>
+						for _, item := range v.Products {
+							<td>{ item.Category }</td>
+						}
+					</tr>
+				}
+				for _, row := range v.Rows {
+					<tr class={ templ.KV("is-partial", !row.Comparable(v.Count())), templ.KV("is-differs", row.Marked(v.Count())) }>
+						<th scope="row">
+							{ row.Label }
+							if row.Marked(v.Count()) {
+								<span class="goen-sr-only">{ " · " + i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
+							}
+						</th>
+						for i := range v.Products {
+							<td>{ row.Value(i) }</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 }

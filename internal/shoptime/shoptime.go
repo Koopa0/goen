@@ -45,9 +45,13 @@ func Midnight(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, location())
 }
 
-// DayUTC is the shop day t falls on as the UTC midnight a SQL date is scanned
-// to, so that days read from the database and days of the shop's clock compare.
-func DayUTC(t time.Time) time.Time {
+// FirstDay is the start of the first of the last n shop days ending at now,
+// today included.
+func FirstDay(now time.Time, n int) time.Time { return Midnight(now).AddDate(0, 0, 1-n) }
+
+// QueryDate is t's shop day as the date a query takes: midnight UTC of the
+// calendar day t falls on in the shop.
+func QueryDate(t time.Time) time.Time {
 	y, m, d := In(t).Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }

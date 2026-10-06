@@ -193,21 +193,18 @@ func TestClockIsTheShopsTimeOfDay(t *testing.T) {
 	}
 }
 
-func TestDayUTCIsTheShopDayAsADatabaseDate(t *testing.T) {
+func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range []struct {
-		name string
-		at   time.Time
-		want string
-	}{
-		{"afternoon", time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC), "2026-10-05"},
-		{"00:30 on the next shop day", time.Date(2026, 10, 4, 16, 30, 0, 0, time.UTC), "2026-10-05"},
-		{"23:59 the day before", time.Date(2026, 10, 4, 15, 59, 0, 0, time.UTC), "2026-10-04"},
-	} {
-		got := shoptime.DayUTC(tt.at)
-		if got.Format(time.DateOnly) != tt.want || got.Location() != time.UTC || got.Hour() != 0 {
-			t.Errorf("%s: DayUTC(%s) = %s, want midnight UTC on %s", tt.name, tt.at, got, tt.want)
-		}
+	// 00:30 on the 10th in Taipei is still the 9th in UTC.
+	now := time.Date(2026, 9, 9, 16, 30, 0, 0, time.UTC)
+	if got, want := shoptime.Minute(shoptime.FirstDay(now, 90)), "2026-06-13 00:00"; got != want {
+		t.Errorf("FirstDay(%v, 90) = %s, want %s", now, got, want)
+	}
+	if got, want := shoptime.FirstDay(now, 1), shoptime.Midnight(now); !got.Equal(want) {
+		t.Errorf("FirstDay(now, 1) = %v, want today's midnight %v", got, want)
+	}
+	if got, want := shoptime.QueryDate(now), time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("QueryDate(%v) = %v, want %v", now, got, want)
 	}
 }

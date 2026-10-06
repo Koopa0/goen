@@ -63,7 +63,7 @@ func TestBothPeriodsSpanAsManyShopDaysAsTheWindow(t *testing.T) {
 		for _, days := range reportWindows {
 			cur, prev := periods(now, int(days))
 			for name, p := range map[string]period{"current": cur, "previous": prev} {
-				first, last := shoptime.DayUTC(p.from), shoptime.DayUTC(p.to.Add(-time.Nanosecond))
+				first, last := shoptime.QueryDate(p.from), shoptime.QueryDate(p.to.Add(-time.Nanosecond))
 				if got := int(last.Sub(first).Hours()/24) + 1; got != int(days) {
 					t.Errorf("%s period of %d days at %s covers %d shop days (%s to %s), want %d",
 						name, days, now, got, first.Format(time.DateOnly), last.Format(time.DateOnly), days)

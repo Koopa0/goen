@@ -21,8 +21,8 @@ func TestShopRulesStateTheStoredRules(t *testing.T) {
 		for _, want := range []string{
 			`<dl class="ui-statline ui-statline--wide">`,
 			strconv.Itoa(holdMinutes) + " <small>",
-			strconv.Itoa(rescissionDays) + " <small>",
-			strconv.Itoa(returnDays) + " <small>",
+			strconv.Itoa(RescissionDays) + " <small>",
+			strconv.Itoa(ReturnDays) + " <small>",
 			`<small class="ui-statline__pre">NT$</small>3,000`,
 			"NT$60",
 			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeySectionRules),
@@ -70,11 +70,11 @@ func TestShopRulesNamePickupOnlyWhereItIsOffered(t *testing.T) {
 func TestTheDepartmentPageEndsWithTheShopRules(t *testing.T) {
 	t.Parallel()
 	rules := ShopRules{FreeDeliveryCents: 300000}
-	page := renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules))
+	page := renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules, nil))
 	if !strings.Contains(page, `<dl class="ui-statline ui-statline--wide">`) {
 		t.Error("department page lacks the shop rules")
 	}
-	bare := renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, nil))
+	bare := renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, nil, nil))
 	if strings.Contains(bare, "ui-statline") {
 		t.Error("a listing given no rules prints a stat line")
 	}

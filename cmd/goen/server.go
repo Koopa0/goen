@@ -186,7 +186,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// locale is on the context before any handler or template reads it.
 	var handler http.Handler = mux
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
-	handler = withTopNav(handler, home.NewStore(pool), log)
+	handler = withTopNav(handler, home.NewStore(pool), catalogue, log)
 	handler = withStaffEntrance(handler)
 	handler = withSiteOrigin(handler, baseURL)
 	handler = withNoStore(handler)

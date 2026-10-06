@@ -31,18 +31,21 @@ type WorkerHealthView struct {
 	Stuck                []StuckMessage
 	// The two resolution subjects stay concrete: an event id and a provider ref
 	// are different evidence and route to different database functions.
-	UnreconciledEvents           []UnreconciledEvent
-	UnreconciledCompletePayments []UnreconciledCompletePayment
-	StrandedClaimCount           int64
-	StrandedClaims               []StrandedClaim
-	Notice                       components.Result
-	OpenRefundCount              int64
-	OpenRefunds                  []OpenRefund
-	UninvoicedCount              int64
-	Uninvoiced                   []UninvoicedOrder
-	CancelledOrderInvoiceCount   int64
-	CancelledOrderInvoices       []CancelledOrderInvoice
-	Disputes                     DisputeState
+	UnreconciledEvents                 []UnreconciledEvent
+	UnreconciledCompletePayments       []UnreconciledCompletePayment
+	StrandedClaimCount                 int64
+	StrandedClaimOldestSeconds         int64
+	StrandedClaims                     []StrandedClaim
+	Notice                             components.Result
+	OpenRefundCount                    int64
+	OpenRefunds                        []OpenRefund
+	UninvoicedCount                    int64
+	UninvoicedOldestSeconds            int64
+	Uninvoiced                         []UninvoicedOrder
+	CancelledOrderInvoiceCount         int64
+	CancelledOrderInvoiceOldestSeconds int64
+	CancelledOrderInvoices             []CancelledOrderInvoice
+	Disputes                           DisputeState
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -296,20 +299,21 @@ func (c StrandedClaim) AttemptsText() string {
 func (v *WorkerHealthView) ClaimsSettled() bool { return v.StrandedClaimCount == 0 }
 
 // Tasks is every check on this page that needs a person, as the dashboard lists
-// it, so the two cannot disagree about whether something is wrong.
+// it, so the two cannot disagree about whether something is wrong. Each links
+// to its own table, and carries an age where the query behind it lists items.
 func (v *WorkerHealthView) Tasks() []Task {
 	var tasks []Task
-	add := func(healthy bool, label i18n.Key, count int64) {
+	add := func(healthy bool, label i18n.Key, count int64, href string, hasAge bool, ageSeconds int64) {
 		if !healthy {
-			tasks = append(tasks, Task{Label: label, Count: count, Href: "/admin/health"})
+			tasks = append(tasks, Task{Label: label, Count: count, Href: href, Alert: true, HasAge: hasAge, AgeSeconds: ageSeconds})
 		}
 	}
-	add(v.PaymentsReconciled(), i18n.KeyAdminHPUnreconciledHeading, v.UnreconciledPayments)
-	add(v.ClaimsSettled(), i18n.KeyAdminHPClaimsHeading, v.StrandedClaimCount)
-	add(v.PaidOrdersInvoiced(), i18n.KeyAdminHPUninvoicedHeading, v.UninvoicedCount)
-	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount)
-	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount)
-	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds)
+	add(v.PaymentsReconciled(), i18n.KeyAdminQueueTaskPayments, v.UnreconciledPayments, "/admin/health#events-heading", false, 0)
+	add(v.ClaimsSettled(), i18n.KeyAdminQueueTaskClaims, v.StrandedClaimCount, "/admin/health#claims-heading", true, v.StrandedClaimOldestSeconds)
+	add(v.PaidOrdersInvoiced(), i18n.KeyAdminQueueTaskUninvoiced, v.UninvoicedCount, "/admin/health#uninvoiced-heading", true, v.UninvoicedOldestSeconds)
+	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "/admin/health#cancelled-order-invoices-heading", true, v.CancelledOrderInvoiceOldestSeconds)
+	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "/admin/health#refunds-heading", false, 0)
+	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "/admin/health", false, 0)
 	return tasks
 }
 

@@ -84,12 +84,16 @@ func (c Coupon) State(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminCouponOff)
 	case !c.Current:
 		return i18n.T(ctx, i18n.KeyAdminCouponOutside)
+	case c.usedUp():
+		return i18n.T(ctx, i18n.KeyAdminCouponUsedUp)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminCouponLive)
 	}
 }
 
-func (c Coupon) Live() bool { return c.Active && c.Current }
+func (c Coupon) usedUp() bool { return c.MaxRedeem > 0 && c.Redeemed >= int64(c.MaxRedeem) }
+
+func (c Coupon) Live() bool { return c.Active && c.Current && !c.usedUp() }
 
 func (c Coupon) Action() string { return "/admin/coupons/" + c.Code + "/active" }
 
