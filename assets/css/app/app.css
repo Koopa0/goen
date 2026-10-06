@@ -2178,6 +2178,14 @@ h3 {
   --lift: 0;
 }
 
+/* The head is a listing's first screen, not a section: its photograph keeps a
+   fixed column so the first row of products still shows above the fold. */
+@media (min-width: 64rem) {
+  .goen-pagehead .goen-band__grid {
+    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
+  }
+}
+
 /* ---------- Product tile ----------
 
    One card, shared by the home page, the listing, search, the deals page, a

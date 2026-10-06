@@ -17,9 +17,10 @@ func TestTheBandWithoutAPhotographKeepsThePageColumn(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	for name, rule := range map[string]string{
-		"the head carries no section margin":  `(?s)\.goen-pagehead \.goen-band \{\s*margin-top: 0;`,
-		"a photo-less body spans the row":     `(?s)\.goen-band__body:first-child \{\s*grid-column: 1 / -1;\s*padding-left: var\(--page-edge\);`,
-		"a photo-less band has no white lift": `(?s)\.goen-band:not\(:has\(\.goen-band__media\)\) \{\s*--lift: 0;`,
+		"the head carries no section margin":     `(?s)\.goen-pagehead \.goen-band \{\s*margin-top: 0;`,
+		"a photo-less body spans the row":        `(?s)\.goen-band__body:first-child \{\s*grid-column: 1 / -1;\s*padding-left: var\(--page-edge\);`,
+		"a photo-less band has no white lift":    `(?s)\.goen-band:not\(:has\(\.goen-band__media\)\) \{\s*--lift: 0;`,
+		"the head's photograph column is capped": `(?s)\.goen-pagehead \.goen-band__grid \{\s*grid-template-columns: minmax\(0, 25rem\) minmax\(0, 1fr\);`,
 	} {
 		if !regexp.MustCompile(rule).Match(sheet) {
 			t.Errorf("%s: %s lacks the rule", name, AppCSS)
