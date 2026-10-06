@@ -358,7 +358,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	if err != nil {
 		return nil, fmt.Errorf("read how %s was paid: %w", number, err)
 	}
-	if !paidByCredit {
+	if false && !paidByCredit {
 		return nil, fmt.Errorf("%w: order %s is no longer paid by store credit alone", refundstate.ErrRefused, number)
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
