@@ -3423,7 +3423,7 @@ const annotate = (msg) => console.log(
 //
 // It reports rather than exits, unlike settled(), because this pass runs last:
 // an exit here would throw away the failure list everything above built.
-const axeSettled = async (route, url) => {
+const settledFor = async (pass, route, url) => {
   await send(ws, 'Page.navigate', { url: 'about:blank' });
   for (let i = 0; i < 30; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -3445,7 +3445,7 @@ const axeSettled = async (route, url) => {
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  fail(`axe ${route}`, 'the page never finished loading for the audit');
+  fail(`${pass} ${route}`, 'the page never finished loading');
   return '';
 };
 
@@ -3471,7 +3471,7 @@ const proveTargetSizeGates = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
-  if (!(await axeSettled('target fixture', `${ORIGIN}/about`))) return;
+  if (!(await settledFor('axe', 'target fixture', `${ORIGIN}/about`))) return;
   try {
     await send(ws, 'Runtime.evaluate', { expression: axeSource });
     await evalPage(TARGET_SIZE_FIXTURE);
@@ -3537,7 +3537,7 @@ const auditAccessibility = async () => {
       });
       sessionRestored = true;
     }
-    const landed = await axeSettled(asked, url);
+    const landed = await settledFor('axe', asked, url);
     if (!landed) {
       unaudited.push(asked);
       continue;
@@ -3660,7 +3660,7 @@ const auditAccessibility = async () => {
 //           that was asked for and not with innerWidth, because phone emulation
 //           widens innerWidth to fit the content; after scrollTo(10000, 0) a
 //           scrollX other than 0 settles any disagreement.
-//   text    a run of text is cut by the clip of an ancestor that does not
+//   text    (one entry per owning element, text-320:a.goen-footer__link) a run of text is cut by the clip of an ancestor that does not
 //           scroll, or runs past the right edge of the viewport. This is what
 //           neither width above sees: a position:fixed element wider than the
 //           screen, and text cut by overflow:hidden.
@@ -3718,14 +3718,14 @@ const REFLOW_PROBE = `(async () => {
     if (!cause && !xFree && cuts(left, right, 0, width)) cause = 'runs past the viewport in';
     if (cause) {
       const where = owner.tagName.toLowerCase() + '.' + String(owner.className || '').split(' ')[0];
-      text.push(where + ' ' + cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)));
+      text.push({ owner: where, detail: cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)) });
     }
   }
   const scrollWidth = document.body.scrollWidth;
   window.scrollTo(10000, 0);
   const scrollX = window.scrollX;
   window.scrollTo(0, 0);
-  return { scrollWidth, scrollX, text: text.slice(0, 4), textCount: text.length };
+  return { scrollWidth, scrollX, text };
 })()`;
 
 const auditReflow = async () => {
@@ -3765,8 +3765,11 @@ const auditReflow = async () => {
     if (got.scrollWidth > REFLOW_WIDTH || got.scrollX !== 0) {
       found[`scroll-${zoom}`] = `scrollWidth ${got.scrollWidth} > ${REFLOW_WIDTH}, scrollX ${got.scrollX} after scrollTo`;
     }
-    if (got.textCount) {
-      found[`text-${zoom}`] = `${got.textCount} runs — ${got.text.join('; ')}`;
+    // One entry per owner, so a baseline that lists a route's footer link does
+    // not accept a new cut elsewhere on it.
+    for (const run of got.text) {
+      const key = `text-${zoom}:${run.owner}`;
+      found[key] = found[key] ? found[key] + `; ${run.detail}` : run.detail;
     }
     return found;
   };
@@ -3778,7 +3781,7 @@ const auditReflow = async () => {
       });
       sessionRestored = true;
     }
-    const landed = await axeSettled(asked, url);
+    const landed = await settledFor('reflow', asked, url);
     if (!landed) {
       unmeasured.push(asked);
       continue;

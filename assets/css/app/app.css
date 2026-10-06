@@ -46,7 +46,7 @@ a:hover {
    The frame, and the one measurement the storefront shares: a content column
    that stops at 1376px inside a gutter of 16px to 48px. The back office keeps
    the measure base.css gives it.
-   `scripts/check-layout.mjs:496-498` compares the header bar's, the home
+   the `edges` comparison in check-layout's `PROBE` compares the header bar's, the home
    page's and the footer grid's content edges and fails when they disagree, so
    the three read that column from one pair of properties rather than each
    writing the numbers again.
@@ -55,6 +55,7 @@ a:hover {
 :root {
   --page-width: 1376px;
   --page-gutter: clamp(16px, 3.4vw, 48px);
+  /* Read by the product grid and the footer grid once they are rebuilt. */
   --col-gap: clamp(16px, 1.7vw, 24px);
 }
 
@@ -278,9 +279,8 @@ h3 {
    its .ui- ancestor is two shapes painting one box.
 
    A button is 48px tall and a field 44px, which is goen's rule and not the
-   reference's: `scripts/check-layout.mjs:1300` sweeps
-   `button, .ui-btn, input[type=number]` on every route and fails under
-   `MIN_TAP`. The reference's 36px default is a desktop density this gate
+   reference's: check-layout's tap-target sweeps fail a control under
+   `MIN_TAP` on every route. The reference's 36px default is a desktop density this gate
    rejects, so what is ported from it is the proportion — padding, type step,
    radius, weight — and not the height. A media query for coarse pointers was
    the wrong answer: headless Chrome reports a fine pointer, and more to the
@@ -499,8 +499,8 @@ h3 {
    that do nothing. */
 .goen-stepper {
   align-items: stretch;
-  border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-sm);
   display: inline-flex;
   height: 3rem;
   overflow: hidden;
@@ -667,18 +667,29 @@ h3 {
 }
 
 /* A phone needs the way back, not the whole path: only the parent shows, with a
-   chevron. The current page stays in the document for a screen reader that
-   reads the trail, and shows when it is the only crumb. */
+   chevron. The rest is clipped away rather than removed, so a screen reader
+   still reads the whole trail and the current page. */
 @media (max-width: 600px) {
   .ui-crumbs > * {
-    display: none;
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
   }
 
   .ui-crumbs > .ui-crumbs__link:last-of-type {
     align-items: center;
+    clip-path: none;
     display: inline-flex;
     gap: 6px;
+    height: auto;
     min-height: 2.75rem;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
   }
 
   .ui-crumbs > .ui-crumbs__link:last-of-type::before {
@@ -692,7 +703,12 @@ h3 {
   }
 
   .ui-crumbs > .ui-crumbs__current:only-child {
-    display: inline;
+    clip-path: none;
+    height: auto;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
   }
 }
 
