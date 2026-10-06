@@ -81,7 +81,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
 		r.PostFormValue("decision"), r.PostFormValue("resolution"),
-		r.PostFormValue("assessment_version"), audit.ActorID(r.Context()))
+		r.PostFormValue("assessment_version"))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
@@ -372,7 +372,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.Complete(r.Context(), r.PathValue("id"),
-		r.PostFormValue("resolution"), audit.ActorID(r.Context()))
+		r.PostFormValue("resolution"))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)
