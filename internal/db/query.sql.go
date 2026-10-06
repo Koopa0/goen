@@ -10368,6 +10368,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `
