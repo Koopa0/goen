@@ -26,6 +26,14 @@ func (s Seller) UnitsText() string { return strconv.FormatInt(s.Units, 10) }
 
 func (s Seller) Href() string { return "/admin/products/" + s.Slug }
 
+// Department is a top-level category and what its products' lines sold for.
+type Department struct {
+	Name         string
+	RevenueCents int64
+}
+
+func (d Department) Revenue() string { return money.TWD(d.RevenueCents) }
+
 type StockRisk struct {
 	SKU       string
 	Name      string
@@ -63,6 +71,7 @@ type ReportView struct {
 	// of RevenueCents is read from.
 	RevenueSquares float64
 	Sellers        []Seller
+	Departments    []Department
 	AtRisk         []StockRisk
 	Windows        []int32
 	From, To       shoptime.Date
@@ -228,4 +237,20 @@ func (v *ReportView) TopUnits() int64 {
 		top = max(top, s.Units)
 	}
 	return top
+}
+
+// TopDepartment is the longest bar's scale: the largest department's revenue.
+func (v *ReportView) TopDepartment() int64 {
+	var top int64
+	for _, d := range v.Departments {
+		top = max(top, d.RevenueCents)
+	}
+	return top
+}
+
+// OnlyDepartment says so when one department holds all of the revenue, where a
+// bar would compare it with nothing.
+func (v *ReportView) OnlyDepartment(ctx context.Context) string {
+	d := v.Departments[0]
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentOnly), d.Name, d.Revenue())
 }

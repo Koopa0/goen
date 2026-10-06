@@ -102,6 +102,26 @@ templ Report(p layouts.Page, v *ReportView) {
 					}
 				</ul>
 			}
+			if len(v.Departments) > 0 {
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepDepartments) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepDepartmentsNote) }</p>
+				if len(v.Departments) == 1 {
+					<p>{ v.OnlyDepartment(ctx) }</p>
+				} else {
+					<ul class="goen-report__rows" role="list">
+						{{ top := v.TopDepartment() }}
+						for _, d := range v.Departments {
+							<li class="goen-report__row">
+								<span class="goen-report__name">{ d.Name }</span>
+								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentRevenue), d.Revenue()) }</span>
+								<div class="goen-report__bar">
+									@chart.Bar(chart.BarProps{Value: d.RevenueCents, Max: top})
+								</div>
+							</li>
+						}
+					</ul>
+				}
+			}
 		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 		<p class="goen-admin__hint">

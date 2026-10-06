@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -69,6 +70,12 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
+	departments, err := s.q.DepartmentRevenueBetween(ctx, db.DepartmentRevenueBetweenParams{
+		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
+	})
+	if err != nil {
+		return admin.ReportView{}, fmt.Errorf("read department revenue: %w", err)
+	}
 	risk, err := s.q.StockAtRisk(ctx, db.StockAtRiskParams{
 		WindowDays: days, LimitTo: maxRows,
 	})
@@ -101,6 +108,9 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
 		})
+	}
+	for _, d := range departments {
+		view.Departments = append(view.Departments, admin.Department{Name: d.Name, RevenueCents: d.RevenueCents})
 	}
 	for i := range risk {
 		r := &risk[i]

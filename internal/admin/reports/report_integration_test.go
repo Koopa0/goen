@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
@@ -502,5 +503,123 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 	if got, want := after.Previous.Placed-before.Previous.Placed, int64(2); got != want {
 		t.Errorf("the previous period gained %d placed orders, want %d", got, want)
+	}
+}
+
+// A deeper category counts toward its root, the unpaid order toward none, and
+// together the departments are the revenue figure: the orders carry no discount,
+// shipping or tax.
+func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	suffix := uuid.NewString()
+	rootA := departmentName("A", suffix)
+	rootB := departmentName("B", suffix)
+	idA := newCategory(t, rootA, nil)
+	idB := newCategory(t, rootB, nil)
+	idChild := newCategory(t, departmentName("child", suffix), &idA)
+
+	before, err := s.Report(ctx, 30)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	categoryOrder(t, idA, 30000, true)
+	categoryOrder(t, idChild, 20000, true)
+	categoryOrder(t, idB, 5000, true)
+	categoryOrder(t, idB, 99999, false)
+	after, err := s.Report(ctx, 30)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	byName := func(v admin.ReportView) (map[string]int64, int64) {
+		got := map[string]int64{}
+		var sum int64
+		for _, d := range v.Departments {
+			got[d.Name] = d.RevenueCents
+			sum += d.RevenueCents
+		}
+		return got, sum
+	}
+	was, wasSum := byName(before)
+	now, nowSum := byName(after)
+	if got := now[rootA] - was[rootA]; got != 50000 {
+		t.Errorf("department %q moved by %d, want 50000 (its own line and its child's)", rootA, got)
+	}
+	if got := now[rootB] - was[rootB]; got != 5000 {
+		t.Errorf("department %q moved by %d, want 5000 (the unpaid order is not revenue)", rootB, got)
+	}
+	if _, child := now[departmentName("child", suffix)]; child {
+		t.Error("a child category is listed as a department")
+	}
+	if got, want := nowSum-wasSum, after.RevenueCents-before.RevenueCents; got != want {
+		t.Errorf("departments moved by %d, the revenue figure by %d", got, want)
+	}
+}
+
+func departmentName(part, suffix string) string { return "部門" + part + " " + suffix }
+
+func newCategory(t *testing.T, name string, parent *uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO categories (parent_id, slug, name) VALUES ($1, 'dept-' || gen_random_uuid(), $2)
+		RETURNING id`, parent, name).Scan(&id); err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	return id
+}
+
+// categoryOrder places an order of one line of a new product in the category.
+func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	var productID, orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, $1, 'dept-' || gen_random_uuid(), '館別商品', 'draft', now()
+		FROM brands b ORDER BY b.id LIMIT 1
+		RETURNING id`, categoryID).Scan(&productID); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'DEPT-SKU', '館別商品', $3, 1)`, orderID, productID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'r@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("delivery details: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if paid {
+		ref := "dept_" + orderID.String()
+		if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, cents); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, cents); err != nil {
+			t.Fatalf("capture: %v", err)
+		}
 	}
 }
