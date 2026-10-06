@@ -7,6 +7,11 @@ package db_test
 
 var checkCases = []checkCase{
 	{
+		constraint: "invoice_unit_valid",
+		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',repeat('箱',7));`,
+		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',repeat('箱',6));`,
+	},
+	{
 		constraint: "products_label_origin_valid",
 		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',101));`,
 		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '台灣');`,

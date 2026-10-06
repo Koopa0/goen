@@ -67,7 +67,7 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "NullUUID"
-          # A domain over text is a string.
+          # Without this sqlc generates interface{} for the domain.
           - db_type: "invoice_unit"
             go_type: "string"
           # timestamptz is a time. The NULL case keeps a pgtype so the

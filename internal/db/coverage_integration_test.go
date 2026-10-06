@@ -68,10 +68,11 @@ func TestCheckConstraintNamesAreUnique(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conname, count(*)
 		FROM pg_constraint c
-		JOIN pg_class tbl ON tbl.oid = c.conrelid
+		LEFT JOIN pg_class tbl ON tbl.oid = c.conrelid
 		WHERE c.contype = 'c'
 		  AND c.connamespace = 'public'::regnamespace
-		  AND tbl.relname <> 'schema_migrations'
+		  AND (c.conrelid <> 0 OR c.contypid <> 0)
+		  AND tbl.relname IS DISTINCT FROM 'schema_migrations'
 		GROUP BY c.conname
 		HAVING count(*) > 1
 		ORDER BY 1`)
@@ -341,10 +342,11 @@ func liveCheckConstraints(t *testing.T) []string {
 		-- Keyed on the bare name, which TestCheckConstraintNamesAreUnique holds globally unique.
 		SELECT c.conname
 		FROM pg_constraint c
-		JOIN pg_class t ON t.oid = c.conrelid
+		LEFT JOIN pg_class t ON t.oid = c.conrelid
 		WHERE c.contype = 'c'
 		  AND c.connamespace = 'public'::regnamespace
-		  AND t.relname <> 'schema_migrations'
+		  AND (c.conrelid <> 0 OR c.contypid <> 0)
+		  AND t.relname IS DISTINCT FROM 'schema_migrations'
 		ORDER BY 1`)
 	if err != nil {
 		t.Fatalf("read check constraints: %v", err)

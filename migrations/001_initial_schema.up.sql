@@ -5808,11 +5808,9 @@ BEGIN
         RETURN false;
     END IF;
     FOR i IN 1..v_count LOOP
-        BEGIN
-            PERFORM coalesce(v_lines -> (i - 1) ->> 'unit', '')::invoice_unit;
-        EXCEPTION WHEN check_violation THEN
+        IF NOT pg_input_is_valid(coalesce(v_lines -> (i - 1) ->> 'unit', ''), 'invoice_unit') THEN
             RETURN false;
-        END;
+        END IF;
         IF coalesce(v_lines -> (i - 1) ->> 'tax_type', '') NOT IN ('taxable', 'exempt')
            OR p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
            OR p_quantities[i] IS DISTINCT FROM
