@@ -1867,21 +1867,13 @@ h3 {
   color: var(--tone-text);
 }
 
-.goen-hero .ui-statline > div,
-.goen-pagehead[data-tone] .ui-statline > div {
+.goen-hero .ui-statline > div {
   border-top-color: var(--tone-text);
-}
-
-.goen-pagehead[data-tone] .ui-statline {
-  color: var(--tone-text);
 }
 
 .goen-hero .ui-statline dt,
 .goen-hero .ui-statline dd small,
-.goen-hero .ui-statline__note,
-.goen-pagehead[data-tone] .ui-statline dt,
-.goen-pagehead[data-tone] .ui-statline dd small,
-.goen-pagehead[data-tone] .ui-statline__note {
+.goen-hero .ui-statline__note {
   color: var(--tone-muted);
 }
 
@@ -3597,6 +3589,7 @@ input.goen-check {
    notice, and the one editorial the data chose. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
+  color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-statline > div {

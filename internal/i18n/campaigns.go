@@ -3,6 +3,8 @@ package i18n
 var (
 	KeyCampaignsRunning = key("campaign.running", Message{ZhHant: "進行中的活動", En: "Running campaigns"})
 
+	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
+
 	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
@@ -135,7 +137,7 @@ var (
 		En:     "A campaign runs 1 to 90 days.",
 	})
 
-	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "限時活動", En: "Campaigns"})
+	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
 	KeyAdminCampaignOff = key("admin.campaign.off", Message{ZhHant: "已停用", En: "Switched off"})
 

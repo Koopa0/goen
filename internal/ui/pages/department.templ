@@ -11,10 +11,10 @@ templ departmentFacts(h *DepartmentHead) {
 
 // The row says which campaign runs here and when it ends; the grid draws the whole period.
 templ departmentNotice(n *DepartmentNotice) {
-	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignsRunning) }>
+	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
 		<div class="goen-deptnotice__in">
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
-				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignsRunning) }</span>
+				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
 				<b>{ n.Title }</b>
 				<span aria-hidden="true">&rarr;</span>
 			</a>

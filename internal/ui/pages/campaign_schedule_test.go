@@ -94,6 +94,9 @@ func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
 		"campaign page":    renderCampaign(t, day(1), day(11), false),
 		"campaigns strip":  renderComponent(t, ctx, campaignStrip([]CampaignSummary{{Slug: "a", Title: "秋日選物", Products: 2}})),
 		"campaigns header": i18n.T(ctx, i18n.KeyCampaignsRunning),
+		"department notice": renderComponent(t, ctx, departmentNotice(&DepartmentNotice{
+			Title: "秋日選物", Href: "/s/autumn", Ends: CampaignEndStat(ctx, day(11), scheduleNow),
+		})),
 	} {
 		if strings.Contains(text, "限時") {
 			t.Errorf("%s says 限時", name)
