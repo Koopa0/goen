@@ -5297,33 +5297,21 @@ STABLE
 PARALLEL SAFE
 SET search_path = pg_catalog, public, pg_temp
 AS $$
-    SELECT least(
-               ord.subtotal - o.discount_cents,
-               ceil(ret.gross::numeric * (ord.subtotal - o.discount_cents)::numeric
-                    / (nullif(ord.subtotal, 0)::numeric * 100)) * 100
-           )::bigint
-         - accepted.frozen
+    SELECT ret.gross
+         - ceil(o.discount_cents::numeric * ret.gross::numeric
+                / nullif(ord.subtotal, 0)::numeric)::bigint
     FROM return_requests r
     JOIN orders o ON o.id = r.order_id
     CROSS JOIN LATERAL (
         SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)::bigint AS gross
         FROM return_request_lines rl
-        JOIN return_requests rr ON rr.id = rl.return_request_id
         JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rr.order_id = r.order_id
-          AND (rr.id = r.id OR rr.status IN ('approved', 'completed'))
+        WHERE rl.return_request_id = r.id
     ) ret
     CROSS JOIN LATERAL (
         SELECT coalesce(sum(ol.quantity * ol.unit_price_cents), 0)::bigint AS subtotal
         FROM order_lines ol WHERE ol.order_id = o.id
     ) ord
-    CROSS JOIN LATERAL (
-        SELECT coalesce(sum(rr.goods_refund_cents), 0)::bigint AS frozen
-        FROM return_requests rr
-        WHERE rr.order_id = r.order_id
-          AND rr.id <> r.id
-          AND rr.status IN ('approved', 'completed')
-    ) accepted
     WHERE r.id = p_return_request_id;
 $$;
 
