@@ -1700,6 +1700,7 @@ h3 {
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;
+  min-width: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -1791,6 +1792,11 @@ h3 {
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: var(--s-2);
+}
+
+.goen-hero__actions .ui-btn {
+  text-align: center;
+  white-space: normal;
 }
 
 .goen-hero__controls {
@@ -2159,6 +2165,24 @@ h3 {
 
   .goen-band__body {
     padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
+  }
+
+  /* With no photograph the body takes the whole row, on the page's column. */
+  .goen-band__body:first-child {
+    grid-column: 1 / -1;
+    padding-left: var(--page-edge);
+  }
+}
+
+.goen-band:not(:has(.goen-band__media)) {
+  --lift: 0;
+}
+
+/* The head is a listing's first screen, not a section: its photograph keeps a
+   fixed column so the first row of products still shows above the fold. */
+@media (min-width: 64rem) {
+  .goen-pagehead .goen-band__grid {
+    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
   }
 }
 
@@ -4882,6 +4906,10 @@ input.goen-check {
   .goen-pagehead[data-tone] {
     padding: 2rem 1.5rem;
   }
+}
+
+.goen-pagehead .goen-band {
+  margin-top: 0;
 }
 
 .goen-listing__head .goen-pagehead[data-tone] {
@@ -7817,7 +7845,6 @@ form[data-request-pending] [aria-disabled="true"] {
 
 @media (forced-colors: active) {
   .goen-band__media img,
-  .goen-pagehead__photo,
   .goen-cat__photo,
   .goen-campaign__header {
     outline: 1px solid CanvasText;

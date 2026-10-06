@@ -1013,6 +1013,16 @@ input.goen-check {
   }
 }
 
+.goen-admin__tier {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+}
+
+.goen-admin__tier p {
+  margin: 0;
+}
+
 /* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
 .goen-admin__stats > .ui-statline {
   grid-column: 1 / -1;
@@ -2839,6 +2849,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chartmeter__limit {
+  fill: var(--chart-annotation);
+}
+
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
@@ -2902,6 +2916,10 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 
   .goen-chartmeter__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartmeter__limit {
     fill: CanvasText;
   }
 

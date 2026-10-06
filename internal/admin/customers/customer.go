@@ -16,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -93,7 +95,9 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	row, err := q.AdminCustomer(ctx, uid)
+	row, err := q.AdminCustomer(ctx, db.AdminCustomerParams{
+		UserID: uid, WindowDays: loyalty.MembershipWindowDays, Locale: string(i18n.FromContext(ctx)),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.CustomerView{}, ErrNotFound
@@ -124,6 +128,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
+		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: row.WindowSpendCents, NextTierName: row.NextTierName, NextTierCents: row.NextTierCents,
 	}
 	for i := range orders {
 		o := &orders[i]
