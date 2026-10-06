@@ -31,13 +31,8 @@ const DefaultWindow int32 = 30
 
 const maxRows = 10
 
-// Report reads the last days shop days up to now, and the same number before
+// ReportAt reads the last days shop days up to now, and the same number before
 // them, cut at the same time of day.
-func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error) {
-	return s.ReportAt(ctx, days, time.Now())
-}
-
-// ReportAt is Report as of now.
 func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.ReportView, error) {
 	days = window(days)
 	current, before := periods(now, int(days))
@@ -127,15 +122,15 @@ func (s *Store) DailyRevenue(ctx context.Context, days int32, now time.Time) (ad
 	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, nil
 }
 
-func (s *Store) dailySeries(ctx context.Context, span period) (chart.Series, error) {
+func (s *Store) dailySeries(ctx context.Context, p period) (chart.Series, error) {
 	rows, err := s.q.PaidByShopDay(ctx, db.PaidByShopDayParams{
-		FirstDay: shopDate(span.from), LastDay: shopDate(span.to.Add(-time.Nanosecond)),
-		FromAt: span.from, ToAt: span.to,
+		FirstDay: shopDate(p.from), LastDay: shopDate(p.to.Add(-time.Nanosecond)),
+		FromAt: p.from, ToAt: p.to,
 	})
 	if err != nil {
 		return chart.Series{}, fmt.Errorf("read paid revenue by day: %w", err)
 	}
-	series := chart.Series{Partial: endsMidDay(span), Buckets: make([]chart.Bucket, 0, len(rows))}
+	series := chart.Series{Partial: endsMidDay(p), Buckets: make([]chart.Bucket, 0, len(rows))}
 	for _, r := range rows {
 		series.Buckets = append(series.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
 	}

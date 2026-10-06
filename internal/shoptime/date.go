@@ -22,3 +22,7 @@ func DateText(ctx context.Context, d Date) string {
 func DateTimeText(ctx context.Context, t, now time.Time) string {
 	return DateText(ctx, DateOf(t, now)) + " " + In(t).Format("15:04")
 }
+
+// LastDay is the last shop day a period ending at t still runs. The end is
+// exclusive, so a period ending at midnight ended the day before.
+func LastDay(t, now time.Time) Date { return DateOf(t.Add(-time.Nanosecond), now) }

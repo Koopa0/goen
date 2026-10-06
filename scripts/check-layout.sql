@@ -235,6 +235,32 @@ VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
 -- part. The order carries no discount, so the redemption records none.
 SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
 
+-- /admin/reports draws its running totals only from seven shop days with paid
+-- orders, so the report gets seven, none today. The latest is NT$1,234,567, which
+-- gives the chart's end label seven digits to measure at 320. Committed by the
+-- move to picking, as the reports tests commit an order with no payment.
+RESET ROLE;
+WITH revenue_orders AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
+                        shipping_cents, placed_at)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0,
+           now() - make_interval(days => day_ago)
+    FROM generate_series(1, 7) AS day_ago
+    RETURNING id, placed_at
+), revenue_lines AS (
+    INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+    SELECT id, 'LAYOUT-REVENUE', 'Revenue chart fixture',
+           CASE WHEN placed_at = (SELECT max(placed_at) FROM revenue_orders) THEN 123456700 ELSE 3000000 END, 1
+    FROM revenue_orders
+    RETURNING order_id
+)
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM revenue_lines;
+UPDATE orders SET fulfillment_status = 'picking'
+WHERE id IN (SELECT order_id FROM order_lines WHERE sku = 'LAYOUT-REVENUE');
+SET ROLE store;
+
 SET ROLE admin;
 
 -- Picking is what commits a credit-funded order and earns its points.

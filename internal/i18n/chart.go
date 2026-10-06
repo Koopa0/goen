@@ -10,9 +10,8 @@ var (
 	// A day on an axis; same arguments as KeyAdminRepDay.
 	KeyChartAxisDay = key("chart.axis.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
 
-	// The names of the unit that stands for a thousand times, and for a million
-	// times, a number of dollars or items: 萬 and 億 in Chinese, K and M in
-	// English, each of which counts differently.
+	// The smaller and the larger unit of an axis, whose sizes depend on the
+	// language (AxisUnit): 萬 and 億 in Chinese, K and M in English.
 	keyAxisSmall = key("chart.axis.small", Message{ZhHant: "萬", En: "K"})
 	keyAxisLarge = key("chart.axis.large", Message{ZhHant: "億", En: "M"})
 )

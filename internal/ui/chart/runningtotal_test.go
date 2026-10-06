@@ -2,7 +2,9 @@ package chart
 
 import (
 	"bytes"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -201,10 +203,8 @@ func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 	if strings.Contains(got, "style=") {
 		t.Error("RunningTotal sets a style attribute, which the content security policy refuses")
 	}
-	for _, svg := range strings.Split(got, "<svg")[1:2] {
-		if !strings.Contains(svg, `aria-hidden="true"`) {
-			t.Errorf("the drawing is not hidden from assistive technology: <svg%s", svg[:80])
-		}
+	if outer, hidden := strings.Count(got, `<svg class="goen-chart__`), strings.Count(got, `aria-hidden="true" focusable="false"`); outer != hidden || outer != 3 {
+		t.Errorf("the drawing has %d outer SVGs and %d of them hidden from assistive technology, want 3 and 3", outer, hidden)
 	}
 }
 
@@ -248,5 +248,35 @@ func TestRunningTotalAxisIsOneUnitForEveryLabel(t *testing.T) {
 	}
 	if got, want := labels(en), []string{"0", "0.5M", "1M", "1.5M", "2M"}; !slices.Equal(got, want) {
 		t.Errorf("en axis = %v, want %v", got, want)
+	}
+}
+
+// Every label on the axis, read back in the axis' unit, is the value of its
+// line: an axis that prints 0.2萬 for NT$2,500 is a wrong amount.
+func TestAxisLabelsAreTheValuesOfTheirLines(t *testing.T) {
+	t.Parallel()
+
+	tops := []int64{300, 1_250, 2_500, 99_900, 1_200_000, 1_250_000, 3_300_000, 21_229_200, 1_200_000_000, 12_000_000_000, 120_000_000_000}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, top := range tops {
+			p := fullProps()
+			p.Current.Buckets = filled(10, top/10)
+			p.Previous.Buckets = days(10)
+			r := newRunningTotal(ctx, p)
+
+			step := axisStep(top, MeasureMoney)
+			divisor, suffix := i18n.AxisUnit(ctx, step*gridLines(top, step)/100)
+			for k, g := range r.Grid {
+				got, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSuffix(g.Label, suffix), ",", ""), 64)
+				if err != nil {
+					t.Fatalf("%s, top %d: label %q is not a number: %v", locale, top, g.Label, err)
+				}
+				if want := int64(k) * step; int64(math.Round(got*float64(divisor)*100)) != want {
+					t.Errorf("%s, top %d: line %d is %d cents, its label %q reads %v cents",
+						locale, top, k, want, g.Label, got*float64(divisor)*100)
+				}
+			}
+		}
 	}
 }

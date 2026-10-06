@@ -106,7 +106,7 @@ var (
 
 	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
 		ZhHant: "這張圖的資料暫時無法取得。",
-		En:     "This chart’s data is unavailable right now.",
+		En:     "This chart's data is unavailable right now.",
 	})
 
 	KeyAdminRepThisPeriod = key("admin.rep.thisperiod", Message{ZhHant: "本期", En: "This period"})

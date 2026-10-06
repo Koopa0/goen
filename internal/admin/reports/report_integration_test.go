@@ -19,14 +19,14 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.Report(ctx, 30)
+	before, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
 	unpaid := reportOrder(t, 100000, false)
 	_ = unpaid
-	mid, err := s.Report(ctx, 30)
+	mid, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 
 	reportOrder(t, 100000, true)
-	after, err := s.Report(ctx, 30)
+	after, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 
 	assertSeller := func(stage string) {
 		t.Helper()
-		view, err := s.Report(ctx, 30)
+		view, err := s.ReportAt(ctx, 30, time.Now())
 		if err != nil {
 			t.Fatalf("%s report: %v", stage, err)
 		}
@@ -167,7 +167,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 	s := reports.NewStore(pool)
 
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("report(%d): %v", days, err)
 		}
@@ -176,7 +176,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 		}
 	}
 	for _, days := range []int32{0, 1, 31, 3650, -1} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("report(%d): %v", days, err)
 		}
@@ -186,7 +186,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 		}
 	}
 
-	view, err := s.Report(ctx, reports.DefaultWindow)
+	view, err := s.ReportAt(ctx, reports.DefaultWindow, time.Now())
 	if err != nil {
 		t.Fatalf("report for window snapshot: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 	}
 	view.Windows[0] = 3650
 
-	fresh, err := s.Report(ctx, 7)
+	fresh, err := s.ReportAt(ctx, 7, time.Now())
 	if err != nil {
 		t.Fatalf("report after mutating prior view: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.Report(ctx, 30)
+	before, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 		t.Fatalf("the fixture wrote %d payments; this case is about an order with none", payments)
 	}
 
-	after, err := s.Report(ctx, 30)
+	after, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
 	roomy := soldVariant(t, 9, 5, 10)
 	atSafety := soldVariant(t, 5, 5, 10)
 
-	view, err := s.Report(ctx, 30)
+	view, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}

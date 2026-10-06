@@ -2078,7 +2078,7 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	figures := reports.NewStore(pool)
 
-	before, err := figures.Report(ctx, 30)
+	before, err := figures.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("read report before refund: %v", err)
 	}
@@ -2086,7 +2086,7 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", "", uuid.NullUUID{}); decideErr != nil {
 		t.Fatalf("Decide: %v", decideErr)
 	}
-	after, err := figures.Report(ctx, 30)
+	after, err := figures.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("read report after refund: %v", err)
 	}

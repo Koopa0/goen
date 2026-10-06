@@ -59,17 +59,24 @@ func grouped(n int64) string {
 	return b.String()
 }
 
-// Short is the digits of a non-negative amount in whole dollars counted in
-// divisor dollars, with one decimal when it is not whole: 25_000_000 cents over
-// a divisor of 10_000 is "25", and 12_500_000 is "12.5". The unit's name is the
-// caller's, since it depends on the language.
+// Short is the digits of a non-negative amount counted in divisor dollars,
+// exactly: as many decimals as it takes, so 12_500_000 cents over a divisor of
+// 10_000 is "12.5" and 250_000 is "0.25". The divisor is a power of ten, which
+// is what makes the decimals finite. The unit's name is the caller's, since it
+// depends on the language.
 func Short(cents, divisor int64) string {
-	dollars := cents / 100
-	whole, rest := dollars/divisor, dollars%divisor
-	if tenths := rest * 10 / divisor; tenths > 0 {
-		return grouped(whole) + "." + strconv.FormatInt(tenths, 10)
+	unit := 100 * divisor
+	whole, rest := cents/unit, cents%unit
+	out := grouped(whole)
+	if rest == 0 {
+		return out
 	}
-	return grouped(whole)
+	var decimals []byte
+	for ; rest > 0; rest %= unit {
+		rest *= 10
+		decimals = append(decimals, "0123456789"[rest/unit])
+	}
+	return out + "." + string(decimals)
 }
 
 // ParseDollars reads a whole-dollar price typed in a form and returns cents. A

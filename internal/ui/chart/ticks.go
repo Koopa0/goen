@@ -8,7 +8,8 @@ const maxGridLines = 5
 // axisStep is the distance between the lines of a value axis topping out at
 // top, in the measure's own unit: the smallest of 1, 2, 2.5 and 5 times a power
 // of ten that keeps the lines to maxGridLines. 2.5 only reads well in money;
-// a count has no half items.
+// a count has no half items, and a step below NT$10 would be a fraction of a
+// dollar.
 func axisStep(top int64, m Measure) int64 {
 	unit, tenths := int64(1), []int64{10, 20, 50}
 	if m == MeasureMoney {
@@ -16,7 +17,11 @@ func axisStep(top int64, m Measure) int64 {
 	}
 	for power := unit; ; power *= 10 {
 		for _, t := range tenths {
-			if step := power * t / 10; top <= step*maxGridLines {
+			step := power * t / 10
+			if t == 25 && power < 1000 {
+				continue
+			}
+			if top <= step*maxGridLines {
 				return step
 			}
 		}
