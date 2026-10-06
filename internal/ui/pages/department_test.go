@@ -118,7 +118,7 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 		Period: &grid,
 	}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
-	for _, want := range []string{`class="goen-deptnotice"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`, `datetime="2026-10-30"`} {
+	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`, `datetime="2026-10-30"`} {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}

@@ -199,8 +199,10 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			status:     "picking", held: 1,
 		},
 		{
-			name:       "customer cancelled",
-			constraint: "orders_history_frozen",
+			// The credit is reversed with the cancellation, so the re-read of how the
+			// order was paid refuses before orders_history_frozen is reached.
+			name:    "customer cancelled",
+			changed: true,
 			moves: []string{
 				`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now() WHERE id = $1`,
 				`SELECT release_reservation(id) FROM inventory_reservations WHERE order_id = $1 AND state = 'held'`,
@@ -284,6 +286,13 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 				t.Errorf("order is %s, want %s", got, tc.status)
 			}
 			e := readCreditPaidEffects(t, orderID, staff, number)
+			wantEvents := int64(0)
+			if tc.status == "cancelled" {
+				wantEvents = 1
+			}
+			if e.cancelledEvents != wantEvents {
+				t.Errorf("cancelled events = %d, want %d: the refused cancellation wrote none", e.cancelledEvents, wantEvents)
+			}
 			if e.reversals != tc.reversals || e.held != tc.held || e.staffEvents != 0 ||
 				e.audits != 0 || e.voidsDue != 0 || e.terminalNotices != 0 {
 				t.Errorf("reversals/held/staff events/audits/voids due/notices = %d/%d/%d/%d/%d/%d, want %d/%d/0/0/0/0",

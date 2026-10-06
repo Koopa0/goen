@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -108,26 +107,13 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 	return out, nil
 }
 
-// campaignStats says how many items, the end and, from two days out, how many
-// days are left; the last two days say so in the end's note instead.
+// campaignStats is the fact line of a campaign the query lists, which is always running.
 func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
-	now := s.now()
-	ends := pages.CampaignEndStat(ctx, c.EndsAt, now)
-	stats := []components.Stat{{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, c.Products)}, ends}
-	if left := shoptime.DaysLeft(now, c.EndsAt); left > 1 {
-		stats = append(stats, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: pages.StatCountOf(ctx, i18n.KeyUnitDays, int64(left))})
-	}
-	return stats
+	return s.campaignSchedule(ctx, c).Facts
 }
 
-// campaignCardStats are what is left and when it ends, in that order; the count
-// is the card's link.
-func (s *Store) campaignCardStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
-	stats := s.campaignStats(ctx, c)[1:]
-	if len(stats) == 2 {
-		stats[0], stats[1] = stats[1], stats[0]
-	}
-	return stats
+func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) pages.CampaignSchedule {
+	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
 func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {

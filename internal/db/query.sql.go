@@ -3442,6 +3442,54 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 	return items, nil
 }
 
+const campaignBySlug = `-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.starts_at, c.ends_at,
+       c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = $2::text AND c.is_active
+`
+
+type CampaignBySlugParams struct {
+	Locale string
+	Slug   string
+}
+
+type CampaignBySlugRow struct {
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
+}
+
+// Any active campaign by its slug, inside its window or not: the page says
+// honestly whether it has not started or has ended.
+func (q *Queries) CampaignBySlug(ctx context.Context, arg CampaignBySlugParams) (CampaignBySlugRow, error) {
+	row := q.db.QueryRow(ctx, campaignBySlug, arg.Locale, arg.Slug)
+	var i CampaignBySlugRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Tone,
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageWidth,
+	)
+	return i, err
+}
+
 const campaignDailyUnits = `-- name: CampaignDailyUnits :many
 SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
 FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
@@ -3588,7 +3636,7 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id
+ORDER BY in_stock DESC, cp.position, p.id
 `
 
 type CampaignProductsParams struct {
@@ -3615,6 +3663,7 @@ type CampaignProductsRow struct {
 }
 
 // Ordered by the position the back office set: a campaign is merchandising.
+// Sellable products first, then the position the back office set.
 func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsParams) ([]CampaignProductsRow, error) {
 	rows, err := q.db.Query(ctx, campaignProducts, arg.CampaignID, arg.Locale)
 	if err != nil {
@@ -6761,7 +6810,8 @@ SELECT
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
+    SELECT price_cents, compare_at_price_cents,
+           (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (compare_at_price_cents IS NOT NULL
@@ -6786,6 +6836,9 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
+    -- A discount that can be bought comes before a deeper one that cannot: the
+    -- variant the tile shows, not any variant of the product.
+    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -9085,7 +9138,7 @@ type ListedCampaignsRow struct {
 }
 
 // A campaign is listed only while a published featured product can be bought,
-// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
 func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -15102,51 +15155,6 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 		return nil, err
 	}
 	return items, nil
-}
-
-const runningCampaign = `-- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title, c.ends_at,
-       c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = $2::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now()
-`
-
-type RunningCampaignParams struct {
-	Locale string
-	Slug   string
-}
-
-type RunningCampaignRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
-}
-
-// The window is judged against the database's clock, which wrote the timestamps.
-func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams) (RunningCampaignRow, error) {
-	row := q.db.QueryRow(ctx, runningCampaign, arg.Locale, arg.Slug)
-	var i RunningCampaignRow
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Title,
-		&i.EndsAt,
-		&i.Tone,
-		&i.ImageKey,
-		&i.ImageAlt,
-		&i.ImageWidth,
-	)
-	return i, err
 }
 
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
