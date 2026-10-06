@@ -1,8 +1,8 @@
 # 系統架構
 
-[English](ARCHITECTURE.md) · [圖檔來源](docs/architecture/README.md)
+[English](ARCHITECTURE.md)
 
-goen 是為台灣商店打造的 Go 電商應用。前台、後台與背景工作在同一個程序中執行，訂單、庫存與帳本都存在 PostgreSQL；Stripe 處理付款與退款，綠界處理電子發票。
+goen 是以 Go 打造的全端電商應用。前台、後台與背景工作在同一個程序中執行，訂單、庫存與帳本都存在 PostgreSQL；Stripe 處理付款與退款，綠界處理電子發票。
 
 ## 1. 商務模型
 
@@ -24,8 +24,6 @@ goen 是為台灣商店打造的 Go 電商應用。前台、後台與背景工�
 ## 2. 系統邊界
 
 ![顧客與員工使用同一個 Go 程序；其 handler 與背景工作共用 PostgreSQL，並呼叫外部服務。](docs/architecture/01-system-context.png)
-
-[SVG](docs/architecture/01-system-context.svg)
 
 ### 應用與呈現
 
@@ -52,8 +50,6 @@ PostgreSQL 也存放 session、存取授權、稽核紀錄與上傳的圖片。�
 下單、Session 綁定與 webhook 套用分別提交，沒有任何資料庫交易跨越 Stripe 呼叫。
 
 ![下單交易 A、Session 綁定 B 與 webhook 交易 C 之間各隔著一次 Stripe 請求。](docs/architecture/02-checkout-payment.png)
-
-[SVG](docs/architecture/02-checkout-payment.svg)
 
 ### A. 建立訂單
 
@@ -86,8 +82,6 @@ webhook 先驗證原始 body 的簽章，再於同一筆交易中領取事件、
 
 ![扣款與逾期共用訂單鎖；扣款先提交則保留庫存，釋放先提交則晚到的付款留待對帳與退款。](docs/architecture/03-stock-payment-race.png)
 
-[SVG](docs/architecture/03-stock-payment-race.svg)
-
 保留會減少可售量；出貨消耗保留，不會重複扣庫存，部分出貨時其餘數量繼續保留。符合條件的逾期或取消會釋放保留；付款結果未定時，保留持續到對帳完成。
 
 扣款與釋放都會鎖訂單。扣款先提交，保留就留著；釋放先提交，扣款守門會拒絕晚到的付款，goen 記錄一則例外以供對帳與退款。見 [schema][schema]（扣款與釋放的守門）與[逾期處理][cart-sweeper]。
@@ -113,8 +107,6 @@ webhook 先驗證原始 body 的簽章，再於同一筆交易中領取事件、
 ## 6. 持久背景工作
 
 ![業務變更與 outbox 一起提交；背景工作寄送郵件，或把發票工作交給持久操作，再與綠界對帳。](docs/architecture/04-durable-work.png)
-
-[SVG](docs/architecture/04-durable-work.svg)
 
 ### Outbox
 
@@ -151,8 +143,6 @@ SMTP 收下郵件後、確認前若程序中止，郵件可能寄出兩次：寄
 ## 8. 資源與工作負載
 
 ![store、admin 與 maintenance 連線池各有額度，但共用程序資源與 PostgreSQL。](docs/architecture/05-resource-boundaries.png)
-
-[SVG](docs/architecture/05-resource-boundaries.svg)
 
 連線池保留連線數並固定資料庫角色，但仍共用 CPU、記憶體，以及 PostgreSQL 的 I/O、WAL 與鎖。
 
