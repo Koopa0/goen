@@ -1579,7 +1579,7 @@ h3 {
 /* ---------- Home ----------
 
    The carousel, the department cards, one product row, one department band,
-   one photograph and the guarantees. Sections are direct children of <main>;
+   one photograph and the shop rules. Sections are direct children of <main>;
    every horizontal edge comes from the one container width, so `.goen-home`
    (compared against the header bar and the footer grid, `check-layout.mjs`)
    and `.goen-container` agree. Tones come from the [data-tone] blocks.
@@ -1962,51 +1962,11 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
-   item renders only where a free-delivery threshold is configured. ----- */
+/* ----- The shop's rules, as a stat line above the footer. ----- */
 
-.goen-trust {
-  background: var(--n-50);
-  border-top: 1px solid var(--n-200);
+.goen-rules {
   margin-top: var(--home-section);
-}
-
-.goen-trust__grid {
-  display: grid;
-  gap: 2rem;
-  padding-block: 3rem;
-}
-
-.goen-trust__head {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-}
-
-.goen-trust__icon {
-  color: var(--n-900);
-  flex: none;
-}
-
-.goen-trust__icon svg {
-  display: block;
-  height: 1.5rem;
-  width: 1.5rem;
-}
-
-.goen-trust__title {
-  font-size: var(--fs-15);
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.goen-trust__body {
-  color: var(--n-500);
-  font-size: var(--fs-14);
-  line-height: 1.6;
-  margin: 0.375rem 0 0;
-  padding-left: 2.25rem;
+  padding-block: var(--s-7) var(--s-8);
 }
 
 @media (min-width: 40rem) {
@@ -2016,11 +1976,6 @@ h3 {
 
   .goen-hero__body {
     padding-block: 2rem 2.5rem;
-  }
-
-  .goen-trust__grid {
-    column-gap: 2.5rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2129,30 +2084,6 @@ h3 {
     display: flex;
     flex-direction: column;
     justify-content: center;
-  }
-
-  .goen-trust__grid {
-    column-gap: 0;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding-block: 3.5rem;
-  }
-
-  .goen-trust__item {
-    border-left: 1px solid var(--n-200);
-    padding-inline: 2rem;
-  }
-
-  .goen-trust__item:first-child {
-    border-left: 0;
-    padding-left: 0;
-  }
-
-  .goen-trust__item:last-child {
-    padding-right: 0;
-  }
-
-  .goen-trust__body {
-    padding-left: 0;
   }
 }
 

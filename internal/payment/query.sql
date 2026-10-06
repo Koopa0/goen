@@ -52,6 +52,9 @@ WHERE provider = 'stripe' AND event_id = $1;
 -- name: MarkWebhookUnreconciled :one
 SELECT mark_payment_event_unreconciled(@event_id::text, @reason::text);
 
+-- name: RefundStatusByProviderRef :one
+SELECT status FROM refunds WHERE provider_ref = @provider_ref::text;
+
 -- The webhook is trusted for what happened, never for which order.
 -- name: OrderByPaymentRef :one
 SELECT o.id, o.order_number, o.fulfillment_status,
