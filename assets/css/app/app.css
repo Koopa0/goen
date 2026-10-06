@@ -2160,6 +2160,16 @@ h3 {
   .goen-band__body {
     padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
   }
+
+  /* With no photograph the body takes the whole row, on the page's column. */
+  .goen-band__body:first-child {
+    grid-column: 1 / -1;
+    padding-left: var(--page-edge);
+  }
+}
+
+.goen-band:not(:has(.goen-band__media)) {
+  --lift: 0;
 }
 
 /* ---------- Product tile ----------
@@ -4654,6 +4664,10 @@ input.goen-check {
   .goen-pagehead[data-tone] {
     padding: 2rem 1.5rem;
   }
+}
+
+.goen-pagehead .goen-band {
+  margin-top: 0;
 }
 
 .goen-listing__head .goen-pagehead[data-tone] {
@@ -7589,7 +7603,6 @@ form[data-request-pending] [aria-disabled="true"] {
 
 @media (forced-colors: active) {
   .goen-band__media img,
-  .goen-pagehead__photo,
   .goen-cat__photo,
   .goen-campaign__header {
     outline: 1px solid CanvasText;
