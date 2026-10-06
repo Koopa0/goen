@@ -71,8 +71,8 @@ func TestSeveralSoldOutOptionsAreAllListedAsSoldOut(t *testing.T) {
 		if !strings.Contains(box, i18n.T(ctx, i18n.KeyRestockPick)) {
 			t.Errorf("%s: no note asking for a pick", locale)
 		}
-		if strings.Contains(box, `id="restock"`) {
-			t.Errorf("%s: a notify form is offered before an option is picked", locale)
+		if !strings.Contains(box, `id="restock"`) || !strings.Contains(box, `name="variant" value=""`) {
+			t.Errorf("%s: before a pick the notify form is missing or names a variant", locale)
 		}
 	}
 }
@@ -148,5 +148,33 @@ func TestHighlightsAreAtMostThreeValues(t *testing.T) {
 	v := ProductView{Specs: []ProductSpec{{Value: "a"}, {Value: ""}, {Value: "b"}, {Value: "c"}, {Value: "d"}}}
 	if got := strings.Join(v.Highlights(), ","); got != "a,b,c" {
 		t.Errorf("Highlights() = %q, want a,b,c", got)
+	}
+}
+
+func TestRefusedRestockWithNoOptionMarksTheUnpickedGroup(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		v := ProductView{
+			Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, VariantID: "cheapest",
+			Options:       []ProductOption{capacityOption(true, "")},
+			NotifyOutcome: NotifyNoOption, NotifyEmail: "me@example.com",
+		}
+		box := buyBox(t, locale, &v)
+		for _, want := range []string{
+			`aria-invalid="true"`,
+			`aria-describedby="notify-option-error"`,
+			`id="notify-option-error">` + i18n.T(ctx, i18n.KeyRestockNoOption),
+			`value="me@example.com"`,
+			`name="variant" value=""`,
+		} {
+			if !strings.Contains(box, want) {
+				t.Errorf("%s: refused restock lacks %q", locale, want)
+			}
+		}
+		v.NotifyOutcome = ""
+		if box := buyBox(t, locale, &v); strings.Contains(box, "aria-invalid") || !strings.Contains(box, `id="restock"`) {
+			t.Errorf("%s: an unrefused page marks a group invalid or has no form to refuse", locale)
+		}
 	}
 }

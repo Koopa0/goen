@@ -410,7 +410,29 @@ const (
 	NotifyRecordedForAccount NotifyOutcome = "account"
 	NotifyBadAddress         NotifyOutcome = "bad"
 	NotifyVariantUnavailable NotifyOutcome = "unavailable"
+	NotifyNoOption           NotifyOutcome = "option"
 )
+
+// NotifyOffered is true where a notice can be asked for: once a combination is settled and sold out, and, while
+// every option is sold out, before any is picked, where the request is refused until one is.
+func (v *ProductView) NotifyOffered() bool {
+	return v.SoldOut() || v.AllSoldOut() && v.NeedsChoice()
+}
+
+// NotifyVariant is empty until a combination is picked: the default variant is only the cheapest, not the one wanted.
+func (v *ProductView) NotifyVariant() string {
+	if v.NeedsChoice() {
+		return ""
+	}
+	return v.VariantID
+}
+
+func (v *ProductView) NotifyNeedsOption() bool { return v.NotifyOutcome == NotifyNoOption }
+
+// OptionInvalid marks the choices a refused request left unpicked.
+func (v *ProductView) OptionInvalid(o ProductOption) bool {
+	return v.NotifyNeedsOption() && o.SelectedLabel() == ""
+}
 
 func (v *ProductView) NotifyTaken() bool {
 	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount

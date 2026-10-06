@@ -4870,9 +4870,10 @@ input.goen-check {
   border-bottom: 0;
 }
 
-/* A line the catalogue can no longer honour: dimmed, not hidden. A shopper has
-   to see what they must remove before checkout will let them past. */
-.goen-line--out {
+/* A line the catalogue can no longer honour: its photograph dimmed, the line not
+   hidden. A shopper has to see what they must remove before checkout will let
+   them past, and the control that removes it stays at full contrast. */
+.goen-line--out .goen-line__thumb {
   opacity: 0.6;
 }
 
@@ -4892,6 +4893,24 @@ input.goen-check {
   height: 100%;
   object-fit: contain;
   width: 100%;
+}
+
+/* The cart's totals sit under the title as a fact line; the sentence that says
+   what blocks checkout comes first, set apart by a rule so it is not read as a figure. */
+.goen-cart__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.goen-cart__alert {
+  background: var(--wash);
+  border-left: 2px solid var(--fg);
+  font-size: var(--fs-14);
+  margin: 0;
+  max-width: 44rem;
+  padding: 0.75rem 1rem;
 }
 
 /* The notice region is always in the document so an update can fill it; it
@@ -5444,7 +5463,7 @@ input.goen-check {
    card. Quiet, and deliberately present — a customer about to leave the site for
    a card form is being asked to trust the handover. */
 .goen-checkout__note,
-.goen-cart__freedelivery,
+.goen-cart__hold,
 .goen-pay__assurance {
   color: var(--fg-muted);
   font-size: var(--fs-12);
@@ -5694,10 +5713,13 @@ input.goen-check {
   }
 
   .goen-cart__summary .ui-alert,
-  .goen-cart__summary .goen-cart__freedelivery,
   .goen-cart__summary .goen-notice {
     flex: 1 1 100%;
     order: -1;
+  }
+
+  .goen-cart__summary .goen-cart__hold {
+    display: none;
   }
 
   .goen-cart__summary .goen-summary {

@@ -2239,3 +2239,23 @@ func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestANotifyRequestWithNoOptionPickedIsRefusedWithTheirAddressKept(t *testing.T) {
+	_, slug := soldOutVariant(t)
+	h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
+	addr := "keep-" + waitingAddr(t)
+	form := url.Values{"email": {addr}, "variant": {""}}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/p/"+slug+"/notify",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "198.51.100.14:1"
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	h.Notify(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", res.Code)
+	}
+	if body := res.Body.String(); !strings.Contains(body, `value="`+addr+`"`) {
+		t.Errorf("the address %q was not kept", addr)
+	}
+}
