@@ -3,17 +3,22 @@ package pages
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // The statutory window and goen's own extension, in days from the day after delivery.
-// return_window_ends and return_line_policy_window in migrations/001 write the same two numbers.
+// A cart-package test binds both to return_window_ends and return_line_policy_window.
 const (
 	rescissionDays = 7
 	returnDays     = 14
 )
+
+func RescissionDaysText() string { return strconv.Itoa(rescissionDays) }
+
+func ReturnDaysText() string { return strconv.Itoa(returnDays) }
 
 // ShopRules is what the shop states about itself, from where each rule is stored.
 type ShopRules struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -93,7 +94,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	rules, err := s.shopRules(ctx)
+	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
@@ -115,18 +116,6 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		})
 	}
 	return view, nil
-}
-
-func (s *Store) shopRules(ctx context.Context) (pages.ShopRules, error) {
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
-	if err != nil {
-		return pages.ShopRules{}, fmt.Errorf("read free delivery threshold: %w", err)
-	}
-	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
-	if err != nil {
-		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
-	}
-	return pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup}, nil
 }
 
 func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {

@@ -45,13 +45,6 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rules, err := h.store.ShopRules(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
-		h.serverError(w, r)
-		return
-	}
-
 	view.Query = canonicalQuery(f)
 	view.Filtered = f.Active()
 	view.InStockOnly = f.InStockOnly
@@ -59,10 +52,20 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	view.MaxPrice = f.MaxPrice
 	view.Sort = f.Sort.Param()
 
+	// A partial swap never draws the rules, so it does not read them.
+	var rules *pages.ShopRules
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
+	} else {
+		loaded, err := h.store.ShopRules(r.Context())
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
+			h.serverError(w, r)
+			return
+		}
+		rules = &loaded
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, &rules))
+	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules))
 }
 
 const newestOnEmpty = 4

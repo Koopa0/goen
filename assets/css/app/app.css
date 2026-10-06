@@ -1579,7 +1579,7 @@ h3 {
 /* ---------- Home ----------
 
    The carousel, the department cards, one product row, one department band,
-   one photograph and the guarantees. Sections are direct children of <main>;
+   one photograph and the shop rules. Sections are direct children of <main>;
    every horizontal edge comes from the one container width, so `.goen-home`
    (compared against the header bar and the footer grid, `check-layout.mjs`)
    and `.goen-container` agree. Tones come from the [data-tone] blocks.

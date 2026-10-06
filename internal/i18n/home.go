@@ -49,7 +49,7 @@ var (
 	// here is a promise that stops agreeing with what checkout charges.
 	KeyRuleFreeDeliveryNote = key("home.rules.delivery.note", Message{
 		ZhHant: "宅配與超商取貨；未達門檻運費 %s 起",
-		En:     "Home or store pickup; below it from %s",
+		En:     "Home delivery or store pickup; below it, from %s",
 	})
 
 	KeyRuleFreeDeliveryHomeNote = key("home.rules.delivery.home.note", Message{
