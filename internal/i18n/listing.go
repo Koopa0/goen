@@ -95,7 +95,7 @@ var (
 
 	KeySubcategories = key("listing.subcategories", Message{ZhHant: "子分類", En: "Subcategories"})
 
-	KeyPageNumber = key("listing.pager.number", Message{ZhHant: "第 %s 頁", En: "Page %s"})
+	KeyShowMore = key("listing.pager.more", Message{ZhHant: "顯示更多", En: "Show more"})
 
 	KeyPageOf = key("listing.pager.at", Message{ZhHant: "第 %s / %s 頁", En: "Page %s of %s"})
 

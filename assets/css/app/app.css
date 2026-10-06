@@ -2361,9 +2361,10 @@ input.goen-check {
    content column the header and the footer use, a page head, and then whatever
    the page is about.
 
-   The filter rail is a native <details> at every width. Above 1024 its summary
-   is hidden and ::details-content is forced open, because a descendant display
-   rule alone cannot override the closed details slot in Chrome.
+   The filters are a native <details> at every width. Above 1024, where the
+   browser has ::details-content, its summary is hidden and the slot is forced
+   open, because a descendant display rule alone cannot override the closed
+   details slot in Chrome; elsewhere the toolbar stays behind its summary.
    ------------------------------------------------------------------------ */
 
 .goen-listing {
@@ -2467,6 +2468,13 @@ input.goen-check {
   position: absolute;
   white-space: nowrap;
   width: 1px;
+}
+
+.goen-filters__menus,
+.goen-filters__end {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .goen-filters__group {
@@ -2588,6 +2596,15 @@ input.goen-check {
   margin-top: 8px;
 }
 
+.goen-filters__sort {
+  display: contents;
+}
+
+.goen-filters__sort:empty,
+.goen-listing__count:empty {
+  display: none;
+}
+
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
@@ -2597,6 +2614,12 @@ input.goen-check {
   gap: 8px 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
+}
+
+.goen-search-sort .goen-listing__count {
+  align-items: center;
+  display: flex;
+  min-height: 44px;
 }
 
 .goen-search-sort .goen-filters__field {
@@ -2717,54 +2740,50 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
-/* The numbered pager: a row of squares that wraps rather than scrolls, the
-   current one inked. */
-.goen-pager--numbered {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
+/* The next page is a link under a line that says how far along the run is. */
+.goen-pager--more {
+  gap: 12px;
 }
 
-.goen-pager__page,
-.goen-pager__step {
-  align-items: center;
-  background: var(--n-0);
-  border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
-  color: var(--n-700);
-  display: inline-flex;
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  height: 2.75rem;
-  justify-content: center;
-  min-width: 2.75rem;
-  padding: 0 0.5rem;
-  text-decoration: none;
-}
-
-a.goen-pager__page:hover,
-a.goen-pager__step:hover {
-  background: var(--n-50);
+.goen-pager__progress {
+  appearance: none;
+  background: var(--n-200);
+  block-size: 2px;
+  border: 0;
   color: var(--n-900);
+  display: block;
+  inline-size: min(100%, 20rem);
+  min-inline-size: 220px;
 }
 
-.goen-pager__page[aria-current='page'] {
+.goen-pager__progress::-webkit-progress-bar {
+  background: var(--n-200);
+}
+
+.goen-pager__progress::-webkit-progress-value {
   background: var(--n-900);
-  border-color: var(--n-900);
-  color: var(--n-0);
 }
 
-.goen-pager__step[aria-disabled='true'] {
-  opacity: 0.5;
+.goen-pager__progress::-moz-progress-bar {
+  background: var(--n-900);
 }
 
-.goen-pager__gap {
-  color: var(--n-500);
-  padding: 0 0.25rem;
+.goen-pager__links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: center;
+}
+
+.goen-pager__prev {
+  color: var(--n-700);
+  font-size: var(--fs-14);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 /* The department head: the breadcrumb, the title and the sub-category chips on
@@ -2863,6 +2882,7 @@ a.goen-pager__step:hover {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+  white-space: nowrap;
 }
 
 /* The running-promotions strip above the deals grid. A campaign is a
@@ -3145,7 +3165,8 @@ a.goen-pager__step:hover {
     justify-content: space-between;
   }
 
-  .goen-pager--numbered {
+  .goen-pager--more {
+    flex-direction: column;
     justify-content: center;
   }
 
@@ -3222,11 +3243,6 @@ a.goen-pager__step:hover {
     width: 55%;
   }
 
-  .goen-listing__layout {
-    gap: 32px;
-    grid-template-columns: 16rem minmax(0, 1fr);
-  }
-
   .goen-campaigns__list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3236,63 +3252,107 @@ a.goen-pager__step:hover {
     padding: 32px var(--page-gutter) 56px;
   }
 
-  /* The rail takes 256px and a 32px gap out of the row, so a fourth column
-     beside it is a 150px card — under the width the gate calls readable
-     (`check-layout.mjs:317`, `MIN_CARD`). Three until there is room at 1280.
-     Only the category listing has a rail; search, deals, a campaign and the
-     wishlist keep the four the shared rule gives them. */
-  .goen-listing__results .goen-tiles__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* The filters are a toolbar above the grid: a chip for each facet, each a
+     disclosure whose panel hangs under it, and the sort and the count at the far
+     end. The shell's summary is for a phone, so the rules that open the shell
+     are guarded: where ::details-content does not exist the toolbar stays behind
+     its summary, which works. */
+  .goen-listing__filters {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 24px;
   }
 
-  .goen-filters__title {
-    clip-path: none;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    position: static;
-    white-space: normal;
-    width: auto;
-  }
-
-  /* The rail is open at every desk width: the summary goes, and the slot the
-     closed <details> hides is forced back into rendering. */
   .goen-filters__shell {
     border: none;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .goen-filters__shell-summary {
-    display: none;
+  @supports selector(details::details-content) {
+    .goen-filters__shell-summary {
+      display: none;
+    }
+
+    .goen-filters__shell::details-content {
+      content-visibility: visible;
+    }
+
+    .goen-filters__shell:not([open]) > .goen-filters {
+      display: flex;
+    }
   }
 
-  .goen-filters__shell::details-content {
-    content-visibility: visible;
-  }
-
-  .goen-filters__shell:not([open]) > .goen-filters {
-    display: flex;
-  }
-
-  /* At desk width the rail is a column of the page, not a panel sitting on it:
-     the hairline between one facet and the next is the whole separation, and the
-     space around them does the rest. The card shape belongs to the phone, where
-     the same markup is a disclosure that has to read as one closed thing. */
   .goen-filters {
-    border: none;
-    gap: 24px;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 16px;
     padding: 0;
   }
 
+  .goen-filters__menus,
+  .goen-filters__end {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .goen-filters__end {
+    margin-inline-start: auto;
+  }
+
   .goen-filters__group {
-    padding-bottom: 24px;
+    border: 0;
+    padding: 0;
+    position: relative;
+  }
+
+  .goen-filters__summary {
+    border: 1px solid var(--n-300);
+    border-radius: var(--r-full);
+    gap: 10px;
+    padding: 0 16px;
+  }
+
+  .goen-filters__summary:hover,
+  .goen-filters__group[open] > .goen-filters__summary {
+    border-color: var(--n-900);
+  }
+
+  .goen-filters__options,
+  .goen-filters__prices {
+    background: var(--n-0);
+    border: 1px solid var(--n-200);
+    border-radius: var(--r-lg);
+    box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
+    left: 0;
+    margin: 0;
+    min-width: 15rem;
+    padding: 12px;
+    position: absolute;
+    top: calc(100% + 6px);
+    z-index: 4;
+  }
+
+  .goen-filters__field {
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .goen-filters__end .ui-select {
+    width: auto;
+  }
+
+  .goen-filters__end .goen-filters__apply {
+    margin-top: 0;
+    width: auto;
   }
 }
 
-@media (min-width: 1280px) {
-  .goen-listing__results .goen-tiles__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 /* ---------- Product page ----------
 
    A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
