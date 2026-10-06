@@ -104,7 +104,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		// recovery land here.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
-		access.ServerError(w, r, h.log)
+		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
 	}
 }
 
