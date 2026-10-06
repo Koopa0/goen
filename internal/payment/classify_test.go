@@ -112,3 +112,17 @@ func TestARefundFailureIsReadFromItsRefund(t *testing.T) {
 		})
 	}
 }
+
+// Stripe sends no usable code for some failed refunds; the stored reason is then
+// the bare cause, not the cause with a dangling separator.
+func TestAnUnreconciledReasonCarriesItsDetailOnlyWhenThereIsOne(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ detail, want string }{
+		{"", "refund_failed"},
+		{"lost_or_stolen_card", "refund_failed: lost_or_stolen_card"},
+	} {
+		if got := webhookUnreconciled(webhookRefundFailed, tc.detail); got != tc.want {
+			t.Errorf("webhookUnreconciled(refund_failed, %q) = %q, want %q", tc.detail, got, tc.want)
+		}
+	}
+}

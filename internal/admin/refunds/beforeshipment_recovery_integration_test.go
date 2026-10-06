@@ -21,11 +21,11 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {

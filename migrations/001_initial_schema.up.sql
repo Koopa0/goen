@@ -4192,10 +4192,14 @@ CREATE TABLE payment_webhook_events (
     -- distinguish a known event whose object this binary could not read
     -- (unreadable_event), paid money with no local payment row to attribute it
     -- to (unattributed_capture), paid money for an order already cancelled
-    -- (cancelled_order_capture), and verified money a stable local invariant
-    -- refused to post (refused_capture). Each is still marked processed because
-    -- Stripe would retry the same unresolvable facts; this durable reason is
-    -- what makes the required human action visible on /admin/health.
+    -- (cancelled_order_capture), verified money a stable local invariant
+    -- refused to post (refused_capture), a checkout completed by a delayed
+    -- payment method goen's stock hold cannot outlive (unsettled_session), and a
+    -- refund goen recorded as succeeded that Stripe reported failed
+    -- (refund_failed, followed by Stripe's failure code). Each is still marked
+    -- processed because Stripe would retry the same unresolvable facts; this
+    -- durable reason is what makes the required human action visible on
+    -- /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
@@ -7113,41 +7117,6 @@ BEGIN
 END;
 $$;
 
--- An account can sign in concurrently from two browser tabs, each carrying a
--- different guest cart. The partial unique index on carts.user_id detects two
--- first adopters only after both have already decided that no account cart
--- exists; serialize that decision on the stable account row instead.
-CREATE FUNCTION lock_user_for_cart_adoption(p_user_id uuid) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-BEGIN
-    -- NO KEY UPDATE conflicts with another adoption's identical row lock but is
-    -- compatible with the KEY SHARE that a checkout's user_id foreign keys take.
-    -- Checkout owns the cart before it writes its order; UPDATE here would make
-    -- adoption own user -> wait cart while checkout owns cart -> wait user.
-    PERFORM 1 FROM users WHERE id = p_user_id FOR NO KEY UPDATE;
-    RETURN FOUND;
-END;
-$$;
-
-COMMENT ON FUNCTION lock_user_for_cart_adoption(uuid) IS
-    'Serialize the choice and merge of the one cart an account may own.';
-
--- A logged-in checkout will later write orders.user_id and related foreign
--- keys. Take their natural KEY SHARE lock before the cart, not halfway through
--- the order write, so erasure/adoption and checkout all use user -> cart order.
--- KEY SHARE is compatible with adoption's NO KEY UPDATE but conflicts with the
--- UPDATE/DELETE that erasure holds across its complete PII snapshot.
-CREATE FUNCTION lock_user_for_checkout(p_user_id uuid) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-BEGIN
-    PERFORM 1 FROM users WHERE id = p_user_id FOR KEY SHARE;
-    RETURN FOUND;
-END;
-$$;
-
-COMMENT ON FUNCTION lock_user_for_checkout(uuid) IS
-    'Keep a checkout account alive before locking its cart and writing user foreign keys.';
-
 -- Releasing a provider event is the operator's explicit statement that every
 -- provider-side cent was fully refunded, or that a succeeded local payment
 -- already accounts for it. End a still-active linked attempt in the same
@@ -7609,8 +7578,6 @@ GRANT EXECUTE ON FUNCTION cancel_payment(text) TO store;
 GRANT EXECUTE ON FUNCTION mark_payment_event_unreconciled(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_payment_provider_ref(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_cart_catalogue(uuid) TO store;
-GRANT EXECUTE ON FUNCTION lock_user_for_cart_adoption(uuid) TO store;
-GRANT EXECUTE ON FUNCTION lock_user_for_checkout(uuid) TO store;
 GRANT EXECUTE ON FUNCTION release_payment_event(text) TO admin;
 GRANT EXECUTE ON FUNCTION attribute_complete_payment_paid(text) TO admin;
 GRANT EXECUTE ON FUNCTION release_complete_payment(text) TO admin;

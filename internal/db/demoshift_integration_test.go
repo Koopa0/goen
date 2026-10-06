@@ -3,7 +3,9 @@
 package db_test
 
 import (
+	"fmt"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,30 +44,37 @@ const demoBooks = `
 	SELECT 'sku ' || sku || ' stock ' || stock_quantity FROM product_variants
 	ORDER BY 1`
 
-// assertShiftedToToday makes the database read as a snapshot taken days ago,
-// then runs seed/demo_shift.sql with that day as the anchor. Every table but
-// those the shift leaves must be back as it was, nothing may lie ahead of the
-// clock but expiries and end dates, the books must read the same, and each
-// order must carry the day it was placed in its number.
-func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, days int) {
+// assertShiftedToToday runs seed/demo_shift.sql on a database the history
+// wrote on the shop day ran, with the shop's today pinned to restored: anchored
+// on ran, the shift brings it to restored, and on ran itself changes nothing.
+// Then it makes the database read as a snapshot taken days before restored and
+// shifts it back. Every table but those the shift leaves must be as it was,
+// nothing may lie ahead of the clock but expiries and end dates, the books
+// must read the same, and each order must carry the day it was placed in its
+// number.
+func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, ran, restored time.Time, days int) {
 	t.Helper()
-	conn := shop.Config().ConnString()
-	made := tableDigests(t, shop)
+	conn := pinnedToday(t, shop, restored)
+	written := tableDigests(t, shop)
 	books := textRows(t, shop, demoBooks)
 
-	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, 0)...); err != nil {
-		t.Fatalf("seed/demo_shift.sql on the anchor day: %v\n%s", err, out)
+	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, shoptime.Day(ran))...); err != nil {
+		t.Fatalf("seed/demo_shift.sql on %s, anchored on %s: %v\n%s", shoptime.Day(restored), shoptime.Day(ran), err, out)
 	}
-	if changed := changedTables(made, tableDigests(t, shop)); len(changed) > 0 {
-		t.Errorf("on the anchor day the shift changed %s, want nothing", strings.Join(changed, ", "))
+	made := tableDigests(t, shop)
+	if shoptime.Day(restored) == shoptime.Day(ran) {
+		if changed := changedTables(written, made); len(changed) > 0 {
+			t.Errorf("on the anchor day the shift changed %s, want nothing", strings.Join(changed, ", "))
+		}
 	}
 
+	snapshot := shoptime.Day(restored.AddDate(0, 0, -days))
 	ageSnapshot(t, shop, days)
 	aged := tableDigests(t, shop)
 	if aged["orders"] == made["orders"] {
 		t.Fatalf("ageSnapshot(%d) left every order as it was", days)
 	}
-	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, days)...); err != nil {
+	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, snapshot)...); err != nil {
 		t.Fatalf("seed/demo_shift.sql %d days after the snapshot: %v\n%s", days, err, out)
 	}
 
@@ -95,8 +104,8 @@ func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, days int) {
 			strings.Join(off[:min(len(off), 5)], ", "))
 	}
 
-	assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, days),
-		"this database is dated "+shopDaysAgo(0)+", after anchor_day "+shopDaysAgo(days))
+	assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, snapshot),
+		"this database is dated "+shoptime.Day(restored)+", after anchor_day "+snapshot)
 }
 
 // ageSnapshot makes the database read as if it had been made days earlier:
@@ -158,9 +167,32 @@ func ageSnapshot(t *testing.T, shop *pgxpool.Pool, days int) {
 	}
 }
 
-// shiftArgs names the database and, as the anchor, the shop day days ago.
-func shiftArgs(shop *pgxpool.Pool, days int) []string {
-	return append(namingItself(shop), "-v", "anchor_day="+shopDaysAgo(days))
+// shiftArgs names the database and the anchor day.
+func shiftArgs(shop *pgxpool.Pool, anchor string) []string {
+	return append(namingItself(shop), "-v", "anchor_day="+anchor)
+}
+
+// pinnedToday returns a connection string on which shop_today() answers day:
+// seed/demo_shift.sql calls it unqualified, so the function in a schema ahead
+// of public on the search path is the one it gets. shop_day and every table
+// stay public's.
+func pinnedToday(t *testing.T, shop *pgxpool.Pool, day time.Time) string {
+	t.Helper()
+	schema := "today_" + strings.ReplaceAll(shoptime.Day(day), "-", "_")
+	if _, err := shop.Exec(t.Context(), fmt.Sprintf(`
+		CREATE SCHEMA IF NOT EXISTS %[1]s;
+		CREATE OR REPLACE FUNCTION %[1]s.shop_today() RETURNS date LANGUAGE sql AS $$ SELECT date '%[2]s' $$`,
+		schema, shoptime.Day(day))); err != nil {
+		t.Fatalf("pin shop_today() to %s: %v", shoptime.Day(day), err)
+	}
+	conn, err := url.Parse(shop.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse %s: %v", shop.Config().ConnString(), err)
+	}
+	query := conn.Query()
+	query.Set("options", "--search_path="+schema+",public")
+	conn.RawQuery = query.Encode()
+	return conn.String()
 }
 
 func shopDaysAgo(days int) string {
@@ -362,13 +394,27 @@ func TestDemoShiftRefusesASecondRun(t *testing.T) {
 			}
 			ageSnapshot(t, shop, 2)
 			conn := shop.Config().ConnString()
-			if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, 2)...); err != nil {
+			if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, shopDaysAgo(2))...); err != nil {
 				t.Fatalf("seed/demo_shift.sql 2 days after the snapshot: %v\n%s", err, out)
 			}
-			assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, 2),
+			assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, shopDaysAgo(2)),
 				"this database is dated "+shopDaysAgo(0)+", after anchor_day "+shopDaysAgo(2))
 		})
 	}
+}
+
+// A history written before the shop's midnight is restored after it: anchored
+// on the day the history ran, the shift brings it to the day after.
+func TestDemoShiftRestoresAHistoryTheDayAfter(t *testing.T) {
+	t.Parallel()
+	shop := dbtest.Pool(t)
+	seedCatalogue(t, shop)
+	orderPaidDaysAgo("cs_demo_a1history", 1)(t, shop)
+	// Kept behind the real clock, so that a pin that does not take moves the
+	// database two days and fails.
+	ageSnapshot(t, shop, 2)
+	today := shoptime.In(time.Now())
+	assertShiftedToToday(t, shop, today.AddDate(0, 0, -2), today.AddDate(0, 0, -1), 7)
 }
 
 // The seed ran at some hour of its day and the shift keeps that hour, so a
@@ -380,7 +426,7 @@ func TestDemoShiftOffersShippingFromMidnight(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)
 	ageSnapshot(t, shop, 3)
-	if out, err := runSeed(t, "demo_shift.sql", shop.Config().ConnString(), shiftArgs(shop, 3)...); err != nil {
+	if out, err := runSeed(t, "demo_shift.sql", shop.Config().ConnString(), shiftArgs(shop, shopDaysAgo(3))...); err != nil {
 		t.Fatalf("seed/demo_shift.sql 3 days after the snapshot: %v\n%s", err, out)
 	}
 

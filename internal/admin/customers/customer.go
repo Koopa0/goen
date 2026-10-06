@@ -95,14 +95,19 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	row, err := q.AdminCustomer(ctx, db.AdminCustomerParams{
-		UserID: uid, WindowDays: loyalty.MembershipWindowDays, Locale: string(i18n.FromContext(ctx)),
-	})
+	row, err := q.AdminCustomer(ctx, uid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.CustomerView{}, ErrNotFound
 		}
 		return admin.CustomerView{}, fmt.Errorf("read customer: %w", err)
+	}
+
+	standing, err := q.MemberStanding(ctx, db.MemberStandingParams{
+		UserID: uid, WindowDays: loyalty.MembershipWindowDays, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return admin.CustomerView{}, fmt.Errorf("read customer standing: %w", err)
 	}
 
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
@@ -128,7 +133,8 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
-		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: row.WindowSpendCents, NextTierName: row.NextTierName, NextTierCents: row.NextTierCents,
+		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: standing.SpendCents, NextTierName: standing.NextName,
+		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {
 		o := &orders[i]
