@@ -691,8 +691,8 @@ templ Variants(p layouts.Page, v VariantsView) {
 		<section aria-labelledby="stock-list-heading">
 			<h2 class="goen-sr-only" id="stock-list-heading">{ i18n.T(ctx, i18n.KeyAdminStockList) }</h2>
 			<form class="goen-admin__search" method="get" action="/admin/stock">
-				if v.LowOnly {
-					<input type="hidden" name="low" value="1"/>
+				if v.SoldOutOnly {
+					<input type="hidden" name="soldout" value="1"/>
 				}
 				<label class="goen-sr-only" for="stock-search">{ i18n.T(ctx, i18n.KeyAdminStockSearch) }</label>
 				<input
@@ -710,14 +710,14 @@ templ Variants(p layouts.Page, v VariantsView) {
 				<a
 					class="ui-filter"
 					href={ templ.SafeURL(v.AllHref()) }
-					if !v.LowOnly {
+					if !v.SoldOutOnly {
 						aria-current="page"
 					}
 				>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
 				<a
 					class="ui-filter"
-					href={ templ.SafeURL(v.LowHref()) }
-					if v.LowOnly {
+					href={ templ.SafeURL(v.SoldOutHref()) }
+					if v.SoldOutOnly {
 						aria-current="page"
 					}
 				>{ i18n.T(ctx, i18n.KeyAdminQueueSoldOutOnly) }</a>

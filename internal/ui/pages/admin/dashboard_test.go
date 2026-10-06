@@ -199,7 +199,7 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			if !strings.Contains(html, `href="/admin/reports#stock"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueStatSoldOut)) {
 				t.Error("the sold-out task row does not link to the report's stock section")
 			}
-			if strings.Contains(html, "/admin/stock?low=1") {
+			if strings.Contains(html, "/admin/stock?soldout=1") {
 				t.Error("the dashboard still links to the low-stock list")
 			}
 		})

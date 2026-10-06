@@ -636,11 +636,11 @@ func TestAnInactiveVariantAtItsSafetyStockIsNotCountedAsSoldOut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dashboard: %v", err)
 		}
-		low, err := s.Variants(ctx, true, "")
+		soldOut, err := s.Variants(ctx, true, "")
 		if err != nil {
-			t.Fatalf("Variants(low): %v", err)
+			t.Fatalf("Variants(sold out): %v", err)
 		}
-		return view.SoldOut, len(low.Variants)
+		return view.SoldOut, len(soldOut.Variants)
 	}
 	counted, listed := read()
 

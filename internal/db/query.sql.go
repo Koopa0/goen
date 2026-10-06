@@ -2662,7 +2662,7 @@ LIMIT $9::integer
 
 type AdminVariantsParams struct {
 	Locale        string
-	LowOnly       bool
+	SoldOutOnly   bool
 	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
@@ -2692,7 +2692,7 @@ type AdminVariantsRow struct {
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
 		arg.Locale,
-		arg.LowOnly,
+		arg.SoldOutOnly,
 		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,

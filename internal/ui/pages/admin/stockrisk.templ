@@ -59,7 +59,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 		</ul>
 		if moreSoldOut > 0 {
 			<p class="goen-admin__hint">
-				<a href="/admin/stock?low=1">{ i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut) }</a>
+				<a href="/admin/stock?soldout=1">{ i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut) }</a>
 			</p>
 		}
 	}

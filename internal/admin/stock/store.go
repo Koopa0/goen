@@ -1,4 +1,4 @@
-// Package stock is the back office's stock desk: the variants list with its low
+// Package stock is the back office's stock desk: the variants list with its sold-out
 // filter, one variant's movement ledger, and the writes that move stock, retire
 // a variant or reprice it.
 package stock
@@ -62,24 +62,24 @@ type movementPosition struct {
 	At time.Time
 }
 
-func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
+func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, after ...string) (admin.VariantsView, error) {
 	term = web.SearchTerm(term)
-	low := ""
-	if lowOnly {
-		low = "1"
+	soldOut := ""
+	if soldOutOnly {
+		soldOut = "1"
 	}
-	scope := web.ScopeURL("/admin/stock", "low", low, "q", term)
+	scope := web.ScopeURL("/admin/stock", "soldout", soldOut, "q", term)
 	from, resumed := web.ResumeKeyset(scope, after, func(p variantPosition) bool {
 		// Postgres refuses a NUL in text, so a crafted name would turn a bad link
 		// into a 500 instead of the first page.
 		return p.ID != uuid.Nil && !strings.ContainsRune(p.Name, 0)
 	})
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{Bound: bound, LowOnly: lowOnly, Term: term}
+	view := admin.VariantsView{Bound: bound, SoldOutOnly: soldOutOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}

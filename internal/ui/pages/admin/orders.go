@@ -583,10 +583,10 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 type VariantsView struct {
 	web.Bound
 
-	Variants []Variant
-	LowOnly  bool
-	Term     string
-	Notice   components.Result
+	Variants    []Variant
+	SoldOutOnly bool
+	Term        string
+	Notice      components.Result
 	// ShowCover is set on the desk's opening page only: not on a search, the
 	// sold out filter or a later page of the list.
 	ShowCover   bool
@@ -599,7 +599,9 @@ type VariantsView struct {
 
 func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
 
-func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "low", "1", "q", v.Term) }
+func (v VariantsView) SoldOutHref() string {
+	return web.ScopeURL("/admin/stock", "soldout", "1", "q", v.Term)
+}
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 

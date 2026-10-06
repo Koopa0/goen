@@ -245,11 +245,11 @@ func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
 		AtRisk: []StockRisk{{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 	}
 	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view))
-	if want := `<a href="/admin/stock?low=1">2 more items sold out</a>`; !strings.Contains(html, want) {
+	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(html, want) {
 		t.Errorf("the stock section lacks %s", want)
 	}
 	view.MoreSoldOut = 0
-	if html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?low=1") {
+	if html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?soldout=1") {
 		t.Error("the stock section links to the sold out filter with none left off")
 	}
 }
