@@ -158,7 +158,7 @@ Dynamic requests, the back office included, get a 25-second context. Static asse
 
 ### Read cost
 
-A category listing normally issues 12 queries (8 for the listing, 3 for navigation, 1 for the banner); a signed-in visitor with a cart adds about 3. Images and SQL inside functions are not counted. See the [listing][catalog-store] and [navigation][home-banner].
+A category listing issues one query per part of the page (the listing and its facets, navigation, the banner) rather than one per product; a signed-in visitor with a cart adds a few. Images and SQL inside functions are not counted. See the [listing][catalog-store] and [navigation][home-banner].
 
 Search matches products, SKUs, brands, specs, and categories with escaped, length-bounded `ILIKE`; watch scans, sorting, and facets as data grows. Banners reflect changes immediately and navigation picks carry prices, so caching needs a freshness contract first: anonymous HTML can still vary by locale or cart, while content-versioned assets can be shared. See [catalog SQL][catalog-query].
 
