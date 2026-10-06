@@ -52,9 +52,10 @@ func Settle(ctx context.Context, q *db.Queries, o *Order) (creditReturnedCents i
 		return 0, fmt.Errorf("return store credit spent on %s: %w", o.Number, err)
 	}
 
-	if err := q.RecordCancellation(ctx, db.RecordCancellationParams{
+	err = q.RecordCancellation(ctx, db.RecordCancellationParams{
 		OrderID: o.ID, ActorUserID: o.Actor, BySystem: o.Kind == email.TerminalCancelledByPaymentDeadline,
-	}); err != nil {
+	})
+	if err != nil {
 		return 0, fmt.Errorf("record cancellation of %s: %w", o.Number, err)
 	}
 

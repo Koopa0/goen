@@ -103,11 +103,7 @@ WITH target AS (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
-               AS card_capacity_cents,
-           coalesce(order_amount_after_credit(o.id) = 0
-                    AND EXISTS (SELECT 1 FROM store_credit_entries s
-                                WHERE s.order_id = o.id AND s.amount_cents < 0),
-                    false)::boolean AS paid_by_credit
+               AS card_capacity_cents
     FROM orders o WHERE o.order_number = @order_number::text
 )
 SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,

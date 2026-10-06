@@ -29,6 +29,7 @@ import (
 // store credit alone paid it comes from the one definition, PaidByCreditAlone.
 type beforeShipment struct {
 	db.BeforeShipmentRefundRow
+
 	PaidByCredit bool
 }
 
