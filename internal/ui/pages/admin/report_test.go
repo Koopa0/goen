@@ -390,7 +390,7 @@ func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	v.DailyUnavailable = true
 	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
 
-	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
+	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminChartUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
 		t.Errorf("the page does not say the chart is unavailable: want %s", want)
 	}
 	if strings.Contains(html, `class="goen-chart"`) {
@@ -507,7 +507,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 		"Paid orders per day",
 		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
 		`<p class="goen-chart__note">Paid orders only, by the time placed. Today is counted up to 15:20.</p>`,
-		`<th scope="col">Paid orders</th>`,
+		`<th scope="col" data-readout="series">Paid orders</th>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the page does not contain %s", want)

@@ -1,0 +1,25 @@
+package chart
+
+import "strconv"
+
+// Sparkline is the days of two periods as small columns under a figure. Fewer
+// than three days with a value, and it draws nothing.
+templ Sparkline(p SparklineProps) {
+	if s, ok := newSparkline(p); ok {
+		<span class="goen-spark" aria-hidden="true">
+			<svg width="100%" height={ strconv.Itoa(sparkHeight) } focusable="false">
+				for _, b := range s.Bars {
+					<rect class={ b.Class } x={ b.X } y={ b.Y } width={ b.Width } height={ b.Height }></rect>
+				}
+				<line class="goen-spark__base" x1="0" x2="100%" y1={ strconv.Itoa(sparkBaseline) } y2={ strconv.Itoa(sparkBaseline) }></line>
+				if s.TodayX != "" {
+					<line class="goen-chart__todaymark" x1={ s.TodayX } x2={ s.TodayX } y1={ strconv.Itoa(sparkBaseline) } y2={ strconv.Itoa(sparkHeight) }></line>
+				}
+			</svg>
+			<span class="goen-spark__keys">
+				<span>{ p.Previous.Label }</span>
+				<span>{ p.Current.Label }</span>
+			</span>
+		</span>
+	}
+}

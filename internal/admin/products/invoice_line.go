@@ -79,7 +79,7 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Request, facts invoice.LineTerms, errs map[string]string) {
-	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
+	view, err := h.product(r.Context(), r.PathValue("slug"))
 	if errors.Is(err, ErrNotFound) {
 		access.NotFound(w, r, h.log)
 		return

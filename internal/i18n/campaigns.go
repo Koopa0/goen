@@ -165,4 +165,34 @@ var (
 	KeyAdminCampaignTitleEnLength = key("admin.campaign.title_en_length", Message{ZhHant: "英文活動標題不得超過 60 字。", En: "Use at most 60 characters for the English campaign title."})
 	KeyAdminCampaignTitleEn       = key("admin.campaign.title_en", Message{ZhHant: "英文活動標題（選填）", En: "English campaign title (optional)"})
 	KeyAdminCampaignTitleEnHint   = key("admin.campaign.title_en_hint", Message{ZhHant: "留白時，英文頁面會顯示原活動標題。", En: "Leave blank to show the original campaign title on English pages."})
+
+	KeyAdminCampResults = key("admin.camp.results", Message{ZhHant: "成效", En: "Results"})
+
+	// %[1]s is a number of days, %[2]s the units sold in the first of them since
+	// the campaign began, %[3]s the units sold in as many days before it.
+	KeyAdminCampFacts = key("admin.camp.facts", Message{
+		ZhHant: "活動開始後的 %[1]s 售出 %[2]s；開始前的 %[1]s 售出 %[3]s。",
+		En:     "%[2]s sold in the campaign's first %[1]s; %[3]s in the %[1]s before.",
+	})
+
+	// What the columns wait for: %[1]s is a number of days, %[2]s a number of units.
+	KeyAdminCampFactsHint = key("admin.camp.facts.hint", Message{
+		ZhHant: "活動滿 %[1]s、前後合計售出 %[2]s 後，這裡會畫出每日直條。",
+		En:     "The daily columns appear once the campaign has run %[1]s and %[2]s have sold, before and during.",
+	})
+
+	KeyAdminCampResultsNote = countKey("admin.camp.results.note",
+		"只計活動目前的 %d 件商品；改了商品清單，這些數字也跟著變。",
+		"Counts the campaign's current %d product; change the list and these figures change with it.",
+		"Counts the campaign's current %d products; change the list and these figures change with it.")
+
+	// What the units are, once today is no longer counted.
+	KeyAdminCampBasis = key("admin.camp.basis", Message{ZhHant: "只計入已付款的訂單，依下單時間。", En: "Paid orders only, by the time placed."})
+
+	KeyAdminCampUnits = key("admin.camp.units", Message{ZhHant: "件數", En: "Units"})
+
+	KeyAdminCampPeriod = key("admin.camp.period", Message{ZhHant: "時段", En: "Period"})
+
+	// The days before a campaign began, which it is compared with.
+	KeyAdminCampBefore = key("admin.camp.before", Message{ZhHant: "活動前", En: "Before"})
 )

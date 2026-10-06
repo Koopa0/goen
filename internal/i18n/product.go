@@ -174,6 +174,8 @@ var (
 		En:     "Add a product",
 	})
 
+	KeyAdminProdPublished = countKey("admin.prod.published", "上架中 %d 項商品", "%d product published", "%d products published")
+
 	KeyAdminProdLead = key("admin.prod.lead", Message{
 		ZhHant: "新商品是草稿，加了變體、確認資料之後再上架。",
 		En: "A new product is a draft. Add its variants, check the details, and publish it " +

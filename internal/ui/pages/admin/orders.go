@@ -103,8 +103,8 @@ type DashboardView struct {
 	// waiting item has waited, on the database's clock.
 	ReadyOldestSeconds        int64
 	PickingOrders             int64
+	PickingOldestSeconds      int64
 	SoldOut                   int64
-	ActiveProducts            int64
 	OpenMessages              int64
 	OpenMessagesOldestSeconds int64
 	// PendingReturns is the requests nobody has decided, UninspectedReturns the
@@ -125,6 +125,13 @@ type DashboardView struct {
 	// HealthUnavailable is set when the health desk could not be read, so an
 	// absent payment or invoice task is not taken for "nothing to check".
 	HealthUnavailable bool
+	// Week is the last seven days; WeekUnavailable says it could not be read,
+	// which is not the same as a week without orders. Likewise Latest, nil when
+	// no order was ever paid, and LatestUnavailable.
+	Week              Week
+	WeekUnavailable   bool
+	Latest            *LatestPaid
+	LatestUnavailable bool
 }
 
 // Task is one kind of work that waits for a person: what it is, how much of
@@ -156,6 +163,8 @@ func (t Task) AgeText(ctx context.Context) string {
 func (v *DashboardView) DeskTasks() []Task {
 	all := []Task{
 		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
+		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: v.PickingOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatPending, Count: v.PendingOrders, Href: "/admin/orders?status=pending"},
 		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
 		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions", HasAge: true, AgeSeconds: v.UnansweredQuestionsOldestSeconds},
