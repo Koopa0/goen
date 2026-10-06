@@ -87,12 +87,7 @@ JOIN LATERAL (
     -- A buyable variant first: the price on a tile is a promise. Falls back to
     -- the cheapest overall so a sold-out product still shows what it costs. On a
     -- campaign's row a discounted variant leads, as on the campaign's own page.
-    ORDER BY (sqlc.narg(campaign_id)::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
-             (stock_quantity > safety_stock) DESC,
-             (sqlc.narg(campaign_id)::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
-             price_cents
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
