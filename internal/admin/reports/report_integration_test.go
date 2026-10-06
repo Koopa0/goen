@@ -308,7 +308,7 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	s := reports.NewStore(pool)
 
 	roomy := soldVariant(t, 9, 5, 10)
-	var idle []string
+	idle := make([]string, 0, 4)
 	for range 4 {
 		_, sku := newVariant(t, 2, 2)
 		idle = append(idle, sku)
@@ -381,7 +381,7 @@ func TestStockWindowIsWholeShopDays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
-	row, ok := stockRow(view, sku)
+	row, ok := stockRow(&view, sku)
 	if !ok {
 		t.Fatalf("report lacks %s", sku)
 	}
@@ -416,15 +416,15 @@ func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
-	row, ok := stockRow(view, inStock)
+	row, ok := stockRow(&view, inStock)
 	if !ok {
 		t.Fatalf("report lacks %s", inStock)
 	}
 	if want := 14*24*time.Hour + 15*time.Hour + 20*time.Minute; row.InStock != want {
 		t.Errorf("received on 02-25 into a window from 02-10 to 03-10 15:20: in stock %v, want %v", row.InStock, want)
 	}
-	laterAt, laterOK := indexOf(view, later)
-	earlierAt, earlierOK := indexOf(view, earlier)
+	laterAt, laterOK := indexOf(&view, later)
+	earlierAt, earlierOK := indexOf(&view, earlier)
 	if !laterOK || !earlierOK {
 		t.Fatalf("report lacks a sold out variant: %s listed %v, %s listed %v", later, laterOK, earlier, earlierOK)
 	}
@@ -436,7 +436,7 @@ func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 	}
 }
 
-func indexOf(view admin.ReportView, sku string) (int, bool) {
+func indexOf(view *admin.ReportView, sku string) (int, bool) {
 	for i, r := range view.AtRisk {
 		if r.SKU == sku {
 			return i, true
@@ -445,7 +445,7 @@ func indexOf(view admin.ReportView, sku string) (int, bool) {
 	return 0, false
 }
 
-func stockRow(view admin.ReportView, sku string) (admin.StockRisk, bool) {
+func stockRow(view *admin.ReportView, sku string) (admin.StockRisk, bool) {
 	i, ok := indexOf(view, sku)
 	if !ok {
 		return admin.StockRisk{}, false
@@ -484,7 +484,7 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 }
 
 // newVariant makes an active variant holding stock with the given safety level.
-func newVariant(t *testing.T, stock, safety int) (uuid.UUID, string) {
+func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -494,7 +494,7 @@ func newVariant(t *testing.T, stock, safety int) (uuid.UUID, string) {
 	}
 	defer pgtx.Rollback(ctx, tx)
 
-	var productID, variantID uuid.UUID
+	var productID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		SELECT b.id, c.id, 'runway-' || gen_random_uuid(), '庫存天數商品', 'draft', now()
@@ -503,11 +503,10 @@ func newVariant(t *testing.T, stock, safety int) (uuid.UUID, string) {
 		RETURNING id`).Scan(&productID); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	var sku string
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
 		VALUES ($1, 'RUNWAY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, $2, $3)
-		RETURNING id, sku`, productID, stock, safety).Scan(&variantID, &sku); err != nil {
+		RETURNING id, sku`, productID, stock, safety).Scan(&id, &sku); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
@@ -516,7 +515,7 @@ func newVariant(t *testing.T, stock, safety int) (uuid.UUID, string) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
-	return variantID, sku
+	return id, sku
 }
 
 // orderOnVariant places one paid order of units on the variant at placedAt, or

@@ -204,6 +204,8 @@ func RankStockRisk(rows []StockRisk, limit int) (listed []StockRisk, moreSoldOut
 		)
 	})
 	shown := min(len(soldOut), coverMaxSoldOut, limit)
-	listed = append(soldOut[:shown:shown], rest...)
+	listed = make([]StockRisk, 0, len(rows))
+	listed = append(listed, soldOut[:shown]...)
+	listed = append(listed, rest...)
 	return listed[:min(len(listed), limit)], len(soldOut) - shown
 }
