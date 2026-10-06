@@ -9,13 +9,17 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -157,3 +161,186 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 type healthDesk struct{ err error }
 
 func (d healthDesk) Tasks(context.Context) ([]admin.Task, error) { return nil, d.err }
+
+// The dashboard ages a ready order from the moment it was funded and the health
+// desk lists the same moment for the same order. The two read it through
+// separate queries, so each case asserts both against one known instant.
+func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	desk := health.NewStore(isolated)
+
+	readyAge := func() (admin.Task, bool) {
+		t.Helper()
+		v, err := s.Dashboard(t.Context())
+		if err != nil {
+			t.Fatalf("Dashboard: %v", err)
+		}
+		for _, task := range v.Tasks {
+			if task.Label == i18n.KeyAdminStatusReadyToPick {
+				return task, true
+			}
+		}
+		return admin.Task{}, false
+	}
+	fundedAtOnHealthDesk := func(number string) string {
+		t.Helper()
+		rows, _, err := desk.UninvoicedOrders(t.Context(), 0)
+		if err != nil {
+			t.Fatalf("UninvoicedOrders: %v", err)
+		}
+		for _, r := range rows {
+			if r.OrderNumber == number {
+				return r.Since
+			}
+		}
+		t.Fatalf("the health desk does not list paid order %s", number)
+		return ""
+	}
+	assertAge := func(since time.Time, number string) {
+		t.Helper()
+		task, ok := readyAge()
+		if !ok || !task.HasAge {
+			t.Fatalf("the ready-orders task = %+v, want one carrying an age", task)
+		}
+		if want := int64(time.Since(since).Seconds()); task.AgeSeconds < want-60 || task.AgeSeconds > want+60 {
+			t.Errorf("ready orders have waited %d s, want about %d s (funded %s)", task.AgeSeconds, want, since)
+		}
+		if got, want := fundedAtOnHealthDesk(number), shoptime.Minute(since); got != want {
+			t.Errorf("health desk funded %s at %s, dashboard ages it from %s", number, got, want)
+		}
+	}
+
+	// Store credit paid it in full: no payment and no paid event, so the age
+	// starts at placed_at.
+	creditNumber, creditPlaced := placeOrderPaidByCredit(t, isolated, 2*24*time.Hour)
+	assertAge(creditPlaced, creditNumber)
+	if task, _ := readyAge(); task.AgeSeconds/86400 != 2 {
+		t.Errorf("an owes-nothing order placed two days ago is %d days old, want 2", task.AgeSeconds/86400)
+	}
+
+	// A card payment the provider confirmed three days ago, though recorded now.
+	cardNumber, cardPaid := captureCardPaidAgo(t, isolated, 3*24*time.Hour)
+	assertAge(cardPaid, cardNumber)
+	if task, _ := readyAge(); task.AgeSeconds/86400 != 3 {
+		t.Errorf("a card order paid three days ago is %d days old, want 3", task.AgeSeconds/86400)
+	}
+}
+
+// The age of an approved return that nobody has opened starts at the decision,
+// not the request.
+func TestTheDashboardAgesAnUninspectedReturnFromItsDecision(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	requestID := admintest.PreapprovedReturn(t, isolated)
+	var decided time.Time
+	if err := isolated.QueryRow(t.Context(),
+		`SELECT decided_at FROM return_requests WHERE id = $1`, requestID).Scan(&decided); err != nil {
+		t.Fatalf("read decided_at: %v", err)
+	}
+	tx, err := isolated.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(t.Context(), tx)
+	// Triggers off only to write a request date older than its own decision.
+	if _, err = tx.Exec(t.Context(), `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Fatalf("disable triggers: %v", err)
+	}
+	if _, err = tx.Exec(t.Context(),
+		`UPDATE return_requests SET created_at = decided_at - interval '5 days' WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("backdate the request: %v", err)
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	v, err := s.Dashboard(t.Context())
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+	for _, task := range v.Tasks {
+		if task.Label != i18n.KeyAdminQueueTaskUninspected {
+			continue
+		}
+		if want := int64(time.Since(decided).Seconds()); task.AgeSeconds < want-60 || task.AgeSeconds > want+60 {
+			t.Errorf("uninspected return has waited %d s, want about %d s since the decision", task.AgeSeconds, want)
+		}
+		return
+	}
+	t.Fatal("the dashboard lists no uninspected return")
+}
+
+// placeOrderPaidByCredit places a pending order whose store credit covers all
+// of it, placed this long ago.
+func placeOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (number string, placedAt time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	const cents = 5000
+	userID := admintest.CreditedAccount(t, pool, cents)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	var orderID uuid.UUID
+	if err = tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents, placed_at)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, now() - make_interval(secs => $2)
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number, placed_at`, userID, ago.Seconds()).Scan(&orderID, &number, &placedAt); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'c@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'AGE-SKU', '帳齡測試', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
+		userID, -cents, orderID, "spend:"+orderID.String()); err != nil {
+		t.Fatalf("spend credit: %v", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, placedAt
+}
+
+// captureCardPaidAgo captures a card payment whose confirming webhook event
+// says Stripe took the money this long ago, which is where capture_payment
+// takes paid_at from.
+func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (number string, paidAt time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	const cents = 8000
+	orderID := admintest.OrderForCustomer(t, pool, admintest.Customer(t, pool), cents, false)
+	paidAt = time.Now().Add(-ago).Truncate(time.Second)
+	ref := "cs_age_" + orderID.String()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload)
+		VALUES ('stripe', $1, 'checkout.session.completed', $2,
+		        jsonb_build_object('created', $3::bigint,
+		                           'data', jsonb_build_object('object',
+		                               jsonb_build_object('payment_status', 'paid'))))`,
+		"evt_age_"+orderID.String(), ref, paidAt.Unix()); err != nil {
+		t.Fatalf("record the confirming event: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(cents)); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(cents)); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, orderID).Scan(&number); err != nil {
+		t.Fatalf("read order number: %v", err)
+	}
+	return number, paidAt
+}

@@ -2422,12 +2422,25 @@ SELECT
        AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
+    -- Waiting since the order was funded, read as admin/health reads it
+    -- (UninvoicedOrders); placed_at is the fallback for an order store credit
+    -- paid in full, which has no payment and no paid event.
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                 (SELECT min(e.occurred_at) FROM order_events e
+                  WHERE e.order_id = o.id AND e.kind = 'paid'),
+                 (SELECT max(p.paid_at) FROM payments p
+                  WHERE p.order_id = o.id AND p.status = 'succeeded'),
+                 o.placed_at))), 0), 0)::bigint
+     FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) AS ready_oldest_seconds,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint FROM contact_messages WHERE handled_at IS NULL) AS open_messages_oldest_seconds,
     (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint FROM return_requests WHERE status = 'requested') AS pending_returns_oldest_seconds,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
     (SELECT count(*) FROM return_requests r
@@ -2435,25 +2448,41 @@ SELECT
        AND EXISTS (SELECT 1 FROM return_request_lines rl
                    WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
     )::bigint AS uninspected_returns,
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(r.decided_at)), 0), 0)::bigint
+     FROM return_requests r
+     WHERE r.status = 'approved' AND NOT r.before_shipment
+       AND EXISTS (SELECT 1 FROM return_request_lines rl
+                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
+    ) AS uninspected_returns_oldest_seconds,
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
     (SELECT count(*) FROM product_questions q
      WHERE q.hidden_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM product_answers a
                        WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
-    )::bigint AS unanswered_questions
+    )::bigint AS unanswered_questions,
+    (SELECT coalesce(greatest(extract(epoch FROM now() - min(q.created_at)), 0), 0)::bigint FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    ) AS unanswered_questions_oldest_seconds
 `
 
 type AdminSummaryRow struct {
-	PendingOrders       int64
-	ReadyOrders         int64
-	PickingOrders       int64
-	LowStock            int64
-	ActiveProducts      int64
-	OpenMessages        int64
-	PendingReturns      int64
-	UninspectedReturns  int64
-	UnansweredQuestions int64
+	PendingOrders                    int64
+	ReadyOrders                      int64
+	ReadyOldestSeconds               int64
+	PickingOrders                    int64
+	LowStock                         int64
+	ActiveProducts                   int64
+	OpenMessages                     int64
+	OpenMessagesOldestSeconds        int64
+	PendingReturns                   int64
+	PendingReturnsOldestSeconds      int64
+	UninspectedReturns               int64
+	UninspectedReturnsOldestSeconds  int64
+	UnansweredQuestions              int64
+	UnansweredQuestionsOldestSeconds int64
 }
 
 func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
@@ -2462,13 +2491,18 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 	err := row.Scan(
 		&i.PendingOrders,
 		&i.ReadyOrders,
+		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
 		&i.LowStock,
 		&i.ActiveProducts,
 		&i.OpenMessages,
+		&i.OpenMessagesOldestSeconds,
 		&i.PendingReturns,
+		&i.PendingReturnsOldestSeconds,
 		&i.UninspectedReturns,
+		&i.UninspectedReturnsOldestSeconds,
 		&i.UnansweredQuestions,
+		&i.UnansweredQuestionsOldestSeconds,
 	)
 	return i, err
 }
@@ -3583,7 +3617,9 @@ func (q *Queries) CancelPayment(ctx context.Context, providerRef string) error {
 }
 
 const cancelledOrderInvoices = `-- name: CancelledOrderInvoices :many
-SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(o.cancelled_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.fulfillment_status = 'cancelled'
@@ -3599,11 +3635,12 @@ LIMIT 50
 `
 
 type CancelledOrderInvoicesRow struct {
-	OrderNumber string
-	Number      string
-	AmountCents int64
-	IssuedAt    time.Time
-	Total       int64
+	OrderNumber   string
+	Number        string
+	AmountCents   int64
+	IssuedAt      time.Time
+	Total         int64
+	OldestSeconds int64
 }
 
 // Issued invoices of cancelled orders that nothing relieved and nothing is
@@ -3625,6 +3662,7 @@ func (q *Queries) CancelledOrderInvoices(ctx context.Context, olderThan pgtype.I
 			&i.AmountCents,
 			&i.IssuedAt,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -16185,7 +16223,9 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
            AS can_authorize_resend,
-       count(*) OVER () AS total
+       count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(op.created_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
@@ -16212,6 +16252,7 @@ type StrandedInvoiceClaimsRow struct {
 	CreatedAt          time.Time
 	CanAuthorizeResend bool
 	Total              int64
+	OldestSeconds      int64
 }
 
 // Durable e-invoice operations which either explicitly alarmed or have remained
@@ -16240,6 +16281,7 @@ func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceC
 			&i.CreatedAt,
 			&i.CanAuthorizeResend,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -16419,7 +16461,9 @@ func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAcce
 }
 
 const uninvoicedOrders = `-- name: UninvoicedOrders :many
-SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total
+SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(f.funded_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM orders o
 CROSS JOIN LATERAL (
     SELECT coalesce(
@@ -16446,10 +16490,11 @@ LIMIT 50
 `
 
 type UninvoicedOrdersRow struct {
-	OrderNumber string
-	FundedAt    time.Time
-	AmountCents int64
-	Total       int64
+	OrderNumber   string
+	FundedAt      time.Time
+	AmountCents   int64
+	Total         int64
+	OldestSeconds int64
 }
 
 // Orders with money received and no invoice operation at all, read without
@@ -16473,6 +16518,7 @@ func (q *Queries) UninvoicedOrders(ctx context.Context, olderThan pgtype.Interva
 			&i.FundedAt,
 			&i.AmountCents,
 			&i.Total,
+			&i.OldestSeconds,
 		); err != nil {
 			return nil, err
 		}

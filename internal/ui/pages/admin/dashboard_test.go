@@ -64,17 +64,34 @@ func TestTheDashboardListsOnlyWhatWaitsForAPerson(t *testing.T) {
 	t.Run("each task is a link with its count", func(t *testing.T) {
 		t.Parallel()
 		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Tasks: []Task{
-			{Label: i18n.KeyAdminHPClaimsHeading, Count: 52, Href: "/admin/health"},
-			{Label: i18n.KeyAdminQueueStatQuestions, Count: 7, Href: "/admin/questions"},
+			{Label: i18n.KeyAdminQueueTaskClaims, Count: 52, Href: "/admin/health#claims-heading", HasAge: true, AgeSeconds: 0},
+			{Label: i18n.KeyAdminQueueStatQuestions, Count: 7, Href: "/admin/questions", HasAge: true, AgeSeconds: 3*86400 + 1},
+			{Label: i18n.KeyAdminQueueStatLowStock, Count: 2, Href: "/admin/stock?low=1"},
 		}}))
 		for _, want := range []string{
 			i18n.T(ctx, i18n.KeyAdminQueueTasksHeading),
-			`href="/admin/health"`, i18n.T(ctx, i18n.KeyAdminHPClaimsHeading), ">52<",
-			`href="/admin/questions"`, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions), ">7<",
+			`href="/admin/health#claims-heading"`, i18n.T(ctx, i18n.KeyAdminQueueTaskClaims), ">52<", "不到 1 天",
+			`href="/admin/questions"`, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions), ">7<", "最久 3 天",
+			`href="/admin/stock?low=1"`, ">2<",
 		} {
 			if !strings.Contains(html, want) {
 				t.Errorf("the task list does not carry %q", want)
 			}
+		}
+		lowStock := html[strings.Index(html, `href="/admin/stock?low=1"`):]
+		if end := strings.Index(lowStock, "</li>"); strings.Contains(lowStock[:end], "goen-admin__taskage") {
+			t.Error("the low-stock task, which has no start time, carries an age")
+		}
+	})
+
+	t.Run("a task that is wrong rather than waiting is marked", func(t *testing.T) {
+		t.Parallel()
+		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Tasks: []Task{
+			{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
+			{Label: i18n.KeyAdminQueueStatMessages, Count: 1, Href: "/admin/messages"},
+		}}))
+		if got := strings.Count(html, "goen-admin__task--alert"); got != 1 {
+			t.Errorf("alert marks = %d, want 1: only the health task", got)
 		}
 	})
 }
@@ -84,10 +101,13 @@ func TestDeskTasksLeaveOutWhatIsNotWaiting(t *testing.T) {
 	if got := (&DashboardView{PendingOrders: 4, PickingOrders: 2, ActiveProducts: 9}).DeskTasks(); len(got) != 0 {
 		t.Errorf("DeskTasks() with only figures = %v, want none", got)
 	}
-	v := &DashboardView{UninspectedReturns: 2, UnansweredQuestions: 1}
+	v := &DashboardView{
+		UninspectedReturns: 2, UninspectedReturnsOldestSeconds: 90,
+		UnansweredQuestions: 1, UnansweredQuestionsOldestSeconds: 30,
+	}
 	want := []Task{
-		{Label: i18n.KeyAdminQueueTaskUninspected, Count: 2, Href: "/admin/returns"},
-		{Label: i18n.KeyAdminQueueStatQuestions, Count: 1, Href: "/admin/questions"},
+		{Label: i18n.KeyAdminQueueTaskUninspected, Count: 2, Href: "/admin/returns", HasAge: true, AgeSeconds: 90},
+		{Label: i18n.KeyAdminQueueStatQuestions, Count: 1, Href: "/admin/questions", HasAge: true, AgeSeconds: 30},
 	}
 	if got := v.DeskTasks(); !slices.Equal(got, want) {
 		t.Errorf("DeskTasks() = %v, want %v", got, want)
@@ -102,15 +122,16 @@ func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
 	v := &WorkerHealthView{
 		UnreconciledPayments: 1, StrandedClaimCount: 73, UninvoicedCount: 2,
 		CancelledOrderInvoiceCount: 3, OpenRefundCount: 4,
+		StrandedClaimOldestSeconds: 100, UninvoicedOldestSeconds: 200, CancelledOrderInvoiceOldestSeconds: 300,
 		ExpiredHolds: 51, MaxExpiredHolds: 50,
 	}
 	want := []Task{
-		{Label: i18n.KeyAdminHPUnreconciledHeading, Count: 1, Href: "/admin/health"},
-		{Label: i18n.KeyAdminHPClaimsHeading, Count: 73, Href: "/admin/health"},
-		{Label: i18n.KeyAdminHPUninvoicedHeading, Count: 2, Href: "/admin/health"},
-		{Label: i18n.KeyAdminHPCancelledOrderInvoicesHeading, Count: 3, Href: "/admin/health"},
-		{Label: i18n.KeyAdminHPOpenRefundsHeading, Count: 4, Href: "/admin/health"},
-		{Label: i18n.KeyAdminQueueTaskHolds, Count: 51, Href: "/admin/health"},
+		{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
+		{Label: i18n.KeyAdminQueueTaskClaims, Count: 73, Href: "/admin/health#claims-heading", Alert: true, HasAge: true, AgeSeconds: 100},
+		{Label: i18n.KeyAdminQueueTaskUninvoiced, Count: 2, Href: "/admin/health#uninvoiced-heading", Alert: true, HasAge: true, AgeSeconds: 200},
+		{Label: i18n.KeyAdminHPCancelledOrderInvoicesHeading, Count: 3, Href: "/admin/health#cancelled-order-invoices-heading", Alert: true, HasAge: true, AgeSeconds: 300},
+		{Label: i18n.KeyAdminHPOpenRefundsHeading, Count: 4, Href: "/admin/health#refunds-heading", Alert: true},
+		{Label: i18n.KeyAdminQueueTaskHolds, Count: 51, Href: "/admin/health", Alert: true},
 	}
 	if got := v.Tasks(); !slices.Equal(got, want) {
 		t.Errorf("Tasks() = %v, want %v", got, want)
