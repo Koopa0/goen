@@ -29,6 +29,7 @@ var (
 	ErrHasReturn      = fmt.Errorf("%w: the order already has a return", refundstate.ErrRefused)
 	ErrOrderCancelled = fmt.Errorf("%w: the order is cancelled", refundstate.ErrRefused)
 	ErrNotPaid        = fmt.Errorf("%w: the order is not paid", refundstate.ErrRefused)
+	ErrOrderChanged   = fmt.Errorf("%w: the order changed since the page was read", refundstate.ErrRefused)
 	// ErrPayoutUnfit is a return whose recorded split, settled amounts or
 	// owner no longer allow its payout.
 	ErrPayoutUnfit = fmt.Errorf("%w: the payout does not fit the return", refundstate.ErrRefused)

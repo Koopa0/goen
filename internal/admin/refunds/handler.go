@@ -98,7 +98,8 @@ func refundNotice(err error) (string, bool) {
 		return "?refundunpaid=1", true
 	case pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		return "?refundpicking=1", true
-	case pgerr.IsConstraint(err, "return_before_shipment_eligible"),
+	case errors.Is(err, ErrOrderChanged),
+		pgerr.IsConstraint(err, "return_before_shipment_eligible"),
 		pgerr.IsConstraint(err, "orders_legal_transition"):
 		return "?refundchanged=1", true
 	case errors.Is(err, ErrPayoutUnfit),

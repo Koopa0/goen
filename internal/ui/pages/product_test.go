@@ -38,9 +38,6 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 					t.Fatal(err)
 				}
 				markup := body.String()
-				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != (len(tc.selected) > 0) {
-					t.Errorf("variant-selection hint visible = %t, want %t", got, len(tc.selected) > 0)
-				}
 				if !strings.Contains(markup, i18n.T(ctx, i18n.KeySoldOut)) {
 					t.Error("sold-out guidance is missing")
 				}

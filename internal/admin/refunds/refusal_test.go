@@ -35,6 +35,7 @@ func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {
 		{"cancelled between preview and cancel", refusedBy("orders_history_frozen"), "?refundcancelled=1", true},
 		{"packing started between preview and cancel", refusedBy("orders_paid_cancel_needs_refund"), "?refundpicking=1", true},
 		{"changed between preview and open", refusedBy("return_before_shipment_eligible"), "?refundchanged=1", true},
+		{"credit spend reversed under the lock", fmt.Errorf("order G1: %w", ErrOrderChanged), "?refundchanged=1", true},
 		{"illegal transition", refusedBy("orders_legal_transition"), "?refundchanged=1", true},
 		{"frozen split does not cover the return", refusedBy("refunds_sources_cover_return"), "?refundmismatch=1", true},
 		{"credit attribution", refusedBy("refunds_credit_attribution"), "?refundmismatch=1", true},
@@ -76,17 +77,21 @@ func TestWhyNotRefundableNamesWhatTheOrderIs(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
-		row  db.BeforeShipmentRefundRow
+		row  beforeShipment
 		want error
 	}{
-		{"cancelled", db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentCancelled), HasReturn: true}, ErrOrderCancelled},
-		{"shipped by status", db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentShipped), Committed: true}, ErrShipped},
-		{"a parcel left", db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true, Shipped: true}, ErrShipped},
-		{"a customer return", db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true, HasReturn: true}, ErrHasReturn},
-		{"unpaid", db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPending)}, ErrNotPaid},
+		{"cancelled", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentCancelled), HasReturn: true}), ErrOrderCancelled},
+		{"shipped by status", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentShipped), Committed: true}), ErrShipped},
+		{"a parcel left", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true, Shipped: true}), ErrShipped},
+		{"a customer return", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true, HasReturn: true}), ErrHasReturn},
+		{"unpaid", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPending)}), ErrNotPaid},
 	} {
 		if got := whyNotRefundable(&tc.row); !errors.Is(got, tc.want) || !errors.Is(got, refundstate.ErrRefused) {
 			t.Errorf("whyNotRefundable(%s) = %v, want %v", tc.name, got, tc.want)
 		}
 	}
+}
+
+func beforeShipmentOf(r db.BeforeShipmentRefundRow) beforeShipment {
+	return beforeShipment{BeforeShipmentRefundRow: r}
 }
