@@ -11,11 +11,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -257,4 +259,141 @@ func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
 	if imageKey != "" {
 		t.Errorf("optional hero image key = %q, want empty", imageKey)
 	}
+}
+
+func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
+	p := admintest.Pool(t)
+	staffCtx, _ := admintest.StaffContext(t, p)
+	heroID, bannerID := seedHomeEditorQueues(t, staffCtx, p)
+	state := func() []byte {
+		t.Helper()
+		var rows []byte
+		if err := p.QueryRow(staffCtx, `
+			SELECT jsonb_build_object('hero', row_to_json(h), 'banner', row_to_json(b))
+			FROM hero_slides h CROSS JOIN promo_banners b WHERE h.id = $1 AND b.id = $2`,
+			heroID, bannerID).Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+	before := state()
+	adminPool := admintest.AdminRolePool(t, p)
+	log := slog.New(slog.DiscardHandler)
+	mux := http.NewServeMux()
+	content.NewHandler(content.NewStore(adminPool), media.NewHandler(media.NewStore(adminPool), log),
+		newsletter.NewStore(adminPool), log).Routes(mux, admintest.BackOffice)
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(staffCtx, locale)
+		t.Run(locale.Tag(), func(t *testing.T) {
+			get := httptest.NewRecorder()
+			mux.ServeHTTP(get, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/home", nil))
+			if get.Code != http.StatusOK {
+				t.Fatalf("home GET = %d, want 200", get.Code)
+			}
+			assertHomeEditorQueues(t, ctx, get.Body.String(), heroID, bannerID)
+			for _, tt := range []struct {
+				name, path, errorID, draftID, draft string
+			}{
+				{name: "hero", path: "/admin/home", errorID: "h-headline", draftID: "h-plabel", draft: " Draft primary "},
+				{name: "banner", path: "/admin/home/banner", errorID: "b-message", draftID: "b-short", draft: "Draft strip"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					res := httptest.NewRecorder()
+					mux.ServeHTTP(res, refusedHomeFormRequest(t, ctx, tt.path))
+					if res.Code != http.StatusUnprocessableEntity || res.Header().Get("Location") != "" {
+						t.Fatalf("refused %s = %d to %q, want 422 without Location", tt.name, res.Code, res.Header().Get("Location"))
+					}
+					assertHomeEditorQueues(t, ctx, res.Body.String(), heroID, bannerID)
+					admintest.AssertRefusedInput(t, res.Body.String(), tt.errorID, "")
+					draft := admintest.InputElementByID(t, res.Body.String(), tt.draftID)
+					if got := admintest.InputAttribute(t, draft, "value"); got != tt.draft {
+						t.Errorf("refused %s draft = %q, want %q", tt.name, got, tt.draft)
+					}
+					if diff := cmp.Diff(before, state()); diff != "" {
+						t.Errorf("refusal changed existing editor rows (-want +got):\n%s", diff)
+					}
+				})
+			}
+		})
+	}
+}
+
+func seedHomeEditorQueues(t *testing.T, ctx context.Context, p *pgxpool.Pool) (string, string) {
+	t.Helper()
+	heroID, bannerID := uuid.NewString(), uuid.NewString()
+	if _, err := p.Exec(ctx, `DELETE FROM hero_slides; DELETE FROM promo_banners`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Exec(ctx, `
+		INSERT INTO hero_slides (id, headline, primary_cta_label, primary_cta_href, position, is_active)
+		VALUES ($1, 'Existing slide', 'Browse', '/deals', 0, true)`, heroID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Exec(ctx, `
+		INSERT INTO promo_banners (id, message, message_en, is_active)
+		VALUES ($1, 'Existing strip', 'Existing strip', true)`, bannerID); err != nil {
+		t.Fatal(err)
+	}
+	return heroID, bannerID
+}
+
+func assertHomeEditorQueues(t *testing.T, ctx context.Context, body, heroID, bannerID string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"/admin/home/" + heroID + "/active":          true,
+		"/admin/home/banner/" + bannerID + "/active": true,
+	}
+	got := map[string]bool{}
+	for node := range doc.Descendants() {
+		if node.Type != html.ElementNode || node.Data != "form" {
+			continue
+		}
+		var method, action string
+		for _, attr := range node.Attr {
+			switch attr.Key {
+			case "method":
+				method = attr.Val
+			case "action":
+				action = attr.Val
+			}
+		}
+		if method == "post" && want[action] {
+			got[action] = true
+		}
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("existing home toggle forms (-want +got):\n%s", diff)
+	}
+	for _, key := range []i18n.Key{i18n.KeyAdminHomeEmpty, i18n.KeyAdminHomeBannerEmpty} {
+		if strings.Contains(body, i18n.T(ctx, key)) {
+			t.Errorf("nonempty home editor shows %q", i18n.T(ctx, key))
+		}
+	}
+}
+
+func refusedHomeFormRequest(t *testing.T, ctx context.Context, path string) *http.Request {
+	t.Helper()
+	if path == "/admin/home/banner" {
+		fields := url.Values{"message": {""}, "short": {"Draft strip"}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(fields.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return req
+	}
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	for key, value := range map[string]string{"headline": "", "primary_label": " Draft primary ", "primary_href": "/deals"} {
+		if err := form.WriteField(key, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := form.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, &body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	return req
 }
