@@ -57,13 +57,22 @@ func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid 
 
 func newProduct(t *testing.T) (id uuid.UUID, slug string) {
 	t.Helper()
-	if err := pool.QueryRow(t.Context(), `
+	ctx := t.Context()
+	if err := pool.QueryRow(ctx, `
 		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
-		SELECT b.id, c.id, 'daily-' || gen_random_uuid(), '每日件數商品', 'active', now()
+		SELECT b.id, c.id, 'daily-' || gen_random_uuid(), '每日件數商品', 'draft', now()
 		FROM brands b CROSS JOIN categories c
 		WHERE c.parent_id IS NULL ORDER BY b.id, c.id LIMIT 1
 		RETURNING id, slug`).Scan(&id, &slug); err != nil {
 		t.Fatalf("create product: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
+		VALUES ($1, 'DAILY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, 5, 0)`, id); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, id); err != nil {
+		t.Fatalf("activate product: %v", err)
 	}
 	return id, slug
 }
