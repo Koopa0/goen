@@ -157,6 +157,7 @@ func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
 	}
 	for _, tt := range checks {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if checkErr := tt.check(); !errors.Is(checkErr, ErrBadCredentials) {
 				t.Fatalf("%s reached the database for an over-long password: %v", tt.name, checkErr)
 			}

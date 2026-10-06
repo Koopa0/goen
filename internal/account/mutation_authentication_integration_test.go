@@ -75,7 +75,7 @@ func TestAccountMutationsDistinguishWrongPasswordFromAuthenticationFailure(t *te
 				phase := "wrong password"
 				current := "an incorrect current password"
 				if backendFailure {
-					phase = "database refusal after correct password"
+					phase = "credential read failure"
 					current = password
 				}
 				t.Run(locale.Tag()+path+"/"+phase, func(t *testing.T) {
