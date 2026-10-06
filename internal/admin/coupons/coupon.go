@@ -169,7 +169,7 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 		}
 		endsAt := ""
 		if r.EndsAt.Valid {
-			endsAt = shoptime.Minute(r.EndsAt.Time)
+			endsAt = shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid)
 		}
 		view.Rows = append(view.Rows, admin.Coupon{
 			Code: r.Code, Description: r.Description, Kind: kind,
