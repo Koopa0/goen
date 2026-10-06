@@ -876,6 +876,7 @@ for (const route of ['/']) {
       fail(at, 'the period probe did not run');
       continue;
     }
+    if (got.periods === 0) fail(at, 'no .ui-period on the page: the day grid is not drawn');
     for (const problem of got.problems) fail(at, problem);
     console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
   }
