@@ -182,9 +182,9 @@ func TestBackgroundNavigationDistinguishesKnownCountsFromFailedReads(t *testing.
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
-			name string
-			count int64
-			known bool
+			name   string
+			count  int64
+			known  bool
 			zh, en string
 		}{
 			{"none", 0, true, "0 件要處理", "0 tasks need attention"},

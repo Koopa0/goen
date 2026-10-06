@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -378,14 +379,14 @@ func TestStaffTaskCountUsesOnlyTheThreePriorityFamilies(t *testing.T) {
 		UnreconciledPayments: 51, UninvoicedCount: 37, StrandedClaimCount: 24,
 		OpenRefundCount: 13, CancelledOrderInvoiceCount: 17, ExpiredHolds: 80,
 		UnreconciledEvents: []UnreconciledEvent{{EventID: "evt_sample"}},
-		Uninvoiced: []UninvoicedOrder{{OrderNumber: "GO-sample"}},
-		StrandedClaims: []StrandedClaim{{Operation: "op_sample"}},
+		Uninvoiced:         []UninvoicedOrder{{OrderNumber: "GO-sample"}},
+		StrandedClaims:     []StrandedClaim{{Operation: "op_sample"}},
 	}
 	if got := view.StaffTaskCount(); got != 112 {
 		t.Fatalf("staff task count=%d, want 112 independently of samples and other work", got)
 	}
 	for _, tt := range []struct {
-		locale i18n.Locale
+		locale    i18n.Locale
 		one, many string
 	}{
 		{i18n.ZhHant, "1 件要處理", "112 件要處理"},
@@ -405,8 +406,8 @@ func TestStaffTaskCountUsesOnlyTheThreePriorityFamilies(t *testing.T) {
 func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name string
-		view WorkerHealthView
+		name   string
+		view   WorkerHealthView
 		anchor string
 	}{
 		{"event", WorkerHealthView{UnreconciledPayments: 1, UnreconciledEvents: []UnreconciledEvent{{EventID: "evt_priority"}}}, "events-heading"},
@@ -508,17 +509,15 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) 
 			}
 			html := renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Health(layouts.Page{}, &view))
 			codes := []string{"checkout.session.completed", "cancelled_order_capture: detail", "allowance", "attention", "allowance_multiple_unknown_candidates", "new.event", "new_operation", "new_status", "new_reason", "new_error"}
-			for _, code := range codes {
+			labelIndexes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 8}
+			for index, code := range codes {
 				if !strings.Contains(html, `<small class="goen-admin__meta">` + code + `</small>`) {
 					t.Errorf("code %s is not retained as a small diagnostic", code)
 				}
-				if strings.Contains(html, `<td>` + code + `</td>`) {
-					t.Errorf("code %s is shown without an explanation", code)
-				}
-			}
-			for _, label := range tt.labels {
-				if !strings.Contains(html, label + `<small class="goen-admin__meta">`) {
-					t.Errorf("localized explanation %q does not precede the diagnostic", label)
+				label := tt.labels[labelIndexes[index]]
+				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(code) + `</small>\s*</td>`)
+				if !cell.MatchString(html) {
+					t.Errorf("code %q lacks its localized explanation %q in the same cell", code, label)
 				}
 			}
 		})
@@ -548,6 +547,38 @@ func TestHealthyWorkAndPlainCardTitlesRemainInsideSystemStatus(t *testing.T) {
 		for _, old := range []string{"Notification email (outbox)", "Bought-together projection", "通知信件（outbox）", "買了又買投影"} {
 			if strings.Contains(html, old) {
 				t.Errorf("technical card title %q remains", old)
+			}
+		}
+	}
+}
+
+func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale                     i18n.Locale
+		missing, unknown, rejected string
+	}{
+		{i18n.ZhHant, "（沒有記錄原因）", "原因尚無說明，請依下方代碼查核。", "加值中心拒絕這次操作。"},
+		{i18n.En, "(no reason recorded)", "No explanation is available for this reason; investigate the code below.", "The provider rejected this operation."},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		view := WorkerHealthView{StrandedClaims: []StrandedClaim{
+			{LastError: ""}, {LastError: "future_reason"},
+			{LastError: "issue_provider_rejected_2000006"},
+			{LastError: "allowance_provider_rejected_3100010"},
+		}}
+		html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
+		if !regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(tt.missing) + `\s*</td>`).MatchString(html) {
+			t.Errorf("missing reason lost its distinct wording %q", tt.missing)
+		}
+		for _, pair := range [][2]string{
+			{"future_reason", tt.unknown},
+			{"issue_provider_rejected_2000006", tt.rejected},
+			{"allowance_provider_rejected_3100010", tt.rejected},
+		} {
+			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(pair[0]) + `</small>\s*</td>`)
+			if !cell.MatchString(html) {
+				t.Errorf("reason %s is not explained as %q in its diagnostic cell", pair[0], pair[1])
 			}
 		}
 	}

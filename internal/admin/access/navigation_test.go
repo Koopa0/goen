@@ -59,11 +59,11 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name, role string
-		verified bool
+		name, role             string
+		verified               bool
 		factorError, countError error
-		status, reads int
-		want string
+		status, reads          int
+		want                   string
 	}{
 		{name: "anonymous", status: http.StatusNotFound},
 		{name: "customer", role: "customer", status: http.StatusNotFound},

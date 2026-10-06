@@ -456,9 +456,9 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 }
 
 type healthCountTracer struct {
-	reads atomic.Int64
+	reads       atomic.Int64
 	cancelQuery string
-	triggered atomic.Bool
+	triggered   atomic.Bool
 }
 
 func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
@@ -532,7 +532,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	}
 	for _, tt := range []struct {
 		name, token string
-		status int
+		status      int
 	}{
 		{"anonymous", "", http.StatusNotFound},
 		{"customer", startSession("customer", false), http.StatusNotFound},
