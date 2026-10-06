@@ -160,5 +160,5 @@ func PayMeta(ctx context.Context, number string) layouts.Page {
 }
 
 func payClock(t time.Time) components.StatValue {
-	return components.StatClock(shoptime.ClockText(t)).At(shoptime.Minute(t))
+	return components.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.Minute(t))
 }

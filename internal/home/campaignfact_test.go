@@ -88,3 +88,28 @@ var tag = regexp.MustCompile(`<[^>]*>|[ \n\t]+`)
 
 // text is the rendered markup with its tags and its plain spacing taken out.
 func text(markup string) string { return tag.ReplaceAllString(markup, "") }
+
+// The end date is a time element, so a machine reads the day and the clock too.
+func TestTheEndDateIsATimeElement(t *testing.T) {
+	t.Parallel()
+
+	taipei := time.FixedZone("CST", 8*3600)
+	s := &Store{now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, taipei) }}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, tt := range map[string]struct {
+		endsAt time.Time
+		want   string
+	}{
+		"midnight end": {time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), `<time datetime="2026-10-10">`},
+		"mid-day end":  {time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), `<time datetime="2026-10-12T18:00">`},
+	} {
+		var b strings.Builder
+		stats := s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		if err := components.StatLine(stats, components.StatLinePlain).Render(ctx, &b); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(b.String(), tt.want) {
+			t.Errorf("%s: %s lacks %s", name, b.String(), tt.want)
+		}
+	}
+}

@@ -117,9 +117,13 @@ func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []c
 	if !shoptime.Midnight(c.EndsAt).Equal(c.EndsAt) {
 		clock = shoptime.ClockText(c.EndsAt)
 	}
+	datetime := shoptime.LastDay(c.EndsAt, now).ISO()
+	if clock != "" {
+		datetime += "T" + clock
+	}
 	ends := components.Stat{
 		Label: i18n.T(ctx, i18n.KeySlideEnds),
-		Value: components.StatDate(pages.CampaignEndsOn(ctx, c.EndsAt, now), clock),
+		Value: components.StatDate(pages.CampaignEndsOn(ctx, c.EndsAt, now), clock).WithDatetime(datetime),
 	}
 	stats := []components.Stat{{Label: i18n.T(ctx, i18n.KeySlideItems), Value: statCount(ctx, i18n.KeyUnitItems, c.Products)}, ends}
 	switch left := shoptime.DaysLeft(now, c.EndsAt); {

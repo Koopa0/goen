@@ -38,7 +38,7 @@ type StatValue struct {
 	unit   string
 	date   []datePart
 	clock  string
-	// datetime is the machine-readable form, set when the value is a date or time.
+	// datetime is the machine-readable form of a figure that is a date or a time.
 	datetime string
 }
 
@@ -86,12 +86,6 @@ func StatDate(text, clock string) StatValue {
 // StatClock is a time of day on its own, 14:31.
 func StatClock(clock string) StatValue { return StatValue{clock: clock} }
 
-// At is v read as the date or time datetime, which a <time> element carries.
-func (v StatValue) At(datetime string) StatValue {
-	v.datetime = datetime
-	return v
-}
-
 // StatCount is a number and the unit it counts, joined so that they never part across lines.
 func StatCount(n int64, unit string) StatValue {
 	if n < 0 || unit == "" {
@@ -108,6 +102,12 @@ func StatMoney(cents int64) StatValue {
 	text := money.TWD(cents)
 	i := strings.IndexFunc(text, unicode.IsDigit)
 	return StatValue{pre: text[:i], figure: text[i:]}
+}
+
+// WithDatetime reads the figure as the point in time datetime names (YYYY-MM-DD, or with a time).
+func (v StatValue) WithDatetime(datetime string) StatValue {
+	v.datetime = datetime
+	return v
 }
 
 func (v StatValue) present() bool { return v.figure != "" || len(v.date) > 0 || v.clock != "" }
@@ -147,9 +147,6 @@ func (v StatValue) dateHTML() string {
 			b.WriteString("\u00a0")
 		}
 		b.WriteString(html.EscapeString(v.clock))
-	}
-	if v.datetime != "" {
-		return `<time datetime="` + html.EscapeString(v.datetime) + `">` + b.String() + `</time>`
 	}
 	return b.String()
 }
