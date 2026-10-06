@@ -1183,7 +1183,7 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 		{name: "malformed first with later selection", first: "not a number", later: "1", reason: "Keep this reason", inputType: "text", quantityInvalid: true, refusal: "Enter a whole number of zero or more.", status: http.StatusUnprocessableEntity},
 		{name: "stale ceiling with later selection", first: "2", later: "1", reason: "Keep this reason", inputType: "number", quantityInvalid: true, refusal: "That is more than can be returned.", status: http.StatusUnprocessableEntity},
 		{name: "all zero with valid optional reason", first: "0", later: "0", reason: "Keep this reason", inputType: "number", refusal: "Choose at least one item and check the entered details.", status: http.StatusUnprocessableEntity},
-		{name: "reason too long with later selection", first: "0", later: "1", reason: strings.Repeat("x", 501), inputType: "number", reasonInvalid: true, refusal: "Keep the optional reason within 500 characters and remove unsupported characters.", status: http.StatusUnprocessableEntity},
+		{name: "reason too long with later selection", first: "0", later: "1", reason: strings.Repeat("x", 501), inputType: "number", reasonInvalid: true, refusal: "Keep the optional reason within 500 characters.", status: http.StatusUnprocessableEntity},
 		{name: "blank optional reason accepted", first: "0", later: "1", status: http.StatusSeeOther},
 	}
 	for _, tt := range tests {
@@ -1289,5 +1289,132 @@ func visitReturnNodes(n *html.Node, visit func(*html.Node)) {
 	visit(n)
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		visitReturnNodes(c, visit)
+	}
+}
+
+func TestReturnReasonRefusalsIdentifyTheirCauseThroughPOST(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		lengthMessage, controlMessage := reasonRefusalMessages(locale)
+		for _, tt := range []struct {
+			name, reason, message string
+		}{
+			{name: "ordinary overlong", reason: "  " + strings.Repeat("界", 501) + "  ", message: lengthMessage},
+			{name: "unsupported control", reason: "  bad\x01reason  ", message: controlMessage},
+			{name: "both failures", reason: strings.Repeat("x", 500) + "\x01", message: lengthMessage},
+			{name: "blank optional reason", reason: " \t\r\n "},
+			{name: "valid boundary", reason: "  " + strings.Repeat("界", 496) + "\n\t\rx  "},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				orderID, number, lines := shippedTwoLineOrder(t, 0)
+				res := postReasonThroughRoute(t, ctx, number, lines, tt.reason)
+				if tt.message == "" {
+					assertAcceptedReturnReason(t, ctx, res, orderID, number, lines[1], tt.reason)
+					return
+				}
+				assertRefusedReturnReason(t, res, orderID, lines, tt.reason, tt.message)
+				for _, wrong := range []string{lengthMessage, controlMessage} {
+					if wrong != tt.message && strings.Contains(res.Body.String(), wrong) {
+						t.Errorf("unrelated cause rendered %q", wrong)
+					}
+				}
+			})
+		}
+	}
+}
+
+func reasonRefusalMessages(locale i18n.Locale) (string, string) {
+	if locale == i18n.ZhHant {
+		return "退貨原因最多 500 字。", "請移除退貨原因中不支援的控制字元。"
+	}
+	return "Keep the optional reason within 500 characters.", "Remove unsupported control characters from the optional reason."
+}
+
+func postReasonThroughRoute(t *testing.T, ctx context.Context, number string, lines [2]uuid.UUID, reason string) *httptest.ResponseRecorder {
+	t.Helper()
+	first, later := "qty_"+lines[0].String(), "qty_"+lines[1].String()
+	form := url.Values{first: {"0"}, later: {"01"}, "reason": {reason}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/return", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	placedBy(t, req, number)
+	appPool := returnsApplicationPool(t, "reason-refusal-"+uuid.NewString())
+	h := returnpage.NewHandler(returnpage.NewStore(appPool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /orders/{number}/return", h.Submit)
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	return res
+}
+
+func assertAcceptedReturnReason(
+	t *testing.T, ctx context.Context, res *httptest.ResponseRecorder, orderID uuid.UUID, number string, lineID uuid.UUID, raw string,
+) {
+	t.Helper()
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number+"/return?filed=1" {
+		t.Fatalf("valid reason POST=%d/%q, want success303", res.Code, res.Header().Get("Location"))
+	}
+	assertReturnRowCounts(t, orderID, 1, 1)
+	var got struct {
+		Reason   string
+		Line     uuid.UUID
+		Quantity int32
+	}
+	if err := pool.QueryRow(ctx, `SELECT r.reason,rl.order_line_id,rl.quantity
+		FROM return_requests r JOIN return_request_lines rl ON rl.return_request_id=r.id
+		WHERE r.order_id=$1`, orderID).Scan(&got.Reason, &got.Line, &got.Quantity); err != nil {
+		t.Fatal(err)
+	}
+	want := struct {
+		Reason   string
+		Line     uuid.UUID
+		Quantity int32
+	}{Reason: strings.TrimSpace(raw), Line: lineID, Quantity: 1}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("stored return projection (-want +got):\n%s", diff)
+	}
+}
+
+func assertRefusedReturnReason(t *testing.T, res *httptest.ResponseRecorder, orderID uuid.UUID, lines [2]uuid.UUID, raw, message string) {
+	t.Helper()
+	if res.Code != http.StatusUnprocessableEntity || res.Header().Get("Location") != "" {
+		t.Fatalf("refused reason POST=%d/%q, want 422 without redirect", res.Code, res.Header().Get("Location"))
+	}
+	assertReturnRowCounts(t, orderID, 0, 0)
+	doc, err := html.Parse(strings.NewReader(res.Body.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrs, gotRaw := returnFormControls(t, doc)
+	first, later := "qty_"+lines[0].String(), "qty_"+lines[1].String()
+	want := map[string]map[string]string{
+		first:    {"value": "0", "type": "number", "max": "1"},
+		later:    {"value": "01", "type": "number", "max": "1"},
+		"reason": {"aria-invalid": "true", "aria-describedby": "return-reason-error"},
+	}
+	if diff := cmp.Diff(want, attrs); diff != "" {
+		t.Errorf("reason-only refusal/draft (-want +got):\n%s", diff)
+	}
+	if gotRaw != raw {
+		t.Errorf("raw reason=%q, want %q", gotRaw, raw)
+	}
+	assertReasonRefusalText(t, doc, message)
+}
+
+func assertReasonRefusalText(t *testing.T, doc *html.Node, message string) {
+	t.Helper()
+	var errorText string
+	var errorsFound int
+	visitReturnNodes(doc, func(n *html.Node) {
+		for _, a := range n.Attr {
+			if a.Key == "id" && a.Val == "return-reason-error" {
+				errorsFound++
+				if n.FirstChild != nil {
+					errorText = n.FirstChild.Data
+				}
+			}
+		}
+	})
+	if errorsFound != 1 || errorText != message {
+		t.Errorf("reason error=%d/%q, want one %q", errorsFound, errorText, message)
 	}
 }
