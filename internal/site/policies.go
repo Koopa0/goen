@@ -50,7 +50,7 @@ var policies = map[string]pages.PolicyDoc{
 				// compensate_return_with_credit pays the store-credit half of a
 				// return; naming only Stripe here would describe a different shop.
 				Body: []string{
-					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；額度退回後可立刻再用於結帳。",
+					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；購物金退回後可立刻再用於結帳。",
 					"退款依原路退回，不會改用其他管道。",
 				},
 				BodyEn: []string{
