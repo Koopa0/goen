@@ -66,6 +66,9 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Filter probe browser readiness
+        run: node --test scripts/filter-feedback-check.test.mjs
+
       - name: Confirm the exact Go version
         run: |
           set -euo pipefail
