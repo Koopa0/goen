@@ -59,7 +59,7 @@ type datePart struct {
 // where the text has a plain space. clock is the time of day, or empty.
 func StatDate(text, clock string) StatValue {
 	var parts []datePart
-	for len(text) > 0 {
+	for text != "" {
 		n := 0
 		for n < len(text) && text[n] >= '0' && text[n] <= '9' {
 			n++
@@ -128,9 +128,9 @@ func checkCount(n int) {
 func shown(stats []Stat) []Stat {
 	checkCount(len(stats))
 	out := make([]Stat, 0, len(stats))
-	for _, s := range stats {
-		if s.Value.present() {
-			out = append(out, s)
+	for i := range stats {
+		if stats[i].Value.present() {
+			out = append(out, stats[i])
 		}
 	}
 	return out
@@ -142,18 +142,20 @@ func shown(stats []Stat) []Stat {
 // An empty Href panics: every Href is a route built in code, so an empty one is a programmer error, like regexp.MustCompile.
 type LinkedStat struct {
 	Stat
+
 	Href string
 }
 
 func shownLinked(stats []LinkedStat) []LinkedStat {
 	checkCount(len(stats))
 	out := make([]LinkedStat, 0, len(stats))
-	for _, s := range stats {
+	for i := range stats {
+		s := &stats[i]
 		if s.Href == "" {
 			panic("components: a linked stat needs an Href")
 		}
 		if s.Value.present() {
-			out = append(out, s)
+			out = append(out, *s)
 		}
 	}
 	return out

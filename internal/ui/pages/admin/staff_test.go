@@ -48,6 +48,7 @@ func TestStaffEnrollmentCount(t *testing.T) {
 		{name: "none enrolled", rows: []StaffRow{{Enrolled: false}, {Enrolled: false}}, want: enrollmentCount{count: 2, text: "2", all: false}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			v := StaffView{Rows: tt.rows}
 			got := enrollmentCount{count: v.Unenrolled(), text: v.UnenrolledText(), all: v.AllEnrolled()}
 			if diff := cmp.Diff(tt.want, got, cmp.AllowUnexported(enrollmentCount{})); diff != "" {
@@ -62,14 +63,14 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 	for _, locale := range []struct {
 		locale                         i18n.Locale
 		lead, unenrolled, noKey        string
-		passwordOnly, enrollmentNotice string
+		singleFactor, enrollmentNotice string
 	}{
 		{
 			locale:           i18n.ZhHant,
 			lead:             "進入後台前需要完成兩階段驗證。尚未設定的員工會先到驗證頁設定。",
 			unenrolled:       "還有 2 個帳號尚未設定兩階段驗證。請他們登入後到 /admin/verify 完成設定。",
 			noKey:            "GOEN_TOTP_KEY 沒有設定，兩階段驗證目前無法啟用。",
-			passwordOnly:     "只用密碼就能",
+			singleFactor:     "只用密碼就能",
 			enrollmentNotice: "個帳號尚未設定兩階段驗證。",
 		},
 		{
@@ -77,11 +78,12 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 			lead:             "Entering the back office requires two-factor verification. Staff who have not enrolled are taken to the verification page to set it up.",
 			unenrolled:       "2 accounts have not enrolled in two-factor verification. Ask them to sign in and complete setup at /admin/verify.",
 			noKey:            "GOEN_TOTP_KEY is not set, so two-factor cannot be enabled here.",
-			passwordOnly:     "with a password alone",
+			singleFactor:     "with a password alone",
 			enrollmentNotice: "accounts have not enrolled in two-factor verification.",
 		},
 	} {
 		t.Run(string(locale.locale), func(t *testing.T) {
+			t.Parallel()
 			for _, tt := range []struct {
 				name       string
 				rows       []StaffRow
@@ -93,6 +95,7 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 				{name: "local without key", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}}, noKey: true},
 			} {
 				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
 					var body strings.Builder
 					if err := Staff(layouts.Page{}, StaffView{Rows: tt.rows, NoKey: tt.noKey}).Render(ctx, &body); err != nil {
@@ -111,8 +114,8 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 					if present := strings.Contains(got, locale.noKey); present != tt.noKey {
 						t.Errorf("staff no-key notice %q present = %t, want %t", locale.noKey, present, tt.noKey)
 					}
-					if strings.Contains(got, locale.passwordOnly) {
-						t.Errorf("staff page promises password-only access %q", locale.passwordOnly)
+					if strings.Contains(got, locale.singleFactor) {
+						t.Errorf("staff page promises password-only access %q", locale.singleFactor)
 					}
 				})
 			}

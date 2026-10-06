@@ -205,9 +205,9 @@ func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
 					t.Fatalf("prefix editors = %d, want two zones and the new-zone form", len(forms))
 				}
 				wanted := map[string]shippingPrefixControl{
-					"pre-islands": {Element: "textarea", Raw: islands, Rows: "18", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
+					"pre-islands":   {Element: "textarea", Raw: islands, Rows: "18", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
 					"pre-neighbour": {Element: "textarea", Raw: "100", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/neighbour/prefixes", FullWidth: true, VisibleLabel: true, Districts: []string{"100 臺北市中正區"}},
-					"z-prefixes": {Element: "textarea", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone", FullWidth: true, VisibleLabel: true, Required: true},
+					"z-prefixes":    {Element: "textarea", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone", FullWidth: true, VisibleLabel: true, Required: true},
 				}
 				id := "pre-islands"
 				if tt.newZone {

@@ -1748,7 +1748,6 @@ h3 {
    column, a white seam of --col-gap between them. ----- */
 
 .goen-hero {
-  --col-gap: clamp(16px, 1.7vw, 24px);
   position: relative;
 }
 
@@ -1847,6 +1846,11 @@ h3 {
 .goen-hero .ui-statline dd small,
 .goen-hero .ui-statline__note {
   color: var(--tone-muted);
+}
+
+.goen-hero__slide[data-tone] .ui-period {
+  --period-fill: var(--tone-mark);
+  --period-line: var(--tone-edge);
 }
 
 .goen-hero__slide[data-tone="ink"] .ui-period {
@@ -1983,7 +1987,8 @@ h3 {
   text-decoration: none;
 }
 
-/* The tone ground is the photograph's well; the name sits under it. */
+/* The tone is the card; the photograph keeps goen's white along its right and
+   bottom edge, so it never touches the tone. */
 .goen-cat__well {
   aspect-ratio: 4 / 3;
   background: var(--tone-ground);
@@ -1993,6 +1998,9 @@ h3 {
 }
 
 .goen-cat__photo {
+  border: 0 solid var(--n-0);
+  border-width: 0 var(--col-gap) var(--col-gap) 0;
+  box-sizing: border-box;
   display: block;
   height: 100%;
   object-fit: cover;
@@ -2014,34 +2022,82 @@ h3 {
   opacity: 0.9;
 }
 
-/* ----- One department: its photograph beside three of its products. The
-   department's tone stays with the photograph, which is shot on it; the
-   products stay on the page's white like every other card, because their
-   neutral well on a tinted band reads as a grey square laid on beige. ----- */
+/* ----- One department, the band: its photograph, lifted out of the tone, beside
+   three of its products. The tone starts --lift below the band's top and the
+   photograph does not stop at it; goen's white runs along the photograph's
+   right and bottom edge, so photograph and tone never touch whatever ground
+   the photograph was shot on. ----- */
 
 .goen-band {
-  padding-top: var(--home-section);
+  --lift: 2rem;
+  background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
+  color: var(--tone-text);
+  margin-top: var(--home-section);
 }
 
 /* minmax(0, ...) because the sideways product scroller would otherwise set the
    track's minimum width and push the page wider than the viewport. */
 .goen-band__grid {
   display: grid;
-  gap: 2rem;
   grid-template-columns: minmax(0, 1fr);
 }
 
 .goen-band__media {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
-  overflow: hidden;
+  background: var(--n-0);
+  margin-right: var(--s-6);
+  padding: 0 var(--col-gap) var(--col-gap) 0;
 }
 
 .goen-band__media img {
-  height: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
   object-fit: cover;
   width: 100%;
+}
+
+.goen-band__media--well img {
+  background: var(--well);
+  object-fit: contain;
+}
+
+.goen-band__body {
+  min-width: 0;
+  padding: var(--s-6) var(--page-gutter) var(--s-8);
+}
+
+.goen-band .goen-home__heading {
+  color: var(--tone-text);
+}
+
+.goen-band .goen-home__heading:lang(zh) {
+  font-family: var(--font-editorial);
+  font-weight: 500;
+}
+
+.goen-band .goen-home__aside {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+}
+
+.goen-home__heading--long {
+  font-size: var(--fs-18);
+}
+
+.goen-band .goen-home__more {
+  color: var(--tone-mark);
+}
+
+.goen-band .goen-tile__name,
+.goen-band .goen-tile__price {
+  color: var(--tone-text);
+}
+
+.goen-band .goen-home__aside,
+.goen-band .goen-tile__brand,
+.goen-band .goen-tile__was,
+.goen-band .goen-tile__state,
+.goen-band .goen-tile__colours {
+  color: var(--tone-muted);
 }
 
 /* Below 768px the three products scroll sideways rather than stacking. */
@@ -2089,7 +2145,7 @@ h3 {
     gap: 1rem;
   }
 
-  .goen-band__media {
+  .goen-band__media img {
     aspect-ratio: 16 / 9;
   }
 
@@ -2157,20 +2213,25 @@ h3 {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
+  .goen-band {
+    --lift: 4rem;
+  }
+
   .goen-band__grid {
-    align-items: stretch;
-    gap: 4rem;
+    align-items: start;
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   }
 
   .goen-band__media {
-    aspect-ratio: auto;
+    margin: 0 0 var(--lift);
+  }
+
+  .goen-band__media img {
+    aspect-ratio: 4 / 3;
   }
 
   .goen-band__body {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
   }
 }
 
@@ -2718,7 +2779,7 @@ input.goen-check {
 }
 
 .goen-listing__subhead {
-  font-size: var(--fs-20);
+  font-size: var(--fs-ed-20);
   margin: 32px 0 16px;
 }
 
@@ -2874,8 +2935,7 @@ input.goen-check {
 }
 
 /* The department head: the breadcrumb, the title and the sub-category chips on
-   the tone's ground, and from 1024 the department's photograph on the right
-   half. Below 1024 the photograph is dropped so the first product still starts
+   the tone's ground, and from 1024 the department's photograph on the left. Below 1024 the photograph is dropped so the first product still starts
    inside a phone's first screen. */
 .goen-pagehead__text {
   display: flex;
@@ -3290,25 +3350,27 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
-  /* The photograph is the head's right half, bled to its top, right and
-     bottom edges and faded into the tone on its left, so the head is one
-     surface: the photographs are shot on a vignetted ground a few levels off
-     the flat tone, and a frame inside the head would turn that difference into
-     an edge. */
-  .goen-pagehead:has(.goen-pagehead__photo) {
+  /* The photograph is the head's left, lifted out of the tone like the home
+     band's: the tone starts --lift below the top, goen's white runs along the
+     photograph's right and bottom edge, and the text sits in the tone beside
+     it. */
+  .goen-listing__head .goen-pagehead[data-tone]:has(.goen-pagehead__photo) {
+    --lift: 4rem;
+    background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
     box-sizing: border-box;
-    justify-content: center;
-    min-height: 20rem;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    min-height: 22rem;
     overflow: hidden;
-    padding: 2rem 2.5rem;
+    padding: calc(var(--lift) + var(--s-6)) var(--page-edge) var(--s-7) 0;
     position: relative;
   }
 
-  /* Above the photograph, which is positioned and later in the document and
-     would otherwise paint over the end of the text and take the clicks meant
-     for the last chip where the two meet. */
+  /* Above the photograph, which is positioned and would otherwise take the
+     clicks meant for the first chip. */
   .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
-    max-width: calc(50% - 2.5rem);
+    grid-column: 2;
+    padding-left: clamp(2rem, 4.5vw, 4.5rem);
     position: relative;
     z-index: 1;
   }
@@ -3321,13 +3383,20 @@ input.goen-check {
   }
 
   .goen-pagehead__photo {
+    border: 0 solid var(--n-0);
+    border-width: 0 var(--col-gap) var(--col-gap) 0;
+    box-sizing: border-box;
     display: block;
-    height: 100%;
-    inset: 0 0 0 auto;
-    mask-image: linear-gradient(to right, transparent, #000 35%);
+    height: calc(100% - var(--lift));
+    inset: 0 auto auto 0;
     object-fit: cover;
     position: absolute;
-    width: 55%;
+    width: calc(5 / 12 * 100%);
+  }
+
+  .goen-pagehead__photo--well {
+    background: var(--well);
+    object-fit: contain;
   }
 
   .goen-campaigns__list {
@@ -4625,48 +4694,61 @@ input.goen-check {
 
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
    names, on the page head; a custom property is never set inline because
-   style-src has no 'unsafe-inline'. Only these four properties vary: accent,
-   type, radii and buttons do not. Each ground is the ground of its department's
-   photographs, so a slide or a card and its photograph meet without a seam;
-   assets/contrast_test.go holds every text colour on them to 4.5:1. */
+   style-src has no 'unsafe-inline'. Only these properties vary: accent, type,
+   radii and buttons do not. A tone never touches a photograph: wherever the two
+   meet, a seam of goen's white (--n-0) lies between them, which is why a tone
+   can be a flat colour and not the ground its photographs were shot on.
+   assets/contrast_test.go holds the text, edge and mark colours to their
+   ratios on every ground. */
 [data-tone="paper"] {
-  --tone-ground: #efe9e1;
-  --tone-rule: #e2dad0;
+  --tone-ground: #eae1d6;
+  --tone-rule: #ddd3c6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="stone"] {
-  --tone-ground: #ece8e4;
-  --tone-rule: #dedad5;
+  --tone-ground: #dddddc;
+  --tone-rule: #cfcfce;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="mist"] {
-  --tone-ground: #e6eff6;
-  --tone-rule: #d5e1eb;
+  --tone-ground: #d4e3f2;
+  --tone-rule: #c5d6e6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="sage"] {
-  --tone-ground: #e5ebe4;
-  --tone-rule: #d6ded5;
+  --tone-ground: #d5e2d2;
+  --tone-rule: #c7d6c4;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="blush"] {
-  --tone-ground: #f8ecec;
-  --tone-rule: #efdcdc;
+  --tone-ground: #f1d9d6;
+  --tone-rule: #e3cac6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 .goen-promo,
 .goen-pagehead[data-tone="ink"],
-.goen-hero__slide[data-tone="ink"] {
+.goen-hero__slide[data-tone="ink"],
+.goen-band[data-tone="ink"] {
   --ring: var(--n-0);
 }
 
@@ -4675,6 +4757,8 @@ input.goen-check {
   --tone-rule: #27272a;
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
+  --tone-edge: #8e8e96;
+  --tone-mark: #c7d2e8;
 }
 
 .goen-pagehead[data-tone] {
@@ -4687,6 +4771,16 @@ input.goen-check {
   .goen-pagehead[data-tone] {
     padding: 2rem 1.5rem;
   }
+}
+
+.goen-listing__head .goen-pagehead[data-tone] {
+  border-radius: 0;
+  margin-top: 24px;
+  padding-inline: var(--page-edge);
+}
+
+.goen-pagehead__title--long {
+  font-size: var(--fs-ed-24);
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {
@@ -7021,6 +7115,9 @@ input.goen-check {
 
 .goen-campaign__header {
   aspect-ratio: 8 / 3;
+  border: 0 solid var(--n-0);
+  border-bottom-width: var(--col-gap);
+  box-sizing: border-box;
   display: block;
   height: auto;
   object-fit: cover;
@@ -7181,6 +7278,8 @@ input.goen-check {
 
   .goen-campaign__header {
     aspect-ratio: 3 / 2;
+    border-bottom-width: 0;
+    border-left-width: var(--col-gap);
     grid-column: 2;
     grid-row: 1;
   }
@@ -7562,5 +7661,14 @@ form[data-request-pending] [aria-disabled="true"] {
   /* SVG preserves author colours, so its selected ring must follow the palette. */
   .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
     outline-color: Highlight;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band__media img,
+  .goen-pagehead__photo,
+  .goen-cat__photo,
+  .goen-campaign__header {
+    outline: 1px solid CanvasText;
   }
 }

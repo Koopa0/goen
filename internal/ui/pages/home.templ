@@ -59,35 +59,7 @@ templ Home(p layouts.Page, v HomeView) {
 			}
 		</div>
 		if v.Band != nil {
-			<section class="goen-band" data-tone={ v.Band.Tone.Attr() } aria-labelledby="band-heading">
-				<div class="goen-container goen-band__grid">
-					<div class="goen-band__media">
-						if v.Band.Photo.Shown() {
-							<img
-								src={ v.Band.Photo.URL }
-								srcset={ v.Band.Photo.Srcset }
-								sizes="(min-width: 1024px) 40vw, 100vw"
-								alt=""
-								width="800"
-								height="600"
-								loading="lazy"
-								decoding="async"
-							/>
-						}
-					</div>
-					<div class="goen-band__body">
-						<div class="goen-home__head">
-							@heading("band-heading", v.Band.Name, v.Band.Fact)
-							@seeAll(fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), v.Band.Name), v.Band.Href)
-						</div>
-						<ul class="goen-band__tiles" role="list">
-							for _, t := range v.Band.Tiles {
-								@Tile(t)
-							}
-						</ul>
-					</div>
-				</div>
-			</section>
+			@departmentBand(v.Band)
 		}
 		<div class="goen-home">
 			@shopRules(v.Rules)
@@ -195,5 +167,38 @@ templ heroCarousel(slides []HeroSlide) {
 				</div>
 			</div>
 		}
+	</section>
+}
+
+templ departmentBand(b *DepartmentBand) {
+	{{ photo, onWell := bandPhoto(b.Photo, b.Tiles) }}
+	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
+		<div class="goen-band__grid">
+			if photo.Shown() {
+				<div class={ "goen-band__media", templ.KV("goen-band__media--well", onWell) }>
+					<img
+						src={ photo.URL }
+						srcset={ photo.Srcset }
+						sizes="(min-width: 1024px) 42vw, 100vw"
+						alt=""
+						width="800"
+						height="600"
+						loading="lazy"
+						decoding="async"
+					/>
+				</div>
+			}
+			<div class="goen-band__body">
+				<div class="goen-home__head">
+					@bandHeading("band-heading", b.Name, b.Fact)
+					@seeAll(fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), b.Name), b.Href)
+				</div>
+				<ul class="goen-band__tiles" role="list">
+					for _, t := range b.Tiles {
+						@Tile(t)
+					}
+				</ul>
+			</div>
+		</div>
 	</section>
 }
