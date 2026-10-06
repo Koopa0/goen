@@ -35,7 +35,7 @@ func (r EmailLinkRecovery) Label(ctx context.Context) string {
 	case EmailLinkContact:
 		return layouts.ContactEmail
 	case EmailLinkVerify:
-		return i18n.T(ctx, i18n.KeyEmailResend)
+		return i18n.T(ctx, i18n.KeyEmailSection)
 	case EmailLinkReset:
 		return i18n.T(ctx, i18n.KeyResetAgain)
 	default:
