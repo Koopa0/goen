@@ -3447,13 +3447,18 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 1;
 }
 
-.goen-chart__spanlabel,
-.goen-chart__value {
+/* A span's name is placed on the server, fitted to a 12px label (columns.go,
+   textWidth and narrowPlot), so it keeps that size: a rem size outgrows the
+   room it was fitted to and runs off a phone at large text. Page zoom still
+   scales it, and the data table under the chart names every span. */
+.goen-chart__spanlabel {
   fill: var(--fg);
-  font-size: var(--fs-12);
+  font-size: 12px;
 }
 
 .goen-chart__value {
+  fill: var(--fg);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--fw-medium);
 }
