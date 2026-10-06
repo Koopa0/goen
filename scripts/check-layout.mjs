@@ -4040,6 +4040,43 @@ const auditReflow = async () => {
 
 await proveTargetSizeGates();
 await auditAccessibility();
+// DIAGNOSTIC PROBE (do not merge): the campaign chart's span labels at 320px, at 100% and 200% text.
+{
+  const diag = (name, value) => console.log('DIAG ' + name + ' ' + JSON.stringify(value));
+  const ev = async (expression) => (await send(ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value;
+  const LABELS = `(async () => {
+    await document.fonts.ready;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const box = (e) => { const r = e.getBoundingClientRect(); return [+r.left.toFixed(1), +r.right.toFixed(1), +r.top.toFixed(1), +r.bottom.toFixed(1)]; };
+    const frame = document.querySelector('.goen-chart__frame--columns');
+    const plot = frame?.querySelector('.goen-chart__plot');
+    return {
+      root: getComputedStyle(document.documentElement).fontSize, scrollWidth: document.body.scrollWidth,
+      frame: frame && { box: box(frame), cols: getComputedStyle(frame).gridTemplateColumns }, plot: plot && box(plot),
+      spans: [...document.querySelectorAll('.goen-chart__spanlabel')].map((t) => ({ text: t.textContent, x: t.getAttribute('x'), y: t.getAttribute('y'), anchor: t.getAttribute('text-anchor'), font: getComputedStyle(t).fontSize, box: box(t) })),
+      strips: [...document.querySelectorAll('.goen-chart__strip, .goen-chart__window')].map((r) => ({ cls: r.getAttribute('class'), x: r.getAttribute('x'), width: r.getAttribute('width'), box: box(r) })),
+      ticks: [...document.querySelectorAll('.goen-chart__frame--columns .goen-chart__label')].map((t) => ({ text: t.textContent, box: box(t) })).filter((t) => t.box[1] > 320 || t.box[0] < 0),
+    };
+  })()`;
+  await send(ws, 'Network.enable');
+  await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN || '', domain: '127.0.0.1', path: '/' });
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    for (const [size, what] of [['', 'as served'], ['200%', 'as served'], ['200%', 'span labels at 12px']]) {
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+      const target = ORIGIN + '/admin/campaigns/layout-campaign';
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, 'diag campaign chart', target);
+      await ev(`document.documentElement.style.fontSize = ${JSON.stringify(size)}`);
+      if (what !== 'as served') await ev("document.querySelectorAll('.goen-chart__spanlabel').forEach((t) => { t.style.fontSize = '12px'; })");
+      diag('campaign chart ' + locale + ' 320 ' + (size || '100%') + ' ' + what, await ev(LABELS));
+    }
+  }
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+  console.log('DIAG done: the diagnostic probe stops here');
+  process.exit(1);
+}
+
 await auditReflow();
 
 ws.close();
