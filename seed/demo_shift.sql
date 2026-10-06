@@ -98,19 +98,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM inventory_movements WHERE reason = 'receipt' AND idempotency_key LIKE 'seed:%') THEN
         RAISE EXCEPTION 'this database holds no opening stock from seed/dev_catalog.sql: it is not the seeded demo';
     END IF;
-    -- Written with the opening stock in the seed's one transaction, and
-    -- append-only: a database that passed the check above holds it.
-    SELECT shop_day(effective_at) INTO STRICT v_dated
-    FROM shipping_method_versions
-    WHERE id = 'ffff0002-0000-4000-8000-000000000001';
-    IF v_dated > v_anchor THEN
-        RAISE EXCEPTION 'this database is dated %, after anchor_day %: it was already shifted, or anchor_day is not the day the snapshot was taken', v_dated, v_anchor;
-    END IF;
-    IF v_dated < v_anchor THEN
-        RAISE EXCEPTION 'this database is dated %, before anchor_day %: a snapshot taken after the day of its data may hold rows the shift would carry past today', v_dated, v_anchor;
+    IF EXISTS (SELECT 1 FROM orders o JOIN payments p ON p.order_id = o.id
+               WHERE p.provider_ref LIKE 'cs\_demo\_%' AND shop_day(o.placed_at) >= v_anchor) THEN
+        RAISE EXCEPTION 'orders from the history were placed on or after %: this snapshot was already shifted, or anchor_day is not the day it was taken', v_anchor;
     END IF;
 
-    v_days := shop_today() - v_dated;
+    v_days := shop_today() - v_anchor;
     IF v_days = 0 THEN
         RETURN;
     END IF;
