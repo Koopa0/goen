@@ -1,6 +1,7 @@
 package components
 
 import (
+	"html"
 	"strconv"
 	"strings"
 	"unicode"
@@ -35,6 +36,51 @@ type StatValue struct {
 	pre    string
 	figure string
 	unit   string
+	date   []datePart
+	clock  string
+	// datetime is the machine-readable form of a figure that is a date or a time.
+	datetime string
+}
+
+// datePart is a run of a date's text: digits are the figure, the runs between them its units.
+type datePart struct {
+	text string
+	unit bool
+	// pre is a unit that comes first, as the month does in English.
+	pre bool
+	// wbr marks where the date may break after this part, as it may after a plain space.
+	wbr bool
+}
+
+// StatDate is a date as shoptime.DateText wrote it, cut into its figure and units so that a sentence and a
+// figure cannot disagree: digits are the numbers, the runs between them are units, and a break is allowed only
+// where the text has a plain space. clock is the time of day, or empty.
+func StatDate(text, clock string) StatValue {
+	var parts []datePart
+	for len(text) > 0 {
+		n := 0
+		for n < len(text) && text[n] >= '0' && text[n] <= '9' {
+			n++
+		}
+		if n > 0 {
+			parts = append(parts, datePart{text: text[:n]})
+			text = text[n:]
+			continue
+		}
+		for n < len(text) && (text[n] < '0' || text[n] > '9') {
+			n++
+		}
+		run := text[:n]
+		text = text[n:]
+		word := strings.Trim(run, " \u00a0")
+		if word == "" {
+			continue
+		}
+		part := datePart{text: word, unit: strings.IndexFunc(word, unicode.IsLetter) >= 0, wbr: strings.Contains(run, " ")}
+		part.pre = part.unit && len(parts) == 0
+		parts = append(parts, part)
+	}
+	return StatValue{date: parts, clock: clock}
 }
 
 // StatCount is a number and the unit it counts, joined so that they never part across lines.
@@ -55,7 +101,13 @@ func StatMoney(cents int64) StatValue {
 	return StatValue{pre: text[:i], figure: text[i:]}
 }
 
-func (v StatValue) present() bool { return v.figure != "" }
+// WithDatetime reads the figure as the point in time datetime names (YYYY-MM-DD, or with a time).
+func (v StatValue) WithDatetime(datetime string) StatValue {
+	v.datetime = datetime
+	return v
+}
+
+func (v StatValue) present() bool { return v.figure != "" || len(v.date) > 0 }
 
 func shown(stats []Stat) []Stat {
 	if len(stats) > 4 {
@@ -68,4 +120,27 @@ func shown(stats []Stat) []Stat {
 		}
 	}
 	return out
+}
+
+// dateHTML is the date's figure and units with no whitespace between them, since a space would be a break the date does not have.
+func (v StatValue) dateHTML() string {
+	var b strings.Builder
+	for _, p := range v.date {
+		text := html.EscapeString(p.text)
+		switch {
+		case p.pre:
+			b.WriteString(`<small class="ui-statline__pre">` + text + `</small>`)
+		case p.unit:
+			b.WriteString(`<small>` + text + `</small>`)
+		default:
+			b.WriteString(text)
+		}
+		if p.wbr {
+			b.WriteString("<wbr>")
+		}
+	}
+	if v.clock != "" {
+		b.WriteString("\u00a0" + html.EscapeString(v.clock))
+	}
+	return b.String()
 }
