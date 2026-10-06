@@ -17,7 +17,7 @@ func bandPhoto(department Photo, products []ProductTile) (photo Photo, onWell bo
 	}
 	if len(products) > 0 && products[0].ImageURL != "" {
 		first := products[0]
-		return Photo{URL: first.ImageURL, Srcset: first.ImageSrcset, Alt: first.ImageAlt}, true
+		return Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
 	}
 	return Photo{}, false
 }

@@ -12,8 +12,8 @@ import (
 // rules is nil where the page has no shop rules to state.
 templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 	@layouts.Base(p) {
-		<div class="goen-listing">
-			{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
+		{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
+		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
 				<div class="goen-pagehead__text">
 					@components.Breadcrumb(components.BreadcrumbProps{
@@ -40,7 +40,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 						class={ "goen-pagehead__photo", templ.KV("goen-pagehead__photo--well", onWell) }
 						src={ photo.URL }
 						srcset={ photo.Srcset }
-						sizes="(min-width: 1344px) 44rem, 58vw"
+						sizes="(min-width: 1024px) 42vw, 100vw"
 						alt={ photo.Alt }
 						width="800"
 						height="600"
@@ -49,6 +49,8 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 					/>
 				}
 			</div>
+		</div>
+		<div class="goen-listing">
 			<div class="goen-listing__layout">
 				@listingFilters(v)
 				<div class="goen-listing__main">

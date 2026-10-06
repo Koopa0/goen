@@ -323,3 +323,63 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 		}
 	}
 }
+
+var (
+	customDecl = regexp.MustCompile(`(--[a-z0-9-]+)\s*:`)
+	customUse  = regexp.MustCompile(`var\((--[a-z0-9-]+)\s*\)`)
+)
+
+// A var() naming a property no served sheet declares is invalid at
+// computed-value time, and each property that reads it falls back to its
+// initial value, silently.
+func TestEveryCustomPropertyUsedIsDeclared(t *testing.T) {
+	t.Parallel()
+
+	declared := make(map[string]bool)
+	used := make(map[string][]string)
+	err := fs.WalkDir(files, "css", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(name, ".css") {
+			return err
+		}
+		body, readErr := fs.ReadFile(files, name)
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range customDecl.FindAllStringSubmatch(string(body), -1) {
+			declared[m[1]] = true
+		}
+		for _, m := range customUse.FindAllStringSubmatch(string(body), -1) {
+			used[m[1]] = append(used[m[1]], name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for prop, sheets := range used {
+		if !declared[prop] {
+			t.Errorf("%s is read in %s and declared in no stylesheet", prop, sheets[0])
+		}
+	}
+}
+
+// The band paints its tone behind text that the page styles in --n-500, which
+// no tone ground holds to 4.5:1; each of these classes must take the tone's own
+// muted colour.
+func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`(?s)((?:\.goen-band [.a-z_-]+,\s*)*\.goen-band [.a-z_-]+) \{\s*color: var\(--tone-muted\);`).FindStringSubmatch(string(sheet))
+	if rule == nil {
+		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
+	}
+	for _, class := range []string{"goen-home__aside", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
+		if !strings.Contains(rule[1], ".goen-band ."+class) {
+			t.Errorf("the band's muted-text rule does not name .%s", class)
+		}
+	}
+}

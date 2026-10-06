@@ -1674,7 +1674,6 @@ h3 {
    column, a white seam of --col-gap between them. ----- */
 
 .goen-hero {
-  --col-gap: clamp(16px, 1.7vw, 24px);
   position: relative;
 }
 
@@ -1926,7 +1925,7 @@ h3 {
 
 .goen-cat__photo {
   border: 0 solid var(--n-0);
-  border-width: 0 8px 8px 0;
+  border-width: 0 var(--col-gap) var(--col-gap) 0;
   box-sizing: border-box;
   display: block;
   height: 100%;
@@ -1972,7 +1971,7 @@ h3 {
 .goen-band__media {
   background: var(--n-0);
   margin-right: var(--s-6);
-  padding: 0 var(--seam) var(--seam) 0;
+  padding: 0 var(--col-gap) var(--col-gap) 0;
 }
 
 .goen-band__media img {
@@ -2001,6 +2000,11 @@ h3 {
   font-weight: 500;
 }
 
+.goen-band .goen-home__aside {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+}
+
 .goen-home__heading--long {
   font-size: var(--fs-18);
 }
@@ -2014,8 +2018,11 @@ h3 {
   color: var(--tone-text);
 }
 
+.goen-band .goen-home__aside,
 .goen-band .goen-tile__brand,
-.goen-band .goen-tile__was {
+.goen-band .goen-tile__was,
+.goen-band .goen-tile__state,
+.goen-band .goen-tile__colours {
   color: var(--tone-muted);
 }
 
@@ -2150,7 +2157,7 @@ h3 {
   }
 
   .goen-band__body {
-    padding: calc(var(--lift) + var(--s-7)) max(var(--page-gutter), calc((100vw - var(--page-width)) / 2 + var(--page-gutter))) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
+    padding: calc(var(--lift) + var(--s-7)) var(--page-edge) var(--s-8) clamp(2rem, 4.5vw, 4.5rem);
   }
 }
 
@@ -2698,7 +2705,7 @@ input.goen-check {
 }
 
 .goen-listing__subhead {
-  font-size: var(--fs-20);
+  font-size: var(--fs-ed-20);
   margin: 32px 0 16px;
 }
 
@@ -3269,11 +3276,11 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
-  /* The photograph is the head's left, lifted out of the tone: the tone
-     starts --lift below the head's top, goen's white runs along the
+  /* The photograph is the head's left, lifted out of the tone like the home
+     band's: the tone starts --lift below the top, goen's white runs along the
      photograph's right and bottom edge, and the text sits in the tone beside
      it. */
-  .goen-pagehead[data-tone]:has(.goen-pagehead__photo) {
+  .goen-listing__head .goen-pagehead[data-tone]:has(.goen-pagehead__photo) {
     --lift: 4rem;
     background: linear-gradient(var(--n-0) 0 var(--lift), var(--tone-ground) var(--lift));
     box-sizing: border-box;
@@ -3281,7 +3288,7 @@ input.goen-check {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     min-height: 22rem;
     overflow: hidden;
-    padding: calc(var(--lift) + 1.5rem) 2.5rem 2rem 0;
+    padding: calc(var(--lift) + var(--s-6)) var(--page-edge) var(--s-7) 0;
     position: relative;
   }
 
@@ -3289,7 +3296,7 @@ input.goen-check {
      clicks meant for the first chip. */
   .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
     grid-column: 2;
-    padding-left: 3rem;
+    padding-left: clamp(2rem, 4.5vw, 4.5rem);
     position: relative;
     z-index: 1;
   }
@@ -3303,7 +3310,7 @@ input.goen-check {
 
   .goen-pagehead__photo {
     border: 0 solid var(--n-0);
-    border-width: 0 var(--seam) var(--seam) 0;
+    border-width: 0 var(--col-gap) var(--col-gap) 0;
     box-sizing: border-box;
     display: block;
     height: calc(100% - var(--lift));
@@ -3316,10 +3323,6 @@ input.goen-check {
   .goen-pagehead__photo--well {
     background: var(--well);
     object-fit: contain;
-  }
-
-  .goen-pagehead__title--long {
-    font-size: var(--fs-ed-24);
   }
 
   .goen-campaigns__list {
@@ -4688,6 +4691,16 @@ input.goen-check {
   .goen-pagehead[data-tone] {
     padding: 2rem 1.5rem;
   }
+}
+
+.goen-listing__head .goen-pagehead[data-tone] {
+  border-radius: 0;
+  margin-top: 24px;
+  padding-inline: var(--page-edge);
+}
+
+.goen-pagehead__title--long {
+  font-size: var(--fs-ed-24);
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {
@@ -7029,7 +7042,7 @@ input.goen-check {
 .goen-campaign__header {
   aspect-ratio: 8 / 3;
   border: 0 solid var(--n-0);
-  border-bottom-width: var(--seam);
+  border-bottom-width: var(--col-gap);
   box-sizing: border-box;
   display: block;
   height: auto;
@@ -7192,7 +7205,7 @@ input.goen-check {
   .goen-campaign__header {
     aspect-ratio: 3 / 2;
     border-bottom-width: 0;
-    border-left-width: var(--seam);
+    border-left-width: var(--col-gap);
     grid-column: 2;
     grid-row: 1;
   }

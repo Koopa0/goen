@@ -952,7 +952,7 @@ func departmentBand(b *DepartmentBand) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\" sizes=\"(min-width: 1024px) 58vw, 100vw\" alt=\"\" width=\"800\" height=\"600\" loading=\"lazy\" decoding=\"async\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\" sizes=\"(min-width: 1024px) 42vw, 100vw\" alt=\"\" width=\"800\" height=\"600\" loading=\"lazy\" decoding=\"async\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
