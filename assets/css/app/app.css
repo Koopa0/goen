@@ -3997,8 +3997,7 @@ input.goen-check {
   padding-top: 1.5rem;
 }
 
-.goen-pdp__notifyhead,
-.goen-pdp__restocknote {
+.goen-pdp__notifyhead {
   color: var(--n-900);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);

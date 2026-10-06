@@ -318,7 +318,7 @@ func (v *ProductView) ChoiceSwap() string {
 }
 
 func (v *ProductView) BuyBarFollows() string {
-	if v.SoldOut() {
+	if v.NotifyOffered() {
 		return "restock"
 	}
 	return "add-to-cart"
@@ -420,7 +420,7 @@ func (v *ProductView) NotifyNeedsOption() bool { return v.NotifyOutcome == Notif
 
 // OptionInvalid marks the choices a refused request left unpicked.
 func (v *ProductView) OptionInvalid(o ProductOption) bool {
-	return v.NotifyNeedsOption() && o.SelectedLabel() == ""
+	return v.NotifyNeedsOption() && v.NotifyOffered() && o.SelectedLabel() == ""
 }
 
 func (v *ProductView) NotifyTaken() bool {
@@ -549,7 +549,7 @@ func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
 		})
 	}
 	stats = append(stats, v.Rules.rescissionStat(ctx))
-	if !v.AllSoldOut() {
+	if v.AnySellable {
 		stats = append(stats, v.Rules.holdStat(ctx))
 	}
 	return append(stats, v.Rules.freeDeliveryStat(ctx))
