@@ -93,6 +93,7 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 				{name: "mixed", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}, {Role: user.RoleStaff}, {Role: user.RoleAdmin}}, unenrolled: true},
 				{name: "all enrolled", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}}},
 				{name: "local without key", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}}, noKey: true},
+				{name: "local without key and unenrolled", rows: []StaffRow{{Role: user.RoleStaff}}, noKey: true},
 			} {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
@@ -102,8 +103,8 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 						t.Fatalf("render staff: %v", err)
 					}
 					got := body.String()
-					if !strings.Contains(got, locale.lead) {
-						t.Errorf("staff page does not show enrollment guidance %q", locale.lead)
+					if present := strings.Contains(got, locale.lead); present == tt.noKey {
+						t.Errorf("staff enrollment guidance %q present = %t, want %t", locale.lead, present, !tt.noKey)
 					}
 					if tt.unenrolled && !strings.Contains(got, locale.unenrolled) {
 						t.Errorf("staff page does not show enrollment count and next step %q", locale.unenrolled)

@@ -22,6 +22,8 @@ var (
 			"movement in the ledger.",
 	})
 
+	KeyAdminStockList = key("admin.stock.list", Message{ZhHant: "庫存品項清單", En: "Stock items"})
+
 	KeyAdminStockSearch = key("admin.stock.search", Message{ZhHant: "搜尋庫存品項", En: "Search stock items"})
 
 	KeyAdminStockSearchPlaceholder = key("admin.stock.searchplaceholder", Message{
