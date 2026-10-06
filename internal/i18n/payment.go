@@ -77,6 +77,29 @@ var (
 	KeyPayWindowClosedTitle = key("pay.windowclosed.title", Message{ZhHant: "付款期限已過", En: "The payment window has closed"})
 	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開始付款，會在庫存保留結束時自動取消，不會收取任何款項；若有使用購物金，取消時會退回你的帳戶。", En: "This order can no longer be paid. It is cancelled automatically when its stock hold ends: nothing is charged, and any store credit you applied goes back to your account."})
 
+	KeyPayFactStartBy   = key("pay.fact.startby", Message{ZhHant: "開始付款期限", En: "Start paying by"})
+	KeyPayFactTimeZone  = key("pay.fact.timezone", Message{ZhHant: "台灣時間", En: "Taiwan time"})
+	KeyPayFactHeldUntil = key("pay.fact.helduntil", Message{ZhHant: "庫存保留至", En: "Stock reserved until"})
+	KeyPayFactUnpaid    = key("pay.fact.unpaid", Message{ZhHant: "逾時未付款自動取消", En: "Cancelled after that if unpaid"})
+	KeyPayFactAmountDue = key("pay.fact.amountdue", Message{ZhHant: "應付金額", En: "Amount due"})
+	KeyPayFactPlaced    = key("pay.fact.placed", Message{ZhHant: "送出", En: "Placed"})
+	KeyPayFactCancelled = key("pay.fact.cancelled", Message{ZhHant: "自動取消", En: "Cancelled automatically"})
+	KeyPayFactLapsed    = key("pay.fact.lapsed", Message{ZhHant: "庫存保留結束時仍未付款", En: "Still unpaid when the reservation ended"})
+	KeyPayFactCharged   = key("pay.fact.charged", Message{ZhHant: "收取金額", En: "Amount charged"})
+
+	KeyPeriodHoldOpen = key("period.hold.open", Message{
+		ZhHant: "%s 送出訂單；請在 %s 前開始付款；庫存保留到 %s。",
+		En:     "Order placed %s; start the payment before %s; the stock is reserved until %s.",
+	})
+	KeyPeriodHoldResumed = key("period.hold.resumed", Message{
+		ZhHant: "%s 送出訂單；庫存保留到 %s。",
+		En:     "Order placed %s; the stock is reserved until %s.",
+	})
+	KeyPeriodHoldLapsed = key("period.hold.lapsed", Message{
+		ZhHant: "%s 送出訂單；到 %s 庫存保留結束時仍未付款，訂單自動取消，沒有收取任何款項。",
+		En:     "Order placed %s; still unpaid when the reservation ended at %s, so the order was cancelled automatically, with nothing charged.",
+	})
+
 	KeyPayMeta = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
 
 	KeyShippingAndTax = key("pay.shippingandtax", Message{
