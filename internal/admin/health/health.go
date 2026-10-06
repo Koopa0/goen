@@ -119,7 +119,6 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		view.StrandedClaimCount = stranded[0].Total
 	}
 
-	// goen consumes no refund webhook: this is the only unpaid-customer alarm.
 	// Count independently of the bounded diagnostic sample below, or 37 open
 	// refunds are rendered as 20 merely because the table stops at 20 rows.
 	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
@@ -237,6 +236,7 @@ func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []admin.UnreconciledE
 		out[i] = admin.UnreconciledEvent{
 			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
 			Reason: u.Reason, Since: shoptime.Minute(u.ReceivedAt),
+			RefundOrderNumber: u.RefundOrderNumber, RefundCents: u.RefundCents,
 		}
 	}
 	return out
