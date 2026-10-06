@@ -38,7 +38,13 @@ func (s *Store) recommendationQueries(ctx context.Context) (*db.Queries, context
 	release := func() {}
 	if pool, ok := s.dbtx.(*pgxpool.Pool); ok {
 		// Dialing a replacement connection must not consume the optional query budget.
-		conn, err := pool.Acquire(ctx)
+		budget := recommendationAcquireBudget
+		if deadline, ok := ctx.Deadline(); ok {
+			budget = min(budget, time.Until(deadline)/4)
+		}
+		acquireCtx, cancel := context.WithTimeout(ctx, budget)
+		conn, err := pool.Acquire(acquireCtx)
+		cancel()
 		if err != nil {
 			return nil, nil, nil, err
 		}
