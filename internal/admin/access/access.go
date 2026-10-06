@@ -40,16 +40,6 @@ func (c *Control) WithHealthTaskCount(read func(context.Context) (int64, error))
 // /signin?next=/admin — confirms that /admin is a real place.
 func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := layouts.WithHealthTaskCount(r.Context(), 0, false)
-		if c.healthTaskCount != nil {
-			count, err := c.healthTaskCount(ctx)
-			if err != nil {
-				ServerError(w, r, c.log)
-				return
-			} else {
-				ctx = layouts.WithHealthTaskCount(ctx, count, true)
-			}
-		}
 		u, ok := user.FromContext(r.Context())
 		if !ok || !u.IsStaff() {
 			NotFound(w, r, c.log)
@@ -71,7 +61,16 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		ctx = layouts.WithAdmin(ctx, u.IsAdmin())
+		ctx := layouts.WithAdmin(r.Context(), u.IsAdmin())
+		ctx = layouts.WithHealthTaskCount(ctx, 0, false)
+		if c.healthTaskCount != nil {
+			count, err := c.healthTaskCount(ctx)
+			if err != nil {
+				c.log.ErrorContext(ctx, "read background task count", "error", err)
+			} else {
+				ctx = layouts.WithHealthTaskCount(ctx, count, true)
+			}
+		}
 		next(w, r.WithContext(ctx))
 	}
 }
