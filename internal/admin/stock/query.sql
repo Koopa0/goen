@@ -98,6 +98,36 @@ AND (NOT @has_cursor::boolean OR (m.id < @after_id::uuid))
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
 
+-- The stock at the end of each shop day from first_day to last_day, worked back
+-- from stock_quantity through the movements after that day. The column and the
+-- ledger are read in this one statement, so a movement committed meanwhile is in
+-- both or in neither; the movements are bounded below only, because the column
+-- already holds every one of them. record_inventory_movement writes both, so the
+-- two agree. A day without movements is included.
+-- name: VariantStockByDay :many
+WITH v AS (
+    SELECT id, stock_quantity FROM product_variants WHERE sku = @sku::text
+), moved AS (
+    SELECT shop_day(m.created_at) AS day,
+           sum(m.delta) AS delta,
+           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
+           count(*) AS moves
+    FROM inventory_movements m
+    JOIN v ON v.id = m.variant_id
+    WHERE m.created_at >= @from_at::timestamptz
+    GROUP BY 1
+)
+SELECT d.day::date AS day,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       coalesce(t.received, 0)::integer AS received,
+       coalesce(t.receipts, 0)::integer AS receipts,
+       coalesce(t.moves, 0)::integer AS moves
+FROM v
+CROSS JOIN generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN moved t ON t.day = d.day::date
+ORDER BY d.day;
+
 -- reason 'receipt' and not 'adjustment', which is the whole of it: goods a shop
 -- bought must be distinguishable in its own ledger from a corrected miscount.
 -- There is no source_id, because goen has no purchasing table to point at.

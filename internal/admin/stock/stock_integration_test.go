@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -118,7 +119,7 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 		t.Fatalf("find a stocked variant: %v", err)
 	}
 
-	before, err := s.Movements(ctx, sku)
+	before, err := s.Movements(ctx, sku, time.Now())
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 		t.Fatalf("AdjustStock: %v", adjErr)
 	}
 
-	after, err := s.Movements(ctx, sku)
+	after, err := s.Movements(ctx, sku, time.Now())
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -597,7 +598,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
-	view, err := stock.NewStore(pool).Movements(ctx, sku)
+	view, err := stock.NewStore(pool).Movements(ctx, sku, time.Now())
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}

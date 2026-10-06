@@ -118,6 +118,30 @@ LEFT JOIN brands b ON b.id = p.brand_id
 ORDER BY r.units DESC, s.units DESC, p.name, p.slug
 LIMIT @limit_to::integer;
 
+-- A department is a top-level category; a product in a deeper one counts toward
+-- its root. The orders are those of RevenueBetween, so the departments add up to
+-- the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
+-- name: DepartmentSalesBetween :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root_id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT
+    localized_name(d.name, d.name_en, @locale::text) AS name,
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN committed_orders c ON c.id = o.id
+JOIN products p ON p.id = ol.product_id
+JOIN tree t ON t.id = p.category_id
+JOIN categories d ON d.id = t.root_id
+WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+GROUP BY d.id, d.name, d.name_en, d.position
+ORDER BY sales_cents DESC, d.position, d.id;
+
 -- NOT a conversion rate: goen collects no traffic data. This is the fraction of
 -- started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
 -- function call — measured at 106 ms over 14,000 orders against 7.7 ms.
