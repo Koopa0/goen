@@ -381,7 +381,7 @@ SELECT
     coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
     coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
               JOIN return_requests rr ON rr.id = rl.return_request_id
-              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units;
+              WHERE rl.order_id = $1 AND rr.status = 'completed'), 0)::bigint AS returned_units;
 
 -- The completed returns, with the money each sent back and the day it was paid out: the later of the card
 -- refund and the credit posting, or the decision for a return that sent nothing back.
@@ -394,7 +394,7 @@ SELECT coalesce(
            rr.decided_at)::timestamptz AS paid_out_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
-WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+WHERE rr.order_id = $1 AND rr.status = 'completed'
 ORDER BY paid_out_at, rr.id;
 
 -- name: RecordCheckoutAttempt :exec
