@@ -68,6 +68,7 @@ func TestStatLineVariantsAndNoStyleAttribute(t *testing.T) {
 	for variant, class := range map[StatLineVariant]string{
 		StatLinePlain: `<dl class="ui-statline">`,
 		StatLineWide:  `<dl class="ui-statline ui-statline--wide">`,
+		StatLinePairs: `<dl class="ui-statline ui-statline--pairs">`,
 	} {
 		got := renderStatLine(t, s, variant)
 		if !strings.Contains(got, class) {

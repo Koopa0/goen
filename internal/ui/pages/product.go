@@ -57,6 +57,9 @@ type ProductOption struct {
 	Values []ProductOptionValue
 }
 
+// Fixed is true where the product comes in one value of this option only, so there is nothing to pick.
+func (o ProductOption) Fixed() bool { return len(o.Values) == 1 }
+
 // HasSwatches is all or nothing per option: one row of choices should look like one row, and a
 // colour beside a word reads as two kinds of thing.
 func (o ProductOption) HasSwatches() bool {
@@ -150,12 +153,12 @@ type ProductView struct {
 	Description  string
 	WarrantyNote string
 	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
-	WarrantyMonths    int32
-	FreeDeliveryCents int64
-	Brand             string
-	CategorySlug      string
-	CategoryName      string
-	Crumbs            []Crumb
+	WarrantyMonths int32
+	Rules          ShopRules
+	Brand          string
+	CategorySlug   string
+	CategoryName   string
+	Crumbs         []Crumb
 
 	Images  []ProductImage
 	Options []ProductOption
@@ -315,7 +318,7 @@ func (v *ProductView) ChoiceSwap() string {
 }
 
 func (v *ProductView) BuyBarFollows() string {
-	if v.SoldOut() {
+	if v.NotifyOffered() {
 		return "restock"
 	}
 	return "add-to-cart"
@@ -396,7 +399,29 @@ const (
 	NotifyRecordedForAccount NotifyOutcome = "account"
 	NotifyBadAddress         NotifyOutcome = "bad"
 	NotifyVariantUnavailable NotifyOutcome = "unavailable"
+	NotifyNoOption           NotifyOutcome = "option"
 )
+
+// NotifyOffered is true where a notice can be asked for: once a combination is settled and sold out, and, while
+// every option is sold out, before any is picked, where the request is refused until one is.
+func (v *ProductView) NotifyOffered() bool {
+	return v.SoldOut() || v.AllSoldOut() && v.NeedsChoice()
+}
+
+// NotifyVariant is empty until a combination is picked: the default variant is only the cheapest, not the one wanted.
+func (v *ProductView) NotifyVariant() string {
+	if v.NeedsChoice() {
+		return ""
+	}
+	return v.VariantID
+}
+
+func (v *ProductView) NotifyNeedsOption() bool { return v.NotifyOutcome == NotifyNoOption }
+
+// OptionInvalid marks the choices a refused request left unpicked.
+func (v *ProductView) OptionInvalid(o ProductOption) bool {
+	return v.NotifyNeedsOption() && v.NotifyOffered() && o.SelectedLabel() == ""
+}
 
 func (v *ProductView) NotifyTaken() bool {
 	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount
@@ -499,7 +524,53 @@ func (v *ProductView) AlreadyComparing() bool {
 
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
-func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+// maxHighlights is how many specification values stand under the name.
+const maxHighlights = 3
+
+// Highlights are the first specification values, written one after another under the name.
+func (v *ProductView) Highlights() []string {
+	var out []string
+	for _, s := range v.Specs {
+		if s.Value != "" && len(out) < maxHighlights {
+			out = append(out, s.Value)
+		}
+	}
+	return out
+}
+
+// BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, the
+// shop's right to cancel, the stock hold only while there is stock to hold, and free delivery.
+func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
+	stats := make([]components.Stat, 0, 4)
+	if v.HasWarranty() {
+		stats = append(stats, components.Stat{
+			Label: i18n.T(ctx, i18n.KeySectionWarranty),
+			Value: components.StatCount(int64(v.WarrantyMonths), countUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
+		})
+	}
+	stats = append(stats, v.Rules.rescissionStat(ctx))
+	if v.AnySellable {
+		stats = append(stats, v.Rules.holdStat(ctx))
+	}
+	return append(stats, v.Rules.freeDeliveryStat(ctx))
+}
+
+// RestockNote is the sentence over the notify form, asking for a pick only while there is none.
+func (v *ProductView) RestockNote(ctx context.Context) string {
+	if v.NeedsChoice() {
+		return i18n.T(ctx, i18n.KeyRestockPick)
+	}
+	return i18n.T(ctx, i18n.KeyRestockNote)
+}
+
+// ValueSoldOut is the words an option value that leads to nothing buyable carries: sold out for the
+// whole product, otherwise only for this combination of choices.
+func (v *ProductView) ValueSoldOut(ctx context.Context) string {
+	if v.AllSoldOut() {
+		return i18n.T(ctx, i18n.KeySoldOut)
+	}
+	return i18n.T(ctx, i18n.KeyVariantUnavailable)
+}
 
 func (v *ProductView) ArrivalDay() string { return shoptime.Day(v.ExpectedArrival) }
 

@@ -3,6 +3,7 @@ package product
 
 import (
 	"errors"
+	"maps"
 	"net/url"
 	"strings"
 	"time"
@@ -63,6 +64,19 @@ func (s Selection) OnlyOptionsOf(variants []Variant) Selection {
 	for k, v := range s {
 		if _, ok := known[k]; ok {
 			out[k] = v
+		}
+	}
+	return out
+}
+
+// WithSingleChoices names every option that has one value only, over whatever the address says: there is
+// nothing to choose between, so the page states it, and a visitor is not asked to press it before they can buy.
+func (s Selection) WithSingleChoices(groups map[string][]OptionChoice) Selection {
+	out := make(Selection, len(s)+len(groups))
+	maps.Copy(out, s)
+	for name, choices := range groups {
+		if len(choices) == 1 {
+			out[name] = choices[0].Value
 		}
 	}
 	return out
