@@ -136,3 +136,23 @@ func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
 		}
 	}
 }
+
+func TestTheDashboardFiguresAreLinkedLabelsBeforeTheirValues(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{PendingOrders: 4, PickingOrders: 2, ActiveProducts: 9}))
+	for _, want := range []struct {
+		href  string
+		label i18n.Key
+		value string
+	}{
+		{"/admin/orders?status=pending", i18n.KeyAdminQueueStatPending, "4"},
+		{"/admin/orders?status=picking", i18n.KeyAdminStatusPicking, "2"},
+		{"/admin/products", i18n.KeyAdminQueueStatActive, "9"},
+	} {
+		got := `<dt><a href="` + want.href + `">` + i18n.T(ctx, want.label) + `</a></dt><dd>` + want.value
+		if !strings.Contains(html, got) {
+			t.Errorf("Dashboard does not carry %s", got)
+		}
+	}
+}
