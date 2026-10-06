@@ -3589,6 +3589,51 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 	return items, nil
 }
 
+const campaignsBetween = `-- name: CampaignsBetween :many
+SELECT localized_name(c.title, c.title_en, $1::text) AS title,
+       shop_day(c.starts_at) AS first_day,
+       shop_day(c.ends_at - interval '1 microsecond') AS last_day
+FROM sale_campaigns c
+WHERE c.is_active
+  AND c.starts_at < $2::timestamptz AND c.ends_at > $3::timestamptz
+ORDER BY c.starts_at, c.id
+`
+
+type CampaignsBetweenParams struct {
+	Locale string
+	ToAt   time.Time
+	FromAt time.Time
+}
+
+type CampaignsBetweenRow struct {
+	Title    string
+	FirstDay time.Time
+	LastDay  time.Time
+}
+
+// The campaigns that were on at any time in [from_at, to_at), as the shop days
+// they cover; a campaign's last day is the one its ends_at falls in, and an
+// ends_at at midnight belongs to the day before.
+func (q *Queries) CampaignsBetween(ctx context.Context, arg CampaignsBetweenParams) ([]CampaignsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, campaignsBetween, arg.Locale, arg.ToAt, arg.FromAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignsBetweenRow{}
+	for rows.Next() {
+		var i CampaignsBetweenRow
+		if err := rows.Scan(&i.Title, &i.FirstDay, &i.LastDay); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cancelLapsedOrder = `-- name: CancelLapsedOrder :execrows
 UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.id = $1
@@ -8874,6 +8919,26 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 		return nil, err
 	}
 	return items, nil
+}
+
+const latestPaidDay = `-- name: LatestPaidDay :one
+SELECT shop_day(o.placed_at) AS day
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+WHERE o.placed_at < $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY o.placed_at DESC
+LIMIT 1
+`
+
+// The shop day of the latest paid order placed before to_at, counted as
+// PaidByShopDay counts; no row when there is none.
+func (q *Queries) LatestPaidDay(ctx context.Context, toAt time.Time) (time.Time, error) {
+	row := q.db.QueryRow(ctx, latestPaidDay, toAt)
+	var day time.Time
+	err := row.Scan(&day)
+	return day, err
 }
 
 const leaseInvoiceOperation = `-- name: LeaseInvoiceOperation :one

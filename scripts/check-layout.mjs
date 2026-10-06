@@ -238,12 +238,19 @@ const ADMIN = [
   // report two best sellers, one at four digits, paid orders on seven shop days with a period total of seven digits (the running totals' .goen-chart), and a return of a quarter of the
   // second's units, so the row waits for the returned-products bar, the one with
   // the most text; without it the page measured is the one-sentence state.
+  // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
+  // with a campaign over them. Seven paid days give the full drawing, and the
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 1 day to
+  // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
   // and the warning; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports columns 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
   // .goen-report__departments .goen-chartbar: the two best sellers are in two
   // departments, so the row waits for the department bars; without them it
   // measured the page with one department or none.
