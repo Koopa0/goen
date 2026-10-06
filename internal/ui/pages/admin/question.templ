@@ -34,11 +34,7 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				}
 			}
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

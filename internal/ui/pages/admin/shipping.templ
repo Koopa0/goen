@@ -23,11 +23,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		for _, m := range v.Methods {
 			{{ d := v.VersionValues(&m) }}
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {

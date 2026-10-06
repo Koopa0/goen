@@ -10,10 +10,8 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
-const PRE = [readFileSync('scripts/pre-base.css', 'utf8'), readFileSync('scripts/pre-app.css', 'utf8')];
-const STYLE_TOTAL = { pages: 0, elements: 0, props: 0, diffs: 0 };
-process.on('exit', () => console.log(`STYLEPROBE TOTAL pages=${STYLE_TOTAL.pages} elements=${STYLE_TOTAL.elements} compared-props=${STYLE_TOTAL.props} differences=${STYLE_TOTAL.diffs}`));
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -217,12 +215,17 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin' },
+  // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
+  // one at four digits, so a row without a bar measured the one-seller page.
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
-  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-admin' },
-  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-admin' },
+  // .goen-chartmeter: scripts/check-layout.sql adds a coupon with a total limit,
+  // so a row without a meter measured the list of uncapped coupons.
+  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-chartmeter' },
+  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-chartmeter' },
   { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
   { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
   // .ui-table and not .goen-health: the status list is always present, so a
@@ -609,27 +612,6 @@ const routeOf = (url) => {
   return route;
 };
 
-
-const STYLE_PROBE = `(async () => {
-  const pre = __PRE__;
-  const pathOf = (el) => { const parts = []; for (; el && el.nodeType === 1; el = el.parentElement) { let i = 1; for (let q = el.previousElementSibling; q; q = q.previousElementSibling) i++; parts.push(el.tagName.toLowerCase() + ':' + i + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : '')); } return parts.reverse().join(' > '); };
-  const snap = () => { const m = new Map(); for (const el of document.querySelectorAll('*')) { const base = pathOf(el); for (const ps of ['', '::before', '::after']) { const cs = getComputedStyle(el, ps || null); if (ps && (cs.content === 'none' || cs.content === 'normal')) continue; const o = {}; for (let i = 0; i < cs.length; i++) o[cs[i]] = cs.getPropertyValue(cs[i]); m.set(base + ps, o); } } return m; };
-  const sheets = [...document.styleSheets].filter((s) => s.href && /\\/css\\/app\\/(base|app|admin)\\.css/.test(s.href));
-  const links = sheets.map((s) => s.href);
-  const old = pre.map((t) => { const c = new CSSStyleSheet(); c.replaceSync(t); return c; });
-  const A = snap();
-  sheets.forEach((s) => { s.disabled = true; });
-  document.adoptedStyleSheets = old;
-  const B = snap();
-  document.adoptedStyleSheets = [];
-  sheets.forEach((s) => { s.disabled = false; });
-  const A2 = snap();
-  let props = 0, unstable = 0; const diffs = [];
-  for (const [k, a] of A) { const b = B.get(k), a2 = A2.get(k); if (!b || !a2) { diffs.push([k, '(element)', 'present', 'absent']); continue; }
-    for (const p of Object.keys(a)) { props++; if (a[p] !== a2[p]) { unstable++; continue; } if (a[p] !== b[p]) diffs.push([k, p, a[p], b[p]]); } }
-  return { width: innerWidth, nodes: A.size, props, unstable, links: links.length, diffCount: diffs.length, diffs: diffs.slice(0, 8) };
-})()`;
-
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -647,26 +629,6 @@ const settled = async (ws, label, url) => {
       await new Promise((r) => setTimeout(r, 250));
       const route = routeOf(url);
       if (!visited.has(route)) visited.set(route, url);
-      const r = await send(ws, 'Runtime.evaluate', {
-        expression: STYLE_PROBE.replace('__PRE__', JSON.stringify(PRE)), returnByValue: true, awaitPromise: true,
-      }, 120000);
-      const v = r.result && r.result.value;
-      if (!v) {
-        fail('style probe ' + label, 'did not run: ' + JSON.stringify(r).slice(0, 300));
-      } else {
-        STYLE_TOTAL.pages++; STYLE_TOTAL.elements += v.nodes; STYLE_TOTAL.props += v.props; STYLE_TOTAL.diffs += v.diffCount;
-        console.log(`STYLEPROBE ${label} ${route} width=${v.width} elements=${v.nodes} sheets=${v.links} unstable-props=${v.unstable} differences=${v.diffCount}`);
-        for (const d of v.diffs) fail('style probe ' + label + ' ' + route, `${d[0]} { ${d[1]}: ${d[2]} -> ${d[3]} }`);
-        if (v.links < 2) fail('style probe ' + label, 'swapped only ' + v.links + ' sheets');
-      }
-      await send(ws, 'Page.navigate', { url });
-      for (let j = 0; j < 50; j++) {
-        await new Promise((q) => setTimeout(q, 100));
-        const { result: st } = await send(ws, 'Runtime.evaluate', { expression: 'document.readyState + " " + location.href', returnByValue: true });
-        const [state2, href2] = String(st.value).split(' ');
-        if (state2 === 'complete' && href2 === url) break;
-      }
-      await new Promise((q) => setTimeout(q, 250));
       return;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -2694,6 +2656,84 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// axe has no WCAG 1.4.11 rule, so measure the boundary or fill identifying each editable region.
+// Native Tab must add a shape as well as changing the colour of the border.
+const controlFocus = async (selector) => {
+  const prepared = await evalPage(`(() => {
+    const target = document.querySelector(${JSON.stringify(selector)});
+    // Closed disclosure contents can keep layout boxes without being Tab stops.
+    const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')]
+      .filter((el) => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]')
+        && el.checkVisibility({ visibilityProperty: true }));
+    const position = controls.indexOf(target);
+    if (position < 1) return { error: 'control or its preceding Tab stop is missing' };
+    if (controls.some((el) => el.tabIndex > 0)) return { error: 'positive tabindex needs an explicit focus-order check' };
+    controls[position - 1].focus();
+    return { ready: document.activeElement === controls[position - 1] };
+  })()`);
+  if (!prepared.ready) return { selector, error: prepared.error || prepared.why || 'preceding Tab stop could not focus' };
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  return evalPage(`new Promise((resolve) => setTimeout(() => resolve((${measureControlBoundary.toString()})(${JSON.stringify([selector])}, ${contrastRatio.toString()}, true)[0]), 350))`);
+};
+
+const { cookies: boundaryCookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+const boundarySession = boundaryCookies.find((c) => c.name === 'goen_session');
+try {
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    for (const { path, selectors, widths, session } of [
+      { path: '/contact', selectors: ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'], widths: [1440] },
+      { path: '/compare?p=' + encodeURIComponent(process.env.PRODUCT_SLUG || ''), selectors: ['#compare-q'], widths: [1440] },
+      { path: '/c/phones', selectors: ['#sort'], widths: [1440] },
+      { path: '/admin/credit', selectors: ['#credit-email'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/admin/orders/' + (process.env.RETURN_FORM_ORDER || ''), selectors: ['#staff-note', '#next-status'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/checkout', selectors: ['#address-book'], widths: [375, 1440], session: process.env.CUST_TOKEN },
+    ]) {
+      if ((path.startsWith('/admin/') || path === '/checkout') && !session) {
+        fail('control boundary', path + ': authenticated fixture missing');
+        continue;
+      }
+      if (session) await send(ws, 'Network.setCookie', { name: 'goen_session', value: session, domain: '127.0.0.1', path: '/' });
+      for (const width of widths) {
+        const label = 'control boundary ' + locale + ' ' + width + ' ' + path;
+        await openAt(label, path);
+        await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await evalPage('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+        await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
+        const boundaries = await evalPage(`(${measureControlBoundary.toString()})(${JSON.stringify(selectors)}, ${contrastRatio.toString()})`);
+        if (boundaries.threw || !Array.isArray(boundaries)) {
+          fail(label, boundaries.why || 'boundary probe returned no measurements');
+          continue;
+        }
+        for (const boundary of boundaries) {
+          console.log(label + ' rest ' + JSON.stringify(boundary));
+          if (boundary.error) {
+            fail(label, boundary.selector + ': ' + boundary.error);
+            continue;
+          }
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
+            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          }
+          const focused = await controlFocus(boundary.selector);
+          console.log(label + ' focus ' + JSON.stringify(focused));
+          if (focused.error || focused.threw || !focused.active || !focused.focusVisible || focused.outlineWidth < 2
+              || focused.outlineWidth <= boundary.outlineWidth || focused.outlineContrast < 3) {
+            fail(label, boundary.selector + ': native keyboard focus has no additional visible 2px ring');
+          }
+        }
+      }
+    }
+  }
+} finally {
+  if (boundarySession) {
+    await send(ws, 'Network.setCookie', { name: boundarySession.name, value: boundarySession.value, domain: boundarySession.domain, path: boundarySession.path });
+  } else {
+    await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  }
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+}
 
 // Selection must be visible after focus leaves the control; focus is a separate state.
 const forcedColoursMissing = ['CUST_TOKEN', 'PICKUP_SHIP', 'COLOUR_SLUG'].filter((name) => !process.env[name]);

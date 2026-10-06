@@ -13,7 +13,7 @@ var (
 		En:     "We cannot show the home page right now. Please try again shortly.",
 	})
 
-	KeySectionCategories = key("home.categories", Message{ZhHant: "依館別選購", En: "Shop by department"})
+	KeySectionCategories = key("home.categories", Message{ZhHant: "館別", En: "Departments"})
 
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
@@ -79,9 +79,9 @@ var (
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
 	// for a day outside the shop's current year.
-	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d 月 %[3]d 日", En: "%[1]s %[3]d"})
+	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d\u00a0月 %[3]d\u00a0日", En: "%[1]s\u00a0%[3]d"})
 
-	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d 年 %[2]d 月 %[3]d 日", En: "%[1]s %[3]d, %[4]d"})
+	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d\u00a0年 %[2]d\u00a0月 %[3]d\u00a0日", En: "%[1]s\u00a0%[3]d, %[4]d"})
 
 	// %s is a department's name.
 	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})

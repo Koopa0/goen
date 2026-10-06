@@ -110,7 +110,7 @@ var (
 	})
 
 	KeyAdminReturnWindowGoodwill = key("admin.return.window.goodwill", Message{
-		ZhHant: "送達後第 8–14 日（店家優惠）",
+		ZhHant: "送達後第 8–14 天（店家優惠）",
 		En:     "Days 8–14 of the shop's voluntary offer",
 	})
 
@@ -172,7 +172,7 @@ var (
 	})
 
 	KeyAdminRetLateHint = key("admin.ret.latehint", Message{
-		ZhHant: "已逾 14 日。同意是人工例外，不是政策內權利。",
+		ZhHant: "已逾 14 天。同意是人工例外，不是政策內權利。",
 		En:     "Past 14 days. Approval is a staff exception, not a policy entitlement.",
 	})
 
@@ -239,7 +239,7 @@ var (
 	})
 
 	KeyAdminRetErrStatutoryReject = key("admin.ret.err.statutoryreject", Message{
-		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 日條件而拒絕。",
+		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 天條件而拒絕。",
 		En:     "A valid request inside seven days cannot be refused for a missing reason, for opening the parcel, or for the days 8–14 conditions.",
 	})
 
@@ -254,7 +254,7 @@ var (
 	})
 
 	KeyAdminRetErrUnmetApprove = key("admin.ret.err.unmetapprove", Message{
-		ZhHant: "已有不符合的觀察，不能記成第 8–14 日政策內權利。拒絕須引用該事實，或改選人工例外。",
+		ZhHant: "已有不符合的觀察，不能記成第 8–14 天政策內權利。拒絕須引用該事實，或改選人工例外。",
 		En:     "An unmet observation cannot be recorded as the days 8–14 policy entitlement. Decline by citing that fact, or approve as a staff exception.",
 	})
 
@@ -354,6 +354,11 @@ var (
 		En:     "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”.",
 	})
 
+	KeyAdminNoticeCancelRetry = key("admin.notice.cancelretry", Message{
+		ZhHant: "退款已完成，但訂單還沒取消。請按「繼續退款」完成取消。",
+		En:     "The refund went through, but the order is not cancelled yet. Press “Resume the refund” to finish.",
+	})
+
 	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{
 		ZhHant: "退款已記錄，但 Stripe 尚未完成。請確認 Stripe 後台，再按「繼續退款」。",
 		En:     "The refund is recorded but Stripe has not settled it. Check the Stripe dashboard, then press Resume the refund.",
@@ -418,6 +423,19 @@ var (
 			"takes back the points; the order is cancelled and its stock released once the refund has " +
 			"landed and the invoice is voided or credited.",
 	})
+
+	KeyAdminRefundCreditHint = key("admin.refund.credit.hint", Message{
+		ZhHant: "這筆訂單以購物金全額付款，還沒開始備貨。確認後訂單立即取消，購物金退回顧客的餘額，保留的庫存釋出，發票排入作廢。",
+		En: "Store credit paid this order in full and packing has not started. Confirming cancels it at once, " +
+			"returns the store credit to the customer's balance, releases its stock and queues its invoice to be voided.",
+	})
+
+	KeyAdminRefundCreditReturn = key("admin.refund.credit.return", Message{
+		ZhHant: "購物金 %s 退回顧客的餘額，訂單立即取消，發票排入作廢。",
+		En:     "Store credit of %s goes back to the customer's balance, the order is cancelled at once and its invoice is queued to be voided.",
+	})
+
+	KeyAdminRefundCreditCancel = key("admin.refund.credit.cancel", Message{ZhHant: "取消訂單並退回購物金", En: "Cancel the order and return the store credit"})
 
 	KeyAdminRefundOpen = key("admin.refund.open", Message{
 		ZhHant: "這筆訂單正在出貨前退款，已不能出貨。退款入帳、發票作廢或折讓後，按「繼續退款」取消訂單。",

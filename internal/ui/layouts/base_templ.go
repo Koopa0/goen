@@ -414,9 +414,9 @@ func documentHead(p Page, surfaceCSS string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var22 templ.SafeURL
-		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(assets.URL(assets.InterLatinWOFF2)))
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(assets.URL(assets.InstrumentSansLatinWOFF2)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 76, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 76, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {

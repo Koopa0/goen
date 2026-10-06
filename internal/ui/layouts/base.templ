@@ -71,9 +71,9 @@ templ documentHead(p Page, surfaceCSS string) {
 		// and every file it names arrive on the connection that fetched the page.
 		//
 		// The Latin face is preloaded because every page paints it first and a browser cannot
-		// find a font before it parses the sheet naming it. The Han subsets are not: which of
-		// the 105 a page needs depends on its characters, and a wrong guess costs a file.
-		<link rel="preload" href={ templ.URL(assets.URL(assets.InterLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
+		// find a font before it parses the sheet naming it. The Han subsets are not: which
+		// subset a page needs depends on its characters, and a wrong guess costs a file.
+		<link rel="preload" href={ templ.URL(assets.URL(assets.InstrumentSansLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(surfaceCSS)) }/>

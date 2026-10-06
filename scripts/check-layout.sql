@@ -125,9 +125,44 @@ WHERE sm.code = 'home_delivery' AND sm.is_active AND v.effective_at <= now()
   AND pv.id = :'variant_id'
 ORDER BY v.effective_at DESC LIMIT 1 \gset
 
+-- A second best seller, because /admin/reports draws bars only when there are
+-- two sellers to compare. Its 1,000 units give the bars' count column four
+-- digits; they ride the two picking orders as two lines of 500, since a line
+-- holds at most 999. The cheapest variant in stock, so each line's credit fits
+-- one grant; the receipt covers the holds, so its stock ends where it began.
+SELECT pv.id AS seller_variant_id, pv.sku AS seller_sku, pv.price_cents * 500 AS seller_line_cents
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
+  AND pv.product_id <> (SELECT product_id FROM product_variants WHERE id = :'variant_id')
+ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
+
+SET ROLE admin;
+
+-- A coupon with a total limit, as the coupon form writes one: the list draws its
+-- meter only for a capped coupon.
+INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions, per_customer_limit)
+VALUES ('LAYOUT-CAP', 'Layout capped coupon', 'amount', 100, 5, 1)
+RETURNING id AS capped_coupon_id \gset
+
+SELECT record_inventory_movement(:'seller_variant_id', 1000, 'receipt',
+    'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
+SELECT record_audit_event(:'staff_id', 'stock.receive', 'product_variants', :'seller_variant_id',
+    jsonb_build_object('sku', :'seller_sku'), jsonb_build_object('received', 1000));
+SELECT grant_store_credit(:'customer_id', :seller_line_cents, 'Best-seller fixture', :'staff_id', gen_random_uuid()),
+       record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
+           jsonb_build_object('amount_cents', :seller_line_cents, 'reason', 'Best-seller fixture'))
+FROM generate_series(1, 2);
+
+SET ROLE store;
+
 INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart_token', 'UTF8')))
 RETURNING id AS cart_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'variant_id', 1);
+
+-- Checkout's saved-address select must be exercised as a signed-in customer.
+INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street, is_default)
+VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
 -- Five orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
@@ -153,17 +188,22 @@ RETURNING id AS picking_b_id \gset
 
 INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, variant_label,
                          warranty_note, warranty_months, unit_price_cents, quantity, position)
-SELECT o.id, p.id, pv.id, pv.sku, p.name,
+SELECT l.order_id, p.id, pv.id, pv.sku, p.name,
        (SELECT string_agg(ov.value, ' · ' ORDER BY po.position, po.id)
         FROM variant_option_values vov
         JOIN product_options po ON po.id = vov.option_id
         JOIN product_option_values ov ON ov.id = vov.option_value_id
         WHERE vov.variant_id = pv.id),
-       p.warranty_note, p.warranty_months, pv.price_cents, 1, 0
-FROM orders o
-CROSS JOIN product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE o.id IN (:'placed_id', :'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id') AND pv.id = :'variant_id';
+       p.warranty_note, p.warranty_months, pv.price_cents, l.quantity, l.position
+FROM (VALUES (:'placed_id'::uuid, :'variant_id'::uuid, 1, 0),
+             (:'invoice_id', :'variant_id', 1, 0),
+             (:'form_id', :'variant_id', 1, 0),
+             (:'picking_a_id', :'variant_id', 1, 0),
+             (:'picking_b_id', :'variant_id', 1, 0),
+             (:'picking_a_id', :'seller_variant_id', 500, 1),
+             (:'picking_b_id', :'seller_variant_id', 500, 1)) AS l (order_id, variant_id, quantity, position)
+JOIN product_variants pv ON pv.id = l.variant_id
+JOIN products p ON p.id = pv.product_id;
 
 -- Checkout's whole hold window (cart.holdTTL): a shorter one renders the pay
 -- page's window-closed state, which carries the same marker.
@@ -190,6 +230,10 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_c
 -- The placed-order cookie carries this token; the URL carries the number.
 INSERT INTO order_access_grants (digest, order_id)
 VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
+
+-- One redemption on a paid order, so the capped coupon's meter has a filled
+-- part. The order carries no discount, so the redemption records none.
+SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
 
 SET ROLE admin;
 

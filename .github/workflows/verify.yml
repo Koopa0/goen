@@ -66,6 +66,9 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Filter probe browser readiness
+        run: node --test scripts/filter-feedback-check.test.mjs
+
       - name: Confirm the exact Go version
         run: |
           set -euo pipefail
@@ -168,6 +171,9 @@ jobs:
           set -euo pipefail
           make migrate-up
           make db-seed
+
+      - name: Control boundary contrast calculations
+        run: node --test scripts/control-boundary.test.mjs
 
       - name: Accessibility gate policy
         run: node --test scripts/wcag-gate.test.mjs

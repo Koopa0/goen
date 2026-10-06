@@ -17,12 +17,7 @@ func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
 	if endsAt.After(now.AddDate(0, 0, 30)) {
 		return ""
 	}
-	d := shoptime.DateOf(endsAt, now)
-	key := i18n.KeyShortDate
-	if d.OtherYear {
-		key = i18n.KeyShortDateYear
-	}
-	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
+	return shoptime.DateText(ctx, shoptime.LastDay(endsAt, now))
 }
 
 type CampaignSummary struct {

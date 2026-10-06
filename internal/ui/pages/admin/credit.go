@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -57,7 +58,7 @@ type CreditView struct {
 	web.Bound
 
 	Rows   []CreditEntry
-	Notice string
+	Notice components.Result
 	Email  string
 	Reason string
 	Amount string

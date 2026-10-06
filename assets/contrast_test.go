@@ -43,24 +43,23 @@ func contrast(a, b string) float64 {
 func hexTokens(t *testing.T) map[string]string {
 	t.Helper()
 
-	declared := func(name string) map[string]string {
+	read := func(name string) [][]string {
 		sheet, err := fs.ReadFile(files, name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		out := make(map[string]string)
-		for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-			if _, seen := out[m[1]]; !seen {
-				out[m[1]] = m[2]
-			}
-		}
-		return out
+		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
 	}
-	tokens := declared(BaseCSS)
+	tokens := make(map[string]string)
+	for _, m := range read(BaseCSS) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
 	for _, name := range []string{AppCSS, AdminCSS} {
-		for token, hex := range declared(name) {
-			if base, ok := tokens[token]; ok && base != hex {
-				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, token, hex, base)
+		for _, m := range read(name) {
+			if base, ok := tokens[m[1]]; ok && base != m[2] {
+				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
 			}
 		}
 	}
@@ -90,6 +89,27 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 					ink, tokens[ink], ground, tokens[ground], got)
 			}
 		}
+	}
+
+	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
+	if tokens["--chart-hue"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
+	}
+	for _, ground := range []string{"--n-0", "--n-50"} {
+		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
+			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--chart-hue"], ground, tokens[ground], got)
+		}
+	}
+
+	// A meter's unfilled part is a tint of the hue, and the filled part must
+	// stand out from it.
+	if tokens["--chart-hue-track"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue-track")
+	}
+	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
+		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
+			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
 	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
@@ -232,6 +252,57 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 		if got := contrast(tokens[c.token], c.against); got < 3 {
 			t.Errorf("star %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				c.what, c.token, tokens[c.token], c.on, c.against, got)
+		}
+	}
+}
+
+func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens := hexTokens(t)
+	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if len(alias) != 2 || tokens[alias[1]] == "" {
+		t.Fatal("controls need a boundary from the existing colour ramp")
+	}
+	tokens["--control-boundary"] = tokens[alias[1]]
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		got := contrast(tokens["--control-boundary"], tokens[ground])
+		if math.IsNaN(got) || got < 3 {
+			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
+		}
+	}
+}
+
+// The focus ring is a graphical object (WCAG 1.4.11, 2.4.7): 3:1 on every
+// ground a focusable thing sits on. The accent is dark, so the grounds that
+// are dark themselves re-point --ring to white.
+func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	tokens := hexTokens(t)
+
+	for _, ground := range []string{"--n-0", "--n-50", "--wash", "--well"} {
+		if got := contrast(tokens["--accent"], tokens[ground]); got < 3 {
+			t.Errorf("focus ring --accent (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--accent"], ground, tokens[ground], got)
+		}
+	}
+
+	override := regexp.MustCompile(`(?s)\[data-tone="ink"\],\s*\.goen-promo \{\s*--ring: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if override == nil {
+		t.Fatal("app.css does not re-point --ring on the promo bar and the ink tone")
+	}
+	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
+		if got := contrast(tokens[override[1]], bg); got < 3 {
+			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
+				override[1], tokens[override[1]], bg, got)
 		}
 	}
 }

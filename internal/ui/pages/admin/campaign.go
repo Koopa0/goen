@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -67,7 +68,7 @@ type CampaignsView struct {
 	web.Bound
 
 	Rows   []CampaignRow
-	Notice string
+	Notice components.Result
 	Errors map[string]string
 	Draft  CampaignDraft
 }
@@ -103,7 +104,7 @@ type CampaignView struct {
 	Term     string
 	Matches  []CampaignProduct
 	Products []CampaignProduct
-	Notice   string
+	Notice   components.Result
 	Image    Header
 	Tone     string
 	Errors   map[string]string

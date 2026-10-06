@@ -8,41 +8,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/email"
-
 	"github.com/koopa0/goen/internal/i18n"
 )
-
-// subject: Value is STORED, Label is read; translating the value at write time
-// would put the visitor's language in a row.
-type subject struct {
-	Value    string
-	LabelKey i18n.Key
-}
-
-// subjects is closed: the database repeats these stored values in
-// contact_messages_subject_known, so a lower-level writer cannot widen the set.
-var subjects = [...]subject{
-	// i18n-exempt: the STORED value, per the note on subject.
-	{Value: "訂單問題", LabelKey: i18n.KeySubjectOrder},
-	// i18n-exempt: the STORED value, per the note on subject.
-	{Value: "退換貨", LabelKey: i18n.KeySubjectReturns},
-	// i18n-exempt: the STORED value, per the note on subject.
-	{Value: "保固維修", LabelKey: i18n.KeySubjectWarranty},
-	// i18n-exempt: the STORED value, per the note on subject.
-	{Value: "商品諮詢", LabelKey: i18n.KeySubjectProduct},
-	// i18n-exempt: the STORED value, per the note on subject.
-	{Value: "合作提案", LabelKey: i18n.KeySubjectPartnership},
-}
-
-func offersSubject(v string) bool {
-	for _, s := range subjects {
-		if s.Value == v {
-			return true
-		}
-	}
-	return false
-}
 
 const (
 	maxName     = 80
@@ -54,7 +23,7 @@ const (
 type Message struct {
 	Name     string
 	Email    string
-	Subject  string
+	Subject  contactsubject.Subject
 	OrderRef string
 	Body     string
 }
@@ -63,7 +32,7 @@ func Clean(m Message) Message {
 	return Message{
 		Name:     strings.TrimSpace(m.Name),
 		Email:    email.Clean(m.Email),
-		Subject:  strings.TrimSpace(m.Subject),
+		Subject:  contactsubject.Subject(strings.TrimSpace(string(m.Subject))),
 		OrderRef: strings.TrimSpace(m.OrderRef),
 		Body:     strings.TrimSpace(m.Body),
 	}
@@ -76,7 +45,7 @@ func Validate(ctx context.Context, m Message) map[string]string {
 	// forged second line, whatever the field's length.
 	errs.set("name", singleLineProblem(ctx, m.Name))
 	errs.set("email", singleLineProblem(ctx, m.Email))
-	errs.set("subject", singleLineProblem(ctx, m.Subject))
+	errs.set("subject", singleLineProblem(ctx, string(m.Subject)))
 	errs.set("order_ref", singleLineProblem(ctx, m.OrderRef))
 	errs.set("message", multiLineProblem(ctx, m.Body))
 
@@ -96,7 +65,7 @@ func Validate(ctx context.Context, m Message) map[string]string {
 		errs.set("email", i18n.T(ctx, i18n.KeyEmailMalformed))
 	}
 
-	if !offersSubject(m.Subject) {
+	if !m.Subject.Known() {
 		errs.set("subject", i18n.T(ctx, i18n.KeySubjectRequired))
 	}
 

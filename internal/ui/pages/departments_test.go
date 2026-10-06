@@ -70,6 +70,10 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		if !strings.Contains(page, `<h1 class="about__title">`+i18n.T(ctx, i18n.KeyAboutTitle)+`</h1>`) {
 			t.Errorf("%s about page's heading is not its title", locale)
 		}
+		wantTitle := map[i18n.Locale]string{i18n.ZhHant: "館別", i18n.En: "Departments"}[locale]
+		if !strings.Contains(page, `<h2 class="about__valuetitle">`+wantTitle+`</h2>`) {
+			t.Errorf("%s about page does not head its department list %q", locale, wantTitle)
+		}
 		if !strings.Contains(page, `<p class="about__valuebody">`+html.EscapeString(list)+`</p>`) {
 			t.Errorf("%s about page does not list the categories %q", locale, list)
 		}

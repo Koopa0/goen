@@ -156,11 +156,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -285,13 +281,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		if v.HasNotice() {
-			// The layout gate finds this screen's notice by the vendored
-			// spelling, so the element keeps it (#380 R8).
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, Class: "ui-alert"}) {
-				{ v.Notice }
-			}
-		}
+		@AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)
@@ -588,7 +578,11 @@ templ Order(p layouts.Page, v *OrderView) {
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
-								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								if v.RefundCreditPaid {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundCreditHint) }</p>
+								} else {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								}
 							}
 						</form>
 					}
@@ -728,9 +722,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		if v.HasNotice() {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-		}
+		@Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/stock">
 			if v.LowOnly {
 				<input type="hidden" name="low" value="1"/>
@@ -784,6 +776,7 @@ templ variantTable(variants []Variant, back string) {
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColPrice) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</th>
 			</tr>
 		</thead>
@@ -828,6 +821,28 @@ templ variantTable(variants []Variant, back string) {
 								placeholder={ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }
 							/>
 							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueuePriceSave) }</button>
+						</form>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/arrival">
+							<input type="hidden" name="return" value={ back }/>
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<label class="goen-sr-only" for={ "arrival-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</label>
+							<input
+								class="ui-input ui-input--sm"
+								id={ "arrival-" + x.SKU }
+								type="date"
+								name="arrival_on"
+								value={ x.ArrivalInput }
+								if x.ArrivalError != "" {
+									aria-invalid="true"
+									aria-describedby={ "arrival-error-" + x.SKU }
+								}
+							/>
+							if x.ArrivalError != "" {
+								<p class="ui-error-text" id={ "arrival-error-" + x.SKU } role="alert">{ x.ArrivalError }</p>
+							}
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminVariantArrivalSave) }</button>
 						</form>
 					</td>
 					<td>
