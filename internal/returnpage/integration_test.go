@@ -1323,7 +1323,7 @@ func TestReturnReasonRefusalsIdentifyTheirCauseThroughPOST(t *testing.T) {
 	}
 }
 
-func reasonRefusalMessages(locale i18n.Locale) (string, string) {
+func reasonRefusalMessages(locale i18n.Locale) (lengthMessage, controlMessage string) {
 	if locale == i18n.ZhHant {
 		return "退貨原因最多 500 字。", "請移除退貨原因中不支援的控制字元。"
 	}
