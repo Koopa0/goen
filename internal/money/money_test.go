@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/money"
 )
@@ -141,7 +142,14 @@ func TestShort(t *testing.T) {
 func TestShortStopsOnADivisorWithNoFiniteExpansion(t *testing.T) {
 	t.Parallel()
 
-	if got := money.Short(100, 3); len(got) > 20 {
-		t.Errorf("Short(100, 3) = %q, want a bounded string", got)
+	done := make(chan string, 1)
+	go func() { done <- money.Short(100, 3) }()
+	select {
+	case got := <-done:
+		if len(got) > 20 {
+			t.Errorf("Short(100, 3) = %q, want a bounded string", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Short(100, 3) did not return: a divisor with no finite expansion loops")
 	}
 }

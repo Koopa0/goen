@@ -19,6 +19,9 @@ func TestEveryKeyIsTranslatedInEveryLocale(t *testing.T) {
 
 	for k, m := range messages {
 		for _, l := range Locales() {
+			if l == En && withoutEnglish[k] {
+				continue
+			}
 			if strings.TrimSpace(m.in(l)) == "" {
 				t.Errorf("%s has no translation for %q", l, k)
 			}

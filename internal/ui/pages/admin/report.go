@@ -27,27 +27,6 @@ func (s Seller) UnitsText() string { return strconv.FormatInt(s.Units, 10) }
 
 func (s Seller) Href() string { return "/admin/products/" + s.Slug }
 
-type StockRisk struct {
-	SKU       string
-	Name      string
-	Slug      string
-	Sellable  int32
-	Sold      int64
-	DaysCover int
-}
-
-func (r StockRisk) Cover(ctx context.Context) string {
-	return i18n.Count(ctx, i18n.KeyAdminDays, int64(r.DaysCover), r.DaysCover)
-}
-
-func (r StockRisk) Urgent() bool { return r.DaysCover <= 14 }
-
-func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
-
-func (r StockRisk) SoldText() string { return strconv.FormatInt(r.Sold, 10) }
-
-func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
-
 type ReportView struct {
 	Days         int
 	Orders       int64
@@ -65,10 +44,14 @@ type ReportView struct {
 	RevenueSquares float64
 	Sellers        []Seller
 	AtRisk         []StockRisk
-	Windows        []int32
-	From, To       shoptime.Date
-	Previous       PreviousFigures
-	Daily          DailyRevenue
+	// StockDays is how many shop days back the stock rows look.
+	StockDays int
+	// MoreSoldOut counts the sold out SKUs the list leaves off.
+	MoreSoldOut int
+	Windows     []int32
+	From, To    shoptime.Date
+	Previous    PreviousFigures
+	Daily       DailyRevenue
 	// DailyUnavailable is set when the days could not be read, so the running
 	// totals say so rather than read as a period without orders.
 	DailyUnavailable bool
