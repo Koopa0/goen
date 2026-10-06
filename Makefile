@@ -145,6 +145,7 @@ check-layout-run:
 	@# against a database this line cannot reach.
 	@psql "$$GOEN_DATABASE_URL" -X -q -v env=.layout-chrome/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
+	@node --env-file=.layout-chrome/env scripts/filter-feedback-check.mjs
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=.layout-chrome/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
@@ -624,9 +625,13 @@ workflow-check:
 	go test ./internal/db -run '^TestCI' -count=1
 	go test ./internal/db -run '^TestCommitAttribution' -count=1
 
+.PHONY: test-filter-feedback
+test-filter-feedback:
+	node --test scripts/filter-feedback.test.mjs
+
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race test-filter-feedback
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
