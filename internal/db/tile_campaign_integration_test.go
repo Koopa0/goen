@@ -73,6 +73,37 @@ func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testi
 		}
 	}
 
+	// A department's colour story shows one product, so each case has a department of its own.
+	storyDepartment := map[string]string{}
+	story := func(name string, id uuid.UUID) {
+		t.Helper()
+		var department uuid.UUID
+		slug := "dept-" + name + "-" + token
+		if err = tx.QueryRow(ctx, `INSERT INTO categories(slug,name,position) SELECT $1,'Tile campaign story',coalesce(max(position)+1,0) FROM categories WHERE parent_id IS NULL RETURNING id`, slug).Scan(&department); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.Exec(ctx, `UPDATE products SET category_id = $2 WHERE id = $1`, id, department); err != nil {
+			t.Fatal(err)
+		}
+		var option uuid.UUID
+		if err = tx.QueryRow(ctx, `INSERT INTO product_options(product_id,name,position) VALUES($1,'colour',0) RETURNING id`, id).Scan(&option); err != nil {
+			t.Fatal(err)
+		}
+		for i, hex := range []string{"#111111", "#222222", "#333333"} {
+			var value uuid.UUID
+			if err = tx.QueryRow(ctx, `INSERT INTO product_option_values(product_id,option_id,value,swatch_hex,position) VALUES($1,$2,$3,$4,$5) RETURNING id`, id, option, "c"+hex, hex, i).Scan(&value); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO product_images(product_id,storage_key,alt_text,option_value_id) VALUES($1,$2,'colour',$3)`, id, "story-"+uuid.NewString(), value); err != nil {
+				t.Fatal(err)
+			}
+		}
+		storyDepartment[name] = slug
+	}
+	story("running", running)
+	story("ended", ended)
+	story("none", none)
+
 	q := db.New(tx)
 	terms, exact := catalog.SearchTerms("%" + token + "%")
 	const locale = "en"
@@ -118,6 +149,19 @@ func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testi
 		{"CompareProducts", true, func() ([]tile, error) {
 			rows, err := q.CompareProducts(ctx, db.CompareProductsParams{Locale: locale, Slugs: slugs})
 			return mapTiles(rows, func(r db.CompareProductsRow) tile { return tile{r.Slug, r.InCampaign} }), err
+		}},
+		{"DepartmentColourStory", false, func() ([]tile, error) {
+			var out []tile
+			for name, slug := range storyDepartment {
+				rows, err := q.DepartmentColourStory(ctx, db.DepartmentColourStoryParams{Locale: locale, Slug: slug})
+				if err != nil {
+					return nil, err
+				}
+				if len(rows) > 0 {
+					out = append(out, tile{token + "-" + name, rows[0].InCampaign})
+				}
+			}
+			return out, nil
 		}},
 		{"HomeTiles", true, func() ([]tile, error) {
 			rows, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: locale, DepartmentID: uuid.NullUUID{UUID: category, Valid: true}, MaxTiles: 50})

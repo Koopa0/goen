@@ -158,11 +158,12 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	if err != nil || len(tiles) == 0 {
 		return pages.ProductRow{}, false, err
 	}
+	schedule := s.campaignSchedule(ctx, c)
 	campaign := &pages.RowCampaign{
 		Tone:      pages.ResolveTone(c.Tone),
 		Items:     c.Products,
-		Facts:     s.campaignStats(ctx, c),
-		CardFacts: s.campaignCardStats(ctx, c),
+		Facts:     schedule.Facts,
+		CardFacts: schedule.CardFacts(),
 	}
 	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 		campaign.Period = &period

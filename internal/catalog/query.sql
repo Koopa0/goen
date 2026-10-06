@@ -697,7 +697,8 @@ LEFT JOIN brands b ON b.id = p.brand_id
 -- every product in the dev seed, which is what a fixture where two rules agree
 -- is worth.
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
+    SELECT price_cents, compare_at_price_cents,
+           (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (compare_at_price_cents IS NOT NULL
@@ -726,6 +727,9 @@ WHERE p.status = 'active'
             WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   )
 ORDER BY
+    -- A discount that can be bought comes before a deeper one that cannot: the
+    -- variant the tile shows, not any variant of the product.
+    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -774,20 +778,21 @@ WHERE EXISTS (
 ORDER BY c.updated_at DESC
 LIMIT $1;
 
--- The window is judged against the database's clock, which wrote the timestamps.
--- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+-- Any active campaign by its slug, inside its window or not: the page says
+-- honestly whether it has not started or has ended.
+-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at,
        c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = @slug::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now();
+WHERE c.slug = @slug::text AND c.is_active;
 
 -- A campaign is listed only while a published featured product can be bought,
--- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at, c.tone,
@@ -927,7 +932,8 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id;
+-- Sellable products first, then the position the back office set.
+ORDER BY in_stock DESC, cp.position, p.id;
 
 -- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many
@@ -1210,6 +1216,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     localized_name(v.value, v.value_en, @locale::text) AS colour,
     v.swatch_hex::text AS swatch,
     img.storage_key AS image_key,
