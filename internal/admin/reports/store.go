@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
@@ -105,6 +106,12 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
+	departments, err := q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
+		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
+	})
+	if err != nil {
+		return admin.ReportView{}, fmt.Errorf("read department sales: %w", err)
+	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
@@ -132,6 +139,9 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
 		})
+	}
+	for _, d := range departments {
+		view.Departments = append(view.Departments, admin.Department{Name: d.Name, SalesCents: d.SalesCents})
 	}
 	return view, nil
 }
