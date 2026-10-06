@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,8 +23,9 @@ func Enqueue(ctx context.Context, q *db.Queries, m *email.OrderTerminal) error {
 // Recipient is who a notice goes to, as the order holds it at delivery time.
 type Recipient struct {
 	Address, Name, Locale, OrderNumber string
-	// RescissionEnds is the last day to return what was delivered, or "".
-	RescissionEnds string
+	// RescissionEnds is the last day to return what was delivered; the zero time
+	// before any delivery.
+	RescissionEnds time.Time
 }
 
 type Recipients struct{ q *db.Queries }
@@ -40,5 +42,9 @@ func (r Recipients) Of(ctx context.Context, orderID uuid.UUID) (Recipient, bool,
 	if err != nil {
 		return Recipient{}, false, fmt.Errorf("read terminal order recipient: %w", err)
 	}
-	return Recipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber, RescissionEnds: to.RescissionEnds}, true, nil
+	recipient := Recipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber}
+	if to.Delivered {
+		recipient.RescissionEnds = to.RescissionEnds
+	}
+	return recipient, true, nil
 }

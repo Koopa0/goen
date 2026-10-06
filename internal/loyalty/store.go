@@ -160,22 +160,23 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		}
 	}
 
+	now := time.Now()
 	if soon.AnyExpiring {
-		view.ExpiringOn = shoptime.Day(soon.Soonest)
+		view.ExpiringOn = shoptime.DateText(ctx, shoptime.DateOf(soon.Soonest, now))
 	}
 	for i := range rows {
 		r := &rows[i]
 		kind := pages.PointsEntryKind(r.Kind)
 		entry := pages.PointsEntry{
 			Points: r.Points, Kind: kind, Order: r.OrderNumber,
-			At: shoptime.Day(r.CreatedAt), Expired: r.Expired.Bool,
+			At: shoptime.DateText(ctx, shoptime.DateOf(r.CreatedAt, now)), Expired: r.Expired.Bool,
 		}
 		switch kind {
 		case pages.PointsClawedBack:
 			entry.RequestedPoints = r.RequestedPoints
 			entry.ShortfallPoints = r.RequestedPoints + r.Points
 		case pages.PointsAwarded:
-			entry.ExpiresOn = shoptime.Day(r.ExpiresOn)
+			entry.ExpiresOn = shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now))
 		case pages.PointsSpent:
 			// Neither: the expiry lives on the award lot the spend consumed.
 		}
