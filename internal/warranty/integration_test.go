@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
@@ -864,6 +865,58 @@ func warrantyStoreRolePool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("warranty role=%q, error=%v, want store", role, err)
 	}
 	return app
+}
+
+func TestWarrantySerialLengthIsEnforcedForTheStoreRole(t *testing.T) {
+	app := warrantyStoreRolePool(t)
+	for _, tc := range []struct {
+		name    string
+		serial  any
+		refused bool
+	}{
+		{name: "optional serial", serial: nil},
+		{name: "ascii boundary", serial: uuid.NewString() + strings.Repeat("A", 24)},
+		{name: "unicode boundary", serial: uuid.NewString() + strings.Repeat("界", 24)},
+		{name: "ascii overlong", serial: uuid.NewString() + strings.Repeat("A", 25), refused: true},
+		{name: "unicode overlong", serial: uuid.NewString() + strings.Repeat("界", 25), refused: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			f := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+			// A direct write bypasses Register's Go validation while retaining the production role and unit constraints.
+			_, err := app.Exec(ctx, `
+				INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
+				VALUES ($1, 1, $2, $3, DATE '2030-01-01')`, f.lineID, f.userID, tc.serial)
+			if tc.refused {
+				pgErr, ok := errors.AsType[*pgconn.PgError](err)
+				if !ok || pgErr.Code != "23514" || pgErr.ConstraintName != "warranty_registrations_serial_length" {
+					t.Errorf("store-role insert with %s serial = %v, want SQLSTATE 23514 constraint warranty_registrations_serial_length", tc.name, err)
+				}
+				var count int
+				if readErr := pool.QueryRow(ctx, `SELECT count(*) FROM warranty_registrations WHERE order_line_id = $1`, f.lineID).Scan(&count); readErr != nil {
+					t.Fatal(readErr)
+				}
+				if count != 0 {
+					t.Errorf("refused serial persisted %d registrations, want 0", count)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("store-role insert with %s serial = %v, want success", tc.name, err)
+			}
+			var saved *string
+			if err := pool.QueryRow(ctx, `SELECT serial_number FROM warranty_registrations WHERE order_line_id = $1`, f.lineID).Scan(&saved); err != nil {
+				t.Fatal(err)
+			}
+			if tc.serial == nil {
+				if saved != nil {
+					t.Errorf("optional serial = %q, want NULL", *saved)
+				}
+			} else if saved == nil || *saved != tc.serial {
+				t.Errorf("saved serial = %v, want %q", saved, tc.serial)
+			}
+		})
+	}
 }
 
 func TestWarrantyRegistrationSuccessStillRedirects(t *testing.T) {
