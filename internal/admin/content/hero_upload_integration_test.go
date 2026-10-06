@@ -318,9 +318,9 @@ func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
 	}
 }
 
-func seedHomeEditorQueues(t *testing.T, ctx context.Context, p *pgxpool.Pool) (string, string) {
+func seedHomeEditorQueues(t *testing.T, ctx context.Context, p *pgxpool.Pool) (heroID, bannerID string) {
 	t.Helper()
-	heroID, bannerID := uuid.NewString(), uuid.NewString()
+	heroID, bannerID = uuid.NewString(), uuid.NewString()
 	if _, err := p.Exec(ctx, `DELETE FROM hero_slides; DELETE FROM promo_banners`); err != nil {
 		t.Fatal(err)
 	}
