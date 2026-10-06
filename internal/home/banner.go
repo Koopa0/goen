@@ -145,7 +145,7 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	for i := range rows {
 		r := &rows[i]
 		items = append(items, layouts.NavItem{
-			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: size[r.ID], Children: children[r.ID], Picks: picks[r.ID],
+			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, Children: children[r.ID], Picks: picks[r.ID],
 		})
 	}
 	return items, nil
