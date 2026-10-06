@@ -132,7 +132,19 @@ SELECT
     count(*) FILTER (WHERE rating = 1)::bigint AS one
 FROM visible_reviews WHERE product_id = $1;
 
+-- The department is the root of the product's category and everything under
+-- it; the product's own sub-category leads, and within each group what can be
+-- bought comes before what is sold out.
 -- name: RelatedProducts :many
+WITH RECURSIVE up AS (
+    SELECT c.id, c.parent_id FROM categories c WHERE c.id = @category_id
+    UNION ALL
+    SELECT c.id, c.parent_id FROM categories c JOIN up ON c.id = up.parent_id
+), department AS (
+    SELECT id FROM up WHERE parent_id IS NULL
+    UNION ALL
+    SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+)
 SELECT
     p.slug, localized_name(p.name, p.name_en, @locale::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
@@ -201,9 +213,9 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = @category_id
+  AND p.category_id IN (SELECT id FROM department)
   AND p.id <> @exclude_id
-ORDER BY p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = @category_id) DESC, in_stock DESC, p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
 -- Resolve current eligibility first so a missing/draft product wins over an old
@@ -366,3 +378,14 @@ INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, @user_id, @body::text, true
 FROM product_questions q
 WHERE q.id = @question_id AND q.hidden_at IS NULL;
+
+-- The tone is the nearest one up the category's trail, the rule of
+-- CategoryBySlug.
+-- name: CategoryTone :one
+WITH RECURSIVE trail AS (
+    SELECT c.id, c.parent_id, c.tone, 0 AS depth FROM categories c WHERE c.id = $1
+    UNION ALL
+    SELECT c.id, c.parent_id, c.tone, t.depth + 1
+    FROM categories c JOIN trail t ON c.id = t.parent_id
+)
+SELECT coalesce((SELECT tone FROM trail WHERE tone IS NOT NULL ORDER BY depth LIMIT 1), 'stone')::text AS tone;

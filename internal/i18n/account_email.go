@@ -17,8 +17,8 @@ var (
 	KeyVerifyDone = key("verify.done", Message{ZhHant: "信箱已確認", En: "Address confirmed"})
 
 	KeyVerifyDoneBody = key("verify.done.body", Message{
-		ZhHant: "%s 已經確認完成，之後的通知信都會寄到這裡。",
-		En:     "%s is confirmed. Everything we send you goes there from now on.",
+		ZhHant: "電子郵件已確認，之後的通知信都會寄到這個信箱。",
+		En:     "Your email address is confirmed. Everything we send you goes there from now on.",
 	})
 
 	KeyVerifyDeadTitle = key("verify.dead", Message{

@@ -220,8 +220,8 @@ const HEADER_EN = [
 // provides through ADMIN_TOKEN; without one these are skipped rather than
 // silently measuring a sign-in page.
 const ADMIN = [
-  { label: 'admin 375', width: 375, height: 812, path: '/admin' },
-  { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
+  { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-spark' },
+  { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-spark' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
   { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },

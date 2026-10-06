@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -19,6 +21,8 @@ const (
 	StatLineSmall StatLineVariant = "s"
 	// StatLinePairs sets the stats two across wherever two fit, so four read as two rows of two.
 	StatLinePairs StatLineVariant = "pairs"
+	// StatLineSmall is a line that sits under a name, as a product's warranty does.
+	StatLineSmall StatLineVariant = "s"
 )
 
 func (v StatLineVariant) class() string {
@@ -29,10 +33,12 @@ func (v StatLineVariant) class() string {
 }
 
 // Stat is one labelled figure. Note says how the figure is counted, in at most two lines.
+// Trend is a drawing under the note; the line holds it without importing what draws it.
 type Stat struct {
 	Label string
 	Value StatValue
 	Note  string
+	Trend templ.Component
 }
 
 // StatValue is a figure with an optional leading or trailing unit, kept together across lines. The zero value prints nothing, and a stat with no value is left out.

@@ -13,14 +13,9 @@ var (
 		En:     "Orders awaiting payment",
 	})
 
-	KeyAdminQueueStatLowStock = key("admin.queue.stat.lowstock", Message{
-		ZhHant: "低庫存品項",
-		En:     "Low-stock items",
-	})
-
-	KeyAdminQueueStatActive = key("admin.queue.stat.active", Message{
-		ZhHant: "上架商品",
-		En:     "Published products",
+	KeyAdminQueueStatSoldOut = key("admin.queue.stat.soldout", Message{
+		ZhHant: "已售完品項",
+		En:     "Sold-out items",
 	})
 
 	KeyAdminQueueStatMessages = key("admin.queue.stat.messages", Message{
@@ -84,19 +79,34 @@ var (
 		"Oldest %d day",
 		"Oldest %d days")
 
-	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{
-		ZhHant: "需要補貨",
-		En:     "Needs restocking",
+	KeyAdminQueueRunwayRest = key("admin.queue.runwayrest", Message{
+		ZhHant: "在報表看其餘品項",
+		En:     "See the rest in the report",
 	})
 
-	KeyAdminQueueSellableHint = key("admin.queue.sellable", Message{
-		ZhHant: "「可售」是庫存減去安全庫存，也就是資料庫實際允許賣出的數量。",
-		En: "Sellable is stock minus safety stock — the number the database will actually " +
-			"let the shop sell.",
+	KeyAdminQueueWeekUnavailable = key("admin.queue.week.unavailable", Message{
+		ZhHant: "近 7 天的數字暫時無法取得。",
+		En:     "The last 7 days are unavailable right now.",
 	})
 
-	KeyAdminQueueAllLowStock = key("admin.queue.alllow", Message{
-		ZhHant: "查看全部低庫存",
-		En:     "See every low-stock item",
+	KeyAdminQueueLatestPaid = key("admin.queue.latest.paid", Message{
+		ZhHant: "最近一筆已付款訂單",
+		En:     "Latest paid order",
 	})
+
+	KeyAdminQueueLatestNone = key("admin.queue.latest.none", Message{
+		ZhHant: "還沒有已付款的訂單",
+		En:     "No paid order yet",
+	})
+
+	KeyAdminQueueLatestUnavailable = key("admin.queue.latest.unavailable", Message{
+		ZhHant: "暫時無法取得",
+		En:     "Unavailable right now",
+	})
+
+	KeyAdminQueueAgoNow = key("admin.queue.ago.now", Message{ZhHant: "剛剛", En: "Just now"})
+
+	KeyAdminQueueAgoMinutes = countKey("admin.queue.ago.minutes", "%d 分鐘前", "%d minute ago", "%d minutes ago")
+	KeyAdminQueueAgoHours   = countKey("admin.queue.ago.hours", "%d 小時前", "%d hour ago", "%d hours ago")
+	KeyAdminQueueAgoDays    = countKey("admin.queue.ago.days", "%d 天前", "%d day ago", "%d days ago")
 )

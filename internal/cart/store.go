@@ -1110,7 +1110,7 @@ func cutParcels(
 	return parcels, unshipped
 }
 
-// orderReturned is nil until every unit the order sold is in a return the shop has accepted.
+// orderReturned is nil until every unit the order sold is in a completed return.
 func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.OrderReturned, error) {
 	units, err := s.q.OrderReturnedUnits(ctx, orderID)
 	if err != nil {
@@ -1125,7 +1125,7 @@ func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.Or
 	}
 	out := &pages.OrderReturned{}
 	for _, r := range returns {
-		out.At = r.DecidedAt.Time
+		out.At = r.PaidOutAt
 		out.RefundCents += r.RefundCents
 	}
 	return out, nil

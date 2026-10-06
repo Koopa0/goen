@@ -748,7 +748,7 @@ type OrderView struct {
 	PaymentsEnabled bool
 }
 
-// OrderReturned is an order whose every unit is in a completed return. At is the day the shop decided it.
+// OrderReturned is an order whose every unit is in a completed return. At is the day the last of them was paid out.
 type OrderReturned struct {
 	At          time.Time
 	RefundCents int64
