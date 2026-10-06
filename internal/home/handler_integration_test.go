@@ -991,35 +991,58 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 	ctx := t.Context()
 	var big, small, sub uuid.UUID
 	for _, c := range []struct {
-		id         *uuid.UUID
-		slug       string
-		parentSlug string
+		id     *uuid.UUID
+		slug   string
+		parent *uuid.UUID
 	}{
-		{&big, "navcount-big", ""},
-		{&small, "navcount-small", ""},
-		{&sub, "navcount-big-sub", "navcount-big"},
+		{&big, "navcount-big", nil},
+		{&small, "navcount-small", nil},
+		{&sub, "navcount-big-sub", &big},
 	} {
 		var parent any
-		if c.parentSlug != "" {
-			parent = big
+		if c.parent != nil {
+			parent = *c.parent
 		}
-		if err := pool.QueryRow(ctx,
-			`INSERT INTO categories (slug, name, parent_id) VALUES ($1, $1, $2) RETURNING id`,
-			c.slug, parent).Scan(c.id); err != nil {
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO categories (slug, name, parent_id, position)
+			VALUES ($1, $1, $2, (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NOT DISTINCT FROM $2))
+			RETURNING id`, c.slug, parent).Scan(c.id); err != nil {
 			t.Fatalf("insert category %s: %v", c.slug, err)
 		}
 	}
+	slugs := []string{"navcount-a", "navcount-b", "navcount-c", "navcount-d"}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		for _, q := range []string{
+			`DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE slug = ANY($1))`,
+			`DELETE FROM products WHERE slug = ANY($1)`,
+		} {
+			if _, err := pool.Exec(clean, q, slugs); err != nil {
+				t.Errorf("clean up: %v", err)
+			}
+		}
+		if _, err := pool.Exec(clean, `DELETE FROM categories WHERE id IN ($1, $2, $3)`, sub, big, small); err != nil {
+			t.Errorf("clean up categories: %v", err)
+		}
+	})
 	for _, p := range []struct {
 		slug, status string
 		category     uuid.UUID
 	}{
-		{"navcount-a", "active", big},
-		{"navcount-b", "active", sub},
-		{"navcount-c", "draft", big},
-		{"navcount-d", "active", small},
+		{slugs[0], "active", big},
+		{slugs[1], "active", sub},
+		{slugs[2], "draft", big},
+		{slugs[3], "active", small},
 	} {
-		if _, err := pool.Exec(ctx,
-			`INSERT INTO products (category_id, slug, name, status, published_at) VALUES ($1, $2, $2, $3, now())`,
+		if _, err := pool.Exec(ctx, `
+			WITH p AS (
+			    INSERT INTO products (category_id, slug, name, status, published_at)
+			    VALUES ($1, $2, $2, $3, now())
+			    RETURNING id
+			)
+			INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+			SELECT p.id, upper($2), 1000, 5, 0, 0 FROM p`,
 			p.category, p.slug, p.status); err != nil {
 			t.Fatalf("insert product %s: %v", p.slug, err)
 		}

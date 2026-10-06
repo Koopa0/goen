@@ -782,7 +782,7 @@ h3 {
   }
 }
 
-/* A department. The wrapper is a plain flex box so the link keeps the bar's
+/* A department. The wrapper is a plain flex box so the link keeps the row's
    full height and the pointer never crosses a gap between link and panel. */
 .goen-dept {
   display: flex;

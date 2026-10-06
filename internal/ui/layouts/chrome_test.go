@@ -249,7 +249,7 @@ func TestTheMenuOfOneDepartmentHasNoHeading(t *testing.T) {
 	}
 }
 
-func TestTheMenuPrintsEachDepartmentsItemCount(t *testing.T) {
+func TestTheMenuPrintsEachDepartmentsProductCount(t *testing.T) {
 	t.Parallel()
 
 	header := renderHeader(t, []layouts.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", ProductCount: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, layouts.Page{})

@@ -150,9 +150,7 @@ ORDER BY c.position, c.name, c.id;
 -- department with fewer than three has no band to show, and the header prints
 -- it beside each department in the phone menu, so it runs on every page with a
 -- header. Unlike the header's other reads it counts the catalogue, not the
--- categories; the status = 'active' filter lets it read products_category_id_idx
--- or the partial products_category_published_idx without touching the table's
--- other columns.
+-- categories, and its plan has not been measured.
 -- name: HomeDepartmentStock :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL

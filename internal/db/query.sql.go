@@ -6564,6 +6564,35 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered
+`
+
+// Whether /deals has anything to buy: a discounted product that can be bought,
+// or a campaign ListedCampaigns lists. The header asks on every page; each half
+// stops at its first row. Its plan has not been measured.
+func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
+	var offered bool
+	err := row.Scan(&offered)
+	return offered, err
+}
+
 const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
@@ -7548,9 +7577,7 @@ type HomeDepartmentStockRow struct {
 // department with fewer than three has no band to show, and the header prints
 // it beside each department in the phone menu, so it runs on every page with a
 // header. Unlike the header's other reads it counts the catalogue, not the
-// categories; the status = 'active' filter lets it read products_category_id_idx
-// or the partial products_category_published_idx without touching the table's
-// other columns.
+// categories, and its plan has not been measured.
 func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
 	rows, err := q.db.Query(ctx, homeDepartmentStock)
 	if err != nil {
