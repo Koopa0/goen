@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/home"
 )
 
@@ -43,7 +44,9 @@ func TestChromeMiddlewareOfAnAbandonedRequestLogsNothing(t *testing.T) {
 	store := home.NewStore(ctxErrDB{})
 	for name, wrap := range map[string]func(http.Handler, *slog.Logger) http.Handler{
 		"banner": func(next http.Handler, log *slog.Logger) http.Handler { return withBanner(next, store, log, true) },
-		"nav":    func(next http.Handler, log *slog.Logger) http.Handler { return withTopNav(next, store, log) },
+		"nav": func(next http.Handler, log *slog.Logger) http.Handler {
+			return withTopNav(next, store, catalog.NewStore(ctxErrDB{}), log)
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
