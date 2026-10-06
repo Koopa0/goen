@@ -2479,13 +2479,13 @@ FROM
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
-            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+            coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds
-     FROM contact_messages WHERE handled_at IS NULL) messages,
+     FROM contact_messages m WHERE m.handled_at IS NULL) messages,
     (SELECT count(*)::bigint AS pending_returns,
-            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+            coalesce(greatest(extract(epoch FROM now() - min(rr.created_at)), 0), 0)::bigint
                 AS pending_returns_oldest_seconds
-     FROM return_requests WHERE status = 'requested') requested,
+     FROM return_requests rr WHERE rr.status = 'requested') requested,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
     (SELECT count(*)::bigint AS uninspected_returns,
@@ -3148,14 +3148,10 @@ WITH target AS (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
-               AS card_capacity_cents,
-           coalesce(order_amount_after_credit(o.id) = 0
-                    AND EXISTS (SELECT 1 FROM store_credit_entries s
-                                WHERE s.order_id = o.id AND s.amount_cents < 0),
-                    false)::boolean AS paid_by_credit
+               AS card_capacity_cents
     FROM orders o WHERE o.order_number = $1::text
 )
-SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.paid_by_credit, t.total_cents,
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
        EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
        b.id AS return_request_id,
@@ -3172,7 +3168,6 @@ type BeforeShipmentRefundRow struct {
 	OrderID           uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
-	PaidByCredit      bool
 	TotalCents        int64
 	Shipped           bool
 	HasReturn         bool
@@ -3193,7 +3188,6 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 		&i.OrderID,
 		&i.FulfillmentStatus,
 		&i.Committed,
-		&i.PaidByCredit,
 		&i.TotalCents,
 		&i.Shipped,
 		&i.HasReturn,
@@ -7327,6 +7321,62 @@ func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentF
 	return i, err
 }
 
+const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root_id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT
+    localized_name(d.name, d.name_en, $1::text) AS name,
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN committed_orders c ON c.id = o.id
+JOIN products p ON p.id = ol.product_id
+JOIN tree t ON t.id = p.category_id
+JOIN categories d ON d.id = t.root_id
+WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+GROUP BY d.id, d.name, d.name_en, d.position
+ORDER BY sales_cents DESC, d.position, d.id
+`
+
+type DepartmentSalesBetweenParams struct {
+	Locale string
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type DepartmentSalesBetweenRow struct {
+	Name       string
+	SalesCents int64
+}
+
+// A department is a top-level category; a product in a deeper one counts toward
+// its root. The orders are those of RevenueBetween, so the departments add up to
+// the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
+func (q *Queries) DepartmentSalesBetween(ctx context.Context, arg DepartmentSalesBetweenParams) ([]DepartmentSalesBetweenRow, error) {
+	rows, err := q.db.Query(ctx, departmentSalesBetween, arg.Locale, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentSalesBetweenRow{}
+	for rows.Next() {
+		var i DepartmentSalesBetweenRow
+		if err := rows.Scan(&i.Name, &i.SalesCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -9510,6 +9560,7 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
@@ -9519,8 +9570,9 @@ WHERE sm.is_active
 // pickup there, so a floor or threshold that counted it would promise a price
 // nobody can choose.
 // MIN across methods: the strip states one floor, and the honest one is the
-// lowest fee any active method charges. coalesce AND cast, because min() over
-// an empty set is NULL and sqlc types the result as non-null.
+// lowest fee any active method charges; a method that is always free charges
+// none, so it is not the fee below the threshold. coalesce AND cast, because
+// min() over an empty set is NULL and sqlc types the result as non-null.
 func (q *Queries) LowestDeliveryFee(ctx context.Context, withPickup bool) (int64, error) {
 	row := q.db.QueryRow(ctx, lowestDeliveryFee, withPickup)
 	var fee_cents int64
@@ -11406,9 +11458,9 @@ WHERE o.id = $1
 `
 
 // Whether store credit alone paid the order, read before the cancellation
-// returns the credit: checkout queued its 統一發票 then. A customer cancels only
-// an uncommitted order, which no card has paid, so owing nothing after a credit
-// spend means credit paid it.
+// returns the credit: checkout queued its 統一發票 then. Only an uncommitted
+// order is cancelled this way, which no card has paid, so owing nothing after a
+// credit spend means credit paid it. Read under the order lock.
 func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
 	var paid_by_credit bool
@@ -12779,22 +12831,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, by_system)
-SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
+INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
+VALUES ($1, 'cancelled', $2, $3::boolean)
 `
 
 type RecordCancellationParams struct {
+	OrderID     uuid.UUID
+	ActorUserID uuid.NullUUID
 	BySystem    bool
-	OrderNumber string
 }
 
-// A cancellation no staff member made: the customer's own, or, with by_system,
-// the sweeper's at the payment deadline. The ABSENCE of an actor is what
-// distinguishes it from a back-office cancel, and both are carried structurally
-// because the customer's own order page renders any note in whatever language
-// it was written.
+// The actor is the staff member who cancelled; none for the customer's own
+// cancellation and, with by_system, the sweeper's at the payment deadline. Both
+// are carried structurally because the customer's own order page renders any
+// note in whatever language it was written.
 func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
-	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
+	_, err := q.db.Exec(ctx, recordCancellation, arg.OrderID, arg.ActorUserID, arg.BySystem)
 	return err
 }
 
@@ -17838,6 +17890,83 @@ func (q *Queries) VariantProductSelection(ctx context.Context, id uuid.UUID) (Va
 	var i VariantProductSelectionRow
 	err := row.Scan(&i.Slug, &i.OptionNames, &i.OptionValues)
 	return i, err
+}
+
+const variantStockByDay = `-- name: VariantStockByDay :many
+WITH v AS (
+    SELECT id, stock_quantity FROM product_variants WHERE sku = $3::text
+), moved AS (
+    SELECT shop_day(m.created_at) AS day,
+           sum(m.delta) AS delta,
+           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
+           count(*) AS moves
+    FROM inventory_movements m
+    JOIN v ON v.id = m.variant_id
+    WHERE m.created_at >= $4::timestamptz
+    GROUP BY 1
+)
+SELECT d.day::date AS day,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       coalesce(t.received, 0)::integer AS received,
+       coalesce(t.receipts, 0)::integer AS receipts,
+       coalesce(t.moves, 0)::integer AS moves
+FROM v
+CROSS JOIN generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN moved t ON t.day = d.day::date
+ORDER BY d.day
+`
+
+type VariantStockByDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	SKU      string
+	FromAt   time.Time
+}
+
+type VariantStockByDayRow struct {
+	Day      time.Time
+	Stock    int32
+	Received int32
+	Receipts int32
+	Moves    int32
+}
+
+// The stock at the end of each shop day from first_day to last_day, worked back
+// from stock_quantity through the movements after that day. The column and the
+// ledger are read in this one statement, so a movement committed meanwhile is in
+// both or in neither; the movements are bounded below only, because the column
+// already holds every one of them. record_inventory_movement writes both, so the
+// two agree. A day without movements is included.
+func (q *Queries) VariantStockByDay(ctx context.Context, arg VariantStockByDayParams) ([]VariantStockByDayRow, error) {
+	rows, err := q.db.Query(ctx, variantStockByDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.SKU,
+		arg.FromAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VariantStockByDayRow{}
+	for rows.Next() {
+		var i VariantStockByDayRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Stock,
+			&i.Received,
+			&i.Receipts,
+			&i.Moves,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const wishlistHas = `-- name: WishlistHas :one

@@ -71,6 +71,17 @@ var (
 	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
 	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費；不是上方的營收。", En: "Product gross is the tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping. It is not the revenue above."})
 
+	KeyAdminRepDepartments     = key("admin.rep.departments", Message{ZhHant: "各館商品銷售額", En: "Product sales by department"})
+	KeyAdminRepDepartmentsNote = key("admin.rep.departments.note", Message{
+		ZhHant: "商品銷售額按含稅成交單價乘數量計算，商品依目前所在的館別歸類；折扣與運費按訂單計，不分館：各館加總減去訂單折扣、加上運費，就是上方的營收。出貨前全額退款的訂單不計入。",
+		En:     "Product sales are the tax-inclusive sale unit price multiplied by quantity, with each product counted in the department it is in now. Discounts and shipping belong to the order, not a department: the departments' total, less order discounts and plus shipping, is the revenue above. Orders fully refunded before shipment are left out.",
+	})
+	KeyAdminRepDepartmentOnly = key("admin.rep.departments.only", Message{
+		ZhHant: "這段期間的商品銷售額全部屬於%s：%s。",
+		En:     "All product sales in this period are in %s: %s.",
+	})
+	KeyAdminRepDepartmentSales = key("admin.rep.departments.sales", Message{ZhHant: "商品銷售額 %s", En: "Product sales %s"})
+
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
