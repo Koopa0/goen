@@ -3330,9 +3330,9 @@ input.goen-check {
   }
 }
 
-/* Below 1024 the head already gives up its photograph so the first product stays in the first
-   screen; the editorial gives way for the same reason. */
-@media (max-width: 1023px) {
+/* The first product stays in the first viewport at 375px (check-layout.mjs:1126), so the
+   editorial gives way below the prototype's stack breakpoint. */
+@media (max-width: 900px) {
   .goen-deptcompare,
   .goen-story {
     display: none;
