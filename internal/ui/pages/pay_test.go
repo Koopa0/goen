@@ -100,7 +100,11 @@ func TestThePayEyebrowSaysWhatTheShopperCanDo(t *testing.T) {
 func payHold(lapsed bool) PayHold {
 	cst := time.FixedZone("CST", 8*3600)
 	placed := time.Date(2026, 10, 9, 14, 2, 0, 0, cst)
-	return PayHold{PlacedAt: placed, StartBy: placed.Add(29 * time.Minute), Until: placed.Add(time.Hour), Lapsed: lapsed}
+	h := PayHold{PlacedAt: placed, StartBy: placed.Add(29 * time.Minute), Until: placed.Add(time.Hour)}
+	if lapsed {
+		h.CancelledAt = placed.Add(61 * time.Minute)
+	}
+	return h
 }
 
 func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
@@ -112,8 +116,8 @@ func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
 	}
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
-		`ui-statline`, "<dt>開始付款期限</dt>", `<dd><time datetime="2026-10-09 14:31">14:31</time>`, "台灣時間",
-		"<dt>庫存保留至</dt>", `<dd><time datetime="2026-10-09 15:02">15:02</time>`,
+		`ui-statline`, "<dt>開始付款期限</dt>", `<dd><time datetime="2026-10-09T14:31">14:31</time>`, "台灣時間",
+		"<dt>庫存保留至</dt>", `<dd><time datetime="2026-10-09T15:02">15:02</time>`,
 		"<dt>應付金額</dt>", `<small class="ui-statline__pre">NT$</small>1,493`,
 		`data-unit="minute"`, `data-mark`, `data-span="extra"`,
 		"請在 14:31（台灣時間）前開始付款。",
@@ -142,7 +146,7 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 	}
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
-		"<dt>送出</dt>", "<dt>自動取消</dt>", "庫存保留結束時仍未付款", "<dt>收取金額</dt>", `<small class="ui-statline__pre">NT$</small>0`,
+		"<dt>送出</dt>", "<dt>自動取消</dt>", `<time datetime="2026-10-09T15:03">15:03</time>`, "庫存保留結束時仍未付款", "<dt>收取金額</dt>", `<small class="ui-statline__pre">NT$</small>0`,
 		`data-cell="past"`, `data-mark`,
 	} {
 		if !strings.Contains(html, want) {

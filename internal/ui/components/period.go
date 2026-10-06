@@ -126,7 +126,9 @@ func MinutePeriod(ctx context.Context, placedAt, startBy, until time.Time, lapse
 	placed, deadline, end := shoptime.ClockText(placedAt), shoptime.ClockText(startBy), shoptime.ClockText(until)
 	cells[0].Label = placed
 	cells[total-1].Label = end
-	if mark := int(startBy.Sub(placedAt) / time.Minute); !startBy.IsZero() && mark > 0 && mark < total-1 {
+	// The cell i covers [placedAt+i, placedAt+i+1) minutes and the tick is on its right edge, so the cell
+	// before the deadline's minute carries it.
+	if mark := int(startBy.Sub(placedAt)/time.Minute) - 1; !startBy.IsZero() && mark > 0 && mark < total-1 {
 		cells[mark].Mark = true
 		cells[mark].Label = deadline
 		for i := mark + 1; i < total; i++ {
@@ -136,7 +138,7 @@ func MinutePeriod(ctx context.Context, placedAt, startBy, until time.Time, lapse
 	var description string
 	switch {
 	case lapsed:
-		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldLapsed), placed, deadline, end)
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldLapsed), placed, end)
 	case startBy.IsZero():
 		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldResumed), placed, end)
 	default:

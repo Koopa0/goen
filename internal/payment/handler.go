@@ -122,20 +122,18 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		DiscountReason: b.DiscountReason,
 		CreditCents:    b.CreditCents,
 	}
-	var hold pages.PayHold
+	hold := pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	switch {
 	case order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled:
 		view.Closure = pages.PayOrderCancelled
-		if o.Hold.Lapsed {
-			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.Hold.Until), Lapsed: true}
+		hold = pages.PayHold{}
+		if !o.Hold.SweptAt.IsZero() {
+			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.Hold.Until), CancelledAt: o.Hold.SweptAt}
 		}
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
-		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	case !hasSession:
-		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.HoldExpiresAt)}
-	default:
-		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
+		hold.StartBy = startBy(o.Hold.Until)
 	}
 	view.Hold = hold
 	for i := range o.Lines {

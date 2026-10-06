@@ -418,6 +418,11 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 	out := make([]pages.ShippingChoice, 0, len(rows))
 	for _, r := range rows {
 		fee := ShippingFee(r.FeeCents, r.FreeOverCents.Int64, subtotalCents)
+		// A method that costs nothing anyway names no amount: the cart must not say it reached one.
+		threshold := r.FreeOverCents.Int64
+		if r.FeeCents <= 0 {
+			threshold = 0
+		}
 		out = append(out, pages.ShippingChoice{
 			VersionID:       r.VersionID.String(),
 			Code:            r.Code,
@@ -426,7 +431,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 			Carrier:         r.Carrier,
 			FeeCents:        fee,
 			Free:            fee == 0,
-			FreeOverCents:   r.FreeOverCents.Int64,
+			FreeOverCents:   threshold,
 		})
 	}
 	return out, nil

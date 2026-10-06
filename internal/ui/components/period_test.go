@@ -146,10 +146,10 @@ func TestMinutePeriodPutsTheMarkAtTheStartByMinute(t *testing.T) {
 			extra++
 		}
 	}
-	if mark != 29 || extra != 30 {
-		t.Errorf("mark at cell %d with %d extra cells, want 29 and 30", mark, extra)
+	if mark != 28 || extra != 31 {
+		t.Errorf("mark at cell %d with %d extra cells, want 28 and 31", mark, extra)
 	}
-	for i, want := range map[int]string{0: "14:02", 29: "14:31", 59: "15:02"} {
+	for i, want := range map[int]string{0: "14:02", 28: "14:31", 59: "15:02"} {
 		if got := p.Cells[i].Label; got != want {
 			t.Errorf("cell %d labelled %q, want %q", i, got, want)
 		}
@@ -166,10 +166,10 @@ func TestMinutePeriodLapsedFillsEveryCell(t *testing.T) {
 	if got := count(p, components.CellPast); got != 60 {
 		t.Errorf("%d past cells, want all 60", got)
 	}
-	if !p.Cells[29].Mark {
+	if !p.Cells[28].Mark {
 		t.Error("the lapsed grid lost the start-by mark")
 	}
-	if !strings.Contains(p.Description, "沒有收取任何款項") {
+	if !strings.Contains(p.Description, "仍未付款") {
 		t.Errorf("description %q does not say nothing was charged", p.Description)
 	}
 }
@@ -183,7 +183,7 @@ func TestMinutePeriodWithoutADeadlineHasNoMark(t *testing.T) {
 			t.Errorf("cell %d is marked with no deadline", i)
 		}
 	}
-	if want := "Order placed 14:02; the stock is held until 15:02."; p.Description != want {
+	if want := "Order placed 14:02; the stock is reserved until 15:02."; p.Description != want {
 		t.Errorf("description %q, want %q", p.Description, want)
 	}
 }

@@ -94,8 +94,9 @@ func startBy(until time.Time) time.Time {
 // order with no holds.
 type HoldSpan struct {
 	From, Until time.Time
-	// Lapsed means the sweeper released the holds after they expired.
-	Lapsed bool
+	// SweptAt is when the hold sweeper cancelled the order at its deadline; it
+	// is zero for every other order.
+	SweptAt time.Time
 }
 
 // Line is one item as the ORDER recorded it, not as the catalogue reads today.

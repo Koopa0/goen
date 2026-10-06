@@ -41,10 +41,13 @@ const (
 // means no hold is drawn.
 type PayHold struct {
 	PlacedAt, StartBy, Until time.Time
-	// Lapsed means the hold ended with the order unpaid, and the order was
-	// cancelled automatically.
-	Lapsed bool
+	// CancelledAt is when the hold sweeper cancelled the order unpaid; it is
+	// zero otherwise.
+	CancelledAt time.Time
 }
+
+// Lapsed means the hold ended with the order unpaid and the shop cancelled it.
+func (h PayHold) Lapsed() bool { return !h.CancelledAt.IsZero() }
 
 type PayView struct {
 	Number         string
@@ -70,10 +73,10 @@ func (v PayView) Facts(ctx context.Context) []components.Stat {
 	switch {
 	case h.PlacedAt.IsZero():
 		return nil
-	case h.Lapsed:
+	case h.Lapsed():
 		return []components.Stat{
 			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)},
-			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.CancelledAt), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
 			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
 		}
 	}
@@ -93,7 +96,7 @@ func (v PayView) HoldPeriod(ctx context.Context) (components.PeriodSpec, bool) {
 	if h.PlacedAt.IsZero() {
 		return components.PeriodSpec{}, false
 	}
-	return components.MinutePeriod(ctx, h.PlacedAt, h.StartBy, h.Until, h.Lapsed)
+	return components.MinutePeriod(ctx, h.PlacedAt, h.StartBy, h.Until, h.Lapsed())
 }
 
 // StartByText is the clock time payment must start by.
@@ -160,5 +163,5 @@ func PayMeta(ctx context.Context, number string) layouts.Page {
 }
 
 func payClock(t time.Time) components.StatValue {
-	return components.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.Minute(t))
+	return components.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.InputMinute(t))
 }

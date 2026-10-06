@@ -95,7 +95,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		Paid:              paid,
 		Fulfillment:       row.FulfillmentStatus,
 		HoldExpiresAt:     hold.ExpiresAt,
-		Hold:              HoldSpan{From: span.HeldFrom, Until: span.HeldUntil, Lapsed: span.Lapsed},
+		Hold:              HoldSpan{From: span.HeldFrom, Until: span.HeldUntil, SweptAt: span.SweptAt.Time},
 		holdCoversSession: hold.CoversSession,
 		Lines:             make([]Line, 0, len(lines)),
 	}
