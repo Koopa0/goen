@@ -215,8 +215,11 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin' },
+  // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
+  // one at four digits, so a row without a bar measured the one-seller page.
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-admin' },

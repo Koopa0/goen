@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // These rules span rows, so a CHECK cannot express them. Each is enforced by a trigger that
@@ -2377,17 +2379,75 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	})
 
 	t.Run("its stock is releasable", func(t *testing.T) {
-		if err := run(t, cancel+`SELECT 1 FROM committed_orders WHERE id = '`+pending+`';`); err != nil {
-			t.Fatalf("read committed_orders: %v", err)
+		ctx := t.Context()
+		tx, err := schemaPool(t).Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer pgtx.Rollback(ctx, tx)
+		if _, err := tx.Exec(ctx, fixtures); err != nil {
+			t.Fatalf("fixtures: %v", err)
+		}
+
+		const variant = "44444444-4444-4444-8444-444444444444"
+		var stockBefore int
+		if err := tx.QueryRow(ctx, `SELECT stock_quantity FROM product_variants WHERE id = $1`,
+			variant).Scan(&stockBefore); err != nil {
+			t.Fatalf("read stock before hold: %v", err)
+		}
+		// A zero-price line makes this variant holdable without changing the fixture's amount owed.
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 0, 1, 5)`, pending, variant); err != nil {
+			t.Fatalf("add a holdable line: %v", err)
+		}
+		var held string
+		if err := tx.QueryRow(ctx,
+			`SELECT hold_inventory($1, $2, 1, interval '15 min', 'hold-cancelled-release')`,
+			pending, variant).Scan(&held); err != nil {
+			t.Fatalf("hold inventory: %v", err)
+		}
+		const reservationStock = `
+			SELECT r.state, v.stock_quantity
+			FROM inventory_reservations r
+			JOIN product_variants v ON v.id = r.variant_id
+			WHERE r.id = $1`
+		var state string
+		var stock int
+		if err := tx.QueryRow(ctx, reservationStock, held).Scan(&state, &stock); err != nil {
+			t.Fatalf("read held reservation and stock: %v", err)
+		}
+		if state != "held" || stock != stockBefore-1 {
+			t.Fatalf("hold_inventory() state = %q, stock = %d, want held and %d", state, stock, stockBefore-1)
+		}
+		if _, err := tx.Exec(ctx, cancel); err != nil {
+			t.Fatalf("cancel held order: %v", err)
+		}
+		var status string
+		if err := tx.QueryRow(ctx, `SELECT fulfillment_status FROM orders WHERE id = $1`,
+			pending).Scan(&status); err != nil {
+			t.Fatalf("read cancelled fixture order: %v", err)
+		}
+		if status != "cancelled" {
+			t.Fatalf("fixture order status = %q, want cancelled", status)
 		}
 		var committed bool
-		if err := pool.QueryRow(t.Context(),
+		if err := tx.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM committed_orders WHERE id = $1)`,
 			pending).Scan(&committed); err != nil {
 			t.Fatalf("read committed_orders: %v", err)
 		}
 		if committed {
-			t.Error("a cancelled order reads as committed; its stock can never be released")
+			t.Fatal("a cancelled fixture order reads as committed; its held stock cannot be released")
+		}
+		if _, err := tx.Exec(ctx, `SELECT release_reservation($1)`, held); err != nil {
+			t.Fatalf("release cancelled order's reservation: %v", err)
+		}
+		if err := tx.QueryRow(ctx, reservationStock, held).Scan(&state, &stock); err != nil {
+			t.Fatalf("read released reservation and stock: %v", err)
+		}
+		if state != "released" || stock != stockBefore {
+			t.Errorf("release_reservation() state = %q, stock = %d, want released and %d", state, stock, stockBefore)
 		}
 	})
 
