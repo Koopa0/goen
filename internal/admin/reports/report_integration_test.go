@@ -506,10 +506,9 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 }
 
-// A deeper category counts toward its root, an unpaid order and one refunded
-// before shipment toward none, and
-// together the departments are the revenue figure: the orders carry no discount,
-// shipping or tax.
+// A deeper category counts toward its root. An unpaid order and one refunded
+// before shipment count toward none. Together the departments are the revenue
+// figure, since the orders carry no discount, shipping or tax.
 func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)

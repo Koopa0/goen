@@ -239,7 +239,7 @@ func (v *ReportView) TopUnits() int64 {
 	return top
 }
 
-// TopDepartment is the longest bar's scale: the largest department's revenue.
+// TopDepartment is the longest bar's scale: the largest department's product sales.
 func (v *ReportView) TopDepartment() int64 {
 	var top int64
 	for _, d := range v.Departments {
@@ -248,7 +248,7 @@ func (v *ReportView) TopDepartment() int64 {
 	return top
 }
 
-// OnlyDepartment says so when one department holds all of the revenue, where a
+// OnlyDepartment says so when one department holds all of the product sales, where a
 // bar would compare it with nothing.
 func (v *ReportView) OnlyDepartment(ctx context.Context) string {
 	d := v.Departments[0]
