@@ -209,7 +209,7 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 		return fmt.Errorf("read variant: %w", err)
 	}
 	before := map[string]any{"sku": sku}
-	return audit.Run(ctx, s.pool, audit.Event{
+	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRetireVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
 		After:  map[string]any{"active": active},
@@ -227,6 +227,7 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 			}
 			return nil
 		})
+	return pgerr.WrapRefusal(err, ErrRefused)
 }
 
 // SetPrice reprices a variant. product_variants_compare_at_is_higher
