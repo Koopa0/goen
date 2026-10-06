@@ -923,7 +923,7 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	}
 	defer pgtx.Rollback(ctx, tx)
 
-	if _, err := tx.Exec(ctx, `
+	if _, err = tx.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
 		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
