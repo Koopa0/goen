@@ -107,7 +107,7 @@ func (v PayView) HoldPeriod(ctx context.Context) (components.PeriodSpec, bool) {
 }
 
 // StartByText is the clock time payment must start by.
-func (v PayView) StartByText() string { return shoptime.Clock(v.Hold.StartBy) }
+func (v PayView) StartByText() string { return shoptime.ClockText(v.Hold.StartBy) }
 
 // EyebrowKey says 完成付款 only while a payment can start or resume.
 func (v PayView) EyebrowKey() i18n.Key {

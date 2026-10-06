@@ -162,9 +162,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var10 string
-						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(shoptime.Clock(f.Time))
+						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(shoptime.ClockText(f.Time))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/pay.templ`, Line: 35, Col: 77}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/pay.templ`, Line: 35, Col: 81}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {

@@ -86,7 +86,7 @@ func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	}{
 		"cart":            {renderIn(t, i18n.ZhHant, Cart(layouts.Page{}, CartView{})), assets.EmptyCartImage},
 		"campaign":        {renderIn(t, i18n.ZhHant, Campaign(layouts.Page{}, CampaignView{Title: "x"})), assets.EmptyCampaignImage},
-		"category":        {renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "phones"})), assets.EmptySearchImage},
+		"category":        {renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "phones"}, nil)), assets.EmptySearchImage},
 		"search prompt":   {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{})), assets.EmptySearchImage},
 		"search no match": {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{Query: "zzz"})), assets.EmptySearchImage},
 	} {

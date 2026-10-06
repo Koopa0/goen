@@ -32,7 +32,7 @@ templ Pay(p layouts.Page, v PayView) {
 									if f.Time.IsZero() {
 										{ f.Amount }
 									} else {
-										<time datetime={ shoptime.Minute(f.Time) }>{ shoptime.Clock(f.Time) }</time>
+										<time datetime={ shoptime.Minute(f.Time) }>{ shoptime.ClockText(f.Time) }</time>
 									}
 									if f.Note != "" {
 										<span class="goen-pay__note">{ i18n.T(ctx, f.Note) }</span>

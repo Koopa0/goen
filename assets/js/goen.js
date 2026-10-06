@@ -36,7 +36,11 @@
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        current = slides.indexOf(entry.target);
+        // The first report is the slide already shown; the live region speaks
+        // only once the visitor has moved the carousel.
+        const index = slides.indexOf(entry.target);
+        if (index === current) continue;
+        current = index;
         tabs.forEach((tab, index) => {
           if (index === current) tab.setAttribute("aria-current", "true");
           else tab.removeAttribute("aria-current");

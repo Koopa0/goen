@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -49,7 +50,7 @@ const (
 type carouselSources struct {
 	cats  []db.RootCategoriesRow
 	subs  map[uuid.UUID][]string
-	camps []db.HomeCampaignsRow
+	camps []db.ListedCampaignsRow
 	held  map[uuid.UUID]int64
 }
 
@@ -67,7 +68,7 @@ func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 	for _, r := range subRows {
 		subs[r.ParentID.UUID] = append(subs[r.ParentID.UUID], r.Name)
 	}
-	camps, err := s.q.HomeCampaigns(ctx, db.HomeCampaignsParams{Locale: locale, MaxCampaigns: maxSlides})
+	camps, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{Locale: locale, PageSize: maxSlides})
 	if err != nil {
 		return carouselSources{}, fmt.Errorf("read home campaigns: %w", err)
 	}
@@ -110,23 +111,17 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
-	}
-	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
-	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read lowest delivery fee: %w", err)
+		return pages.HomeView{}, err
 	}
 
 	view := pages.HomeView{
-		Slides:            slides,
-		Categories:        make([]pages.HomeCategory, 0, len(src.cats)),
-		Row:               row,
-		Band:              band,
-		FreeDeliveryCents: freeOver,
-		LowestFeeCents:    lowestFee,
-		PickupOffered:     !s.noPickup,
+		Slides:     slides,
+		Categories: make([]pages.HomeCategory, 0, len(src.cats)),
+		Row:        row,
+		Band:       band,
+		Rules:      rules,
 	}
 	for i := range src.cats {
 		c := &src.cats[i]
@@ -140,7 +135,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	return view, nil
 }
 
-func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {
+func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (pages.ProductRow, error) {
 	if len(camps) > 0 {
 		c := &camps[0]
 		tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)

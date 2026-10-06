@@ -1,12 +1,15 @@
 package home
 
 import (
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -25,7 +28,7 @@ func TestACampaignRowFactNamesItsLastDay(t *testing.T) {
 		{"near", now.AddDate(0, 0, 29), "6 件商品，至 10\u00a0月 31\u00a0日"},
 		{"a year off", now.AddDate(1, 0, 0), "6 件商品，至 2027\u00a0年 10\u00a0月 2\u00a0日"},
 	} {
-		got := s.campaignRowFact(ctx, &db.HomeCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		got := s.campaignRowFact(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
 		if got != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
 		}
@@ -46,18 +49,18 @@ func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
 		endsAt time.Time
 		want   []string
 	}{
-		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"商品=6\u00a0件", "結束=10\u00a0月 12\u00a0日 18:00", "剩餘=3\u00a0天"}},
-		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), []string{"商品=6\u00a0件", "結束=10\u00a0月 10\u00a0日 明天結束"}},
-		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品=6\u00a0件", "結束=10\u00a0月 9\u00a0日 今天結束"}},
-		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品=6\u00a0件", "結束=10\u00a0月 9\u00a0日 18:00 今天結束"}},
+		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月12日\u00a018:00", "剩餘3\u00a0天"}},
+		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月10日明天結束"}},
+		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日今天結束"}},
+		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日\u00a018:00今天結束"}},
 	} {
 		var got []string
-		for _, st := range s.campaignStats(ctx, &db.HomeCampaignsRow{EndsAt: tt.endsAt, Products: 6}) {
-			line := st.Label + "=" + st.Value
-			if st.Note != "" {
-				line += " " + st.Note
+		for _, st := range s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}) {
+			var b strings.Builder
+			if err := components.StatLine([]components.Stat{st}, components.StatLinePlain).Render(ctx, &b); err != nil {
+				t.Fatal(err)
 			}
-			got = append(got, line)
+			got = append(got, text(b.String()))
 		}
 		if !slices.Equal(got, tt.want) {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
@@ -69,7 +72,7 @@ func TestAScheduledSlideTakesTheToneOfWhatItLinksTo(t *testing.T) {
 	t.Parallel()
 
 	src := carouselSources{
-		camps: []db.HomeCampaignsRow{{Slug: "autumn", Tone: "sage"}},
+		camps: []db.ListedCampaignsRow{{Slug: "autumn", Tone: "sage"}},
 		cats:  []db.RootCategoriesRow{{Slug: "tech", Tone: "mist"}},
 	}
 	for href, want := range map[string]pages.Tone{
@@ -80,3 +83,8 @@ func TestAScheduledSlideTakesTheToneOfWhatItLinksTo(t *testing.T) {
 		}
 	}
 }
+
+var tag = regexp.MustCompile(`<[^>]*>|[ \n\t]+`)
+
+// text is the rendered markup with its tags and its plain spacing taken out.
+func text(markup string) string { return tag.ReplaceAllString(markup, "") }

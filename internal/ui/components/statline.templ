@@ -1,0 +1,26 @@
+package components
+
+// The label comes before the figure in the document, so a screen reader hears what is counted first.
+templ StatLine(stats []Stat, variant StatLineVariant) {
+	if items := shown(stats); len(items) > 0 {
+		<dl class={ variant.class() }>
+			for _, s := range items {
+				<div>
+					<dt>{ s.Label }</dt>
+					<dd>
+						if len(s.Value.date) > 0 {
+							@templ.Raw(s.Value.dateHTML())
+						} else if s.Value.pre != "" {
+							<small class="ui-statline__pre">{ s.Value.pre }</small>{ s.Value.figure }
+						} else {
+							{ s.Value.figure + "\u00a0" }<small>{ s.Value.unit }</small>
+						}
+						if s.Note != "" {
+							<span class="ui-statline__note">{ s.Note }</span>
+						}
+					</dd>
+				</div>
+			}
+		</dl>
+	}
+}

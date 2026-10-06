@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -544,6 +545,23 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 		return fmt.Errorf("cancel payment for session %s: %w", w.objectRef, err)
 	}
 	return nil
+}
+
+// RefundStatus reads goen's own refund this webhook object names. Only the
+// provider reference attributes it: a refund made in the Stripe Dashboard has
+// none here, and its metadata or payment intent could name any of goen's.
+func (w *webhookTx) RefundStatus(ctx context.Context) (refundstate.State, error) {
+	if w.objectRef == "" {
+		return "", errors.New("read refund for webhook without a provider object")
+	}
+	status, err := w.q.RefundStatusByProviderRef(ctx, w.objectRef)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("read refund %s: %w", w.objectRef, err)
+	}
+	return refundstate.State(status), nil
 }
 
 func cardLabel(c Capture) string {
