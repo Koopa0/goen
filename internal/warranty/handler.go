@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -50,23 +52,30 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	number := r.PathValue("number")
-	view, err := h.store.Registrable(r.Context(), number, u.ID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
-				i18n.T(r.Context(), i18n.KeyOrderNotFound),
-				i18n.T(r.Context(), i18n.KeyWarrantyOrderNotFound)))
-			return
-		}
-		h.log.ErrorContext(r.Context(), "read registrable lines", "error", err)
-		h.serverError(w, r)
+	view, ok := h.orderView(w, r, u.ID)
+	if !ok {
 		return
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.WarrantyOrder(
-		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), number)}, view))
+		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
+}
+
+func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID string) (pages.WarrantyOrderView, bool) {
+	view, err := h.store.Registrable(r.Context(), r.PathValue("number"), userID)
+	if err == nil {
+		return view, true
+	}
+	if errors.Is(err, ErrNotFound) {
+		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
+			i18n.T(r.Context(), i18n.KeyOrderNotFound),
+			i18n.T(r.Context(), i18n.KeyWarrantyOrderNotFound)))
+	} else {
+		h.log.ErrorContext(r.Context(), "read registrable lines", "error", err)
+		h.serverError(w, r)
+	}
+	return pages.WarrantyOrderView{}, false
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -91,14 +100,45 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrSerialTaken):
-		http.Redirect(w, r, back+"?serial=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotRegistrable), errors.Is(err, ErrInvalid),
-		errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
+		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantyDuplicateSerial)
+	case errors.Is(err, ErrInvalid):
+		refusal := i18n.KeyWarrantyRefused
+		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("serial"))) > MaxSerialRunes {
+			refusal = i18n.KeyWarrantySerialTooLong
+		}
+		h.rejectRegistration(w, r, u.ID, refusal)
+	case errors.Is(err, ErrNotRegistrable), errors.Is(err, ErrNotFound):
+		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantyRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "register warranty", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, userID string, refusal i18n.Key) {
+	view, ok := h.orderView(w, r, userID)
+	if !ok {
+		return
+	}
+	message := i18n.T(r.Context(), refusal)
+	if refusal == i18n.KeyWarrantySerialTooLong {
+		message = fmt.Sprintf(message, MaxSerialRunes)
+	}
+	view.Refusal = message
+	for i := range view.Lines {
+		line := &view.Lines[i]
+		if line.ID != r.PostFormValue("line") || !line.Registrable() {
+			continue
+		}
+		line.DraftSerial = r.PostFormValue("serial")
+		if refusal != i18n.KeyWarrantyRefused {
+			line.SerialRefusal = message
+			view.Refusal = ""
+		}
+		break
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.WarrantyOrder(
+		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -109,15 +149,8 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 }
 
 func noticeFor(r *http.Request) string {
-	ctx := r.Context()
-	switch {
-	case r.URL.Query().Get("ok") == "1":
-		return i18n.T(ctx, i18n.KeyWarrantyAlready)
-	case r.URL.Query().Get("serial") == "1":
-		return i18n.T(ctx, i18n.KeyWarrantyDuplicateSerial)
-	case r.URL.Query().Get("refused") == "1":
-		return i18n.T(ctx, i18n.KeyWarrantyRefused)
-	default:
+	if r.URL.Query().Get("ok") != "1" {
 		return ""
 	}
+	return i18n.T(r.Context(), i18n.KeyWarrantyAlready)
 }
