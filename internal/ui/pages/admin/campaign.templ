@@ -216,7 +216,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 		if v.ResultsUnavailable {
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>
-				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
 			}
 		} else if v.Results != nil {
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {

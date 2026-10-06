@@ -233,6 +233,12 @@ const ADMIN = [
   { label: 'admin reports columns 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
   { label: 'admin reports columns 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
   { label: 'admin reports columns 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  // .goen-report__departments .goen-chartbar: the two best sellers are in two
+  // departments, so the row waits for the department bars; without them it
+  // measured the page with one department or none.
+  { label: 'admin reports departments 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
   { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },

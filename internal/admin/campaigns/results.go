@@ -38,13 +38,13 @@ func resultWindow(starts, ends, now time.Time) (resultDays, bool) {
 	if today := shoptime.Midnight(now); through.After(today) {
 		through = today
 	}
-	days := min(shoptime.DayUTC(through).Sub(shoptime.DayUTC(begin)).Hours()/24+1, maxResultDays)
+	days := min(shoptime.QueryDate(through).Sub(shoptime.QueryDate(begin)).Hours()/24+1, maxResultDays)
 	n := int(days)
 	end := begin.AddDate(0, 0, n)
 	w := resultDays{
 		days:  n,
-		first: shoptime.DayUTC(begin.AddDate(0, 0, -n)),
-		last:  shoptime.DayUTC(begin.AddDate(0, 0, n-1)),
+		first: shoptime.QueryDate(begin.AddDate(0, 0, -n)),
+		last:  shoptime.QueryDate(begin.AddDate(0, 0, n-1)),
 		from:  begin.AddDate(0, 0, -n),
 		to:    end,
 	}
@@ -75,8 +75,8 @@ func (s *Store) Results(ctx context.Context, slug string, detail admin.CampaignD
 	return &admin.CampaignResults{
 		Units: units, Days: w.days, Products: products, Cut: shoptime.Clock(now),
 		Campaign: chart.Span{
-			From:  shoptime.DayUTC(detail.Starts),
-			To:    shoptime.DayUTC(detail.Ends.Add(-time.Nanosecond)),
+			From:  shoptime.QueryDate(detail.Starts),
+			To:    shoptime.QueryDate(detail.Ends.Add(-time.Nanosecond)),
 			Label: detail.Title,
 		},
 	}, nil
