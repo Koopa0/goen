@@ -30,9 +30,9 @@ func New(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
 }
 
 func (c *Control) WithHealthTaskCount(read func(context.Context) (int64, error)) *Control {
-	copy := *c
-	copy.healthTaskCount = read
-	return &copy
+	navigation := *c
+	navigation.healthTaskCount = read
+	return &navigation
 }
 
 // RequireStaff wraps a back-office handler. Signed out and signed-in-but-not-

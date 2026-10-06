@@ -31,21 +31,7 @@ var (
 
 	KeyAdminHPReasonUnknown = key("admin.hp.reason.unknown", Message{ZhHant: "原因尚無說明，請依下方代碼查核。", En: "No explanation is available for this reason; investigate the code below."})
 
-	KeyAdminHPInvoiceIssue = key("admin.hp.invoice.issue", Message{ZhHant: "開立發票", En: "Issue invoice"})
-
-	KeyAdminHPInvoiceVoid = key("admin.hp.invoice.void", Message{ZhHant: "作廢發票", En: "Void invoice"})
-
-	KeyAdminHPInvoiceAllowance = key("admin.hp.invoice.allowance", Message{ZhHant: "開立折讓", En: "Issue allowance"})
-
 	KeyAdminHPInvoiceKindUnknown = key("admin.hp.invoice.kindunknown", Message{ZhHant: "其他發票操作", En: "Other invoice operation"})
-
-	KeyAdminHPInvoicePending = key("admin.hp.invoice.pending", Message{ZhHant: "等待處理或確認", En: "Waiting for processing or confirmation"})
-
-	KeyAdminHPInvoiceAttention = key("admin.hp.invoice.attention", Message{ZhHant: "需要你查核", En: "Needs your review"})
-
-	KeyAdminHPInvoiceSucceeded = key("admin.hp.invoice.succeeded", Message{ZhHant: "已完成", En: "Completed"})
-
-	KeyAdminHPInvoiceRejected = key("admin.hp.invoice.rejected", Message{ZhHant: "已拒絕", En: "Rejected"})
 
 	KeyAdminHPInvoiceStatusUnknown = key("admin.hp.invoice.statusunknown", Message{ZhHant: "狀態尚無說明", En: "No explanation is available for this status"})
 

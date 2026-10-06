@@ -491,8 +491,8 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) 
 		locale i18n.Locale
 		labels []string
 	}{
-		{i18n.ZhHant, []string{"結帳已完成", "訂單取消後仍收到款項，請查核退款。", "開立折讓", "需要你查核", "找到多筆尚未歸屬的折讓，無法確認哪筆屬於這次操作。", "其他金流通知", "其他發票操作", "狀態尚無說明", "原因尚無說明，請依下方代碼查核。"}},
-		{i18n.En, []string{"Checkout completed", "Money arrived after the order was cancelled; check the refund.", "Issue allowance", "Needs your review", "Multiple unattributed allowances were found; this operation cannot be matched.", "Other payment notification", "Other invoice operation", "No explanation is available for this status", "No explanation is available for this reason; investigate the code below."}},
+		{i18n.ZhHant, []string{"結帳已完成", "訂單取消後仍收到款項，請查核退款。", "開立折讓", "需要人工處理", "找到多筆尚未歸屬的折讓，無法確認哪筆屬於這次操作。", "其他金流通知", "其他發票操作", "狀態尚無說明", "原因尚無說明，請依下方代碼查核。"}},
+		{i18n.En, []string{"Checkout completed", "Money arrived after the order was cancelled; check the refund.", "Issue allowance", "Needs a person", "Multiple unattributed allowances were found; this operation cannot be matched.", "Other payment notification", "Other invoice operation", "No explanation is available for this status", "No explanation is available for this reason; investigate the code below."}},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
