@@ -329,10 +329,11 @@ var (
 	})
 
 	KeyAdminShipPickupOff = key("admin.ship.pickupoff", Message{
-		ZhHant: "尚未設定超商地圖，結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
-		En: "No store map is configured, so checkout does not offer this method. Setting " +
-			"GOEN_ECPAY_LOGISTICS is what turns it on.",
+		ZhHant: "顧客結帳時看不到超商取貨：還沒接上綠界物流。這要由架站的人設定。",
+		En:     "Customers cannot pick this at checkout: ECPay logistics is not connected yet. Whoever runs the server sets that up.",
 	})
+
+	KeyAdminShipPickupNotOffered = key("admin.ship.pickupnotoffered", Message{ZhHant: "結帳未提供", En: "Not offered at checkout"})
 
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題：每一項不能超過還沒出貨的數量，也不能超過這筆訂單保留的庫存。",
