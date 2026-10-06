@@ -58,7 +58,7 @@ func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, ran, restored time.T
 	written := tableDigests(t, shop)
 	books := textRows(t, shop, demoBooks)
 
-	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, shoptime.Day(ran))...); err != nil {
+	if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, shoptime.Day(restored))...); err != nil {
 		t.Fatalf("seed/demo_shift.sql on %s, anchored on %s: %v\n%s", shoptime.Day(restored), shoptime.Day(ran), err, out)
 	}
 	made := tableDigests(t, shop)
