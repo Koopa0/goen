@@ -1201,7 +1201,7 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('退貨', '哪些商品可以退貨？',
      '只有「已出貨」的商品可以申請退貨，而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消，不需要走退貨流程。', 10),
     ('退貨', '退款什麼時候會收到？',
-     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。', 20),
+     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which

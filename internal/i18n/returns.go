@@ -132,7 +132,7 @@ var (
 	KeyAdminPageReturns = key("admin.page.returns", Message{ZhHant: "退貨申請", En: "Return requests"})
 
 	KeyAdminRetLead = key("admin.ret.lead", Message{
-		ZhHant: "同意退貨會依原付款組成退回：卡款走 Stripe，店儲退回額度。金額由訂單本身的單價計算。",
+		ZhHant: "同意退貨會依原付款組成退回：卡款走 Stripe，購物金退回餘額。金額由訂單本身的單價計算。",
 		En: "Approving a return pays it back the way it was funded: the card half through Stripe, " +
 			"store credit back to the balance. The amount is computed from the order's own unit prices.",
 	})
@@ -143,12 +143,12 @@ var (
 	})
 
 	KeyAdminRetPayoutCredit = key("admin.ret.payout.credit", Message{
-		ZhHant: "店儲 %s 退回額度",
+		ZhHant: "購物金 %s 退回餘額",
 		En:     "Store credit %s returns to the balance",
 	})
 
 	KeyAdminRetPayoutSplit = key("admin.ret.payout.split", Message{
-		ZhHant: "卡款 %s 走 Stripe，店儲 %s 退回額度",
+		ZhHant: "卡款 %s 走 Stripe，購物金 %s 退回餘額",
 		En:     "Card %s through Stripe, store credit %s back to the balance",
 	})
 
