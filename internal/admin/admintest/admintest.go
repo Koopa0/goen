@@ -278,6 +278,18 @@ func InputElementByID(t *testing.T, body, id string) string {
 	return match
 }
 
+// TextareaByID returns the opening tag and the text of the textarea with the
+// id, without the newline a browser drops after the opening tag.
+func TextareaByID(t *testing.T, body, id string) (tag, text string) {
+	t.Helper()
+	match := regexp.MustCompile(`(<textarea\b[^>]*\bid="` + regexp.QuoteMeta(id) + `"[^>]*>)\n?([^<]*)</textarea>`).
+		FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no textarea with id %q in rendered page", id)
+	}
+	return match[1], html.UnescapeString(match[2])
+}
+
 func WaitForBlockedApplication(
 	t *testing.T, pool *pgxpool.Pool, ctx context.Context, applicationName string, blockerPID int32,
 ) int32 {

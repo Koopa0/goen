@@ -790,9 +790,9 @@ func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
 
 	body := res.Body.String()
 	targetID := "pre-" + zoneA.String()
-	target := admintest.InputElementByID(t, body, targetID)
-	if got := admintest.InputAttribute(t, target, "value"); got != raw {
-		t.Errorf("target row value = %q, want raw %q", got, raw)
+	target, targetText := admintest.TextareaByID(t, body, targetID)
+	if targetText != raw {
+		t.Errorf("target row text = %q, want raw %q", targetText, raw)
 	}
 	if admintest.InputAttribute(t, target, "aria-invalid") != "true" {
 		t.Errorf("target row is not marked aria-invalid: %s", target)
@@ -806,15 +806,15 @@ func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
 		t.Errorf("no nonempty error element resolves %q", errorID)
 	}
 
-	neighbour := admintest.InputElementByID(t, body, "pre-"+zoneB.String())
-	if got := admintest.InputAttribute(t, neighbour, "value"); got != p[1] {
-		t.Errorf("neighbour value = %q, want database value %q", got, p[1])
+	neighbour, neighbourText := admintest.TextareaByID(t, body, "pre-"+zoneB.String())
+	if neighbourText != p[1] {
+		t.Errorf("neighbour text = %q, want database value %q", neighbourText, p[1])
 	}
 	if strings.Contains(neighbour, "aria-invalid") {
 		t.Errorf("neighbour row inherited the target error: %s", neighbour)
 	}
-	create := admintest.InputElementByID(t, body, "z-prefixes")
-	if strings.Contains(create, "aria-invalid") || admintest.InputAttribute(t, create, "value") == raw {
+	create, createText := admintest.TextareaByID(t, body, "z-prefixes")
+	if strings.Contains(create, "aria-invalid") || createText == raw {
 		t.Errorf("create-zone field inherited an existing-row refusal: %s", create)
 	}
 	assertZonePrefixes(t, zoneA, p[:1])
