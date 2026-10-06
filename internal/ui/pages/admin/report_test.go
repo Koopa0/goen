@@ -507,7 +507,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 		"Paid orders per day (orders)",
 		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
 		`<p class="goen-chart__note">Paid orders only, by the time placed. Today is counted up to 15:20.</p>`,
-		`<th scope="col">Paid orders</th>`,
+		`<th scope="col" data-readout="series">Paid orders</th>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the page does not contain %s", want)
