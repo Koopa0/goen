@@ -40,9 +40,16 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		i18n.ZhHant: {{Slug: "books", Name: "書籍"}, {Slug: "kitchen", Name: "廚房用品"}, {Slug: "food", Name: "食品"}},
 		i18n.En:     {{Slug: "books", Name: "Books"}, {Slug: "kitchen", Name: "Kitchen"}, {Slug: "food", Name: "Food"}},
 	}
+	wantDescription := map[i18n.Locale]string{
+		i18n.ZhHant: "goen 的館別：書籍、廚房用品、食品。",
+		i18n.En:     "Departments at goen: Books, Kitchen and Food.",
+	}
 	for locale, items := range nav {
 		ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), items)
 		home, about := HomeMeta(ctx), AboutMeta(ctx)
+		if about.Description != wantDescription[locale] {
+			t.Errorf("%s AboutMeta().Description = %q, want %q", locale, about.Description, wantDescription[locale])
+		}
 
 		for _, item := range items {
 			for name, got := range map[string]string{
@@ -67,6 +74,9 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		}
 		list := joinList(ctx, names)
 		page := renderComponent(t, ctx, About(about))
+		if want := `<meta name="description" content="` + html.EscapeString(wantDescription[locale]) + `"`; !strings.Contains(page, want) {
+			t.Errorf("%s about page omits description %q", locale, wantDescription[locale])
+		}
 		if !strings.Contains(page, `<h1 class="about__title">`+i18n.T(ctx, i18n.KeyAboutTitle)+`</h1>`) {
 			t.Errorf("%s about page's heading is not its title", locale)
 		}
