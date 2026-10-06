@@ -120,12 +120,6 @@ func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []c
 	return stats
 }
 
-// statCount is n with the unit its key says, which follows the number after a no-break space.
-func statCount(ctx context.Context, k i18n.Key, n int64) components.StatValue {
-	_, unit, _ := strings.Cut(i18n.Count(ctx, k, n, n), "\u00a0")
-	return components.StatCount(n, unit)
-}
-
 // campaignCardStats are what is left and when it ends, in that order; the count
 // is the card's link.
 func (s *Store) campaignCardStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
