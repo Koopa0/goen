@@ -5263,6 +5263,20 @@ COMMENT ON VIEW settled_orders IS
 -- SECURITY INVOKER, so every checkout would die on it.
 GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 
+-- A refund before shipment is a cancellation, yet the order stays committed
+-- until the card refund succeeds and the order is cancelled; a sales figure
+-- that read committed_orders would count it in between. security_invoker, so a
+-- role reads through it only what its own grants allow.
+CREATE VIEW sold_orders WITH (security_invoker = true) AS
+    SELECT c.id
+    FROM committed_orders c
+    WHERE NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = c.id AND b.before_shipment);
+
+COMMENT ON VIEW sold_orders IS
+    'The single definition of a sold order: committed, and not refunded before '
+    'shipment. Every sales figure JOINs this.';
+
 -- An order's total less the store credit spent on it, NET OF
 -- REVERSALS — summing only `amount_cents < 0` counts the ghost of a reversed
 -- spend and lets an unfunded order ship.
@@ -5568,6 +5582,8 @@ GRANT USAGE ON SCHEMA public TO admin;
 -- redundant: admin is NOT a member of store — pg_auth_members holds no such edge
 -- — and that independence is what makes the column revokes below work.
 GRANT SELECT ON committed_orders, settled_orders TO admin;
+-- The back office's sales figures are its only readers.
+GRANT SELECT ON sold_orders TO admin;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO admin;
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO admin;
 

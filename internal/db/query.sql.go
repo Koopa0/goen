@@ -3234,7 +3234,7 @@ SELECT
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
@@ -3488,10 +3488,8 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
       AND ol.product_id IN (SELECT cp.product_id
                             FROM sale_campaign_products cp
                             JOIN sale_campaigns sc ON sc.id = cp.campaign_id
@@ -3517,9 +3515,8 @@ type CampaignDailyUnitsRow struct {
 
 // The units of the products on the campaign's list that each shop day from
 // first_day to last_day sold, a day without any included. The orders are
-// PaidByShopDay's: committed, and not refunded before shipment. order_lines
-// records no campaign, so it is the list as it is now. The bounds are cut on the
-// shop's clock by the caller.
+// PaidByShopDay's. order_lines records no campaign, so it is the list as it is
+// now. The bounds are cut on the shop's clock by the caller.
 func (q *Queries) CampaignDailyUnits(ctx context.Context, arg CampaignDailyUnitsParams) ([]CampaignDailyUnitsRow, error) {
 	rows, err := q.db.Query(ctx, campaignDailyUnits,
 		arg.FirstDay,
@@ -7510,13 +7507,11 @@ SELECT
     sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 JOIN products p ON p.id = ol.product_id
 JOIN tree t ON t.id = p.category_id
 JOIN categories d ON d.id = t.root_id
 WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 GROUP BY d.id, d.name, d.name_en, d.position
 ORDER BY sales_cents DESC, d.position, d.id
 `
@@ -9052,10 +9047,8 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 const latestPaidDay = `-- name: LatestPaidDay :one
 SELECT shop_day(o.placed_at) AS day
 FROM orders o
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 WHERE o.placed_at < $1::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY o.placed_at DESC
 LIMIT 1
 `
@@ -9073,7 +9066,7 @@ const latestPaidOrder = `-- name: LatestPaidOrder :one
 SELECT o.order_number, f.total_cents,
        coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
 FROM orders o
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 CROSS JOIN LATERAL (
     SELECT coalesce(
                (SELECT min(e.occurred_at) FROM order_events e
@@ -9086,8 +9079,6 @@ CROSS JOIN LATERAL (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= $1::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 1
 `
@@ -9098,9 +9089,8 @@ type LatestPaidOrderRow struct {
 	ElapsedSeconds int64
 }
 
-// The newest committed order by when its money came in, which is read as
-// admin/health reads funded_at (UninvoicedOrders). Orders refunded before
-// shipment are left out, as RevenueBetween leaves them out; the total is
+// The newest sold order by when its money came in, which is read as
+// admin/health reads funded_at (UninvoicedOrders); the total is
 // RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
 // Only orders placed since @since are looked at, so the dashboard does not read
 // the whole history; the caller asks again with no bound when none qualifies.
@@ -11926,10 +11916,8 @@ LEFT JOIN (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
@@ -12883,11 +12871,9 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day, ol.quantity AS units
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE ol.product_id = $3::uuid
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
@@ -12905,8 +12891,7 @@ type ProductUnitsByShopDayRow struct {
 }
 
 // One row per shop day of [from_at, to_at), a day without sales included. The
-// units are those of the orders PaidByShopDay counts: committed, and not refunded
-// in full before they shipped.
+// units are those of the orders PaidByShopDay counts.
 func (q *Queries) ProductUnitsByShopDay(ctx context.Context, arg ProductUnitsByShopDayParams) ([]ProductUnitsByShopDayRow, error) {
 	rows, err := q.db.Query(ctx, productUnitsByShopDay, arg.FromAt, arg.ToAt, arg.ProductID)
 	if err != nil {
@@ -15175,10 +15160,8 @@ WITH period_lines AS (
     SELECT ol.id, ol.product_id, ol.quantity
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ), sold AS (
     SELECT product_id, sum(quantity)::bigint AS units
     FROM period_lines GROUP BY product_id
@@ -15219,10 +15202,9 @@ type ReturnedProductsBetweenRow struct {
 }
 
 // Units on decided-yes returns (approved or completed) against units sold, both
-// counted over the orders placed in the period, so a product's returned never
-// exceeds its sold. Orders refunded before shipment are left out of both, as in
-// RevenueBetween: no goods came back. Ties on the count fall to the larger sale,
-// then the name, so the list does not reshuffle between reads.
+// counted over the sold orders placed in the period, so a product's returned
+// never exceeds its sold. Ties on the count fall to the larger sale, then the
+// name, so the list does not reshuffle between reads.
 func (q *Queries) ReturnedProductsBetween(ctx context.Context, arg ReturnedProductsBetweenParams) ([]ReturnedProductsBetweenRow, error) {
 	rows, err := q.db.Query(ctx, returnedProductsBetween, arg.LimitTo, arg.FromAt, arg.ToAt)
 	if err != nil {
@@ -15307,9 +15289,10 @@ SELECT
     -- created_at for the synchronous credit post.
     -- The positive-credit predicate matches order_refunds, where a change of that
     -- definition belongs, so the 折讓 form and the invoice bound move with it. An
-    -- order refunded before shipment is left out of both figures: its refund
-    -- already cancels it out of committed revenue, and counting it again would
-    -- take it off the net twice.
+    -- order refunded before shipment is left out of both figures: it is no sale,
+    -- and counting its refund would take it off the net a second time. Not
+    -- through sold_orders, which would also drop money that went back on an
+    -- order no longer committed.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
@@ -15327,10 +15310,8 @@ FROM (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
@@ -15348,7 +15329,7 @@ type RevenueBetweenRow struct {
 }
 
 // A period is [from_at, to_at), cut by the caller on the shop's clock.
-// COMMITTED orders only, and the total is recomputed from the lines because
+// SOLD orders only, and the total is recomputed from the lines because
 // orders carries no total column. Integer division on the average, so no float
 // touches money, and greatest(count, 1) because an empty window divides by zero.
 func (q *Queries) RevenueBetween(ctx context.Context, arg RevenueBetweenParams) (RevenueBetweenRow, error) {
