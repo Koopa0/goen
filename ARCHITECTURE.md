@@ -1,481 +1,329 @@
 # Architecture
 
-goen runs a Taiwan shop as one Go process and one PostgreSQL database. The process serves shopper and staff HTML, coordinates Stripe payments and ECPay invoices, and runs background workers. PostgreSQL keeps the local commerce records and enforces money, stock, and history rules; provider outcomes are verified before goen records them as settled.
+[繁體中文](ARCHITECTURE.zh-TW.md)
 
-An order does not have one status that answers every business question. Its purchase terms, stock reservation, payment, fulfillment, refund, and invoice have different lifetimes. The design coordinates those records through local transactions and durable follow-up work ([checkout](internal/cart/store.go), [payment settlement](internal/payment/store.go), [invoice reconciliation](internal/invoice/recovery.go)). Setup and contributor commands belong in [CONTRIBUTING.md](CONTRIBUTING.md).
+goen is a full-stack e-commerce application in Go. The storefront, back office, and background workers share one process and keep orders, inventory, and ledgers in PostgreSQL. Stripe handles payments and refunds; ECPay handles electronic invoices.
 
-## System context
+## 1. Commerce model
 
-The deployment unit is one binary next to PostgreSQL, configured through `GOEN_*` variables in [.env.example](.env.example). Requests and workers share that process; the rate limits and connection budgets assume one instance ([operating assumptions](CONTRIBUTING.md#what-goen-assumes)).
+Shopping intent, stock, money, fulfillment, and invoicing have separate lifetimes, so goen records them separately. An order can be paid but unshipped, or refunded with its invoice correction still outstanding.
 
-```mermaid
-flowchart TB
-    subgraph goen["goen binary · cmd/goen"]
-        http["HTTP server"]
-        workers["Background workers"]
-    end
-    shopper["Shopper browser"] <-->|HTML, forms, cookies| http
-    staff["Staff browser"] <-->|admin HTML and forms| http
-    http <-->|queries and transactions| db[("PostgreSQL")]
-    workers <-->|claims, results, cleanup| db
-    http -->|create/retrieve sessions, refunds| stripe["Stripe Checkout"]
-    stripe -->|signed webhooks| http
-    shopper <-->|hosted card entry, return redirect| stripe
-    http <-->|barcode checks, staff invoice actions| invoice["ECPay e-invoice"]
-    workers <-->|invoice lookup and submission| invoice
-    shopper <-->|store selection| map["ECPay store map"]
-    map -->|POST store-map return| http
-    workers -->|mail delivery| smtp["SMTP"]
-    http <-->|OAuth code and identity exchange| google["Google sign-in · optional"]
-```
-
-ECPay invoicing and the store map have separate configuration and request paths: [`invoice.Gateway`](internal/invoice/ecpay.go) handles invoices; [`cart.StoreMap`](internal/cart/ecpaymap.go) prepares the browser picker and validates its return. `payment.Gateway` creates hosted sessions and verifies webhooks in [payment/stripe.go](internal/payment/stripe.go).
-
-## Responsibilities and sources of truth
-
-The storefront gathers shopping intent; checkout commits the purchase terms. Staff then control picking, shipments, return assessment, and recovery actions. The following records answer different questions:
-
-| Record | What it means and who advances it |
+| Record | Responsibility |
 | --- | --- |
-| Cart | Mutable intent. Checkout rereads catalogue prices and availability; adding an item holds no stock ([`checkoutCartSnapshot`, `lockCheckoutTerms`](internal/cart/store.go)). |
-| Order | The purchase-time snapshot of lines, prices, shipping terms, delivery details, invoice preferences, and locale ([`placeOrder`](internal/cart/store.go)). |
-| Stock reservation | A promise of units: placement deducts availability, shipment consumes the hold, and eligible cancellation/expiry releases it ([`hold_inventory`, `consume_reservation_partial`, `release_reservation`](migrations/001_initial_schema.up.sql)). |
-| Payment and refund | Local attempt identities, processing states, and verified provider money outcomes; store-credit spending and reversal use their own ledger ([payment settlement](internal/payment/store.go), [refund payout](internal/admin/refunds/payout.go)). |
-| Fulfillment and return | Staff actions record picking, parcels, inspection, and restock. Payment capture alone does not pick or ship goods ([order desk](internal/admin/orders/store.go), [return desk](internal/admin/returns/store.go)). |
-| Invoice operation and document | An operation records what must be requested or reconciled. A settled document records the verified ECPay result. An allowance reduces a previously invoiced amount; the online allowance flow requires buyer consent ([invoice recovery](internal/invoice/recovery.go)). |
+| Cart | Mutable intent. Adding an item reserves no stock; checkout revalidates current terms. |
+| Order and lines | What the buyer confirmed: items, prices, warranty terms, shipping, delivery, invoice preferences, and locale. |
+| Inventory reservation | Units held for an order. Placement reduces availability, shipment consumes the hold, and eligible cancellation or expiry releases it. |
+| Payment and refund | Durable attempt identities and verified money outcomes. Store credit and points keep their own ledgers. |
+| Fulfillment and return | Picking, parcels, assessment, inspection, and restock, independent of money. |
+| Invoice operation | Provider work awaiting submission, reconciliation, or staff attention. |
+| Invoice document | A verified issue, void, or allowance. |
+| Projections and renditions | Co-purchases and resized images, rebuildable from authoritative records. |
 
-PostgreSQL is authoritative for goen's snapshots, ledgers, access grants, and local transitions. Stripe supplies payment/refund outcomes; ECPay supplies invoice outcomes. goen accepts those facts only after checking their identity and amounts against its own records. A browser returning from Checkout is navigation, and an outbox delivery acknowledging an invoice handoff does not mean the invoice has been issued ([webhook attribution](internal/payment/store.go), [`ClaimDue`](internal/invoice/store.go)).
+Placement copies the terms of sale, so later price changes leave history intact. Database guards freeze protected order fields once the order is in `settled_orders` (committed or cancelled), a wider set than paid orders; separately, `order_is_committed` decides that a hold may be consumed but no longer released. See [checkout][checkout] and the [schema][schema] (`settled_orders`, `order_is_committed`).
 
-The map below follows commerce writes. Solid arrows show request/provider work or committed writes; dotted arrows show workers picking up durable work. All application blocks run inside the same binary.
+## 2. System context
 
-```mermaid
-flowchart TB
-    subgraph goen["goen process"]
-        commands["Checkout and staff actions<br/>cart, payment, admin desks"]
-        webhook["Payment webhook<br/>payment"]
-        relay["Outbox relay<br/>outbox"]
-        reconciler["Invoice reconciler<br/>invoice"]
-    end
-    subgraph postgres["PostgreSQL"]
-        records[("Orders, stock, money, audit")]
-        messages[("outbox_messages")]
-        operations[("invoice_operations<br/>invoice_documents")]
-    end
-    commands -->|local transactions| records
-    commands -->|follow-up work in the same transactions| messages
-    commands <-->|Checkout sessions and refunds| stripe["Stripe"]
-    stripe -->|independent signed webhook| webhook
-    webhook -->|capture, paid event, and points transaction| records
-    webhook -->|mail and invoice.due in that transaction| messages
-    messages -.->|lease due messages| relay
-    relay -->|send mail| smtp["SMTP"]
-    relay -->|ClaimDue commits invoice handoff| operations
-    operations -.->|lease pending operations| reconciler
-    reconciler <-->|lookup, submit, verify| ecpay["ECPay e-invoice"]
-    reconciler -->|record verified outcomes| operations
-    commands -->|staff claims and settles| operations
-    commands <-->|staff invoice correction| ecpay
-```
+![Shoppers and staff use one Go process; its handlers and workers share PostgreSQL and call external providers.](docs/architecture/01-system-context.png)
 
-Mail and invoice obligations survive the originating request because they are stored with the business change. [`startWorkers`](cmd/goen/main.go) resumes them in-process; refund recovery is a staff action through [`Resume`](internal/admin/refunds/payout.go). Co-purchases and image renditions are derived data that can be rebuilt; order and money history are retained business records ([recommend](internal/recommend/store.go), [media rendering](internal/media/render.go)).
+### Application and presentation
 
-## Transactions and provider boundaries
+`net/http` handlers render typed `templ` views. Every write works as a plain `POST` form without JavaScript: success redirects, and a failed validation keeps the input. htmx enhances the returned HTML. CSS, fonts, and scripts are embedded in the binary under content-versioned URLs.
 
-Placing an order finishes one local transaction. Starting a Stripe session is a later request; applying its payment result is another transaction, triggered by a signed webhook. Issuing the invoice continues after that commit. No transaction spans PostgreSQL and either provider.
+Packages follow features: each groups its handlers, store, SQL, and tests. Stores call sqlc-generated `db.Queries`; `cmd/goen` composes routes, data access, provider clients, and workers. See [composition][server], [assets][assets], and [sqlc configuration][sqlc].
 
-```mermaid
-sequenceDiagram
-    actor Buyer
-    participant Checkout as Checkout / cart
-    participant DB as PostgreSQL
-    participant Payment as Payment / payment
-    participant Stripe
-    participant Outbox as Outbox relay
-    participant Invoice as Invoice reconciler
-    participant ECPay
-    Buyer->>Checkout: Confirm checkout
-    Note over Checkout,DB: Transaction 1: placement
-    Checkout->>DB: Lock and reprice, save snapshots, reserve stock, enqueue order.placed
-    DB-->>Checkout: Commit order, holds, and follow-up work together
-    Checkout-->>Buyer: 303 to payment page
-    Buyer->>Payment: Start payment
-    Payment->>Stripe: Create Checkout Session, expires with the hold
-    Payment->>DB: OpenPayment binds session to order
-    Payment->>Stripe: Retrieve session before redirect
-    Payment-->>Buyer: 303 to hosted Checkout
-    Note over Buyer,Stripe: Card entry and browser return are independent of webhook delivery
-    Stripe-->>Payment: Later HTTP request: signed payment webhook
-    Note over Payment,DB: Transaction 2: verified payment application
-    Payment->>DB: Claim event, attribute and capture payment, record paid event/points and outbox
-    DB-->>Payment: Commit payment and invoice.due
-    Payment-->>Stripe: 200 after commit
-    Note over DB,Invoice: Background work resumes committed obligations
-    Outbox->>DB: Lease message, ClaimDue commits invoice operation, then mark delivery
-    Invoice->>DB: Lease pending operation
-    Invoice->>ECPay: Look up, submit when needed, verify result
-    Invoice->>DB: Settle operation and invoice documents
-```
+### External systems
 
-[`placeOrder`](internal/cart/store.go) claims a checkout retry key and requires the locked quote to match what the buyer confirmed. It always queues `order.placed`; it also queues `invoice.due` at placement when store credit covers a positive total. Zero-owed orders skip Stripe. Expiry preserves holds for committed, zero-owed, and unresolved-payment orders; shipment consumes holds without a second stock debit ([reservation functions](migrations/001_initial_schema.up.sql), [expiry sweep](internal/cart/sweeper.go)).
-
-The hold lasts 60 minutes. A new Checkout Session must start within 29 minutes so Stripe's minimum lifetime fits inside it; [`StartSession`](internal/payment/stripe.go) pins card methods and `ExpiresAt` to that hold. A failure to record a newly created session triggers expiration/recovery. Stripe can replay the original create response for the same idempotency key after the session expires, so goen retrieves current provider state before redirecting ([payment flow](internal/payment/handler.go), [checkout constants](internal/cart/cart.go), [payment limits](internal/payment/payment.go)).
-
-[`processWebhook`](internal/payment/store.go) claims the event and applies its effects atomically. `webhookTx.Capture` finds the order through goen's own payment row, checks amount/currency, calls `capture_payment`, and queues `invoice.due`; `CompleteFunding` records the paid event, rewards, and receipt. Database failure returns `500` for Stripe to retry. An identified but unappliable event can instead commit an alarm and receive `200`, leaving reconciliation to staff ([Webhook](internal/payment/handler.go)).
-
-## Failure handling and operating limits
-
-Recovery follows the record that already owns the unfinished work. Provider calls can outlive a request or succeed before their local result is recorded; durable identities let the next attempt reconcile rather than guess.
-
-| Incomplete work | Who resumes it and when |
+| Integration | Responsibility |
 | --- | --- |
-| Checkout placement | The buyer retries the same checkout key; a changed locked quote requires confirmation ([cart store](internal/cart/store.go)). |
-| Payment webhook | Stripe retries a `500`; staff reconcile durable alarms when identity or funding facts cannot safely be applied ([Webhook](internal/payment/handler.go), [health reconciliation](internal/admin/health/reconcile.go)). |
-| Complete Checkout Session with no applied payment and no outstanding webhook alarm | Staff confirm the Stripe outcome, then use `/admin/health` and [`ReconcileCompletePayment`](internal/admin/health/reconcile.go). Paid attribution calls `attribute_complete_payment_paid` and commits its follow-up effects and audit together; `release_complete_payment` permits a later attempt only after confirmed non-payment or a full refund. |
-| Abandoned unpaid holds | [`cart.Store.SweepForever`](internal/cart/sweeper.go) releases eligible expired holds and cancels lapsed unpaid orders. Pending orders with unresolved payment outcomes retain their holds until reconciliation. |
-| Mail or invoice handoff | The outbox worker retries with backoff; work appears on `/admin/health` after eight attempts and continues daily until retention expires ([outbox](internal/outbox/outbox.go)). |
-| Invoice provider work | The reconciler retries due `pending` operations. `attention` stops automatic leasing; staff investigate facts or authorize an eligible allowance resend ([invoice recovery](internal/invoice/recovery.go)). |
-| Refund payout | Staff `Resume` reconciles the durable card attempt and retries outstanding card/credit sources; provider acceptance alone is not settled money ([refund payout](internal/admin/refunds/payout.go)). |
+| Stripe Checkout | Hosted card entry, sessions, signed payment events, and refunds. |
+| ECPay e-invoice | Invoice issue, lookup, void, allowance, and mobile-barcode checks. |
+| ECPay store map | Convenience-store selection, configured separately from invoicing. |
+| SMTP | Mail delivered from durable queued work. |
+| Google sign-in | Optional, alongside password sign-in. |
 
-[`prepareRuntimePosture`](cmd/goen/main.go) rejects missing SMTP/TOTP configuration in secure mode; [provider posture](cmd/goen/provider_posture.go) requires secure cookies and production invoicing for live Stripe. Missing provider configuration disables specific features:
+Unconfigured Stripe, invoicing, store map, or Google sign-in turns that feature off. Without SMTP, development mode logs mail and marks it delivered; secure mode refuses to start without SMTP, TOTP, or `GOEN_BASE_URL`. A live Stripe key also requires secure cookies, production invoicing and store-map endpoints, a real sender address, and no demo account. See [provider posture][provider-posture].
 
-- Without Stripe, [card payment](internal/payment/handler.go) is unavailable.
-- Without ECPay invoicing, [invoice controls](cmd/goen/server.go), [invoice reconciliation](cmd/goen/main.go), and the [remote mobile-barcode check](internal/cart/mobilebarcode.go) are disabled.
-- Without the ECPay store map, checkout offers no store pickup and the [map-return route](cmd/goen/server.go) is not registered.
-- Without Google sign-in, customers use passwords and [both Google routes](internal/account/handler.go) return `404`.
+PostgreSQL also holds sessions, access grants, audit history, and uploaded images. One store keeps transactions local and backups whole, at the cost of concentrating I/O and availability on one database. Database-backed sessions let several instances serve the same login.
 
-`/healthz` reports liveness, `/readyz` checks store/admin connectivity, and [the health desk](internal/admin/health) exposes pools and unresolved work.
+## 3. Checkout and payment
 
-The process uses in-memory rate limits and fixed pools. Images share PostgreSQL storage and reads with commerce data ([operating assumptions](CONTRIBUTING.md#what-goen-assumes)); catalogue search uses bounded escaped `ILIKE` patterns ([catalog queries](internal/catalog/query.sql)). These choices keep the running system small and place its capacity limits on the same process and database.
+Placement, session binding, and webhook application commit separately. No database transaction spans a Stripe call.
 
-## Cancellation, returns, and invoice correction
+![Placement transaction A, session admission B, and webhook transaction C surround separate Stripe requests.](docs/architecture/02-checkout-payment.png)
 
-[`admin/orders`](internal/admin/orders) records parcels and shipped quantities; [`returnpage`](internal/returnpage) accepts requests against shipped goods. When approving a return, [`admin/returns.Store.Decide`](internal/admin/returns/store.go) commits the assessed refund allocation through `closeReturn`, then calls `PayApproved` in the same request. Unsettled sources remain outstanding for retry. Inspection/restock is recorded separately; completing a return posts no stock. [`refunds/payout.go`](internal/admin/refunds/payout.go) retries outstanding card/credit sources and records the refunded event only after both settle.
+### A. Place the order
 
-Refunding money, correcting its tax document, and releasing held stock are separate steps. For a staff refund before shipment, [`RefundBeforeShipment`](internal/admin/refunds/beforeshipment.go) persists the approved refund request, tries invoice correction, pays the outstanding sources, then performs guarded cancellation and stock release. An invoice error does not stop the payout; unresolved correction can still block final cancellation. Settled money can also leave a refunded event or points clawback to record.
+`placeOrder` locks the checkout retry key, then the user and cart, then variants and products, each in UUID order. It rereads prices, shipping, stock, store credit, and coupon eligibility, and the recomputed quote must match the one the buyer confirmed.
 
-[`CorrectForCancellation`](internal/invoice/cancellation.go) finishes an in-flight issue and voids a live uniform invoice within ECPay's `VoidDeadline` when no allowance prevents voiding. When the window has passed or an existing allowance prevents voiding, `FileCancellationAllowance` files an online-consent allowance after payout. The buyer must agree before the allowance becomes a settled document; cancellation can proceed once the allowance has been sent under the database guard. `sendAllowance` and `awaitBuyer` in [recovery.go](internal/invoice/recovery.go) preserve that distinction.
+One transaction writes the order snapshot, stock holds, ledger entries, events, and outbox rows, then clears the cart. Retrying the same key returns the original order, which covers a commit whose response was lost. An order with nothing left to pay skips Stripe; one with a positive total paid wholly by store credit spends the credit and queues `invoice.due` in the same transaction. See [placement][checkout] and the [schema][schema] (`lock_cart_catalogue`).
 
-```mermaid
-sequenceDiagram
-    actor Staff
-    participant Refund as Staff refund / refunds
-    participant Invoice as Invoice correction / invoice
-    participant DB as PostgreSQL
-    participant Stripe
-    participant ECPay
-    Staff->>Refund: Refund before shipment
-    Refund->>DB: Commit approved refund request
-    Refund->>Invoice: Finish any issue in flight, check void eligibility
-    opt Within VoidDeadline and no allowance prevents voiding
-        Invoice->>ECPay: Void the live invoice
-        Invoice->>DB: Record correction outcome
-    end
-    opt Card source remains unpaid
-        Refund->>DB: Claim durable card attempt
-        Refund->>Stripe: Reconcile or create outstanding refund
-        Refund->>DB: Record provider outcome
-    end
-    Refund->>DB: Compensate store credit if still outstanding
-    alt Payout, refunded event, or points clawback still outstanding
-        Refund-->>Staff: Resume outstanding work later
-    else Payout, event, and points clawback complete
-        Refund->>Invoice: FileCancellationAllowance
-        opt Live invoice no longer voidable
-            Invoice->>ECPay: Request online-consent allowance
-            Invoice->>DB: Record sent request, awaiting buyer
-        end
-        Refund->>DB: Check invoice guard, cancel order, release holds, commit
-        Refund-->>Staff: Completed or correction work still blocks cancellation
-    end
+### B. Bind the Stripe session
+
+A later request creates a Checkout Session under an idempotency key built from the order number, the amount owed, and the attempt. `OpenPayment` binds it to the order. goen retrieves the session again before redirecting, because Stripe may replay an earlier create response for a session that has since expired.
+
+Stock is held for 60 minutes and a new session must start within 29, so Stripe's minimum session lifetime ends inside the hold. If binding fails after Stripe created the session, goen expires it. See [payment handling][payment-handler] and the [Stripe adapter][stripe].
+
+### C. Apply verified payment facts
+
+The webhook verifies the signature on the raw body, then in one transaction claims the event, finds the order through goen's payment row, checks amount and currency, and applies capture, rewards, notices, and `invoice.due`. A webhook can arrive before binding; both paths lock the same provider reference. The browser return only navigates the customer.
+
+A database failure rolls back the claim and its effects and answers `500`, so Stripe retries. A verified event that cannot be applied safely commits an alarm and answers `200`, leaving staff a durable exception. See [webhook application][payment-store].
+
+### Recovering a complete session
+
+A complete session can leave a payment in `requires_reconciliation` with no webhook alarm for that reference. Staff check Stripe and use `ReconcileCompletePayment`:
+
+- **Paid:** a guarded capture applies the funding effects and audit together. If the stock was already released, the order needs a refund.
+- **Unpaid or fully refunded:** the attempt is released so the buyer can pay again.
+
+Checkout keys, provider request keys, and event IDs each protect their own operation. After a timeout, recover under the original identity: the provider may have succeeded. See [staff recovery][health-reconcile] and [Stripe error handling][stripe-errors].
+
+## 4. Inventory and payment races
+
+![Capture and expiry share an order lock; capture first keeps the stock, release first leaves a late payment for reconciliation and refund.](docs/architecture/03-stock-payment-race.png)
+
+A hold reduces sellable stock; shipment consumes it without debiting stock twice, and a partial shipment keeps holding the rest. Eligible expiry or cancellation releases it; an unresolved payment keeps it until reconciliation.
+
+Capture and release lock the order. If capture commits first, the hold stays. If release commits first, the capture guard refuses the late payment and goen records an exception for reconciliation and refund. See the [schema][schema] (capture and release guards) and [expiry][cart-sweeper].
+
+Held, abandoned, and slowly released stock all reduce what can be sold. How long to hold is a commercial decision as much as an operational one.
+
+### Contention
+
+Checkout can contend on a variant, its product, a coupon, a credit account, or the order and payment rows. Different variants of one product share the product lock, so every path must take locks in the same order.
+
+Placement also updates the shop day's `order_number_counters` row and holds it until commit, so unrelated purchases meet there. The six-digit counter caps one shop day at 999,999 orders; the next placement that day is refused. Measure lock hold and wait times before changing critical sections or numbering. See the [schema][schema] (`next_order_number`).
+
+## 5. Fulfillment, returns, and refunds
+
+Staff record parcels and shipped quantities. Approving a return fixes the refund allocation, writes the audit record, and starts the payout; inspection and restock are later steps. Completing a return does not add stock.
+
+A card refund stores its attempt identity and actor before calling Stripe, and settles only on a verified outcome; credit is refunded through the local ledger. Staff `Resume` pays whatever source is still outstanding and, once the money has settled, records any missing refunded event and points clawback. See [returns][returns] and [payout recovery][refund-payout].
+
+A before-shipment staff refund stores the approval, attempts invoice correction, pays outstanding sources, and then cancels the order and releases stock under guards. A failed correction does not stop the payout, but can hold back the cancellation; pressing the action again resumes from the first unfinished step. Eligible invoices are voided; otherwise an allowance may need the buyer's online consent, and a sent allowance stays distinct from a settled document.
+
+A pending order paid wholly by store credit is cancelled in one transaction, by the customer or by staff through the same before-shipment action: credit reversal, stock release, and `invoice.void_due` commit together, with no return request. An invoice that can no longer be voided becomes staff work; neither path starts the allowance workflow. See [staff refund][before-shipment], [customer cancellation][cart-cancel], and [invoice correction][invoice-cancellation].
+
+## 6. Durable background work
+
+![Business changes and outbox rows commit together; workers send mail or hand invoice work to durable operations reconciled against ECPay.](docs/architecture/04-durable-work.png)
+
+### Outbox
+
+Follow-up work commits with the business change that causes it. Workers claim due rows with `FOR UPDATE SKIP LOCKED`, push `available_at` forward as a durable lease, and write `lease_owner`, which fences a stale acknowledgement.
+
+A batch holds up to six messages, run one at a time. Workers poll every 5 seconds and `DrainAll` claims again at once after a full batch. Each handler has 30 seconds and each acknowledgement 5; the 5-minute lease covers a whole batch with margin. Priority shapes selection, but retries and several workers rule out global FIFO. See the [worker][outbox] and [claim queries][outbox-sql].
+
+Retries back off; from the eighth attempt a message retries daily and appears on the health desk. Rows are kept 30 days, counted from delivery or, if undelivered, from creation, so unfinished work can expire, and `(topic, dedupe_key)` suppresses duplicates only while its row exists. Work that must outlive retention needs its own domain record.
+
+A crash after SMTP accepts a mail but before acknowledgement can send it twice: delivery is at least once, and lease ownership cannot undo an external effect.
+
+### Invoice reconciliation
+
+`ClaimDue`, or `ClaimVoidDue` for a cancelled sale, freezes the owed request in `invoice_operations` before any network call; an obligation already met or withdrawn completes without one, and staff can claim operations directly. Delivering the outbox row completes only the handoff; the invoice keeps its own state.
+
+The reconciler reads the frozen request, looks up ECPay, submits when needed, and verifies identity, amounts, and items before settling. An issue response lacks the full items, so a lookup confirms it. Due `pending` work resumes automatically, temporary failures retry later, and `attention` stops automatic leasing for staff. An allowance may wait for the buyer's consent; when a lookup finds nothing, confirm the provider's state before resubmitting. See [claims][invoice-store] and [reconciliation][invoice-recovery].
+
+### Other loops
+
+Workers clear expired reservations, checkout attempts and drafts, sessions and reset tokens, access grants, outbox rows, and orphan uploads. Co-purchase refresh runs at startup and on a schedule on the maintenance pool, under an advisory lock. [Worker startup][main] sets their schedules; lag and catch-up rate are what to watch.
+
+## 7. Database authority and security
+
+Application roles change protected payment, refund, invoice, audit, inventory, credit, and counter records only through granted `SECURITY DEFINER` functions; other data uses explicit table or column grants. Constraints, unique keys, transition triggers, and locks on shared rows enforce the rules together, and invariants across rows rely on that serialization. [Catalog-derived tests][conformance] check the [schema's][schema] grants and constraints.
+
+Audit evidence commits with its change, through `audit.Run`, `audit.In`, or the privileged function itself; history is append-only, with explicit handling for account erasure. The `reporting` role has no runtime pool and cannot read credentials, sessions, personal or delivery data, free text, webhook evidence, or the outbox and invoice-operation tables; order and return tables expose listed business columns only. The schema owner runs migrations.
+
+Passwords use Argon2id; session tokens are opaque and stored as hashes. In secure mode, session, cart, order-access, and pickup cookies use `__Host-`; every cookie is `HttpOnly`, and `Secure` follows secure mode. Staff need authorization and TOTP step-up, and administrator actions add a further guard; TOTP secrets are encrypted and replayed codes refused. See [accounts][account], [access][access], and [two-factor authentication][twofactor].
+
+[Middleware][middleware] applies origin protection, CSP, and restricted form targets, with one exact exception for the store-map return. Stripe webhooks are authenticated by signature. Only configured trusted proxies may supply client addresses, and sensitive handlers rate-limit before expensive work such as password checks. Database roles complement, not replace, per-user ownership checks.
+
+Amounts are bounded integer cents, parsed in one place as TWD. Orders keep their locale; application wording lives in `i18n`, while product translations are shop content. `Asia/Taipei`, embedded zone data, and SQL `shop_day` keep business dates independent of the host's time zone. See [money][money], [i18n][i18n], and [shop time][shoptime].
+
+## 8. Resources and workload
+
+![Store, admin, and maintenance pools have separate budgets but share process resources and PostgreSQL.](docs/architecture/05-resource-boundaries.png)
+
+Pools reserve connections and fix database roles; they still share CPU, memory, and PostgreSQL I/O, WAL, and locks.
+
+| Pool | Connections per process | Statement timeout | Main users |
+| --- | ---: | ---: | --- |
+| `store` | 25 | 15 seconds | Storefront, sign-in, outbox, customer cleanup. |
+| `admin` | 10 | 30 seconds | Back office, invoices, media cleanup. |
+| `maintenance` | 2 | 5 minutes | Co-purchase refresh. |
+
+Roles are set when a connection opens; back-office sign-in still uses `store`. N processes allow `37 × N` connections, plus headroom for rolling deploys and other clients. See [pool construction][main].
+
+Dynamic requests, the back office included, get a 25-second context. Static assets, probes, webhooks, and favicons are exempt; media reads originals within 25 seconds and renders within 30. A statement timeout starts at the database, while waiting for a pool connection follows the caller's context, so a full pool still lets waiting requests pile up.
+
+### Read cost
+
+A category listing normally issues 12 queries (8 for the listing, 3 for navigation, 1 for the banner); a signed-in visitor with a cart adds about 3. Images and SQL inside functions are not counted. See the [listing][catalog-store] and [navigation][home-banner].
+
+Search matches products, SKUs, brands, specs, and categories with escaped, length-bounded `ILIKE`; watch scans, sorting, and facets as data grows. Banners reflect changes immediately and navigation picks carry prices, so caching needs a freshness contract first: anonymous HTML can still vary by locale or cart, while content-versioned assets can be shared. See [catalog SQL][catalog-query].
+
+Reports combine several queries. A reproducible financial export needs a defined snapshot and cutoff, not only a shared date range. See [reports][reports].
+
+### Images
+
+Uploads are normalized to at most 8 MiB and 2400 pixels on the longest side. Each renderer has a 64 MiB cache of encoded bytes, `singleflight` per key, fixed widths, and bounded concurrency, and uploads are bounded too. Decoded pixels and in-flight work use memory beyond the cache, and a resize does not observe cancellation. Storing images in PostgreSQL keeps a small catalogue's backups whole, at the cost of database size, I/O, and restore time. See [rendering][media-render] and [handling][media-handler].
+
+## 9. Capacity and recovery testing
+
+Load tests should use representative hardware, data, and traffic, and check latency, correctness, and recovery together.
+
+```text
+SQL rate          ≈ Σ(route rate × queries per request) + background queries
+Held connections  ≈ Σ(arrival rate × connection-hold time) + background holds
+Backlog catch-up  ≈ backlog / (completion rate − arrival rate)
 ```
 
-Customer cancellation of a pending order paid entirely by store credit follows [`cart.CancelOrder`](internal/cart/cancel.go): credit reversal and `invoice.EnqueueVoidDue` commit together. `ClaimVoidDue` can claim a void within its window; a non-voidable invoice remains a staff health task, rather than automatically following the staff allowance workflow.
+Hold time runs from acquire to release and includes lock waits; read averages with tail latency. Catch-up assumes completion stays faster than arrival, and retries count as work.
 
-## Durable background work
-
-### Outbox: delivery conditions, not a status enum
-
-[`outbox_messages`](migrations/001_initial_schema.up.sql) stores `delivered_at`, `available_at`, and `attempts`. A future availability time means either a delivery lease or retry backoff. Enqueue queries live in [cart/query.sql](internal/cart/query.sql) and [account/query.sql](internal/account/query.sql); delivery and retention queries live in [outbox/query.sql](internal/outbox/query.sql).
-
-```mermaid
-stateDiagram-v2
-    state "delivered_at NULL, available_at reached" as due
-    state "delivered_at NULL, available_at future" as deferred
-    state "delivered_at set" as delivered
-    [*] --> due: EnqueueMessage / EnqueueMessages<br/>EnqueuePasswordResetRequest / EnqueueRegistrationResend
-    due --> deferred: ClaimOutbox
-    deferred --> deferred: RescheduleOutbox
-    deferred --> due: available_at reached
-    deferred --> delivered: MarkOutboxDelivered
-    due --> delivered: MarkOutboxDelivered after lease expiry
-    delivered --> [*]: SweepDeliveredMessages
-    due --> [*]: SweepUndeliveredMessages
-    deferred --> [*]: SweepUndeliveredMessages
-```
-
-[`Store.Drain`](internal/outbox/outbox.go) calls `ClaimOutbox` to acquire rows with `SKIP LOCKED` and a durable lease. `deliver` runs the bounded handler and records success; `reschedule` applies backoff. After eight attempts, undelivered messages appear on [`/admin/health`](internal/admin/health/health.go) and retry daily; delivered and undelivered retention are each 30 days with different starting timestamps. `(topic, dedupe_key)` suppresses duplicates while its row exists. A crash after an external send but before stamping delivery can repeat the send: this is at-least-once delivery with bounded retention.
-
-### Invoice operations: durable provider reconciliation
-
-Completing an invoice outbox message transfers responsibility to the invoice reconciler. For an invoice still owed, the `invoice.due` handler claims an `invoice_operations` row; satisfied or cancelled obligations can complete without a new claim. Outbox handoff and provider settlement are separate outcomes. [`ClaimDue`](internal/invoice/store.go) freezes the request before network work. Staff invoice actions can also claim operations directly.
-
-```mermaid
-stateDiagram-v2
-    [*] --> pending: claim_invoice_issue<br/>claim_invoice_allowance<br/>claim_invoice_void
-    pending --> pending: lease_invoice_operation
-    pending --> pending: mark_invoice_operation_sent
-    pending --> pending: reschedule_invoice_operation
-    pending --> pending: reconcile_invalid_invoice_allowance
-    pending --> succeeded: settle_invoice_issue<br/>settle_invoice_allowance<br/>settle_invoice_void
-    pending --> attention: alarm_invoice_operation
-    pending --> rejected: reject_invoice_operation / record_invalid_invoice_allowance
-    attention --> pending: authorize_invoice_allowance_resend (eligible allowance only)
-```
-
-[`ReconcileOnce`](internal/invoice/recovery.go) leases due `pending` operations. `processIssue` looks up provider truth before submission and verifies identity, amount, and itemization before settlement. Outages remain pending with backoff; mismatched facts enter `attention`, which automatic leasing excludes. `succeeded` and `rejected` preserve the completed operation's evidence.
-
-[`reconcile_invalid_invoice_allowance`](migrations/001_initial_schema.up.sql) refreezes a leased, unsent allowance after verifying invalidation of its prior document, using the currently settled refunds. Allowance consent is asynchronous: an empty lookup after sending does not permit another send. `awaitBuyer` waits through the consent window; `authorize_invoice_allowance_resend` is a narrowly checked staff action, not a general `attention` retry. Cancellation handoff may find no further operation due ([invoice/cancellation.go](internal/invoice/cancellation.go), [recovery.go](internal/invoice/recovery.go)).
-
-## Database authority and invariants
-
-[Schema grants](migrations/001_initial_schema.up.sql) reserve ledger mutations for granted `SECURITY DEFINER` functions. Tables that neither `store` nor `admin` may directly insert, update, or delete include `payments`, `refunds`, `invoice_operations`, `invoice_documents`, `invoice_document_lines`, `audit_events`, `inventory_movements`, `inventory_reservations`, `store_credit_entries`, `order_number_counters`, and `loyalty_redemption_operations`.
-
-[`TestEveryDefinerWrittenTableIsRevoked`](internal/db/coverage_integration_test.go) checks table-level privileges for every statically detected definer-written table, including explicit exceptions for first-use `store_credit_accounts` insertion and shared cleanup. Catalogue-column grants permit product edits while protecting stock quantities. The storefront also inserts webhook evidence into `payment_webhook_events` and checkout preferences into `invoice_preferences`.
-
-```mermaid
-flowchart LR
-    store["store"] & admin["admin"] -->|EXECUTE granted functions| guarded["SECURITY DEFINER<br/>stock, payment, refund, invoice, audit mutations"]
-    guarded -->|enforce ledger rules| ledgers[("Commerce ledgers")]
-    store & admin -->|explicit table and column grants| ordinary[("Other feature data")]
-    maintenance["maintenance"] -->|EXECUTE| refresh["refresh_copurchases"]
-    refresh --> projection[("product_copurchases")]
-    reporting["reporting · no runtime pool"] -.->|selected reads| ledgers
-    reporting -.->|SELECT| projection
-```
-
-`reporting` excludes sensitive account/delivery data and outbox/invoice-operation payloads. The schema owner applies migrations. [`audit.Run` / `audit.In`](internal/admin/audit/audit.go), or the privileged function owning an operation, commit staff changes with their audit evidence. `audit_events_append_only` preserves the trail while allowing actor clearing during account erasure.
-
-The [schema](migrations/001_initial_schema.up.sql) enforces `orders_fulfillment_status_known`, `orders_legal_transition`, `product_variants_stock_non_negative`, `store_credit_never_negative`, and `refunds_within_capture`. Foreign keys and unique indexes preserve identities and retry deduplication. [`order.FulfillmentStatus.Next`](internal/order/order.go) mirrors legal fulfillment edges; `TestNextIsTheTransitionsTheTriggerAllows` in [transition tests](internal/admin/orders/transition_integration_test.go) checks agreement.
-
-[`cart.Store.placeOrder`](internal/cart/store.go) snapshots lines, prices, shipping terms, addresses, and invoice preferences. `committed_orders` includes non-cancelled orders past pending or with a successful payment; `settled_orders` also includes cancelled orders. These are views; the triggers `orders_money_frozen_once_committed` and `order_lines_frozen_once_committed` enforce the totals/lines freeze through `order_is_settled`. Fulfillment, payments, refunds, and invoice operations therefore retain separate statuses.
-
-Feature `query.sql` files are the authored query source; [`sqlc.yaml`](sqlc.yaml) lists them. Migration `001` is amended in place only before real shop data exists; the first production deployment freezes it and subsequent changes use numbered migrations ([migration policy](CONTRIBUTING.md#what-goen-assumes)).
-
-Normalized uploaded images live in `media_objects`; [`media.renderer`](internal/media/render.go) keeps width renditions in a bounded process cache. Image keys can also name embedded assets, so catalogue image references are not foreign keys to `media_objects`.
-
-## Security boundaries
-
-Staff authenticate as accounts: [`HashPassword` / `VerifyPassword`](internal/account/account.go) use Argon2id. [`access.Control.RequireStaff`](internal/admin/access/access.go) requires staff identity and configured TOTP step-up, returning `404` to signed-out visitors and ordinary customers; administrator-only operations add `RequireAdmin`. [`twofactor.Verify`](internal/twofactor/totp.go) rejects replayed steps; [encrypted secrets](internal/twofactor/crypt.go) use AES-256-GCM.
-
-[`account`](internal/account/account.go) uses opaque session tokens, persisted as hashes by [account/store.go](internal/account/store.go), and `__Host-` secure, HttpOnly cookies in secure mode. [`crossOriginProtection`](cmd/goen/middleware.go) uses Go's origin defence with a precise configured store-map return bypass; Stripe authentication comes from webhook signatures. [`securityHeaders`](cmd/goen/middleware.go) and [`policyWith`](cmd/goen/server.go) set CSP and narrow form destinations.
-
-[`ratelimit`](internal/ratelimit) limits sensitive routes in memory; `Proxies.Resolve` trusts forwarded client addresses only from configured proxies. Database roles limit SQL authority independently of the signed-in user's role. Ownership checks still belong to handlers/stores; possessing the `store` connection does not establish ownership of an order.
-
-## Language, money, and time
-
-[`i18n`](internal/i18n) declares application wording in both languages; locale detection gives explicit preference priority over `Accept-Language`. Shop copy uses authored translations. Orders save their locale for later mail ([cart/store.go](internal/cart/store.go)); `TestNoChromeStringIsHardCoded` guards application-text ownership ([hardcoded_test.go](internal/i18n/hardcoded_test.go)).
-
-Amounts are integer cents bounded by the schema; [`money`](internal/money/money.go) centralises parsing and TWD formatting. [`shoptime`](internal/shoptime/shoptime.go) uses `Asia/Taipei` with embedded zone data; SQL `shop_day` uses the same calendar. Host timezone therefore does not choose the date shown on an order or interpreted from an ECPay timestamp.
-
-## Technology choices
-
-Runtime libraries and the templ tool are pinned in [go.mod](go.mod); sqlc, migrate, and axe-core are pinned in [Makefile](Makefile).
-
-| Choice | Role in goen | Why |
+| Experiment | Vary and observe | Pass when |
 | --- | --- | --- |
-| Go `net/http` | Routing, middleware, request contexts, HTTP lifecycle | One mux composes feature handlers; built-in [`CrossOriginProtection`](cmd/goen/middleware.go) protects browser writes without per-form CSRF tokens. |
-| `github.com/a-h/templ` | Typed page/component rendering | [Templates](internal/ui/pages) compile with their Go view types; [`templ-check`](Makefile) catches source/output drift. |
-| htmx | HTML fragment enhancement | [`ContactPanel`](internal/ui/pages/contact.templ) retains a plain form action/method while adding fragment replacement; the server owns the operation in both modes. |
-| `github.com/jackc/pgx/v5` | PostgreSQL connections, pools, transactions | Separate fixed-role pools prevent `SET ROLE` on a reused connection from running the next storefront request as admin ([`openAdminPool`](cmd/goen/main.go)). |
-| sqlc | SQL-to-Go query generation | [sqlc.yaml](sqlc.yaml) compiles feature-owned SQL into typed `db.Queries`, keeping the executed SQL reviewable beside its feature. |
-| `github.com/golang-migrate/migrate/v4` | Numbered SQL migration execution | Applies the plain SQL migration files as the schema owner, outside binary startup ([migration commands](Makefile)). |
-| PostgreSQL roles + `SECURITY DEFINER` | Restricted business mutations | [Schema grants and functions](migrations/001_initial_schema.up.sql) make payment, refund, invoice, and ledger rules apply across all callers. |
-| `github.com/stripe/stripe-go/v86` / Checkout | Hosted card entry, payment events, refunds | Stripe hosts card entry; [`StartSession`](internal/payment/stripe.go) binds the remote session to local stock expiry, and local payment rows anchor attribution. |
-| ECPay clients in `invoice` and `cart` | E-invoices, mobile barcodes, store selection | The shop files Taiwan uniform invoices ([shop scope](CONTRIBUTING.md#what-goen-is)); the [store map](internal/cart/ecpaymap.go) supplies convenience-store selection under its logistics contract. |
-| `golang.org/x/crypto/argon2` | Customer and staff password hashing | Salted Argon2id makes password guessing memory- and work-intensive; [`HashPassword`](internal/account/account.go) fixes those costs for customer and staff credentials. |
-| Go HMAC-SHA1 / AES-GCM; `rsc.io/qr` | Staff TOTP, encrypted secrets, enrollment QR | Authenticator-compatible codes add staff step-up; [`twofactor`](internal/twofactor) rejects replay, encrypts stored secrets, and renders `ProvisioningURI` as a QR code. |
-| Go `log/slog` | Request, worker, and query diagnostics | Request identity connects HTTP and query diagnostics; [`slowQueryTracer`](cmd/goen/slowquery.go) omits SQL arguments, which carry customers' personal data. |
-| `testcontainers-go` + `modules/postgres` | PostgreSQL integration fixtures | [`dbtest.Start`](internal/db/dbtest/dbtest.go) applies real migrations so constraints, role grants, and concurrent writes are exercised by PostgreSQL itself. |
-| Chrome/Chromium + axe-core | Browser layout/accessibility gate | [Browser probes](scripts/check-layout.mjs) test rendered dimensions, keyboard behaviour, and accessibility that template structure alone cannot establish. |
+| Browse and search | Signed in or not, catalogue size, selectivity, pagination; plans, pool wait, p95/p99. | Growth and repeated-query costs are known. |
+| Checkout contention | Distinct products, sibling variants, one SKU, shared coupons, credit, the day counter. | Stock, credit, and coupons are never spent twice; expected refusals are counted apart. |
+| Retries and races | Duplicate keys and webhooks, reordered events, capture against expiry or cancellation. | States stay legal, effects happen once, and required alarms exist. |
+| Expensive work | Cold and churning images, uploads, sign-in bursts, reports, cleanup. | CPU, RSS, GC, waiting requests, and checkout latency stay in bounds. |
+| Backlog and outage | Urgent mail among bulk, slow or failing providers, then recovery. | Work age, urgent-mail deadlines, and drain rate meet targets. |
+| Saturation and restart | Full pools, steady webhooks, overlapping instances. | Acknowledgements, readiness, cancellation, and recovery after load drops. |
+| Lost external outcome | Provider accepts, then goen stops before recording. | Recovery under the original operation identity. |
 
-[`assets`](assets/assets.go) embeds CSS, fonts, htmx, and the application script with content-versioned URLs. CSS is authored in `base.css`, `app.css` (storefront) and `admin.css` (back office); the browser enhancement is [goen.js](assets/js/goen.js). [CONTRIBUTING.md](CONTRIBUTING.md) establishes plain forms and authored CSS as project boundaries.
+Test webhooks and readiness under saturation first. A webhook acquires its connection under the caller's context, outside the request budget; readiness checks `store` and then `admin` within one shared 2 seconds, so a saturated admin pool can take the instance out of rotation. See [payment processing][payment-store] and [probes][probe].
 
-## Testing and CI
+Run races and faults on isolated data with controlled providers and scheduled connections. Combine closed (fixed users) and open (fixed arrival rate) models, and record offered, sent, completed, rejected, and dropped work, so a slow system does not quietly slow the generator. See [k6 workload models][k6-models] and [dropped iterations][k6-dropped].
 
-[verify.yml](.github/workflows/verify.yml) defines these jobs; [Makefile](Makefile) owns their commands.
+Record the version, hardware, database and pool settings, data distribution, cache state, and provider latency. Rerun the affected scenarios when data, promotions, queries, or deployment change.
 
-| Job / test layer | What it checks |
+## 10. Observability
+
+goen has request IDs, structured `slog` logs, a slow-query log of statements taking 500 ms or more (labelled by sqlc name or `unnamed`, pool, and request ID, without arguments), and a health desk for pools, outstanding work, and reconciliation. See the [slow-query tracer][slowquery] and [health queries][health-sql]. OpenTelemetry is planned to answer:
+
+| Question | Signals to add |
 | --- | --- |
-| `ci-policy` | Workflow syntax and fail-closed gate contracts through `workflow-check`. |
-| `commit-attribution` | Commit metadata against the repository attribution policy. |
-| `verify` | Formatting, templ/sqlc drift, migration lint, vet, dead code, lint, production build, `go vet -tags=integration`, shuffled race-enabled unit/handler tests. |
-| `schema` | Real PostgreSQL integration via [dbtest](internal/db/dbtest), schema conformance, concurrent-write behaviour, migration up/down/up. |
-| `layout` | Chrome route probes at 375/1440 px; extra homepage/listing checks at 768/1024 and targeted interaction widths; axe-core (WCAG 2.2 level AA) at 1440 px, failing on new serious or critical WCAG violations against the accepted baseline ([probes](scripts/check-layout.mjs)). |
-| `vulnerabilities` | Reachable Go dependency vulnerabilities through `govulncheck`. |
-| CodeQL `analyze` | Go and Actions analysis in [codeql.yml](.github/workflows/codeql.yml). |
+| Where is checkout slow? | Request, pool acquisition, transaction, query, provider, and render durations. |
+| Is the database working or waiting? | Connection hold, lock waits, CPU, I/O, WAL, temp spills. |
+| Which reads are worth caching? | Cumulative query cost, repeated reads, change frequency, hit rate. |
+| Is background work keeping up? | Per-topic arrivals, completions, retries, due-work wait, end-to-end age. |
+| What needs a person? | Unknown payment outcomes, unfinished refunds, invoice attention, with cause and age. |
 
-`TestEveryCheckConstraintIsExercised` and `TestEveryDefinerWrittenTableIsRevoked` derive database obligations from the catalogue ([coverage tests](internal/db/coverage_integration_test.go)). `TestTwoOrdersCannotTakeTheSameLastUnit` and `TestRefundsCannotRacePastCapture` exercise concurrency ([cart tests](internal/cart/integration_test.go), [rule tests](internal/db/rules_integration_test.go)). `TestEveryFormWorksWithScriptingOff` checks form structure ([writeface_test.go](internal/ui/pages/writeface_test.go)); the browser gate tests rendered pages and interactions.
+Measure pool acquisition separately from query time: `pgxpool`'s cumulative `AcquireDuration` cannot give a p99. `pg_stat_statements.track = all` shows cost inside SQL functions, where outer and inner timings overlap. See [pgxpool][pgxpool] and [pg_stat_statements][pg-statements].
 
-## Implementation reference
+Give each background attempt its own span, linked to its origin through trace context; durable timestamps measure the whole obligation across retries. `outbox_oldest_seconds` counts from `available_at`, which leases and backoff move, so enqueue-to-completion age is needed too. See [messaging spans][otel-messaging].
 
-### Startup and pools
+Metrics use bounded dimensions: route template, pool, topic, provider, outcome. Order and operation IDs belong in traces and controlled queries. Telemetry excludes personal data, tokens, SQL arguments, and raw provider payloads, and exporters deliver asynchronously with bounds. Audit and financial records stay durable regardless of trace sampling. See [OpenTelemetry for Go][otel-go].
 
-[`run`](cmd/goen/main.go) calls `loadConfig`, validates runtime/provider posture, creates mail and provider clients, opens and pings the pools, builds the router, starts workers, and serves HTTP. SIGINT/SIGTERM cancels the shared context; HTTP gets a bounded drain and workers finish before pools close. Migrations run through explicit tooling, outside binary startup.
+Alert on threatened commitments and work that needs action. Waiting for buyer consent, retrying, and needing staff judgement deserve different thresholds and owners.
 
-[`servingPool`](cmd/goen/main.go) wraps `openPool`, and `reachableAdminPool` wraps `openAdminPool`, adding startup reachability checks.
+## 11. Evolution
 
-| Pool constructor / role | Maximum connections | SQL statement budget | Users |
-| --- | --- | --- | --- |
-| `openPool` / `store` | 25 | 15 seconds | Storefront, account authentication, outbox, customer-data sweeps. |
-| `openAdminPool` / `admin` | 10 | 30 seconds | Back-office stores, invoice operations, media cleanup. |
-| `openMaintenancePool` / `maintenance` | 2 | 5 minutes | Co-purchase refresh. |
+Cache hits, transactional reads, order commits, and hot stock writes cost different things, so total QPS alone does not decide whether goen needs Redis or a broker.
 
-Each pool assigns its role when connecting. [`StorefrontConfig` and `BackOfficeConfig`](cmd/goen/server.go) feed `newRouter`, which calls `storefrontRoutes` and `backOfficeRoutes`. Back-office business handlers use `admin`; their shared session authentication still reads through `store`. `reporting` is a schema role with no runtime pool.
-
-### Incoming middleware order
-
-[`newServer`](cmd/goen/main.go), [`newRouter`](cmd/goen/server.go), and [`withRequestTracing`](cmd/goen/middleware.go) establish this order, outermost first:
-
-1. `ratelimit.Proxies.Resolve` derives the client address through configured trusted proxies.
-2. `withRequestID` validates or generates the request identifier and echoes it.
-3. `requestLog` records the method, path, final status, and duration.
-4. `recoverPanic` logs panics and sends a failure response if headers remain unwritten.
-5. `web.Compress` compresses eligible dynamic responses.
-6. `securityHeaders` applies CSP, nosniff, referrer policy, and secure-mode HSTS.
-7. `web.RefuseUnstorableText` rejects invalid UTF-8 and NUL in paths and queries.
-8. `crossOriginProtection` rejects cross-site writes, with a configured store-map return exception.
-9. `withRequestBudget` bounds request work, including `/admin`, except static assets, media, probes, webhooks, and the favicon.
-10. `onlyVisitorPaths(customers.Authenticate)` loads the session identity.
-11. `onlyVisitorPaths(basket.WithCount)` populates the cart count.
-12. `onlyVisitorPaths(withLocale)` chooses the language and locale-switch return path.
-13. `withNoStore` prevents caching signed-in, private/token, and write responses.
-14. `withSiteOrigin` supplies the canonical origin/path for document URLs.
-15. `withStaffEntrance` tells storefront pages a signed-in staff member may reach the back office.
-16. `withTopNav` loads localized storefront categories.
-17. `withBanner` loads the eligible promotional banner.
-18. `http.ServeMux` dispatches through route-specific access/rate-limit guards to the feature handler.
-
-`onlyVisitorPaths` skips static assets, media, probes, webhooks, and the favicon. Navigation/banner middleware has its own applicability checks.
-
-### Every background loop
-
-[`startWorkers`](cmd/goen/main.go) starts nine unconditional loops and, when the invoice gateway is enabled, an invoice reconciliation loop. Every loop runs under the process context.
-
-| Loop | Pool | Work |
+| When | Direction to evaluate | Cost or invariant to keep |
 | --- | --- | --- |
-| [`outbox.Store.Run`](internal/outbox/outbox.go) | `store`; invoice handoff uses `admin` | Deliver mail/account/newsletter topics and hand off invoice obligations. |
-| [`outbox.Store.SweepForever`](internal/outbox/outbox.go) | `store` | Remove delivered and undelivered messages past retention. |
-| [`cart.Store.SweepForever`](internal/cart/sweeper.go) | `store` | Release eligible expired reservations and cancel lapsed unpaid orders. |
-| [`cart.Store.SweepAttemptsForever`](internal/cart/sweeper.go) | `store` | Remove old checkout attempts. |
-| [`orderaccess.Store.SweepForever`](internal/orderaccess/orderaccess.go) | `store` | Remove order-access grants nobody can present any more. |
-| [`cart.Store.SweepDraftsForever`](internal/cart/sweeper.go) | `store` | Clear stale checkout drafts from carts. |
-| [`account.Store.SweepSessionsForever`](internal/account/store.go) | `store` | Remove expired sessions and old reset tokens. |
-| [`media.Store.SweepForever`](internal/media/sweeper.go) | `admin` | Remove unreferenced uploads after their grace period. |
-| [`invoice.Store.ReconcileForever`](internal/invoice/recovery.go) | `admin` | Reconcile invoice operations when the gateway is enabled. |
-| [`recommend.Store.RefreshForever`](internal/recommend/store.go) | `maintenance` | Rebuild co-purchase data under an advisory lock. |
+| Costly reads repeat and may be stale within stated bounds | Better queries, read models, process or HTTP caches, then a shared cache. | Freshness, invalidation, stampedes, authorization scope, fallback load. |
+| Instances must share one rate allowance | Shared limiter or ingress enforcement; Redis is one option. | Atomic counting and expiry, behaviour during outages. |
+| Independent consumers, routing, replay, or retention | A broker or event log suited to those needs. | Reliable publish, redelivery, ordering scope, payload compatibility. |
+| Background or media work hurts HTTP targets | Separate worker processes or bounded concurrency. | Work ownership, resource budgets, provider rate limits. |
+| Lag-tolerant reads compete with transactions | Projection or read replica. | Stock and payment decisions stay on authoritative data. |
+| `ILIKE` search falls short in quality or cost | Search index or service. | Index lag, rebuilds, checkout revalidation. |
+| Images dominate I/O, backup, or restore | Object storage, CDN, precomputed renditions. | References, deletion, orphans, backup consistency. |
+| Stock or counter locks cap throughput | Shorter critical sections or a revised allocation model. | Quantity and money invariants under one authority. |
+| Availability exceeds one process or database | Multiple instances and PostgreSQL HA. | Failover, connection budgets, global limits, RPO/RTO. |
 
-### One form request: `POST /contact`
+A broker should keep the handoff reliable: business transaction plus outbox, then relay, broker, and an idempotent consumer. See [transactional outbox][outbox-pattern].
 
-[`contact.Handler.Submit`](internal/contact/handler.go) validates before persistence; `respond` chooses a full page or `ContactPanel` using `web.IsHTMX`.
+## 12. Deployment, recovery, and change safety
 
-```mermaid
-sequenceDiagram
-    actor Browser
-    participant MW as Middleware / ServeMux
-    participant H as contact.Handler.Submit
-    participant S as contact.Store
-    participant Pool as pgxpool / store
-    participant DB as PostgreSQL
-    Browser->>MW: POST /contact
-    MW->>H: Request with identity, locale, budget
-    alt Invalid fields
-        H-->>Browser: 422 page or htmx panel, values and aria-invalid
-    else Valid fields
-        H->>S: Create(message)
-        S->>Pool: db.Queries.CreateContactMessage
-        Pool->>DB: INSERT contact_messages
-        H-->>Browser: Plain form: 303 /contact?sent=1, htmx: 200 ContactPanel
-    end
-```
+[Startup][main] validates configuration and providers, opens and checks pools, composes routes, and starts workers. Shutdown cancels the process context, drains HTTP within a deadline, waits for workers, and closes pools. Migrations run separately, as the schema owner.
 
-[`contact.Store.Create`](internal/contact/store.go) calls [CreateContactMessage](internal/contact/query.sql). [`ContactPanel`](internal/ui/pages/contact.templ) preserves submitted fields; [`components.Input` / `Textarea`](internal/ui/components/components.templ) emit `aria-invalid` from `FieldProps.Invalid`. This route returns `429` for rate limiting and `500` with retained values for storage failure.
+Each extra instance multiplies in-memory rate allowances and runs every background loop. Outbox leases coordinate claims, and the co-purchase advisory lock prevents overlap but not a later rebuild by another instance. Sessions are shared through PostgreSQL; caches, `singleflight`, and rate limits stay per process. Review loop ownership with the connection budgets in §8.
 
-### Code organisation and imports
+Migration `001` may change until real shop data exists; the first production deployment freezes it, and later changes use numbered migrations. Rolling deploys need old and new binaries, SQL functions, and durable payloads to stay compatible. See the [migration policy][contributing].
 
-[CONTRIBUTING.md](CONTRIBUTING.md#change-it) establishes feature packaging: handlers, stores, SQL, and tests live together. Handlers call stores; stores use `db.Queries` and may return `ui/pages` view models directly. `cmd/goen` wires the dependencies. [`sqlc.yaml`](sqlc.yaml) maps each feature's `query.sql` into `internal/db`; [`make gen`](Makefile) turns UI and email `.templ` sources into `*_templ.go`.
+Set acceptable data loss and recovery time first, then prove them in drills, including media and its references. A PostgreSQL restore can leave Stripe and ECPay ahead of the database, so recovery reconciles against provider outcomes by operation identity. See [point-in-time recovery][pg-pitr].
 
-Features share selected operations and view types. [`cart`](internal/cart) imports `account`, `payment`, and `invoice`; [`admin/orders`](internal/admin/orders) imports `catalog`, `payment`, and `invoice`. Outbox, email, and media are used across storefront and back-office packages. Both page packages use [invoice types](internal/ui/pages/cart.go) and `returns` vocabulary ([shopper views](internal/ui/pages/returns.go), [staff views](internal/ui/pages/admin/returns.go)). [`order.Delivery`](internal/order/delivery.go) centralises delivery validation and itself depends on `destination`, `email`, `i18n`, `pickup`, and `web`. [#1020](../../issues/1020) governs conventions and staged moves; this is the current arrangement.
+### Verification
 
-| Package | Responsibility |
+CI runs formatting, vet, lint, dead-code and generated-code checks, migration lint, builds, shuffled race tests, vulnerability scans, CodeQL, workflow policy, commit attribution, real-PostgreSQL schema and concurrency tests, migration round trips, and browser layout and accessibility checks. Targeted tests race stock and refunds; plain-form tests keep every write working without JavaScript.
+
+`ko` builds the container image, `templ` and sqlc generate Go from views and SQL, and testcontainers runs PostgreSQL in tests. Exact commands live in the [Makefile][makefile]; gates live in the [workflows][workflows]; process lives in [CONTRIBUTING.md][contributing].
+
+## Source map
+
+| Area | Entry points |
 | --- | --- |
-| [`cmd/goen`](cmd/goen) | Configuration, composition, routes, middleware, workers, process lifecycle. |
-| [`assets`](assets) | Embedded assets, versioned URLs, asset compression, media URL selection. |
-| [`internal/account`](internal/account) | Identity, passwords, sessions, profiles, addresses, Google sign-in, customer pages. |
-| [`internal/admin`](internal/admin) | Cross-desk integration and pagination tests. |
-| [`internal/admin/access`](internal/admin/access) | Staff/admin guards, TOTP step-up, refusal pages. |
-| [`internal/admin/access/accesstest`](internal/admin/access/accesstest) | Shared tests that desk routes refuse outsiders. |
-| [`internal/admin/admintest`](internal/admin/admintest) | Shared back-office integration fixtures and helpers. |
-| [`internal/admin/audit`](internal/admin/audit) | Audited transactions, action vocabulary, audit-history pages. |
-| [`internal/admin/campaigns`](internal/admin/campaigns) | Sale campaigns and their merchandise. |
-| [`internal/admin/content`](internal/admin/content) | Hero, banner, FAQ, and newsletter authoring. |
-| [`internal/admin/coupons`](internal/admin/coupons) | Coupon creation and administration. |
-| [`internal/admin/customers`](internal/admin/customers) | Customer lookup, account/order information, read-only warranty search. |
-| [`internal/admin/feedback`](internal/admin/feedback) | Reviews, questions, and contact-message handling. |
-| [`internal/admin/health`](internal/admin/health) | Pool health, unresolved work, reconciliation controls. |
-| [`internal/admin/invoicing`](internal/admin/invoicing) | Staff invoice issue, void, and correction actions. |
-| [`internal/admin/loyalty`](internal/admin/loyalty) | Membership tiers and store-credit administration. |
-| [`internal/admin/orders`](internal/admin/orders) | Dashboard, order desk, shipments, fulfillment, timelines. |
-| [`internal/admin/products`](internal/admin/products) | Products, variants, and product images. |
-| [`internal/admin/refunds`](internal/admin/refunds) | Card/credit payouts and before-shipment cancellations. |
-| [`internal/admin/refundstate`](internal/admin/refundstate) | Shared refund statuses and refused/incomplete outcomes. |
-| [`internal/admin/reports`](internal/admin/reports) | Sales reports over selected periods. |
-| [`internal/admin/returns`](internal/admin/returns) | Return assessment, inspection, decisions, refund initiation. |
-| [`internal/admin/shipping`](internal/admin/shipping) | Shipping methods, destinations, zones, surcharges. |
-| [`internal/admin/staff`](internal/admin/staff) | Staff roster, permissions, invitations, lost-factor removal. |
-| [`internal/admin/stock`](internal/admin/stock) | Stock adjustments, low-stock views, movement history. |
-| [`internal/admin/taxonomy`](internal/admin/taxonomy) | Brands, categories, and category images. |
-| [`internal/carrier`](internal/carrier) | Parcel-carrier identities and delivery compatibility through `ForDelivery`. |
-| [`internal/cart`](internal/cart) | Baskets, checkout, holds, order page/cancellation/reorder, pickup flow. |
-| [`internal/catalog`](internal/catalog) | Listings, search, comparisons, deals, campaign browsing. |
-| [`internal/contact`](internal/contact) | Contact-form validation and stored messages. |
-| [`internal/coupon`](internal/coupon) | Closed coupon kinds shared by checkout, administration, and presentation. |
-| [`internal/db`](internal/db) | Generated queries/types, schema-conformance and CI-policy tests (`workflow-check`). |
-| [`internal/db/dbtest`](internal/db/dbtest) | PostgreSQL testcontainers and migration fixtures. |
-| [`internal/destination`](internal/destination) | Closed shipping-destination vocabulary. |
-| [`internal/email`](internal/email) | Mail content, templ rendering, SMTP/log transports. |
-| [`internal/fieldrule`](internal/fieldrule) | Browser field constraints aligned with server validation. |
-| [`internal/home`](internal/home) | Homepage and shared navigation/banner reads. |
-| [`internal/i18n`](internal/i18n) | Application wording, locale detection, translated labels. |
-| [`internal/inventory`](internal/inventory) | The closed set of reasons a variant's stock moves. |
-| [`internal/invoice`](internal/invoice) | ECPay clients, durable invoice operations, recovery, documents. |
-| [`internal/layoutcheck`](internal/layoutcheck) | Tests protecting browser-gate configuration. |
-| [`internal/loyalty`](internal/loyalty) | Customer points balance and redemption. |
-| [`internal/media`](internal/media) | Upload validation/storage, renditions, serving, orphan cleanup. |
-| [`internal/money`](internal/money) | Currency parsing, bounds, formatting. |
-| [`internal/newsletter`](internal/newsletter) | Subscription confirmation/unsubscription and delivery data. |
-| [`internal/order`](internal/order) | Fulfillment states, order events, order-number vocabulary, the validated delivery recipient and destination. |
-| [`internal/orderaccess`](internal/orderaccess) | Who may open a placed order's pages: a browser granted it, or the signed-in owner. |
-| [`internal/ordernotice`](internal/ordernotice) | Terminal-order mail with recipients resolved at delivery. |
-| [`internal/outbox`](internal/outbox) | Durable enqueueing, leasing, retry, delivery, retention. |
-| [`internal/payment`](internal/payment) | Stripe attempts, Checkout, signed webhook settlement. |
-| [`internal/pgerr`](internal/pgerr) | PostgreSQL error classification by code/constraint. |
-| [`internal/pgtx`](internal/pgtx) | The deferred rollback every store takes: detached from the request, bounded in time. |
-| [`internal/pickup`](internal/pickup) | Convenience-store chain identities. |
-| [`internal/probe`](internal/probe) | Public liveness and database-readiness probes. |
-| [`internal/product`](internal/product) | Product detail, reviews, questions, restock subscriptions. |
-| [`internal/ratelimit`](internal/ratelimit) | In-memory limits and trusted-proxy client addresses. |
-| [`internal/recommend`](internal/recommend) | Co-purchase projection refresh. |
-| [`internal/returnpage`](internal/returnpage) | The buyer's return form for an order. |
-| [`internal/returns`](internal/returns) | Return statuses and the eligibility and decision rules. |
-| [`internal/shoptime`](internal/shoptime) | Shop-zone dates, times, calendar calculations. |
-| [`internal/site`](internal/site) | Information/policies, sitemap, locale switching, 404 pages. |
-| [`internal/twofactor`](internal/twofactor) | TOTP enrollment, encrypted secrets, verification, session step-up. |
-| [`internal/ui/chart`](internal/ui/chart) | Server-rendered SVG charts; draws only, its text equivalent is the page's row or table. |
-| [`internal/ui/components`](internal/ui/components) | Reusable controls and presentation components. |
-| [`internal/ui/icons`](internal/ui/icons) | SVG icons and category-icon selection. |
-| [`internal/ui/layouts`](internal/ui/layouts) | Shared document head, page chrome, layout context. |
-| [`internal/ui/pages`](internal/ui/pages) | Storefront/account templates and view models. |
-| [`internal/ui/pages/admin`](internal/ui/pages/admin) | Back-office templates and view models. |
-| [`internal/user`](internal/user) | The signed-in user, `users.role`, and the context that carries them. |
-| [`internal/warranty`](internal/warranty) | Warranty registration for purchased units. |
-| [`internal/web`](internal/web) | Rendering, forms, pagination, compression, text/HTTP helpers. |
+| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [provider posture][provider-posture] |
+| Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/orderaccess`][orderaccess] |
+| Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
+| Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
+| Invoices and deferred delivery | [`internal/invoice`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
+| Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
+| Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-banner], [`internal/recommend`][recommend], [reports][reports] |
+| Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
+| Assets and media | [`assets`][assets], [`internal/media`][media-render] |
+| Identity and browser security | [`internal/account`][account], [staff access][access], [`internal/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
+
+[contributing]: CONTRIBUTING.md
+[main]: cmd/goen/main.go
+[server]: cmd/goen/server.go
+[middleware]: cmd/goen/middleware.go
+[provider-posture]: cmd/goen/provider_posture.go
+[slowquery]: cmd/goen/slowquery.go
+[checkout]: internal/cart/store.go
+[cart-sweeper]: internal/cart/sweeper.go
+[cart-cancel]: internal/cart/cancel.go
+[orderaccess]: internal/orderaccess
+[payment-store]: internal/payment/store.go
+[payment-handler]: internal/payment/handler.go
+[stripe]: internal/payment/stripe.go
+[order]: internal/order
+[orders]: internal/admin/orders
+[returns-rules]: internal/returns
+[returns]: internal/admin/returns/store.go
+[refund-payout]: internal/admin/refunds/payout.go
+[before-shipment]: internal/admin/refunds/beforeshipment.go
+[invoice-store]: internal/invoice/store.go
+[invoice-recovery]: internal/invoice/recovery.go
+[invoice-cancellation]: internal/invoice/cancellation.go
+[invoicing]: internal/admin/invoicing
+[outbox]: internal/outbox/outbox.go
+[outbox-sql]: internal/outbox/query.sql
+[email]: internal/email
+[schema]: migrations/001_initial_schema.up.sql
+[sqlc]: sqlc.yaml
+[conformance]: internal/db/coverage_integration_test.go
+[dbtest]: internal/db/dbtest
+[audit]: internal/admin/audit/audit.go
+[account]: internal/account
+[access]: internal/admin/access/access.go
+[twofactor]: internal/twofactor
+[ratelimit]: internal/ratelimit
+[i18n]: internal/i18n
+[money]: internal/money
+[shoptime]: internal/shoptime
+[catalog-store]: internal/catalog/store.go
+[catalog-query]: internal/catalog/query.sql
+[home-banner]: internal/home/banner.go
+[recommend]: internal/recommend/store.go
+[reports]: internal/admin/reports/store.go
+[assets]: assets/assets.go
+[media-render]: internal/media/render.go
+[media-handler]: internal/media/handler.go
+[health]: internal/admin/health
+[health-reconcile]: internal/admin/health/reconcile.go
+[health-sql]: internal/admin/health/query.sql
+[probe]: internal/probe/probe.go
+[makefile]: Makefile
+[workflows]: .github/workflows
+[stripe-errors]: https://docs.stripe.com/error-low-level
+[k6-models]: https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/
+[k6-dropped]: https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/dropped-iterations/
+[pgxpool]: https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool
+[pg-statements]: https://www.postgresql.org/docs/current/pgstatstatements.html
+[otel-messaging]: https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/
+[otel-go]: https://opentelemetry.io/docs/languages/go/instrumentation/
+[outbox-pattern]: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html
+[pg-pitr]: https://www.postgresql.org/docs/current/continuous-archiving.html
