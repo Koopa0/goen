@@ -506,8 +506,9 @@ func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing
 				if err := json.Unmarshal(log.Bytes(), &record); err != nil {
 					t.Fatalf("stalled read diagnostic = %q: %v", log.String(), err)
 				}
-				if record["operation"] != "related_products" || record["reason"] != "timed_out" {
-					t.Errorf("cold following query diagnostic = %v, want only related_products timed_out", record)
+				// The trace closes the connection before pgx runs the related query.
+				if record["operation"] != "related_products" || record["reason"] != "query_failed" {
+					t.Errorf("cold following query diagnostic = %v, want only related_products query_failed", record)
 				}
 			}
 			t.Logf("cold %s: cancelled backend %d, zero idle, replacement backend %d acquired in %s, query budget %s", query, d.stalledPID, d.healthyPID, d.acquireTime, d.queryBudget)
