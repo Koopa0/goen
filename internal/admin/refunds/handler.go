@@ -65,9 +65,12 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
 		h.log.WarnContext(r.Context(), "refund before shipment waits on the invoice", "order", number, "error", err)
 		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+	case errors.Is(err, ErrCancellationIncomplete):
+		// Recovery precedes ErrRefused: a payout or cancellation can retain a
+		// database refusal as its cause while the approved refund remains open.
+		h.log.ErrorContext(r.Context(), "refund before shipment cancellation", "order", number, "error", err)
+		http.Redirect(w, r, back+"?cancelretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, refundstate.ErrIncomplete):
-		// Tested before ErrRefused: a payout may carry a database refusal as its
-		// cause, but the refund is open and Resume is what the staff member needs.
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
 		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, refundstate.ErrRefused), errors.Is(err, ErrInvalid):
