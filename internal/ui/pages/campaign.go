@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
