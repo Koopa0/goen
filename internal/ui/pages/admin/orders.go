@@ -103,7 +103,7 @@ type DashboardView struct {
 	// waiting item has waited, on the database's clock.
 	ReadyOldestSeconds        int64
 	PickingOrders             int64
-	LowStock                  int64
+	SoldOut                   int64
 	ActiveProducts            int64
 	OpenMessages              int64
 	OpenMessagesOldestSeconds int64
@@ -116,7 +116,10 @@ type DashboardView struct {
 	UnansweredQuestions              int64
 	UnansweredQuestionsOldestSeconds int64
 	Recent                           []OrderRow
-	Low                              []Variant
+	// Runway is the first days cover rows of SKUs that are not sold out, and
+	// RunwayCut says more were left off.
+	Runway    []StockRisk
+	RunwayCut bool
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
 	// HealthUnavailable is set when the health desk could not be read, so an
@@ -157,12 +160,10 @@ func (v *DashboardView) DeskTasks() []Task {
 		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions", HasAge: true, AgeSeconds: v.UnansweredQuestionsOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages", HasAge: true, AgeSeconds: v.OpenMessagesOldestSeconds},
-		{Label: i18n.KeyAdminQueueStatLowStock, Count: v.LowStock, Href: "/admin/stock?low=1"},
+		{Label: i18n.KeyAdminQueueStatSoldOut, Count: v.SoldOut, Href: "/admin/reports#stock"},
 	}
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
-
-func (v *DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
 	web.Bound
@@ -582,10 +583,10 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 type VariantsView struct {
 	web.Bound
 
-	Variants []Variant
-	LowOnly  bool
-	Term     string
-	Notice   components.Result
+	Variants    []Variant
+	SoldOutOnly bool
+	Term        string
+	Notice      components.Result
 	// ShowCover is set on the desk's opening page only: not on a search, the
 	// sold out filter or a later page of the list.
 	ShowCover   bool
@@ -598,7 +599,9 @@ type VariantsView struct {
 
 func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
 
-func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "low", "1", "q", v.Term) }
+func (v VariantsView) SoldOutHref() string {
+	return web.ScopeURL("/admin/stock", "soldout", "1", "q", v.Term)
+}
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 

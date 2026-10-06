@@ -48,9 +48,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":      web.Done(i18n.KeyAdminNoticeOK),
-	"refused": web.Refused(i18n.KeyAdminShipRefused),
-	"inuse":   web.Refused(i18n.KeyAdminNoticeInUse),
+	"ok":           web.Done(i18n.KeyAdminNoticeOK),
+	"refused":      web.Refused(i18n.KeyAdminShipRefused),
+	"zoneprefixes": web.Refused(i18n.KeyAdminShipZoneHasPrefixes),
+	"zoneversions": web.Refused(i18n.KeyAdminShipZoneHasVersions),
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
@@ -194,11 +195,20 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.DeleteZone(r.Context(), r.PathValue("id"))
+	if inUse, ok := errors.AsType[*ZoneInUseError](err); ok {
+		switch inUse.Use {
+		case ZoneUsedByPrefixes:
+			http.Redirect(w, r, "/admin/shipping?zoneprefixes=1", http.StatusSeeOther)
+		case ZoneUsedByVersions:
+			http.Redirect(w, r, "/admin/shipping?zoneversions=1", http.StatusSeeOther)
+		default:
+			panic("shipping: unknown zone use: " + string(inUse.Use))
+		}
+		return
+	}
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInUse):
-		http.Redirect(w, r, "/admin/shipping?inuse=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
 		access.NotFound(w, r, h.log)
