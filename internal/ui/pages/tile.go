@@ -44,37 +44,37 @@ func AnyComparable(tiles []ProductTile) bool {
 	return slices.ContainsFunc(tiles, func(t ProductTile) bool { return t.Comparable })
 }
 
-func (t ProductTile) CompareLabel(ctx context.Context) string {
+func (t *ProductTile) CompareLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
-func (t ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
+func (t *ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
 
-func (t ProductTile) SoldOut() bool { return !t.InStock }
+func (t *ProductTile) SoldOut() bool { return !t.InStock }
 
 // maxDots is how many colours a card draws; the rest are counted.
 const maxDots = 4
 
 // HasChoiceOfColour is false for a single colour: that is not a choice to show.
-func (t ProductTile) HasChoiceOfColour() bool { return len(t.Colours) >= 2 }
+func (t *ProductTile) HasChoiceOfColour() bool { return len(t.Colours) >= 2 }
 
-func (t ProductTile) Dots() []string { return t.Colours[:min(len(t.Colours), maxDots)] }
+func (t *ProductTile) Dots() []string { return t.Colours[:min(len(t.Colours), maxDots)] }
 
-func (t ProductTile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
+func (t *ProductTile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
 
-func (t ProductTile) HasImage() bool { return t.ImageURL != "" }
+func (t *ProductTile) HasImage() bool { return t.ImageURL != "" }
 
-func (t ProductTile) HasImageDimensions() bool { return t.ImageWidth > 0 && t.ImageHeight > 0 }
+func (t *ProductTile) HasImageDimensions() bool { return t.ImageWidth > 0 && t.ImageHeight > 0 }
 
-func (t ProductTile) ImageWidthText() string { return strconv.FormatInt(int64(t.ImageWidth), 10) }
+func (t *ProductTile) ImageWidthText() string { return strconv.FormatInt(int64(t.ImageWidth), 10) }
 
-func (t ProductTile) ImageHeightText() string { return strconv.FormatInt(int64(t.ImageHeight), 10) }
+func (t *ProductTile) ImageHeightText() string { return strconv.FormatInt(int64(t.ImageHeight), 10) }
 
-func (t ProductTile) Price() string { return twd(t.PriceCents) }
+func (t *ProductTile) Price() string { return twd(t.PriceCents) }
 
-func (t ProductTile) Compare() string { return twd(t.CompareCents) }
+func (t *ProductTile) Compare() string { return twd(t.CompareCents) }
 
-func (t ProductTile) RatingText() string { return strconv.FormatFloat(t.Rating, 'f', 1, 64) }
+func (t *ProductTile) RatingText() string { return strconv.FormatFloat(t.Rating, 'f', 1, 64) }
 
 func TWD(cents int64) string { return twd(cents) }
 
