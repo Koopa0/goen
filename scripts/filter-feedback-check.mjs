@@ -217,6 +217,18 @@ async function journey(connection, locale, width) {
       const count = document.getElementById('listing-status');
       const server = ctx.text ? new DOMParser().parseFromString(ctx.text, 'text/html') : null;
       const stockLabel = p.box.closest('label').querySelector('.goen-filters__label').textContent.trim();
+      const responseURL = ctx.response?.raw?.url;
+      const pushURL = ctx.response?.raw?.headers.get('HX-Push-Url') ?? null;
+      const replaceURL = ctx.response?.raw?.headers.get('HX-Replace-Url') ?? null;
+      const directive = (pushURL === 'false' ? null : pushURL) || (replaceURL === 'false' ? null : replaceURL);
+      let expectedURL;
+      if ((pushURL || replaceURL) && !directive) expectedURL = before.url;
+      else if (directive && directive !== 'true') expectedURL = new URL(directive, before.url).href;
+      else if (responseURL) {
+        const url = new URL(responseURL, before.url);
+        url.hash = ctx.request.anchor || '';
+        expectedURL = url.href;
+      }
       return {
         hidden: p.note.hidden, visible: !p.note.hidden && getComputedStyle(p.note).display !== 'none' && p.note.getBoundingClientRect().height > 0,
         message: p.note.textContent.trim() === p.message, role: p.note.getAttribute('role'),
@@ -225,7 +237,8 @@ async function journey(connection, locale, width) {
         swapped: results !== before.before, changed: p.box.checked !== before.checked,
         focused: document.activeElement === p.box, urlUnchanged: location.href === before.url,
         stockURL: new URL(location.href).searchParams.get('in_stock') === (p.box.checked ? p.box.value : null),
-        urlMatchesResponse: location.href === ctx.response?.raw?.url,
+        urlMatchesResponse: !!expectedURL && location.href === expectedURL,
+        actualURL: location.href, expectedURL, responseURL, pushURL, replaceURL, requestURL: ctx.request.action,
         landmarks: !!results && !!chips && !!count,
         serverLandmarks: !!server?.getElementById('listing-results') && !!server?.getElementById('filters-applied') && !!server?.getElementById('listing-status'),
         chips: chips?.textContent, count: count?.textContent,
@@ -245,6 +258,10 @@ async function journey(connection, locale, width) {
         failures.push(failure);
         console.error('FAIL ' + failure);
       } else console.log('PASS ' + label);
+      if (value.responseURL) {
+        const { requestURL, responseURL, pushURL, replaceURL, expectedURL, actualURL } = value;
+        console.log('URL evidence ' + label + ': ' + JSON.stringify({ requestURL, responseURL, pushURL, replaceURL, expectedURL, actualURL }));
+      }
     };
     const recover = async (name) => {
       mode = 'real';
