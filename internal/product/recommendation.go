@@ -31,19 +31,18 @@ const (
 const recommendationReadBudget = 150 * time.Millisecond
 
 func (s *Store) recommendationQueries(ctx context.Context) (*db.Queries, context.Context, func(), error) {
-	readCtx, cancel := recommendationContext(ctx)
 	q := s.q
 	release := func() {}
 	if pool, ok := s.dbtx.(*pgxpool.Pool); ok {
 		// Dialing a replacement connection must not consume the optional query budget.
-		conn, err := pool.Acquire(readCtx)
+		conn, err := pool.Acquire(ctx)
 		if err != nil {
-			cancel()
 			return nil, nil, nil, err
 		}
 		q = db.New(conn)
 		release = conn.Release
 	}
+	readCtx, cancel := recommendationContext(ctx)
 	return q, readCtx, func() {
 		cancel()
 		release()
