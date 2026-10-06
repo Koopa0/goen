@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -104,27 +105,28 @@ func TestHomeAndAboutSayNothingAboutCategoriesTheyCannotRead(t *testing.T) {
 }
 
 // The carousel draws one slide per entry, with a button only where the slide
-// has one, and offers arrows and dots only when there is something to move to.
+// has one, and offers tabs and arrows only when there is something to move to.
 func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	t.Parallel()
-	campaign := HeroSlide{
-		Layout: SlidePhoto, Tone: ToneSage, Title: "Autumn desk sale",
-		Fact:  "4 items · until 2027-10-01",
-		CTA:   CTA{Label: "See the campaign", Href: "/s/autumn-desk"},
-		Photo: Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
-	}
-	department := HeroSlide{Layout: SlideSplit, Tone: ToneMist, Title: "Tech", CTA: CTA{Label: "Browse Tech", Href: "/c/tech"}}
-
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
+		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
+		campaign := HeroSlide{
+			Layout: SlidePhoto, Tone: ToneSage, Title: "Autumn desk sale",
+			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
+			CTA:   CTA{Label: see, Href: "/s/autumn-desk"},
+			Photo: Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
+		}
+		department := HeroSlide{Layout: SlideSplit, Tone: ToneMist, Title: "Tech", CTA: CTA{Label: see, Href: "/c/tech"}}
 
 		many := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []HeroSlide{campaign, department}}))
 		for _, want := range []string{
 			`class="goen-hero__slide goen-hero__slide--photo" data-tone="sage"`,
-			`class="goen-hero__slide goen-hero__slide--split" data-tone="mist"`,
+			`class="goen-hero__slide goen-hero__slide--split goen-hero__slide--text" data-tone="mist"`,
 			`href="/s/autumn-desk"`, `href="/c/tech"`,
 			`aria-label="1 / 2"`, `aria-label="2 / 2"`,
 			`aria-label="` + i18n.T(ctx, i18n.KeyHeroNext) + `"`,
+			`href="#hero-2"`,
 			`fetchpriority="high"`,
 		} {
 			if !strings.Contains(many, want) {
@@ -134,13 +136,21 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		if strings.Count(many, `fetchpriority="high"`) != 1 {
 			t.Errorf("%s carousel prioritises more than the first photograph", locale)
 		}
-		if strings.Count(many, `class="goen-hero__dot"`) != 2 {
-			t.Errorf("%s carousel has no dot per slide", locale)
+		if strings.Count(many, `aria-current="true"`) != 1 {
+			t.Errorf("%s carousel marks %d tabs as current, want 1", locale, strings.Count(many, `aria-current="true"`))
+		}
+		if strings.Count(many, `data-js hidden`) != 1 {
+			t.Errorf("%s carousel does not leave its arrows to the script", locale)
+		}
+		if strings.Count(many, i18n.T(ctx, i18n.KeyHeroCampaignCTA)) != 2 {
+			t.Errorf("%s carousel does not link both slide kinds with the one label", locale)
 		}
 
 		one := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []HeroSlide{department}}))
-		if strings.Contains(one, "goen-hero__controls") {
-			t.Errorf("%s carousel of one slide draws arrows and dots", locale)
+		for _, banned := range []string{"goen-hero__controls", "goen-hero__tabs", "data-step", "carousel"} {
+			if strings.Contains(one, banned) {
+				t.Errorf("%s carousel of one slide draws %s", locale, banned)
+			}
 		}
 		if strings.Contains(one, "goen-hero__lede") {
 			t.Errorf("%s slide with no fact draws an empty line", locale)
@@ -154,49 +164,61 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 }
 
 // The struck-through original price already says a product is reduced, so a
-// card carries no "on sale" chip; a sold-out one still carries its own.
+// card carries no "on sale" chip.
 func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	sale := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true}
 	page := renderComponent(t, ctx, Tile(sale))
-	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) || strings.Contains(page, "goen-tile__flag") {
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
 		t.Error("a reduced tile draws an on-sale chip")
 	}
 	if !strings.Contains(page, `class="goen-tile__was"`) {
 		t.Error("a reduced tile lost its struck-through original price")
 	}
+}
 
-	sold := sale
-	sold.InStock = false
-	if got := renderComponent(t, ctx, Tile(sold)); !strings.Contains(got, i18n.T(ctx, i18n.KeySoldOut)) {
-		t.Error("a sold-out tile lost its chip")
+// The carousel moves only when the visitor asks (WCAG 2.2.2 does not apply),
+// so the markup holds no autoplay switch and no pause button.
+func TestHeroCarouselHasNoAutoplay(t *testing.T) {
+	t.Parallel()
+	slides := []HeroSlide{
+		{Layout: SlideSplit, Tone: ToneMist, Title: "Tech"},
+		{Layout: SlideSplit, Tone: ToneSage, Title: "Food"},
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		got := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: slides}))
+		for _, banned := range []string{"data-autoplay", "goen-hero__pause"} {
+			if strings.Contains(got, banned) {
+				t.Errorf("%s carousel draws %s", locale, banned)
+			}
+		}
+		for _, want := range []string{`data-step="-1"`, `data-step="1"`} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s carousel omits %s", locale, want)
+			}
+		}
 	}
 }
 
-// Autoplay needs two or more slides. The visitor stops it by steering, so the
-// carousel carries its arrows and no pause button.
-func TestHeroCarouselAutoplaysOnlyWithSeveralSlidesAndHasNoPauseButton(t *testing.T) {
+// A campaign slide draws its facts and its grid; a long title steps down.
+func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	t.Parallel()
-	one := []HeroSlide{{Layout: SlideSplit, Tone: ToneMist, Title: "Tech"}}
-	two := []HeroSlide{one[0], {Layout: SlideSplit, Tone: ToneSage, Title: "Food"}}
-
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-
-		moving := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: two}))
-		for _, want := range []string{`data-autoplay`, `data-step="-1"`, `data-step="1"`} {
-			if !strings.Contains(moving, want) {
-				t.Errorf("%s carousel of two omits %s", locale, want)
-			}
-		}
-		if strings.Contains(moving, "goen-hero__pause") {
-			t.Errorf("%s carousel of two draws a pause button", locale)
-		}
-
-		still := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: one}))
-		if strings.Contains(still, "data-autoplay") {
-			t.Errorf("%s carousel of one offers autoplay", locale)
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Date: "10/9"}, {Date: "10/10"}}}
+	slide := HeroSlide{
+		Layout: SlidePhoto, Tone: ToneSage, Title: "年終感謝祭全館滿額再折",
+		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
+		Period: &spec,
+	}
+	got := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []HeroSlide{slide}}))
+	for _, want := range []string{
+		`<dt>結束</dt>`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
+		`<b>今天</b>`, `goen-hero__title goen-hero__title--long`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("campaign slide omits %s", want)
 		}
 	}
 }
