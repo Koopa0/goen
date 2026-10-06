@@ -11419,18 +11419,25 @@ func (q *Queries) OrderReturnedUnits(ctx context.Context, orderID uuid.UUID) (Or
 }
 
 const orderReturns = `-- name: OrderReturns :many
-SELECT decided_at, (goods_refund_cents + shipping_refund_cents)::bigint AS refund_cents
-FROM return_requests
-WHERE order_id = $1 AND status = 'completed' AND NOT before_shipment
-ORDER BY decided_at, id
+SELECT coalesce(
+           greatest((SELECT max(rf.succeeded_at) FROM refunds rf
+                     WHERE rf.return_request_id = rr.id AND rf.status = 'succeeded'),
+                    (SELECT max(e.created_at) FROM store_credit_entries e
+                     WHERE e.idempotency_key = 'return-credit:' || rr.id::text)),
+           rr.decided_at)::timestamptz AS paid_out_at,
+       (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
+FROM return_requests rr
+WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+ORDER BY paid_out_at, rr.id
 `
 
 type OrderReturnsRow struct {
-	DecidedAt   pgtype.Timestamptz
+	PaidOutAt   time.Time
 	RefundCents int64
 }
 
-// The completed returns, with the money each sent back and the day it was decided.
+// The completed returns, with the money each sent back and the day it was paid out: the later of the card
+// refund and the credit posting, or the decision for a return that sent nothing back.
 func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturnsRow, error) {
 	rows, err := q.db.Query(ctx, orderReturns, orderID)
 	if err != nil {
@@ -11440,7 +11447,7 @@ func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderR
 	items := []OrderReturnsRow{}
 	for rows.Next() {
 		var i OrderReturnsRow
-		if err := rows.Scan(&i.DecidedAt, &i.RefundCents); err != nil {
+		if err := rows.Scan(&i.PaidOutAt, &i.RefundCents); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

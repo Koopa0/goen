@@ -79,3 +79,85 @@ func TestTheParcelCarriesTheDatabasesLastDays(t *testing.T) {
 		}
 	}
 }
+
+// returnOf records a return of every unit of the order, as the database holds one at the given status.
+func returnOf(t *testing.T, number, status string, beforeShipment bool) string {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Fatalf("relax triggers: %v", err)
+	}
+	var id string
+	if err = tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, status, reason, decided_at, goods_refund_cents, shipping_refund_cents,
+		                             card_refund_cents, credit_refund_cents, before_shipment)
+		SELECT o.id, $2, 'test', now() - interval '2 days',
+		       (SELECT sum(unit_price_cents * quantity) FROM order_lines WHERE order_id = o.id), 0,
+		       (SELECT sum(unit_price_cents * quantity) FROM order_lines WHERE order_id = o.id), 0, $3
+		FROM orders o WHERE o.order_number = $1 RETURNING id`, number, status, beforeShipment).Scan(&id); err != nil {
+		t.Fatalf("insert return: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity)
+		SELECT order_id, $2, id, quantity, quantity, quantity FROM order_lines
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number, id); err != nil {
+		t.Fatalf("insert return lines: %v", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return id
+}
+
+// TestOnlyACompletedReturnAfterShipmentMakesAnOrderReturned holds what the order page calls fully returned: a
+// return that was approved has not been received or paid, and a refund before shipment returned nothing.
+func TestOnlyACompletedReturnAfterShipmentMakesAnOrderReturned(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	s := cart.NewStore(pool)
+
+	approved := placeUnpaidOrderFor(t, s, "approved@example.com")
+	returnOf(t, approved, "approved", false)
+	if view, err := s.Order(ctx, approved); err != nil || view.Returned != nil {
+		t.Errorf("an approved return: Returned = %+v, err %v; want nil", view.Returned, err)
+	}
+
+	cancelled := placeUnpaidOrderFor(t, s, "cancelled@example.com")
+	returnOf(t, cancelled, "completed", true)
+	if view, err := s.Order(ctx, cancelled); err != nil || view.Returned != nil {
+		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", view.Returned, err)
+	}
+
+	paid := placeUnpaidOrderFor(t, s, "paid@example.com")
+	view, err := s.Order(ctx, paid)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	session := "cs_returned_" + paid
+	if _, err = pool.Exec(ctx, `SELECT open_payment(id, $2, $3) FROM orders WHERE order_number = $1`, paid, session, view.OwedCents); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, view.OwedCents); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	returnID := returnOf(t, paid, "completed", false)
+	var succeededAt time.Time
+	if err = pool.QueryRow(ctx, `
+		INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents, reason, provider_ref, succeeded_at)
+		SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents, 'test', 're_' || r.id, now() - interval '1 day'
+		FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+		WHERE r.id = $1 RETURNING succeeded_at`, returnID).Scan(&succeededAt); err != nil {
+		t.Fatalf("insert refund: %v", err)
+	}
+	view, err = s.Order(ctx, paid)
+	if err != nil || view.Returned == nil {
+		t.Fatalf("a completed return after shipment: Returned = %+v, err %v; want one", view.Returned, err)
+	}
+	if !view.Returned.At.Equal(succeededAt) {
+		t.Errorf("Returned.At = %v, want the refund's succeeded_at %v", view.Returned.At, succeededAt)
+	}
+}
