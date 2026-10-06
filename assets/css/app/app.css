@@ -1698,6 +1698,7 @@ h3 {
 
 .goen-hero__slide {
   background: var(--tone-ground);
+  box-sizing: border-box;
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;

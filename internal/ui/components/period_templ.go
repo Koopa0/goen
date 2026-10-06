@@ -8,8 +8,9 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// The cells are ahead, past or today; the first and last carry their dates and
-// the current one the word for today. The grid is one image with one sentence.
+// The cells are ahead, past or today; the first and last carry their labels, the
+// current one the word for today, and a minute grid's mark the deadline. The
+// grid is one image with one sentence.
 func Period(p PeriodSpec) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -38,7 +39,7 @@ func Period(p PeriodSpec) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 9, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 10, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -56,7 +57,7 @@ func Period(p PeriodSpec) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.unitAttr())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 11, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 12, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -90,7 +91,7 @@ func Period(p PeriodSpec) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(c.State))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 20, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 21, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -125,7 +126,7 @@ func Period(p PeriodSpec) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(p.TodayLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 30, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 31, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -144,7 +145,7 @@ func Period(p PeriodSpec) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 33, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/period.templ`, Line: 34, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {

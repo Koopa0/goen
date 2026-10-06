@@ -562,6 +562,11 @@ type VariantsView struct {
 	LowOnly  bool
 	Term     string
 	Notice   components.Result
+	// ShowCover is set on the desk's opening page only: not on a search, the
+	// sold out filter or a later page of the list.
+	ShowCover   bool
+	AtRisk      []StockRisk
+	MoreSoldOut int
 	// Return is this page's own address, filter and position, which each form
 	// posts back so a write returns to the page it was made on.
 	Return string
