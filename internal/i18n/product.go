@@ -7,8 +7,6 @@ var (
 
 	KeySectionWarranty = key("pdp.warranty", Message{ZhHant: "保固", En: "Warranty"})
 
-	KeyWarrantyUnitMonths = key("pdp.warranty.unit", Message{ZhHant: "個月", En: "mo"})
-
 	KeyPDPWarranty = key("pdp.warranty.months", Message{
 		ZhHant: "保固 %s 個月",
 		En:     "%s-month warranty",
