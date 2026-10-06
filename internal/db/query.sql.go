@@ -17367,9 +17367,7 @@ SELECT
     -- cancel. Anything else has no single day, as return_line_policy_window judges each line by its own parcel.
     -- rescission_ends is shop_today() while no parcel has arrived, so a reader checks one_last_day, never the date.
     (p.parcels > 0 AND p.arrived = p.parcels AND p.last_days = 1
-     AND NOT EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
-                     AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                                 WHERE sl.order_line_id = ol.id), 0)))::boolean AS one_last_day,
+     )::boolean AS one_last_day,
     coalesce(p.last_day, shop_today())::date AS rescission_ends
 FROM orders o
 LEFT JOIN LATERAL (
