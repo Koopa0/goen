@@ -14129,7 +14129,7 @@ WITH period_lines AS (
     SELECT pl.product_id, sum(rl.quantity)::bigint AS units
     FROM return_request_lines rl
     JOIN return_requests rr ON rr.id = rl.return_request_id
-    JOIN period_lines pl ON pl.id = rl.order_line_id
+    JOIN order_lines pl ON pl.id = rl.order_line_id
     WHERE rr.status IN ('approved', 'completed')
     GROUP BY pl.product_id
 )
