@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -13,7 +14,7 @@ type CustomersView struct {
 	Term     string
 	Searched bool
 	Rows     []CustomerRow
-	Notice   string
+	Notice   components.Result
 }
 
 type CustomerRow struct {

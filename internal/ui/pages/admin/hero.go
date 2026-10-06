@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -66,7 +67,7 @@ type HeroView struct {
 	Bound    web.Bound
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
-	Notice   string
+	Notice   components.Result
 	Errors   map[string]string
 	Draft    HeroDraft
 

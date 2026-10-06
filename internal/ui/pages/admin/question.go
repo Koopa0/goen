@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -57,7 +58,7 @@ type QuestionsView struct {
 
 	Hidden bool
 	Rows   []Question
-	Notice string
+	Notice components.Result
 }
 
 func (v QuestionsView) Empty() bool { return len(v.Rows) == 0 }

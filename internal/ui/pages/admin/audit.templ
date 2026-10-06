@@ -2,6 +2,7 @@ package admin
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -29,21 +30,30 @@ templ Audit(p layouts.Page, v AuditView) {
 					<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
 						<div class="goen-admin__audithead">
 							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
+							if e.Money() {
+								@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+									{ i18n.T(ctx, i18n.KeyAuditMoneyTag) }
+								}
+							}
 							<span class="goen-admin__meta">{ e.At }</span>
 						</div>
 						<span class="goen-admin__meta">
 							{ e.ActorText(ctx) } · { e.EntityLabel(ctx) }
 							if e.Subject != "" && e.Href != "" {
-								· <a href={ templ.SafeURL(e.Href) }>{ e.Subject }</a>
+								· <a href={ templ.URL(e.Href) }>{ e.Subject }</a>
 							} else if e.Subject != "" {
 								· { e.Subject }
 							}
 						</span>
 						if len(e.Changes) > 0 {
 							<dl class="goen-admin__auditdetail">
-								for _, c := range e.Changes {
-									<dt>{ c.Field }</dt>
-									<dd>{ c.Text() }</dd>
+								for _, c := range e.ReadableChanges(ctx) {
+									<dt>{ c.Label }</dt>
+									if c.Href != "" {
+										<dd><a href={ templ.URL(c.Href) }>{ c.Text }</a></dd>
+									} else {
+										<dd>{ c.Text }</dd>
+									}
 								}
 							</dl>
 						}
