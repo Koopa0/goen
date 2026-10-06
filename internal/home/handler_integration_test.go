@@ -146,6 +146,12 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 		if slide.Layout != pages.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
 			t.Errorf("a department slide is %+v, want a photograph and a button", slide)
 		}
+		if want := i18n.T(ctx, i18n.KeyHeroCampaignCTA); slide.CTA.Label != want {
+			t.Errorf("a department slide's button reads %q, want %q", slide.CTA.Label, want)
+		}
+		if len(slide.Stats) != 2 {
+			t.Errorf("a department slide states %d figures, want items and categories", len(slide.Stats))
+		}
 	}
 }
 
