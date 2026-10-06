@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
@@ -36,13 +37,14 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/receive", ac.RequireStaff(h.Receive))
 	mux.HandleFunc("POST /admin/stock/active", ac.RequireStaff(h.SetActive))
 	mux.HandleFunc("POST /admin/stock/price", ac.RequireStaff(h.SetPrice))
+	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetArrival))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":       i18n.KeyAdminNoticeOK,
-	"refused":  i18n.KeyAdminNoticeRefused,
-	"received": i18n.KeyAdminNoticeReceived,
-	"badqty":   i18n.KeyAdminNoticeBadQty,
+var notices = map[string]web.NoticeEntry{
+	"ok":       web.Done(i18n.KeyAdminNoticeOK),
+	"refused":  web.Refused(i18n.KeyAdminNoticeRefused),
+	"received": web.Done(i18n.KeyAdminNoticeReceived),
+	"badqty":   web.Refused(i18n.KeyAdminNoticeBadQty),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -88,13 +90,27 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	h.rejectStockForm(w, r, key, func(row *admin.Variant) {
+		row.DraftDelta = r.PostFormValue("delta")
+		row.DeltaError = i18n.T(r.Context(), key)
+	})
+}
+
+func (h *Handler) rejectArrival(w http.ResponseWriter, r *http.Request) {
+	h.rejectStockForm(w, r, i18n.KeyAdminVariantArrivalError, func(row *admin.Variant) {
+		row.ArrivalInput = r.PostFormValue("arrival_on")
+		row.ArrivalError = i18n.T(r.Context(), i18n.KeyAdminVariantArrivalError)
+	})
+}
+
+func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i18n.Key, fill func(*admin.Variant)) {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
 		low, term, after = u.Query().Get("low"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
 	}
 	view, err := h.store.Variants(r.Context(), low == "1", term, after)
 	if err != nil {
-		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
+		h.log.ErrorContext(r.Context(), "read variants after refused stock form", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
@@ -103,14 +119,13 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 	shown := false
 	for i := range view.Variants {
 		if view.Variants[i].SKU == sku {
-			view.Variants[i].DraftDelta = r.PostFormValue("delta")
-			view.Variants[i].DeltaError = i18n.T(r.Context(), key)
+			fill(&view.Variants[i])
 			shown = true
 		}
 	}
 	if !shown {
 		// The row is not on this page, so the banner has to say it.
-		view.Notice = i18n.T(r.Context(), key)
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), key)}
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
@@ -249,6 +264,28 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read movements", "error", err)
+		access.ServerError(w, r, h.log)
+	}
+}
+
+func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	day, ok := ParseArrival(r.PostFormValue("arrival_on"))
+	if !ok {
+		h.rejectArrival(w, r)
+		return
+	}
+	err := h.store.SetArrival(r.Context(), r.PostFormValue("sku"), day)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+	case errors.Is(err, ErrNotFound):
+		access.NotFound(w, r, h.log)
+	default:
+		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
 		access.ServerError(w, r, h.log)
 	}
 }

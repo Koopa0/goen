@@ -30,8 +30,7 @@ type StockRisk struct {
 	SKU       string
 	Name      string
 	Slug      string
-	Stock     int32
-	Safety    int32
+	Sellable  int32
 	Sold      int64
 	DaysCover int
 }
@@ -42,7 +41,7 @@ func (r StockRisk) Cover(ctx context.Context) string {
 
 func (r StockRisk) Urgent() bool { return r.DaysCover <= 14 }
 
-func (r StockRisk) StockText() string { return strconv.FormatInt(int64(r.Stock), 10) }
+func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
 
 func (r StockRisk) SoldText() string { return strconv.FormatInt(r.Sold, 10) }
 
@@ -221,3 +220,12 @@ func (v *ReportView) WindowLabel(ctx context.Context, days int32) string {
 }
 
 func (v *ReportView) IsWindow(days int32) bool { return int(days) == v.Days }
+
+// TopUnits is the longest bar's scale: the best seller's units.
+func (v *ReportView) TopUnits() int64 {
+	var top int64
+	for _, s := range v.Sellers {
+		top = max(top, s.Units)
+	}
+	return top
+}

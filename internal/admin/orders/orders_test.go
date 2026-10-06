@@ -118,8 +118,8 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 // answered tiers, shipping, store credit, delivery correction and image reuse.
 func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
 	t.Parallel()
-	for name, key := range notices {
-		if key == i18n.KeyAdminNoticeNeeds && name != "needs" {
+	for name, m := range notices {
+		if m.Key == i18n.KeyAdminNoticeNeeds && name != "needs" {
 			t.Errorf("?%s=1 answers with the dispatch form's notice", name)
 		}
 	}

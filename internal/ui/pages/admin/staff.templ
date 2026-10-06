@@ -22,9 +22,10 @@ templ Staff(p layouts.Page, v StaffView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
+		@Announce(v.Notice)
+		if v.NoKey {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }
 			}
 		}
 		if !v.AllProtected() {

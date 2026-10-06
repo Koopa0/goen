@@ -70,6 +70,17 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
+	if tokens["--chart-hue"] == "" {
+		t.Fatalf("%s declares no hex value for --chart-hue", AppCSS)
+	}
+	for _, ground := range []string{"--n-0", "--n-50"} {
+		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
+			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--chart-hue"], ground, tokens[ground], got)
+		}
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
 	if tokens["--photo"] != "f9f9f9" {
@@ -208,6 +219,31 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 		if got := contrast(tokens[c.token], c.against); got < 3 {
 			t.Errorf("star %s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				c.what, c.token, tokens[c.token], c.on, c.against, got)
+		}
+	}
+}
+
+func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens := make(map[string]string)
+	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if len(alias) != 2 || tokens[alias[1]] == "" {
+		t.Fatal("controls need a boundary from the existing colour ramp")
+	}
+	tokens["--control-boundary"] = tokens[alias[1]]
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		got := contrast(tokens["--control-boundary"], tokens[ground])
+		if math.IsNaN(got) || got < 3 {
+			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
 		}
 	}
 }

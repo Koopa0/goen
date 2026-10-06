@@ -656,11 +656,11 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		t.Fatalf("load home: %v", err)
 	}
 
-	// The other active method still carries the seeded 300000, the lowest and
-	// therefore the honest figure.
-	if got := view.FreeDelivery(); got != "NT$3,000" {
-		t.Errorf("the strip states %q, want NT$3,000 — the lowest threshold any "+
-			"active method honours", got)
+	// The other active method still carries the seeded 300000; only the higher
+	// threshold is free for both.
+	if got := view.FreeDelivery(); got != "NT$5,555" {
+		t.Errorf("the strip states %q, want NT$5,555 — the highest threshold, "+
+			"the one every active method honours", got)
 	}
 
 	if _, bareErr := pool.Exec(ctx, `

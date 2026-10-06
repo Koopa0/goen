@@ -21,7 +21,7 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 		Windows: []int32{7, 30, 90},
 		AtRisk: []StockRisk{{
 			SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku",
-			Stock: 2, Safety: 4, Sold: 8, DaysCover: 7,
+			Sellable: 2, Sold: 8, DaysCover: 7,
 		}},
 	}))
 
@@ -150,6 +150,63 @@ func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
 	counts := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), "2", "3")
 	if n := strings.Count(html, counts); n != 1 {
 		t.Errorf("the report shows %q %d times, want once", counts, n)
+	}
+}
+
+func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
+		Sellers: []Seller{
+			{Slug: "a", Name: "Alpha", Units: 40},
+			{Slug: "b", Name: "Beta", Units: 40},
+			{Slug: "c", Name: "Gamma", Units: 10},
+		},
+	}))
+
+	if got := strings.Count(html, `class="goen-chartbar__fill"`); got != 3 {
+		t.Fatalf("report shows %d bars, want 3", got)
+	}
+	if got := strings.Count(html, `width="100.00%"`); got != 2 {
+		t.Errorf("report shows %d bars across the full track, want the 2 tied sellers", got)
+	}
+	if !strings.Contains(html, `width="25.00%"`) {
+		t.Error("report does not draw 10 units at a quarter of 40")
+	}
+	for _, count := range []string{"40", "10"} {
+		if !strings.Contains(html, `<span class="goen-chartbar__label">`+count+`</span>`) {
+			t.Errorf("report omits the count %s beside its bar", count)
+		}
+	}
+	if !strings.Contains(html, "Alpha") || !strings.Contains(html, "Gamma") {
+		t.Error("report lost the product names the bars sit beside")
+	}
+}
+
+func TestOneSellerDrawsNoBar(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+		Sellers: []Seller{{Slug: "a", Name: "Alpha", Units: 40}},
+	}))
+	if strings.Contains(html, "goen-chartbar") {
+		t.Error("report draws a bar for a single best seller, which compares it with nothing")
+	}
+	if !strings.Contains(html, "Alpha") {
+		t.Error("report lost the single best seller's row")
+	}
+}
+
+func TestNoSellersDrawNoBars(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+	}))
+	if strings.Contains(html, "goen-chartbar") {
+		t.Error("report draws a bar with no best sellers")
 	}
 }
 
