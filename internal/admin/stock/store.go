@@ -323,6 +323,11 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		FormID: uuid.NewString(),
 		Rows:   make([]admin.Movement, 0, len(rows)),
 	}
+	if !resumed {
+		if view.Days, err = s.stockDays(ctx, sku); err != nil {
+			return admin.MovementsView{}, err
+		}
+	}
 	for i := range rows {
 		m := &rows[i]
 		view.Rows = append(view.Rows, admin.Movement{
@@ -335,6 +340,29 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		})
 	}
 	return view, nil
+}
+
+// stockDays is the variant's last admin.StockLineDays shop days.
+func (s *Store) stockDays(ctx context.Context, sku string) ([]admin.StockDay, error) {
+	today := shoptime.Midnight(time.Now())
+	first := today.AddDate(0, 0, 1-admin.StockLineDays)
+	rows, err := s.q.VariantStockByDay(ctx, db.VariantStockByDayParams{
+		SKU: sku, FromAt: first, FirstDay: shopDate(first), LastDay: shopDate(today),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read stock by day of %s: %w", sku, err)
+	}
+	days := make([]admin.StockDay, len(rows))
+	for i, r := range rows {
+		days[i] = admin.StockDay{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
+	}
+	return days, nil
+}
+
+// shopDate is the shop day t falls on, as the date a query takes.
+func shopDate(t time.Time) time.Time {
+	y, m, d := shoptime.In(t).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) error {

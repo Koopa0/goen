@@ -1,0 +1,58 @@
+package chart
+
+import "strconv"
+
+// StepLine draws a stock level as steps, with the safety level as a line across
+// it. A caller with no days draws no line.
+templ StepLine(p StepLineProps) {
+	if len(p.Stock.Buckets) > 0 {
+		{{ r := newStepLine(ctx, p) }}
+		@frame(p.Caption, p.Note, stepLineTable(p, r)) {
+			<div class="goen-chart__frame goen-chart__frame--noends">
+				@valueLabels(r.axes)
+				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
+					@gridRules(r.axes)
+					if r.ShowsSafety {
+						<line class="goen-chart__safety" x1="0" x2="100%" y1={ px(r.SafetyY) } y2={ px(r.SafetyY) }></line>
+					}
+					<svg x="0" y="0" width="100%" height={ strconv.Itoa(r.Height) } viewBox={ "0 0 1000 " + strconv.Itoa(r.Height) } preserveAspectRatio="none">
+						<polyline class="goen-chart__level" points={ r.Line } vector-effect="non-scaling-stroke"></polyline>
+					</svg>
+					if r.ShowsSafety {
+						<text class="goen-chart__annotation" x="0" y={ px(r.SafetyY - 6) }>{ r.SafetyName }</text>
+					}
+					for _, m := range r.Receipts {
+						<line class="goen-chart__receipt" x1={ m.X } x2={ m.X } y1={ px(receiptBand - 8) } y2={ px(receiptBand - 2) }></line>
+						if m.Named {
+							<text class="goen-chart__annotation goen-chart__tick--minor" x={ m.X } y={ px(receiptBand - 12) } text-anchor={ m.Anchor }>{ m.Name }</text>
+						}
+					}
+					@dayLabels(r.axes)
+				</svg>
+			</div>
+		}
+	}
+}
+
+templ stepLineTable(p StepLineProps, r stepLine) {
+	<table class="goen-chart__table">
+		<thead>
+			<tr>
+				<th scope="col">{ p.DayHeading }</th>
+				<th scope="col">{ p.Stock.Label }</th>
+				<th scope="col">{ p.SafetyHeading }</th>
+				<th scope="col">{ p.Received.Label }</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, row := range r.Rows {
+				<tr>
+					<th scope="row">{ row.Heading }</th>
+					<td>{ row.Stock }</td>
+					<td>{ row.Safety }</td>
+					<td>{ row.Received }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}

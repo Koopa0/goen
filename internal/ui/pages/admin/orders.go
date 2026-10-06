@@ -663,6 +663,7 @@ type MovementsView struct {
 	Stock       int32
 	Safety      int32
 	Rows        []Movement
+	Days        []StockDay
 	Notice      components.Result
 	FormID      string
 }
