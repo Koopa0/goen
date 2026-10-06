@@ -131,7 +131,7 @@ func TestVerifyRejectsUnsafeArgonParameters(t *testing.T) {
 
 // A password over MaxPasswordBytes is refused before the read, or a 513-byte
 // probe separates a password account from an unknown or identity-only account.
-// The dead pool makes the ordering deterministic without a timing assertion.
+// The closed pool makes the ordering deterministic without a timing assertion.
 func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
 	t.Parallel()
 
@@ -141,10 +141,26 @@ func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	_, err = NewStore(pool).Authenticate(t.Context(), "anyone@example.com",
-		strings.Repeat("a", MaxPasswordBytes+1))
-	if !errors.Is(err, ErrBadCredentials) {
-		t.Fatalf("Authenticate reached the database for an over-long password: %v", err)
+	pool.Close()
+	store := NewStore(pool)
+	checks := []struct {
+		name  string
+		check func() error
+	}{
+		{name: "authenticate", check: func() error {
+			_, authErr := store.Authenticate(t.Context(), "anyone@example.com", strings.Repeat("a", MaxPasswordBytes+1))
+			return authErr
+		}},
+		{name: "confirm password", check: func() error {
+			return store.ConfirmPassword(t.Context(), "anyone@example.com", strings.Repeat("a", MaxPasswordBytes+1))
+		}},
+	}
+	for _, tt := range checks {
+		t.Run(tt.name, func(t *testing.T) {
+			if checkErr := tt.check(); !errors.Is(checkErr, ErrBadCredentials) {
+				t.Fatalf("%s reached the database for an over-long password: %v", tt.name, checkErr)
+			}
+		})
 	}
 }
 
