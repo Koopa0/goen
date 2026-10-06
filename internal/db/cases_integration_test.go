@@ -7,6 +7,71 @@ package db_test
 
 var checkCases = []checkCase{
 	{
+		constraint: "products_label_origin_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',101));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '台灣');`,
+	},
+	{
+		constraint: "products_label_origin_en_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin_en) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', E'Taiwan\n');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, origin_en) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Taiwan');`,
+	},
+	{
+		constraint: "products_label_domestic_name_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('界',201));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_name) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Maker');`,
+	},
+	{
+		constraint: "products_label_domestic_phone_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', repeat('1',41));`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_phone) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '0912345678');`,
+	},
+	{
+		constraint: "products_label_domestic_address_valid",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', '   ');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, domestic_party_address) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 'Address');`,
+	},
+	{
+		constraint: "products_label_net_paired",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, NULL);`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'g');`,
+	},
+	{
+		constraint: "products_label_net_positive",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0, 'g');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0.01, 'g');`,
+	},
+	{
+		constraint: "products_label_net_unit_known",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'oz');`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, net_quantity, net_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 1, 'piece');`,
+	},
+	{
+		constraint: "products_label_age_sane",
+		reject:     `INSERT INTO products (brand_id, category_id, slug, name, status, min_age_months) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 217);`,
+		accept:     `INSERT INTO products (brand_id, category_id, slug, name, status, min_age_months) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','label-case','Label fixture','draft', 0);`,
+	},
+	{
+		constraint: "products_tax_type_known",
+		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,tax_type) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft','zero_rated');`,
+		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,tax_type) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft','exempt');`,
+	},
+	{
+		constraint: "products_invoice_unit_valid",
+		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',E'個\n');`,
+		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',repeat('箱',6));`,
+	},
+	{
+		constraint: "order_lines_tax_type_known",
+		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'mixed');`,
+		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'exempt');`,
+	},
+	{
+		constraint: "order_lines_invoice_unit_valid",
+		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,repeat('箱',7));`,
+		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'包');`,
+	},
+	{
 		constraint: "coupons_code_format",
 		reject:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', '!!', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
 		accept:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', 'TESTCODE', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
@@ -518,6 +583,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "invoice_document_lines_quantity_positive",
 		reject:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000002', '99990001-0000-4000-8000-000000000000', 'Pixelight 9 Pro 5G', 0, 100, 100, 'taxable', 0);`,
 		accept:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000002', '99990001-0000-4000-8000-000000000000', 'Pixelight 9 Pro 5G', 1, 100, 100, 'taxable', 0);`,
+	},
+	{
+		constraint: "invoice_document_lines_unit_valid",
+		reject:     `INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position) VALUES ('99990001-0000-4000-8000-000000000000','Unit fixture',1,100,100,'taxable',repeat('箱',7),0);`,
+		accept:     `INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position) VALUES ('99990001-0000-4000-8000-000000000000','Unit fixture',1,100,100,'exempt',repeat('箱',6),0);`,
 	},
 	{
 		constraint: "invoice_document_lines_tax_type_known",
@@ -1771,6 +1841,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO shipping_zones (id, code, name, name_en) VALUES ('1111000c-0000-4000-8000-000000000091', 'blank_en', '有效名稱', 'A valid name');`,
 	},
 	{
+		constraint: "shipping_zones_name_bounded",
+		reject:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'name_bound', repeat(U&'\754C', 61));`,
+		accept:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'name_bound', repeat(U&'\754C', 60));`,
+	},
+	{
 		constraint: "shipping_zones_name_present",
 		reject:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'blank', E'\t');`,
 		accept:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'blank', '離島');`,
@@ -1812,6 +1887,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "shipping_method_versions_carrier_en_present",
 		reject:     `INSERT INTO shipping_method_versions (id, method_id, name, carrier_en, fee_cents, effective_at) VALUES ('1111000b-0000-4000-8000-000000000092', 'ffff0001-0000-4000-8000-000000000000', '有效名稱', E'\t', 8000, '2027-03-01');`,
 		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, carrier_en, fee_cents, effective_at) VALUES ('1111000b-0000-4000-8000-000000000092', 'ffff0001-0000-4000-8000-000000000000', '有效名稱', 'A carrier', 8000, '2027-03-01');`,
+	},
+	{
+		constraint: "shipping_method_versions_name_bounded",
+		reject:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', repeat(U&'\754C', 61), 8000, '2027-01-01');`,
+		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', repeat(U&'\754C', 60), 8000, '2027-01-01');`,
 	},
 	{
 		constraint: "shipping_method_versions_name_present",

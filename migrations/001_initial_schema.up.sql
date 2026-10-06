@@ -229,6 +229,27 @@ CREATE TABLE products (
     published_at  timestamptz,
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
+    origin text,
+    origin_en text,
+    domestic_party_name text,
+    domestic_party_phone text,
+    domestic_party_address text,
+    net_quantity numeric(10,2),
+    net_unit text,
+    min_age_months smallint,
+    CONSTRAINT products_label_origin_valid CHECK (origin IS NULL OR (origin ~ '[^[:space:]]' AND char_length(origin) <= 100 AND origin !~ '[[:cntrl:]]')),
+    CONSTRAINT products_label_origin_en_valid CHECK (origin_en IS NULL OR (origin_en ~ '[^[:space:]]' AND char_length(origin_en) <= 100 AND origin_en !~ '[[:cntrl:]]')),
+    CONSTRAINT products_label_domestic_name_valid CHECK (domestic_party_name IS NULL OR (domestic_party_name ~ '[^[:space:]]' AND char_length(domestic_party_name) <= 200 AND domestic_party_name !~ '[[:cntrl:]]')),
+    CONSTRAINT products_label_domestic_phone_valid CHECK (domestic_party_phone IS NULL OR (domestic_party_phone ~ '[^[:space:]]' AND char_length(domestic_party_phone) <= 40 AND domestic_party_phone !~ '[[:cntrl:]]')),
+    CONSTRAINT products_label_domestic_address_valid CHECK (domestic_party_address IS NULL OR (domestic_party_address ~ '[^[:space:]]' AND char_length(domestic_party_address) <= 500 AND domestic_party_address !~ '[[:cntrl:]]')),
+    CONSTRAINT products_label_net_paired CHECK ((net_quantity IS NULL) = (net_unit IS NULL)),
+    CONSTRAINT products_label_net_positive CHECK (net_quantity IS NULL OR net_quantity > 0),
+    CONSTRAINT products_label_net_unit_known CHECK (net_unit IS NULL OR net_unit IN ('g','kg','ml','l','piece')),
+    CONSTRAINT products_label_age_sane CHECK (min_age_months IS NULL OR min_age_months BETWEEN 0 AND 216),
+    tax_type text NOT NULL DEFAULT 'taxable',
+    invoice_unit text NOT NULL DEFAULT '個',
+    CONSTRAINT products_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
+    CONSTRAINT products_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT products_warranty_months_sane
         CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
     CONSTRAINT products_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
@@ -1614,6 +1635,7 @@ CREATE TABLE shipping_method_versions (
     free_over_cents bigint,
     effective_at    timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT shipping_method_versions_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT shipping_method_versions_name_bounded CHECK (char_length(name) <= 60),
     CONSTRAINT shipping_method_versions_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
     CONSTRAINT shipping_method_versions_carrier_en_present
@@ -1644,6 +1666,7 @@ CREATE TABLE shipping_zones (
     position integer NOT NULL DEFAULT 0,
     CONSTRAINT shipping_zones_code_format CHECK (code ~ '^[a-z0-9]+(_[a-z0-9]+)*$'),
     CONSTRAINT shipping_zones_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT shipping_zones_name_bounded CHECK (char_length(name) <= 60),
     CONSTRAINT shipping_zones_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]')
 );
@@ -2029,7 +2052,7 @@ CREATE TRIGGER orders_start_pending
 -- are durable catalogue identities used by verified-purchase, fulfilment,
 -- returns and reporting. Catalogue retirement is a status/is_active change,
 -- never deletion. Nullable identities remain available for legacy imports; the
--- display copy, price and warranty promise are independent snapshots.
+-- display copy, price, invoice facts and warranty promise are independent snapshots.
 CREATE TABLE order_lines (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id         uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2043,6 +2066,10 @@ CREATE TABLE order_lines (
     unit_price_cents bigint NOT NULL,
     quantity         integer NOT NULL,
     position         integer NOT NULL DEFAULT 0,
+    tax_type text NOT NULL DEFAULT 'taxable',
+    invoice_unit text NOT NULL DEFAULT '個',
+    CONSTRAINT order_lines_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
+    CONSTRAINT order_lines_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT order_lines_sku_present CHECK (sku ~ '[^[:space:]]'),
     CONSTRAINT order_lines_product_name_present CHECK (product_name ~ '[^[:space:]]'),
     CONSTRAINT order_lines_unit_price_in_range
@@ -2068,10 +2095,12 @@ DECLARE
     v_sku text;
     v_name text;
     v_name_en text;
+    v_tax_type text;
+    v_invoice_unit text;
 BEGIN
     IF NEW.variant_id IS NOT NULL THEN
-        SELECT pv.product_id, pv.sku, p.name, p.name_en
-        INTO v_product_id, v_sku, v_name, v_name_en
+        SELECT pv.product_id, pv.sku, p.name, p.name_en, p.tax_type, p.invoice_unit
+        INTO v_product_id, v_sku, v_name, v_name_en, v_tax_type, v_invoice_unit
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
@@ -2079,6 +2108,8 @@ BEGIN
             NEW.product_id := v_product_id;
         END IF;
         IF FOUND AND NEW.product_id = v_product_id THEN
+            NEW.tax_type := v_tax_type;
+            NEW.invoice_unit := v_invoice_unit;
             IF NEW.sku IS DISTINCT FROM v_sku THEN
                 RAISE EXCEPTION 'order line SKU must identify its variant'
                     USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
@@ -2404,6 +2435,7 @@ LANGUAGE plpgsql AS $$
 DECLARE
     lines integer;
     subtotal bigint;
+    tax_types integer;
     o orders%ROWTYPE;
 BEGIN
     SELECT * INTO o FROM orders WHERE id = NEW.id;
@@ -2411,13 +2443,18 @@ BEGIN
         RETURN NULL;  -- deleted within the same transaction
     END IF;
 
-    SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
-    INTO lines, subtotal
+    SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0), count(DISTINCT tax_type)
+    INTO lines, subtotal, tax_types
     FROM order_lines WHERE order_id = o.id;
 
     IF lines = 0 THEN
         RAISE EXCEPTION 'order % has no lines', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_lines';
+    END IF;
+
+    IF tax_types <> 1 THEN
+        RAISE EXCEPTION 'order % mixes taxable and exempt lines', o.order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_single_tax_type';
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM order_private_data WHERE order_id = o.id) THEN
@@ -3640,6 +3677,7 @@ CREATE TABLE invoice_document_lines (
     unit_price_cents bigint NOT NULL,
     amount_cents  bigint NOT NULL,
     tax_type      text NOT NULL,
+    unit          text NOT NULL DEFAULT '個',
     position      integer NOT NULL DEFAULT 0,
     CONSTRAINT invoice_document_lines_description_present CHECK (description ~ '[^[:space:]]'),
 	CONSTRAINT invoice_document_lines_description_bounded CHECK (char_length(description) <= 100),
@@ -3653,6 +3691,8 @@ CREATE TABLE invoice_document_lines (
     CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_tax_type_known
         CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt')),
+    CONSTRAINT invoice_document_lines_unit_valid
+        CHECK (unit ~ '[^[:space:]]' AND char_length(unit) <= 6 AND unit !~ '[[:cntrl:]]'),
     CONSTRAINT invoice_document_lines_position_in_range
         CHECK (position BETWEEN 0 AND 998)
 );
@@ -5617,6 +5657,8 @@ RETURNS TABLE(
     quantity integer,
     unit_price_cents bigint,
     amount_cents bigint,
+    tax_type text,
+    unit text,
     line_position integer
 )
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -5626,7 +5668,8 @@ SET search_path = pg_catalog, public, pg_temp AS $$
                o.shipping_cents::numeric AS shipping,
                (coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
                 - o.discount_cents + o.shipping_cents + o.tax_cents)::numeric AS total,
-               coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0) AS subtotal
+               coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0) AS subtotal,
+               min(ol.tax_type) AS tax_type
         FROM orders o
         LEFT JOIN order_lines ol ON ol.order_id = o.id
         WHERE o.id = p_order_id
@@ -5637,7 +5680,7 @@ SET search_path = pg_catalog, public, pg_temp AS $$
                    WHEN coalesce(ol.variant_label, '') = '' THEN ''
                    ELSE ' ' || ol.variant_label
                END, 100) AS description,
-               ol.quantity,
+               ol.quantity, ol.tax_type, ol.invoice_unit AS unit,
                (ol.unit_price_cents::numeric * ol.quantity) AS gross,
                h.discount, h.subtotal, h.shipping, h.total
         FROM order_lines ol CROSS JOIN header h
@@ -5677,12 +5720,13 @@ SET search_path = pg_catalog, public, pg_temp AS $$
                    AS unit_price_cents,
                (floor(discounted_amount / quantity / 100) * 100 * quantity)::bigint
                    AS amount_cents,
-               pos AS line_position
+               tax_type, unit, pos AS line_position
         FROM discounted
     ), shipping_line AS (
         SELECT '運費'::text AS description, 1::integer AS quantity,
                (floor(h.shipping / 100) * 100)::bigint AS unit_price_cents,
                (floor(h.shipping / 100) * 100)::bigint AS amount_cents,
+               h.tax_type, '個'::text AS unit,
                (SELECT count(*)::integer FROM base) AS line_position
         FROM header h WHERE h.shipping > 0
     ), before_adjustment AS (
@@ -5695,9 +5739,10 @@ SET search_path = pg_catalog, public, pg_temp AS $$
                 - coalesce(sum(b.amount_cents), 0))::bigint AS unit_price_cents,
                ((floor(h.total / 100) * 100)
                 - coalesce(sum(b.amount_cents), 0))::bigint AS amount_cents,
+               h.tax_type, '個'::text AS unit,
                count(b.*)::integer AS line_position
         FROM header h LEFT JOIN before_adjustment b ON true
-        GROUP BY h.total
+        GROUP BY h.total, h.tax_type
         HAVING (floor(h.total / 100) * 100) - coalesce(sum(b.amount_cents), 0) > 0
     )
     SELECT * FROM before_adjustment
@@ -5741,7 +5786,11 @@ BEGIN
         RETURN false;
     END IF;
     FOR i IN 1..v_count LOOP
-        IF p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
+        IF coalesce(v_lines -> (i - 1) ->> 'tax_type', '') NOT IN ('taxable', 'exempt')
+           OR coalesce(v_lines -> (i - 1) ->> 'unit', '') !~ '[^[:space:]]'
+           OR char_length(v_lines -> (i - 1) ->> 'unit') > 6
+           OR (v_lines -> (i - 1) ->> 'unit') ~ '[[:cntrl:]]'
+           OR p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
            OR p_quantities[i] IS DISTINCT FROM
               ((v_lines -> (i - 1) ->> 'quantity')::integer)
            OR p_unit_price_cents[i] IS DISTINCT FROM
@@ -5831,7 +5880,8 @@ BEGIN
     SELECT jsonb_agg(jsonb_build_object(
                'description', l.description, 'quantity', l.quantity,
                'unit_price_cents', l.unit_price_cents,
-               'amount_cents', l.amount_cents)
+               'amount_cents', l.amount_cents,
+               'tax_type', l.tax_type, 'unit', l.unit)
                ORDER BY l.line_position)
     INTO v_lines FROM canonical_invoice_lines(v_order.id) l;
     IF v_amount <= 0 OR v_lines IS NULL
@@ -5960,7 +6010,11 @@ BEGIN
         'amount_cents', v_amount,
         'lines', jsonb_build_array(jsonb_build_object(
             'description', '退貨折讓', 'quantity', 1,
-            'unit_price_cents', v_amount, 'amount_cents', v_amount)))
+            'unit_price_cents', v_amount, 'amount_cents', v_amount,
+                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
+                             WHERE l.document_id = v_original.id
+                             ORDER BY l.position LIMIT 1),
+                'unit', '個')))
     INTO v_payload
     FROM orders o JOIN invoice_preferences ip ON ip.order_id = o.id
     WHERE o.id = v_original.order_id;
@@ -6036,7 +6090,8 @@ BEGIN
     SELECT jsonb_agg(jsonb_build_object(
                'description', l.description, 'quantity', l.quantity,
                'unit_price_cents', l.unit_price_cents,
-               'amount_cents', l.amount_cents)
+               'amount_cents', l.amount_cents,
+               'tax_type', l.tax_type, 'unit', l.unit)
                ORDER BY l.position)
     INTO v_lines FROM invoice_document_lines l WHERE l.document_id = p_document_id;
     SELECT provider_key INTO v_relate_number FROM invoice_operations
@@ -6277,17 +6332,16 @@ BEGIN
     SELECT coalesce(jsonb_agg(jsonb_build_object(
                'description', l.description, 'quantity', l.quantity,
                'unit_price_cents', l.unit_price_cents,
-               'amount_cents', l.amount_cents)
+               'amount_cents', l.amount_cents,
+               'tax_type', l.tax_type, 'unit', l.unit)
                ORDER BY l.position), '[]'::jsonb)
     INTO v_local_lines
     FROM invoice_document_lines l
-    WHERE l.document_id = v_document.id AND l.tax_type = 'taxable';
+    WHERE l.document_id = v_document.id;
     IF NOT invoice_operation_lines_match(
             jsonb_build_object('lines', v_local_lines),
             p_descriptions, p_quantities, p_unit_price_cents,
-            p_line_amount_cents)
-       OR EXISTS (SELECT 1 FROM invoice_document_lines
-                  WHERE document_id = v_document.id AND tax_type <> 'taxable') THEN
+            p_line_amount_cents) THEN
         RAISE EXCEPTION 'provider invalidation differs from the issued allowance lines'
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'invoice_allowance_invalidation_lines';
@@ -6336,7 +6390,11 @@ BEGIN
             jsonb_set(request_payload, '{amount_cents}', to_jsonb(v_amount)),
             '{lines}', jsonb_build_array(jsonb_build_object(
                 'description', '退貨折讓', 'quantity', 1,
-                'unit_price_cents', v_amount, 'amount_cents', v_amount))),
+                'unit_price_cents', v_amount, 'amount_cents', v_amount,
+                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
+                             WHERE l.document_id = v_original.id
+                             ORDER BY l.position LIMIT 1),
+                'unit', '個'))),
         last_error = 'allowance_provider_invalid_refrozen',
         available_at = now(), lease_owner = NULL, lease_until = NULL,
         updated_at = now()
@@ -6413,10 +6471,12 @@ BEGIN
     FOR i IN 1..cardinality(p_descriptions) LOOP
         INSERT INTO invoice_document_lines
             (document_id, description, quantity, unit_price_cents,
-             amount_cents, tax_type, position)
+             amount_cents, tax_type, unit, position)
         VALUES
             (v_document_id, p_descriptions[i], p_quantities[i],
-             p_unit_price_cents[i], p_line_amount_cents[i], 'taxable', i - 1);
+             p_unit_price_cents[i], p_line_amount_cents[i],
+             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'tax_type',
+             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'unit', i - 1);
     END LOOP;
 
     SELECT order_number INTO v_order_number
@@ -6545,10 +6605,12 @@ BEGIN
     FOR i IN 1..cardinality(p_descriptions) LOOP
         INSERT INTO invoice_document_lines
             (document_id, description, quantity, unit_price_cents,
-             amount_cents, tax_type, position)
+             amount_cents, tax_type, unit, position)
         VALUES
             (v_document_id, p_descriptions[i], p_quantities[i],
-             p_unit_price_cents[i], p_amount_cents[i], 'taxable', i - 1);
+             p_unit_price_cents[i], p_amount_cents[i],
+             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'tax_type',
+             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'unit', i - 1);
     END LOOP;
     SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
     PERFORM record_invoice_operation_audit(
@@ -6611,10 +6673,12 @@ BEGIN
     RETURNING id INTO v_document_id;
     INSERT INTO invoice_document_lines
         (document_id, description, quantity, unit_price_cents,
-         amount_cents, tax_type, position)
+         amount_cents, tax_type, unit, position)
     VALUES
         (v_document_id, p_descriptions[1], p_quantities[1],
-         p_unit_price_cents[1], p_amount_cents[1], 'taxable', 0);
+         p_unit_price_cents[1], p_amount_cents[1],
+         v_operation.request_payload -> 'lines' -> 0 ->> 'tax_type',
+         v_operation.request_payload -> 'lines' -> 0 ->> 'unit', 0);
     SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
     PERFORM record_invoice_operation_audit(
         v_operation.id, v_document_id,

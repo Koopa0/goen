@@ -4,8 +4,8 @@ var (
 	KeyAdminPageReports = key("admin.page.reports", Message{ZhHant: "報表", En: "Reports"})
 
 	KeyAdminRepLead = key("admin.rep.lead", Message{
-		ZhHant: "只計入已付款的訂單。未付款的訂單不是營收。",
-		En:     "Paid orders only. An order that has not been paid for is not revenue.",
+		ZhHant: "只計入已付款的訂單。",
+		En:     "Paid orders only.",
 	})
 
 	KeyAdminRepWindow = key("admin.rep.window", Message{ZhHant: "期間", En: "Reporting period"})
@@ -14,6 +14,26 @@ var (
 		ZhHant: "這段期間沒有任何訂單",
 		En:     "No orders at all in this period",
 	})
+
+	// %[1]s is the month's English abbreviation, %[2]d its number, %[3]d the day.
+	KeyAdminRepDay = key("admin.rep.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
+
+	// The period's first and last day, then the previous period's.
+	KeyAdminRepPeriods = key("admin.rep.periods", Message{ZhHant: "%s–%s · 對照 %s–%s", En: "%s–%s · against %s–%s"})
+
+	// %[1]d is the number of days in the period, %[2]d the percentage.
+	KeyAdminRepMore = countKey("admin.rep.more", "比前 %[1]d 天多 %[2]d%%", "%[2]d%% more than the previous %[1]d day", "%[2]d%% more than the previous %[1]d days")
+
+	KeyAdminRepLess = countKey("admin.rep.less", "比前 %[1]d 天少 %[2]d%%", "%[2]d%% less than the previous %[1]d day", "%[2]d%% less than the previous %[1]d days")
+
+	KeyAdminRepSame = countKey("admin.rep.same", "和前 %d 天相近", "About the same as the previous %d day", "About the same as the previous %d days")
+
+	// %[1]d is the number of days, %[2]s the figure the previous period had.
+	KeyAdminRepPrevious = countKey("admin.rep.previous", "前 %[1]d 天：%[2]s", "Previous %[1]d day: %[2]s", "Previous %[1]d days: %[2]s")
+
+	KeyAdminRepNoPrevious = countKey("admin.rep.noprevious", "前 %d 天沒有已付款訂單", "No paid orders in the previous %d day", "No paid orders in the previous %d days")
+
+	KeyAdminRepNoOrders = countKey("admin.rep.noorders", "前 %d 天沒有訂單", "No orders in the previous %d day", "No orders in the previous %d days")
 
 	KeyAdminRepRevenue = key("admin.rep.revenue", Message{ZhHant: "營收", En: "Revenue"})
 
@@ -26,11 +46,8 @@ var (
 	KeyAdminRepCounts = key("admin.rep.counts", Message{ZhHant: "%s / %s 筆", En: "%s of %s orders"})
 
 	KeyAdminRepNote = key("admin.rep.note", Message{
-		ZhHant: "結帳完成率是「送出訂單之後付了款」的比例，不是網站的轉換率 —— " +
-			"goen 不蒐集流量資料，算不出多少訪客最後買了東西，所以不會顯示一個編出來的數字。",
-		En: "Checkout completion is the share of submitted orders that were then paid for, not the " +
-			"site's conversion rate — goen collects no traffic data, so it cannot work out what " +
-			"fraction of visitors ended up buying anything, and it will not show a number it invented.",
+		ZhHant: "結帳完成率是送出的訂單中已付款的比例。goen 不蒐集流量資料，所以沒有網站轉換率。",
+		En:     "Checkout completion is the share of submitted orders that were paid. goen collects no traffic data, so there is no site conversion rate.",
 	})
 
 	// Beside the revenue, never subtracted from it: a statutory rescission
@@ -57,9 +74,8 @@ var (
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
-		ZhHant: "依「還能撐幾天」排序 —— 銷得快又剩得少的排在前面。剩兩件但一個月才賣一件的不算緊急。",
-		En: "Sorted by how many days the stock will last — what sells fast and is nearly gone comes " +
-			"first. Two left of something that sells one a month is not urgent.",
+		ZhHant: "依這段期間的銷售速度估算庫存還能賣幾天，最快賣完的排在前面。",
+		En:     "Sorted by how many days the stock will last at this period's rate of sale, shortest first.",
 	})
 
 	KeyAdminRepStockEmpty = key("admin.rep.stock.empty", Message{

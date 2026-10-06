@@ -272,6 +272,9 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 	view := pages.CartView{Lines: make([]pages.CartLine, 0, len(rows))}
 	for i := range rows {
 		r := &rows[i]
+		if r.TaxType != rows[0].TaxType {
+			view.MixedTaxTypes = true
+		}
 		line := pages.CartLine{
 			VariantID:    r.VariantID.String(),
 			Slug:         r.Slug,
@@ -534,6 +537,10 @@ func (s *Store) placeOrder(
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.Code == "23514" && pgErr.ConstraintName == "orders_single_tax_type" {
+			return "", ErrMixedTaxTypes
+		}
 		return "", fmt.Errorf("commit checkout: %w", err)
 	}
 	return placed.OrderNumber, nil

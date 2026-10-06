@@ -50,6 +50,10 @@ var (
 		En:     "That is more than can be returned.",
 	})
 
+	KeyReturnQuantityInvalid = key("returns.quantity.invalid", Message{ZhHant: "請填寫零或以上的整數。", En: "Enter a whole number of zero or more."})
+
+	KeyReturnReasonInvalid = key("returns.reason.invalid", Message{ZhHant: "退貨原因最多 500 字，請移除無法顯示的字元。", En: "Keep the optional reason within 500 characters and remove unsupported characters."})
+
 	KeyReturnAlreadyOpen = key("returns.alreadyopen", Message{
 		ZhHant: "這筆訂單已經有一筆還在處理中的退貨申請。",
 		En:     "There is already an open request for this order.",
@@ -240,7 +244,7 @@ var (
 	})
 
 	KeyAdminRetErrIncomplete = key("admin.ret.err.incomplete", Message{
-		ZhHant: "還有未觀察的品項。補齊三項評估後才能核准或拒絕；未知不能默認符合，也不能默認拒絕。",
+		ZhHant: "還有未觀察的品項。補齊三項評估後才能核准或拒絕；未知不算符合，也不算不符合。",
 		En:     "Some facts are still unknown. Finish the three observations before approving or declining; unknown is neither a pass nor a failure.",
 	})
 
@@ -339,19 +343,15 @@ var (
 	// staff members deciding at once cannot both pay. What is outstanding here
 	// is the payment alone.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
-		ZhHant: "這筆退貨已經核准，但退款沒有完成。退款紀錄已經留下，請確認 Stripe 後台後使用退貨列上的「重新退款」—— " +
-			"核准本身不需要、也無法重做。",
-		En: "This return is approved, but the refund did not complete. Its record has been written " +
-			"either way — check the Stripe dashboard, then use Send the refund again on its row. The approval itself " +
-			"neither needs nor allows redoing.",
+		ZhHant: "這筆退貨已核准，但退款沒有完成。請到 Stripe 後台確認後，按退貨列上的「重新退款」；不需要重新核准。",
+		En:     "This return is approved, but the refund did not complete. Check the Stripe dashboard, then press “Send the refund again” on its row. The approval stands.",
 	})
 
 	// The order page's own sentence for a refund before shipment: Resume on
 	// that page is the retry, and the returns queue only links back to it.
 	KeyAdminNoticeRefundRetry = key("admin.notice.refundretry", Message{
-		ZhHant: "退款沒有完成，詳細原因在伺服器紀錄裡。請確認 Stripe 後台，再按「繼續退款」。",
-		En: "The refund did not complete; the reason is in the server log. Check the Stripe " +
-			"dashboard, then press Resume the refund.",
+		ZhHant: "退款沒有完成。請到 Stripe 後台確認這筆款項，再按「繼續退款」。",
+		En:     "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”.",
 	})
 
 	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{

@@ -48,9 +48,8 @@ var (
 	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除", En: "Clear"})
 
 	KeyAdminQueueSearchNote = key("admin.queue.search.note", Message{
-		ZhHant: "搜尋「%s」 —— 編號是完整比對，姓名和 Email 從開頭比對。搜尋時不套用上面的狀態篩選。",
-		En: "Searching for %q — an order number matches exactly, a name or email address from " +
-			"the start. A search does not apply the status filter above.",
+		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和 Email 比對開頭。搜尋時不套用上方的狀態篩選。",
+		En:     "Searching for %q. An order number must match exactly; a name or email address matches from the start. A search ignores the status filter above.",
 	})
 
 	KeyAdminQueueSearchShort = key("admin.queue.search.short", Message{
@@ -86,12 +85,8 @@ var (
 	KeyAdminQueueAddress = key("admin.queue.address", Message{ZhHant: "地址", En: "Address"})
 
 	KeyAdminQueueDeliveryHint = key("admin.queue.delivery.hint", Message{
-		ZhHant: "出貨之後就改不了 —— 那時候包裹已經寄出，改紀錄只會讓紀錄和事實對不上。" +
-			"操作紀錄只會記下「改了收件資訊」，不會記下地址本身：顧客刪除帳號時清不到操作紀錄。",
-		En: "This can no longer be changed once the parcel has gone — it is already on its way, " +
-			"and editing the record would only make the record disagree with where it went. " +
-			"The activity log records that the delivery details changed and never the address " +
-			"itself: erasing a customer's account cannot reach the activity log.",
+		ZhHant: "出貨後就不能修改。操作紀錄只記下收件資訊有修改，不記地址本身。",
+		En:     "This cannot be changed after dispatch. The activity log records that the delivery details changed, never the address itself.",
 	})
 
 	KeyAdminQueueDeliverySave = key("admin.queue.delivery.save", Message{
@@ -258,15 +253,13 @@ var (
 	})
 
 	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
-		ZhHant: "這筆訂單已經出貨，收件資訊改不了了。包裹已經寄出，改紀錄只會讓紀錄和事實對不上。",
-		En: "This order has shipped, so the delivery details can no longer be changed. " +
-			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
+		ZhHant: "這筆訂單已經出貨，收件資訊無法再修改。",
+		En:     "This order has been dispatched, so its delivery details can no longer be changed.",
 	})
 
 	KeyDeliveryZoneChanged = key("admin.delivery.zone_changed", Message{
-		ZhHant: "新郵遞區號屬於不同的配送區域，運費加價可能不同。地址尚未儲存，也尚未加收或退款。",
-		En: "That postcode is in a different delivery zone, so the surcharge may differ. " +
-			"The address was not saved and nothing was charged or refunded.",
+		ZhHant: "新郵遞區號屬於不同的配送區域，分區加價可能不同。地址尚未儲存，也尚未加收或退款。",
+		En:     "That postcode is in a different delivery zone, so the zone surcharge may differ. The address was not saved and nothing was charged or refunded.",
 	})
 
 	KeyDeliveryZoneUnknown = key("admin.delivery.zone_unknown", Message{
@@ -305,11 +298,6 @@ var (
 		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
 	})
 
-	KeyAdminNoticeShippingNeeds = key("admin.notice.shippingneeds", Message{
-		ZhHant: "運費設定的資料有誤。運費、免運門檻與加價都必須是整數金額。",
-		En:     "The shipping setting is not right. Fees, free-shipping thresholds and surcharges must be whole dollar amounts.",
-	})
-
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
 		ZhHant: "收件資料有誤，或找不到這筆訂單。請檢查後再送出。",
 		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
@@ -323,6 +311,11 @@ var (
 	KeyAdminTrackingTaken = key("admin.tracking.taken", Message{
 		ZhHant: "這個物流商與查詢編號已經登記過，請核對編號。",
 		En:     "That carrier and tracking number are already on record. Check the number.",
+	})
+
+	KeyAdminDispatchRefused = key("admin.dispatch.refused", Message{
+		ZhHant: "這筆訂單已不再接受出貨，%s %s 沒有登記。",
+		En:     "This order no longer takes a dispatch, so %s %s was not recorded.",
 	})
 
 	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{

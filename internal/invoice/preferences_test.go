@@ -52,7 +52,7 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
+			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, AmountCents: 10000, Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
 			if err != nil {
 				t.Fatalf("Issue: %v", err)
 			}
@@ -77,7 +77,7 @@ func TestDonationPreferenceRefusesMalformedProviderRequests(t *testing.T) {
 		{"donation with tax ID", PreferenceDonate, "", "00123", "04595252"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
+			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
 			if err := req.validate(); !errors.Is(err, ErrRejected) {
 				t.Fatalf("validation=%v, want ErrRejected", err)
 			}

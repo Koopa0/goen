@@ -72,13 +72,18 @@ var (
 	})
 
 	KeyFormMethodFee = key("form.method.fee", Message{
-		ZhHant: "運費超出範圍。",
-		En:     "That delivery fee is out of range.",
+		ZhHant: "運費請填 0 到 %s 之間的整數金額。",
+		En:     "Enter a whole-dollar delivery fee from 0 to %s.",
 	})
 
 	KeyFormMethodFreeOver = key("form.method.freeover", Message{
-		ZhHant: "免運門檻不能是負數。",
-		En:     "A free-delivery threshold cannot be negative.",
+		ZhHant: "免運門檻請填 0 到 %s 之間的整數金額，或留空表示不免運。",
+		En:     "Enter a whole-dollar free-delivery threshold from 0 to %s, or leave it blank for no free delivery.",
+	})
+
+	KeyFormShippingSurcharge = key("form.shipping.surcharge", Message{
+		ZhHant: "分區加價請填 0 到 %s 之間的整數金額，或留空表示不加價。",
+		En:     "Enter a whole-dollar zone surcharge from 0 to %s, or leave it blank for no surcharge.",
 	})
 
 	KeyFormMethodCodeTaken = key("form.method.code.taken", Message{
@@ -119,9 +124,8 @@ var (
 	KeyAdminPageShipping = key("admin.page.shipping", Message{ZhHant: "配送與運費", En: "Delivery and fees"})
 
 	KeyAdminShipLead = key("admin.ship.lead", Message{
-		ZhHant: "改運費是「發布新版本」，不是改舊的 —— 每一張過去的訂單都記著自己是用哪個版本計價的。",
-		En: "Changing a fee publishes a NEW version rather than editing the old one — every past " +
-			"order records which version it was priced from.",
+		ZhHant: "修改運費會發布新版本，過去的訂單仍依下單時的版本計價。",
+		En:     "Changing a fee publishes a new version; past orders keep the version they were priced from.",
 	})
 
 	KeyAdminShipCurrent = key("admin.ship.current", Message{
@@ -175,9 +179,8 @@ var (
 	})
 
 	KeyAdminShipSurchargeLead = key("admin.ship.surcharge.lead", Message{
-		ZhHant: "加在免運之後 —— 免運是本店對自己基本運費的優惠，跨海的錢是物流商收的。填 0 就是取消加價。",
-		En: "Added AFTER the free-delivery threshold — free delivery is this shop's own offer on its " +
-			"own base rate, and the carrier still charges to cross the water. Enter 0 to clear a surcharge.",
+		ZhHant: "免運只免基本運費，分區加價照收。填 0 即取消加價。",
+		En:     "Free delivery covers the base fee only; a zone surcharge still applies. Enter 0 to remove a surcharge.",
 	})
 
 	KeyAdminShipPrefixCount = key("admin.ship.prefixcount", Message{
@@ -187,7 +190,12 @@ var (
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 
-	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{ZhHant: "配送費率已變更。請確認目前設定，再重新送出附加費。", En: "Shipping fees changed. Review the current settings, then submit the surcharge again."})
+	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定未儲存，這項變更不符合配送規則。", En: "The shipping settings were not saved; this change breaks a delivery rule."})
+
+	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{
+		ZhHant: "配送費率已變更。請確認目前設定，再重新送出分區加價。",
+		En:     "Shipping fees changed. Review the current settings, then submit the zone surcharge again.",
+	})
 
 	KeyAdminShipNoZone = key("admin.ship.nozone", Message{
 		ZhHant: "這個方式收件到門市，沒有郵遞區號，所以永遠不會落在任何分區裡。",
@@ -248,9 +256,8 @@ var (
 	})
 
 	KeyAdminShipFirstVersion = key("admin.ship.firstversion", Message{
-		ZhHant: "新增方式時會一起發布第一個版本 —— 沒有版本的方式結帳找得到卻算不出運費。",
-		En: "Adding a method publishes its first version with it — a method with no version is one " +
-			"the checkout finds and cannot price.",
+		ZhHant: "新增方式時會一起發布第一個版本。",
+		En:     "Adding a method publishes its first version with it.",
 	})
 
 	KeyAdminShipZones = key("admin.ship.zones", Message{ZhHant: "分區", En: "Zones"})
