@@ -120,10 +120,14 @@ func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []c
 	return stats
 }
 
-// campaignRowFact is the product row's continuation: how many items and the
-// last day.
-func (s *Store) campaignRowFact(ctx context.Context, c *db.ListedCampaignsRow) string {
-	return i18n.Count(ctx, i18n.KeyHomeCampaignRowFact, c.Products, c.Products, pages.CampaignEndsOn(ctx, c.EndsAt, s.now()))
+// campaignCardStats are what is left and when it ends, in that order; the count
+// is the card's link.
+func (s *Store) campaignCardStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
+	stats := s.campaignStats(ctx, c)[1:]
+	if len(stats) == 2 {
+		stats[0], stats[1] = stats[1], stats[0]
+	}
+	return stats
 }
 
 func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
