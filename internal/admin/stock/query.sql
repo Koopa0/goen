@@ -21,7 +21,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE (@low_only::boolean = false OR (pv.is_active AND pv.stock_quantity <= pv.safety_stock))
+WHERE (@low_only::boolean = false OR (pv.is_active AND p.status = 'active' AND pv.stock_quantity <= pv.safety_stock))
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'
        OR p.name ILIKE '%' || @escaped_term::text || '%'

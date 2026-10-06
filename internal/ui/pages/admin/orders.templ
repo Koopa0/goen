@@ -718,7 +718,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 				if v.LowOnly {
 					aria-current="page"
 				}
-			>{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
+			>{ i18n.T(ctx, i18n.KeyAdminQueueSoldOutOnly) }</a>
 		</div>
 		if v.Empty() && !v.PastEnd {
 			<div class="ui-empty">

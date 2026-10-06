@@ -664,6 +664,16 @@ func TestAnInactiveVariantAtItsSafetyStockIsNotCountedAsSoldOut(t *testing.T) {
 	if c, l := read(); c != counted || l != listed {
 		t.Errorf("an inactive variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted, listed)
 	}
+
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `UPDATE products SET status = 'archived' WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`, variant); err != nil {
+		t.Fatal(err)
+	}
+	if c, l := read(); c != counted || l != listed {
+		t.Errorf("an archived product's variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted, listed)
+	}
 }
 
 func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
