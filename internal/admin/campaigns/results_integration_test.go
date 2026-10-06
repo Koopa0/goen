@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
@@ -154,5 +155,23 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 	}
 	if got, err := s.Results(ctx, slug, off, 1, now); err != nil || got != nil {
 		t.Errorf("Results of a switched-off campaign = %v, %v, want none", got, err)
+	}
+}
+
+func TestACampaignIsNamedInTheReadersLanguageOnItsResults(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := campaigns.NewStore(pool)
+	slug := admintest.CampaignSlug(t)
+	if _, err := s.Create(ctx, &campaigns.Form{Slug: slug, Title: "秋日選物", TitleEn: "Autumn picks", Days: 7}); err != nil {
+		t.Fatal(err)
+	}
+	for locale, want := range map[i18n.Locale]string{i18n.En: "Autumn picks", i18n.ZhHant: "秋日選物"} {
+		detail, err := s.Detail(i18n.WithLocale(ctx, locale), slug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if detail.Label != want || detail.Title != "秋日選物" {
+			t.Errorf("Detail in %s = label %q, title %q; want label %q and the stored title", locale, detail.Label, detail.Title, want)
+		}
 	}
 }
