@@ -222,7 +222,8 @@ async function journey(connection, locale, width) {
       await finished(index);
       report(failure, await state(index), {
         hidden: false, visible: true, message: true, role: 'alert',
-        response: mode === 'http', stale: true, changed: true, focused: true, urlUnchanged: true,
+        response: mode === 'http', stale: true, changed: true, focused: true,
+        ...(mode !== 'http' ? { urlUnchanged: true } : {}),
         ...(mode === 'timeout' ? { aborted: true } : {}),
       });
       await recover(failure);
