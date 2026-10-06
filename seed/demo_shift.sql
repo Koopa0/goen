@@ -117,7 +117,7 @@ BEGIN
         UPDATE order_number_counters SET business_date = business_date + v_days
         WHERE business_date = r.business_date;
     END LOOP;
-    FOR r IN SELECT id FROM orders ORDER BY order_number DESC LOOP
+    FOR r IN SELECT id FROM orders ORDER BY order_number LOOP
         UPDATE orders
         SET order_number = 'GO-' || to_char(to_date(substr(order_number, 4, 6), 'YYMMDD') + v_days, 'YYMMDD')
                         || substr(order_number, 10)
