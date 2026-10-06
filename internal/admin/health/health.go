@@ -152,6 +152,29 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	return view, nil
 }
 
+func (s *Store) StaffTaskCount(ctx context.Context) (int64, error) {
+	row, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts)
+	if err != nil {
+		return 0, fmt.Errorf("read worker health: %w", err)
+	}
+	view := admin.WorkerHealthView{UnreconciledPayments: row.UnreconciledPayments}
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
+	if err != nil {
+		return 0, fmt.Errorf("read stranded invoice claims: %w", err)
+	}
+	if len(stranded) > 0 {
+		view.StrandedClaimCount = stranded[0].Total
+	}
+	uninvoiced, err := s.q.UninvoicedOrders(ctx, interval(UninvoicedAfter))
+	if err != nil {
+		return 0, fmt.Errorf("read paid orders with no invoice operation: %w", err)
+	}
+	if len(uninvoiced) > 0 {
+		view.UninvoicedCount = uninvoiced[0].Total
+	}
+	return view.StaffTaskCount(), nil
+}
+
 // Tasks is what /admin/health judges to need a person, read through the same
 // queries and thresholds as the page and none of the lists it names them in.
 func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {

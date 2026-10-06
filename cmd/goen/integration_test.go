@@ -23,12 +23,15 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/twofactor"
 )
 
 var pool *pgxpool.Pool
@@ -265,7 +268,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, method, path, http.NoBody)
 		if signedIn {
-			req.Header.Set("Cookie", "goen_session="+token)
+			req.Header.Set("Cookie", "goen_session=" + token)
 		}
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
@@ -449,5 +452,129 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	router.ServeHTTP(httptest.NewRecorder(), home)
 	if queries.Load() == 0 {
 		t.Error("the home page made no database queries either; the tracer proves nothing")
+	}
+}
+
+type healthCountTracer struct {
+	reads atomic.Int64
+	cancelQuery string
+	triggered atomic.Bool
+}
+
+func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	countQuery := strings.HasPrefix(data.SQL, "-- name: WorkerHealth :one") ||
+		strings.HasPrefix(data.SQL, "-- name: StrandedInvoiceClaims :many") ||
+		strings.HasPrefix(data.SQL, "-- name: UninvoicedOrders :many")
+	if !countQuery {
+		return ctx
+	}
+	f.reads.Add(1)
+	if f.cancelQuery != "" && strings.HasPrefix(data.SQL, "-- name: " + f.cancelQuery + " ") {
+		f.triggered.Store(true)
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		return cancelled
+	}
+	return ctx
+}
+
+func (*healthCountTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *testing.T) {
+	ctx := t.Context()
+	trace := &healthCountTracer{}
+	config := pool.Config()
+	config.ConnConfig.Tracer = trace
+	traced, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatalf("open traced pool: %v", err)
+	}
+	t.Cleanup(traced.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("disabled payment gateway: %v", err)
+	}
+	key := bytes.Repeat([]byte{7}, 32)
+	router := newRouter(&RouterConfig{
+		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1"},
+		BackOffice: BackOfficeConfig{AdminPool: traced, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: key},
+	}, slog.New(slog.DiscardHandler))
+	startSession := func(role string, verified bool) string {
+		t.Helper()
+		var id string
+		if err := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, $2) RETURNING id`,
+			"health-count-" + uuid.NewString() + "@example.com", role).Scan(&id); err != nil {
+			t.Fatalf("create %s: %v", role, err)
+		}
+		token, err := account.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
+		if err != nil {
+			t.Fatalf("start %s session: %v", role, err)
+		}
+		if verified {
+			if err := twofactor.NewStore(pool, key).MarkVerified(ctx, token); err != nil {
+				t.Fatalf("verify session: %v", err)
+			}
+		}
+		return token
+	}
+	serve := func(token string) *httptest.ResponseRecorder {
+		t.Helper()
+		trace.reads.Store(0)
+		trace.triggered.Store(false)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products", http.NoBody)
+		req.Header.Set("Accept-Language", "en")
+		if token != "" {
+			req.Header.Set("Cookie", "goen_session=" + token)
+		}
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		return res
+	}
+	for _, tt := range []struct {
+		name, token string
+		status int
+	}{
+		{"anonymous", "", http.StatusNotFound},
+		{"customer", startSession("customer", false), http.StatusNotFound},
+		{"unverified staff", startSession("staff", false), http.StatusSeeOther},
+	} {
+		res := serve(tt.token)
+		if res.Code != tt.status || trace.reads.Load() != 0 {
+			t.Errorf("%s status=%d count reads=%d, want %d/0", tt.name, res.Code, trace.reads.Load(), tt.status)
+		}
+		if tt.status == http.StatusSeeOther && res.Header().Get("Location") != "/admin/verify" {
+			t.Errorf("unverified staff Location=%q", res.Header().Get("Location"))
+		}
+	}
+	token := startSession("staff", true)
+	count, err := health.NewStore(pool).WithInvoicing(false).StaffTaskCount(ctx)
+	if err != nil {
+		t.Fatalf("read expected count: %v", err)
+	}
+	want := i18n.Count(i18n.WithLocale(ctx, i18n.En), i18n.KeyAdminHPPendingTasks, count, count)
+	res := serve(token)
+	if res.Code != http.StatusOK || trace.reads.Load() != 3 || !strings.Contains(res.Body.String(), want) {
+		t.Fatalf("verified staff status=%d count reads=%d known count %q present=%v", res.Code, trace.reads.Load(), want, strings.Contains(res.Body.String(), want))
+	}
+	for index, query := range []string{"WorkerHealth", "StrandedInvoiceClaims", "UninvoicedOrders"} {
+		trace.cancelQuery = query
+		res = serve(token)
+		if !trace.triggered.Load() || trace.reads.Load() != int64(index+1) {
+			t.Fatalf("%s failure not reached: triggered=%v reads=%d", query, trace.triggered.Load(), trace.reads.Load())
+		}
+		if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Task count unavailable") {
+			t.Errorf("%s count failure: products status=%d, unknown count present=%v", query, res.Code, strings.Contains(res.Body.String(), "Task count unavailable"))
+		}
+		if strings.Contains(res.Body.String(), "0 tasks need attention") {
+			t.Errorf("%s count failure was shown as zero", query)
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("count fault cancelled the whole request: %v", ctx.Err())
+		}
+	}
+	trace.cancelQuery = ""
+	res = serve(token)
+	if res.Code != http.StatusOK || trace.reads.Load() != 3 || !strings.Contains(res.Body.String(), want) || strings.Contains(res.Body.String(), "Task count unavailable") {
+		t.Errorf("navigation did not recover: status=%d reads=%d", res.Code, trace.reads.Load())
 	}
 }

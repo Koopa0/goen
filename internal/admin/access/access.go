@@ -3,6 +3,7 @@
 package access
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -17,7 +18,8 @@ type Control struct {
 	log *slog.Logger
 	// stepUp reports whether this session proved a second factor; nil is a
 	// deployment with no encryption key, where 2FA is off.
-	stepUp func(*http.Request) (bool, error)
+	stepUp          func(*http.Request) (bool, error)
+	healthTaskCount func(context.Context) (int64, error)
 }
 
 func New(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
@@ -25,6 +27,12 @@ func New(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
 		panic("access: New requires a logger")
 	}
 	return &Control{log: log, stepUp: stepUp}
+}
+
+func (c *Control) WithHealthTaskCount(read func(context.Context) (int64, error)) *Control {
+	copy := *c
+	copy.healthTaskCount = read
+	return &copy
 }
 
 // RequireStaff wraps a back-office handler. Signed out and signed-in-but-not-
@@ -53,7 +61,17 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		next(w, r.WithContext(layouts.WithAdmin(r.Context(), u.IsAdmin())))
+		ctx := layouts.WithAdmin(r.Context(), u.IsAdmin())
+		ctx = layouts.WithHealthTaskCount(ctx, 0, false)
+		if c.healthTaskCount != nil {
+			count, err := c.healthTaskCount(ctx)
+			if err != nil {
+				c.log.ErrorContext(ctx, "read background task count", "error", err)
+			} else {
+				ctx = layouts.WithHealthTaskCount(ctx, count, true)
+			}
+		}
+		next(w, r.WithContext(ctx))
 	}
 }
 

@@ -4,8 +4,12 @@ package health_test
 
 import (
 	"log/slog"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -102,5 +106,98 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	}
 	if !fresh.CopurchaseEverBuilt || !fresh.RecommendHealthy() {
 		t.Errorf("a just-rebuilt projection reads as %s", fresh.RecommendText(ctx))
+	}
+}
+
+func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	store := health.NewStore(pool)
+	messages := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	before, err := store.WorkerHealth(ctx, messages)
+	if err != nil {
+		t.Fatalf("health before fixtures: %v", err)
+	}
+	baseline, err := store.StaffTaskCount(ctx)
+	if err != nil {
+		t.Fatalf("count before fixtures: %v", err)
+	}
+	var firstRef string
+	for i := range 2 {
+		number := admintest.PlaceUnpaidOrder(t, pool)
+		ref := "cs_priority_" + uuid.NewString()
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
+			SELECT id, $2, 'requires_reconciliation', 500000 FROM orders WHERE order_number = $1`, number, ref); err != nil {
+			t.Fatalf("record payment: %v", err)
+		}
+		if i == 0 {
+			firstRef = ref
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
+				VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
+				"evt_priority_" + uuid.NewString(), ref); err != nil {
+				t.Fatalf("record matching event: %v", err)
+			}
+		}
+	}
+	_, uninvoicedID := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, occurred_at)
+		VALUES ($1, 'paid', now() - interval '30 minutes')`, uninvoicedID); err != nil {
+		t.Fatalf("age the paid order: %v", err)
+	}
+	_, claimOrder := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_operations (order_id, kind, provider_key, amount_cents, request_payload,
+		    actor_user_id, actor_id_snapshot, actor_kind, request_id, status, last_error)
+		VALUES ($1, 'issue', $2, 100000, '{}', $3, $3, 'staff', $2, 'attention', 'issue_lookup_mismatch')`,
+		claimOrder, strings.ReplaceAll(uuid.NewString(), "-", "")[:30], actor); err != nil {
+		t.Fatalf("record stranded claim: %v", err)
+	}
+	after, err := store.WorkerHealth(ctx, messages)
+	if err != nil {
+		t.Fatalf("health after fixtures: %v", err)
+	}
+	if after.UnreconciledPayments-before.UnreconciledPayments != 2 ||
+		after.UninvoicedCount-before.UninvoicedCount != 1 ||
+		after.StrandedClaimCount-before.StrandedClaimCount != 1 {
+		t.Fatalf("family deltas: payments=%d uninvoiced=%d claims=%d, want 2/1/1",
+			after.UnreconciledPayments-before.UnreconciledPayments, after.UninvoicedCount-before.UninvoicedCount,
+			after.StrandedClaimCount-before.StrandedClaimCount)
+	}
+	count, err := store.StaffTaskCount(ctx)
+	if err != nil || count-baseline != 4 {
+		t.Fatalf("three-family count delta=%d error=%v, want 4", count-baseline, err)
+	}
+	for range 50 {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
+			VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
+			"evt_priority_" + uuid.NewString(), firstRef); err != nil {
+			t.Fatalf("fill diagnostic sample: %v", err)
+		}
+	}
+	bounded, err := store.WorkerHealth(ctx, messages)
+	if err != nil {
+		t.Fatalf("health with bounded sample: %v", err)
+	}
+	if len(bounded.UnreconciledEvents) != 50 {
+		t.Fatalf("visible event sample=%d, want 50", len(bounded.UnreconciledEvents))
+	}
+	count, err = store.StaffTaskCount(ctx)
+	if err != nil || count-baseline != 54 {
+		t.Fatalf("count beyond sample delta=%d error=%v, want 54", count-baseline, err)
+	}
+	if count != bounded.StaffTaskCount() {
+		t.Errorf("navigation count=%d page count=%d", count, bounded.StaffTaskCount())
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
+		VALUES ('test.priority', $1, '{}', 99, now())`, uuid.NewString()); err != nil {
+		t.Fatalf("add engineering alarm: %v", err)
+	}
+	withAlarm, err := store.StaffTaskCount(ctx)
+	if err != nil || withAlarm != count {
+		t.Errorf("engineering alarm changed staff count: %d to %d error=%v", count, withAlarm, err)
 	}
 }

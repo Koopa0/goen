@@ -435,7 +435,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
-	backOffice := access.New(log, stepUp)
+	backOffice := access.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
