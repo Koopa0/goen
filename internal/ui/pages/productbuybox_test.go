@@ -188,6 +188,24 @@ func TestRefusedRestockWithNoOptionMarksTheUnpickedGroup(t *testing.T) {
 	}
 }
 
+// Stock can come back between the page and the post: the refusal still carries the form and the address.
+func TestRefusedRestockWithNoOptionKeepsTheAddressOnceSomethingIsBack(t *testing.T) {
+	t.Parallel()
+	v := ProductView{
+		Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, VariantID: "cheapest", AnySellable: true,
+		Options:       []ProductOption{capacityOption(false, "")},
+		NotifyOutcome: NotifyNoOption, NotifyEmail: "me@example.com",
+	}
+	if box := buyBox(t, i18n.ZhHant, &v); !strings.Contains(box, `value="me@example.com"`) ||
+		!strings.Contains(box, `id="notify-option-error"`) {
+		t.Errorf("a refusal for want of a pick on a product with stock dropped the form or its address")
+	}
+	v.NotifyOutcome, v.NotifyEmail = "", ""
+	if box := buyBox(t, i18n.ZhHant, &v); strings.Contains(box, `id="restock"`) {
+		t.Errorf("a product with stock and nothing picked offers a notice before any request")
+	}
+}
+
 func TestWarrantyTermReadsInTheSingularForOneMonth(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

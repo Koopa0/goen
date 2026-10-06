@@ -403,9 +403,10 @@ const (
 )
 
 // NotifyOffered is true where a notice can be asked for: once a combination is settled and sold out, and, while
-// every option is sold out, before any is picked, where the request is refused until one is.
+// every option is sold out, before any is picked, where the request is refused until one is. A request refused for
+// want of a pick keeps its form whatever the stock is now, or the 422 would drop the address it was sent with.
 func (v *ProductView) NotifyOffered() bool {
-	return v.SoldOut() || v.AllSoldOut() && v.NeedsChoice()
+	return v.SoldOut() || v.NeedsChoice() && (v.AllSoldOut() || v.NotifyNeedsOption())
 }
 
 // NotifyVariant is empty until a combination is picked: the default variant is only the cheapest, not the one wanted.
