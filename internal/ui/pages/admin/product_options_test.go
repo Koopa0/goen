@@ -120,7 +120,7 @@ func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testi
 	}
 	nav, _, _ = strings.Cut(nav, "</nav>")
 	links := regexp.MustCompile(`href="#([a-z-]+)"`).FindAllStringSubmatch(nav, -1)
-	want := []string{"sec-details", "sec-label", "sec-invoice", "sec-images", "sec-options", "sec-variants", "sec-specs"}
+	want := []string{"sec-details", "sec-label", "sec-invoice", "sec-images", "sec-options", "sec-variants", "sec-specs", "sec-standing"}
 	got := make([]string, 0, len(links))
 	for _, link := range links {
 		got = append(got, link[1])

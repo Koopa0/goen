@@ -185,6 +185,9 @@ body {
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline--wide, .ui-statline--glance, .ui-statline--pairs { max-width: none; }
 .ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
+.ui-statline--s { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
+.ui-statline--s > div { flex: 0 1 auto; min-width: min(7rem, 100%); padding-top: 0.375rem; }
+.ui-statline--s dd { font-size: var(--t-16); font-weight: 400; letter-spacing: 0; }
 .ui-statline--glance dt a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 0.2em; }
 .ui-statline--glance dt a:hover { text-decoration-color: currentcolor; }
 /* one stat keeps a column's width; it never stretches into a divider */
@@ -479,7 +482,7 @@ body {
    A stored start and end drawn to scale, one cell per day or per minute. A cell has no width
    of its own: the count of cells is the data. Elapsed cells are a 4px --mark
    fill, today is filled with a tick, cells to come are a 1px --edge. 今天 sits
-   above the line; below it the two ends and a minute grid's deadline. Nothing
+   above the line; below it the two ends and the mark's label. Nothing
    animates and nothing is red. The label rules are container queries in rem, so
    they follow the reader's text size. */
 .ui-period {
@@ -650,6 +653,26 @@ body {
   right: 0;
 }
 
+/* The span after the mark is what goen gives beyond the statute, so it is drawn broken. */
+.ui-period > i[data-span="extra"] {
+  border-bottom-style: dashed;
+}
+
+/* On the day of receipt every cell lies ahead, and today stands at the start. */
+.ui-period[data-today="start"] > i:first-child::before {
+  border-left: 2px solid var(--period-fill);
+  bottom: 0;
+  content: "";
+  height: 16px;
+  left: 0;
+  position: absolute;
+}
+
+.ui-period[data-today="start"] > i:first-child b {
+  left: 0;
+  transform: none;
+}
+
 /* Under 12rem the deadline's time, which ends at its tick, comes within reach of the
    start's below the line. A minute grid has nothing above the line, so it rises there. */
 @container period (width < 12rem) {
@@ -667,7 +690,8 @@ body {
   }
 
   .ui-period > i[data-cell="today"]::before,
-  .ui-period > i[data-mark]::before {
+  .ui-period > i[data-mark]::before,
+  .ui-period[data-today="start"] > i:first-child::before {
     border-left-color: Highlight;
   }
 }

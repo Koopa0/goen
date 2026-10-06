@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -142,7 +143,7 @@ type Warranty struct {
 	Unit         int
 	Serial       string
 	RegisteredAt string
-	ExpiresOn    string
+	ExpiresOn    shoptime.Date
 	InForce      bool
 }
 
@@ -151,6 +152,11 @@ func (w Warranty) State(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyWarrantyActive)
 	}
 	return i18n.T(ctx, i18n.KeyWarrantyExpired)
+}
+
+// Facts is the cover's end, under the name of what it covers.
+func (w Warranty) Facts(ctx context.Context) []components.Stat {
+	return []components.Stat{dateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), w.ExpiresOn, "")}
 }
 
 func (w Warranty) Href() string {

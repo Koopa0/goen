@@ -220,8 +220,8 @@ const HEADER_EN = [
 // provides through ADMIN_TOKEN; without one these are skipped rather than
 // silently measuring a sign-in page.
 const ADMIN = [
-  { label: 'admin 375', width: 375, height: 812, path: '/admin' },
-  { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
+  { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-spark' },
+  { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-spark' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
   { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
@@ -234,13 +234,22 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
+  // The sales and reviews card in its drawn state: scripts/check-layout.sql gives
+  // PRODUCT_SLUG paid orders on nine shop days and five visible reviews, so a row
+  // missing either drawing fails.
+  { label: 'admin product standing 320', width: 320, height: 568, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
   // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
   // report two best sellers, one at four digits, paid orders on seven shop days with a period total of seven digits (the running totals' .goen-chart), and a return of a quarter of the
   // second's units, so the row waits for the returned-products bar, the one with
   // the most text; without it the page measured is the one-sentence state.
   // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
   // with a campaign over them. Seven paid days give the full drawing, and the
-  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 1 day to
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 3 days to
   // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
@@ -335,6 +344,15 @@ const ADMIN = [
   { label: 'admin returns 1440', width: 1440, height: 900, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin taxonomy 375', width: 375, height: 812, path: '/admin/taxonomy', marker: '.goen-admin' },
   { label: 'admin taxonomy 1440', width: 1440, height: 900, path: '/admin/taxonomy', marker: '.goen-admin' },
+  // .goen-chart__frame--columns:has(.goen-chart__window): the editor of the running
+  // campaign layout-campaign, whose start scripts/check-layout.sql:44 puts three
+  // days back. The same script pays four units of its first product on each of the
+  // seven days before today, so the card has the grey days before under their
+  // "Before" line, the campaign days bracketed with their "until ..." name beside
+  // it, and the table; without them the page measured is the sentence.
+  { label: 'admin campaign results 320', width: 320, height: 568, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 375', width: 375, height: 812, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 1440', width: 1440, height: 900, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
   { label: 'admin campaigns 375', width: 375, height: 812, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin campaigns 1440', width: 1440, height: 900, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin shipping 375', width: 375, height: 812, path: '/admin/shipping', marker: '.goen-admin' },
@@ -906,7 +924,7 @@ const PERIOD_PROBE = `(() => {
   return { periods: periods.length, problems };
 })()`;
 
-for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) {
+async function periodPass(route) {
   for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
     const at = 'period labels ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
@@ -924,6 +942,8 @@ for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED
     console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
   }
 }
+
+for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) await periodPass(route);
 
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the
@@ -2436,6 +2456,9 @@ if (process.env.CUST_TOKEN) {
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
+  // A delivered order of the signed-in customer: one grid for the right to cancel, one for the warranty.
+  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
+
   for (const want of ACCOUNT_PAGES) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
       width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
@@ -2647,6 +2670,106 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+  }
+
+  // The charts' hover readout: pointing at a day writes that row of the chart's
+  // own table under the plot without moving anything, it stays while the
+  // pointer is on it, Escape puts it away, and nothing overflows sideways.
+  if (ADMIN.length) {
+    for (const [width, height] of [[375, 812], [1440, 900]]) {
+      const label = `admin chart readout ${width}`;
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
+      const target = ORIGIN + '/admin/reports';
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const count = await evalPage('document.querySelectorAll(".goen-chart__hit").length ? document.querySelectorAll(".goen-chart").length : 0');
+      if (!count || count.threw) {
+        fail(label, 'the reports page rendered no chart with hit areas — its fixture did not run, so this check proved nothing');
+        continue;
+      }
+      const mouse = (at) => send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+      // pick is an expression over hits: the middle day, then the last, whose
+      // line is the longest (the largest totals, the "up to" time, the campaign).
+      const probe = (k, pick) => evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          const hits = [...fig.querySelectorAll('.goen-chart__hit')];
+          if (!hits.length) return { none: true };
+          fig.scrollIntoView({ block: 'center' });
+          const at = ${pick};
+          const row = fig.querySelector('.goen-chart__table').tBodies[0].rows[Number(at.dataset.row)];
+          const heads = [...fig.querySelector('.goen-chart__table').tHead.rows[0].cells];
+          const series = [], notes = [];
+          heads.forEach((h, i) => {
+            const text = row.cells[i].textContent.trim();
+            if (!text) return;
+            if (h.dataset.readout === 'series') series.push(text + ' ' + h.textContent.trim());
+            if (h.dataset.readout === 'note') notes.push(text);
+          });
+          const box = at.getBoundingClientRect();
+          const frame = fig.querySelector('.goen-chart__frame').getBoundingClientRect();
+          const readout = fig.querySelector('.goen-chart__readout');
+          const line = readout ? readout.getBoundingClientRect() : null;
+          return {
+            hit: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+            gap: { x: box.left + box.width / 2, y: frame.bottom + 1 },
+            line: line && { x: line.left + line.width / 2, y: line.top + line.height / 2 },
+            want: [...series, row.cells[0].textContent.trim(), ...notes].join(' · '),
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+          };
+        })()`);
+      for (let k = 0; k < count; k++) {
+        const chart = `${label} chart ${k + 1}`;
+        const got = await probe(k, 'hits[hits.length >> 1]');
+        if (got.none) continue;
+        if (got.threw || !got.line) {
+          fail(chart, 'no .goen-chart__readout in the figure');
+          continue;
+        }
+        const read = () => evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          return {
+            text: fig.querySelector('.goen-chart__readout').textContent,
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+            wide: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        })()`);
+        await mouse({ x: 2, y: 2 });
+        await mouse(got.hit);
+        const hovered = await read();
+        if (hovered.text !== got.want) fail(chart, `hovering a day reads "${hovered.text}", want the table row "${got.want}"`);
+        if (Math.abs(hovered.top - got.top) > 0.5) fail(chart, `the table moved ${hovered.top - got.top}px when the readout appeared`);
+        if (hovered.wide > 0) fail(chart, `the page scrolls sideways by ${hovered.wide}px with the readout showing`);
+        // The first pixel under the plot is the readout's own padding while the
+        // two touch. With a gap there it is the figure, and crossing it puts the
+        // readout away before the pointer gets down to it.
+        await mouse(got.gap);
+        const below = await read();
+        if (below.text !== got.want) fail(chart, `the readout went away 1px under the plot, on the way down to it: "${below.text}"`);
+        await mouse(got.line);
+        const onIt = await read();
+        if (onIt.text !== got.want) fail(chart, `the readout went away when the pointer moved onto it: "${onIt.text}"`);
+        for (const type of ['keyDown', 'keyUp']) {
+          await send(ws, 'Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        }
+        const gone = await read();
+        if (gone.text !== '') fail(chart, `Escape left the readout showing "${gone.text}"`);
+        // The last day reads the longest line, two lines on a narrow figure; the
+        // height held for it is what keeps the table's toggle where it was.
+        const last = await probe(k, 'hits[hits.length - 1]');
+        if (last.threw || last.none) {
+          fail(chart, 'could not measure the last day');
+          continue;
+        }
+        await mouse({ x: 2, y: 2 });
+        await mouse(last.hit);
+        const longest = await read();
+        if (longest.text !== last.want) fail(chart, `hovering the last day reads "${longest.text}", want the table row "${last.want}"`);
+        if (Math.abs(longest.top - last.top) > 0.5) fail(chart, `the table moved ${longest.top - last.top}px when the last day's readout appeared`);
+        if (longest.wide > 0) fail(chart, `the page scrolls sideways by ${longest.wide}px with the last day's readout showing`);
+        await mouse({ x: 2, y: 2 });
+        console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}", last "${last.want.slice(0, 40)}"`);
+      }
+    }
   }
 
   // The order page is the packing slip: printed, the back office around it is
