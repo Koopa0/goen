@@ -101,9 +101,10 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 	if len(choices) == 0 {
 		return pages.FreeDelivery{}
 	}
-	var allFreeAt int64
+	var allFreeAt, namedAt int64
 	reached := true
 	for _, c := range choices {
+		namedAt = max(namedAt, c.FreeOverCents)
 		if c.Free {
 			continue
 		}
@@ -114,9 +115,9 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 		allFreeAt = max(allFreeAt, c.FreeOverCents)
 	}
 	if reached {
-		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached}
+		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: namedAt}
 	}
-	return pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents}
+	return pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents, ThresholdCents: allFreeAt}
 }
 
 // TakesPayment holds because a session closer exists exactly where a payment key does.
