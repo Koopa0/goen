@@ -130,6 +130,11 @@ var (
 
 	KeyWasPrice = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
 
+	KeyNoPhoto = key("card.nophoto", Message{ZhHant: "沒有照片", En: "No photo"})
+
+	// KeyColourCount is said to a screen reader, which cannot see the dots.
+	KeyColourCount = key("card.colours", Message{ZhHant: "%d 種顏色", En: "%d colours"})
+
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",
 		"Rated %s out of 5, from %s review",
