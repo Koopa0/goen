@@ -197,9 +197,10 @@ func (s *Store) settleReplay(
 	return nil
 }
 
-// SetActive retires or restores a variant. A refusal here is usually
-// sale_campaign_variant_still_valid: the last discounted variant of a product
-// some campaign features.
+// SetActive retires or restores a variant. A refusal here is
+// sale_campaign_variant_still_valid (the last discounted variant of a product
+// some campaign features) or, at commit, the deferred
+// products_active_has_variant (the last active variant of a published product).
 func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
@@ -220,12 +221,9 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 				return lockErr
 			}
 			before["active"] = replaced.IsActive
-			if err := q.SetVariantActive(ctx, db.SetVariantActiveParams{
+			return q.SetVariantActive(ctx, db.SetVariantActiveParams{
 				ID: v.ID, IsActive: active,
-			}); err != nil {
-				return err
-			}
-			return nil
+			})
 		})
 	return pgerr.WrapRefusal(err, ErrRefused)
 }
