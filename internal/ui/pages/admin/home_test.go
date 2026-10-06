@@ -22,11 +22,11 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			for _, tt := range []struct {
-				name                     string
+				name                      string
 				active, inWindow, showing bool
-				zhState, enState         string
-				zhToggle, enToggle       string
-				nextActive               string
+				zhState, enState          string
+				zhToggle, enToggle        string
+				nextActive                string
 			}{
 				{name: "off outside window", zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
 				{name: "off inside window", inWindow: true, zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
@@ -66,7 +66,7 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 					}
 					type controls struct {
 						Headlines, States, Buttons, ButtonTypes, NextActive, InputTypes []string
-						Method                                                        string
+						Method                                                          string
 					}
 					got := controls{Method: homeAttribute(form, "method")}
 					for n := range row.Descendants() {
