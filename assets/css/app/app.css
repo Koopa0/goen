@@ -6199,6 +6199,12 @@ input.goen-check {
   }
 }
 
+.goen-line__act {
+  color: var(--accent);
+  font-size: var(--fs-14);
+  text-underline-offset: 3px;
+}
+
 @media (max-width: 30rem) {
   .goen-line--order {
     grid-template-columns: 4.5rem minmax(0, 1fr);
