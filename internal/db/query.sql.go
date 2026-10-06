@@ -6732,14 +6732,9 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE p.status = 'active'
   AND EXISTS (
-      SELECT 1 FROM sale_campaign_products fp
-      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-        AND EXISTS (
-            SELECT 1 FROM sale_campaign_products cp
-            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+      SELECT 1 FROM product_variants dv
+      WHERE dv.product_id = p.id AND dv.is_active
+        AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
     -- Deepest discount first, as a fraction rather than an amount.
@@ -6827,14 +6822,9 @@ SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
   AND EXISTS (
-      SELECT 1 FROM sale_campaign_products fp
-      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-        AND EXISTS (
-            SELECT 1 FROM sale_campaign_products cp
-            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+      SELECT 1 FROM product_variants dv
+      WHERE dv.product_id = p.id AND dv.is_active
+        AND dv.compare_at_price_cents > dv.price_cents
   )
 `
 
@@ -6846,7 +6836,7 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 }
 
 const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
-SELECT EXISTS (
+SELECT (EXISTS (SELECT 1 FROM product_variants dv WHERE dv.is_active AND dv.compare_at_price_cents > dv.price_cents AND dv.stock_quantity > dv.safety_stock) OR EXISTS (
     SELECT 1 FROM sale_campaigns c
     WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
       AND EXISTS (
@@ -6854,7 +6844,7 @@ SELECT EXISTS (
           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
           JOIN product_variants v ON v.product_id = p.id AND v.is_active
           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
-)::boolean AS offered
+))::boolean AS offered
 `
 
 // Whether /deals has anything to buy: a campaign ListedCampaigns lists, which is
@@ -13647,7 +13637,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
