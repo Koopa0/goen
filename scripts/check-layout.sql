@@ -408,6 +408,22 @@ SELECT return_payout_outstanding(:'return_id') AS payout_outstanding \gset
 DO $$ BEGIN RAISE EXCEPTION 'the layout return is approved but its payout is incomplete'; END $$;
 \endif
 
+-- A second product with returns, so /admin/reports draws the returned-products
+-- bars rather than the one-sentence state: a quarter of the second best seller's
+-- 1,000 units, the row with the longest text on the page. The parcel never
+-- shipped, so the rows go in with triggers off, completed with nothing owed.
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+INSERT INTO return_requests (order_id, requested_by_user_id, reason, status, decided_at,
+                             goods_refund_cents, card_refund_cents, credit_refund_cents)
+VALUES (:'picking_a_id', :'customer_id', '版面檢查：退貨商品列', 'completed', now(), 0, 0, 0)
+RETURNING id AS returned_row_id \gset
+INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+SELECT order_id, :'returned_row_id', id, 250 FROM order_lines
+WHERE order_id = :'picking_a_id' AND variant_id = :'seller_variant_id';
+SET LOCAL session_replication_role = origin;
+SET ROLE admin;
+
 -- The invoice on INVOICE_ORDER, filed as the invoice worker files one: claim,
 -- lease, send, settle with the provider's number. The doors answer a refusal
 -- with false or the zero uuid rather than an error, so each is read through a

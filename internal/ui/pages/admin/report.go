@@ -51,6 +51,10 @@ type ReportView struct {
 	Windows     []int32
 	From, To    shoptime.Date
 	Previous    PreviousFigures
+	Returned    []ReturnedProduct
+	// ReturnedErr is why Returned could not be read; the rest of the report
+	// does not depend on it.
+	ReturnedErr error
 	Daily       DailyRevenue
 	// DailyUnavailable is set when the days could not be read, so the running
 	// totals say so rather than read as a period without orders.

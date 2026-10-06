@@ -54,6 +54,8 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, err
 	}
+	current, _ := periods(now, int(window(days)))
+	view.Returned, view.ReturnedErr = returnedProducts(ctx, tx, current)
 	// The chart is one figure of the page: failing to read it must not take the
 	// tiles with it. It is read last, because a failed statement ends the snapshot.
 	daily, err := dailyRevenue(ctx, q, days, now)
@@ -128,6 +130,31 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 		})
 	}
 	return view, nil
+}
+
+// returnedProducts reads inside a savepoint, so that a failure ends only the
+// savepoint and not the snapshot the chart is still to be read from.
+func returnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.ReturnedProduct, error) {
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin returned products savepoint: %w", err)
+	}
+	defer pgtx.Rollback(ctx, sp)
+	rows, err := db.New(sp).ReturnedProductsBetween(ctx, db.ReturnedProductsBetweenParams{
+		FromAt: p.from, ToAt: p.to, LimitTo: maxRows,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read returned products: %w", err)
+	}
+	returned := make([]admin.ReturnedProduct, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		returned = append(returned, admin.ReturnedProduct{
+			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
+			Returned: r.ReturnedUnits, Sold: r.SoldUnits,
+		})
+	}
+	return returned, nil
 }
 
 // dailyRevenue reads each shop day's paid revenue over the same two periods

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
@@ -754,5 +755,128 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 	}
 	if got, want := daily.Current.Buckets[5].Value, int64(8_00); got != want {
 		t.Errorf("11-11 holds %d cents, want %d", got, want)
+	}
+}
+
+func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	countedID, counted := newVariant(t, 20, 0)
+	orderOnVariant(t, countedID, counted, 12, nil)
+	returnUnits(t, orderOf(t, counted, false), 3, "approved")
+	// The same product, sold before the window and returned: it is neither in
+	// the units sold nor in the units returned.
+	before := time.Now().AddDate(0, 0, -60)
+	orderOnVariant(t, countedID, counted, 8, &before)
+	returnUnits(t, orderOf(t, counted, true), 4, "approved")
+	undecidedID, undecided := newVariant(t, 20, 0)
+	orderOnVariant(t, undecidedID, undecided, 5, nil)
+	returnUnits(t, orderOf(t, undecided, false), 2, "requested")
+	declinedID, declined := newVariant(t, 20, 0)
+	orderOnVariant(t, declinedID, declined, 6, nil)
+	returnUnits(t, orderOf(t, declined, false), 2, "rejected")
+
+	view, err := s.ReportAt(ctx, 30, time.Now())
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if view.ReturnedErr != nil {
+		t.Fatalf("returned products: %v", view.ReturnedErr)
+	}
+	var got *admin.ReturnedProduct
+	for i, p := range view.Returned {
+		switch p.Slug {
+		case productSlug(t, undecided):
+			t.Errorf("an open return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, declined):
+			t.Errorf("a declined return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, counted):
+			got = &view.Returned[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("an approved return is missing from the products returned most")
+	}
+	if got.Returned != 3 || got.Sold != 12 {
+		t.Errorf("returned/sold = %d/%d, want 3/12", got.Returned, got.Sold)
+	}
+}
+
+// orderOf is the newest order of sku, or the oldest.
+func orderOf(t *testing.T, sku string, oldest bool) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		SELECT ol.order_id FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+		WHERE ol.sku = $1
+		ORDER BY CASE WHEN $2 THEN o.placed_at END, o.placed_at DESC LIMIT 1`, sku, oldest).Scan(&id); err != nil {
+		t.Fatalf("read the order of %s: %v", sku, err)
+	}
+	return id
+}
+
+func productSlug(t *testing.T, sku string) string {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT p.slug FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.sku = $1`, sku).Scan(&slug); err != nil {
+		t.Fatalf("read slug of %s: %v", sku, err)
+	}
+	return slug
+}
+
+// returnUnits ships the paid order and asks for qty of its one line's units
+// back, then moves the request to status.
+func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	var lineID uuid.UUID
+	var sold int
+	if err := tx.QueryRow(ctx, `
+		SELECT id, quantity FROM order_lines WHERE order_id = $1`, orderID).
+		Scan(&lineID, &sold); err != nil {
+		t.Fatalf("read the sale on order %s: %v", orderID, err)
+	}
+	admintest.MoveOrderToShipped(t, tx, orderID)
+	var shipmentID, requestID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, 'black_cat', 'T-' || $1::text) RETURNING id`, orderID).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, sold); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason) VALUES ($1, '不合用') RETURNING id`,
+		orderID).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, requestID, lineID, qty); err != nil {
+		t.Fatalf("create return line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if status == "requested" {
+		return
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = $2, decided_at = now(), resolution = '核准'
+		WHERE id = $1`, requestID, status); err != nil {
+		t.Fatalf("move the return to %s: %v", status, err)
 	}
 }
