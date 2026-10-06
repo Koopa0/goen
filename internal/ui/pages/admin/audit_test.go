@@ -142,6 +142,9 @@ func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
 		entry   AuditEntry
 		want    string
 		wantNot string
+		// wantKey, when set, is the message want is read from, so the case
+		// follows the wording rather than a copy of it.
+		wantKey i18n.Key
 	}{
 		{
 			name: "return decision", locale: i18n.En,
@@ -165,8 +168,8 @@ func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
 		},
 		{
 			name: "policy window", locale: i18n.ZhHant,
-			entry: AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "policy_window", After: "goodwill"}}},
-			want:  "送達後第 8–14 日", wantNot: "<dd>goodwill</dd>",
+			entry:   AuditEntry{Entity: "return_requests", Changes: []AuditChange{{Field: "policy_window", After: "goodwill"}}},
+			wantKey: i18n.KeyAdminReturnWindowGoodwill, wantNot: "<dd>goodwill</dd>",
 		},
 		{
 			name: "percent coupon", locale: i18n.En,
@@ -189,6 +192,11 @@ func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
 			want:  "<dd>delivered</dd>", wantNot: "<dd>Delivered</dd>",
 		},
 		{
+			name: "credit returned by a cancellation is whole dollars", locale: i18n.En,
+			entry: AuditEntry{Entity: "orders", Changes: []AuditChange{{Field: "credit_returned_cents", After: "500000"}}},
+			want:  "<dd>NT$5,000</dd>", wantNot: "credit_returned_cents",
+		},
+		{
 			name: "an erased customer prints the recorded id", locale: i18n.En,
 			entry: AuditEntry{Entity: "users", Changes: []AuditChange{{Field: "user_id", After: customerID}}},
 			want:  "<dd>" + customerID + "</dd>", wantNot: "/admin/customers/",
@@ -197,9 +205,13 @@ func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			want := tt.want
+			if tt.wantKey != "" {
+				want = i18n.T(ctx, tt.wantKey)
+			}
 			html := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{tt.entry}}))
-			if !strings.Contains(html, tt.want) {
-				t.Errorf("audit row is missing %q", tt.want)
+			if !strings.Contains(html, want) {
+				t.Errorf("audit row is missing %q", want)
 			}
 			if strings.Contains(html, tt.wantNot) {
 				t.Errorf("audit row still carries %q", tt.wantNot)

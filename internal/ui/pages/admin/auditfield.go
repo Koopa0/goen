@@ -27,6 +27,7 @@ var auditFields = map[string]auditField{
 	"amount_cents":                     {i18n.KeyAdminColAmount, centsText},
 	"card_refund_cents":                {i18n.KeyAdminPayRefundCard, centsText},
 	"credit_refund_cents":              {i18n.KeyAdminPayRefundCredit, centsText},
+	"credit_returned_cents":            {i18n.KeyAdminPayRefundCredit, centsText},
 	"refrozen_amount_cents":            {i18n.KeyAuditFieldRefrozen, centsText},
 	"price_cents":                      {i18n.KeyAdminQueuePrice, centsText},
 	"compare_at_cents":                 {i18n.KeyAdminQueueComparePrice, centsText},
