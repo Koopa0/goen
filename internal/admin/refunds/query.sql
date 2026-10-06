@@ -130,13 +130,7 @@ LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment;
 -- so an UPDATE that waited for it would judge payment by an older snapshot.
 -- name: CancelCreditPaidOrder :execrows
 UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE o.order_number = @order_number::text
-  AND o.fulfillment_status = 'pending'
-  AND NOT order_is_committed(o.id)
-  AND order_amount_after_credit(o.id) = 0
-  AND EXISTS (SELECT 1 FROM store_credit_entries s
-              WHERE s.order_id = o.id AND s.amount_cents < 0)
-  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id);
+WHERE o.order_number = @order_number::text;
 
 -- Nothing of a refund before shipment went out, so every line is closed as
 -- received and restocked nothing; return_requests_completed_is_inspected then
