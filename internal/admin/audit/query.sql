@@ -27,7 +27,10 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pr.slug FROM product_variants pv
                                          JOIN products pr ON pr.id = pv.product_id WHERE pv.id = a.entity_id)
-       END, '')::text AS product_slug
+       END, '')::text AS product_slug,
+       coalesce(CASE WHEN a.action = 'customer.view' THEN
+           (SELECT coalesce(nullif(cu.full_name, ''), cu.email) FROM users cu WHERE cu.id = a.entity_id)
+       END, '')::text AS customer_name
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 WHERE (NOT @has_cursor::boolean OR (a.occurred_at < @after_at::timestamptz)

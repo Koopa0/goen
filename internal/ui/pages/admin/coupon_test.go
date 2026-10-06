@@ -58,8 +58,8 @@ func TestCouponTableSeparatesConditionsUsesAndExpiry(t *testing.T) {
 		expiry     string
 		state      string
 	}{
-		{locale: i18n.ZhHant, headers: []string{"條件", "已使用", "到期"}, conditions: "限量 1 · 每位會員 1 次", used: "已使用 1 次", expiry: "至 2027-01-02 11:04", state: "已用完"},
-		{locale: i18n.En, headers: []string{"Conditions", "Used", "Expiry"}, conditions: "1 in total · 1 per member", used: "1 used", expiry: "Until 2027-01-02 11:04", state: "Used up"},
+		{locale: i18n.ZhHant, headers: []string{"條件", "已使用", "到期"}, conditions: "限量 1 · 每位會員 1 次", used: "已使用 1 次 1 / 1", expiry: "至 2027-01-02 11:04", state: "已用完"},
+		{locale: i18n.En, headers: []string{"Conditions", "Used", "Expiry"}, conditions: "1 in total · 1 per member", used: "1 used 1 / 1", expiry: "Until 2027-01-02 11:04", state: "Used up"},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
@@ -144,4 +144,32 @@ func couponCellText(node *html.Node) string {
 		}
 	}
 	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
+}
+
+func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Coupons(layouts.Page{Title: "Coupons"}, CouponsView{Rows: []Coupon{
+		{Code: "HALF", Kind: coupon.Amount, MaxRedeem: 20, PerCustomer: 1, Redeemed: 5, Active: true, Current: true},
+		{Code: "GONE", Kind: coupon.Amount, MaxRedeem: 2, PerCustomer: 1, Redeemed: 2, Active: true, Current: true},
+		{Code: "OPEN", Kind: coupon.Amount, PerCustomer: 1, Redeemed: 9, Active: true, Current: true},
+	}}))
+
+	if got := strings.Count(html, `class="goen-chartmeter__track"`); got != 2 {
+		t.Fatalf("list draws %d meters, want 2 (the uncapped coupon keeps its count alone)", got)
+	}
+	if !strings.Contains(html, `width="25.00%"`) {
+		t.Error("list does not fill 5 uses of 20 to a quarter")
+	}
+	if !strings.Contains(html, `width="100.00%"`) {
+		t.Error("list does not fill a used-up coupon")
+	}
+	for _, label := range []string{"5 / 20", "2 / 2"} {
+		if !strings.Contains(html, `<span class="goen-chartmeter__label">`+label+`</span>`) {
+			t.Errorf("list omits the count %q beside its meter", label)
+		}
+	}
+	if strings.Contains(html, "9 / 0") {
+		t.Error("list meters a coupon with no cap")
+	}
 }
