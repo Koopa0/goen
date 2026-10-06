@@ -92,8 +92,8 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 	week := admin.Week{}
 	var days [2]paidDays
 	for i, p := range []period{current, before} {
-		revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to})
-		if err != nil {
+		var revenue db.RevenueBetweenRow
+		if revenue, err = q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to}); err != nil {
 			return fmt.Errorf("read the week's revenue: %w", err)
 		}
 		if days[i], err = readPaidDays(ctx, q, p); err != nil {
