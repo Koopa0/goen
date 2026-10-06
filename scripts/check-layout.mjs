@@ -827,66 +827,36 @@ if (process.env.PLACED_TOKEN) {
   });
 }
 
-// DIAGNOSTIC PROBE (do not merge): the blocks above the first product at 375 and the overflow at 320 / 200% text.
+// DIAGNOSTIC PROBE (do not merge): what runs past 320px at 200% text on the reports and customer pages.
 {
   const diag = (name, value) => console.log('DIAG ' + name + ' ' + JSON.stringify(value));
-  const BREAKDOWN = `(() => {
-    const out = [];
-    const tile = document.querySelector('.goen-tiles__grid > li');
-    const walk = (el, depth) => {
-      for (const c of el.children) {
-        const r = c.getBoundingClientRect();
-        if (r.height === 0) continue;
-        const cs = getComputedStyle(c);
-        out.push({ depth, el: c.tagName.toLowerCase() + '.' + String(c.className.baseVal ?? c.className).split(' ').join('.'), top: +r.top.toFixed(1), h: +r.height.toFixed(1), left: +r.left.toFixed(1), w: +r.width.toFixed(1),
-          display: cs.display, gap: cs.rowGap + '/' + cs.columnGap, m: cs.marginTop + ' ' + cs.marginBottom, p: cs.paddingTop + ' ' + cs.paddingBottom, font: cs.fontSize + '/' + cs.lineHeight, cols: cs.gridTemplateColumns, text: c.children.length ? '' : c.textContent.trim().slice(0, 30) });
-        if (depth < 7) walk(c, depth + 1);
-      }
-    };
-    for (const sel of ['.goen-listing__head', '.goen-deptnotice', '.goen-listing__filters']) {
-      const el = document.querySelector(sel);
-      if (el) { out.push({ root: sel }); walk(el, 1); }
-    }
-    return { vh: innerHeight, firstTileTop: tile ? +tile.getBoundingClientRect().top.toFixed(1) : null, out };
-  })()`;
-  const tileTop = `(() => { const t = document.querySelector('.goen-tiles__grid > li'); return t ? +t.getBoundingClientRect().top.toFixed(1) : null; })()`;
   const ev = async (expression) => (await send(ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value;
-  const open = async (path, width, height) => {
-    await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
-    const target = ORIGIN + path;
-    await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, 'diag ' + path, target);
-  };
-  await send(ws, 'Network.enable');
-  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
-  await open('/c/phones', 375, 812);
-  diag('breakdown /c/phones 375', await ev(BREAKDOWN));
-  for (const [name, js] of [
-    ['notice period hidden', "document.querySelector('.goen-deptnotice .ui-period').style.display = 'none'"],
-    ['notice statline hidden', "document.querySelector('.goen-deptnotice .ui-statline').style.display = 'none'"],
-    ['head facts three across', "document.querySelector('.goen-pagehead .ui-statline').style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))'"],
-    ['notice hidden', "document.querySelector('.goen-deptnotice').style.display = 'none'"],
-  ]) {
-    await open('/c/phones', 375, 812);
-    await ev(js);
-    await ev('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
-    diag('what-if /c/phones 375 ' + name, { firstTileTop: await ev(tileTop) });
-  }
   const WIDE = `(async () => {
     await document.fonts.ready;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const vw = 320;
-    const scroller = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden' || o === 'clip') return p.tagName.toLowerCase() + '.' + String(p.className).split(' ')[0] + ':' + o; } return null; };
-    const wide = [...document.querySelectorAll('body *')].map((e) => ({ e, r: e.getBoundingClientRect() }))
-      .filter(({ r }) => r.width > 0 && (r.right > vw + 0.5))
-      .map(({ e, r }) => { const cs = getComputedStyle(e); return { el: e.tagName.toLowerCase() + '.' + String(e.className.baseVal ?? e.className).split(' ').join('.'), left: +r.left.toFixed(1), right: +r.right.toFixed(1),
-        margin: cs.marginLeft + ' ' + cs.marginRight, padding: cs.paddingLeft + ' ' + cs.paddingRight, overflowX: cs.overflowX, clippedBy: scroller(e) }; });
-    return { scrollWidth: document.body.scrollWidth, root: getComputedStyle(document.documentElement).fontSize, wide: wide.slice(0, 20) };
+    const name = (e) => e.tagName.toLowerCase() + '.' + String(e.className.baseVal ?? e.className).split(' ').filter(Boolean).join('.');
+    const inScroller = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return name(p); } return null; };
+    const style = (e) => { const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { el: name(e), left: +r.left.toFixed(1), right: +r.right.toFixed(1), w: +r.width.toFixed(1), display: cs.display, ws: cs.whiteSpace, minW: cs.minWidth, width: cs.width, ox: cs.overflowX, cols: cs.gridTemplateColumns, flex: cs.flex, font: cs.fontSize, pad: cs.paddingLeft + ' ' + cs.paddingRight, text: e.children.length ? '' : e.textContent.trim().slice(0, 28) }; };
+    const all = [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > vw + 0.5 && !inScroller(e); });
+    const outermost = all.filter((e) => !all.includes(e.parentElement));
+    const chains = outermost.slice(0, 12).map((e) => { const chain = []; for (let p = e; p && p.tagName !== 'MAIN' && chain.length < 6; p = p.parentElement) chain.push(style(p)); return chain; });
+    return { scrollWidth: document.body.scrollWidth, wideCount: all.length, wide: all.slice(0, 40).map(style), chains };
   })()`;
-  for (const path of ['/c/phones', '/c/audio']) {
-    await open(path, 320, 800);
-    await ev("document.documentElement.style.fontSize = '200%'");
-    diag('overflow ' + path + ' 320 at 200%', await ev(WIDE));
+  if (process.env.ADMIN_TOKEN) {
+    await send(ws, 'Network.enable');
+    await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+    for (const path of ['/admin/reports', '/admin/customers/' + (process.env.CUSTOMER_ID || '')]) {
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+      const target = ORIGIN + path;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, 'diag ' + path, target);
+      await ev("document.documentElement.style.fontSize = '200%'");
+      diag('overflow ' + path.replace(/[0-9a-f-]{36}/, '{id}') + ' 320 at 200%', await ev(WIDE));
+    }
+  } else {
+    console.log('DIAG no ADMIN_TOKEN');
   }
   console.log('DIAG done: the diagnostic probe stops here');
   process.exit(1);
