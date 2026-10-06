@@ -147,3 +147,42 @@ func assertClosedPayPage(ctx context.Context, t *testing.T, body, number, closed
 		}
 	}
 }
+
+func TestTheHoldSpanReadsOnlyTheSweepersCancellationAsLapsed(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		bySystem bool
+	}{
+		{"the sweeper cancelled it", true},
+		{"the customer cancelled it after the hold expired", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			number, id := holdableOrder(t, 100000)
+			hold(t, id, 0, 60*time.Minute, "span:"+number)
+			// Whoever cancels, the hold had already expired and was released: only by_system tells the sweeper from a person.
+			if _, err := pool.Exec(t.Context(), `
+				UPDATE inventory_reservations
+				SET created_at = now() - interval '61 minutes', expires_at = now() - interval '1 minute',
+				    state = 'released', settled_at = now()
+				WHERE order_id = $1`, id); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(t.Context(), `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now() WHERE id = $1`, id); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(t.Context(), `INSERT INTO order_events (order_id, kind, by_system) VALUES ($1, 'cancelled', $2)`, id, tc.bySystem); err != nil {
+				t.Fatal(err)
+			}
+			o, err := payment.NewStore(pool).Order(t.Context(), number)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := !o.Hold.SweptAt.IsZero(); got != tc.bySystem {
+				t.Errorf("Hold.SweptAt set = %v, want %v", got, tc.bySystem)
+			}
+			if o.Hold.From.IsZero() || !o.Hold.Until.After(o.Hold.From) {
+				t.Errorf("hold span %v to %v, want the stored hold", o.Hold.From, o.Hold.Until)
+			}
+		})
+	}
+}

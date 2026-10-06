@@ -10,6 +10,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -374,4 +376,38 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 		t.Fatalf("register warranty: %v", err)
 	}
 	return serial, number
+}
+
+// The page and the customer's own account judge tiers by member_spend over the
+// membership window, so the two must show one figure: an order older than the
+// window counts in the lifetime total and not here.
+func TestTheCustomerPageShowsTheSpendTiersAreJudgedBy(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	ctx = i18n.WithLocale(ctx, i18n.ZhHant)
+	s := customers.NewStore(pool)
+	userID := admintest.CreditedAccount(t, pool, 0)
+	admintest.OrderForCustomer(t, pool, userID, 120000, true)
+	old := admintest.OrderForCustomer(t, pool, userID, 70000, true)
+	if _, err := pool.Exec(ctx, `UPDATE orders SET placed_at = now() - make_interval(days => $2 + 1) WHERE id = $1`,
+		old, loyalty.MembershipWindowDays); err != nil {
+		t.Fatalf("age the order: %v", err)
+	}
+
+	var want int64
+	if err := pool.QueryRow(ctx, `SELECT member_spend($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&want); err != nil {
+		t.Fatalf("read member_spend: %v", err)
+	}
+	view, err := s.Profile(ctx, userID.String())
+	if err != nil {
+		t.Fatalf("Profile: %v", err)
+	}
+	if want == 0 || view.WindowSpendCents != want {
+		t.Errorf("window spend is %d, want member_spend %d (non-zero)", view.WindowSpendCents, want)
+	}
+	if view.WindowSpendCents >= view.SpentCents {
+		t.Errorf("window spend %d is not below lifetime spend %d, so the old order was counted", view.WindowSpendCents, view.SpentCents)
+	}
+	if view.NextTierName != "銀卡會員" || view.NextTierCents != 1000000 {
+		t.Errorf("next tier is %q at %d, want the lowest band above the spend, 銀卡會員 at 1000000", view.NextTierName, view.NextTierCents)
+	}
 }
