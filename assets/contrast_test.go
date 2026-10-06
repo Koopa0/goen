@@ -301,11 +301,8 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 	if override == nil {
 		t.Fatal("app.css does not re-point --ring on any dark ground")
 	}
-	open := strings.Index(override[1], "{")
-	if open < 0 {
-		t.Fatal("the --ring override has no rule body")
-	}
-	selectors := strings.Split(strings.TrimSpace(override[1][:open]), ",")
+	selectorList, _, _ := strings.Cut(override[1], "{")
+	selectors := strings.Split(strings.TrimSpace(selectorList), ",")
 	for _, sel := range selectors {
 		// A bare tone selector also reaches the light grounds that carry
 		// the tone as data, where a white ring would be 1:1.
