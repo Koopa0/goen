@@ -30,30 +30,43 @@ type ShopRules struct {
 
 func (r ShopRules) Stats(ctx context.Context) []components.Stat {
 	stats := []components.Stat{
-		{
-			Label: i18n.T(ctx, i18n.KeyRuleHold),
-			Value: components.StatCount(holdMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
-			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), PayStartMinutesText()),
-		},
-		{
-			Label: i18n.T(ctx, i18n.KeyRuleRescission),
-			Value: components.StatCount(rescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
-			Note:  i18n.T(ctx, i18n.KeyRuleRescissionNote),
-		},
+		r.holdStat(ctx),
+		r.rescissionStat(ctx),
 		{
 			Label: i18n.T(ctx, i18n.KeyRuleReturn),
 			Value: components.StatCount(returnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 		},
 	}
-	if r.FreeDeliveryCents > 0 {
-		stats = append(stats, components.Stat{
-			Label: i18n.T(ctx, i18n.KeyRuleFreeDelivery),
-			Value: components.StatMoney(r.FreeDeliveryCents),
-			Note:  fmt.Sprintf(i18n.T(ctx, r.freeDeliveryNoteKey()), twd(r.LowestFeeCents)),
-		})
+	return append(stats, r.freeDeliveryStat(ctx))
+}
+
+func (r ShopRules) holdStat(ctx context.Context) components.Stat {
+	return components.Stat{
+		Label: i18n.T(ctx, i18n.KeyRuleHold),
+		Value: components.StatCount(holdMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
+		Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), PayStartMinutesText()),
 	}
-	return stats
+}
+
+func (r ShopRules) rescissionStat(ctx context.Context) components.Stat {
+	return components.Stat{
+		Label: i18n.T(ctx, i18n.KeyRuleRescission),
+		Value: components.StatCount(rescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+		Note:  i18n.T(ctx, i18n.KeyRuleRescissionNote),
+	}
+}
+
+// freeDeliveryStat has no figure where some delivery method never turns free, and a stat with no figure is left out.
+func (r ShopRules) freeDeliveryStat(ctx context.Context) components.Stat {
+	if r.FreeDeliveryCents <= 0 {
+		return components.Stat{}
+	}
+	return components.Stat{
+		Label: i18n.T(ctx, i18n.KeyRuleFreeDelivery),
+		Value: components.StatMoney(r.FreeDeliveryCents),
+		Note:  fmt.Sprintf(i18n.T(ctx, r.freeDeliveryNoteKey()), twd(r.LowestFeeCents)),
+	}
 }
 
 func (r ShopRules) freeDeliveryNoteKey() i18n.Key {

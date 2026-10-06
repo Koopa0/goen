@@ -189,6 +189,7 @@ body {
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline--wide { max-width: none; }
+.ui-statline--pairs { max-width: none; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
 /* one stat keeps a column's width; it never stretches into a divider */
 .ui-statline:has(> :only-child) { grid-template-columns: minmax(0, 18rem); }
 /* four stats read as two rows of two, never three and one; when two columns of --stat-min do not fit

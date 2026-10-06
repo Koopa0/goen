@@ -98,7 +98,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
 	// /compare set's ?p= outran it; derived from the variants because the next
 	// parameter somebody adds will not be added to a list.
-	sel = sel.OnlyOptionsOf(variants)
+	sel = sel.WithSingleChoices(groups).OnlyOptionsOf(variants)
 
 	chosen, exact := Resolve(variants, sel)
 
@@ -107,8 +107,13 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
 	}
 
+	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
+	if err != nil {
+		return pages.ProductView{}, fmt.Errorf("read lowest delivery fee: %w", err)
+	}
+
 	view := pages.ProductView{
-		FreeDeliveryCents: freeOver,
+		Rules: pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
 		Slug:              p.Slug,
 		Name:              p.Name,
 		Summary:           p.Summary,

@@ -2,6 +2,7 @@ package product
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 	"testing"
@@ -473,5 +474,20 @@ func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
 	// become filtering answers.
 	if chosen, _ := Resolve(variants, Selection{"顏色": "沒有這個顏色"}.OnlyOptionsOf(variants)); chosen.SKU != "" {
 		t.Error("a colour no variant has resolved to a variant")
+	}
+}
+
+func TestWithSingleChoicesSelectsWhatHasNoAlternative(t *testing.T) {
+	t.Parallel()
+	groups := map[string][]OptionChoice{
+		"colour":   {{Value: "black"}},
+		"capacity": {{Value: "32"}, {Value: "64"}},
+	}
+	got := Selection{"colour": "stale", "capacity": "64"}.WithSingleChoices(groups)
+	if want := (Selection{"colour": "black", "capacity": "64"}); !maps.Equal(got, want) {
+		t.Errorf("WithSingleChoices() = %v, want %v", got, want)
+	}
+	if got := Selection(nil).WithSingleChoices(groups); !maps.Equal(got, Selection{"colour": "black"}) {
+		t.Errorf("WithSingleChoices() on no selection = %v, want only the colour", got)
 	}
 }

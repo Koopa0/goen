@@ -3476,9 +3476,38 @@ a.goen-pager__step:hover {
 
 .goen-pdp__title {
   color: var(--n-900);
-  font-size: var(--fs-ed-30);
+  font-size: 1.75rem;
   font-weight: var(--fw-semibold);
   line-height: 1.3;
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* Values only; a line breaks between them, never inside one. */
+.goen-pdp__keyspecs {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.goen-pdp__keyspecs span {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.goen-pdp__keyspecs span:not(:last-child)::after {
+  content: '·';
+  content: '·' / '';
+  margin: 0 0.5rem;
+}
+
+/* A choice the product does not offer: stated, not asked. */
+.goen-pdp__fact {
+  color: var(--n-900);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -3597,17 +3626,19 @@ a.goen-pager__step:hover {
 .goen-swatch {
   align-items: center;
   background: var(--n-0);
-  border: 1px solid var(--n-300);
+  border: 1px solid var(--control-boundary);
   border-radius: var(--r-md);
   box-sizing: border-box;
   color: var(--n-900);
   display: inline-flex;
+  flex-direction: column;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   justify-content: center;
-  min-height: 2.75rem;
-  min-width: 2.75rem;
-  padding: 0 1rem;
+  line-height: 1.3;
+  min-height: 3rem;
+  min-width: 6rem;
+  padding: 0.25rem 1rem;
   text-decoration: none;
   transition:
     background-color var(--dur-base) var(--ease-standard),
@@ -3619,11 +3650,18 @@ a.goen-pager__step:hover {
   color: var(--n-900);
 }
 
+/* The choice is an outline, which forced colours keep where a fill is lost. */
 .goen-swatch--on,
 .goen-swatch--on:hover {
-  background: var(--n-900);
   border-color: var(--n-900);
-  color: var(--n-0);
+  outline: 2px solid var(--n-900);
+  outline-offset: 1px;
+}
+
+.goen-swatch__note {
+  color: var(--n-500);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
 }
 
 /* Unavailable in combination with the other choices. Shown, not hidden: a
@@ -3834,10 +3872,11 @@ a.goen-pager__step:hover {
   padding-top: 1.5rem;
 }
 
-.goen-pdp__notifyhead {
+.goen-pdp__notifyhead,
+.goen-pdp__restocknote {
   color: var(--n-900);
   font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -3877,31 +3916,6 @@ a.goen-pager__step:hover {
 .goen-pdp__wish {
   display: flex;
   margin: 0;
-}
-
-/* Assurances: a bare line icon and one sentence, set apart by a hairline. */
-.goen-pdp__assurances {
-  border-top: 1px solid var(--n-200);
-  display: grid;
-  gap: 0.75rem;
-  list-style: none;
-  margin: 0;
-  padding: 1.5rem 0 0;
-}
-
-.goen-pdp__assurance {
-  align-items: center;
-  color: var(--n-700);
-  display: flex;
-  font-size: var(--fs-14);
-  gap: 0.75rem;
-}
-
-.goen-pdp__assurance svg {
-  color: var(--n-900);
-  flex: none;
-  height: 1.5rem;
-  width: 1.5rem;
 }
 
 /* Description, then the accordion. Never behind tabs, and the specifications
