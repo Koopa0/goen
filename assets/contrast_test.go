@@ -37,23 +37,30 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
-// hexTokens reads the colour tokens from every stylesheet. A token is declared
-// once, in base.css; a second declaration with another value in app.css or
-// admin.css would be read by neither test below, so it fails here.
+// hexTokens reads the colour tokens from base.css, where both layouts get them.
+// A token base.css declares and app.css or admin.css declares again with another
+// value would be read by neither test below, so it fails here.
 func hexTokens(t *testing.T) map[string]string {
 	t.Helper()
 
-	tokens := make(map[string]string)
-	for _, name := range []string{BaseCSS, AppCSS, AdminCSS} {
+	declared := func(name string) map[string]string {
 		sheet, err := fs.ReadFile(files, name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
+		out := make(map[string]string)
 		for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-			if had, seen := tokens[m[1]]; seen && had != m[2] {
-				t.Errorf("%s redeclares %s as #%s, was #%s", name, m[1], m[2], had)
-			} else if !seen {
-				tokens[m[1]] = m[2]
+			if _, seen := out[m[1]]; !seen {
+				out[m[1]] = m[2]
+			}
+		}
+		return out
+	}
+	tokens := declared(BaseCSS)
+	for _, name := range []string{AppCSS, AdminCSS} {
+		for token, hex := range declared(name) {
+			if base, ok := tokens[token]; ok && base != hex {
+				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, token, hex, base)
 			}
 		}
 	}
