@@ -171,13 +171,6 @@ WHERE topic = 'account.password_reset'
 -- name: CartItemRows :many
 SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
 
--- The account row is the stable lock for deciding which of two guest carts is
--- the first one this user adopts. A SECURITY DEFINER function is required
--- because store has only narrow authentication-column UPDATE grants, not
--- authority for a general users row lock.
--- name: LockUserForCartAdoption :one
-SELECT lock_user_for_cart_adoption(@user_id::uuid);
-
 -- name: CartForUser :one
 SELECT id FROM carts WHERE user_id = $1;
 
@@ -234,7 +227,15 @@ INSERT INTO addresses (user_id, label, recipient_name, phone,
                        postal_code, city, district, street, is_default)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
--- name: LockUserForAddressDefault :one
+-- The account row is the root every writer of one account's carts and addresses
+-- locks first: cart adoption, then the cart rows; address writes, then the
+-- address rows; erase_user, then everything it deletes. Checkout holds only KEY
+-- SHARE (cart.LockUserForCheckout) before its cart, so it does not wait for
+-- adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
+-- conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
+-- user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
+-- any row lock; store's column UPDATE on users is enough.
+-- name: LockUser :one
 SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
 
 -- Run in the same transaction as the set: addresses_one_default_per_user is unique.

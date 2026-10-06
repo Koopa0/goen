@@ -276,12 +276,11 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	// no row and meet only at the partial unique index. Every cart lock comes
 	// afterwards and LockCarts sorts UUIDs, which keeps the cross-aggregate
 	// order canonical.
-	lockedUser, err := q.LockUserForCartAdoption(ctx, id)
-	if err != nil {
+	if _, err := q.LockUser(ctx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("lock account for cart adoption: %w", err)
-	}
-	if !lockedUser {
-		return ErrNotFound
 	}
 
 	if err := adoptGuestCart(ctx, q, id, guestCartID); err != nil {
@@ -633,7 +632,7 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
+	if _, lockErr := q.LockUser(ctx, id); lockErr != nil {
 		return fmt.Errorf("lock account for add address: %w", lockErr)
 	}
 
@@ -703,7 +702,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	if _, lockErr := q.LockUserForAddressDefault(ctx, uid); lockErr != nil {
+	if _, lockErr := q.LockUser(ctx, uid); lockErr != nil {
 		if errors.Is(lockErr, pgx.ErrNoRows) {
 			return ErrNotFound
 		}

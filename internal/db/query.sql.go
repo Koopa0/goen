@@ -9437,44 +9437,38 @@ func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.
 	return id, err
 }
 
-const lockUserForAddressDefault = `-- name: LockUserForAddressDefault :one
+const lockUser = `-- name: LockUser :one
 SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
-func (q *Queries) LockUserForAddressDefault(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockUserForAddressDefault, userID)
+// The account row is the root every writer of one account's carts and addresses
+// locks first: cart adoption, then the cart rows; address writes, then the
+// address rows; erase_user, then everything it deletes. Checkout holds only KEY
+// SHARE (cart.LockUserForCheckout) before its cart, so it does not wait for
+// adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
+// conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
+// user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
+// any row lock; store's column UPDATE on users is enough.
+func (q *Queries) LockUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUser, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
-SELECT lock_user_for_cart_adoption($1::uuid)
-`
-
-// The account row is the stable lock for deciding which of two guest carts is
-// the first one this user adopts. A SECURITY DEFINER function is required
-// because store has only narrow authentication-column UPDATE grants, not
-// authority for a general users row lock.
-func (q *Queries) LockUserForCartAdoption(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, lockUserForCartAdoption, userID)
-	var lock_user_for_cart_adoption bool
-	err := row.Scan(&lock_user_for_cart_adoption)
-	return lock_user_for_cart_adoption, err
-}
-
 const lockUserForCheckout = `-- name: LockUserForCheckout :one
-SELECT lock_user_for_checkout($1::uuid)
+SELECT id FROM users WHERE id = $1::uuid FOR KEY SHARE
 `
 
 // Logged-in checkout writes several user foreign keys after it owns the cart.
 // Acquire their natural KEY SHARE first so account erasure and cart adoption use
 // the same user -> cart order. Guest checkout has no user and skips this query.
-func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bool, error) {
+// Lock order and privilege: see LockUser in internal/account/query.sql.
+func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockUserForCheckout, userID)
-	var lock_user_for_checkout bool
-	err := row.Scan(&lock_user_for_checkout)
-	return lock_user_for_checkout, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
