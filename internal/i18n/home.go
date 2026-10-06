@@ -74,10 +74,6 @@ var (
 
 	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
 
-	// %d is the campaign's product count, %s the day it ends.
-	KeyHomeCampaignFact = countKey("home.campaign.fact", "%d 件商品 · 至 %s",
-		"%d item · until %s", "%d items · until %s")
-
 	// What joins a section's name to its grey continuation on the same line.
 	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
 
@@ -92,11 +88,64 @@ var (
 
 	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d\u00a0年 %[2]d\u00a0月 %[3]d\u00a0日", En: "%[1]s\u00a0%[3]d, %[4]d"})
 
+	// A day on a grid's end: the English month name, the month number and the day.
+	KeyDateLabel = key("date.label", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s\u00a0%[3]d"})
+
 	// %s is a department's name.
 	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})
 
 	KeyHeroCampaignCTA = key("home.hero.cta.campaign", Message{
-		ZhHant: "逛逛活動",
-		En:     "See the campaign",
+		ZhHant: "看全部商品",
+		En:     "See all items",
 	})
+
+	KeySlideItems = key("home.slide.items", Message{ZhHant: "商品", En: "Items"})
+
+	KeySlideCategories = key("home.slide.categories", Message{ZhHant: "分類", En: "Categories"})
+
+	KeySlideEnds = key("home.slide.ends", Message{ZhHant: "結束", En: "Ends"})
+
+	KeySlideDaysLeft = key("home.slide.days_left", Message{ZhHant: "剩餘", En: "Days left"})
+
+	// The number is a count and its unit is read with it.
+	KeyUnitItems = countKey("unit.items", "%d\u00a0件", "%d\u00a0item", "%d\u00a0items")
+
+	KeyUnitCategories = countKey("unit.categories", "%d\u00a0類", "%d\u00a0category", "%d\u00a0categories")
+
+	KeyUnitDays = countKey("unit.days", "%d\u00a0天", "%d\u00a0day", "%d\u00a0days")
+
+	KeyEndsTomorrow = key("home.slide.ends_tomorrow", Message{ZhHant: "明天結束", En: "Ends tomorrow"})
+
+	KeyEndsToday = key("home.slide.ends_today", Message{ZhHant: "今天結束", En: "Ends today"})
+
+	KeySlides = key("home.hero.slides", Message{ZhHant: "選擇焦點", En: "Choose a slide"})
+
+	KeyPeriodToday = key("period.today", Message{ZhHant: "今天", En: "Today"})
+
+	// The arguments of every period sentence are the title, the first day, the
+	// last day and the number of days; then what the reader needs of today.
+	KeyPeriodRunning = countKey("period.running",
+		"%s：%s至 %s，共 %d 天；今天 %s是第 %d 天，還有 %d 天。",
+		"%s: %s to %s, %d day; today, %s, is day %d, with %d days left.",
+		"%s: %s to %s, %d days; today, %s, is day %d, with %d days left.")
+
+	KeyPeriodEndsTomorrow = countKey("period.ends_tomorrow",
+		"%s：%s至 %s，共 %d 天；今天 %s是第 %d 天，明天結束。",
+		"%s: %s to %s, %d day; today, %s, is day %d, ending tomorrow.",
+		"%s: %s to %s, %d days; today, %s, is day %d, ending tomorrow.")
+
+	KeyPeriodEndsToday = countKey("period.ends_today",
+		"%s：%s至 %s，共 %d 天；今天 %s是第 %d 天，今天結束。",
+		"%s: %s to %s, %d day; today, %s, is day %d, ending today.",
+		"%s: %s to %s, %d days; today, %s, is day %d, ending today.")
+
+	KeyPeriodNotStarted = countKey("period.not_started",
+		"%s：%s至 %s，共 %d 天；還沒開始，今天是 %s。",
+		"%s: %s to %s, %d day; not started yet, today is %s.",
+		"%s: %s to %s, %d days; not started yet, today is %s.")
+
+	KeyPeriodEnded = countKey("period.ended",
+		"%s：%s至 %s，共 %d 天；已結束。",
+		"%s: %s to %s, %d day; ended.",
+		"%s: %s to %s, %d days; ended.")
 )

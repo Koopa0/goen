@@ -95,7 +95,7 @@ var (
 
 	KeySubcategories = key("listing.subcategories", Message{ZhHant: "子分類", En: "Subcategories"})
 
-	KeyPageNumber = key("listing.pager.number", Message{ZhHant: "第 %s 頁", En: "Page %s"})
+	KeyShowMore = key("listing.pager.more", Message{ZhHant: "顯示更多", En: "Show more"})
 
 	KeyPageOf = key("listing.pager.at", Message{ZhHant: "第 %s / %s 頁", En: "Page %s of %s"})
 
@@ -129,6 +129,11 @@ var (
 	KeyOnSale = key("card.onsale", Message{ZhHant: "特價", En: "On sale"})
 
 	KeyWasPrice = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
+
+	KeyNoPhoto = key("card.nophoto", Message{ZhHant: "沒有照片", En: "No photo"})
+
+	// KeyColourCount is said to a screen reader, which cannot see the dots.
+	KeyColourCount = key("card.colours", Message{ZhHant: "%d 種顏色", En: "%d colours"})
 
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",
