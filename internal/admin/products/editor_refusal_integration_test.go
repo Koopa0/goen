@@ -212,10 +212,10 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		for _, tt := range []struct {
 			name, alt, altEn string
-			field, option   string
-			key             i18n.Key
-			picture         []byte
-			reuse           bool
+			field, option    string
+			key              i18n.Key
+			picture          []byte
+			reuse            bool
 		}{
 			{name: "corrupt upload", field: "image", key: i18n.KeyAdminNoticeNotImage, alt: " 原始中文說明 ", altEn: " Raw English description ", picture: []byte("corrupt PNG")},
 			{name: "invalid upload description", field: "alt", key: i18n.KeyFormHeroAlt, alt: strings.Repeat("界", 201), altEn: " Raw English description ", picture: valid.Bytes()},
