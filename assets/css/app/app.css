@@ -4512,48 +4512,61 @@ a.goen-pager__step:hover {
 
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
    names, on the page head; a custom property is never set inline because
-   style-src has no 'unsafe-inline'. Only these four properties vary: accent,
-   type, radii and buttons do not. Each ground is the ground of its department's
-   photographs, so a slide or a card and its photograph meet without a seam;
-   assets/contrast_test.go holds every text colour on them to 4.5:1. */
+   style-src has no 'unsafe-inline'. Only these properties vary: accent, type,
+   radii and buttons do not. A tone never touches a photograph: wherever the two
+   meet, a seam of goen's white (--n-0) lies between them, which is why a tone
+   can be a flat colour and not the ground its photographs were shot on.
+   assets/contrast_test.go holds the text, edge and mark colours to their
+   ratios on every ground. */
 [data-tone="paper"] {
-  --tone-ground: #efe9e1;
-  --tone-rule: #e2dad0;
+  --tone-ground: #eae1d6;
+  --tone-rule: #ddd3c6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="stone"] {
-  --tone-ground: #ece8e4;
-  --tone-rule: #dedad5;
+  --tone-ground: #dddddc;
+  --tone-rule: #cfcfce;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="mist"] {
-  --tone-ground: #e6eff6;
-  --tone-rule: #d5e1eb;
+  --tone-ground: #d4e3f2;
+  --tone-rule: #c5d6e6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="sage"] {
-  --tone-ground: #e5ebe4;
-  --tone-rule: #d6ded5;
+  --tone-ground: #d5e2d2;
+  --tone-rule: #c7d6c4;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 [data-tone="blush"] {
-  --tone-ground: #f8ecec;
-  --tone-rule: #efdcdc;
+  --tone-ground: #f1d9d6;
+  --tone-rule: #e3cac6;
   --tone-text: var(--n-900);
-  --tone-muted: var(--n-500);
+  --tone-muted: #4d4d53;
+  --tone-edge: #77777e;
+  --tone-mark: var(--mark);
 }
 
 .goen-promo,
 .goen-pagehead[data-tone="ink"],
-.goen-hero__slide[data-tone="ink"] {
+.goen-hero__slide[data-tone="ink"],
+.goen-band[data-tone="ink"] {
   --ring: var(--n-0);
 }
 
@@ -4562,6 +4575,8 @@ a.goen-pager__step:hover {
   --tone-rule: #27272a;
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
+  --tone-edge: #8e8e96;
+  --tone-mark: #c7d2e8;
 }
 
 .goen-pagehead[data-tone] {

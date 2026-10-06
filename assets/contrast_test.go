@@ -143,7 +143,8 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground. A new tone is a new block, and one
+// shows to 4.5:1 on each tone's ground, and its edge and mark colours to 3:1
+// (WCAG 1.4.11). A new tone is a new block, and one
 // whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
 func TestEveryToneGroundHoldsItsText(t *testing.T) {
@@ -176,7 +177,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted"} {
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-edge", "--tone-mark"} {
 			if len(decl[prop]) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -185,6 +186,12 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		for _, prop := range []string{"--tone-text", "--tone-muted"} {
 			if got := contrast(decl[prop], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					prop, decl[prop], name, ground, got)
+			}
+		}
+		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
+			if got := contrast(decl[prop], ground); got < 3 {
+				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
 					prop, decl[prop], name, ground, got)
 			}
 		}
