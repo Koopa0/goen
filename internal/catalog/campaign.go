@@ -49,6 +49,16 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
+// HasListedCampaigns is whether the deals page has a campaign to show, counted by the
+// query that lists them.
+func (s *Store) HasListedCampaigns(ctx context.Context) (bool, error) {
+	total, err := s.q.ListedCampaignsCount(ctx)
+	if err != nil {
+		return false, fmt.Errorf("count campaigns: %w", err)
+	}
+	return total > 0, nil
+}
+
 func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
 	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {

@@ -429,7 +429,7 @@ func onlyVisitorPaths(mw func(http.Handler) http.Handler, next http.Handler) htt
 //
 // Every method, not just GET: a rejected form re-renders its own page at 422,
 // which is exactly when a visitor is most likely to navigate away.
-func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Handler {
+func withTopNav(next http.Handler, store *home.Store, deals dealsReader, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !navPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -444,17 +444,29 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(withNav(r.Context(), items)))
+		next.ServeHTTP(w, r.WithContext(withNav(r.Context(), items, dealsOffered(r.Context(), deals, log))))
 	})
 }
 
-func withNav(ctx context.Context, items []layouts.NavItem) context.Context {
-	return layouts.WithDeals(layouts.WithTopNav(ctx, items), dealsOffered())
+type dealsReader interface {
+	HasListedCampaigns(ctx context.Context) (bool, error)
 }
 
-// dealsOffered is true until #1204's "the deals page has something to buy" predicate
-// replaces this body.
-func dealsOffered() bool { return true }
+func withNav(ctx context.Context, items []layouts.NavItem, deals bool) context.Context {
+	return layouts.WithDeals(layouts.WithTopNav(ctx, items), deals)
+}
+
+// dealsOffered shows the link when the read fails: a failure must not hide the deals.
+func dealsOffered(ctx context.Context, deals dealsReader, log *slog.Logger) bool {
+	has, err := deals.HasListedCampaigns(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			log.ErrorContext(ctx, "read whether deals are listed", "error", err)
+		}
+		return true
+	}
+	return has
+}
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back
 // office.
