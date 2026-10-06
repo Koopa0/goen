@@ -1499,6 +1499,7 @@ h3 {
    ------------------------------------------------------------------------ */
 
 .goen-footer {
+  white-space: nowrap;
   background: var(--n-50);
   border-top: 1px solid var(--n-200);
 }
