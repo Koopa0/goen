@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// A table rather than a list: every band carries the same four facts and a column of
+// A table rather than a list: every tier carries the same four facts and a column of
 // thresholds is read down.
 func Tiers(p layouts.Page, v TiersView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -124,7 +124,7 @@ func Tiers(p layouts.Page, v TiersView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTierColBand))
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTierColTier))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/tiers.templ`, Line: 32, Col: 62}
 				}
