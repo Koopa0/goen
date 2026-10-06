@@ -92,9 +92,7 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 	}
 	mustNameBoth := func(t *testing.T, surface, text string) {
 		t.Helper()
-		hasCredit := strings.Contains(text, "店儲") ||
-			strings.Contains(text, "購物金") ||
-			strings.Contains(text, "額度") ||
+		hasCredit := strings.Contains(text, "購物金") ||
 			strings.Contains(strings.ToLower(text), "store credit")
 		if !hasCredit {
 			t.Errorf("%s does not name the store-credit refund channel:\n%s", surface, text)
