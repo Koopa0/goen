@@ -86,9 +86,7 @@ CROSS JOIN LATERAL (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= @since::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
-ORDER BY f.funded_at DESC, o.id DESC
+ORDER BY o.placed_at DESC, o.id DESC
 LIMIT 1;
 
 -- The campaigns that were on at any time in [from_at, to_at), as the shop days

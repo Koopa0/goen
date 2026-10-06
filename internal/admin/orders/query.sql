@@ -184,8 +184,6 @@ FROM
     -- event recorded falls back to when it was placed.
     (SELECT count(*)::bigint AS picking_orders,
             coalesce(greatest(extract(epoch FROM now() - min(coalesce(
-                (SELECT min(e.occurred_at) FROM order_events e
-                 WHERE e.order_id = o.id AND e.kind = 'picking'),
                 o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
      FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     (SELECT count(*)::bigint AS low_stock FROM product_variants

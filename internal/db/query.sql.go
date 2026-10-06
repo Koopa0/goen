@@ -2458,8 +2458,6 @@ FROM
     -- event recorded falls back to when it was placed.
     (SELECT count(*)::bigint AS picking_orders,
             coalesce(greatest(extract(epoch FROM now() - min(coalesce(
-                (SELECT min(e.occurred_at) FROM order_events e
-                 WHERE e.order_id = o.id AND e.kind = 'picking'),
                 o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
      FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     (SELECT count(*)::bigint AS low_stock FROM product_variants
@@ -8992,9 +8990,7 @@ CROSS JOIN LATERAL (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= $1::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
-ORDER BY f.funded_at DESC, o.id DESC
+ORDER BY o.placed_at DESC, o.id DESC
 LIMIT 1
 `
 

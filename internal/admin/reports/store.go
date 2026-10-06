@@ -132,9 +132,6 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 // periods already read, and only when none of them was paid among all of them.
 func latestPaidOrder(ctx context.Context, q *db.Queries, since time.Time) (db.LatestPaidOrderRow, error) {
 	latest, err := q.LatestPaidOrder(ctx, since)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return q.LatestPaidOrder(ctx, time.Time{})
-	}
 	return latest, err
 }
 
