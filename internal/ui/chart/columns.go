@@ -15,7 +15,7 @@ const (
 	daysPerColumn   = 7   // counted back from the last day
 	columnsPlot     = 150 // the value area of the columns, in pixels
 	stripRow        = 18  // the height of a row of campaign strips
-	narrowPlot      = 244 // the narrowest a plot gets, in pixels, which the labels on it are fitted to
+	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
 	desktopPlot     = 888 // the width of a plot at its widest, in pixels
 	thinGapsFrom    = 15  // from this many columns a gap between days is 1px, not 2px
 )
