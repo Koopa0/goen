@@ -232,6 +232,11 @@ var (
 		En:     "Stripe events needing action",
 	})
 
+	KeyAdminHPRefundFailedAtStripe = key("admin.hp.unreconciled.refundfailed", Message{
+		ZhHant: "系統已記為退款成功，但 Stripe 回報這筆退款失敗，款項已回到 Stripe 餘額。請用其他方式把錢還給顧客，再按「確認已全額退款或已有成功入帳」。",
+		En:     "goen recorded this refund as succeeded, but Stripe reports it failed and the money is back in the Stripe balance. Repay the customer another way, then press “Confirmed fully refunded/already accounted”.",
+	})
+
 	KeyAdminHPUnreconciledHint = key("admin.hp.unreconciled.hint", Message{
 		ZhHant: "請依原因與事件編號檢查 Stripe。只有確認款項已全額退款，或已有 succeeded 付款完整入帳，才可解除付款閘門；單純看過事件不算處理完成。",
 		En: "Use the reason and event reference to investigate in Stripe. Release the payment gate only " +

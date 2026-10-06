@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -129,5 +130,41 @@ func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
 				t.Errorf("%s resend is not worded as %q", tt.lastError, i18n.T(ctx, tt.want))
 			}
 		})
+	}
+}
+
+// TestARefundStripeFailedNamesItsOrderAndAmount: the alarm for a refund goen
+// recorded as succeeded is worked from the order and the sum to repay, and only
+// that event carries them and the instruction.
+func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := &WorkerHealthView{UnreconciledEvents: []UnreconciledEvent{
+		{
+			EventID: "evt_refund_failed", Type: "refund.failed", Ref: "re_3Q1abc",
+			Reason:            "refund_failed: a refund goen recorded as succeeded failed at Stripe (lost_or_stolen_card)",
+			RefundOrderNumber: "GO-261006-000003", RefundCents: 120000,
+		},
+		{
+			EventID: "evt_unreadable", Type: "checkout.session.completed", Ref: "cs_test_1",
+			Reason: "unreadable_event: goen could not read a checkout.session.completed it acts on",
+		},
+	}}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	for _, want := range []string{
+		`href="/admin/orders/GO-261006-000003"`,
+		money.TWD(120000),
+		"lost_or_stolen_card",
+		`name="event" value="evt_refund_failed"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the failed refund's row does not carry %s", want)
+		}
+	}
+	if got := strings.Count(html, `href="/admin/orders/`); got != 1 {
+		t.Errorf("the page links %d orders, want only the failed refund's", got)
+	}
+	if got := strings.Count(html, i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe)); got != 1 {
+		t.Errorf("the repay instruction appears %d times, want once, on the failed refund", got)
 	}
 }

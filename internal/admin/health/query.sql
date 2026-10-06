@@ -89,8 +89,9 @@ SELECT
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, or a completed checkout whose money is still in
-    -- flight. Each is still marked processed because retrying the same event
+    -- already cancelled, a completed checkout whose money is still in flight,
+    -- or a refund goen recorded as succeeded that Stripe later reported failed.
+    -- Each is still marked processed because retrying the same event
     -- changes nothing; the durable reason makes the human action countable
     -- instead of leaving only a log line nobody reads.
     ((SELECT count(*) FROM payment_webhook_events
@@ -107,12 +108,22 @@ SELECT
 -- The events a person has to act on, named rather than counted: a page saying
 -- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
 -- and nothing about what to do, which is the reason outbox.Stuck() lists.
+-- A refund.failed names goen's refund by provider_ref alone, as the webhook
+-- attributed it, and only a succeeded one: the page tells staff that money is
+-- back in the Stripe balance, which is not so of a refund goen still has open.
 -- name: UnreconciledPayments :many
-SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
-       unreconciled::text AS reason, received_at
-FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
-ORDER BY received_at
+SELECT e.event_id, e.type, coalesce(e.object_ref, '') AS object_ref,
+       e.unreconciled::text AS reason, e.received_at,
+       coalesce(o.order_number, '')::text AS refund_order_number,
+       coalesce(r.amount_cents, 0)::bigint AS refund_cents
+FROM payment_webhook_events e
+LEFT JOIN (refunds r
+           JOIN payments p ON p.id = r.payment_id
+           JOIN orders o ON o.id = p.order_id)
+  ON e.type = 'refund.failed' AND r.provider_ref = e.object_ref
+     AND r.status = 'succeeded'
+WHERE e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+ORDER BY e.received_at
 LIMIT 50;
 
 -- Provider-complete payment identities without an outstanding event alarm.
