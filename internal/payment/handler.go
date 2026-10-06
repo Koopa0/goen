@@ -466,7 +466,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logWebhookOutcome(r.Context(), *outcome)
+	h.logWebhookOutcome(r.Context(), outcome)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -554,31 +554,34 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 			return captureErr
 		}
 	case o.isRefundFailure:
-		return func(ctx context.Context, tx *webhookTx) error {
-			status, err := tx.RefundStatus(ctx)
-			if errors.Is(err, ErrNotFound) {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			o.refundStatus = status
-			// Any other status is still open work in goen, already listed with
-			// the open refunds on /admin/health.
-			if status != refundstate.Succeeded {
-				return nil
-			}
-			detail := "a refund goen recorded as succeeded failed at Stripe"
-			if o.refundFailure.reason != "" {
-				detail += " (" + o.refundFailure.reason + ")"
-			}
-			return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, detail))
-		}
+		return o.applyRefundFailure
 	}
 	return nil
 }
 
-func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
+// applyRefundFailure raises the alarm only for a refund goen recorded as
+// succeeded. Any other status is still open work in goen, already listed with
+// the open refunds on /admin/health; a refund goen has no row for is recorded.
+func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) error {
+	status, err := tx.RefundStatus(ctx)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	o.refundStatus = status
+	if status != refundstate.Succeeded {
+		return nil
+	}
+	detail := "a refund goen recorded as succeeded failed at Stripe"
+	if o.refundFailure.reason != "" {
+		detail += " (" + o.refundFailure.reason + ")"
+	}
+	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, detail))
+}
+
+func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {
 	ev := outcome.event
 	switch {
 	case outcome.isAbandoned:
@@ -614,7 +617,7 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 		h.log.InfoContext(ctx, "stripe reported a failed refund goen did not issue",
 			"event", ev.ID, "refund", outcome.refundFailure.refundID)
 	case outcome.isRefundFailure:
-		h.log.InfoContext(ctx, "stripe reported a failed refund goen has not settled",
+		h.log.InfoContext(ctx, "stripe reported a failed refund goen did not record as succeeded",
 			"event", ev.ID, "refund", outcome.refundFailure.refundID, "status", outcome.refundStatus)
 	case outcome.readState == webhookReadUnreadable:
 		h.log.ErrorContext(ctx,
