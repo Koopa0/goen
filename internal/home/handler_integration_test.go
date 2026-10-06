@@ -1073,6 +1073,8 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 	if got["navcount-big"] != 2 || got["navcount-small"] != 1 {
 		t.Errorf("department counts = big %d, small %d; want 2 (one in a sub-category, the draft left out) and 1",
 			got["navcount-big"], got["navcount-small"])
+	}
+}
 
 // The lead tile is the campaign's first product, so its first photograph's
 // width decides; a photograph whose width was never stored counts as too narrow.
