@@ -250,7 +250,7 @@ func buildReturnQueue(
 // an ambiguous attempt reuses its provider key, while a known terminal attempt
 // gets a fresh DB-derived key and immutable successor row.
 func (s *Store) Decide(
-	ctx context.Context, id, decision, resolution, assessmentVersion string, _ uuid.NullUUID,
+	ctx context.Context, id, decision, resolution, assessmentVersion string,
 ) error {
 	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
@@ -260,10 +260,8 @@ func (s *Store) Decide(
 	if !ok {
 		return fmt.Errorf("%w: decide return", audit.ErrNoActor)
 	}
-	// The signed-in context is the authority for every side effect of this
-	// decision. Trusting the caller-supplied parameter instead could attribute
-	// the return audit, provider attempt and store-credit posting to three
-	// different people.
+	// The signed-in context keeps the return audit, provider attempt and
+	// store-credit posting attributed to the same person.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
 	kind, ok := returnrules.ParseDecisionKind(decision)
@@ -783,7 +781,7 @@ func (s *Store) Inspect(
 // Complete closes an inspected return. It writes no stock: the movement
 // was posted with the INSPECTION, which is when the goods went back on the
 // shelf.
-func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.NullUUID) error {
+func (s *Store) Complete(ctx context.Context, id, resolution string) error {
 	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
 			ErrInvalid, returnrules.MaxResolutionRunes)

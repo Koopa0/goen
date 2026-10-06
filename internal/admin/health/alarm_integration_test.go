@@ -44,7 +44,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 1)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err == nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err == nil {
 		t.Fatal("a refund that timed out was reported as success")
 	}
 
