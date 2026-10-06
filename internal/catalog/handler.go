@@ -206,7 +206,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Deals(pages.DealsMeta(r.Context()), view))
 }
 
-// Campaign answers 404 for a promotion outside its window.
+// Campaign answers 404 for a campaign that is switched off or does not exist.
 func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	view, err := h.store.Campaign(r.Context(), slug)

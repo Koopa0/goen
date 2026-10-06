@@ -862,7 +862,7 @@ const PERIOD_PROBE = `(() => {
   return { periods: periods.length, problems };
 })()`;
 
-for (const route of ['/']) {
+for (const route of ['/', '/s/layout-campaign']) {
   for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
     const at = 'period labels ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });

@@ -680,6 +680,8 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
+    -- A product that can be bought comes before a deeper discount that cannot.
+    in_stock DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -724,20 +726,21 @@ WHERE EXISTS (
 ORDER BY c.updated_at DESC
 LIMIT $1;
 
--- The window is judged against the database's clock, which wrote the timestamps.
--- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+-- Any active campaign by its slug, inside its window or not: the page says
+-- honestly whether it has not started or has ended.
+-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at,
        c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = @slug::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now();
+WHERE c.slug = @slug::text AND c.is_active;
 
 -- A campaign is listed only while a published featured product can be bought,
--- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at, c.tone,
@@ -853,7 +856,8 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id;
+-- Sellable products first, then the position the back office set.
+ORDER BY in_stock DESC, cp.position, p.id;
 
 -- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many
