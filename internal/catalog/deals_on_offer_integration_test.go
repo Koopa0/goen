@@ -15,7 +15,7 @@ type dealVariant struct {
 	price, compare, stock int // compare 0 is none
 }
 
-func TestDealsOnOfferNeedsAProductOrACampaignThatCanBeBought(t *testing.T) {
+func TestDealsOnOfferNeedsARunningCampaignWithSomethingToBuy(t *testing.T) {
 	discounted := dealVariant{price: 1000, compare: 2000, stock: 5}
 	soldOut := dealVariant{price: 1000, compare: 2000, stock: 0}
 	plain := dealVariant{price: 1000, stock: 5}
@@ -26,8 +26,9 @@ func TestDealsOnOfferNeedsAProductOrACampaignThatCanBeBought(t *testing.T) {
 		want     bool
 	}{
 		{name: "neither: the discounted variant is sold out", variants: []dealVariant{soldOut}, campaign: true, want: false},
-		{name: "a discounted product in stock", variants: []dealVariant{discounted}, want: true},
-		{name: "a campaign alone: its discounted variant is sold out, another is in stock", variants: []dealVariant{soldOut, plain}, campaign: true, want: true},
+		{name: "a discounted product in stock, on no campaign", variants: []dealVariant{discounted}, want: false},
+		{name: "a campaign with a discounted product in stock", variants: []dealVariant{discounted}, campaign: true, want: true},
+		{name: "a campaign alone: its discounted variant is sold out, another is in stock", variants: []dealVariant{soldOut, plain}, campaign: true, want: false},
 		{name: "a product that is not discounted, on no campaign", variants: []dealVariant{plain}, want: false},
 	}
 	for _, tt := range tests {

@@ -16,7 +16,9 @@ templ frame(caption, note string, table templ.Component) {
 		{ children... }
 		<details class="goen-chart__data">
 			<summary>{ i18n.T(ctx, i18n.KeyChartTable) }</summary>
-			@table
+			<div class="goen-chart__scroll">
+				@table
+			</div>
 		</details>
 		if note != "" {
 			<p class="goen-chart__note">{ note }</p>

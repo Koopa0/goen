@@ -998,9 +998,9 @@ func Home(p layouts.Page, v *HeroView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var59 string
-						templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(slide.State())
+						templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(slide.State(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 245, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 245, Col: 51}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 						if templ_7745c5c3_Err != nil {
@@ -1163,9 +1163,9 @@ func Home(p layouts.Page, v *HeroView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var69 string
-					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(slide.ToggleLabel())
+					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(slide.ToggleLabel(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 263, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 263, Col: 89}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 					if templ_7745c5c3_Err != nil {
