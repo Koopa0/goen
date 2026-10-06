@@ -71,6 +71,7 @@ type CartView struct {
 	Lines         []CartLine
 	SubtotalCents int64
 	ItemCount     int64
+	MixedTaxTypes bool
 
 	ReorderAdded    int
 	ReorderSkipped  int
@@ -144,7 +145,7 @@ func (v CartView) Blocked() bool {
 	return false
 }
 
-func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() }
+func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() && !v.MixedTaxTypes }
 
 type ShippingChoice struct {
 	VersionID       string
