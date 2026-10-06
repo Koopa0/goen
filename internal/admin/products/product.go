@@ -195,7 +195,8 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 	if err := s.loadChoices(ctx, &view); err != nil {
 		return admin.ProductView{}, err
 	}
-	return view, s.standing(ctx, p.ID, time.Now(), &view)
+	err = s.standing(ctx, p.ID, time.Now(), &view)
+	return view, err
 }
 
 func productReadError(slug string, err error) error {
