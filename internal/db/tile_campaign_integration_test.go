@@ -94,7 +94,7 @@ func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testi
 			if err = tx.QueryRow(ctx, `INSERT INTO product_option_values(product_id,option_id,value,swatch_hex,position) VALUES($1,$2,$3,$4,$5) RETURNING id`, id, option, "c"+hex, hex, i).Scan(&value); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = tx.Exec(ctx, `INSERT INTO product_images(product_id,storage_key,alt_text,option_value_id) VALUES($1,$2,'colour',$3)`, id, "story-"+uuid.NewString(), value); err != nil {
+			if _, err = tx.Exec(ctx, `INSERT INTO product_images(product_id,storage_key,alt_text,option_value_id,position) VALUES($1,$2,'colour',$3,$4)`, id, "story-"+uuid.NewString(), value, i); err != nil {
 				t.Fatal(err)
 			}
 		}

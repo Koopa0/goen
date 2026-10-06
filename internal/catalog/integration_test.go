@@ -434,7 +434,7 @@ func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
 	s := catalog.NewStore(pool)
 	_, before := dealSlugs(t, s)
 
-	product := discountedProduct(t, 5)
+	product := discountedProduct(t)
 	slugs, total := dealSlugs(t, s)
 	if slices.Contains(slugs, product) || total != before {
 		t.Errorf("a discounted product in no campaign is on the deals page (listed %v, total %d, was %d)",
@@ -537,7 +537,7 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 		)
 		INSERT INTO product_variants
 		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, 5, 0, 0 FROM p`, slug); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
 	if _, err := db.Exec(ctx, `
@@ -1475,9 +1475,9 @@ func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
 	}
 }
 
-// discountedProduct creates an active product with one discounted variant
-// holding stock, featured by no campaign.
-func discountedProduct(t *testing.T, stock int) string {
+// discountedProduct creates an active product with one discounted variant in stock,
+// featured by no campaign.
+func discountedProduct(t *testing.T) string {
 	t.Helper()
 	slug := "discounted-" + uuid.NewString()
 	if _, err := pool.Exec(t.Context(), `
@@ -1490,7 +1490,7 @@ func discountedProduct(t *testing.T, stock int) string {
 		)
 		INSERT INTO product_variants
 		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, 5, 0, 0 FROM p`, slug); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
 	return slug
@@ -1517,7 +1517,7 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			product := discountedProduct(t, 5)
+			product := discountedProduct(t)
 			slug := campaign(t, "card-"+uuid.NewString()[:8])
 			if err := feature(t, slug, product); err != nil {
 				t.Fatalf("feature: %v", err)
@@ -1544,7 +1544,7 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 	}
 
 	t.Run("featured by none", func(t *testing.T) {
-		product := discountedProduct(t, 5)
+		product := discountedProduct(t)
 		tiles, err := s.NewestProducts(ctx, 50)
 		if err != nil {
 			t.Fatalf("newest products: %v", err)
@@ -1590,7 +1590,7 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 	}
 	// Another product keeps the campaign something to buy.
 	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
-		SELECT c.id, p.id, 1 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, discountedProduct(t, 5)); err != nil {
+		SELECT c.id, p.id, 1 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, discountedProduct(t)); err != nil {
 		t.Fatalf("feature the other product: %v", err)
 	}
 
