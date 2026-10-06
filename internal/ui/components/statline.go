@@ -38,6 +38,8 @@ type StatValue struct {
 	unit   string
 	date   []datePart
 	clock  string
+	// datetime is the machine-readable form, set when the value is a date or time.
+	datetime string
 }
 
 // datePart is a run of a date's text: digits are the figure, the runs between them its units.
@@ -83,6 +85,12 @@ func StatDate(text, clock string) StatValue {
 
 // StatClock is a time of day on its own, 14:31.
 func StatClock(clock string) StatValue { return StatValue{clock: clock} }
+
+// At is v read as the date or time datetime, which a <time> element carries.
+func (v StatValue) At(datetime string) StatValue {
+	v.datetime = datetime
+	return v
+}
 
 // StatCount is a number and the unit it counts, joined so that they never part across lines.
 func StatCount(n int64, unit string) StatValue {
@@ -139,6 +147,9 @@ func (v StatValue) dateHTML() string {
 			b.WriteString("\u00a0")
 		}
 		b.WriteString(html.EscapeString(v.clock))
+	}
+	if v.datetime != "" {
+		return `<time datetime="` + html.EscapeString(v.datetime) + `">` + b.String() + `</time>`
 	}
 	return b.String()
 }

@@ -72,17 +72,17 @@ func (v PayView) Facts(ctx context.Context) []components.Stat {
 		return nil
 	case h.Lapsed:
 		return []components.Stat{
-			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: components.StatClock(shoptime.ClockText(h.PlacedAt))},
-			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: components.StatClock(shoptime.ClockText(h.Until)), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
 			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
 		}
 	}
 	var facts []components.Stat
 	if !h.StartBy.IsZero() {
-		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: components.StatClock(shoptime.ClockText(h.StartBy)), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
+		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: payClock(h.StartBy), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
 	}
 	return append(facts,
-		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: components.StatClock(shoptime.ClockText(h.Until)), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
 		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(v.TotalCents)},
 	)
 }
@@ -157,4 +157,8 @@ func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
 func PayMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
+}
+
+func payClock(t time.Time) components.StatValue {
+	return components.StatClock(shoptime.ClockText(t)).At(shoptime.Minute(t))
 }
