@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 const departmentOf = `
@@ -19,7 +20,7 @@ const departmentOf = `
 	)
 	SELECT slug FROM up WHERE parent_id IS NULL`
 
-func TestRelatedProductsStayInTheDepartmentAndLeadWithWhatCanBeBought(t *testing.T) {
+func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testing.T) {
 	t.Parallel()
 	rows, err := pool.Query(t.Context(), `SELECT slug, category_id FROM products WHERE status = 'active' ORDER BY slug`)
 	if err != nil {
@@ -58,7 +59,7 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithWhatCanBeBought(t *testing
 		if len(view.Related) > product.RelatedCount {
 			t.Errorf("%s shows %d related products, want at most %d", slug, len(view.Related), product.RelatedCount)
 		}
-		seenSoldOut, seenOtherSubcategory := false, false
+		prev := -1
 		for _, tile := range view.Related {
 			if tile.Slug == slug {
 				t.Errorf("%s lists itself as related", slug)
@@ -66,15 +67,29 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithWhatCanBeBought(t *testing
 			if got, want := department(tile.Slug), department(slug); got != want {
 				t.Errorf("%s (department %s) lists %s from department %s", slug, want, tile.Slug, got)
 			}
-			if tile.InStock && seenSoldOut {
-				t.Errorf("%s lists the sellable %s after a sold-out product", slug, tile.Slug)
+			// Own sub-category first; within each group, what can be bought first.
+			rank := 0
+			if categoryOf[tile.Slug] != categoryOf[slug] {
+				rank += 2
 			}
-			sameSubcategory := categoryOf[tile.Slug] == categoryOf[slug]
-			if tile.InStock && sameSubcategory && seenOtherSubcategory {
-				t.Errorf("%s lists %s from its own sub-category after one from another", slug, tile.Slug)
+			if !tile.InStock {
+				rank++
 			}
-			seenSoldOut = seenSoldOut || !tile.InStock
-			seenOtherSubcategory = seenOtherSubcategory || (tile.InStock && !sameSubcategory)
+			if rank < prev {
+				t.Errorf("%s lists %s (sub-category match %t, in stock %t) after a lower-ranked product", slug, tile.Slug, rank < 2, tile.InStock)
+			}
+			prev = rank
 		}
+	}
+}
+
+func TestAProductLoadsItsDepartmentsTone(t *testing.T) {
+	t.Parallel()
+	view, err := product.NewStore(pool, slog.New(slog.DiscardHandler)).Load(t.Context(), "nimbus-buds-pro", product.Selection{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Tone != pages.ToneMist {
+		t.Errorf("a product under tech/audio loads tone %q, want %q", view.Tone, pages.ToneMist)
 	}
 }

@@ -13162,7 +13162,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY in_stock DESC, (p.category_id = $3) DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
@@ -13191,7 +13191,8 @@ type RelatedProductsRow struct {
 }
 
 // The department is the root of the product's category and everything under
-// it; sellable products lead, then the product's own sub-category.
+// it; the product's own sub-category leads, and within each group what can be
+// bought comes before what is sold out.
 func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams) ([]RelatedProductsRow, error) {
 	rows, err := q.db.Query(ctx, relatedProducts,
 		arg.Locale,

@@ -190,9 +190,9 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	}
 	view.Comparable = slices.Contains(offers, p.CategoryID)
 
-	tone, err := s.q.CategoryTone(ctx, p.CategoryID)
-	if err != nil {
-		return fmt.Errorf("read tone of %q: %w", p.Slug, err)
+	tone, toneErr := s.q.CategoryTone(ctx, p.CategoryID)
+	if toneErr != nil {
+		return fmt.Errorf("read tone of %q: %w", p.Slug, toneErr)
 	}
 	view.Tone = pages.ResolveTone(tone)
 

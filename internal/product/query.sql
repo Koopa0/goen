@@ -133,7 +133,8 @@ SELECT
 FROM visible_reviews WHERE product_id = $1;
 
 -- The department is the root of the product's category and everything under
--- it; sellable products lead, then the product's own sub-category.
+-- it; the product's own sub-category leads, and within each group what can be
+-- bought comes before what is sold out.
 -- name: RelatedProducts :many
 WITH RECURSIVE up AS (
     SELECT c.id, c.parent_id FROM categories c WHERE c.id = @category_id
@@ -214,7 +215,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> @exclude_id
-ORDER BY in_stock DESC, (p.category_id = @category_id) DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = @category_id) DESC, in_stock DESC, p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
 -- Resolve current eligibility first so a missing/draft product wins over an old

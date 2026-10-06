@@ -3493,7 +3493,8 @@ input.goen-check {
    row's own position in the document never changed, so the compensation was the
    whole of the movement. It is switched off here, on the page, rather than on
    the region that swaps — the node the browser anchors to is below that region,
-   which is why doing it there had no effect. */
+   which is why doing it there had no effect. The band below the buy box is such
+   a node too, so it is switched off there as well. */
 .goen-pdp {
   display: flex;
   flex-direction: column;
@@ -3563,6 +3564,8 @@ input.goen-check {
 .goen-pdp__shotimg {
   aspect-ratio: 4 / 3;
   background: var(--photo);
+  background-clip: content-box;
+  border: var(--col-gap) solid var(--n-0);
   display: block;
   height: auto;
   object-fit: contain;
@@ -3572,7 +3575,7 @@ input.goen-check {
 .goen-pdp__shot--empty {
   align-items: center;
   aspect-ratio: 4 / 3;
-  color: var(--n-500);
+  color: var(--tone-muted);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
@@ -4235,6 +4238,7 @@ input.goen-check {
 
 .goen-band--product {
   margin-block: 0 4rem;
+  overflow-anchor: none;
 }
 
 .goen-band--product .goen-pdp__desc {

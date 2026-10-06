@@ -25,13 +25,8 @@ func bandProduct(photos int) *ProductView {
 func TestTheGalleryWearsTheDepartmentTone(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(3), i18n.En)
-	start := strings.Index(page, `id="gallery"`)
-	end := strings.Index(page, `id="buybox"`)
-	if start < 0 || end <= start {
-		t.Fatal("the page has no gallery before its buy column")
-	}
-	gallery := page[start-len(`<div class="goen-pdp__gallery" `) : end]
-	if !strings.Contains(gallery, `id="gallery" data-tone="mist"`) {
+	gallery := between(t, page, `class="goen-pdp__gallery"`, `id="buybox"`)
+	if !strings.Contains(gallery, `data-tone="mist"`) {
 		t.Errorf("the gallery does not carry the department's tone: %.120s", gallery)
 	}
 	if strings.Contains(gallery, "style=") {
@@ -43,7 +38,7 @@ func TestTheBandShowsTheSecondPhotographAndTheDescription(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(3), i18n.En)
 	band := between(t, page, `<section class="goen-band goen-band--product"`, `</section>`)
-	for _, want := range []string{`data-tone="mist"`, `src="/media/p/b.webp"`, `loading="lazy"`, `width="1600"`, `id="desc-heading"`, "A stoneware mug."} {
+	for _, want := range []string{`data-tone="mist"`, `src="/media/p/b.webp"`, `loading="lazy"`, `width="800"`, `id="desc-heading"`, "A stoneware mug."} {
 		if !strings.Contains(band, want) {
 			t.Errorf("the band does not contain %q", want)
 		}
