@@ -258,7 +258,11 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 			}
 			for _, move := range tc.moves {
-				if _, err := first.Exec(ctx, move, orderID); err != nil {
+				var args []any
+				if strings.Contains(move, "$1") {
+					args = append(args, orderID)
+				}
+				if _, err := first.Exec(ctx, move, args...); err != nil {
 					t.Fatalf("%s: %v", move, err)
 				}
 			}
