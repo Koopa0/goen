@@ -1,0 +1,83 @@
+package chart
+
+import "strconv"
+
+// RunningTotal draws two series as running totals from zero, each ending in its
+// total. Fewer than seven days with values, and it draws nothing.
+templ RunningTotal(p RunningTotalProps) {
+	if p.Current.Density() == DensityFull {
+		{{ r := newRunningTotal(ctx, &p) }}
+		@frame(p.Caption, p.Note, runningTotalTable(p, r)) {
+			<div class="goen-chart__frame">
+				<svg class="goen-chart__yaxis" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
+					for _, g := range r.Grid {
+						<text class="goen-chart__label" x="100%" dx="-8" y={ px(g.Y) } dy="0.32em" text-anchor="end">{ g.Label }</text>
+					}
+				</svg>
+				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
+					for _, g := range r.Grid {
+						<line class={ "goen-chart__grid", templ.KV("goen-chart__baseline", g.Baseline) } x1="0" x2="100%" y1={ px(g.Y) } y2={ px(g.Y) }></line>
+					}
+					<svg x="0" y="0" width="100%" height={ strconv.Itoa(r.Height) } viewBox={ "0 0 1000 " + strconv.Itoa(r.Height) } preserveAspectRatio="none">
+						<polygon class="goen-chart__wash" points={ r.Area }></polygon>
+						<polyline class="goen-chart__previous" points={ r.PrevLine } vector-effect="non-scaling-stroke"></polyline>
+						<polyline class="goen-chart__current" points={ r.CurrentLine } vector-effect="non-scaling-stroke"></polyline>
+					</svg>
+					<circle class={ "goen-chart__end goen-chart__end--previous", templ.KV("goen-chart__end--open", r.PreviousEnd.Open) } cx="100%" cy={ px(r.PreviousEnd.Y) } r="3.5"></circle>
+					<circle class={ "goen-chart__end goen-chart__end--current", templ.KV("goen-chart__end--open", r.CurrentEnd.Open) } cx="100%" cy={ px(r.CurrentEnd.Y) } r="4"></circle>
+					for _, t := range r.Ticks {
+						<text
+							class={ "goen-chart__label", templ.KV("goen-chart__tick--minor", t.Minor), templ.KV("goen-chart__today", t.Today) }
+							x={ t.X }
+							y={ px(r.LabelY) }
+							text-anchor={ t.Anchor }
+						>{ t.Label }</text>
+						if t.Today {
+							<line class="goen-chart__todaymark" x1="100%" x2="100%" y1={ px(r.Baseline) } y2={ px(r.Baseline + 6) }></line>
+						}
+					}
+				</svg>
+				<svg class="goen-chart__ends" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
+					@endText(r.PrevLabel, "previous")
+					@endText(r.CurrentLabel, "current")
+				</svg>
+			</div>
+		}
+	}
+}
+
+templ endText(l endLabel, role string) {
+	<text class={ "goen-chart__endname goen-chart__endname--" + role } x="8" y={ px(l.NameY) }>{ l.Name }</text>
+	<text class="goen-chart__endvalue" x="8" y={ px(l.NameY + 14) }>{ l.Total }</text>
+}
+
+templ runningTotalTable(p RunningTotalProps, r runningTotal) {
+	<table class="goen-chart__table">
+		<thead>
+			<tr>
+				<th scope="col">{ p.DayHeading }</th>
+				<th scope="col">{ p.Current.Label }</th>
+				<th scope="col">{ p.PreviousDayHeading }</th>
+				<th scope="col">{ p.Previous.Label }</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, row := range r.Rows {
+				<tr>
+					<th scope="row">{ row.Heading }</th>
+					<td>{ row.Current }</td>
+					<td>{ row.PreviousDay }</td>
+					<td>{ row.Previous }</td>
+				</tr>
+			}
+		</tbody>
+		<tfoot>
+			<tr>
+				<th scope="row">{ r.Total.Heading }</th>
+				<td>{ r.Total.Current }</td>
+				<td></td>
+				<td>{ r.Total.Previous }</td>
+			</tr>
+		</tfoot>
+	</table>
+}

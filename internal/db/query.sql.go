@@ -790,29 +790,49 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
+       w.spend_cents AS window_spend_cents,
+       coalesce(nt.name, '')::text AS next_tier_name,
+       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-WHERE u.id = $1
+CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
+LEFT JOIN LATERAL (
+    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
+    FROM membership_tiers n
+    WHERE n.min_spend_cents > w.spend_cents
+    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
+WHERE u.id = $3
 `
 
+type AdminCustomerParams struct {
+	WindowDays int32
+	Locale     string
+	UserID     uuid.UUID
+}
+
 type AdminCustomerRow struct {
-	ID          uuid.UUID
-	Email       string
-	FullName    string
-	Phone       string
-	CreatedAt   time.Time
-	Verified    bool
-	Orders      int64
-	Spent       int64
-	CreditCents int64
-	Points      int64
+	ID               uuid.UUID
+	Email            string
+	FullName         string
+	Phone            string
+	CreatedAt        time.Time
+	Verified         bool
+	Orders           int64
+	Spent            int64
+	CreditCents      int64
+	Points           int64
+	WindowSpendCents int64
+	NextTierName     string
+	NextTierCents    int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, id)
+// The window spend and the next tier are what the account page judges tiers by,
+// read the way it reads them.
+func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -825,6 +845,9 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
+		&i.WindowSpendCents,
+		&i.NextTierName,
+		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -6752,6 +6775,35 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered
+`
+
+// Whether /deals has anything to buy: a discounted product that can be bought,
+// or a campaign ListedCampaigns lists. The header asks on every page; each half
+// stops at its first row. Its plan has not been measured.
+func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
+	var offered bool
+	err := row.Scan(&offered)
+	return offered, err
+}
+
 const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
@@ -7733,7 +7785,10 @@ type HomeDepartmentStockRow struct {
 }
 
 // How many active products each root holds across its whole subtree: a
-// department with fewer than three has no band to show.
+// department with fewer than three has no band to show, and the header prints
+// it beside each department in the phone menu, so it runs on every page with a
+// header. Unlike the header's other reads it counts the catalogue, not the
+// categories, and its plan has not been measured.
 func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
 	rows, err := q.db.Query(ctx, homeDepartmentStock)
 	if err != nil {
@@ -10399,6 +10454,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `
@@ -11049,6 +11133,68 @@ func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, er
 	var paid_by_credit bool
 	err := row.Scan(&paid_by_credit)
 	return paid_by_credit, err
+}
+
+const paidByShopDay = `-- name: PaidByShopDay :many
+SELECT
+    d.day::date AS day,
+    count(t.total)::bigint AS orders,
+    coalesce(sum(t.total), 0)::bigint AS revenue_cents
+FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+    FROM orders o
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type PaidByShopDayParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	FromAt   time.Time
+	ToAt     time.Time
+}
+
+type PaidByShopDayRow struct {
+	Day          time.Time
+	Orders       int64
+	RevenueCents int64
+}
+
+// One row per shop day from first_day to last_day, a day without orders
+// included. The orders and their total are RevenueBetween's, so the days add up
+// to its revenue. The bounds are cut on the shop's clock by the caller.
+func (q *Queries) PaidByShopDay(ctx context.Context, arg PaidByShopDayParams) ([]PaidByShopDayRow, error) {
+	rows, err := q.db.Query(ctx, paidByShopDay,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.FromAt,
+		arg.ToAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaidByShopDayRow{}
+	for rows.Next() {
+		var i PaidByShopDayRow
+		if err := rows.Scan(&i.Day, &i.Orders, &i.RevenueCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec
@@ -16191,7 +16337,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {

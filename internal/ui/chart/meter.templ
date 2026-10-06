@@ -11,6 +11,9 @@ templ Meter(p MeterProps) {
 			if p.Value > 0 {
 				<rect class="goen-chartmeter__fill" x="0" y="0" width={ p.width() } height="10"></rect>
 			}
+			if p.LimitLine {
+				<rect class="goen-chartmeter__limit" x="100%" y="0" width="2" height="10" transform="translate(-2 0)"></rect>
+			}
 		</svg>
 		<span class="goen-chartmeter__label">{ p.Label }</span>
 	</div>
