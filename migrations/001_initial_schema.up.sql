@@ -3261,7 +3261,8 @@ CREATE TABLE warranty_registrations (
     serial_number text,
     registered_at timestamptz NOT NULL DEFAULT now(),
     expires_on    date NOT NULL,
-    CONSTRAINT warranty_registrations_unit_positive CHECK (unit_no > 0)
+    CONSTRAINT warranty_registrations_unit_positive CHECK (unit_no > 0),
+    CONSTRAINT warranty_registrations_serial_length CHECK (char_length(serial_number) <= 60)
 );
 
 CREATE UNIQUE INDEX warranty_registrations_unit_key
