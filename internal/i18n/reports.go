@@ -164,9 +164,9 @@ var (
 )
 
 var (
-	KeyAdminRepDaily = key("admin.rep.daily", Message{ZhHant: "每日已付款訂單（筆）", En: "Paid orders per day (orders)"})
+	KeyAdminRepDaily = key("admin.rep.daily", Message{ZhHant: "每日已付款訂單（筆）", En: "Paid orders per day"})
 
-	KeyAdminRepEvery7Days = key("admin.rep.every7days", Message{ZhHant: "每 7 天已付款訂單（筆）", En: "Paid orders per 7 days (orders)"})
+	KeyAdminRepEvery7Days = key("admin.rep.every7days", Message{ZhHant: "每 7 天已付款訂單（筆）", En: "Paid orders per 7 days"})
 
 	KeyAdminRepCampaign = key("admin.rep.campaign", Message{ZhHant: "活動", En: "Campaign"})
 

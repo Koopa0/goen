@@ -1032,6 +1032,14 @@ func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 		moment := at(order.placed)
 		reportOrderAt(t, 100_00, order.paid, &moment)
 	}
+	// Paid, then refunded in full before it shipped: it is no revenue, so it is
+	// not the latest paid order either.
+	latest := at("2022-05-12 09:00:00")
+	refunded := reportOrderAt(t, 100_00, true, &latest)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
 
 	view, err := s.ReportAt(ctx, 7, now)
 	if err != nil {

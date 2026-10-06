@@ -504,7 +504,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 	}
 	html := renderComponent(t, en, Report(layouts.Page{Title: "Reports"}, &v))
 	for _, want := range []string{
-		"Paid orders per day (orders)",
+		"Paid orders per day",
 		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
 		`<p class="goen-chart__note">Paid orders only, by the time placed. Today is counted up to 15:20.</p>`,
 		`<th scope="col">Paid orders</th>`,
@@ -563,7 +563,7 @@ func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T)
 	// 90 days up to 10/5 start on 7/8. The busiest 7 days start on 9/29.
 	v := paidView(90, map[int]int64{0: 1, 40: 2, 60: 3, 83: 5, 85: 4, 88: 2, 89: 1})
 	en := i18n.WithLocale(t.Context(), i18n.En)
-	if got, want := v.PaidHeading(en), "Paid orders per 7 days (orders)"; got != want {
+	if got, want := v.PaidHeading(en), "Paid orders per 7 days"; got != want {
 		t.Errorf("PaidHeading = %q, want %q", got, want)
 	}
 	if got, want := spaced(v.PaidSentence(en)), "The busiest stretch was the 7 days from Sep 29, with 12 orders."; got != want {
@@ -573,7 +573,7 @@ func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T)
 		t.Errorf("the table's day heading = %q, want %q", got, want)
 	}
 	thirty := paidView(30, nil)
-	if got, want := thirty.PaidHeading(en), "Paid orders per day (orders)"; got != want {
+	if got, want := thirty.PaidHeading(en), "Paid orders per day"; got != want {
 		t.Errorf("PaidHeading of 30 days = %q, want %q", got, want)
 	}
 }
