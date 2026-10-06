@@ -6982,6 +6982,243 @@ func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneCo
 	return i, err
 }
 
+const departmentCampaign = `-- name: DepartmentCampaign :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $2::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.starts_at, c.ends_at
+FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
+        AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT 1
+`
+
+type DepartmentCampaignParams struct {
+	Locale string
+	Slug   string
+}
+
+type DepartmentCampaignRow struct {
+	Slug     string
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// The first running campaign that features a product of the department which can be
+// bought: ListedCampaigns' test, narrowed to the department's own products.
+func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
+	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
+	var i DepartmentCampaignRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+	)
+	return i, err
+}
+
+const departmentColourStory = `-- name: DepartmentColourStory :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $2::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+story AS (
+    SELECT p.id
+    FROM products p
+    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants sv
+          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
+    GROUP BY p.id
+    HAVING count(DISTINCT v.id) >= 3
+    ORDER BY p.published_at DESC, p.id DESC
+    LIMIT 1
+)
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, $1::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
+    coalesce(b.name, '') AS brand,
+    mv.price_cents AS price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    localized_name(v.value, v.value_en, $1::text) AS colour,
+    v.swatch_hex::text AS swatch,
+    img.storage_key AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width
+FROM story s
+JOIN products p ON p.id = s.id
+LEFT JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width
+    FROM product_images WHERE option_value_id = v.id ORDER BY position LIMIT 1
+) img ON true
+ORDER BY v.position, v.id
+`
+
+type DepartmentColourStoryParams struct {
+	Locale string
+	Slug   string
+}
+
+type DepartmentColourStoryRow struct {
+	Slug                string
+	Name                string
+	Summary             string
+	Brand               string
+	PriceCents          int64
+	PriceVaries         bool
+	CompareAtPriceCents pgtype.Int8
+	Colour              string
+	Swatch              string
+	ImageKey            string
+	ImageAlt            string
+	ImageWidth          int32
+}
+
+// The newest product of the department with three or more colours that each have a
+// photograph, and those colours with the first photograph of each, in the order the
+// product lists them. A swatch marks a colour: the schema leaves it NULL on a value
+// that is not one.
+func (q *Queries) DepartmentColourStory(ctx context.Context, arg DepartmentColourStoryParams) ([]DepartmentColourStoryRow, error) {
+	rows, err := q.db.Query(ctx, departmentColourStory, arg.Locale, arg.Slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentColourStoryRow{}
+	for rows.Next() {
+		var i DepartmentColourStoryRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Summary,
+			&i.Brand,
+			&i.PriceCents,
+			&i.PriceVaries,
+			&i.CompareAtPriceCents,
+			&i.Colour,
+			&i.Swatch,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const departmentCompareCandidates = `-- name: DepartmentCompareCandidates :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $1::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT category_id, slug FROM held
+WHERE held >= 2 AND nth <= 3
+ORDER BY held DESC, category_id, nth
+`
+
+type DepartmentCompareCandidatesRow struct {
+	CategoryID uuid.UUID
+	Slug       string
+}
+
+// Per category of the department that holds at least two products on sale, its three
+// newest. A category is a candidate for the comparison; whether it may be compared
+// is the caller's to say.
+func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) ([]DepartmentCompareCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, departmentCompareCandidates, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentCompareCandidatesRow{}
+	for rows.Next() {
+		var i DepartmentCompareCandidatesRow
+		if err := rows.Scan(&i.CategoryID, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const departmentFacts = `-- name: DepartmentFacts :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = $1::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT
+    (SELECT count(*) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
+    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
+     WHERE r.slug = $1::text)::bigint AS categories,
+    (SELECT count(DISTINCT p.brand_id) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
+`
+
+type DepartmentFactsRow struct {
+	Products   int64
+	Categories int64
+	Brands     int64
+}
+
+// What a department says about itself under its head: the products it holds across
+// its whole subtree, the sub-categories directly under it, and the brands of those
+// products.
+func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
+	row := q.db.QueryRow(ctx, departmentFacts, slug)
+	var i DepartmentFactsRow
+	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
+	return i, err
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -8603,6 +8840,50 @@ func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const listingHighlights = `-- name: ListingHighlights :many
+SELECT slug, value FROM (
+    SELECT p.slug, localized_name(s.value, s.value_en, $1::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY($2::text[])
+) ranked
+WHERE nth <= 2
+ORDER BY slug, nth
+`
+
+type ListingHighlightsParams struct {
+	Locale string
+	Slugs  []string
+}
+
+type ListingHighlightsRow struct {
+	Slug  string
+	Value string
+}
+
+// The first two specifications each product lists, for the line under its name on a
+// department whose products are compared.
+func (q *Queries) ListingHighlights(ctx context.Context, arg ListingHighlightsParams) ([]ListingHighlightsRow, error) {
+	rows, err := q.db.Query(ctx, listingHighlights, arg.Locale, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListingHighlightsRow{}
+	for rows.Next() {
+		var i ListingHighlightsRow
+		if err := rows.Scan(&i.Slug, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const liveInvoice = `-- name: LiveInvoice :one

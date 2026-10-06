@@ -139,8 +139,9 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Name:   cat.Name,
 		Crumbs: trail,
 		Theme: &pages.Theme{
-			Children: childCrumbs(children),
-			Tone:     pages.ResolveTone(cat.Tone),
+			Children:   childCrumbs(children),
+			Tone:       pages.ResolveTone(cat.Tone),
+			Comparable: offers[cat.ID],
 			Photo: pages.Photo{
 				URL:    assets.ProductImageURL(cat.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
@@ -151,6 +152,10 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Total:    total,
 		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
+	}
+
+	if err := s.withHighlights(ctx, view.Products); err != nil {
+		return pages.ListingView{}, err
 	}
 
 	if len(brands) > 0 {

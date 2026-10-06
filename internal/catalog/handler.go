@@ -52,11 +52,18 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	view.MaxPrice = f.MaxPrice
 	view.Sort = f.Sort.Param()
 
-	// A partial swap never draws the rules, so it does not read them.
+	// A partial swap never draws the rules or the head, so it does not read them.
 	var rules *pages.ShopRules
+	var head *pages.DepartmentHead
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
 	} else {
+		head, err = h.store.DepartmentHead(r.Context(), slug, view.Theme.Comparable, !view.Filtered && view.Page <= 1)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "load department head", "error", err, "slug", slug)
+			h.serverError(w, r)
+			return
+		}
 		loaded, err := h.store.ShopRules(r.Context())
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
@@ -65,7 +72,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		}
 		rules = &loaded
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules))
+	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules, head))
 }
 
 const newestOnEmpty = 4

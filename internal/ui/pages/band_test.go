@@ -80,11 +80,11 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneBlush}}, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneBlush}}, nil, nil))
 	if strings.Contains(page, "goen-pagehead__photo") {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
-	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []ProductTile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil))
+	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []ProductTile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil, nil))
 	if !strings.Contains(withProduct, "goen-pagehead__photo goen-pagehead__photo--well") {
 		t.Error("a head with no department photograph did not take its first product's, on the well")
 	}

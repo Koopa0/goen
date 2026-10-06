@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// rules is nil where the page has no shop rules to state.
-templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
+// rules and head are nil where the page has none to state.
+templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
 	@layouts.Base(p) {
 		{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
 		<div class="goen-listing__head">
@@ -32,6 +32,9 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 							}
 						</nav>
 					}
+					if head != nil {
+						@departmentFacts(head)
+					}
 				</div>
 				if photo.Shown() {
 					// Low priority: the stylesheet drops the photograph below 1024, where an eager
@@ -50,7 +53,13 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 				}
 			</div>
 		</div>
-		<div class="goen-listing">
+		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
+			if head != nil {
+				if head.Notice != nil {
+					@departmentNotice(head.Notice)
+				}
+				@departmentSlot(head)
+			}
 			<div class="goen-listing__layout">
 				@listingFilters(v)
 				<div class="goen-listing__main">
