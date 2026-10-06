@@ -70,7 +70,6 @@ ORDER BY d.day;
 -- name: LatestPaidOrder :one
 SELECT o.order_number, f.funded_at, f.total_cents
 FROM orders o
-JOIN committed_orders c ON c.id = o.id
 CROSS JOIN LATERAL (
     SELECT coalesce(
                (SELECT min(e.occurred_at) FROM order_events e
