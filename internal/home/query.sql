@@ -19,13 +19,10 @@ SELECT
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's. On a campaign's row
     -- the price can be a discounted variant's with a cheaper one beside it.
-    (EXISTS (
+    EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AND (sqlc.narg(campaign_id)::uuid IS NULL OR NOT EXISTS (
-        SELECT 1 FROM product_variants cv
-        WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
-    )))::boolean AS price_varies,
+    ) AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
