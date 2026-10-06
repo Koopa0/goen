@@ -93,7 +93,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
 	if tokens["--chart-hue"] == "" {
-		t.Fatalf("%s declares no hex value for --chart-hue", AppCSS)
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
 	for _, ground := range []string{"--n-0", "--n-50"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
