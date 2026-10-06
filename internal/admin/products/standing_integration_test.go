@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -38,8 +39,13 @@ func standingProduct(t *testing.T) (slug string, productID, variantID uuid.UUID,
 func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, units int, placedAt time.Time, paid bool) {
 	t.Helper()
 	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
 	var orderID uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, placed_at)
 		SELECT next_order_number(), v.id, sm.code, v.name, 0, $1::timestamptz
@@ -47,16 +53,19 @@ func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, uni
 		ORDER BY v.effective_at LIMIT 1 RETURNING id`, placedAt).Scan(&orderID); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
 		VALUES ($1, 'standing@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
 		t.Fatalf("delivery details: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, unit_price_cents, quantity)
 		VALUES ($1, $2, $3, $4, '銷售評價商品', 1, $5)`, orderID, productID, variantID, sku, units); err != nil {
 		t.Fatalf("create line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
 	}
 	if !paid {
 		return
