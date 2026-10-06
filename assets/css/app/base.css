@@ -291,8 +291,10 @@ body {
   --n-50: #fafafa;
   /* The ground baked into every product and category photograph. A container
      that is not this exact value draws a visible edge around the picture. */
-  --photo: #f9f9f9;
+  --well: #f9f9f9;
+  --photo: var(--well);
   --photo-ground: var(--photo);
+  --wash: #f5f5f4;
   --n-100: #f4f4f5;
   --n-200: #e7e7e9;
   --n-300: #d4d4d8;
@@ -303,13 +305,22 @@ body {
   --n-700: #3f3f46;
   --n-900: #18181b;
 
-  /* The one hue. --accent is for rings, outlines and fills; --accent-text is
-     the same hue darkened until it reads as link text on every neutral ground. */
-  --accent: #2a75ba;
-  --accent-text: #1f5b92;
-  --accent-text-hover: #174a78;
-  --accent-faint: rgb(42 117 186 / 0.06);
-  --accent-muted: rgb(42 117 186 / 0.1);
+  --ink: #1b1b1d;
+  --ink-2: #3a3a3f;
+  --muted: #5f5f66;
+  --line: #e4e4e7;
+  --line-2: #d1d1d6;
+  /* The boundary of a control: 3:1 on white, --wash and --well. */
+  --edge: #85858c;
+
+  /* The one hue, 藍墨 (ink blue): 11.6:1 on white, so it is the link text
+     as well as the ring and the fill. --mark is goen's mark for time. */
+  --accent: #26395a;
+  --mark: #26395a;
+  --accent-text: var(--accent);
+  --accent-text-hover: #1a2740;
+  --accent-faint: rgb(38 57 90 / 0.06);
+  --accent-muted: rgb(38 57 90 / 0.1);
   --accent-strong: var(--accent-text);
   --on-accent: #ffffff;
   --ring: var(--accent);
@@ -317,11 +328,11 @@ body {
   /* The names the existing rules were written against, now on the ramp. */
   --bg: var(--n-0);
   --panel: var(--n-0);
-  --fg: var(--n-900);
-  --fg-muted: var(--n-500);
-  --border: var(--n-200);
+  --fg: var(--ink);
+  --fg-muted: var(--muted);
+  --border: var(--line);
   --border-faint: var(--n-100);
-  --border-strong: var(--n-300);
+  --border-strong: var(--line-2);
   --elevated: var(--n-100);
   --overlay: var(--n-100);
 
@@ -344,6 +355,31 @@ body {
      so Han is covered by a face that sits beside it rather than under a
      second personality. */
   --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --fw-display: 350;
+
+  --t-12: 0.75rem;
+  --t-13: 0.8125rem;
+  --t-14: 0.875rem;
+  --t-15: 0.9375rem;
+  --t-16: 1rem;
+  --t-18: 1.125rem;
+  --t-20: 1.25rem;
+  --t-24: 1.5rem;
+  --t-28: clamp(1.5rem, 1.2rem + 0.9vw, 1.75rem);
+  --t-32: clamp(1.625rem, 1.2rem + 1.2vw, 2rem);
+  --t-44: clamp(2rem, 1.3rem + 2.2vw, 2.75rem);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+  --s-10: 128px;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;

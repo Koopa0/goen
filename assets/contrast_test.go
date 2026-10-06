@@ -76,14 +76,15 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
 		if tokens[name] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
-	for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
-		for _, ground := range []string{"--n-0", "--n-50"} {
+	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
+	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], ground, tokens[ground], got)
@@ -91,10 +92,22 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
+	// text to carry them.
+	for _, ground := range []string{"--n-0", "--wash", "--well"} {
+		if got := contrast(tokens["--edge"], tokens[ground]); got < 3 {
+			t.Errorf("--edge (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--edge"], ground, tokens[ground], got)
+		}
+	}
+	if got := contrast(tokens["--mark"], tokens["--n-0"]); got < 3 {
+		t.Errorf("--mark (#%s) on --n-0 = %.2f:1, want at least 3:1", tokens["--mark"], got)
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
-	if tokens["--photo"] != "f9f9f9" {
-		t.Errorf("--photo = #%s, want #f9f9f9, the ground the photographs carry", tokens["--photo"])
+	if tokens["--well"] != "f9f9f9" {
+		t.Errorf("--well = #%s, want #f9f9f9, the ground the photographs carry", tokens["--well"])
 	}
 }
 
@@ -159,7 +172,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			continue
 		}
 		// A light ground is also where links and the plain text tokens land.
-		for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
+		for _, ink := range []string{"--muted", "--ink", "--accent"} {
 			if got := contrast(tokens[ink], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], name, ground, got)
