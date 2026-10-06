@@ -688,7 +688,7 @@ func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
 			mux.ServeHTTP(res, req)
 			wantLocation := "/admin/stock?" + tt.notice + "=1#row-" + sku
 			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != wantLocation {
-				t.Fatalf("retirement response = %d %q, want 303 %q", res.Code, res.Header().Get("Location"), wantLocation)
+				t.Errorf("retirement response = %d %q, want 303 %q", res.Code, res.Header().Get("Location"), wantLocation)
 			}
 			var remainsActive bool
 			var otherActive, audits int
