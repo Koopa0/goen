@@ -2,6 +2,10 @@ package pages
 
 import (
 	"strconv"
+	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 type CTA struct {
@@ -35,8 +39,27 @@ type HeroSlide struct {
 	// A width on its own reserves no space, so both are rendered together.
 	PhotoWidth, PhotoHeight int
 	Title                   string
-	Fact                    string
-	CTA                     CTA
+	// Fact is the sentence an editor wrote under a scheduled slide's title.
+	Fact string
+	// Stats are the figures a campaign or department slide states about itself.
+	Stats  []SlideStat
+	Period *components.PeriodSpec
+	CTA    CTA
+}
+
+// SlideStat is a labelled figure on a slide; Note is the short line under it.
+type SlideStat struct {
+	Label, Value, Note string
+}
+
+// TitleLong is a title that steps down a size so it never pushes the button
+// out: over 8 characters in Chinese, over 24 in English.
+func (s *HeroSlide) TitleLong(locale i18n.Locale) bool {
+	limit := 24
+	if locale == i18n.ZhHant {
+		limit = 8
+	}
+	return utf8.RuneCountInString(s.Title) > limit
 }
 
 // PhotoSizes is the img sizes attribute: the slide's width for a photograph that

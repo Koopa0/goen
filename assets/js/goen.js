@@ -15,10 +15,10 @@
    */
 
   /*
-   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard),
-   * and prefers-reduced-motion is answered in CSS, where scroll-behavior is set.
-   * This wires the arrows and dots, keeps aria-current on the slide in view and
-   * runs the autoplay.
+   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard)
+   * and the named tabs are links that work without this script. This draws the
+   * arrows and the count and keeps aria-current on the slide in view. Nothing
+   * here moves a slide except the visitor's own input.
    */
   function carousel() {
     const root = document.querySelector(".goen-hero");
@@ -26,7 +26,8 @@
     if (!track || track.children.length < 2) return;
 
     const slides = [...track.children];
-    const dots = [...root.querySelectorAll(".goen-hero__dot")];
+    const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
+    const count = root.querySelector("[data-count]");
     let current = 0;
     const go = (index) => {
       const next = (index + slides.length) % slides.length;
@@ -36,69 +37,23 @@
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         current = slides.indexOf(entry.target);
-        dots.forEach((dot, index) => dot.setAttribute("aria-current", String(index === current)));
+        tabs.forEach((tab, index) => {
+          if (index === current) tab.setAttribute("aria-current", "true");
+          else tab.removeAttribute("aria-current");
+        });
+        if (count) count.textContent = `${current + 1} / ${slides.length}`;
       }
     }, { root: track, threshold: 0.6 });
     slides.forEach((slide) => seen.observe(slide));
 
-    /*
-     * Autoplay. The current line indicator's fill is a CSS animation over the
-     * interval and its end advances the slide, so the motion is drawn as it
-     * happens. It holds while the pointer is over the carousel or focus is in
-     * it, and never starts under prefers-reduced-motion. Steering by arrow,
-     * indicator, swipe, wheel or key stops it for good: that is the visitor's
-     * way to stop the movement (WCAG 2.2.2).
-     */
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let running = root.hasAttribute("data-autoplay") && !reduced.matches;
-    let hovered = false;
-    let focused = false;
-
-    const render = () => {
-      root.classList.toggle("is-playing", running);
-      root.classList.toggle("is-held", hovered || focused);
-    };
-    // Steering by hand ends autoplay for good: the visitor has taken over.
-    const stop = () => {
-      if (!running) return;
-      running = false;
-      render();
-    };
-
-    root.querySelectorAll("[data-step]").forEach((button) => {
-      button.addEventListener("click", () => {
-        stop();
-        go(current + Number(button.dataset.step));
-      });
-    });
-    dots.forEach((dot, index) => dot.addEventListener("click", () => {
-      stop();
+    tabs.forEach((tab, index) => tab.addEventListener("click", (event) => {
+      event.preventDefault();
       go(index);
     }));
-    for (const type of ["touchstart", "wheel"]) {
-      track.addEventListener(type, stop, { passive: true });
-    }
-    // Tab moves focus and is not steering; the keys that scroll the track are.
-    track.addEventListener("keydown", (event) => {
-      if (/^(Arrow|Page|Home$|End$)/.test(event.key)) stop();
+    root.querySelectorAll("[data-step]").forEach((button) => {
+      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
     });
-
-    if (!running) return;
-    root.addEventListener("animationend", (event) => {
-      if (event.animationName === "goen-hero-progress" && running) go(current + 1);
-    });
-    root.addEventListener("pointerenter", () => { hovered = true; render(); });
-    root.addEventListener("pointerleave", () => { hovered = false; render(); });
-    // Only focus a keyboard put there holds the carousel; a click leaves focus behind.
-    root.addEventListener("focusin", (event) => {
-      focused = event.target.matches(":focus-visible");
-      render();
-    });
-    root.addEventListener("focusout", (event) => {
-      if (!root.contains(event.relatedTarget)) { focused = false; render(); }
-    });
-    reduced.addEventListener("change", () => { if (reduced.matches) stop(); });
-    render();
+    root.querySelectorAll("[data-js]").forEach((el) => el.removeAttribute("hidden"));
   }
 
   /*

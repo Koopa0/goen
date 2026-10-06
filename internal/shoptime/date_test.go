@@ -72,3 +72,24 @@ func TestLastDayIsTheDayBeforeAMidnightEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestDaysBetweenCountsShopDays(t *testing.T) {
+	t.Parallel()
+	taipei := time.FixedZone("CST", 8*3600)
+	for _, tt := range []struct {
+		name     string
+		from, to time.Time
+		want     int
+	}{
+		{"same day", time.Date(2026, 10, 9, 0, 5, 0, 0, taipei), time.Date(2026, 10, 9, 23, 55, 0, 0, taipei), 0},
+		{"next day by a minute", time.Date(2026, 10, 9, 23, 59, 0, 0, taipei), time.Date(2026, 10, 10, 0, 1, 0, 0, taipei), 1},
+		{"across a month", time.Date(2026, 9, 30, 12, 0, 0, 0, taipei), time.Date(2026, 10, 2, 12, 0, 0, 0, taipei), 2},
+		{"earlier", time.Date(2026, 10, 9, 12, 0, 0, 0, taipei), time.Date(2026, 10, 7, 12, 0, 0, 0, taipei), -2},
+		// 17:00 UTC is already the next day in Taipei.
+		{"in UTC", time.Date(2026, 10, 9, 17, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 1, 0, 0, 0, time.UTC), 0},
+	} {
+		if got := shoptime.DaysBetween(tt.from, tt.to); got != tt.want {
+			t.Errorf("%s: DaysBetween = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
