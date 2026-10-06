@@ -70,6 +70,17 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
+	if tokens["--chart-hue"] == "" {
+		t.Fatalf("%s declares no hex value for --chart-hue", AppCSS)
+	}
+	for _, ground := range []string{"--n-0", "--n-50"} {
+		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
+			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--chart-hue"], ground, tokens[ground], got)
+		}
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
 	if tokens["--photo"] != "f9f9f9" {
