@@ -1,8 +1,37 @@
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const origin = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
 const debugging = `http://127.0.0.1:${Number(process.env.CDP_PORT || 9222)}`;
 const failures = [];
+
+export async function waitForDebuggingEndpoint(endpoint, { timeoutMs = 30000, retryMs = 200 } = {}) {
+  const deadline = performance.now() + timeoutMs;
+  let attempts = 0;
+  let cause;
+  while (performance.now() < deadline) {
+    attempts++;
+    try {
+      const remaining = Math.max(1, Math.ceil(deadline - performance.now()));
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(remaining), redirect: 'error' });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`debugging endpoint answered HTTP ${response.status}`);
+      }
+      const version = await response.json();
+      assert.equal(typeof version.webSocketDebuggerUrl, 'string', 'debugging endpoint must provide a WebSocket URL');
+      assert.ok(version.webSocketDebuggerUrl.length > 0, 'debugging endpoint must provide a nonempty WebSocket URL');
+      return version;
+    } catch (error) {
+      // A final deadline abort must not hide an earlier startup failure.
+      if (!cause || error.name !== 'TimeoutError') cause = error;
+    }
+    const remaining = deadline - performance.now();
+    if (remaining > 0) await delay(Math.min(retryMs, remaining));
+  }
+  throw new Error(`Chrome debugging endpoint ${endpoint} was not ready within ${timeoutMs}ms after ${attempts} attempts; inspect chrome.log and .layout-chrome/pid for startup evidence`, { cause });
+}
 
 class Connection {
   pending = new Map();
@@ -259,16 +288,15 @@ async function journey(connection, locale, width) {
   }
 }
 
-const version = await fetch(debugging + '/json/version').then((response) => {
-  assert.equal(response.ok, true, 'the existing Chrome debugging endpoint must be available');
-  return response.json();
-});
-const connection = await Connection.open(version.webSocketDebuggerUrl);
-try {
-  for (const locale of ['zh-Hant', 'en']) {
-    for (const width of [375, 1440]) await journey(connection, locale, width);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const version = await waitForDebuggingEndpoint(debugging + '/json/version');
+  const connection = await Connection.open(version.webSocketDebuggerUrl);
+  try {
+    for (const locale of ['zh-Hant', 'en']) {
+      for (const width of [375, 1440]) await journey(connection, locale, width);
+    }
+  } finally {
+    connection.close();
   }
-} finally {
-  connection.close();
+  if (failures.length) throw new Error(`${failures.length} filter feedback assertions failed`);
 }
-if (failures.length) throw new Error(`${failures.length} filter feedback assertions failed`);
