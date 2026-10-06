@@ -49,6 +49,15 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
+// DealsOnOffer is whether /deals has a product to buy or a campaign to list.
+func (s *Store) DealsOnOffer(ctx context.Context) (bool, error) {
+	offered, err := s.q.DealsHaveSomethingToBuy(ctx)
+	if err != nil {
+		return false, fmt.Errorf("read whether deals are on offer: %w", err)
+	}
+	return offered, nil
+}
+
 func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
 	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {

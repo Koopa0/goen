@@ -28,9 +28,14 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				<h2 class="goen-admin__heading" id="tasks-heading">{ i18n.T(ctx, i18n.KeyAdminQueueTasksHeading) }</h2>
 				<ul class="goen-admin__tasks" role="list">
 					for _, t := range v.Tasks {
-						<li class="goen-admin__task">
+						<li class={ "goen-admin__task", templ.KV("goen-admin__task--alert", t.Alert) }>
 							<a href={ templ.URL(t.Href) }>{ i18n.T(ctx, t.Label) }</a>
-							<span class="goen-admin__cellnum">{ strconv.FormatInt(t.Count, 10) }</span>
+							<span class="goen-admin__taskfigure">
+								<span class="goen-admin__cellnum">{ strconv.FormatInt(t.Count, 10) }</span>
+								if t.HasAge {
+									<span class="goen-admin__taskage">{ t.AgeText(ctx) }</span>
+								}
+							</span>
 						</li>
 					}
 				</ul>
@@ -713,6 +718,11 @@ templ Variants(p layouts.Page, v VariantsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		if v.ShowCover {
+			<section class="goen-admin__cover">
+				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
+			</section>
+		}
 		<form class="goen-admin__search" method="get" action="/admin/stock">
 			if v.LowOnly {
 				<input type="hidden" name="low" value="1"/>
