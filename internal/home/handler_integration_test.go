@@ -1055,7 +1055,7 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 			    VALUES ($1, $2, $2, $3, now())
 			    RETURNING id
 			)
-			INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+			INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
 			SELECT p.id, upper($2), 1000, 5, 0, 0 FROM p`,
 			p.category, p.slug, p.status); err != nil {
 			t.Fatalf("insert product %s: %v", p.slug, err)
