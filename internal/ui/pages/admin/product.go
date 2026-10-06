@@ -110,6 +110,16 @@ type ProductView struct {
 	Notice            components.Result
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
+	ImageUploadDraft  ProductImageUploadDraft
+	ImageReuseDraft   ProductImageReuseDraft
+}
+
+type ProductImageUploadDraft struct {
+	Alt, AltEn, OptionValue string
+}
+
+type ProductImageReuseDraft struct {
+	Digest, Alt, AltEn string
 }
 
 type SpecDraft struct {

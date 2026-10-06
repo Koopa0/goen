@@ -98,6 +98,8 @@ type CampaignDetail struct {
 }
 
 type CampaignView struct {
+	ImageAltDraft   string
+	ImageAltEnDraft string
 	CampaignDetail
 
 	Slug     string

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/carrier"
@@ -344,8 +345,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+media.UploadQuery(err), http.StatusSeeOther)
+		h.rejectImageUpload(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(err), "=1")].Key))
 		return
 	}
 
@@ -354,8 +354,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("alt_en"), r.PostFormValue("option_value"),
 		obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
+		h.rejectImageUpload(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(attachReason(err), "=1")].Key))
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -382,12 +381,23 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("alt"), r.PostFormValue("alt_en"), "",
 		obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach reused image", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
+		h.rejectImageReuse(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(attachReason(err), "=1")].Key))
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+}
+
+func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, reason string) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"image": reason}, &productDrafts{
+		upload: admin.ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
+	})
+}
+
+func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, reason string) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_image": reason}, &productDrafts{
+		reuse: admin.ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
+	})
 }
 
 func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
@@ -576,6 +586,8 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 type productDrafts struct {
 	variant admin.VariantDraft
 	spec    admin.SpecDraft
+	upload  admin.ProductImageUploadDraft
+	reuse   admin.ProductImageReuseDraft
 }
 
 func (h *Handler) editProductWithErrors(
@@ -593,6 +605,7 @@ func (h *Handler) editProductWithErrors(
 	}
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
+	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }

@@ -3,6 +3,10 @@
 package products_test
 
 import (
+	"bytes"
+	"image"
+	"image/png"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -168,6 +172,136 @@ func assertEditorImageControls(t *testing.T, body, slug, attached, library strin
 		}
 		if !found {
 			t.Errorf("image control %q omitted fixture digest %q; got %v", action, digest, controls[action])
+		}
+	}
+}
+
+func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
+	staffCtx, _ := admintest.StaffContext(t, pool)
+	p := admintest.AdminRolePool(t, pool)
+	s := products.NewStore(p)
+	mux := http.NewServeMux()
+	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+	slug, options := productWithColours(t, staffCtx, s, "Blue", "Black")
+	attached, library := storeMedia(t), storeMedia(t)
+	if err := s.AttachImage(staffCtx, slug, attached, "Saved picture", "Saved English picture", "", 800, 600); err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := s.Images(staffCtx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var valid bytes.Buffer
+	if err := png.Encode(&valid, image.NewRGBA(image.Rect(0, 0, 12, 8))); err != nil {
+		t.Fatal(err)
+	}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(staffCtx, locale)
+		for _, tt := range []struct {
+			name, alt, altEn string
+			picture          []byte
+			reuse            bool
+		}{
+			{name: "corrupt upload", alt: " 原始中文說明 ", altEn: " Raw English description ", picture: []byte("corrupt PNG")},
+			{name: "invalid upload description", alt: strings.Repeat("界", 201), altEn: " Raw English description ", picture: valid.Bytes()},
+			{name: "invalid upload English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), picture: valid.Bytes()},
+			{name: "invalid reused description", alt: strings.Repeat("界", 201), altEn: " Raw English description ", reuse: true},
+			{name: "invalid reused English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), reuse: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				res := httptest.NewRecorder()
+				if tt.reuse {
+					form := url.Values{"digest": {library}, "alt": {tt.alt}, "alt_en": {tt.altEn}}
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images/reuse", strings.NewReader(form.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					mux.ServeHTTP(res, req)
+				} else {
+					var body bytes.Buffer
+					form := multipart.NewWriter(&body)
+					for name, value := range map[string]string{"alt": tt.alt, "alt_en": tt.altEn, "option_value": options[1]} {
+						if err := form.WriteField(name, value); err != nil {
+							t.Fatal(err)
+						}
+					}
+					part, err := form.CreateFormFile("image", "product.png")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := part.Write(tt.picture); err != nil {
+						t.Fatal(err)
+					}
+					if err := form.Close(); err != nil {
+						t.Fatal(err)
+					}
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images", &body)
+					req.Header.Set("Content-Type", form.FormDataContentType())
+					mux.ServeHTTP(res, req)
+				}
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("refused product image = %d, want 422", res.Code)
+				}
+				altID, altEnID, errorID := "p-alt", "p-alt-en", "p-image"
+				if tt.reuse {
+					altID, altEnID, errorID = "reuse-alt-"+library, "reuse-alt-en-"+library, "reuse-alt-"+library
+				}
+				for id, want := range map[string]string{altID: tt.alt, altEnID: tt.altEn} {
+					input := admintest.InputElementByID(t, res.Body.String(), id)
+					if got := admintest.InputAttribute(t, input, "value"); got != want {
+						t.Errorf("image draft %q = %q, want %q", id, got, want)
+					}
+				}
+				errorValue := ""
+				if tt.reuse {
+					errorValue = tt.alt
+				}
+				admintest.AssertRefusedInput(t, res.Body.String(), errorID, errorValue)
+				if !tt.reuse {
+					doc, err := html.Parse(strings.NewReader(res.Body.String()))
+					if err != nil {
+						t.Fatal(err)
+					}
+					chosen := ""
+					for n := range doc.Descendants() {
+						if n.Type != html.ElementNode || n.Data != "select" {
+							continue
+						}
+						id := ""
+						for _, a := range n.Attr {
+							if a.Key == "id" {
+								id = a.Val
+							}
+						}
+						if id != "p-image-option" {
+							continue
+						}
+						for option := range n.Descendants() {
+							selected, value := false, ""
+							for _, a := range option.Attr {
+								if a.Key == "selected" {
+									selected = true
+								}
+								if a.Key == "value" {
+									value = a.Val
+								}
+							}
+							if selected {
+								chosen = value
+							}
+						}
+					}
+					if chosen != options[1] {
+						t.Errorf("image option = %q, want %q", chosen, options[1])
+					}
+				}
+				assertEditorImageControls(t, res.Body.String(), slug, attached, library)
+				after, err := s.Images(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(baseline, after); diff != "" {
+					t.Errorf("refusal changed attached images (-want +got):\n%s", diff)
+				}
+			})
 		}
 	}
 }

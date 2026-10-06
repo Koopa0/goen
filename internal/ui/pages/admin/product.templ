@@ -437,7 +437,21 @@ templ productImages(v ProductView) {
 				@components.Label(components.LabelProps{For: "p-image"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdUpload) }
 				}
-				<input class="goen-input" id="p-image" name="image" type="file" accept="image/*" required/>
+				<input
+					class="goen-input"
+					id="p-image"
+					name="image"
+					type="file"
+					accept="image/*"
+					required
+					if v.HasErr("image") {
+						aria-invalid="true"
+						aria-describedby="p-image-error"
+					}
+				/>
+				if v.HasErr("image") {
+					<p class="ui-error-text" id="p-image-error" role="alert">{ v.Err("image") }</p>
+				}
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdUploadHint) }</p>
 			</div>
 			<div class="goen-admin__fields">
@@ -445,14 +459,14 @@ templ productImages(v ProductView) {
 					@components.Label(components.LabelProps{For: "p-alt"}) {
 						{ i18n.T(ctx, i18n.KeyAdminAltText) }
 					}
-					<input class="goen-input" id="p-alt" name="alt" required maxlength="200" placeholder={ altExample }/>
+					<input class="goen-input" id="p-alt" name="alt" value={ v.ImageUploadDraft.Alt } required maxlength="200" placeholder={ altExample }/>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
 				</div>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "p-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }
 					}
-					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="White ceramic mug, side view, handle on the right"/>
+					<input class="goen-input" id="p-alt-en" name="alt_en" value={ v.ImageUploadDraft.AltEn } maxlength="200" placeholder="White ceramic mug, side view, handle on the right"/>
 					<p class="goen-admin__hint">
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
 					</p>
@@ -463,7 +477,7 @@ templ productImages(v ProductView) {
 							{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }
 						}
 						<select class="goen-input" id="p-image-option" name="option_value" aria-describedby="p-image-option-hint">
-							@imageOptionChoices(v, "")
+							@imageOptionChoices(v, v.ImageUploadDraft.OptionValue)
 						</select>
 						<p class="goen-admin__hint" id="p-image-option-hint">{ i18n.T(ctx, i18n.KeyAdminProdImageOptionHint) }</p>
 					</div>
@@ -488,12 +502,31 @@ templ productImages(v ProductView) {
 							class="goen-input"
 							id={ "reuse-alt-" + img.Key }
 							name="alt"
+							if v.ImageReuseDraft.Digest == img.Key {
+								value={ v.ImageReuseDraft.Alt }
+								if v.HasErr("reuse_image") {
+									aria-invalid="true"
+									aria-describedby={ "reuse-alt-" + img.Key + "-error" }
+								}
+							}
 							required
 							maxlength="200"
 							placeholder={ i18n.T(ctx, i18n.KeyAdminAltText) }
 						/>
 						<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
-						<input class="goen-input" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
+						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_image") {
+							<p class="ui-error-text" id={ "reuse-alt-" + img.Key + "-error" } role="alert">{ v.Err("reuse_image") }</p>
+						}
+						<input
+							class="goen-input"
+							id={ "reuse-alt-en-" + img.Key }
+							name="alt_en"
+							maxlength="200"
+							placeholder="English alt text"
+							if v.ImageReuseDraft.Digest == img.Key {
+								value={ v.ImageReuseDraft.AltEn }
+							}
+						/>
 						@components.Button(components.ButtonProps{
 							ButtonStyle: components.ButtonStyleOutline,
 							Size:        components.SizeSmall,
