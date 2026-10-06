@@ -17,8 +17,9 @@ const maxPeriodCells = 60
 type PeriodUnit string
 
 const (
-	PeriodDay   PeriodUnit = "day"
-	PeriodMonth PeriodUnit = "month"
+	PeriodMinute PeriodUnit = "minute"
+	PeriodDay    PeriodUnit = "day"
+	PeriodMonth  PeriodUnit = "month"
 )
 
 // CellState says where a cell lies against the present.
@@ -199,4 +200,44 @@ func MonthPeriod(ctx context.Context, received, until, today shoptime.Date, mont
 		Description: description,
 		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),
 	}, true
+}
+
+// MinutePeriod is a stock hold drawn from placedAt to until, one cell per minute.
+// startBy is the minute payment must have started by; it is zero when the page
+// shows no such deadline, and the cells after it are the extra span. lapsed
+// fills every cell: the hold has ended. ok is false when the hold is longer
+// than a grid can draw or shorter than one minute.
+func MinutePeriod(ctx context.Context, placedAt, startBy, until time.Time, lapsed bool) (PeriodSpec, bool) {
+	total := int(until.Sub(placedAt) / time.Minute)
+	if total < 1 || total > maxPeriodCells {
+		return PeriodSpec{}, false
+	}
+	cells := make([]PeriodCell, total)
+	if lapsed {
+		for i := range cells {
+			cells[i].State = CellPast
+		}
+	}
+	placed, deadline, end := shoptime.ClockText(placedAt), shoptime.ClockText(startBy), shoptime.ClockText(until)
+	cells[0].Label = placed
+	cells[total-1].Label = end
+	// The cell i covers [placedAt+i, placedAt+i+1) minutes and the tick is on its right edge, so the cell
+	// before the deadline's minute carries it.
+	if mark := int(startBy.Sub(placedAt)/time.Minute) - 1; !startBy.IsZero() && mark > 0 && mark < total-1 {
+		cells[mark].Mark = true
+		cells[mark].Label = deadline
+		for i := mark + 1; i < total; i++ {
+			cells[i].Extra = true
+		}
+	}
+	var description string
+	switch {
+	case lapsed:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldLapsed), placed, end)
+	case startBy.IsZero():
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldResumed), placed, end)
+	default:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldOpen), placed, deadline, end)
+	}
+	return PeriodSpec{Unit: PeriodMinute, Cells: cells, Description: description}, true
 }

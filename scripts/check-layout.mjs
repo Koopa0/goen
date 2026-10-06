@@ -889,7 +889,7 @@ async function periodPass(route) {
   }
 }
 
-await periodPass('/');
+for (const route of ['/', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) await periodPass(route);
 
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the

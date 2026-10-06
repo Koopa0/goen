@@ -89,9 +89,14 @@ func (v *OrderView) ParcelsNote(ctx context.Context) string {
 func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []components.Stat {
 	now := v.now()
 	last, end := shoptime.DateOf(s.RescissionEnds, now), shoptime.DateOf(s.GoodwillEnds, now)
+	// On the last day the grid says so; a count of zero would read as the right already gone.
+	left := int64(shoptime.DaysBetween(shoptime.DateOf(now, now), last))
+	if left == 0 {
+		left = -1
+	}
 	return []components.Stat{
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(int64(shoptime.DaysBetween(shoptime.DateOf(now, now), last)), i18n.T(ctx, i18n.KeyOrderUnitDays))},
+		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, i18n.T(ctx, i18n.KeyOrderUnitDays))},
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
 	}
 }
@@ -107,9 +112,9 @@ func (v *OrderView) ReturnGrid(ctx context.Context, s OrderShipment) (components
 // ReturnPending is what a parcel that has not arrived says in place of dates.
 func (v *OrderView) ReturnPending(ctx context.Context) string {
 	if v.Pickup {
-		return i18n.T(ctx, i18n.KeyOrderRescissionAwaitsPickup)
+		return i18n.Count(ctx, i18n.KeyOrderRescissionAwaitsPickup, RescissionDays, RescissionDays)
 	}
-	return i18n.T(ctx, i18n.KeyOrderRescissionAwaits)
+	return i18n.Count(ctx, i18n.KeyOrderRescissionAwaits, RescissionDays, RescissionDays)
 }
 
 // PickupCounted explains where the days start, for an order collected from a store.

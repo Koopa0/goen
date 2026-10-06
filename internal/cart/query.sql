@@ -374,19 +374,19 @@ JOIN order_lines ol ON ol.id = w.order_line_id
 WHERE ol.order_id = $1
 ORDER BY w.order_line_id, w.unit_no;
 
--- Units bought, and units in an approved or completed return.
+-- Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
 -- name: OrderReturnedUnits :one
 SELECT
     coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
     coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
               JOIN return_requests rr ON rr.id = rl.return_request_id
-              WHERE rl.order_id = $1 AND rr.status IN ('approved', 'completed')), 0)::bigint AS returned_units;
+              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units;
 
--- The returns the shop has decided in the customer's favour, with the money each sends back.
+-- The completed returns, with the money each sent back and the day it was decided.
 -- name: OrderReturns :many
 SELECT decided_at, (goods_refund_cents + shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests
-WHERE order_id = $1 AND status IN ('approved', 'completed')
+WHERE order_id = $1 AND status = 'completed' AND NOT before_shipment
 ORDER BY decided_at, id;
 
 -- name: RecordCheckoutAttempt :exec

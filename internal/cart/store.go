@@ -1002,7 +1002,8 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 	ids := make([]uuid.UUID, 0, len(lines))
 	byID := make(map[uuid.UUID]pages.OrderLine, len(lines))
-	for _, l := range lines {
+	for i := range lines {
+		l := &lines[i]
 		line := pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
@@ -1074,7 +1075,8 @@ func cutParcels(
 		registered[r.OrderLineID] = append(registered[r.OrderLineID], r)
 	}
 	shipped := make(map[uuid.UUID]int32, len(byID))
-	for _, sh := range shipments {
+	for i := range shipments {
+		sh := &shipments[i]
 		parcel := pages.OrderShipment{
 			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
 		}

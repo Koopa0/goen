@@ -10366,6 +10366,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `
@@ -10831,7 +10860,7 @@ SELECT
     coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
     coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
               JOIN return_requests rr ON rr.id = rl.return_request_id
-              WHERE rl.order_id = $1 AND rr.status IN ('approved', 'completed')), 0)::bigint AS returned_units
+              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units
 `
 
 type OrderReturnedUnitsRow struct {
@@ -10839,7 +10868,7 @@ type OrderReturnedUnitsRow struct {
 	ReturnedUnits int64
 }
 
-// Units bought, and units in an approved or completed return.
+// Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
 func (q *Queries) OrderReturnedUnits(ctx context.Context, orderID uuid.UUID) (OrderReturnedUnitsRow, error) {
 	row := q.db.QueryRow(ctx, orderReturnedUnits, orderID)
 	var i OrderReturnedUnitsRow
@@ -10850,7 +10879,7 @@ func (q *Queries) OrderReturnedUnits(ctx context.Context, orderID uuid.UUID) (Or
 const orderReturns = `-- name: OrderReturns :many
 SELECT decided_at, (goods_refund_cents + shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests
-WHERE order_id = $1 AND status IN ('approved', 'completed')
+WHERE order_id = $1 AND status = 'completed' AND NOT before_shipment
 ORDER BY decided_at, id
 `
 
@@ -10859,7 +10888,7 @@ type OrderReturnsRow struct {
 	RefundCents int64
 }
 
-// The returns the shop has decided in the customer's favour, with the money each sends back.
+// The completed returns, with the money each sent back and the day it was decided.
 func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturnsRow, error) {
 	rows, err := q.db.Query(ctx, orderReturns, orderID)
 	if err != nil {
@@ -16358,7 +16387,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
