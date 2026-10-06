@@ -442,6 +442,7 @@ body {
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
+  --chart-label: var(--fg-muted);
 }
 
 /* The one measurement every surface shares: a content column that stops at
