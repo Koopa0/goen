@@ -152,8 +152,8 @@ func (s *Store) stockAtRisk(ctx context.Context, days int, now time.Time) ([]adm
 			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
 			Sellable: max(r.StockQuantity-r.SafetyStock, 0),
 			Sold:     r.UnitsSold, Orders: r.OrdersSold,
-			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, window.from, window.to, moves[r.VariantID]),
-			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, window.to, moves[r.VariantID]),
+			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, window.from, window.to, nil),
+			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, window.to, nil),
 		})
 	}
 	listed, more := admin.RankStockRisk(risk)
