@@ -681,9 +681,9 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
 	s := catalog.NewStore(tx)
 
-	deep := newDeal(t, tx, 100, 1000, 0)
-	shallow := newDeal(t, tx, 950, 1000, 5)
-	soldOutDiscount := newDeal(t, tx, 900, 1000, 0)
+	deep := newDeal(t, tx, 100, 0)
+	shallow := newDeal(t, tx, 950, 5)
+	soldOutDiscount := newDeal(t, tx, 900, 0)
 	if _, err = tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
 		SELECT id, upper(replace($1, '-', '')) || 'R', 1000, 5, 0, 1 FROM products WHERE slug = $1`, soldOutDiscount); err != nil {
 		t.Fatalf("add regular variant: %v", err)
@@ -712,7 +712,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 		t.Fatalf("create campaign: %v", err)
 	}
 	// Positions: the sold-out one is first by the back office's order.
-	for position, slug := range []string{deep, newDeal(t, tx, 800, 1000, 5), shallow} {
+	for position, slug := range []string{deep, newDeal(t, tx, 800, 5), shallow} {
 		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 			SELECT c.id, p.id, $3 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, camp, slug, position); err != nil {
 			t.Fatalf("feature %s: %v", slug, err)
@@ -722,8 +722,8 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Campaign: %v", err)
 	}
-	var stock []bool
-	var prices []int64
+	stock := make([]bool, 0, len(view.Products))
+	prices := make([]int64, 0, len(view.Products))
 	for i := range view.Products {
 		stock = append(stock, view.Products[i].InStock)
 		prices = append(prices, view.Products[i].PriceCents)
@@ -733,7 +733,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	}
 }
 
-func newDeal(t *testing.T, db sqlExecer, price, compare, stock int) string {
+func newDeal(t *testing.T, db sqlExecer, price, stock int) string {
 	t.Helper()
 	slug := "deal-" + uuid.NewString()
 	if _, err := db.Exec(t.Context(), `
@@ -746,7 +746,7 @@ func newDeal(t *testing.T, db sqlExecer, price, compare, stock int) string {
 		)
 		INSERT INTO product_variants
 		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		SELECT p.id, upper(replace($1, '-', '')), $2, $3, $4, 0, 0 FROM p`, slug, price, compare, stock); err != nil {
+		SELECT p.id, upper(replace($1, '-', '')), $2, 1000, $3, 0, 0 FROM p`, slug, price, stock); err != nil {
 		t.Fatalf("create deal: %v", err)
 	}
 	return slug
