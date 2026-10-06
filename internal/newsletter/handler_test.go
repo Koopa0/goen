@@ -171,9 +171,13 @@ func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
 			res := httptest.NewRecorder()
 			h.Unsubscribe(res, req)
 			body := res.Body.String()
-			if !strings.Contains(body, `href="mailto:contact@koopa0.dev"`) {
-				t.Error("invalid unsubscribe must offer the owned mailbox")
+			heading := "This link is no longer valid"
+			reason := "This unsubscribe link is not valid. If the newsletter keeps arriving, contact us."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9019\u500b\u9000\u8a02\u9023\u7d50\u4e0d\u6b63\u78ba\u3002\u5982\u679c\u9084\u5728\u6536\u5230\u96fb\u5b50\u5831\uff0c\u8acb\u806f\u7d61\u6211\u5011\u3002"
 			}
+			assertEmailLinkRecovery(t, body, heading, reason, "mailto:contact@koopa0.dev")
 			if strings.Contains(body, "support@goen.tw") || strings.Contains(body, "%s") {
 				t.Error("invalid unsubscribe exposes an unowned or unformatted contact")
 			}

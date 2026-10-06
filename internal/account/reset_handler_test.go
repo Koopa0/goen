@@ -102,6 +102,9 @@ func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
 					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
 				}
 				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, tt.destination)
+				if tt.name == "verify" {
+					assertVerificationRecoveryLabel(t, res.Body.String(), locale)
+				}
 			})
 		}
 	}
@@ -242,4 +245,25 @@ func emailLinkHasAttr(n *html.Node, key string) bool {
 		}
 	}
 	return false
+}
+
+func assertVerificationRecoveryLabel(t *testing.T, body string, locale i18n.Locale) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for n := range doc.Descendants() {
+		if emailLinkAttr(n, "href") == "/account#email-heading" && strings.Contains(emailLinkAttr(n, "class"), "goen-btn--primary") {
+			got = append(got, emailLinkText(n))
+		}
+	}
+	want := "Email address"
+	if locale == i18n.ZhHant {
+		want = "\u96fb\u5b50\u90f5\u4ef6"
+	}
+	if diff := cmp.Diff([]string{want}, got); diff != "" {
+		t.Errorf("verification recovery labels (-want +got):\n%s", diff)
+	}
 }

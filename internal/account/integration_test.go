@@ -4532,3 +4532,24 @@ func emailLinkHasAttr(n *htmlnode.Node, key string) bool {
 	}
 	return false
 }
+
+func assertVerificationRecoveryLabel(t *testing.T, body string, locale i18n.Locale) {
+	t.Helper()
+	doc, err := htmlnode.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for n := range doc.Descendants() {
+		if emailLinkAttr(n, "href") == "/account#email-heading" && strings.Contains(emailLinkAttr(n, "class"), "goen-btn--primary") {
+			got = append(got, emailLinkText(n))
+		}
+	}
+	want := "Email address"
+	if locale == i18n.ZhHant {
+		want = "\u96fb\u5b50\u90f5\u4ef6"
+	}
+	if diff := cmp.Diff([]string{want}, got); diff != "" {
+		t.Errorf("verification recovery labels (-want +got):\n%s", diff)
+	}
+}

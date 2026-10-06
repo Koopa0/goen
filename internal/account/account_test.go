@@ -858,6 +858,7 @@ func TestInvalidVerificationOffersEmailResend(t *testing.T) {
 				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
 			}
 			assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/account#email-heading")
+			assertVerificationRecoveryLabel(t, res.Body.String(), locale)
 		})
 	}
 }
