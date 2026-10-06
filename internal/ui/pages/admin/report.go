@@ -171,17 +171,18 @@ func (v *ReportView) ShowsRunningTotal() bool {
 // caption: the tile's own wording, so the two cannot disagree.
 func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
 	current, previous := v.Daily.Current, v.Daily.Previous
-	current.Label = i18n.T(ctx, i18n.KeyAdminRepThisPeriod)
-	previous.Label = i18n.T(ctx, i18n.KeyAdminRepPreviousPeriod)
+	current.Label = i18n.Count(ctx, i18n.KeyAdminRepLastDays, int64(v.Days), v.Days)
+	previous.Label = i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, int64(v.Days), v.Days)
 	return chart.RunningTotalProps{
 		Current: current, Previous: previous,
 		Measure: chart.MeasureMoney,
 		Caption: i18n.Count(ctx, i18n.KeyAdminRepRunningCaption, int64(v.Days),
 			v.Days, v.Revenue(), v.RevenueAgainst(ctx)),
-		Note:         fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepRunningNote), v.Daily.Cut),
-		DayHeading:   i18n.T(ctx, i18n.KeyAdminRepDate),
-		TotalLabel:   i18n.T(ctx, i18n.KeyAdminRepTotal),
-		PartialLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), v.Daily.Cut),
+		Note:               i18n.Count(ctx, i18n.KeyAdminRepRunningNote, int64(v.Days), v.Days, v.Daily.Cut),
+		PreviousDayHeading: i18n.Count(ctx, i18n.KeyAdminRepPreviousDate, int64(v.Days), v.Days),
+		DayHeading:         i18n.T(ctx, i18n.KeyAdminRepDate),
+		TotalLabel:         i18n.T(ctx, i18n.KeyAdminRepTotal),
+		PartialLabel:       fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), v.Daily.Cut),
 	}
 }
 

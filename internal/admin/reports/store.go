@@ -2,27 +2,30 @@ package reports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Store struct {
-	q *db.Queries
+	pool *pgxpool.Pool
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("reports: NewStore requires a pool")
 	}
-	return &Store{q: db.New(pool)}
+	return &Store{pool: pool}
 }
 
 var reportWindows = [...]int32{7, 30, 90}
@@ -31,39 +34,67 @@ const DefaultWindow int32 = 30
 
 const maxRows = 10
 
+// ErrDailyRevenue is returned with a complete report whose daily chart could
+// not be read: the view is marked DailyUnavailable and is otherwise whole.
+var ErrDailyRevenue = errors.New("read daily revenue")
+
 // ReportAt reads the last days shop days up to now, and the same number before
-// them, cut at the same time of day.
+// them, cut at the same time of day. The tiles and the daily chart are read in
+// one snapshot, so the days add up to the revenue even while orders are paid.
 func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.ReportView, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return admin.ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	q := db.New(tx)
+
+	view, err := reportAt(ctx, q, days, now)
+	if err != nil {
+		return admin.ReportView{}, err
+	}
+	// The chart is one figure of the page: failing to read it must not take the
+	// tiles with it. It is read last, because a failed statement ends the snapshot.
+	daily, err := dailyRevenue(ctx, q, days, now)
+	if err != nil {
+		view.DailyUnavailable = true
+		return view, fmt.Errorf("%w: %w", ErrDailyRevenue, err)
+	}
+	view.Daily = daily
+	return view, nil
+}
+
+func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.ReportView, error) {
 	days = window(days)
 	current, before := periods(now, int(days))
 
-	revenue, err := s.q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
+	revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read revenue: %w", err)
 	}
-	completion, err := s.q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
+	completion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read completion: %w", err)
 	}
-	prevRevenue, err := s.q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: before.from, ToAt: before.to})
+	prevRevenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: before.from, ToAt: before.to})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read previous revenue: %w", err)
 	}
-	prevCompletion, err := s.q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
+	prevCompletion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: before.from, ToAt: before.to,
 	})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read previous completion: %w", err)
 	}
-	sellers, err := s.q.BestSellersBetween(ctx, db.BestSellersBetweenParams{
+	sellers, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{
 		FromAt: current.from, ToAt: current.to, LimitTo: maxRows,
 	})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
-	risk, err := s.q.StockAtRisk(ctx, db.StockAtRiskParams{
+	risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{
 		WindowDays: days, LimitTo: maxRows,
 	})
 	if err != nil {
@@ -107,23 +138,23 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	return view, nil
 }
 
-// DailyRevenue reads each shop day's paid revenue over the same two periods
-// ReportAt reads, so the days add up to its revenue.
-func (s *Store) DailyRevenue(ctx context.Context, days int32, now time.Time) (admin.DailyRevenue, error) {
+// dailyRevenue reads each shop day's paid revenue over the same two periods
+// reportAt reads, so the days add up to its revenue.
+func dailyRevenue(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.DailyRevenue, error) {
 	current, before := periods(now, int(window(days)))
-	thisPeriod, err := s.dailySeries(ctx, current)
+	thisPeriod, err := dailySeries(ctx, q, current)
 	if err != nil {
 		return admin.DailyRevenue{}, err
 	}
-	previous, err := s.dailySeries(ctx, before)
+	previous, err := dailySeries(ctx, q, before)
 	if err != nil {
 		return admin.DailyRevenue{}, err
 	}
 	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, nil
 }
 
-func (s *Store) dailySeries(ctx context.Context, p period) (chart.Series, error) {
-	rows, err := s.q.PaidByShopDay(ctx, db.PaidByShopDayParams{
+func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, error) {
+	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
 		FirstDay: shopDate(p.from), LastDay: shopDate(p.to.Add(-time.Nanosecond)),
 		FromAt: p.from, ToAt: p.to,
 	})

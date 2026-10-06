@@ -70,6 +70,7 @@ func TestAxisStepKeepsToFiveLines(t *testing.T) {
 		{"money of 10,000 dollars", 1_000_000, MeasureMoney, 200_000},
 		{"money of 212,292 dollars", 21_229_200, MeasureMoney, 5_000_000},
 		{"money of 5 dollars", 500, MeasureMoney, 100},
+		{"money never steps by NT$2.5", 1_200, MeasureMoney, 500},
 		{"nothing to draw", 0, MeasureMoney, 100},
 	} {
 		got := axisStep(tc.top, tc.m)
@@ -139,14 +140,15 @@ func TestEndLabelsAreKeptApart(t *testing.T) {
 
 func fullProps() RunningTotalProps {
 	return RunningTotalProps{
-		Current:      Series{Label: "This period", Buckets: filled(10, 100_000), Partial: true},
-		Previous:     Series{Label: "Previous", Buckets: filled(10, 50_000), Partial: true},
-		Measure:      MeasureMoney,
-		Caption:      "Revenue over 10 days: NT$10,000.",
-		Note:         "Counted up to 15:20.",
-		DayHeading:   "Date",
-		TotalLabel:   "Total",
-		PartialLabel: "up to 15:20",
+		Current:            Series{Label: "This period", Buckets: filled(10, 100_000), Partial: true},
+		Previous:           Series{Label: "Previous", Buckets: filled(10, 50_000), Partial: true},
+		Measure:            MeasureMoney,
+		Caption:            "Revenue over 10 days: NT$10,000.",
+		Note:               "Counted up to 15:20.",
+		DayHeading:         "Date",
+		PreviousDayHeading: "Previous date",
+		TotalLabel:         "Total",
+		PartialLabel:       "up to 15:20",
 	}
 }
 
@@ -192,7 +194,7 @@ func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 		">NT$10,000<", // 10 days of NT$1,000
 		">NT$5,000<",
 		"<summary>Show as a table</summary>",
-		`<tfoot><tr><th scope="row">Total</th><td>NT$10,000</td><td>NT$5,000</td></tr></tfoot>`,
+		`<tfoot><tr><th scope="row">Total</th><td>NT$10,000</td><td></td><td>NT$5,000</td></tr></tfoot>`,
 		`<p class="goen-chart__note">Counted up to 15:20.</p>`,
 		">Today<",
 	} {
@@ -205,6 +207,31 @@ func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 	}
 	if outer, hidden := strings.Count(got, `<svg class="goen-chart__`), strings.Count(got, `aria-hidden="true" focusable="false"`); outer != hidden || outer != 3 {
 		t.Errorf("the drawing has %d outer SVGs and %d of them hidden from assistive technology, want 3 and 3", outer, hidden)
+	}
+}
+
+// The table carries what the drawing says, including which day of the previous
+// period each of its figures is for, and says it once.
+func TestRunningTotalTableNamesThePreviousPeriodsDays(t *testing.T) {
+	t.Parallel()
+
+	p := fullProps()
+	p.Previous.Buckets = filled(10, 50_000)
+	for i := range p.Previous.Buckets {
+		p.Previous.Buckets[i].Day = time.Date(2026, 8, 1+i, 0, 0, 0, 0, time.UTC)
+	}
+	got := renderRunningTotal(t, p)
+	for _, want := range []string{
+		`<th scope="col">Previous date</th>`,
+		`<th scope="row">Sep 7</th><td>NT$1,000</td><td>Aug 1</td><td>NT$500</td>`,
+		`<th scope="row">Sep 16 (up to 15:20)</th><td>NT$10,000</td><td>Aug 10</td><td>NT$5,000</td>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the table does not contain %s", want)
+		}
+	}
+	if strings.Contains(got, "<caption>") {
+		t.Error("the table repeats the figure's caption, which a screen reader would read twice")
 	}
 }
 

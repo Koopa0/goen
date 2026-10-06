@@ -419,8 +419,14 @@ func TestRunningTotalCaptionAndSourceLineUseTheTilesWordingAndTheCutTime(t *test
 	if got, want := more.RunningTotal(zh).Caption, "30 天營收 NT$400,000，比前 30 天多 300%。"; got != want {
 		t.Errorf("caption with a difference = %q, want %q", got, want)
 	}
-	if got, want := more.RunningTotal(zh).Note, "只計入已付款的訂單，依下單時間。今天到 15:20 為止，前期同樣算到 15:20。"; got != want {
+	if got, want := more.RunningTotal(zh).Note, "只計入已付款的訂單，依下單時間。今天到 15:20 為止，前 30 天同樣算到 15:20。"; got != want {
 		t.Errorf("source line = %q, want %q", got, want)
+	}
+	if got, want := more.RunningTotal(zh).Previous.Label, "前 30 天"; got != want {
+		t.Errorf("previous legend label = %q, want %q: the page's one name for that period", got, want)
+	}
+	if got, want := more.RunningTotal(en).Previous.Label, "Previous 30 days"; got != want {
+		t.Errorf("previous legend label = %q, want %q", got, want)
 	}
 	if got, want := more.RunningTotal(en).PartialLabel, "up to 15:20"; got != want {
 		t.Errorf("last row's label = %q, want %q", got, want)

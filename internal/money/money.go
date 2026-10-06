@@ -72,9 +72,15 @@ func Short(cents, divisor int64) string {
 		return out
 	}
 	var decimals []byte
-	for ; rest > 0; rest %= unit {
+	// A divisor that is not a power of ten has no finite expansion: the bound
+	// is what the one that is has.
+	for range len(strconv.FormatInt(unit, 10)) {
+		if rest == 0 {
+			break
+		}
 		rest *= 10
 		decimals = append(decimals, "0123456789"[rest/unit])
+		rest %= unit
 	}
 	return out + "." + string(decimals)
 }

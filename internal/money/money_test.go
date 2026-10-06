@@ -137,3 +137,11 @@ func TestShort(t *testing.T) {
 		}
 	}
 }
+
+func TestShortStopsOnADivisorWithNoFiniteExpansion(t *testing.T) {
+	t.Parallel()
+
+	if got := money.Short(100, 3); len(got) > 20 {
+		t.Errorf("Short(100, 3) = %q, want a bounded string", got)
+	}
+}

@@ -556,10 +556,7 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("report of %d days: %v", days, err)
 		}
-		daily, err := s.DailyRevenue(ctx, days, now)
-		if err != nil {
-			t.Fatalf("daily revenue of %d days: %v", days, err)
-		}
+		daily := view.Daily
 		for _, c := range []struct {
 			name   string
 			series chart.Series
@@ -594,10 +591,11 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 		}
 	}
 
-	daily, err := s.DailyRevenue(ctx, 7, now)
+	week, err := s.ReportAt(ctx, 7, now)
 	if err != nil {
-		t.Fatalf("daily revenue: %v", err)
+		t.Fatalf("report of 7 days: %v", err)
 	}
+	daily := week.Daily
 	if got, want := daily.Current.Buckets[0].Value, int64(32_00); got != want {
 		t.Errorf("the first shop day (11-06) holds %d cents, want %d", got, want)
 	}

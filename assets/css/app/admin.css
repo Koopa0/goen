@@ -2922,7 +2922,7 @@ form[data-request-pending] [aria-disabled="true"] {
 
 .goen-chart__frame {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) 5.5rem;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 6.5rem;
 }
 
 .goen-chart__frame svg {
@@ -3013,10 +3013,6 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-chart__tick--minor {
     display: none;
   }
-
-  .goen-chart__frame {
-    grid-template-columns: 2.75rem minmax(0, 1fr) 5rem;
-  }
 }
 
 .goen-chart__data {
@@ -3034,12 +3030,6 @@ form[data-request-pending] [aria-disabled="true"] {
   font-size: var(--fs-13);
   margin-block-start: 8px;
   width: 100%;
-}
-
-.goen-chart__table caption {
-  color: var(--fg-muted);
-  padding-block-end: 8px;
-  text-align: start;
 }
 
 .goen-chart__table th,
@@ -3076,7 +3066,7 @@ form[data-request-pending] [aria-disabled="true"] {
 /* Forced colours: the SVG names its own system colours. The line is
    CanvasText, the previous one GrayText, the wash and the grid, which the one
    grey of a forced palette could not tell from the line, step aside. The
-   labels are text and keep working. */
+   labels are set to CanvasText, since forced-color-adjust is off. */
 @media (forced-colors: active) {
   .goen-chart__frame svg {
     forced-color-adjust: none;

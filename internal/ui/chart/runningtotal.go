@@ -24,12 +24,13 @@ const (
 // column heads of the table and PartialLabel, which says what the last row is
 // counted up to when Current.Partial.
 type RunningTotalProps struct {
-	Current, Previous Series
-	Measure           Measure
-	Caption, Note     string
-	DayHeading        string
-	TotalLabel        string
-	PartialLabel      string
+	Current, Previous  Series
+	Measure            Measure
+	Caption, Note      string
+	DayHeading         string
+	PreviousDayHeading string
+	TotalLabel         string
+	PartialLabel       string
 }
 
 type gridLine struct {
@@ -57,7 +58,7 @@ type dayTick struct {
 }
 
 type tableRow struct {
-	Heading, Current, Previous string
+	Heading, Current, PreviousDay, Previous string
 }
 
 // runningTotal is everything RunningTotal draws, worked out.
@@ -163,6 +164,7 @@ func newRunningTotal(ctx context.Context, p RunningTotalProps) runningTotal {
 		}
 		row := tableRow{Heading: heading, Current: p.Measure.text(current[i])}
 		if i < len(previous) {
+			row.PreviousDay = axisDay(ctx, p.Previous.Buckets[i].Day)
 			row.Previous = p.Measure.text(previous[i])
 		}
 		r.Rows = append(r.Rows, row)

@@ -3,6 +3,7 @@
 package reports
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -38,19 +39,15 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		days = 0
 	}
-	now := time.Now()
-	view, err := h.store.ReportAt(r.Context(), int32(days), now)
+	view, err := h.store.ReportAt(r.Context(), int32(days), time.Now())
+	if errors.Is(err, ErrDailyRevenue) {
+		h.log.ErrorContext(r.Context(), "read daily revenue", "error", err)
+		err = nil
+	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read report", "error", err)
 		access.ServerError(w, r, h.log)
 		return
-	}
-	// The chart is one figure of the page: failing to read it must not take the
-	// tiles with it.
-	view.Daily, err = h.store.DailyRevenue(r.Context(), int32(days), now)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read daily revenue", "error", err)
-		view.DailyUnavailable = true
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Report(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))

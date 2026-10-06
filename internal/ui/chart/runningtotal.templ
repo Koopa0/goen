@@ -53,11 +53,11 @@ templ endText(l endLabel, role string) {
 
 templ runningTotalTable(p RunningTotalProps, r runningTotal) {
 	<table class="goen-chart__table">
-		<caption>{ p.Caption }</caption>
 		<thead>
 			<tr>
 				<th scope="col">{ p.DayHeading }</th>
 				<th scope="col">{ p.Current.Label }</th>
+				<th scope="col">{ p.PreviousDayHeading }</th>
 				<th scope="col">{ p.Previous.Label }</th>
 			</tr>
 		</thead>
@@ -66,6 +66,7 @@ templ runningTotalTable(p RunningTotalProps, r runningTotal) {
 				<tr>
 					<th scope="row">{ row.Heading }</th>
 					<td>{ row.Current }</td>
+					<td>{ row.PreviousDay }</td>
 					<td>{ row.Previous }</td>
 				</tr>
 			}
@@ -74,6 +75,7 @@ templ runningTotalTable(p RunningTotalProps, r runningTotal) {
 			<tr>
 				<th scope="row">{ r.Total.Heading }</th>
 				<td>{ r.Total.Current }</td>
+				<td></td>
 				<td>{ r.Total.Previous }</td>
 			</tr>
 		</tfoot>

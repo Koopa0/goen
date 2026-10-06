@@ -98,20 +98,24 @@ var (
 		"Revenue over %[1]d day: %[2]s. %[3]s.",
 		"Revenue over %[1]d days: %[2]s. %[3]s.")
 
-	// %s is the time of day both periods are counted up to.
-	KeyAdminRepRunningNote = key("admin.rep.running.note", Message{
-		ZhHant: "只計入已付款的訂單，依下單時間。今天到 %[1]s 為止，前期同樣算到 %[1]s。",
-		En:     "Paid orders only, by the time placed. Today is counted up to %[1]s, and so is the previous period.",
-	})
+	// %[1]d is the number of days in the period, %[2]s the time of day both
+	// periods are counted up to.
+	KeyAdminRepRunningNote = countKey("admin.rep.running.note",
+		"只計入已付款的訂單，依下單時間。今天到 %[2]s 為止，前 %[1]d 天同樣算到 %[2]s。",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d day.",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d days.")
 
 	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
 		ZhHant: "這張圖的資料暫時無法取得。",
 		En:     "This chart's data is unavailable right now.",
 	})
 
-	KeyAdminRepThisPeriod = key("admin.rep.thisperiod", Message{ZhHant: "本期", En: "This period"})
+	KeyAdminRepLastDays = countKey("admin.rep.lastdays", "近 %d 天", "Last %d day", "Last %d days")
 
-	KeyAdminRepPreviousPeriod = key("admin.rep.previousperiod", Message{ZhHant: "前期", En: "Previous"})
+	KeyAdminRepPreviousDays = countKey("admin.rep.previousdays", "前 %d 天", "Previous %d day", "Previous %d days")
+
+	// The table column that names the previous period's day on each row.
+	KeyAdminRepPreviousDate = countKey("admin.rep.previousdate", "前 %d 天的日期", "Date in the previous %d day", "Date in the previous %d days")
 
 	KeyAdminRepDate = key("admin.rep.date", Message{ZhHant: "日期", En: "Date"})
 
