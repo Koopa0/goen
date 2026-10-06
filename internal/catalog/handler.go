@@ -52,10 +52,20 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	view.MaxPrice = f.MaxPrice
 	view.Sort = f.Sort.Param()
 
+	// A partial swap never draws the rules, so it does not read them.
+	var rules *pages.ShopRules
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
+	} else {
+		loaded, err := h.store.ShopRules(r.Context())
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
+			h.serverError(w, r)
+			return
+		}
+		rules = &loaded
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view))
+	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules))
 }
 
 const newestOnEmpty = 4
@@ -187,7 +197,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	campaigns, err := h.store.RunningCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
+	campaigns, err := h.store.ListedCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
 	if err != nil {
 		// Best effort: the discounted products are the page's substance.
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)

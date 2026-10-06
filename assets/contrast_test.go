@@ -75,14 +75,15 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
 		if tokens[name] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
-	for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
-		for _, ground := range []string{"--n-0", "--n-50"} {
+	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
+	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], ground, tokens[ground], got)
@@ -111,15 +112,27 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
+	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
+	// text to carry them.
+	for _, ground := range []string{"--n-0", "--wash", "--well"} {
+		if got := contrast(tokens["--edge"], tokens[ground]); got < 3 {
+			t.Errorf("--edge (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--edge"], ground, tokens[ground], got)
+		}
+	}
+	if got := contrast(tokens["--mark"], tokens["--n-0"]); got < 3 {
+		t.Errorf("--mark (#%s) on --n-0 = %.2f:1, want at least 3:1", tokens["--mark"], got)
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
-	if tokens["--photo"] != "f9f9f9" {
-		t.Errorf("--photo = #%s, want #f9f9f9, the ground the photographs carry", tokens["--photo"])
+	if tokens["--well"] != "f9f9f9" {
+		t.Errorf("--well = #%s, want #f9f9f9, the ground the photographs carry", tokens["--well"])
 	}
 }
 
 // toneBlock finds a [data-tone="…"] rule and its declarations.
-var toneBlock = regexp.MustCompile(`(?s)\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
+var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 
 // toneDecl finds one declaration inside a tone block. The value is a hex colour
 // or a var() naming a token.
@@ -179,7 +192,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			continue
 		}
 		// A light ground is also where links and the plain text tokens land.
-		for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
+		for _, ink := range []string{"--muted", "--ink", "--accent"} {
 			if got := contrast(tokens[ink], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], name, ground, got)
@@ -259,6 +272,45 @@ func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 		got := contrast(tokens["--control-boundary"], tokens[ground])
 		if math.IsNaN(got) || got < 3 {
 			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
+		}
+	}
+}
+
+// The focus ring is a graphical object (WCAG 1.4.11, 2.4.7): 3:1 on every
+// ground a focusable thing sits on. The accent is dark, so the grounds that
+// are dark themselves re-point --ring to white.
+func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	tokens := hexTokens(t)
+
+	for _, ground := range []string{"--n-0", "--n-50", "--wash", "--well"} {
+		if got := contrast(tokens["--accent"], tokens[ground]); got < 3 {
+			t.Errorf("focus ring --accent (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--accent"], ground, tokens[ground], got)
+		}
+	}
+
+	override := regexp.MustCompile(`(?s)((?:[^{}]*)\{[^{}]*--ring: var\((--[a-z0-9-]+)\);)`).FindStringSubmatch(string(sheet))
+	if override == nil {
+		t.Fatal("app.css does not re-point --ring on any dark ground")
+	}
+	selectors := strings.Split(strings.TrimSpace(override[1][:strings.Index(override[1], "{")]), ",")
+	for _, sel := range selectors {
+		// A bare tone selector also reaches the light grounds that carry
+		// the tone as data, where a white ring would be 1:1.
+		if strings.HasPrefix(strings.TrimSpace(sel), "[data-tone") {
+			t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", strings.TrimSpace(sel))
+		}
+	}
+	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
+		if got := contrast(tokens[override[2]], bg); got < 3 {
+			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
+				override[2], tokens[override[2]], bg, got)
 		}
 	}
 }

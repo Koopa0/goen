@@ -17,22 +17,23 @@ type CampaignRow struct {
 	Products     int64
 	Active       bool
 	Running      bool
+	Sellable     bool
 	StartsAtText string
 	EndsAtText   string
 }
 
 func (c CampaignRow) State(ctx context.Context) string {
-	return campaignState(ctx, c.Active, c.Running, c.Products)
+	return campaignState(ctx, c.Active, c.Running, c.Sellable)
 }
 
-func campaignState(ctx context.Context, active, running bool, products int64) string {
+func campaignState(ctx context.Context, active, running, sellable bool) string {
 	switch {
 	case !active:
 		return i18n.T(ctx, i18n.KeyAdminCampaignOff)
 	case !running:
 		return i18n.T(ctx, i18n.KeyAdminCampaignOutside)
-	case products == 0:
-		return i18n.T(ctx, i18n.KeyAdminCampaignEmpty)
+	case !sellable:
+		return i18n.T(ctx, i18n.KeyAdminCampaignHidden)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminCampaignRunning)
 	}
@@ -47,7 +48,7 @@ func toggleLabel(ctx context.Context, active bool) string {
 	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
 
-func (c CampaignRow) Live() bool { return c.Running && c.Products > 0 }
+func (c CampaignRow) Live() bool { return c.Running && c.Sellable }
 
 func (c CampaignRow) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
 
@@ -94,7 +95,7 @@ func (v CampaignsView) Err(f string) string { return v.Errors[f] }
 type CampaignDetail struct {
 	Title                      string
 	StartsAtInput, EndsAtInput string
-	Active, Running            bool
+	Active, Running, Sellable  bool
 }
 
 type CampaignView struct {
@@ -142,7 +143,7 @@ func (v *CampaignView) WindowAction() string { return "/admin/campaigns/" + v.Sl
 func (v *CampaignView) ActiveAction() string { return "/admin/campaigns/" + v.Slug + "/active" }
 
 func (v *CampaignView) StateText(ctx context.Context) string {
-	return campaignState(ctx, v.Active, v.Running, int64(len(v.Products)))
+	return campaignState(ctx, v.Active, v.Running, v.Sellable)
 }
 
 func (v *CampaignView) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, v.Active) }
