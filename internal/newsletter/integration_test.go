@@ -949,6 +949,18 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 					}
 					return state
 				}
+				repeatState := func() string {
+					t.Helper()
+					var state string
+					if err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
+					    'subscriber', (SELECT to_jsonb(n) - 'updated_at' FROM newsletter_subscribers n WHERE lower(email) = lower($1)),
+					    'tokens', (SELECT count(*) FROM newsletter_confirmations WHERE lower(email) = lower($1)),
+					    'mail', (SELECT count(*) FROM outbox_messages WHERE lower(payload->>'email') = lower($1)))::text`,
+						address).Scan(&state); err != nil {
+						t.Fatalf("snapshot repeated newsletter state: %v", err)
+					}
+					return state
+				}
 				before := snapshot()
 				form := httptest.NewRecorder()
 				get(form, httptest.NewRequestWithContext(ctx, http.MethodGet, path+"?token="+token, http.NoBody))
@@ -993,7 +1005,8 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 					}
 				}
 				committed := snapshot()
-				if location == path+"?done=1" {
+				checkAcknowledgement := func() {
+					t.Helper()
 					var first string
 					for attempt := range 2 {
 						ack := httptest.NewRecorder()
@@ -1020,6 +1033,10 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 						}
 					}
 				}
+				if location == path+"?done=1" {
+					checkAcknowledgement()
+				}
+				beforeRepeat := repeatState()
 				repeated := write()
 				want := http.StatusUnprocessableEntity
 				if operation == "unsubscribe" {
@@ -1028,7 +1045,7 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 				if repeated.Code != want {
 					t.Errorf("repeated %s POST = %d, want %d", operation, repeated.Code, want)
 				}
-				if diff := cmp.Diff(committed, snapshot()); diff != "" {
+				if diff := cmp.Diff(beforeRepeat, repeatState()); diff != "" {
 					t.Errorf("repeated POST changed committed state (-before +after):\n%s", diff)
 				}
 			})

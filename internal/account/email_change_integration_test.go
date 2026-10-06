@@ -697,7 +697,8 @@ func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
 				t.Fatalf("remaining verification tokens = %d, want 0", remaining)
 			}
 			committed := snapshot()
-			if location == "/verify?done=1" {
+			checkAcknowledgement := func() {
+				t.Helper()
 				var first string
 				for attempt := range 2 {
 					statements.take()
@@ -728,6 +729,9 @@ func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
 						t.Errorf("acknowledgement GET changed verification state (-before +after):\n%s", diff)
 					}
 				}
+			}
+			if location == "/verify?done=1" {
+				checkAcknowledgement()
 			}
 			if repeated := write(); repeated.Code != http.StatusUnprocessableEntity {
 				t.Errorf("spent verification POST = %d, want 422", repeated.Code)
