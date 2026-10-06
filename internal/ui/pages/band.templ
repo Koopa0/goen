@@ -1,0 +1,12 @@
+package pages
+
+import "github.com/koopa0/goen/internal/i18n"
+
+templ bandHeading(id, name, rest string) {
+	<h2 id={ id } class={ "goen-home__heading", templ.KV("goen-home__heading--long", bandNameLong(name)) }>
+		{ name }
+		if rest != "" {
+			<span class="goen-home__aside"><span class="goen-home__sep">{ i18n.T(ctx, i18n.KeyHomeAside) }</span>{ rest }</span>
+		}
+	</h2>
+}
