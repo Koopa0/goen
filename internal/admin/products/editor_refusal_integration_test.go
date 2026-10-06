@@ -551,8 +551,11 @@ func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
 				trace.mu.Lock()
 				lockErrors := append([]error(nil), trace.errs...)
 				trace.mu.Unlock()
-				var pgErr *pgconn.PgError
-				if len(lockErrors) != 1 || !errors.As(lockErrors[0], &pgErr) || pgErr.Code != "55P03" || ctx.Err() != nil {
+				if len(lockErrors) != 1 {
+					t.Fatalf("catalogue lock errors = %v; want one lock attempt", lockErrors)
+				}
+				pgErr, ok := errors.AsType[*pgconn.PgError](lockErrors[0])
+				if !ok || pgErr.Code != "55P03" || ctx.Err() != nil {
 					t.Fatalf("catalogue lock errors = %v, parent = %v; want one live-request 55P03", lockErrors, ctx.Err())
 				}
 				if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {

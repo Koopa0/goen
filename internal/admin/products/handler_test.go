@@ -44,6 +44,11 @@ func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
 			t.Errorf("?%s=1 carries no message: the page renders nothing after the button", name)
 		}
 	}
+	for name := range notices {
+		if !sent[name] {
+			t.Errorf("notice %q names a parameter no redirect writes", name)
+		}
+	}
 }
 
 func TestAttachImageRefusalNamesOnlyTheRefusedField(t *testing.T) {

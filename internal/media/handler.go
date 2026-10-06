@@ -224,7 +224,9 @@ func (h *Handler) Recent(ctx context.Context) ([]Object, error) {
 	return h.store.Recent(ctx)
 }
 
-// Refusal notices omit decoder details, which would reveal which decoders are wired up.
+// UploadNotice is the back-office notice for a refused upload. It names the
+// size and the kind and nothing more: saying which decoder refused a file would
+// tell an attacker which decoders are wired up.
 func UploadNotice(err error) i18n.Key {
 	switch {
 	case errors.Is(err, ErrTooLarge):
@@ -237,22 +239,5 @@ func UploadNotice(err error) i18n.Key {
 		return i18n.KeyAdminNoticeUploadBusy
 	default:
 		return i18n.KeyAdminNoticeUploadFailed
-	}
-}
-
-// UploadQuery is UploadNotice for a redirect: the query parameter the page reads
-// to show the notice, with the two refusals a form can act on named as well.
-func UploadQuery(err error) string {
-	switch {
-	case errors.Is(err, ErrTooLarge):
-		return "toobig=1"
-	case errors.Is(err, ErrNotAnImage):
-		return "notimage=1"
-	case errors.Is(err, ErrLosslessWebP):
-		return "losslesswebp=1"
-	case errors.Is(err, ErrBusy):
-		return "uploadbusy=1"
-	default:
-		return "uploadfailed=1"
 	}
 }

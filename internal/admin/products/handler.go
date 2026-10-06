@@ -56,18 +56,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":            web.Done(i18n.KeyAdminNoticeOK),
-	"refused":       web.Refused(i18n.KeyAdminNoticeRefused),
-	"imageneeds":    web.Refused(i18n.KeyAdminNoticeImageNeeds),
-	"toobig":        web.Refused(i18n.KeyAdminNoticeTooBig),
-	"notimage":      web.Refused(i18n.KeyAdminNoticeNotImage),
-	"losslesswebp":  web.Refused(i18n.KeyAdminNoticeLosslessWebP),
-	"uploadfailed":  web.Failed(i18n.KeyAdminNoticeUploadFailed),
-	"uploadbusy":    web.Failed(i18n.KeyAdminNoticeUploadBusy),
-	"attachrefused": web.Refused(i18n.KeyAdminNoticeAttachRefused),
-	"noalt":         web.Refused(i18n.KeyAdminNoticeNoAlt),
-	"badoption":     web.Refused(i18n.KeyAdminNoticeBadOption),
-	"specfailed":    web.Failed(i18n.KeyAdminNoticeSpecFailed),
+	"ok":         web.Done(i18n.KeyAdminNoticeOK),
+	"refused":    web.Refused(i18n.KeyAdminNoticeRefused),
+	"imageneeds": web.Refused(i18n.KeyAdminNoticeImageNeeds),
+	"badoption":  web.Refused(i18n.KeyAdminNoticeBadOption),
+	"specfailed": web.Failed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

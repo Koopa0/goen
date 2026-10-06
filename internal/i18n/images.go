@@ -95,8 +95,4 @@ var (
 		En:     "That option is not one of this product's.",
 	})
 
-	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{
-		ZhHant: "請填寫圖片說明文字，寫出圖片裡的內容。",
-		En:     "Alt text is required. Say what the picture shows.",
-	})
 )
