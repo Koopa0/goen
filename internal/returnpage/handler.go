@@ -114,9 +114,9 @@ func returnReasonMessage(reason string) i18n.Key {
 	case reasonValid:
 		return ""
 	case reasonTooLong:
-		return i18n.KeyReturnReasonUnsupportedControls
-	case reasonUnsupportedControls:
 		return i18n.KeyReturnReasonTooLong
+	case reasonUnsupportedControls:
+		return i18n.KeyReturnReasonUnsupportedControls
 	default:
 		panic("returnpage: unknown reason validation: " + string(result))
 	}
