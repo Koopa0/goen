@@ -492,14 +492,9 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 			t.Fatalf("insert campaign %s: %v", c.slug, err)
 		}
 	}
-	// The row shows a campaign only when it holds a product; an empty one falls
-	// back to the newest of the shop.
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO sale_campaign_products (campaign_id, product_id)
-		SELECT c.id, p.id FROM sale_campaigns c, products p
-		WHERE c.slug = 'hero-sooner' AND p.status = 'active'
-		ORDER BY p.slug LIMIT 1`); err != nil {
-		t.Fatalf("attach a product to the soonest campaign: %v", err)
+	// A campaign is listed only while it features a published product in stock.
+	for _, slug := range []string{"hero-sooner", "hero-later"} {
+		featureProduct(t, slug, 5)
 	}
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -532,6 +527,80 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 	if view.Row.Href != "/s/hero-sooner" {
 		t.Errorf("the product row is %q, want the campaign ending soonest", view.Row.Href)
 	}
+}
+
+// A campaign whose featured product is sold out takes no carousel slide and no
+// product row; a sellable product brings both back.
+func TestACampaignWithNothingToBuyTakesNoCarouselSlide(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	emptyHeroSlides(t)
+	stopCampaigns(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('hero-empty', '空活動', now() + interval '1 hour')`); err != nil {
+		t.Fatalf("insert campaign: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `DELETE FROM sale_campaigns WHERE slug = 'hero-empty'`); err != nil {
+			t.Errorf("clean up campaign: %v", err)
+		}
+	})
+
+	shown := func() (slide, row bool) {
+		for _, s := range slidesOf(t, ctx) {
+			slide = slide || s.CTA.Href == "/s/hero-empty"
+		}
+		view, err := home.NewStore(pool).Load(ctx)
+		if err != nil {
+			t.Fatalf("load home: %v", err)
+		}
+		return slide, view.Row.Href == "/s/hero-empty"
+	}
+	featureProduct(t, "hero-empty", 0)
+	if slide, row := shown(); slide || row {
+		t.Fatalf("a campaign with only a sold-out product is on the home page (slide %v, row %v)", slide, row)
+	}
+	featureProduct(t, "hero-empty", 5)
+	if slide, row := shown(); !slide || !row {
+		t.Fatalf("a campaign with a sellable product is missing from the home page (slide %v, row %v)", slide, row)
+	}
+}
+
+func featureProduct(t *testing.T, campaignSlug string, stock int) {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           'hero-' || gen_random_uuid(), '活動商品', 'active', now()
+		    RETURNING id, slug
+		), v AS (
+		    INSERT INTO product_variants
+		        (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		    SELECT p.id, 'HERO-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
+		)
+		SELECT slug FROM p`, stock).Scan(&slug); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO sale_campaign_products (campaign_id, product_id)
+		SELECT c.id, p.id FROM sale_campaigns c, products p
+		WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, slug); err != nil {
+		t.Fatalf("feature product on %s: %v", campaignSlug, err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `
+			WITH gone AS (
+			    DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)
+			)
+			DELETE FROM products WHERE slug = $1`, slug); err != nil {
+			t.Errorf("remove product %s: %v", slug, err)
+		}
+	})
 }
 
 func emptyHeroSlides(t *testing.T) {
