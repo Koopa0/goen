@@ -166,3 +166,14 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 		}
 	}
 }
+
+func TestTheFactLineFollowsTheTitleAndPrecedesTheSubCategories(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Children: []Crumb{{Slug: "a", Name: "Novels"}}}}
+	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4}))
+	title, facts, chips := strings.Index(got, "<h1"), strings.Index(got, "ui-statline"), strings.Index(got, "goen-pagehead__chips")
+	if title < 0 || facts < 0 || chips < 0 || !(title < facts && facts < chips) {
+		t.Errorf("order title=%d facts=%d chips=%d, want title < facts < chips", title, facts, chips)
+	}
+}

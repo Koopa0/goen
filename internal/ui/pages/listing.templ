@@ -28,6 +28,9 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 								Crumbs: v.Trail(ctx),
 							})
 							<h1 class={ "goen-pagehead__title", templ.KV("goen-band__name--long", bandNameLong(v.Name)) }>{ v.Name }</h1>
+							if head != nil {
+								@departmentFacts(head)
+							}
 							if len(v.Children()) > 0 {
 								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
 									for _, c := range v.Children() {
@@ -38,9 +41,6 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 										}
 									}
 								</nav>
-							}
-							if head != nil {
-								@departmentFacts(head)
 							}
 						</div>
 					</div>
