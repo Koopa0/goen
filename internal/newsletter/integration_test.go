@@ -1036,7 +1036,10 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 				if location == path+"?done=1" {
 					checkAcknowledgement()
 				}
-				beforeRepeat := repeatState()
+				beforeRepeat := committed
+				if operation == "unsubscribe" {
+					beforeRepeat = repeatState()
+				}
 				repeated := write()
 				want := http.StatusUnprocessableEntity
 				if operation == "unsubscribe" {
@@ -1045,7 +1048,11 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 				if repeated.Code != want {
 					t.Errorf("repeated %s POST = %d, want %d", operation, repeated.Code, want)
 				}
-				if diff := cmp.Diff(beforeRepeat, repeatState()); diff != "" {
+				afterRepeat := snapshot()
+				if operation == "unsubscribe" {
+					afterRepeat = repeatState()
+				}
+				if diff := cmp.Diff(beforeRepeat, afterRepeat); diff != "" {
 					t.Errorf("repeated POST changed committed state (-before +after):\n%s", diff)
 				}
 			})
