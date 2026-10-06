@@ -4627,6 +4627,25 @@ func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionVa
 	return items, nil
 }
 
+const categoryTone = `-- name: CategoryTone :one
+WITH RECURSIVE trail AS (
+    SELECT c.id, c.parent_id, c.tone, 0 AS depth FROM categories c WHERE c.id = $1
+    UNION ALL
+    SELECT c.id, c.parent_id, c.tone, t.depth + 1
+    FROM categories c JOIN trail t ON c.id = t.parent_id
+)
+SELECT coalesce((SELECT tone FROM trail WHERE tone IS NOT NULL ORDER BY depth LIMIT 1), 'stone')::text AS tone
+`
+
+// The tone is the nearest one up the category's trail, the rule of
+// CategoryBySlug.
+func (q *Queries) CategoryTone(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, categoryTone, id)
+	var tone string
+	err := row.Scan(&tone)
+	return tone, err
+}
+
 const checkoutAttempt = `-- name: CheckoutAttempt :one
 SELECT cart_id, order_id FROM checkout_attempts WHERE idempotency_key = $1
 `
@@ -13064,6 +13083,15 @@ func (q *Queries) RejectInvoiceOperation(ctx context.Context, arg RejectInvoiceO
 }
 
 const relatedProducts = `-- name: RelatedProducts :many
+WITH RECURSIVE up AS (
+    SELECT c.id, c.parent_id FROM categories c WHERE c.id = $3
+    UNION ALL
+    SELECT c.id, c.parent_id FROM categories c JOIN up ON c.id = up.parent_id
+), department AS (
+    SELECT id FROM up WHERE parent_id IS NULL
+    UNION ALL
+    SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+)
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
@@ -13132,16 +13160,16 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = $2
-  AND p.id <> $3
-ORDER BY p.published_at DESC, p.id DESC
+  AND p.category_id IN (SELECT id FROM department)
+  AND p.id <> $2
+ORDER BY in_stock DESC, (p.category_id = $3) DESC, p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
 type RelatedProductsParams struct {
 	Locale     string
-	CategoryID uuid.UUID
 	ExcludeID  uuid.UUID
+	CategoryID uuid.UUID
 	RowLimit   int32
 }
 
@@ -13162,11 +13190,13 @@ type RelatedProductsRow struct {
 	ImageHeight         int32
 }
 
+// The department is the root of the product's category and everything under
+// it; sellable products lead, then the product's own sub-category.
 func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams) ([]RelatedProductsRow, error) {
 	rows, err := q.db.Query(ctx, relatedProducts,
 		arg.Locale,
-		arg.CategoryID,
 		arg.ExcludeID,
+		arg.CategoryID,
 		arg.RowLimit,
 	)
 	if err != nil {

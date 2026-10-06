@@ -3,8 +3,10 @@ package pages
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // A span has no role, so an aria-label on one is ignored and the glyphs are
@@ -17,7 +19,7 @@ func TestReviewStarsAreHiddenFromAssistiveTechnology(t *testing.T) {
 		Name: "Pixelight 9 Pro", Brand: "Pixelight", Slug: "pixelight-9-pro",
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
 		PriceCents: 3690000, Rating: 4, RatingCount: 1,
-		Reviews: []ProductReview{{Rating: 4, Author: "Mina", Date: "2026-10-01"}},
+		Reviews: []ProductReview{{Rating: 4, Author: "Mina", Date: shoptime.Date{Year: 2026, Month: time.October, Day: 1}}},
 	}
 	out := renderProductInLocale(t, i18n.WithLocale(t.Context(), i18n.En), &v)
 

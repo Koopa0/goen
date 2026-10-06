@@ -113,12 +113,12 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 
 	view := pages.ProductView{
-		Rules: pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
-		Slug:              p.Slug,
-		Name:              p.Name,
-		Summary:           p.Summary,
-		Description:       p.Description,
-		WarrantyNote:      p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		Rules:        pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
+		Slug:         p.Slug,
+		Name:         p.Name,
+		Summary:      p.Summary,
+		Description:  p.Description,
+		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
 		Brand:        p.Brand,
 		CategorySlug: p.CategorySlug,
 		CategoryName: p.CategoryName,
@@ -189,6 +189,12 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read comparable categories for %q: %w", p.Slug, offersErr)
 	}
 	view.Comparable = slices.Contains(offers, p.CategoryID)
+
+	tone, err := s.q.CategoryTone(ctx, p.CategoryID)
+	if err != nil {
+		return fmt.Errorf("read tone of %q: %w", p.Slug, err)
+	}
+	view.Tone = pages.ResolveTone(tone)
 
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{
@@ -268,7 +274,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
-			Date:     shoptime.Day(r.CreatedAt),
+			Date:     shoptime.DateOf(r.CreatedAt, s.now()),
 		})
 	}
 
