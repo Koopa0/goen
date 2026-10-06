@@ -211,21 +211,69 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						@components.Label(components.LabelProps{For: "c-min"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMinSpend) }
 						}
-						<input class="goen-input" id="c-min" name="min" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MinSpend }/>
+						<input
+							class="goen-input"
+							id="c-min"
+							name="min"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.MinSpend }
+							if v.HasErr("min") {
+								aria-invalid="true"
+								aria-describedby="c-min-error"
+							}
+						/>
+						if v.HasErr("min") {
+							<p class="ui-error-text" id="c-min-error">{ v.Err("min") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-days"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupDays) }
 						}
-						<input class="goen-input" id="c-days" name="days" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Days }/>
+						<input
+							class="goen-input"
+							id="c-days"
+							name="days"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.Days }
+							if v.HasErr("days") {
+								aria-invalid="true"
+								aria-describedby="c-days-error"
+							}
+						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupDaysHint) }</p>
+						if v.HasErr("days") {
+							<p class="ui-error-text" id="c-days-error">{ v.Err("days") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-max"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem) }
 						}
-						<input class="goen-input" id="c-max" name="max" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MaxRedeem }/>
+						<input
+							class="goen-input"
+							id="c-max"
+							name="max"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.MaxRedeem }
+							if v.HasErr("max") {
+								aria-invalid="true"
+								aria-describedby="c-max-error"
+							}
+						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupMaxHint) }</p>
+						if v.HasErr("max") {
+							<p class="ui-error-text" id="c-max-error">{ v.Err("max") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-percustomer"}) {

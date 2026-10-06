@@ -547,3 +547,15 @@ func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
 		})
 	}
 }
+
+// An order the refund cannot apply to is told why, before any money moves,
+// instead of the stock-and-campaign sentence the other desks use.
+func TestRefundBeforeShipmentNamesWhyAnUnpaidOrderIsNotRefundable(t *testing.T) {
+	staff, _ := admintest.StaffContext(t, pool)
+	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+
+	unpaid := admintest.PlaceUnpaidOrder(t, pool)
+	if got := pressRefund(t, staff, s, unpaid); got != "/admin/orders/"+unpaid+"?refundunpaid=1" {
+		t.Errorf("an unpaid order redirected to %s, want refundunpaid", got)
+	}
+}
