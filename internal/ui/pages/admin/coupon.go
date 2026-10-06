@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -100,7 +101,7 @@ type CouponsView struct {
 	web.Bound
 
 	Rows   []Coupon
-	Notice string
+	Notice components.Result
 	Errors map[string]string
 	Draft  CouponDraft
 }

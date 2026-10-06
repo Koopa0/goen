@@ -98,7 +98,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				landing := httptest.NewRequestWithContext(ctx, http.MethodGet, tt.want, http.NoBody)
-				if got, want := web.Notice(landing, notices), i18n.T(ctx, i18n.KeyAdminNoticeLosslessWebP); got != want {
+				if got, want := web.Notice(landing, notices).Text, i18n.T(ctx, i18n.KeyAdminNoticeLosslessWebP); got != want {
 					t.Errorf("%s: the page shows %q, want %q", locale, got, want)
 				}
 			}

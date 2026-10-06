@@ -19,9 +19,7 @@ templ Home(p layouts.Page, v *HeroView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-		}
+		@Announce(v.Notice)
 		<section aria-labelledby="live-slides">
 			<h2 class="goen-admin__subhead" id="live-slides">{ i18n.T(ctx, i18n.KeyAdminHomeCarouselHead) }</h2>
 			if v.NoSlides() {

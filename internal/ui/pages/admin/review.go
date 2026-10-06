@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -13,7 +14,7 @@ type ReviewsView struct {
 	web.Bound
 
 	Rows   []Review
-	Notice string
+	Notice components.Result
 }
 
 type Review struct {

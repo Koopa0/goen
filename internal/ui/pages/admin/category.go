@@ -1,11 +1,13 @@
 package admin
 
+import "github.com/koopa0/goen/internal/ui/components"
+
 type CategoryView struct {
 	Slug   string
 	Name   string
 	Tone   string // the category's own; "" inherits its department's
 	Image  Header
-	Notice string
+	Notice components.Result
 	Errors map[string]string
 }
 

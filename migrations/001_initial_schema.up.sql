@@ -4650,8 +4650,9 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT contact_messages_email_present CHECK (email ~ '[^[:space:]]'),
     -- The stored value is a durable category, not free text. Keep this aligned
-    -- with contact.subjects: every writer, including the store DB role, must be
-    -- unable to persist a value the application cannot render or validate.
+    -- with the constants in internal/contactsubject: every writer, including
+    -- the store DB role, must be unable to persist a value the application cannot
+    -- render or validate.
     CONSTRAINT contact_messages_subject_known CHECK (subject IN (
         '訂單問題', '退換貨', '保固維修', '商品諮詢', '合作提案'
     )),

@@ -27,10 +27,13 @@ func NewStore(dbtx db.DBTX) *Store {
 }
 
 func (s *Store) Create(ctx context.Context, m Message) error {
+	if !m.Subject.Known() {
+		return fmt.Errorf("create contact message: unknown subject %q", m.Subject)
+	}
 	_, err := s.q.CreateContactMessage(ctx, db.CreateContactMessageParams{
 		Name:     m.Name,
 		Email:    m.Email,
-		Subject:  m.Subject,
+		Subject:  string(m.Subject),
 		OrderRef: optionalText(m.OrderRef),
 		Message:  m.Body,
 	})

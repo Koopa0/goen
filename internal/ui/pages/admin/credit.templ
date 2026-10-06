@@ -20,11 +20,7 @@ templ Credit(p layouts.Page, v CreditView) {
 				</p>
 			</div>
 		</div>
-		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 			if v.Confirm {
 				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditConfirm) }</h2>
