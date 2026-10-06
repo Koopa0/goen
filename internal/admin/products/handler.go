@@ -605,7 +605,7 @@ func (h *Handler) editProductWithErrors(
 	}
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
-	view.ImageUploadDraft, view.ImageReuseDraft = admin.ProductImageUploadDraft{}, admin.ProductImageReuseDraft{}
+	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
