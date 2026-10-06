@@ -535,7 +535,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 			LineCount:  o.LineCount,
 			Committed:  o.Committed,
 			OwedCents:  o.OwedCents,
-			Delivered:  o.Delivered,
+			OneLastDay: o.OneLastDay,
 			LastDay:    shoptime.DateOf(o.RescissionEnds, now),
 		})
 	}

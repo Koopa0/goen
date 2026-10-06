@@ -23,19 +23,19 @@ type AccountOrder struct {
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
-	// Delivered is true once every parcel has arrived; LastDay means nothing before then.
-	Delivered bool
-	LastDay   shoptime.Date
+	// OneLastDay is true when the whole order has a single last day to cancel; LastDay means nothing otherwise.
+	OneLastDay bool
+	LastDay    shoptime.Date
 }
 
-// Facts are what a row of the history says about its order. The last day to cancel is counted from delivery,
-// so an order still on its way has none.
+// Facts are what a row of the history says about its order. The last day to cancel is counted from each parcel's
+// delivery, so the row names one only when the whole order has the same.
 func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
 	facts := []components.Stat{
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(o.TotalCents)},
 	}
-	if o.Delivered {
+	if o.OneLastDay {
 		facts = append(facts, dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
 	}
 	return facts

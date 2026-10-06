@@ -17334,14 +17334,21 @@ SELECT
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
     order_amount_after_credit(o.id)::bigint AS owed_cents,
-    -- rescission_ends is shop_today() until every parcel has arrived: sqlc cannot type a nullable
-    -- date from an expression, so a reader checks delivered, never the date.
-    coalesce(EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = o.id)
-             AND NOT EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = o.id AND s.delivered_at IS NULL),
-             false)::boolean AS delivered,
-    coalesce((SELECT max(return_window_ends(s.delivered_at)) FROM order_shipments s WHERE s.order_id = o.id),
-             shop_today())::date AS rescission_ends
+    -- one_last_day: every ordered unit is in a parcel, every parcel has arrived, and all share one last day to
+    -- cancel. Anything else has no single day, as return_line_policy_window judges each line by its own parcel.
+    -- rescission_ends is shop_today() while no parcel has arrived, so a reader checks one_last_day, never the date.
+    (p.parcels > 0 AND p.arrived = p.parcels AND p.last_days = 1
+     AND NOT EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
+                     AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                                 WHERE sl.order_line_id = ol.id), 0)))::boolean AS one_last_day,
+    coalesce(p.last_day, shop_today())::date AS rescission_ends
 FROM orders o
+LEFT JOIN LATERAL (
+    SELECT count(*) AS parcels, count(s.delivered_at) AS arrived,
+           count(DISTINCT return_window_ends(s.delivered_at)) AS last_days,
+           min(return_window_ends(s.delivered_at)) AS last_day
+    FROM order_shipments s WHERE s.order_id = o.id
+) p ON true
 WHERE o.user_id = $1
   AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -17368,7 +17375,7 @@ type UserOrdersRow struct {
 	LineCount         int64
 	Committed         bool
 	OwedCents         int64
-	Delivered         bool
+	OneLastDay        bool
 	RescissionEnds    time.Time
 }
 
@@ -17399,7 +17406,7 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 			&i.LineCount,
 			&i.Committed,
 			&i.OwedCents,
-			&i.Delivered,
+			&i.OneLastDay,
 			&i.RescissionEnds,
 		); err != nil {
 			return nil, err
