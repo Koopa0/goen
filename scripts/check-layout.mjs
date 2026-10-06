@@ -819,6 +819,97 @@ if (process.env.PLACED_TOKEN) {
   });
 }
 
+// DIAGNOSTIC PROBE (do not merge): prints the boxes and computed styles behind three layout reds.
+{
+  const diag = (name, value) => console.log('DIAG ' + name + ' ' + JSON.stringify(value));
+  const PERIOD_DIAG = `(() => {
+    const px = (v) => +parseFloat(v).toFixed(2);
+    const root = px(getComputedStyle(document.documentElement).fontSize);
+    return { root, rem12: root * 12, vw: document.documentElement.clientWidth, periods: [...document.querySelectorAll('.ui-period')].map((period) => {
+      const box = period.getBoundingClientRect();
+      const cells = [...period.children];
+      const labels = [...period.querySelectorAll('b, small')].map((e) => {
+        const cs = getComputedStyle(e);
+        const r = e.getBoundingClientRect();
+        const cell = e.parentElement;
+        const shown = { display: cs.display, left: +r.left.toFixed(1), right: +r.right.toFixed(1), top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1) };
+        e.style.setProperty('display', 'inline', 'important');
+        const f = e.getBoundingClientRect();
+        e.style.removeProperty('display');
+        return { text: e.textContent, tag: e.tagName, cell: cells.indexOf(cell), mark: cell.hasAttribute('data-mark'), fontSize: cs.fontSize, lineHeight: cs.lineHeight,
+          shown, forcedInline: { left: +f.left.toFixed(1), right: +f.right.toFixed(1), top: +f.top.toFixed(1), bottom: +f.bottom.toFixed(1) } };
+      });
+      const pcs = getComputedStyle(period);
+      return { unit: period.dataset.unit || 'day', cells: cells.length, box: { left: +box.left.toFixed(1), right: +box.right.toFixed(1), top: +box.top.toFixed(1), bottom: +box.bottom.toFixed(1), width: +box.width.toFixed(1) },
+        padding: pcs.paddingTop + ' / ' + pcs.paddingBottom, labels };
+    }) };
+  })()`;
+  for (const fontSize of ['', '200%']) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+    const target = ORIGIN + '/orders/' + (process.env.PLACED_ORDER || '') + '/pay';
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, 'diag period', target);
+    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+    await send(ws, 'Runtime.evaluate', { expression: 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))', awaitPromise: true });
+    diag('period pay 320 font=' + (fontSize || '100%'), (await send(ws, 'Runtime.evaluate', { expression: PERIOD_DIAG, returnByValue: true })).result?.value);
+  }
+
+  const LISTING_DIAG = `(() => {
+    const box = (e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e);
+      return { top: +r.top.toFixed(1), height: +r.height.toFixed(1), display: cs.display, margin: cs.marginTop + ' ' + cs.marginBottom, padding: cs.paddingTop + ' ' + cs.paddingBottom }; };
+    const out = { vh: innerHeight, vw: document.documentElement.clientWidth, blocks: [] };
+    const tile = document.querySelector('.goen-tiles__grid > li');
+    out.firstTile = tile ? box(tile) : null;
+    const tileTop = tile ? tile.getBoundingClientRect().top : 99999;
+    const walk = (el, depth) => {
+      for (const c of el.children) {
+        const r = c.getBoundingClientRect();
+        if (r.height === 0 || r.top > tileTop) continue;
+        out.blocks.push({ depth, el: c.tagName.toLowerCase() + (c.id ? '#' + c.id : '') + '.' + String(c.className || '').split(' ').join('.'), ...box(c) });
+        if (c.contains(tile) ? depth < 8 : depth < 3) walk(c, depth + 1);
+      }
+    };
+    walk(document.body, 0);
+    return out;
+  })()`;
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.enable');
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    for (const path of ['/c/phones', '/c/audio']) {
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+      const target = ORIGIN + path;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, 'diag listing', target);
+      diag('listing 375 ' + locale + ' ' + path, (await send(ws, 'Runtime.evaluate', { expression: LISTING_DIAG, returnByValue: true })).result?.value);
+    }
+  }
+
+  const SEARCH_DIAG = `(() => {
+    const el = document.querySelector('#site-search');
+    const cs = getComputedStyle(el);
+    const sides = ['Top', 'Right', 'Bottom', 'Left'].map((s) => s + ' ' + cs['border' + s + 'Style'] + ' ' + cs['border' + s + 'Width'] + ' ' + cs['border' + s + 'Color']);
+    const chain = [];
+    for (let p = el; p; p = p.parentElement) chain.push(p.tagName.toLowerCase() + '.' + String(p.className || '').split(' ')[0] + ' bg=' + getComputedStyle(p).backgroundColor);
+    const r = el.getBoundingClientRect();
+    const rules = [];
+    for (const sheet of document.styleSheets) { try { for (const rule of sheet.cssRules) { if (rule.selectorText && el.matches(rule.selectorText.replace(/:focus-visible|:focus|:hover/g, ''))) rules.push((sheet.href || 'inline').split('/').pop() + ' ' + rule.cssText.slice(0, 220)); } } catch (_) {} }
+    return { rect: [+r.left.toFixed(1), +r.top.toFixed(1), +r.width.toFixed(1), +r.height.toFixed(1)], sides, background: cs.backgroundColor, outline: cs.outline, offset: cs.outlineOffset, shadow: cs.boxShadow, chain, rules };
+  })()`;
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    const target = ORIGIN + '/contact';
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, 'diag search', target);
+    diag('site-search 1440 rest ' + locale, (await send(ws, 'Runtime.evaluate', { expression: SEARCH_DIAG, returnByValue: true })).result?.value);
+    await send(ws, 'Runtime.evaluate', { expression: "document.querySelector('#site-search').focus()" });
+    diag('site-search 1440 focus ' + locale, (await send(ws, 'Runtime.evaluate', { expression: SEARCH_DIAG, returnByValue: true })).result?.value);
+  }
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+  console.log('DIAG done: the diagnostic probe stops here');
+  process.exit(1);
+}
+
 for (const want of EXPECTED) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width,
