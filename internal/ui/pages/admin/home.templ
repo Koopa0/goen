@@ -188,7 +188,20 @@ templ Home(p layouts.Page, v *HeroView) {
 				</div>
 				<div class="ui-field">
 					<label class="ui-label" for="h-image">{ i18n.T(ctx, i18n.KeyAdminHomeImage) }</label>
-					<input class="ui-input" id="h-image" name="image" type="file" accept="image/*"/>
+					<input
+						class="ui-input"
+						id="h-image"
+						name="image"
+						type="file"
+						accept="image/*"
+						if v.HasErr("image") {
+							aria-invalid="true"
+							aria-describedby="h-image-error"
+						}
+					/>
+					if v.HasErr("image") {
+						<p class="ui-error-text" id="h-image-error" role="alert">{ v.Err("image") }</p>
+					}
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeImageHint) }</p>
 				</div>
 				<div class="ui-field">

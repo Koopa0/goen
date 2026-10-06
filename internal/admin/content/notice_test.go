@@ -18,7 +18,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	for _, tc := range []struct {
 		query   string
 		failure bool
-	}{{"saved", false}, {"uploadbusy", true}} {
+	}{{"saved", false}, {"refused", true}} {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/faq?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
@@ -42,8 +42,8 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]components.Outcome{
-		"already":    components.OutcomeDone,
-		"uploadbusy": components.OutcomeFailed,
+		"already": components.OutcomeDone,
+		"refused": components.OutcomeRefused,
 	} {
 		if got := notices[name].Outcome; got != want {
 			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
