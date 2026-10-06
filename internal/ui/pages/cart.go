@@ -662,6 +662,8 @@ type OrderView struct {
 	ShowWarrantyLink bool
 	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
 	PaymentRefreshURL string
+	// PaymentConfirmationPending preserves the return hint after checks stop; it never changes payment facts.
+	PaymentConfirmationPending bool
 	// The bounds behind that URL, quoted in the notice so the copy cannot drift from the handler.
 	PaymentRefreshSeconds, PaymentRefreshChecks int
 	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
