@@ -932,12 +932,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		back := "/verify?" + url.Values{"token": {token}}.Encode()
 		http.Redirect(w, r, "/signin?"+url.Values{"next": {back}}.Encode(), http.StatusSeeOther)
 	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			pages.NewsletterActionView{
-				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
-				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
-			}))
+		http.Redirect(w, r, "/verify?done=1", http.StatusSeeOther)
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrStaffAddress):

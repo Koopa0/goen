@@ -141,12 +141,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
-		pages.NewsletterActionView{
-			Heading: i18n.T(ctx, i18n.KeyNewsletterDone),
-			Body:    i18n.T(ctx, i18n.KeyNewsletterDoneBody),
-		}))
+	http.Redirect(w, r, "/newsletter/confirm?done=1", http.StatusSeeOther)
 }
 
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
@@ -194,12 +189,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
-		pages.NewsletterActionView{
-			Heading: i18n.T(ctx, i18n.KeyNewsletterLeft),
-			Body:    i18n.T(ctx, i18n.KeyNewsletterLeftBody),
-		}))
+	http.Redirect(w, r, "/newsletter/unsubscribe?done=1", http.StatusSeeOther)
 }
 
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
