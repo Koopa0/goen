@@ -3144,3 +3144,84 @@ form[data-request-pending] [aria-disabled="true"] {
     fill: CanvasText;
   }
 }
+
+/* Columns: a bar a day, or a bar to seven days, on the same baseline as the
+   running totals. A campaign is a bracket above them, cut into days where a
+   column is a day, and a pale ground behind them; its colour is the time mark,
+   which is also today's, because both are dates. */
+.goen-chart__frame--columns {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__frame--plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.goen-chart__hue {
+  fill: var(--chart-hue);
+}
+
+.goen-chart__open {
+  fill: var(--bg);
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chart__span {
+  fill: var(--n-100);
+}
+
+.goen-chart__strip {
+  fill: var(--mark, #26395a);
+}
+
+.goen-chart__gap {
+  shape-rendering: crispEdges;
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__gap--thin {
+  stroke-width: 1;
+}
+
+.goen-chart__spanlabel,
+.goen-chart__value {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+}
+
+.goen-chart__value {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__table .goen-chart__spans,
+.goen-chart__table thead th.goen-chart__spans {
+  text-align: start;
+}
+
+@media (forced-colors: active) {
+  .goen-chart__hue,
+  .goen-chart__strip {
+    fill: CanvasText;
+  }
+
+  .goen-chart__open {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  .goen-chart__span {
+    fill: transparent;
+  }
+
+  .goen-chart__gap {
+    stroke: Canvas;
+  }
+
+  .goen-chart__spanlabel,
+  .goen-chart__value {
+    fill: CanvasText;
+  }
+}

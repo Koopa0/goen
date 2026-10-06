@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
@@ -754,5 +755,171 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 	}
 	if got, want := daily.Current.Buckets[5].Value, int64(8_00); got != want {
 		t.Errorf("11-11 holds %d cents, want %d", got, want)
+	}
+}
+
+// The same orders as the tile counts, a day at a time: the unpaid order, the
+// one refunded before shipment and the ones outside the period are on no day.
+func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-03-12 15:20:00")
+
+	for _, order := range []struct {
+		placed string
+		paid   bool
+	}{
+		{"2023-03-12 15:19:00", true},
+		{"2023-03-12 10:00:00", true},
+		{"2023-03-12 15:21:00", true}, // after now
+		{"2023-03-10 23:59:00", true},
+		{"2023-03-11 00:01:00", true},
+		{"2023-03-08 12:00:00", false}, // never paid
+		{"2023-03-06 00:01:00", true},
+		{"2023-03-05 23:59:00", true}, // the day before the period
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, 100_00, order.paid, &moment)
+	}
+	moment := at("2023-03-09 10:00:00")
+	refunded := reportOrderAt(t, 100_00, true, &moment)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	var sum int64
+	perDay := map[string]int64{}
+	for _, b := range view.Paid.Days.Buckets {
+		sum += b.Value
+		perDay[b.Day.Format("01-02")] = b.Value
+	}
+	if sum != view.Orders {
+		t.Errorf("the days hold %d paid orders, the tile %d", sum, view.Orders)
+	}
+	if len(view.Paid.Days.Buckets) != 7 {
+		t.Errorf("%d days, want the 7 shop days with the empty ones present", len(view.Paid.Days.Buckets))
+	}
+	for day, want := range map[string]int64{"03-06": 1, "03-07": 0, "03-08": 0, "03-09": 0, "03-10": 1, "03-11": 1, "03-12": 2} {
+		if got := perDay[day]; got != want {
+			t.Errorf("%s holds %d paid orders, want %d", day, got, want)
+		}
+	}
+	if !view.Paid.Days.Partial {
+		t.Error("the days are not marked as ending mid-day")
+	}
+}
+
+func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-11-12 15:20:00") // seven shop days from 11-06
+
+	for _, c := range []struct {
+		slug, title      string
+		starts, ends     string
+		active           bool
+		titleEnglish     string
+		wantFrom, wantTo string
+	}{
+		{"rep-ended-before", "早已結束", "2023-10-01 00:00:00", "2023-11-05 23:59:00", true, "", "", ""},
+		{"rep-ends-at-the-start", "剛好結束", "2023-10-01 00:00:00", "2023-11-06 00:00:00", true, "", "", ""},
+		{"rep-ends-after-midnight", "隔日零點結束", "2023-11-01 00:00:00", "2023-11-07 00:00:00", true, "", "2023-11-01", "2023-11-06"},
+		{"rep-overlaps-the-start", "跨過期初", "2023-11-04 10:00:00", "2023-11-07 23:59:00", true, "Crosses the start", "2023-11-04", "2023-11-07"},
+		{"rep-running", "進行中", "2023-11-10 00:00:00", "2023-11-20 23:59:00", true, "", "2023-11-10", "2023-11-20"},
+		{"rep-switched-off", "已停用", "2023-11-08 00:00:00", "2023-11-09 23:59:00", false, "", "", ""},
+		{"rep-not-yet", "尚未開始", "2023-11-12 16:00:00", "2023-11-14 23:59:00", true, "", "", ""},
+	} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at, is_active)
+			VALUES ($1, $2, nullif($3, ''), $4, $5, $6)`,
+			c.slug, c.title, c.titleEnglish, at(c.starts), at(c.ends), c.active); err != nil {
+			t.Fatalf("campaign %s: %v", c.slug, err)
+		}
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	var got []string
+	for _, c := range view.Paid.Campaigns {
+		got = append(got, c.Label+" "+c.From.Format("2006-01-02")+" "+c.To.Format("2006-01-02"))
+	}
+	want := []string{
+		"隔日零點結束 2023-11-01 2023-11-06",
+		"跨過期初 2023-11-04 2023-11-07",
+		"進行中 2023-11-10 2023-11-20",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("campaigns = %q, want %q", got, want)
+	}
+
+	english, err := s.ReportAt(i18n.WithLocale(ctx, i18n.En), 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt in English: %v", err)
+	}
+	if got := english.Paid.Campaigns[1].Label; got != "Crosses the start" {
+		t.Errorf("an English reader gets the title %q, want the English one", got)
+	}
+}
+
+func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2022-05-20 15:20:00") // seven shop days from 05-14
+
+	for _, order := range []struct {
+		placed string
+		paid   bool
+	}{
+		{"2022-05-01 23:59:00", true},
+		{"2022-05-03 09:00:00", true},
+		{"2022-05-09 09:00:00", false}, // unpaid, so not the latest
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, 100_00, order.paid, &moment)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	if got := view.Paid.Days.Density(); got != chart.DensityNone {
+		t.Fatalf("the period has density %d, want none", got)
+	}
+	if view.Paid.Latest == nil {
+		t.Fatal("no latest paid order's day, want 2022-05-03")
+	}
+	if got := *view.Paid.Latest; got.Month != time.May || got.Day != 3 {
+		t.Errorf("the latest paid order was on %d-%d, want 5-3", got.Month, got.Day)
 	}
 }

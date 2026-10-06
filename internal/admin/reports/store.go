@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
@@ -56,12 +57,12 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	}
 	// The chart is one figure of the page: failing to read it must not take the
 	// tiles with it. It is read last, because a failed statement ends the snapshot.
-	daily, err := dailyRevenue(ctx, q, days, now)
+	daily, paid, err := dailyFigures(ctx, q, days, now)
 	if err != nil {
 		view.DailyUnavailable = true
 		return view, fmt.Errorf("%w: %w", ErrDailyRevenue, err)
 	}
-	view.Daily = daily
+	view.Daily, view.Paid = daily, paid
 	return view, nil
 }
 
@@ -130,34 +131,61 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	return view, nil
 }
 
-// dailyRevenue reads each shop day's paid revenue over the same two periods
-// reportAt reads, so the days add up to its revenue.
-func dailyRevenue(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.DailyRevenue, error) {
+// dailyFigures reads each shop day's paid revenue over the same two periods
+// reportAt reads, so the days add up to its revenue, and the paid orders of the
+// current period's days with what was on during them.
+func dailyFigures(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.DailyRevenue, admin.PaidDays, error) {
 	current, before := periods(now, int(window(days)))
-	thisPeriod, err := dailySeries(ctx, q, current)
+	thisPeriod, orders, err := dailySeries(ctx, q, current)
 	if err != nil {
-		return admin.DailyRevenue{}, err
+		return admin.DailyRevenue{}, admin.PaidDays{}, err
 	}
-	previous, err := dailySeries(ctx, q, before)
+	previous, _, err := dailySeries(ctx, q, before)
 	if err != nil {
-		return admin.DailyRevenue{}, err
+		return admin.DailyRevenue{}, admin.PaidDays{}, err
 	}
-	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, nil
+	paid := admin.PaidDays{Days: orders}
+	campaigns, err := q.CampaignsBetween(ctx, db.CampaignsBetweenParams{
+		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
+	})
+	if err != nil {
+		return admin.DailyRevenue{}, admin.PaidDays{}, fmt.Errorf("read campaigns: %w", err)
+	}
+	for _, c := range campaigns {
+		paid.Campaigns = append(paid.Campaigns, chart.Span{From: c.FirstDay, To: c.LastDay, Label: c.Title})
+	}
+	if orders.Density() == chart.DensityNone {
+		// The latest order is read only to say when it was: its absence is a
+		// shop that never sold, not a failure.
+		latest, err := q.LatestPaidDay(ctx, current.to)
+		switch {
+		case err == nil:
+			day := shoptime.DateOf(latest, now)
+			paid.Latest = &day
+		case !errors.Is(err, pgx.ErrNoRows):
+			return admin.DailyRevenue{}, admin.PaidDays{}, fmt.Errorf("read latest paid day: %w", err)
+		}
+	}
+	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, paid, nil
 }
 
-func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, error) {
+// dailySeries is the period's paid revenue and its paid orders, a bucket for
+// each shop day.
+func dailySeries(ctx context.Context, q *db.Queries, p period) (revenue, orders chart.Series, err error) {
 	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
 		FirstDay: shopDate(p.from), LastDay: shopDate(p.to.Add(-time.Nanosecond)),
 		FromAt: p.from, ToAt: p.to,
 	})
 	if err != nil {
-		return chart.Series{}, fmt.Errorf("read paid revenue by day: %w", err)
+		return chart.Series{}, chart.Series{}, fmt.Errorf("read paid revenue by day: %w", err)
 	}
-	series := chart.Series{Partial: endsMidDay(p), Buckets: make([]chart.Bucket, 0, len(rows))}
+	revenue = chart.Series{Partial: endsMidDay(p), Buckets: make([]chart.Bucket, 0, len(rows))}
+	orders = chart.Series{Partial: revenue.Partial, Buckets: make([]chart.Bucket, 0, len(rows))}
 	for _, r := range rows {
-		series.Buckets = append(series.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
+		revenue.Buckets = append(revenue.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
+		orders.Buckets = append(orders.Buckets, chart.Bucket{Day: r.Day, Value: r.Orders})
 	}
-	return series, nil
+	return revenue, orders, nil
 }
 
 // shopDate is the shop day t falls on, as the date a query takes.

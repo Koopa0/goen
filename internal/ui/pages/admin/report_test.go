@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -430,5 +431,165 @@ func TestRunningTotalCaptionAndSourceLineUseTheTilesWordingAndTheCutTime(t *test
 	}
 	if got, want := more.RunningTotal(en).PartialLabel, "up to 15:20"; got != want {
 		t.Errorf("last row's label = %q, want %q", got, want)
+	}
+}
+
+// paidView is a period of n shop days up to Monday 2026-10-05, with the paid
+// orders of the days at the given indexes, and the clock it is counted up to.
+func paidView(n int, at map[int]int64) ReportView {
+	days := make([]chart.Bucket, n)
+	for i := range days {
+		days[i].Day = time.Date(2026, 10, 5-(n-1)+i, 0, 0, 0, 0, time.UTC)
+		days[i].Value = at[i]
+	}
+	return ReportView{
+		Days: n, Windows: []int32{7, 30, 90}, Placed: 10, Committed: 10, Orders: 10,
+		From: shoptime.Date{Year: 2026, Month: time.September, Day: 29}, To: shoptime.Date{Year: 2026, Month: time.October, Day: 5},
+		Daily: DailyRevenue{Cut: "15:20"},
+		Paid:  PaidDays{Days: chart.Series{Buckets: days, Partial: true}},
+	}
+}
+
+func TestPaidOrdersAreToldInASentenceBelowThreeDays(t *testing.T) {
+	t.Parallel()
+
+	latest := shoptime.Date{Year: 2026, Month: time.September, Day: 21}
+	for _, tc := range []struct {
+		name         string
+		view         ReportView
+		locale       i18n.Locale
+		wantSentence string
+	}{
+		{"none, with the latest, zh", withLatest(paidView(7, nil), &latest), i18n.ZhHant, "9/29–10/5 沒有已付款的訂單。最近一筆在 9 月 21 日。"},
+		{"none, with the latest, en", withLatest(paidView(7, nil), &latest), i18n.En, "No paid orders Sep 29–Oct 5. The latest was on Sep 21."},
+		{"none, never any, en", paidView(7, nil), i18n.En, "No paid orders Sep 29–Oct 5."},
+		{"one day, zh", paidView(7, map[int]int64{6: 2}), i18n.ZhHant, "9/29–10/5 只有 1 天有已付款訂單：10/5 有 2 筆。"},
+		{"one day, en", paidView(7, map[int]int64{6: 2}), i18n.En, "Sep 29–Oct 5 had paid orders on 1 day only: 2 orders on Oct 5."},
+		{"two days, zh", paidView(7, map[int]int64{4: 1, 6: 2}), i18n.ZhHant, "9/29–10/5 只有 2 天有已付款訂單：10/3 有 1 筆、10/5 有 2 筆。"},
+		{"two days, en", paidView(7, map[int]int64{4: 1, 6: 2}), i18n.En, "Sep 29–Oct 5 had paid orders on 2 days only: 1 order on Oct 3, 2 orders on Oct 5."},
+	} {
+		v := tc.view
+		got := spaced(v.PaidSentence(i18n.WithLocale(t.Context(), tc.locale)))
+		if got != tc.wantSentence {
+			t.Errorf("%s: PaidSentence = %q, want %q", tc.name, got, tc.wantSentence)
+		}
+		if v.ShowsPaidColumns() {
+			t.Errorf("%s: columns are drawn for %d days with orders, want a sentence", tc.name, len(tc.view.Paid.Days.Buckets))
+		}
+		html := spaced(renderComponent(t, i18n.WithLocale(t.Context(), tc.locale), Report(layouts.Page{Title: "x"}, &v)))
+		if !strings.Contains(html, `<p class="goen-admin__hint">`+tc.wantSentence+`</p>`) {
+			t.Errorf("%s: the page does not hold the sentence %q in place of the chart", tc.name, tc.wantSentence)
+		}
+		if strings.Contains(html, "goen-chart__hue") {
+			t.Errorf("%s: a chart is drawn", tc.name)
+		}
+	}
+}
+
+// spaced reads the no-break spaces of a short date as the plain spaces they look like.
+func spaced(s string) string { return strings.ReplaceAll(s, "\u00a0", " ") }
+
+func withLatest(v ReportView, d *shoptime.Date) ReportView {
+	v.Paid.Latest = d
+	return v
+}
+
+func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
+	t.Parallel()
+
+	v := paidView(30, map[int]int64{3: 2, 10: 1, 29: 4})
+	en := i18n.WithLocale(t.Context(), i18n.En)
+	if got, want := v.PaidSentence(en), "Paid orders came in on 3 days of this period."; got != want {
+		t.Errorf("PaidSentence = %q, want %q", got, want)
+	}
+	html := renderComponent(t, en, Report(layouts.Page{Title: "Reports"}, &v))
+	for _, want := range []string{
+		"Paid orders per day (orders)",
+		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
+		`<p class="goen-chart__note">Paid orders only, by the time placed. Today is counted up to 15:20.</p>`,
+		`<th scope="col">Paid orders</th>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the page does not contain %s", want)
+		}
+	}
+	if strings.Contains(html, "goen-chart__yaxis") {
+		t.Error("three days with orders draw an axis")
+	}
+}
+
+func TestBusiestDayAndItsTies(t *testing.T) {
+	t.Parallel()
+
+	zh, en := i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.WithLocale(t.Context(), i18n.En)
+	// 30 days up to 10/5: index 22 is 9/28. Seven of them have orders.
+	base := map[int]int64{20: 3, 21: 4, 22: 2, 23: 1, 24: 3, 25: 2, 29: 4}
+	with := func(extra map[int]int64) ReportView {
+		at := map[int]int64{}
+		for k, val := range base {
+			at[k] = val
+		}
+		for k, val := range extra {
+			at[k] = val
+		}
+		return paidView(30, at)
+	}
+	one := with(map[int]int64{22: 9})
+	two := with(map[int]int64{22: 9, 24: 9})
+	three := with(map[int]int64{22: 9, 24: 9, 25: 9})
+	many := with(map[int]int64{22: 9, 24: 9, 25: 9, 20: 9})
+	for _, tc := range []struct {
+		name         string
+		v            ReportView
+		locale       context.Context
+		wantSentence string
+	}{
+		{"one, zh", one, zh, "最多的一天是 9 月 28 日，9 筆；今天到 15:20 為止 4 筆。"},
+		{"one, en", one, en, "The busiest day was Sep 28, with 9 orders; today up to 15:20, 4 orders."},
+		{"two, en", two, en, "The busiest days were Sep 28, Sep 30, with 9 orders each; today up to 15:20, 4 orders."},
+		{"three, zh", three, zh, "最多的是 9 月 28 日、9 月 30 日、10 月 1 日，各 9 筆；今天到 15:20 為止 4 筆。"},
+		{"four, en", many, en, "4 days tied for the most, 9 orders each; today up to 15:20, 4 orders."},
+		{"today one order, en", with(map[int]int64{22: 9, 29: 1}), en, "The busiest day was Sep 28, with 9 orders; today up to 15:20, 1 order."},
+	} {
+		if got := spaced(tc.v.PaidSentence(tc.locale)); got != tc.wantSentence {
+			t.Errorf("%s: PaidSentence = %q, want %q", tc.name, got, tc.wantSentence)
+		}
+	}
+}
+
+func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T) {
+	t.Parallel()
+
+	// 90 days up to 10/5 start on 7/8. The busiest 7 days start on 9/29.
+	v := paidView(90, map[int]int64{0: 1, 40: 2, 60: 3, 83: 5, 85: 4, 88: 2, 89: 1})
+	en := i18n.WithLocale(t.Context(), i18n.En)
+	if got, want := v.PaidHeading(en), "Paid orders per 7 days (orders)"; got != want {
+		t.Errorf("PaidHeading = %q, want %q", got, want)
+	}
+	if got, want := spaced(v.PaidSentence(en)), "The busiest stretch was the 7 days from Sep 29, with 12 orders."; got != want {
+		t.Errorf("PaidSentence = %q, want %q", got, want)
+	}
+	if got, want := v.PaidColumns(en).DayHeading, "7 days from"; got != want {
+		t.Errorf("the table's day heading = %q, want %q", got, want)
+	}
+	thirty := paidView(30, nil)
+	if got, want := thirty.PaidHeading(en), "Paid orders per day (orders)"; got != want {
+		t.Errorf("PaidHeading of 30 days = %q, want %q", got, want)
+	}
+}
+
+func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	v := paidView(30, map[int]int64{3: 2, 10: 1, 29: 4})
+	v.Paid = PaidDays{}
+	v.DailyUnavailable = true
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
+	if got := strings.Count(html, "This chart&#39;s data is unavailable right now."); got != 2 {
+		t.Errorf("the page says %d times that a chart is unavailable, want once for each of the two", got)
+	}
+	if strings.Contains(html, "No paid orders Sep") {
+		t.Error("a chart that could not be read is told as a period without orders")
 	}
 }
