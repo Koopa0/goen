@@ -25,6 +25,9 @@ templ RunningTotal(p RunningTotalProps) {
 					</svg>
 					<circle class={ "goen-chart__end goen-chart__end--previous", templ.KV("goen-chart__end--open", r.PreviousEnd.Open) } cx="100%" cy={ px(r.PreviousEnd.Y) } r="3.5"></circle>
 					<circle class={ "goen-chart__end goen-chart__end--current", templ.KV("goen-chart__end--open", r.CurrentEnd.Open) } cx="100%" cy={ px(r.CurrentEnd.Y) } r="4"></circle>
+					for i, h := range r.Hits {
+						<rect class="goen-chart__hit" data-row={ strconv.Itoa(i) } data-x={ h.At } x={ h.X } y="0" width={ h.Width } height={ px(r.Baseline) }></rect>
+					}
 					for _, t := range r.Ticks {
 						<text
 							class={ "goen-chart__label", templ.KV("goen-chart__tick--minor", t.Minor), templ.KV("goen-chart__today", t.Today) }
@@ -56,9 +59,9 @@ templ runningTotalTable(p RunningTotalProps, r runningTotal) {
 		<thead>
 			<tr>
 				<th scope="col">{ p.DayHeading }</th>
-				<th scope="col">{ p.Current.Label }</th>
+				<th scope="col" data-readout="series">{ p.Current.Label }</th>
 				<th scope="col">{ p.PreviousDayHeading }</th>
-				<th scope="col">{ p.Previous.Label }</th>
+				<th scope="col" data-readout="series">{ p.Previous.Label }</th>
 			</tr>
 		</thead>
 		<tbody>

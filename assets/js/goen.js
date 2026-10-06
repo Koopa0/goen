@@ -719,6 +719,97 @@
     });
   }
 
+  /*
+   * The charts' readout: pointing at a day writes that day's row of the chart's
+   * own table into one line under the plot, values first, then the series
+   * names, then the date and any note. It repeats the table and nothing more;
+   * without this the table is the way to read a chart. Escape puts it away, and
+   * it stays while the pointer is over it.
+   */
+  function chartReadout() {
+    const NS = "http://www.w3.org/2000/svg";
+    const readouts = new Map();
+
+    for (const fig of document.querySelectorAll(".goen-chart")) {
+      const frame = fig.querySelector(".goen-chart__frame");
+      const table = fig.querySelector(".goen-chart__table");
+      const hits = [...fig.querySelectorAll(".goen-chart__hit")];
+      const body = table?.tBodies[0];
+      if (!frame || !body || !hits.length) continue;
+      const heads = [...table.tHead.rows[0].cells];
+      const line = document.createElement("p");
+      line.className = "goen-chart__readout";
+      frame.after(line);
+
+      const plot = hits[0].ownerSVGElement;
+      const crosshair = hits[0].dataset.x === undefined ? null : document.createElementNS(NS, "line");
+      if (crosshair) {
+        crosshair.setAttribute("class", "goen-chart__crosshair");
+        crosshair.setAttribute("y1", hits[0].getAttribute("y"));
+        crosshair.setAttribute("y2", String(+hits[0].getAttribute("y") + +hits[0].getAttribute("height")));
+        crosshair.setAttribute("visibility", "hidden");
+        plot.insertBefore(crosshair, hits[0]);
+      }
+
+      let on = null;
+      const hide = () => {
+        on?.classList.remove("goen-chart__hit--on");
+        on = null;
+        line.textContent = "";
+        crosshair?.setAttribute("visibility", "hidden");
+      };
+      const show = (hit) => {
+        const row = body.rows[Number(hit.dataset.row)];
+        if (!row) return;
+        on?.classList.remove("goen-chart__hit--on");
+        on = hit;
+        const series = [];
+        const notes = [];
+        for (const [i, head] of heads.entries()) {
+          const text = row.cells[i]?.textContent.trim();
+          if (!text) continue;
+          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
+          else if (head.dataset.readout === "note") notes.push(text);
+        }
+        line.textContent = [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+        if (crosshair) {
+          crosshair.setAttribute("x1", hit.dataset.x);
+          crosshair.setAttribute("x2", hit.dataset.x);
+          crosshair.setAttribute("visibility", "visible");
+        } else {
+          hit.classList.add("goen-chart__hit--on");
+        }
+        readouts.set(fig, hide);
+      };
+
+      for (const hit of hits) {
+        hit.addEventListener("pointerenter", () => show(hit));
+        hit.addEventListener("pointerdown", () => show(hit));
+      }
+      const leave = (e) => {
+        if (e.pointerType === "mouse" && !frame.contains(e.relatedTarget) && !line.contains(e.relatedTarget)) {
+          hide();
+          readouts.delete(fig);
+        }
+      };
+      frame.addEventListener("pointerleave", leave);
+      line.addEventListener("pointerleave", leave);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      for (const hide of readouts.values()) hide();
+      readouts.clear();
+    });
+    document.addEventListener("pointerdown", (e) => {
+      for (const [fig, hide] of [...readouts]) {
+        if (fig.contains(e.target)) continue;
+        hide();
+        readouts.delete(fig);
+      }
+    });
+  }
+
   recipientBox();
   demoAccount();
   handoff();
@@ -728,4 +819,5 @@
   popovers();
   stepper();
   carousel();
+  chartReadout();
 })();

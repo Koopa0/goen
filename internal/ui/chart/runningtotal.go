@@ -57,6 +57,12 @@ type dayTick struct {
 	Today  bool
 }
 
+// hit is the part of a plot that reads out one table row. At is where the row's
+// day ends, which is where a running total stands once the day is counted.
+type hit struct {
+	X, Width, At string
+}
+
 type tableRow struct {
 	Heading, Current, PreviousDay, Previous string
 }
@@ -71,6 +77,7 @@ type runningTotal struct {
 	CurrentLabel, PrevLabel     endLabel
 	Ticks                       []dayTick
 	Rows                        []tableRow
+	Hits                        []hit
 	Total                       tableRow
 }
 
@@ -168,6 +175,7 @@ func newRunningTotal(ctx context.Context, p *RunningTotalProps) runningTotal {
 			row.Previous = p.Measure.text(previous[i])
 		}
 		r.Rows = append(r.Rows, row)
+		r.Hits = append(r.Hits, hit{X: percent(float64(i) * 100 / float64(n)), Width: percent(100 / float64(n)), At: percent(float64(i+1) * 100 / float64(n))})
 	}
 	r.Total = tableRow{
 		Heading: p.TotalLabel,
