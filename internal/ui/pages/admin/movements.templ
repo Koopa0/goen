@@ -25,11 +25,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 				</p>
 			</div>
 		</div>
-		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		@receiveForm(v)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
