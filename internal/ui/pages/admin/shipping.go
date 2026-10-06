@@ -10,20 +10,44 @@ import (
 )
 
 type ShippingView struct {
-	Methods        []ShippingMethod
-	Zones          []ShippingZone
-	Notice         string
-	Errors         map[string]string
-	MethodDraft    MethodDraft
-	ZoneDraft      ZoneDraft
-	PrefixDraft    ZonePrefixesDraft
-	SurchargeDraft SurchargeDraft
+	Methods            []ShippingMethod
+	Zones              []ShippingZone
+	Notice             string
+	Errors             map[string]string
+	MethodDraft        MethodDraft
+	ZoneDraft          ZoneDraft
+	PrefixDraft        ZonePrefixesDraft
+	VersionDraft       VersionDraft
+	SurchargeDraft     SurchargeDraft
+	FeeMaxDollars      int64
+	FreeOverMaxDollars int64
+}
+
+type VersionDraft struct {
+	MethodID                         string
+	Name, NameEn, Carrier, CarrierEn string
+	Fee, FreeOver                    string
 }
 
 type SurchargeDraft struct {
 	MethodID string
 	ZoneID   string
 	Amount   string
+}
+
+func (v *ShippingView) VersionValues(m *ShippingMethod) VersionDraft {
+	if v.VersionDraft.MethodID == m.MethodID {
+		return v.VersionDraft
+	}
+	return VersionDraft{MethodID: m.MethodID, Name: m.Name, NameEn: m.NameEn,
+		Carrier: m.Carrier, CarrierEn: m.CarrierEn, Fee: m.FeeDollars(), FreeOver: m.FreeOverDollars()}
+}
+
+func (v *ShippingView) VersionRefusal(methodID, field string) string {
+	if v.VersionDraft.MethodID == methodID {
+		return v.Errors["version_"+field]
+	}
+	return ""
 }
 
 func (v *ShippingView) SurchargeValue(m *ShippingMethod, zoneID string) string {
@@ -38,6 +62,21 @@ func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
 		return v.Errors["surcharge"]
 	}
 	return ""
+}
+
+func (v *ShippingView) FeeLimit() string      { return strconv.FormatInt(v.FeeMaxDollars, 10) }
+func (v *ShippingView) FreeOverLimit() string { return strconv.FormatInt(v.FreeOverMaxDollars, 10) }
+
+// A number input sanitizes unreadable raw values to blank. A refused draft must
+// remain visible and editable, including whitespace and an overflowing amount.
+func dollarInputType(raw string) string {
+	if raw == "" {
+		return "number"
+	}
+	if _, err := strconv.ParseInt(raw, 10, 64); err != nil || raw[0] == '+' {
+		return "text"
+	}
+	return "number"
 }
 
 type MethodDraft struct {

@@ -76,7 +76,7 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 		})
 	}
 
-	view := admin.ShippingView{}
+	view := admin.ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
 	for i := range rows {
 		m := &rows[i]
 		method := admin.ShippingMethod{
@@ -174,6 +174,21 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		})
 }
 
+func (s *Store) VersionMethod(ctx context.Context, versionID string) (string, error) {
+	id, err := uuid.Parse(versionID)
+	if err != nil {
+		return "", ErrNotFound
+	}
+	methodID, err := db.New(s.pool).ShippingVersionMethod(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("read shipping version method: %w", err)
+	}
+	return methodID.String(), nil
+}
+
 // SetZoneSurcharge sets one version's charge for one zone; zero DELETES the row.
 func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, dollars int64) error {
 	vid, err := uuid.Parse(versionID)
@@ -265,10 +280,10 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
 	if m.FeeDollars < 0 || m.FeeDollars > MaxFee/100 {
-		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
+		errs["fee"] = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), money.TWD(MaxFee))
 	}
 	if m.FreeOverDollars < 0 || m.FreeOverDollars > money.MaxCents/100 {
-		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
+		errs["free_over"] = fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFreeOver), money.TWD(money.MaxCents))
 	}
 	validateMethodParcelLimits(ctx, m, errs)
 	return errs

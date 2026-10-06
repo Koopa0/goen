@@ -233,6 +233,7 @@ type InvoiceDocumentLine struct {
 	UnitPriceCents int64
 	AmountCents    int64
 	TaxType        string
+	Unit           string
 	Position       int32
 }
 
@@ -410,6 +411,8 @@ type OrderLine struct {
 	UnitPriceCents int64
 	Quantity       int32
 	Position       int32
+	TaxType        string
+	InvoiceUnit    string
 }
 
 type OrderNumberCounter struct {
@@ -533,6 +536,8 @@ type Product struct {
 	NetQuantity          pgtype.Numeric
 	NetUnit              pgtype.Text
 	MinAgeMonths         pgtype.Int2
+	TaxType              string
+	InvoiceUnit          string
 }
 
 type ProductAnswer struct {

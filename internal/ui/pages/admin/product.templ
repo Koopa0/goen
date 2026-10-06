@@ -119,6 +119,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdName) }</a>
 				<a href="#sec-label">{ i18n.T(ctx, i18n.KeyProductLabel) }</a>
+				<a href="#sec-invoice">{ i18n.T(ctx,i18n.KeyProductInvoiceLine) }</a>
 				<a href="#sec-images">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</a>
 				<a href="#sec-options">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</a>
 				<a href="#sec-variants">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</a>
@@ -128,6 +129,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 		@productDetails(v)
 		if !v.IsNew {
 			@productLabel(v)
+			@productInvoiceLine(v)
 			@productImages(v)
 			@productOptions(v)
 			@productVariants(v)

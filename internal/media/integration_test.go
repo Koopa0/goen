@@ -10,9 +10,12 @@ import (
 	"image/color"
 	"image/png"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -460,5 +463,117 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	if heroGone || !exists(t, hero.Digest) {
 		t.Error("a hero image attached between the sweeper's read and its delete " +
 			"was reclaimed; the home page's largest picture is now a 404")
+	}
+}
+
+func TestOriginalImagePoolWaitEndsBeforeTheWriteDeadline(t *testing.T) {
+	config := pool.Config().Copy()
+	config.MaxConns = 1
+	config.MinConns = 0
+	reads, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatalf("image read pool: %v", err)
+	}
+	t.Cleanup(reads.Close)
+	held, err := reads.Acquire(t.Context())
+	if err != nil {
+		t.Fatalf("occupy image read pool: %v", err)
+	}
+	defer held.Release()
+
+	h := media.NewHandler(media.NewStore(reads), slog.Default())
+	digest := digestOf("original read pool wait")
+	etag := `"` + digest + `"`
+
+	// A matching validator must not acquire the only occupied connection.
+	conditionalCtx, conditionalCancel := context.WithTimeout(t.Context(), time.Second)
+	defer conditionalCancel()
+	conditional := httptest.NewRequestWithContext(conditionalCtx, http.MethodGet, "/media/"+digest, nil)
+	conditional.SetPathValue("digest", digest)
+	conditional.Header.Set("If-None-Match", etag)
+	notModified := httptest.NewRecorder()
+	h.Serve(notModified, conditional)
+	if notModified.Code != http.StatusNotModified || notModified.Body.Len() != 0 ||
+		notModified.Header().Get("ETag") != etag ||
+		notModified.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" {
+		t.Fatalf("conditional original response = %d %q %v, want cached 304", notModified.Code, notModified.Body.String(), notModified.Header())
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	if _, ok := ctx.Deadline(); ok {
+		t.Fatal("pool wait control has an outer deadline")
+	}
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/media/"+digest, nil)
+	r.SetPathValue("digest", digest)
+	done := make(chan *httptest.ResponseRecorder, 1)
+	started := time.Now()
+	go func() {
+		w := httptest.NewRecorder()
+		h.Serve(w, r)
+		done <- w
+	}()
+
+	// A real PostgreSQL pool wait is outside a synctest clock. This watchdog
+	// cancels an unbounded read while leaving time to write at 30 s.
+	watchdog := time.NewTimer(28 * time.Second)
+	defer watchdog.Stop()
+	select {
+	case w := <-done:
+		t.Logf("original image pool wait ended after %s with status %d", time.Since(started), w.Code)
+		if w.Code != http.StatusServiceUnavailable || w.Body.String() != "503\n" ||
+			w.Header().Get("Retry-After") != "1" || w.Header().Get("Cache-Control") != "" ||
+			w.Header().Get("ETag") != "" {
+			t.Errorf("exhausted original response = %d %q %v, want uncached 503 with Retry-After: 1", w.Code, w.Body.String(), w.Header())
+		}
+	case <-watchdog.C:
+		cancel()
+		<-done
+		t.Fatal("original image pool acquisition did not finish within 28 s before the 30 s write deadline")
+	}
+}
+
+func TestOriginalImageResponsesPreserveBytesAndCallerCancellation(t *testing.T) {
+	s := media.NewStore(pool)
+	obj, err := s.Put(t.Context(), bytes.NewReader(samplePNG(t, 137, 89)))
+	if err != nil {
+		t.Fatalf("put original: %v", err)
+	}
+	contentType, stored, err := s.Bytes(t.Context(), obj.Digest)
+	if err != nil {
+		t.Fatalf("read original control: %v", err)
+	}
+	h := media.NewHandler(s, slog.Default())
+	for _, tc := range []struct {
+		name     string
+		canceled bool
+	}{
+		{name: "ordinary original"},
+		{name: "canceled caller", canceled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tc.canceled {
+				cancel()
+			}
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/media/"+obj.Digest, nil)
+			r.SetPathValue("digest", obj.Digest)
+			w := httptest.NewRecorder()
+			h.Serve(w, r)
+			if tc.canceled {
+				if w.Body.Len() != 0 || len(w.Header()) != 0 {
+					t.Errorf("canceled original response = %q %v, want no response", w.Body.String(), w.Header())
+				}
+				return
+			}
+			if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), stored) ||
+				w.Header().Get("Content-Type") != contentType ||
+				w.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" ||
+				w.Header().Get("ETag") != `"`+obj.Digest+`"` ||
+				w.Header().Get("X-Content-Type-Options") != "nosniff" {
+				t.Errorf("original response = %d %v (bytes unchanged: %t), want immutable stored image", w.Code, w.Header(), bytes.Equal(w.Body.Bytes(), stored))
+			}
+		})
 	}
 }

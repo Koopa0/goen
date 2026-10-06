@@ -27,7 +27,7 @@ import (
 // browser's orders when a session ends; and whether the shop takes payment,
 // which decides whether an unpaid order offers 付款.
 type CartFinder interface {
-	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
+	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
 	TakesPayment() bool
@@ -508,11 +508,15 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if h.carts == nil {
 		return cartAdoptionUnchanged
 	}
-	cartID, ok := h.carts.IDForRequest(r.Context(), r)
+	cartID, ok, err := h.carts.IDForRequest(r.Context(), r)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read cart for sign-in", "error", err)
+		return cartAdoptionFailed
+	}
 	if !ok {
 		return cartAdoptionUnchanged
 	}
-	err := h.store.AdoptCart(r.Context(), userID, cartID)
+	err = h.store.AdoptCart(r.Context(), userID, cartID)
 	if err == nil {
 		return cartAdoptionUnchanged
 	}
