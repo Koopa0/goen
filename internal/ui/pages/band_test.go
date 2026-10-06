@@ -61,7 +61,7 @@ func TestTheHomeBandTakesTheWellAndTheStepDown(t *testing.T) {
 	for _, want := range []string{
 		`class="goen-band" data-tone="ink"`,
 		`class="goen-band__media goen-band__media--well"`,
-		`goen-home__heading goen-home__heading--long`,
+		`goen-home__heading goen-band__name--long`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("home band lacks %q", want)
@@ -71,7 +71,7 @@ func TestTheHomeBandTakesTheWellAndTheStepDown(t *testing.T) {
 	plain := renderComponent(t, ctx, Home(layouts.Page{}, HomeView{Band: &DepartmentBand{
 		Name: "3C 數位", Href: "/c/tech", Tone: ToneMist, Photo: Photo{URL: "/tech.webp"}, Tiles: tiles,
 	}}))
-	if strings.Contains(plain, "goen-band__media--well") || strings.Contains(plain, "heading--long") {
+	if strings.Contains(plain, "goen-band__media--well") || strings.Contains(plain, "name--long") {
 		t.Error("a department photograph on a short name took the well or the step-down")
 	}
 }
@@ -85,7 +85,21 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
 	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []ProductTile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil))
-	if !strings.Contains(withProduct, "goen-pagehead__photo goen-pagehead__photo--well") {
+	if !strings.Contains(withProduct, `class="goen-band__media goen-band__media--well"`) {
 		t.Error("a head with no department photograph did not take its first product's, on the well")
+	}
+}
+
+func TestTheDepartmentHeadIsTheBand(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}, nil))
+	band := strings.Index(page, `class="goen-band"`)
+	grid := strings.Index(page, `class="goen-band__grid"`)
+	media := strings.Index(page, `class="goen-band__media"`)
+	body := strings.Index(page, `class="goen-band__body goen-pagehead__text"`)
+	if band < 0 || !(band < grid && grid < media && media < body) {
+		t.Errorf("the head is not band, grid, media (the photograph first), body in that order:\n%s", page)
 	}
 }
