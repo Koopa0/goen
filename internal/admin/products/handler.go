@@ -630,12 +630,12 @@ func attachImageRefusal(err error, alt string) (string, i18n.Key) {
 		if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
 			return "alt", i18n.KeyFormHeroAlt
 		}
-		return "alt_en", i18n.KeyFormCampaignAltEnLong
+		return "image", i18n.KeyAdminNoticeAttachRefused
 	case errors.Is(err, ErrNotThisProductsOption):
-		return "image_option", i18n.KeyAdminNoticeBadOption
+		return "image", i18n.KeyAdminNoticeAttachRefused
 	case errors.Is(err, ErrRefused):
 		return "image", i18n.KeyAdminNoticeAttachRefused
 	default:
-		return "", ""
+		return "image", i18n.KeyAdminNoticeAttachRefused
 	}
 }
