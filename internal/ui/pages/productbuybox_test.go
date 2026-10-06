@@ -195,9 +195,9 @@ func TestWarrantyTermReadsInTheSingularForOneMonth(t *testing.T) {
 		months int32
 		want   string
 	}{
-		{i18n.En, 1, "1&nbsp;<small>month</small>"},
-		{i18n.En, 24, "24&nbsp;<small>months</small>"},
-		{i18n.ZhHant, 24, "24&nbsp;<small>個月</small>"},
+		{i18n.En, 1, "1 <small>month</small>"},
+		{i18n.En, 24, "24 <small>months</small>"},
+		{i18n.ZhHant, 24, "24 <small>個月</small>"},
 	} {
 		v := ProductView{WarrantyMonths: 1, Rules: testRules}
 		v.WarrantyMonths = tc.months
