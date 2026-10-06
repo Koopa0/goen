@@ -3561,9 +3561,7 @@ JOIN LATERAL (
     -- A campaign may feature a product only while an active discounted variant
     -- exists. Price the fact that admitted it, as /deals does, rather than a
     -- cheaper regular variant that would erase the markdown from the campaign.
-    ORDER BY (compare_at_price_cents > price_cents
-              AND stock_quantity > safety_stock) DESC,
-             (compare_at_price_cents IS NOT NULL
+    ORDER BY (compare_at_price_cents IS NOT NULL
               AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
              price_cents
@@ -6811,9 +6809,7 @@ JOIN LATERAL (
            (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (compare_at_price_cents > price_cents
-              AND stock_quantity > safety_stock) DESC,
-             (compare_at_price_cents IS NOT NULL
+    ORDER BY (compare_at_price_cents IS NOT NULL
               AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
              price_cents
@@ -6828,11 +6824,6 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents > dv.price_cents
-        AND dv.stock_quantity > dv.safety_stock)
   AND EXISTS (
       SELECT 1 FROM sale_campaign_products fp
       JOIN sale_campaigns fc ON fc.id = fp.campaign_id
@@ -6927,11 +6918,6 @@ const dealProductsCount = `-- name: DealProductsCount :one
 SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents > dv.price_cents
-        AND dv.stock_quantity > dv.safety_stock)
   AND EXISTS (
       SELECT 1 FROM sale_campaign_products fp
       JOIN sale_campaigns fc ON fc.id = fp.campaign_id
