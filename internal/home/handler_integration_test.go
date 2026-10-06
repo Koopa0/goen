@@ -921,8 +921,7 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
 		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
 		       CASE sm.destination_kind WHEN 'pickup_point' THEN 0 ELSE 8000 END,
-		       CASE sm.destination_kind WHEN 'pickup_point' THEN NULL ELSE 300000 END,
-		       now()
+		       300000, now()
 		FROM shipping_method_versions v
 		JOIN shipping_methods sm ON sm.id = v.method_id
 		WHERE sm.is_active
