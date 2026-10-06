@@ -15,8 +15,9 @@ FOR UPDATE;
 -- Logged-in checkout writes several user foreign keys after it owns the cart.
 -- Acquire their natural KEY SHARE first so account erasure and cart adoption use
 -- the same user -> cart order. Guest checkout has no user and skips this query.
+-- Lock order and privilege: see LockUser in internal/account/query.sql.
 -- name: LockUserForCheckout :one
-SELECT lock_user_for_checkout(@user_id::uuid);
+SELECT id FROM users WHERE id = @user_id::uuid FOR KEY SHARE;
 
 -- Checkout locks catalogue roots in one canonical order before it snapshots
 -- publication, prices and availability. SECURITY DEFINER keeps store's direct

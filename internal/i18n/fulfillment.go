@@ -294,7 +294,7 @@ var (
 	})
 
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
-		ZhHant: "額度的金額或原因有誤，請重新確認後再送出。",
+		ZhHant: "購物金的金額或原因有誤，請重新確認後再送出。",
 		En:     "The credit amount or reason is not right. Check them and send again.",
 	})
 
