@@ -7,19 +7,26 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 var pool *pgxpool.Pool
@@ -892,5 +899,139 @@ func TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery(t *testing.T) {
 	// here is: an opt-out typed in another case is the same mailbox.
 	if shouty, err := s.StillSubscribed(ctx, "WAITING@GOEN.INVALID"); err != nil || shouty {
 		t.Errorf("StillSubscribed(upper case) = %v, %v — want false", shouty, err)
+	}
+}
+
+func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, operation := range []string{"confirm", "unsubscribe"} {
+			t.Run(string(locale)+"/"+operation, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				s, address := store(t), addr(t)
+				if _, err := s.Request(ctx, address); err != nil {
+					t.Fatalf("request subscription: %v", err)
+				}
+				token := tokenFor(t, "newsletter.confirm", address, "token")
+				if operation == "unsubscribe" {
+					if _, err := s.Confirm(ctx, token); err != nil {
+						t.Fatalf("confirm subscription fixture: %v", err)
+					}
+					token = tokenFor(t, "newsletter.welcome", address, "unsubscribe_token")
+				}
+				cfg := pool.Config().Copy()
+				cfg.MaxConns = 1
+				cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+					_, err := conn.Exec(ctx, `SET ROLE store`)
+					return err
+				}
+				p, err := pgxpool.NewWithConfig(ctx, cfg)
+				if err != nil {
+					t.Fatalf("open application pool: %v", err)
+				}
+				t.Cleanup(p.Close)
+				h := newsletter.NewHandler(newsletter.NewStore(p), ratelimit.New(ratelimit.Config{
+					Every: time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 100,
+				}), slog.New(slog.DiscardHandler))
+				post, get := h.Confirm, h.ConfirmPage
+				if operation == "unsubscribe" {
+					post, get = h.Unsubscribe, h.UnsubscribePage
+				}
+				path := "/newsletter/" + operation
+				snapshot := func() string {
+					t.Helper()
+					var state string
+					if err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
+					    'subscriber', (SELECT to_jsonb(n) FROM newsletter_subscribers n WHERE lower(email) = lower($1)),
+					    'tokens', (SELECT count(*) FROM newsletter_confirmations WHERE lower(email) = lower($1)),
+					    'mail', (SELECT count(*) FROM outbox_messages WHERE lower(payload->>'email') = lower($1)))::text`,
+						address).Scan(&state); err != nil {
+						t.Fatalf("snapshot newsletter state: %v", err)
+					}
+					return state
+				}
+				before := snapshot()
+				form := httptest.NewRecorder()
+				get(form, httptest.NewRequestWithContext(ctx, http.MethodGet, path+"?token="+token, http.NoBody))
+				if form.Code != http.StatusOK || !strings.Contains(form.Body.String(), `name="token" value="`+token+`"`) {
+					t.Fatalf("token GET = %d, want 200 confirmation form", form.Code)
+				}
+				if diff := cmp.Diff(before, snapshot()); diff != "" {
+					t.Fatalf("token GET changed newsletter state (-before +after):\n%s", diff)
+				}
+				write := func() *httptest.ResponseRecorder {
+					t.Helper()
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, path,
+						strings.NewReader(url.Values{"token": {token}}.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					res := httptest.NewRecorder()
+					post(res, req)
+					return res
+				}
+				res := write()
+				if res.Code != http.StatusSeeOther {
+					t.Errorf("successful %s POST = %d, want 303 before refresh", operation, res.Code)
+				}
+				location := res.Header().Get("Location")
+				if location != path+"?done=1" {
+					t.Errorf("successful %s Location = %q, want %q", operation, location, path+"?done=1")
+				}
+				if got := res.Header().Values("Set-Cookie"); len(got) != 0 {
+					t.Errorf("successful POST Set-Cookie = %q, want none", got)
+				}
+				onList, known := subscribed(t, address)
+				if !known || onList != (operation == "confirm") || pendingConfirmations(t, address) != 0 {
+					t.Fatal("successful POST did not commit the requested subscription state and spend its confirmation")
+				}
+				heading, body := "Subscribed", "You are subscribed to the goen newsletter. We send occasionally. The unsubscribe link is in the email we just sent."
+				if operation == "unsubscribe" {
+					heading, body = "Unsubscribed", "You will not receive the goen newsletter again. Order notices are not affected."
+				}
+				if locale == i18n.ZhHant {
+					heading, body = "\u5df2\u8a02\u95b1", "\u4f60\u5df2\u8a02\u95b1 goen \u96fb\u5b50\u5831\u3002\u4e0d\u5b9a\u671f\u5bc4\u9001\uff1b\u9000\u8a02\u9023\u7d50\u5728\u525b\u525b\u5bc4\u51fa\u7684\u90a3\u5c01\u4fe1\u88e1\u3002"
+					if operation == "unsubscribe" {
+						heading, body = "\u5df2\u9000\u8a02", "\u4f60\u4e0d\u6703\u518d\u6536\u5230 goen \u96fb\u5b50\u5831\u3002\u8a02\u55ae\u76f8\u95dc\u7684\u901a\u77e5\u4fe1\u4e0d\u53d7\u5f71\u97ff\u3002"
+					}
+				}
+				committed := snapshot()
+				if location == path+"?done=1" {
+					var first string
+					for attempt := range 2 {
+						ack := httptest.NewRecorder()
+						get(ack, httptest.NewRequestWithContext(ctx, http.MethodGet, location, http.NoBody))
+						if ack.Code != http.StatusOK || strings.Contains(ack.Body.String(), `class="notice__form"`) ||
+							strings.Contains(ack.Body.String(), token) || strings.Contains(ack.Body.String(), address) {
+							t.Errorf("acknowledgement GET = %d, want private-data-free 200 without a confirmation form", ack.Code)
+						}
+						for _, want := range []string{heading, body} {
+							if !strings.Contains(ack.Body.String(), want) {
+								t.Errorf("newsletter acknowledgement omits %q", want)
+							}
+						}
+						if got := ack.Header().Values("Set-Cookie"); len(got) != 0 {
+							t.Errorf("acknowledgement Set-Cookie = %q, want none", got)
+						}
+						if attempt == 0 {
+							first = ack.Body.String()
+						} else if ack.Body.String() != first {
+							t.Error("refresh changed the acknowledgement")
+						}
+						if diff := cmp.Diff(committed, snapshot()); diff != "" {
+							t.Errorf("acknowledgement GET changed committed state (-before +after):\n%s", diff)
+						}
+					}
+				}
+				repeated := write()
+				want := http.StatusUnprocessableEntity
+				if operation == "unsubscribe" {
+					want = http.StatusSeeOther
+				}
+				if repeated.Code != want {
+					t.Errorf("repeated %s POST = %d, want %d", operation, repeated.Code, want)
+				}
+				if diff := cmp.Diff(committed, snapshot()); diff != "" {
+					t.Errorf("repeated POST changed committed state (-before +after):\n%s", diff)
+				}
+			})
+		}
 	}
 }

@@ -173,8 +173,15 @@ func TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn(t *testing
 	}
 
 	confirmed := b.follow(back.Query().Get("token"), sessionCookie(t, signedIn))
-	if confirmed.Code != http.StatusOK {
-		t.Fatalf("the link followed by the account that asked answered %d, want 200", confirmed.Code)
+	if confirmed.Code != http.StatusSeeOther || confirmed.Header().Get("Location") != "/verify?done=1" {
+		t.Fatalf("the link followed by the account that asked answered %d to %q, want 303 to /verify?done=1",
+			confirmed.Code, confirmed.Header().Get("Location"))
+	}
+	ack := b.serve(b.h.VerifyPage, httptest.NewRequestWithContext(ctx, http.MethodGet,
+		confirmed.Header().Get("Location"), http.NoBody), nil)
+	if ack.Code != http.StatusOK || strings.Contains(ack.Body.String(), `class="notice__form"`) ||
+		strings.Contains(ack.Body.String(), target) || strings.Contains(ack.Body.String(), token) {
+		t.Errorf("verification acknowledgement = %d, want private-data-free 200 without a form", ack.Code)
 	}
 	if got := emailOf(t, asker.ID); got != target {
 		t.Errorf("the account is at %s after confirming, want %s", got, target)
@@ -613,6 +620,120 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 			if len(sent) != 0 || len(told) != 0 {
 				t.Errorf("a link that can no longer be followed was sent to %v and %v told; want nothing mailed",
 					sent, told)
+			}
+		})
+	}
+}
+
+func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
+	tests := []struct {
+		locale  i18n.Locale
+		heading string
+		body    string
+	}{
+		{locale: i18n.En, heading: "Address confirmed", body: "Your email address is confirmed. Everything we send you goes there from now on."},
+		{locale: i18n.ZhHant, heading: "\u4fe1\u7bb1\u5df2\u78ba\u8a8d", body: "\u96fb\u5b50\u90f5\u4ef6\u5df2\u78ba\u8a8d\uff0c\u4e4b\u5f8c\u7684\u901a\u77e5\u4fe1\u90fd\u6703\u5bc4\u5230\u9019\u500b\u4fe1\u7bb1\u3002"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.locale), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			asker := registerProved(t, account.NewStore(pool), "confirmation-from-"+uuid.NewString()+"@example.com")
+			target := "confirmation-to-" + uuid.NewString() + "@example.com"
+			statements := &statementLog{}
+			b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(tracedStorePool(t, statements)), nil,
+				slog.New(slog.DiscardHandler), false, nil)}
+			session := b.signIn(asker.Email)
+			if res := b.askToMove(session, target); res.Code != http.StatusSeeOther {
+				t.Fatalf("request address change = %d, want 303", res.Code)
+			}
+			token, _ := queuedLink(t, target)
+			snapshot := func() string {
+				t.Helper()
+				var state string
+				if err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
+				    'email', email, 'verified', email_verified_at,
+				    'tokens', (SELECT count(*) FROM email_verifications WHERE user_id = users.id),
+				    'mail', (SELECT count(*) FROM outbox_messages WHERE lower(payload->>'email') = lower($2)))::text
+				    FROM users WHERE id = $1`, asker.ID, target).Scan(&state); err != nil {
+					t.Fatalf("snapshot verification state: %v", err)
+				}
+				return state
+			}
+			before := snapshot()
+			statements.take()
+			form := httptest.NewRecorder()
+			b.h.VerifyPage(form, httptest.NewRequestWithContext(ctx, http.MethodGet, "/verify?token="+token, http.NoBody))
+			if form.Code != http.StatusOK || !strings.Contains(form.Body.String(), `name="token" value="`+token+`"`) {
+				t.Fatal("token GET lost the verification form")
+			}
+			if got := statements.take(); len(got) != 0 {
+				t.Errorf("token GET ran %d database statements, want none", len(got))
+			}
+			if diff := cmp.Diff(before, snapshot()); diff != "" {
+				t.Fatalf("token GET changed verification state (-before +after):\n%s", diff)
+			}
+			write := func() *httptest.ResponseRecorder {
+				return b.serve(b.h.Verify, cartForm(ctx, "/verify", url.Values{"token": {token}}), session)
+			}
+			res := write()
+			if res.Code != http.StatusSeeOther {
+				t.Errorf("successful verification POST = %d, want 303 before refresh", res.Code)
+			}
+			location := res.Header().Get("Location")
+			if location != "/verify?done=1" {
+				t.Errorf("successful verification Location = %q, want /verify?done=1", location)
+			}
+			if got := res.Header().Values("Set-Cookie"); len(got) != 0 {
+				t.Errorf("verification Set-Cookie = %q, want none", got)
+			}
+			if got := emailOf(t, asker.ID); got != target {
+				t.Fatalf("verified email = %q, want %q", got, target)
+			}
+			var remaining int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM email_verifications WHERE user_id = $1`, asker.ID).Scan(&remaining); err != nil {
+				t.Fatalf("count remaining verification tokens: %v", err)
+			}
+			if remaining != 0 {
+				t.Fatalf("remaining verification tokens = %d, want 0", remaining)
+			}
+			committed := snapshot()
+			if location == "/verify?done=1" {
+				var first string
+				for attempt := range 2 {
+					statements.take()
+					ack := httptest.NewRecorder()
+					b.h.VerifyPage(ack, httptest.NewRequestWithContext(ctx, http.MethodGet, location, http.NoBody))
+					if ack.Code != http.StatusOK {
+						t.Errorf("acknowledgement GET = %d, want 200", ack.Code)
+					}
+					for _, want := range []string{tt.heading, tt.body} {
+						if !strings.Contains(ack.Body.String(), want) {
+							t.Errorf("verification acknowledgement omits %q", want)
+						}
+					}
+					for _, forbidden := range []string{token, target, `name="token"`, `class="notice__form"`, "%s", "%!("} {
+						if strings.Contains(ack.Body.String(), forbidden) {
+							t.Errorf("verification acknowledgement contains %q", forbidden)
+						}
+					}
+					if attempt == 0 {
+						first = ack.Body.String()
+					} else if ack.Body.String() != first {
+						t.Error("refresh changed the verification acknowledgement")
+					}
+					if got := statements.take(); len(got) != 0 {
+						t.Errorf("acknowledgement GET ran %d database statements, want none", len(got))
+					}
+					if diff := cmp.Diff(committed, snapshot()); diff != "" {
+						t.Errorf("acknowledgement GET changed verification state (-before +after):\n%s", diff)
+					}
+				}
+			}
+			if repeated := write(); repeated.Code != http.StatusUnprocessableEntity {
+				t.Errorf("spent verification POST = %d, want 422", repeated.Code)
+			}
+			if diff := cmp.Diff(committed, snapshot()); diff != "" {
+				t.Errorf("spent verification POST changed committed state (-before +after):\n%s", diff)
 			}
 		})
 	}
