@@ -1,8 +1,8 @@
 # Architecture
 
-[繁體中文](ARCHITECTURE.zh-TW.md) · [Diagram sources](docs/architecture/README.md)
+[繁體中文](ARCHITECTURE.zh-TW.md)
 
-goen is a Go commerce application for shops in Taiwan. The storefront, back office, and background workers share one process and keep orders, inventory, and ledgers in PostgreSQL. Stripe handles payments and refunds; ECPay handles electronic invoices.
+goen is a full-stack e-commerce application in Go. The storefront, back office, and background workers share one process and keep orders, inventory, and ledgers in PostgreSQL. Stripe handles payments and refunds; ECPay handles electronic invoices.
 
 ## 1. Commerce model
 
@@ -24,8 +24,6 @@ Placement copies the terms of sale, so later price changes leave history intact.
 ## 2. System context
 
 ![Shoppers and staff use one Go process; its handlers and workers share PostgreSQL and call external providers.](docs/architecture/01-system-context.png)
-
-[SVG](docs/architecture/01-system-context.svg)
 
 ### Application and presentation
 
@@ -52,8 +50,6 @@ PostgreSQL also holds sessions, access grants, audit history, and uploaded image
 Placement, session binding, and webhook application commit separately. No database transaction spans a Stripe call.
 
 ![Placement transaction A, session admission B, and webhook transaction C surround separate Stripe requests.](docs/architecture/02-checkout-payment.png)
-
-[SVG](docs/architecture/02-checkout-payment.svg)
 
 ### A. Place the order
 
@@ -86,8 +82,6 @@ Checkout keys, provider request keys, and event IDs each protect their own opera
 
 ![Capture and expiry share an order lock; capture first keeps the stock, release first leaves a late payment for reconciliation and refund.](docs/architecture/03-stock-payment-race.png)
 
-[SVG](docs/architecture/03-stock-payment-race.svg)
-
 A hold reduces sellable stock; shipment consumes it without debiting stock twice, and a partial shipment keeps holding the rest. Eligible expiry or cancellation releases it; an unresolved payment keeps it until reconciliation.
 
 Capture and release lock the order. If capture commits first, the hold stays. If release commits first, the capture guard refuses the late payment and goen records an exception for reconciliation and refund. See the [schema][schema] (capture and release guards) and [expiry][cart-sweeper].
@@ -113,8 +107,6 @@ A pending order paid wholly by store credit is cancelled in one transaction, by 
 ## 6. Durable background work
 
 ![Business changes and outbox rows commit together; workers send mail or hand invoice work to durable operations reconciled against ECPay.](docs/architecture/04-durable-work.png)
-
-[SVG](docs/architecture/04-durable-work.svg)
 
 ### Outbox
 
@@ -151,8 +143,6 @@ Amounts are bounded integer cents, parsed in one place as TWD. Orders keep their
 ## 8. Resources and workload
 
 ![Store, admin, and maintenance pools have separate budgets but share process resources and PostgreSQL.](docs/architecture/05-resource-boundaries.png)
-
-[SVG](docs/architecture/05-resource-boundaries.svg)
 
 Pools reserve connections and fix database roles; they still share CPU, memory, and PostgreSQL I/O, WAL, and locks.
 
