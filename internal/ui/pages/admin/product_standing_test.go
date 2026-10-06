@@ -20,9 +20,9 @@ func thirteenWeeks(units map[int]int64) ProductSales {
 	return ProductSales{Days: days, Cut: "15:20"}
 }
 
-func renderStanding(t *testing.T, loc i18n.Locale, v ProductView) string {
+func renderStanding(t *testing.T, loc i18n.Locale, v *ProductView) string {
 	t.Helper()
-	return renderComponent(t, i18n.WithLocale(t.Context(), loc), productStanding(v))
+	return renderComponent(t, i18n.WithLocale(t.Context(), loc), productStanding(*v))
 }
 
 func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
@@ -37,7 +37,7 @@ func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderStanding(t, i18n.En, ProductView{Sales: thirteenWeeks(tt.units)})
+			got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(tt.units)})
 			if !strings.Contains(got, tt.want) {
 				t.Errorf("sentence missing %q in\n%s", tt.want, got)
 			}
@@ -50,7 +50,7 @@ func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
 
 func TestWeeklyUnitsAreThirteenWholeWeeks(t *testing.T) {
 	sparse := map[int]int64{10: 1, 30: 2, 50: 1, 90: 3}
-	got := renderStanding(t, i18n.En, ProductView{Sales: thirteenWeeks(sparse)})
+	got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(sparse)})
 	if !strings.Contains(got, "Units sold on 4 days of this period.") {
 		t.Errorf("sparse sentence missing in\n%s", got)
 	}
@@ -70,20 +70,20 @@ func TestWeeklyUnitsAreThirteenWholeWeeks(t *testing.T) {
 func TestWeeklyUnitsNameTheBestWeek(t *testing.T) {
 	// Jul 8 is day 0, so week 5 starts on day 35, Aug 12.
 	units := map[int]int64{0: 1, 10: 1, 20: 1, 36: 4, 37: 3, 70: 2, 90: 1}
-	got := renderStanding(t, i18n.En, ProductView{Sales: thirteenWeeks(units)})
+	got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(units)})
 	if want := "The best week was the 7 days from Aug 12, with 7 units."; !strings.Contains(got, want) {
 		t.Errorf("missing %q in\n%s", want, got)
 	}
 
 	tied := map[int]int64{0: 1, 10: 1, 20: 5, 36: 5, 45: 1, 70: 2, 90: 1}
-	got = renderStanding(t, i18n.En, ProductView{Sales: thirteenWeeks(tied)})
+	got = renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(tied)})
 	if want := "2 weeks tied for the most, 5 units each."; !strings.Contains(got, want) {
 		t.Errorf("missing %q in\n%s", want, got)
 	}
 }
 
 func TestAWeeklyChartThatCouldNotBeReadIsNotAnEmptyOne(t *testing.T) {
-	got := renderStanding(t, i18n.En, ProductView{Sales: ProductSales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
+	got := renderStanding(t, i18n.En, &ProductView{Sales: ProductSales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
 	if n := strings.Count(got, `role="status"`); n != 2 {
 		t.Errorf("status lines = %d, want 2", n)
 	}
@@ -107,7 +107,7 @@ func TestTheRatingSpreadNeedsFiveReviews(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderStanding(t, tt.loc, ProductView{Ratings: tt.ratings})
+			got := renderStanding(t, tt.loc, &ProductView{Ratings: tt.ratings})
 			if !strings.Contains(got, tt.want) {
 				t.Errorf("missing %q in\n%s", tt.want, got)
 			}
@@ -119,7 +119,7 @@ func TestTheRatingSpreadNeedsFiveReviews(t *testing.T) {
 }
 
 func TestTheRatingSpreadCountsEveryStarInTextAndScalesToTheLargest(t *testing.T) {
-	got := renderStanding(t, i18n.En, ProductView{Ratings: ProductRatings{Count: 12, Average: 4.2, Stars: [5]int64{8, 2, 1, 0, 1}}})
+	got := renderStanding(t, i18n.En, &ProductView{Ratings: ProductRatings{Count: 12, Average: 4.2, Stars: [5]int64{8, 2, 1, 0, 1}}})
 	_, table, _ := strings.Cut(got, `class="goen-spread"`)
 	for _, want := range []string{
 		`<th scope="row">5 stars</th>`, `<th scope="row">1 star</th>`,

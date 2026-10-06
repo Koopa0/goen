@@ -80,12 +80,14 @@ func (s ProductSales) Sentence(ctx context.Context) string {
 			period, len(withSales), strings.Join(items, i18n.T(ctx, i18n.KeyChartListSeparator)))
 	case chart.DensitySparse:
 		return i18n.Count(ctx, i18n.KeyAdminProdUnitsSparse, int64(len(withSales)), len(withSales))
+	case chart.DensityFull:
+		peaks := chart.Peaks(s.Days.Columns())
+		if len(peaks) == 1 {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeek), units(peaks[0].Value), dayText(ctx, dayOf(peaks[0].Day)))
+		}
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeeks), len(peaks), units(peaks[0].Value))
 	}
-	peaks := chart.Peaks(s.Days.Columns())
-	if len(peaks) == 1 {
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeek), units(peaks[0].Value), dayText(ctx, dayOf(peaks[0].Day)))
-	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeeks), len(peaks), units(peaks[0].Value))
+	return ""
 }
 
 // ShowsSpread reports whether there are reviews enough to draw the spread.
