@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -23,8 +24,14 @@ func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid 
 	if err != nil {
 		t.Fatalf("parse %q: %v", moment, err)
 	}
+	// An order must have its lines by the time it commits.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
 	var orderID uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, placed_at)
 		SELECT next_order_number(), v.id, sm.code, v.name, 0, $1
@@ -32,16 +39,19 @@ func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid 
 		ORDER BY v.effective_at LIMIT 1 RETURNING id`, placed).Scan(&orderID); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
 		VALUES ($1, 'daily@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
 		VALUES ($1, $2, 'DAILY-SKU', '每日件數商品', 1, $3)`, orderID, productID, units); err != nil {
 		t.Fatalf("create line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
 	}
 	if unpaid {
 		return
