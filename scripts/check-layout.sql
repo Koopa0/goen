@@ -139,6 +139,12 @@ ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
 
 SET ROLE admin;
 
+-- A coupon with a total limit, as the coupon form writes one: the list draws its
+-- meter only for a capped coupon.
+INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions, per_customer_limit)
+VALUES ('LAYOUT-CAP', 'Layout capped coupon', 'amount', 100, 5, 1)
+RETURNING id AS capped_coupon_id \gset
+
 SELECT record_inventory_movement(:'seller_variant_id', 1000, 'receipt',
     'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
 SELECT record_audit_event(:'staff_id', 'stock.receive', 'product_variants', :'seller_variant_id',
@@ -224,6 +230,10 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_c
 -- The placed-order cookie carries this token; the URL carries the number.
 INSERT INTO order_access_grants (digest, order_id)
 VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
+
+-- One redemption on a paid order, so the capped coupon's meter has a filled
+-- part. The order carries no discount, so the redemption records none.
+SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
 
 SET ROLE admin;
 
