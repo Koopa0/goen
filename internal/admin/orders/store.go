@@ -109,11 +109,11 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	listed, moreSoldOut, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
+	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayMoreSoldOut = admin.DashboardRunway(listed, moreSoldOut)
+	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }

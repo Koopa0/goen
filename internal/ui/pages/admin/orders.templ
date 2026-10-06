@@ -94,15 +94,19 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				</div>
 			}
 		</section>
-		<section class="goen-admin__queue" aria-labelledby="runway-heading">
-			<h2 class="goen-admin__heading" id="runway-heading">
-				<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</a>
-			</h2>
-			@StockRiskRows(v.Runway, v.RunwayMoreSoldOut, CoverWindowDays)
-			<p class="goen-admin__hint">
-				<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminStockCoverReport) }</a>
-			</p>
-		</section>
+		if len(v.Runway) > 0 {
+			<section class="goen-admin__queue" aria-labelledby="runway-heading">
+				<h2 class="goen-admin__heading" id="runway-heading">
+					<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</a>
+				</h2>
+				@StockRiskRows(v.Runway, 0, CoverWindowDays)
+				if v.RunwayCut {
+					<p class="goen-admin__hint">
+						<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayRest) }</a>
+					</p>
+				}
+			</section>
+		}
 	}
 }
 

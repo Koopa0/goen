@@ -83,4 +83,9 @@ var (
 		"最久 %d 天",
 		"Oldest %d day",
 		"Oldest %d days")
+
+	KeyAdminQueueRunwayRest = key("admin.queue.runwayrest", Message{
+		ZhHant: "在報表看其餘品項",
+		En:     "See the rest in the report",
+	})
 )

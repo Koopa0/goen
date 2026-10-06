@@ -623,9 +623,9 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 }
 
-// The dashboard's sold-out count and the list it opens agree: a variant that is
-// not for sale is in neither.
-func TestAnInactiveVariantAtItsSafetyStockIsNotCountedAsSoldOut(t *testing.T) {
+// The dashboard's sold-out count and the stock desk's sold-out filter agree: a
+// variant that is not for sale, or whose product is not active, is in neither.
+func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	s := stock.NewStore(owner)
@@ -668,11 +668,13 @@ func TestAnInactiveVariantAtItsSafetyStockIsNotCountedAsSoldOut(t *testing.T) {
 	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(ctx, `UPDATE products SET status = 'archived' WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`, variant); err != nil {
-		t.Fatal(err)
-	}
-	if c, l := read(); c != counted || l != listed {
-		t.Errorf("an archived product's variant at its safety stock: counted %d and listed %d, want %d and %d", c, l, counted, listed)
+	for _, status := range []string{"draft", "archived"} {
+		if _, err := owner.Exec(ctx, `UPDATE products SET status = $2 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`, variant, status); err != nil {
+			t.Fatal(err)
+		}
+		if c, l := read(); c != counted || l != listed {
+			t.Errorf("a %s product's variant at its safety stock: counted %d and listed %d, want %d and %d", status, c, l, counted, listed)
+		}
 	}
 }
 

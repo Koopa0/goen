@@ -77,7 +77,7 @@ func StockRiskSection(rows []StockRisk, moreSoldOut, days int) templ.Component {
 	})
 }
 
-// StockRiskRows is the rows alone, for a page that says its own lead.
+// StockRiskRows is the rows without the report's lead.
 func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

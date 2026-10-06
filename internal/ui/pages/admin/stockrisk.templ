@@ -18,7 +18,7 @@ templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
 	@StockRiskRows(rows, moreSoldOut, days)
 }
 
-// StockRiskRows is the rows alone, for a page that says its own lead.
+// StockRiskRows is the rows without the report's lead.
 templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 	if len(rows) == 0 {
 		<div class="goen-admin__empty">

@@ -204,62 +204,78 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			}
 		})
 
-		t.Run(string(loc)+" rows, too few sales and none", func(t *testing.T) {
+		t.Run(string(loc)+" rows of SKUs that are not sold out", func(t *testing.T) {
 			t.Parallel()
 			rows := []StockRisk{
-				{SKU: "OUT-1", Name: "Gone", Slug: "gone"},
 				{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow},
 				{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow},
 			}
-			html := render(DashboardView{Runway: rows, RunwayMoreSoldOut: 2})
+			html := render(DashboardView{Runway: rows})
 			for _, want := range []string{
-				`id="runway-heading"`, "OUT-1", "FEW-1", "EST-1",
-				`href="/admin/products/gone"`, "▲",
-				i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, 2, 2),
-				i18n.T(ctx, i18n.KeyAdminStockCoverReport), "goen-chartrangebar",
+				`id="runway-heading"`, "FEW-1", "EST-1", `href="/admin/products/going"`,
+				i18n.T(ctx, i18n.KeyAdminRepFewSold), "goen-chartrangebar",
 			} {
 				if !strings.Contains(html, want) {
 					t.Errorf("the runway section lacks %q", want)
 				}
 			}
-			if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRepFewSold)) {
-				t.Error("a SKU with too few orders is not said to be too few")
+			if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)) {
+				t.Error("the runway says there is more in the report although no row was left off")
 			}
-			empty := render(DashboardView{})
-			if !strings.Contains(empty, i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, CoverWindowDays, CoverWindowDays)) {
-				t.Error("an empty runway does not say there is nothing to estimate")
+			if rest := render(DashboardView{Runway: rows, RunwayCut: true}); !strings.Contains(rest, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)) {
+				t.Error("rows were left off and the runway does not point to the report")
 			}
 		})
 
-		t.Run(string(loc)+" no low-stock section", func(t *testing.T) {
+		t.Run(string(loc)+" nothing to show leaves the section out", func(t *testing.T) {
 			t.Parallel()
-			html := render(DashboardView{SoldOut: 3, Runway: []StockRisk{{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}})
-			for _, gone := range []string{`id="low-heading"`, "/admin/stock/OUT-1"} {
+			html := render(DashboardView{SoldOut: 3})
+			for _, gone := range []string{`id="runway-heading"`, `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
 				if strings.Contains(html, gone) {
-					t.Errorf("the dashboard still renders the low-stock list: found %q", gone)
+					t.Errorf("the dashboard with nothing to estimate renders %q", gone)
 				}
 			}
 		})
 	}
 }
 
-func TestDashboardRunwayKeepsFiveAndCountsTheSoldOutOnesItDrops(t *testing.T) {
+func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
 	t.Parallel()
 
-	var listed []StockRisk
-	for i := range 4 {
-		listed = append(listed, StockRisk{SKU: fmt.Sprintf("OUT-%d", i)})
+	estimated := func(n int) (rows []StockRisk) {
+		for i := range n {
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("EST-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+		}
+		return rows
 	}
-	for i := range 3 {
-		listed = append(listed, StockRisk{SKU: fmt.Sprintf("EST-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+	soldOut := func(n int) (rows []StockRisk) {
+		for i := range n {
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("OUT-%d", i)})
+		}
+		return rows
 	}
-	kept, more := DashboardRunway(listed, 2)
-	if len(kept) != 5 || kept[4].SKU != "EST-0" || more != 2 {
-		t.Errorf("DashboardRunway kept %d rows ending %q with %d more, want 5 ending EST-0 with 2", len(kept), kept[len(kept)-1].SKU, more)
+	skus := func(rows []StockRisk) (out []string) {
+		for _, r := range rows {
+			out = append(out, r.SKU)
+		}
+		return out
 	}
-	listed = append(listed[:3:3], listed[3:]...)
-	listed[5], listed[6] = StockRisk{SKU: "OUT-X"}, StockRisk{SKU: "OUT-Y"}
-	if _, more := DashboardRunway(listed, 0); more != 2 {
-		t.Errorf("DashboardRunway with two sold out rows past the fifth counted %d more, want 2", more)
+
+	for _, tc := range []struct {
+		name    string
+		listed  []StockRisk
+		want    []string
+		wantCut bool
+	}{
+		{"four sold out and three estimated", append(soldOut(4), estimated(3)...), []string{"EST-0", "EST-1", "EST-2"}, false},
+		{"only sold out", soldOut(6), nil, false},
+		{"seven estimated", estimated(7), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
+		{"five estimated", estimated(5), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, false},
+		{"sold out first and six estimated", append(soldOut(5), estimated(6)...), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
+	} {
+		kept, cut := DashboardRunway(tc.listed)
+		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut {
+			t.Errorf("%s: DashboardRunway kept %v, cut %t, want %v, cut %t", tc.name, got, cut, tc.want, tc.wantCut)
+		}
 	}
 }
