@@ -111,11 +111,8 @@ FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN committed_orders c ON c.id = o.id
 JOIN products p ON p.id = ol.product_id
-JOIN tree t ON t.id = p.category_id
-JOIN categories d ON d.id = t.root_id
+JOIN categories d ON d.id = p.category_id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 GROUP BY d.id, d.name, d.name_en, d.position
 ORDER BY sales_cents DESC, d.position, d.id;
 
