@@ -175,18 +175,7 @@ templ departmentBand(b *DepartmentBand) {
 	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
 		<div class="goen-band__grid">
 			if photo.Shown() {
-				<div class={ "goen-band__media", templ.KV("goen-band__media--well", onWell) }>
-					<img
-						src={ photo.URL }
-						srcset={ photo.Srcset }
-						sizes="(min-width: 1024px) 42vw, 100vw"
-						alt=""
-						width="800"
-						height="600"
-						loading="lazy"
-						decoding="async"
-					/>
-				</div>
+				@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset}, onWell, "(min-width: 1024px) 42vw, 100vw", true)
 			}
 			<div class="goen-band__body">
 				<div class="goen-home__head">
