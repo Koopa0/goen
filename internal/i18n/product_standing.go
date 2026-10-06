@@ -3,7 +3,7 @@ package i18n
 var (
 	KeyAdminProdStanding = key("admin.prod.standing", Message{ZhHant: "銷售與評價", En: "Sales and reviews"})
 
-	KeyAdminProdUnitsWeekly = key("admin.prod.units.weekly", Message{ZhHant: "每週售出件數（件）", En: "Units sold per week (units)"})
+	KeyAdminProdUnitsWeekly = key("admin.prod.units.weekly", Message{ZhHant: "每週售出件數", En: "Units sold per week"})
 
 	// The table column of the weekly chart.
 	KeyAdminProdUnitsSold = key("admin.prod.units.sold", Message{ZhHant: "售出件數", En: "Units sold"})

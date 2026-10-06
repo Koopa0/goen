@@ -49,7 +49,7 @@ func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view 
 // sales is a bucket for each shop day of the last salesWeeks weeks, counted up
 // to now.
 func (s *Store) sales(ctx context.Context, id uuid.UUID, now time.Time) (admin.ProductSales, error) {
-	from := shoptime.Midnight(now).AddDate(0, 0, 1-salesWeeks*7)
+	from := shoptime.FirstDay(now, salesWeeks*7)
 	rows, err := s.q.ProductUnitsByShopDay(ctx, db.ProductUnitsByShopDayParams{
 		ProductID: id, FromAt: from, ToAt: now,
 	})
