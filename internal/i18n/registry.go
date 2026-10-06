@@ -52,7 +52,7 @@ func zhOnly(id, zhHant string) Key {
 	if existing, taken := messages[k]; taken {
 		panic(fmt.Sprintf("i18n: %s is declared twice: %q and %q", id, existing.ZhHant, zhHant))
 	}
-	messages[k] = Message{ZhHant: zhHant}
+	messages[k] = Message{ZhHant: zhHant, En: ""}
 	withoutEnglish[k] = true
 	return k
 }

@@ -1545,7 +1545,7 @@ func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
 			"threshold reached",
 			CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
 				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000}},
-			[]string{"運費", "<dd>免運 ", "已滿 NT$3,000"},
+			[]string{"運費", "<dd>免運<", "已滿 NT$3,000"},
 			[]string{"免運還差", "NT$0"},
 		},
 		{
@@ -1679,7 +1679,7 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	html := b.String()
-	if !strings.Contains(html, "<dt>Items</dt><dd>2 </dd>") || strings.Contains(html, "pcs") {
+	if !strings.Contains(html, "<dt>Items</dt><dd>2</dd>") || strings.Contains(html, "pcs") {
 		t.Errorf("English item count = %s, want the bare number under Items", html)
 	}
 }

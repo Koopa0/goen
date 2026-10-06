@@ -37,20 +37,10 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 			</section>
 		}
 		<div class="goen-admin__stats">
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatPending),
-				Value: v.PendingText(),
-				Href:  "/admin/orders?status=pending",
-			})
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
-				Value: v.PickingText(),
-				Href:  "/admin/orders?status=picking",
-			})
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatActive),
-				Value: v.ActiveProductsText(),
-				Href:  "/admin/products",
+			@components.GlanceStatLine([]components.LinkedStat{
+				{Stat: components.Stat{Label: i18n.T(ctx, i18n.KeyAdminQueueStatPending), Value: components.StatNumber(v.PendingOrders)}, Href: "/admin/orders?status=pending"},
+				{Stat: components.Stat{Label: i18n.T(ctx, i18n.KeyAdminStatusPicking), Value: components.StatNumber(v.PickingOrders)}, Href: "/admin/orders?status=picking"},
+				{Stat: components.Stat{Label: i18n.T(ctx, i18n.KeyAdminQueueStatActive), Value: components.StatNumber(v.ActiveProducts)}, Href: "/admin/products"},
 			})
 		</div>
 		<section class="goen-admin__queue" aria-labelledby="orders-heading">
