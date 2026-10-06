@@ -375,9 +375,11 @@ SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
        coalesce(tax_id, '')::text AS tax_id
 FROM invoice_preferences WHERE order_id = $1;
 
+-- rescission_ends is shop_today() for a parcel not yet delivered: sqlc cannot type a
+-- nullable date from an expression, so a reader checks delivered_at, never the date.
 -- name: OrderTracking :many
 SELECT carrier, tracking_number, shipped_at, delivered_at,
-       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
+       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.

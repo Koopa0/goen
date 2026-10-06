@@ -156,11 +156,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -285,13 +281,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		if v.HasNotice() {
-			// The layout gate finds this screen's notice by the vendored
-			// spelling, so the element keeps it (#380 R8).
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, Class: "ui-alert"}) {
-				{ v.Notice }
-			}
-		}
+		@AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)
@@ -588,7 +578,11 @@ templ Order(p layouts.Page, v *OrderView) {
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
-								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								if v.RefundCreditPaid {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundCreditHint) }</p>
+								} else {
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+								}
 							}
 						</form>
 					}
@@ -728,9 +722,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		if v.HasNotice() {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-		}
+		@Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/stock">
 			if v.LowOnly {
 				<input type="hidden" name="low" value="1"/>

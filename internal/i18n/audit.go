@@ -202,3 +202,18 @@ var (
 )
 
 var KeyAuditAnswerHide = key("audit.answer.hide", Message{ZhHant: "撤下回覆", En: "Answer withdrawn"})
+
+var (
+	KeyAuditFieldRefrozen        = key("audit.field.refrozen", Message{ZhHant: "重新保留金額", En: "Amount held again"})
+	KeyAuditFieldFee             = key("audit.field.fee", Message{ZhHant: "運費", En: "Delivery fee"})
+	KeyAuditFieldFreeOver        = key("audit.field.freeover", Message{ZhHant: "免運門檻", En: "Free-delivery threshold"})
+	KeyAuditFieldSurcharge       = key("audit.field.surcharge", Message{ZhHant: "分區加價", En: "Zone surcharge"})
+	KeyAuditFieldDecision        = key("audit.field.decision", Message{ZhHant: "決定", En: "Decision"})
+	KeyAuditFieldEntitlement     = key("audit.field.entitlement", Message{ZhHant: "退貨依據", En: "Basis for the return"})
+	KeyAuditFieldPolicyWindow    = key("audit.field.policywindow", Message{ZhHant: "退貨期限", En: "Return window"})
+	KeyAuditFieldCouponValue     = key("audit.field.couponvalue", Message{ZhHant: "折抵", En: "Discount"})
+	KeyAuditEntitlementStatutory = key("audit.entitlement.statutory", Message{ZhHant: "七日猶豫期", En: "Statutory 7-day right to cancel"})
+	KeyAuditEntitlementGoodwill  = key("audit.entitlement.goodwill", Message{ZhHant: "店家優惠", En: "The shop's voluntary offer"})
+	KeyAuditEntitlementException = key("audit.entitlement.exception", Message{ZhHant: "人工例外", En: "Staff exception"})
+	KeyAuditMoneyTag             = key("audit.money.tag", Message{ZhHant: "金額", En: "Money"})
+)

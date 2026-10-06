@@ -1488,23 +1488,29 @@ const (
 	paymentReturnRefreshChecks  = 3
 )
 
-// paymentReturnRefresh bounds the untrusted return hint so an unpaid customer
-// regains the payment and cancellation controls even when no webhook arrives.
+// A browser return is not payment evidence. Keep that hint when bounded checks
+// end so a delayed webhook cannot turn it into an invitation to pay again.
 func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
 		return ""
 	}
 	attempt := 0
 	if raw := r.URL.Query().Get("confirmation"); raw != "" {
+		if raw == "done" {
+			view.PaymentConfirmationPending = true
+			return ""
+		}
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 0 || parsed >= paymentReturnRefreshChecks {
 			return ""
 		}
 		attempt = parsed
 	}
-	next := "/orders/" + url.PathEscape(view.Number)
+	next := "/orders/" + url.PathEscape(view.Number) + "?paid=1&confirmation="
 	if attempt < paymentReturnRefreshChecks-1 {
-		next += "?paid=1&confirmation=" + strconv.Itoa(attempt+1)
+		next += strconv.Itoa(attempt + 1)
+	} else {
+		next += "done"
 	}
 	return next
 }

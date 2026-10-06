@@ -29,15 +29,18 @@ const Prefix = "/static/"
 // Asset names referenced by templates. Keep in sync with [required].
 const (
 	// BaseCSS carries the tokens, the element defaults and the shared
-	// primitives, and is linked before AppCSS: a value set in both is
-	// settled by source order.
-	BaseCSS  = "css/app/base.css"
+	// primitives, and is linked before AppCSS and AdminCSS: a value set in
+	// either is settled by source order.
+	BaseCSS = "css/app/base.css"
+	// AppCSS is the storefront's stylesheet; AdminCSS is the back office's,
+	// and the back office does not link AppCSS.
 	AppCSS   = "css/app/app.css"
+	AdminCSS = "css/app/admin.css"
 	FontsCSS = "css/app/fonts.css"
-	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
-	// before it paints anything else, and the browser cannot discover a font
-	// until it has parsed the stylesheet that names it.
-	InterLatinWOFF2 = "fonts/inter/latin.woff2"
+	// InstrumentSansLatinWOFF2 is the one face worth a preload: every page
+	// paints Latin before it paints anything else, and the browser cannot
+	// discover a font until it has parsed the stylesheet that names it.
+	InstrumentSansLatinWOFF2 = "fonts/instrument-sans/latin.woff2"
 	// SpeculationRules is the document the Speculation-Rules header names. It
 	// is an asset rather than an inline <script type="speculationrules">
 	// because the policy admits no inline script, and it is one document for
@@ -125,8 +128,9 @@ func departmentMedia(slugs ...string) []string {
 var required = []string{
 	BaseCSS,
 	AppCSS,
+	AdminCSS,
 	FontsCSS,
-	InterLatinWOFF2,
+	InstrumentSansLatinWOFF2,
 	SpeculationRules,
 	HTMXJS,
 	AppJS,

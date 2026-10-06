@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -210,9 +211,12 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view.ShipCarrierError = say(refusal.carrier)
 	view.TrackingError = say(refusal.tracking)
 	view.ShipQtyError = say(refusal.quantity)
-	view.Notice = say(refusal.notice)
-	if refusal.notice == i18n.KeyAdminDispatchRefused {
-		view.Notice = fmt.Sprintf(view.Notice, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
+	if refusal.notice != "" {
+		text := say(refusal.notice)
+		if refusal.notice == i18n.KeyAdminDispatchRefused {
+			text = fmt.Sprintf(text, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
+		}
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
 	}
 	view.ShipQty = map[string]string{}
 	for i := range view.Shippable {
@@ -280,32 +284,34 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-var notices = map[string]i18n.Key{
-	"ok":             i18n.KeyAdminNoticeOK,
-	"refused":        i18n.KeyAdminNoticeRefused,
-	"shipped":        i18n.KeyAdminNoticeShipped,
-	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
-	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
-	"refunded":       i18n.KeyAdminNoticeRefunded,
-	"refundpending":  i18n.KeyAdminNoticeRefundPending,
-	"cancelinvoice":  i18n.KeyAdminNoticeCancelInvoice,
-	"refundretry":    i18n.KeyAdminNoticeRefundRetry,
-	"unfunded":       i18n.KeyAdminNoticeUnfunded,
-	"owesparcel":     i18n.KeyAdminNoticeOwesParcel,
-	"invoiced":       i18n.KeyAdminNoticeInvoiced,
-	"voided":         i18n.KeyAdminNoticeVoided,
-	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
-	"noinvoice":      i18n.KeyAdminNoticeNoInvoice,
-	"invoicefailed":  i18n.KeyAdminNoticeInvoiceFailed,
-	"invoicepending": i18n.KeyAdminNoticeInvoicePending,
-	"allowed":        i18n.KeyAdminNoticeAllowed,
-	"allowsent":      i18n.KeyAdminNoticeAllowSent,
-	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
-	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
-	"voidreason":     i18n.KeyAdminNoticeVoidReason,
-	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
-	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
+var notices = map[string]web.NoticeEntry{
+	"ok":             web.Done(i18n.KeyAdminNoticeOK),
+	"refused":        web.Refused(i18n.KeyAdminNoticeRefused),
+	"shipped":        web.Done(i18n.KeyAdminNoticeShipped),
+	"toolate":        web.Refused(i18n.KeyAdminNoticeTooLate),
+	"deliveryneeds":  web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
+	"paidcancel":     web.Refused(i18n.KeyAdminNoticePaidCancel),
+	"refunded":       web.Done(i18n.KeyAdminNoticeRefunded),
+	"refundpending":  web.Failed(i18n.KeyAdminNoticeRefundPending),
+	"cancelinvoice":  web.Failed(i18n.KeyAdminNoticeCancelInvoice),
+	"refundretry":    web.Failed(i18n.KeyAdminNoticeRefundRetry),
+	"cancelretry":    web.Failed(i18n.KeyAdminNoticeCancelRetry),
+	"unfunded":       web.Refused(i18n.KeyAdminNoticeUnfunded),
+	"owesparcel":     web.Refused(i18n.KeyAdminNoticeOwesParcel),
+	"invoiced":       web.Done(i18n.KeyAdminNoticeInvoiced),
+	"voided":         web.Done(i18n.KeyAdminNoticeVoided),
+	"hasinvoice":     web.Refused(i18n.KeyAdminNoticeHasInvoice),
+	"noinvoice":      web.Refused(i18n.KeyAdminNoticeNoInvoice),
+	"invoicefailed":  web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
+	"invoicingoff":   web.Refused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending": web.Failed(i18n.KeyAdminNoticeInvoicePending),
+	"allowed":        web.Done(i18n.KeyAdminNoticeAllowed),
+	"allowsent":      web.Done(i18n.KeyAdminNoticeAllowSent),
+	"allowtoomuch":   web.Refused(i18n.KeyAdminNoticeAllowTooMuch),
+	"allowclaimed":   web.Refused(i18n.KeyAdminNoticeAllowClaimed),
+	"voidreason":     web.Refused(i18n.KeyAdminNoticeVoidReason),
+	"voidfailed":     web.Failed(i18n.KeyAdminNoticeVoidFailed),
+	"allowfailed":    web.Failed(i18n.KeyAdminNoticeAllowFailed),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
