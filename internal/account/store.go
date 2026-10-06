@@ -888,6 +888,7 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistIt
 				Rating:       r.Rating,
 				RatingCount:  r.RatingCount,
 				InStock:      r.InStock,
+				Colours:      r.Colours,
 				ImageURL:     assets.ProductImageURL(r.ImageKey),
 				ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 				ImageAlt:     r.ImageAlt,

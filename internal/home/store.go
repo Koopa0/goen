@@ -208,6 +208,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,
+			Colours:      t.Colours,
 			ImageURL:     assets.ProductImageURL(t.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(t.ImageKey, int(t.ImageWidth)),
 			ImageAlt:     t.ImageAlt,

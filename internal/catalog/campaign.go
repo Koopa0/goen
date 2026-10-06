@@ -87,6 +87,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
