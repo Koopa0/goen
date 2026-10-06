@@ -431,7 +431,7 @@ FROM invoice_preferences WHERE order_id = $1;
 -- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'.
 -- name: OrderTracking :many
 SELECT id, carrier, tracking_number, shipped_at, delivered_at,
-       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
+       coalesce(shop_day(delivered_at) + 6, shop_today())::date AS rescission_ends,
        coalesce(shop_day(delivered_at) + 14, shop_today())::date AS goodwill_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
