@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -129,5 +130,77 @@ func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
 				t.Errorf("%s resend is not worded as %q", tt.lastError, i18n.T(ctx, tt.want))
 			}
 		})
+	}
+}
+
+func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	healthy := func() *WorkerHealthView {
+		return &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
+	}
+	tests := []struct {
+		name    string
+		state   DisputeState
+		healthy bool
+		want    []string
+	}{
+		{
+			name: "unknown", state: DisputeState{Configured: true, Unknown: true},
+			want: []string{i18n.T(ctx, i18n.KeyAdminHPDisputesName), i18n.T(ctx, i18n.KeyHealthDisputesUnknown), i18n.T(ctx, i18n.KeyAdminHPNeedsLook)},
+		},
+		{
+			name: "no order and no deadline",
+			state: DisputeState{Configured: true, Items: []OpenDispute{
+				{URL: "https://dashboard.stripe.com/disputes/dp_1", AmountCents: 700, Currency: "twd"},
+			}},
+			want: []string{
+				i18n.T(ctx, i18n.KeyAdminHPDisputeNoOrder), i18n.T(ctx, i18n.KeyAdminHPDisputeNoDeadline),
+				`href="https://dashboard.stripe.com/disputes/dp_1"`, i18n.T(ctx, i18n.KeyAdminHPNeedsLook),
+			},
+		},
+		{
+			name: "orders could not be looked up",
+			state: DisputeState{Configured: true, OrdersUnknown: true, Items: []OpenDispute{
+				{URL: "https://dashboard.stripe.com/disputes/dp_1", AmountCents: 700, Currency: "twd"},
+			}},
+			want: []string{i18n.T(ctx, i18n.KeyAdminHPDisputeOrderUnknown), i18n.T(ctx, i18n.KeyAdminHPNeedsLook)},
+		},
+		{
+			name:    "none",
+			state:   DisputeState{Configured: true},
+			healthy: true,
+			want:    []string{i18n.T(ctx, i18n.KeyHealthDisputesClear)},
+		},
+		{name: "not configured", state: DisputeState{}, healthy: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := healthy()
+			view.Disputes = tt.state
+			if got := view.AllHealthy(); got != tt.healthy {
+				t.Errorf("AllHealthy() = %v, want %v", got, tt.healthy)
+			}
+			html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+			for _, want := range tt.want {
+				if !strings.Contains(html, want) {
+					t.Errorf("the health page does not carry %q", want)
+				}
+			}
+			if !tt.state.Configured && strings.Contains(html, i18n.T(ctx, i18n.KeyAdminHPDisputesName)) {
+				t.Error("an unconfigured Stripe still renders the disputes row")
+			}
+		})
+	}
+}
+
+func TestOpenDisputeAmountIsNTOnlyForTWD(t *testing.T) {
+	t.Parallel()
+	if got := (OpenDispute{AmountCents: 129000, Currency: "twd"}).Amount(); got != money.TWD(129000) {
+		t.Errorf("twd Amount() = %q, want %q", got, money.TWD(129000))
+	}
+	if got := (OpenDispute{AmountCents: 5000, Currency: "usd"}).Amount(); got != "USD 5000" {
+		t.Errorf("usd Amount() = %q, want the code and Stripe's minor units", got)
 	}
 }
