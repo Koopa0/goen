@@ -65,10 +65,14 @@ func StatMoney(cents int64) StatValue {
 
 func (v StatValue) present() bool { return v.figure != "" }
 
-func shown(stats []Stat) []Stat {
-	if len(stats) > 4 {
+func checkCount(n int) {
+	if n > 4 {
 		panic("components: a stat line holds at most four stats")
 	}
+}
+
+func shown(stats []Stat) []Stat {
+	checkCount(len(stats))
 	out := make([]Stat, 0, len(stats))
 	for _, s := range stats {
 		if s.Value.present() {
@@ -81,22 +85,19 @@ func shown(stats []Stat) []Stat {
 // LinkedStat is a stat whose label opens the screen that answers it. Href is required: a figure on a
 // dashboard is a question somebody is about to ask, and a figure that does not answer it makes them
 // find the screen in the navigation.
+// An empty Href panics: every Href is a route built in code, so an empty one is a programmer error, like regexp.MustCompile.
 type LinkedStat struct {
 	Stat
 	Href string
 }
 
 func shownLinked(stats []LinkedStat) []LinkedStat {
-	plain := make([]Stat, len(stats))
-	for i, s := range stats {
+	checkCount(len(stats))
+	out := make([]LinkedStat, 0, len(stats))
+	for _, s := range stats {
 		if s.Href == "" {
 			panic("components: a linked stat needs an Href")
 		}
-		plain[i] = s.Stat
-	}
-	shown(plain)
-	out := make([]LinkedStat, 0, len(stats))
-	for _, s := range stats {
 		if s.Value.present() {
 			out = append(out, s)
 		}
