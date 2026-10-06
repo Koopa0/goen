@@ -704,6 +704,17 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 		t.Fatalf("add regular variant: %v", err)
 	}
 
+	dealsCamp := "deals-sellable-" + uuid.NewString()[:8]
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, dealsCamp); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	for position, slug := range []string{deep, shallow, soldOutDiscount} {
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+			SELECT c.id, p.id, $3 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, dealsCamp, slug, position); err != nil {
+			t.Fatalf("feature %s: %v", slug, err)
+		}
+	}
+
 	var slugs []string
 	for page := 1; ; page++ {
 		view, dealsErr := s.Deals(ctx, page)
@@ -718,8 +729,8 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 		}
 	}
 	at := func(slug string) int { return slices.Index(slugs, slug) }
-	if at(shallow) < 0 || at(shallow) > at(deep) || at(shallow) > at(soldOutDiscount) {
-		t.Errorf("Deals order: sellable %d, sold out %d and %d, want the sellable one first", at(shallow), at(deep), at(soldOutDiscount))
+	if at(shallow) < 0 || at(deep) >= 0 || at(soldOutDiscount) >= 0 {
+		t.Errorf("Deals lists: sellable %d, sold out %d and %d, want only the sellable one", at(shallow), at(deep), at(soldOutDiscount))
 	}
 
 	camp := "sellable-first-" + uuid.NewString()[:8]
@@ -1579,7 +1590,10 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 		t.Fatalf("feature: %v", err)
 	}
 	// Another product keeps the campaign something to buy.
-	featureNewProduct(t, pool, campaignSlug, 5, "active")
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+		SELECT c.id, p.id, 1 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, discountedProduct(t, 5)); err != nil {
+		t.Fatalf("feature the other product: %v", err)
+	}
 
 	slugs, _ := dealSlugs(t, s)
 	if slices.Contains(slugs, slug) {

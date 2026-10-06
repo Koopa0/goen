@@ -73,19 +73,19 @@ func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testi
 		}
 	}
 
-	// A department's colour story shows one product, so each case has a department of its own.
+	// A department's colour story shows one product, so each case has a department
+	// and a product of its own; options come before variants.
 	storyDepartment := map[string]string{}
-	story := func(name string, id uuid.UUID) {
+	story := func(name string, campaign uuid.UUID) {
 		t.Helper()
-		var department uuid.UUID
+		var department, id, option uuid.UUID
 		slug := "dept-" + name + "-" + token
 		if err = tx.QueryRow(ctx, `INSERT INTO categories(slug,name,position) SELECT $1,'Tile campaign story',coalesce(max(position)+1,0) FROM categories WHERE parent_id IS NULL RETURNING id`, slug).Scan(&department); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = tx.Exec(ctx, `UPDATE products SET category_id = $2 WHERE id = $1`, id, department); err != nil {
+		if err = tx.QueryRow(ctx, `INSERT INTO products(category_id,slug,name,status) VALUES($1,$2,$3,'draft') RETURNING id`, department, token+"-story-"+name, token+" story "+name).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
-		var option uuid.UUID
 		if err = tx.QueryRow(ctx, `INSERT INTO product_options(product_id,name,position) VALUES($1,'colour',0) RETURNING id`, id).Scan(&option); err != nil {
 			t.Fatal(err)
 		}
@@ -98,11 +98,22 @@ func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testi
 				t.Fatal(err)
 			}
 		}
+		if _, err = tx.Exec(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,compare_at_price_cents,stock_quantity,position) VALUES($1,$2,10000,20000,5,0)`, id, "TS-"+strings.ToUpper(uuid.NewString()[:8])); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.Exec(ctx, `UPDATE products SET status='active',published_at=now() WHERE id=$1`, id); err != nil {
+			t.Fatal(err)
+		}
+		if campaign != uuid.Nil {
+			if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products(campaign_id,product_id,position) VALUES($1,$2,1)`, campaign, id); err != nil {
+				t.Fatal(err)
+			}
+		}
 		storyDepartment[name] = slug
 	}
-	story("running", running)
-	story("ended", ended)
-	story("none", none)
+	story("running", runningCampaign)
+	story("ended", endedCampaign)
+	story("none", uuid.Nil)
 
 	q := db.New(tx)
 	terms, exact := catalog.SearchTerms("%" + token + "%")
