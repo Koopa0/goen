@@ -2681,8 +2681,9 @@ CREATE TABLE return_requests (
     status             text NOT NULL DEFAULT 'requested',
     reason             text NOT NULL,
     resolution         text,
-    -- Frozen when a request is approved. Goods includes its proportional
-    -- discount; delivery is separate so one order can enforce one owner for it.
+    -- Frozen when a request is approved. Goods carries its cumulative share of
+    -- the discount (see return_goods_refundable_amount); delivery is separate so
+    -- one order can enforce one owner for it.
     -- Card and credit freeze the funding allocation at that SAME order lock: a
     -- failed provider attempt or later account erasure must not change which
     -- source a retry owes. Requested rows are previews and rejected rows reserve
@@ -5282,39 +5283,56 @@ COMMENT ON FUNCTION order_amount_after_credit(uuid) IS
     'funding check and the payment page read, so the figure charged and the figure '
     'demanded cannot disagree.';
 
--- The goods half of a return: proportional discount rounded UP, so several
--- partial returns cannot sum past what the customer paid for the goods. Delivery
--- is deliberately absent and allocated only at the approval boundary below.
+-- The goods half of a return, allocated cumulatively so an order returned in
+-- any number of parts is refunded what it would be returned at once: the goods
+-- of this return and of every accepted one earn their share of what was paid
+-- for the goods, less what the accepted ones already froze, so the return that
+-- completes the order takes the remainder. The share is rounded up to a whole
+-- NT$, in the customer's favour as the coupon is at checkout, and never past
+-- what was paid; whole because the ECPay allowance files whole NT$. Delivery is
+-- absent here and allocated only at the approval boundary below.
 CREATE FUNCTION return_goods_refundable_amount(p_return_request_id uuid) RETURNS bigint
 LANGUAGE sql
 STABLE
 PARALLEL SAFE
 SET search_path = pg_catalog, public, pg_temp
 AS $$
-    SELECT ret.gross
-         - ceil(o.discount_cents::numeric * ret.gross::numeric
-                / nullif(ord.subtotal, 0)::numeric)::bigint
+    SELECT least(
+               ord.subtotal - o.discount_cents,
+               ceil(ret.gross::numeric * (ord.subtotal - o.discount_cents)::numeric
+                    / (nullif(ord.subtotal, 0)::numeric * 100)) * 100
+           )::bigint
+         - accepted.frozen
     FROM return_requests r
     JOIN orders o ON o.id = r.order_id
     CROSS JOIN LATERAL (
         SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)::bigint AS gross
         FROM return_request_lines rl
+        JOIN return_requests rr ON rr.id = rl.return_request_id
         JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rl.return_request_id = r.id
+        WHERE rr.order_id = r.order_id
+          AND (rr.id = r.id OR rr.status IN ('approved', 'completed'))
     ) ret
     CROSS JOIN LATERAL (
         SELECT coalesce(sum(ol.quantity * ol.unit_price_cents), 0)::bigint AS subtotal
         FROM order_lines ol WHERE ol.order_id = o.id
     ) ord
+    CROSS JOIN LATERAL (
+        SELECT coalesce(sum(rr.goods_refund_cents), 0)::bigint AS frozen
+        FROM return_requests rr
+        WHERE rr.order_id = r.order_id
+          AND rr.id <> r.id
+          AND rr.status IN ('approved', 'completed')
+    ) accepted
     WHERE r.id = p_return_request_id;
 $$;
 
 COMMENT ON FUNCTION return_goods_refundable_amount(uuid) IS
-    'The returned lines at purchased prices less their proportional discount, excluding delivery.';
+    'The returned goods'' cumulative share of what was paid for the goods, in whole NT$ rounded up, less what accepted returns of the order froze; excluding delivery.';
 
 -- Requested is a target-scoped preview: accepted prior returns plus THIS one.
 -- Approved/completed is the immutable snapshot assigned under the order lock.
--- A rejected request never owns delivery. Approval time, not created_at or UUID
+-- A rejected request refunds nothing. Approval time, not created_at or UUID
 -- order, is the durable economic sequence; now() is transaction-start time.
 CREATE FUNCTION return_refundable_amount(p_return_request_id uuid) RETURNS bigint
 LANGUAGE sql
@@ -5341,14 +5359,14 @@ AS $$
                     WHERE accepted.order_id = r.order_id
                       AND accepted.shipping_refund_cents > 0
                 ) THEN o.shipping_cents ELSE 0 END
-        ELSE return_goods_refundable_amount(r.id)
+        ELSE 0
     END::bigint
     FROM return_requests r JOIN orders o ON o.id = r.order_id
     WHERE r.id = p_return_request_id;
 $$;
 
 COMMENT ON FUNCTION return_refundable_amount(uuid) IS
-    'Requested preview or frozen approved payout: discounted purchased goods plus delivery on the one approval that completed a full rescission.';
+    'Requested preview or frozen approved payout: discounted purchased goods plus delivery on the one approval that completed a full rescission; zero once rejected.';
 
 -- The amount of unresolved return value which still needs a LIVE store-credit
 -- owner. Approved rows already own an immutable credit allocation; an exact
