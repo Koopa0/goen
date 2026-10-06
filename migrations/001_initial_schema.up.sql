@@ -5269,9 +5269,7 @@ GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 -- role reads through it only what its own grants allow.
 CREATE VIEW sold_orders WITH (security_invoker = true) AS
     SELECT c.id
-    FROM committed_orders c
-    WHERE NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = c.id AND b.before_shipment);
+    FROM committed_orders c;
 
 COMMENT ON VIEW sold_orders IS
     'The single definition of a sold order: committed, and not refunded before '
