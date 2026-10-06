@@ -148,7 +148,7 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	addAdmin(t, shop)
 	windows := saleWindows(t, shop)
 
-	if out, err := runDemoHistory(t, shop.Config().ConnString(), namingItself(shop)...); err != nil {
+	if out, err := runSeed(t, "demo_history.sql", shop.Config().ConnString(), namingItself(shop)...); err != nil {
 		t.Fatalf("seed/demo_history.sql: %v\n%s", err, out)
 	}
 
@@ -187,8 +187,10 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	assertHealthQuiet(t, shop)
 	assertReportsHaveData(t, shop)
 
-	assertRefused(t, shop, shop.Config().ConnString(), namingItself(shop),
+	assertRefused(t, shop, "demo_history.sql", shop.Config().ConnString(), namingItself(shop),
 		"this database already has a demo history (complete or partial); restore the snapshot to run again")
+
+	t.Run("restored a week later", func(t *testing.T) { assertShiftedToToday(t, shop, 7) })
 }
 
 // The demo holds a few checkouts from before the history; it numbers its own
@@ -210,7 +212,7 @@ func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
 		ORDER BY o.order_number`
 	before := textRows(t, shop, earlier)
 
-	if out, err := runDemoHistory(t, shop.Config().ConnString(), namingItself(shop)...); err != nil {
+	if out, err := runSeed(t, "demo_history.sql", shop.Config().ConnString(), namingItself(shop)...); err != nil {
 		t.Fatalf("seed/demo_history.sql beside GO-<day>-000001 on each of the last seven days: %v\n%s", err, out)
 	}
 
@@ -368,20 +370,20 @@ func TestDemoHistoryRefuses(t *testing.T) {
 			if tt.named != nil {
 				args = []string{"-v", "demo_database=" + tt.named(shop.Config().ConnConfig.Database)}
 			}
-			assertRefused(t, shop, conn, args, tt.refusal)
+			assertRefused(t, shop, "demo_history.sql", conn, args, tt.refusal)
 		})
 	}
 }
 
-// runDemoHistory runs the script with psql, as its header says, through conn.
-func runDemoHistory(t *testing.T, conn string, args ...string) (string, error) {
+// runSeed runs seed/<script> with psql, as its header says, through conn.
+func runSeed(t *testing.T, script, conn string, args ...string) (string, error) {
 	t.Helper()
 	psql, err := exec.LookPath("psql")
 	if err != nil {
-		t.Fatalf("seed/demo_history.sql is a psql script: %v", err)
+		t.Fatalf("seed/%s is a psql script: %v", script, err)
 	}
 	args = append([]string{"-X", "-q", "-v", "ON_ERROR_STOP=1", "-d", conn}, args...)
-	args = append(args, "-f", filepath.Join("..", "..", "seed", "demo_history.sql"))
+	args = append(args, "-f", filepath.Join("..", "..", "seed", script))
 	//nolint:gosec // G204: psql comes from exec.LookPath and every argument is the test's own.
 	out, err := exec.CommandContext(t.Context(), psql, args...).CombinedOutput()
 	return string(out), err
@@ -393,20 +395,20 @@ func namingItself(shop *pgxpool.Pool) []string {
 	return []string{"-v", "demo_database=" + shop.Config().ConnConfig.Database}
 }
 
-// assertRefused wants the script stopped before it writes: a non-zero exit,
-// the refusal in what it printed, and no order added.
-func assertRefused(t *testing.T, shop *pgxpool.Pool, conn string, args []string, refusal string) {
+// assertRefused wants seed/<script> stopped before it writes: a non-zero
+// exit, the refusal in what it printed, and every table as it was.
+func assertRefused(t *testing.T, shop *pgxpool.Pool, script, conn string, args []string, refusal string) {
 	t.Helper()
-	before := countOrders(t, shop)
-	out, err := runDemoHistory(t, conn, args...)
+	before := tableDigests(t, shop)
+	out, err := runSeed(t, script, conn, args...)
 	switch _, exited := errors.AsType[*exec.ExitError](err); {
 	case !exited:
-		t.Errorf("seed/demo_history.sql ran (%v), want it to refuse with %q:\n%s", err, refusal, out)
+		t.Errorf("seed/%s ran (%v), want it to refuse with %q:\n%s", script, err, refusal, out)
 	case !strings.Contains(out, refusal):
-		t.Errorf("seed/demo_history.sql stopped (%v) without saying %q:\n%s", err, refusal, out)
+		t.Errorf("seed/%s stopped (%v) without saying %q:\n%s", script, err, refusal, out)
 	}
-	if after := countOrders(t, shop); after != before {
-		t.Errorf("refused run left %d orders, want the %d it found", after, before)
+	if changed := changedTables(before, tableDigests(t, shop)); len(changed) > 0 {
+		t.Errorf("refused run of seed/%s changed %s", script, strings.Join(changed, ", "))
 	}
 }
 
@@ -513,15 +515,6 @@ func saleWindows(t *testing.T, shop *pgxpool.Pool) string {
 		t.Fatalf("read campaign and coupon windows: %v", err)
 	}
 	return windows
-}
-
-func countOrders(t *testing.T, shop *pgxpool.Pool) int {
-	t.Helper()
-	var n int
-	if err := shop.QueryRow(t.Context(), `SELECT count(*) FROM orders`).Scan(&n); err != nil {
-		t.Fatalf("count orders: %v", err)
-	}
-	return n
 }
 
 func textRows(t *testing.T, shop *pgxpool.Pool, query string) []string {
