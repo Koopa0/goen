@@ -96,7 +96,7 @@ func assertShiftedToToday(t *testing.T, shop *pgxpool.Pool, days int) {
 	}
 
 	assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, days),
-		"orders from the history were placed on or after")
+		"this database is dated "+shopDaysAgo(0)+", after anchor_day "+shopDaysAgo(days))
 }
 
 // ageSnapshot makes the database read as if it had been made days earlier:
@@ -160,8 +160,11 @@ func ageSnapshot(t *testing.T, shop *pgxpool.Pool, days int) {
 
 // shiftArgs names the database and, as the anchor, the shop day days ago.
 func shiftArgs(shop *pgxpool.Pool, days int) []string {
-	anchor := shoptime.Day(shoptime.In(time.Now()).AddDate(0, 0, -days))
-	return append(namingItself(shop), "-v", "anchor_day="+anchor)
+	return append(namingItself(shop), "-v", "anchor_day="+shopDaysAgo(days))
+}
+
+func shopDaysAgo(days int) string {
+	return shoptime.Day(shoptime.In(time.Now()).AddDate(0, 0, -days))
 }
 
 // seed/demo_shift_columns.sql picks what seed/demo_shift.sql moves in replica
@@ -215,9 +218,8 @@ func TestDemoShiftMovesOnlyTimes(t *testing.T) {
 func TestDemoShiftRefuses(t *testing.T) {
 	t.Parallel()
 	itself := func(own string) string { return own }
-	today := shoptime.In(time.Now())
-	yesterday, tomorrow := shoptime.Day(today.AddDate(0, 0, -1)), shoptime.Day(today.AddDate(0, 0, 1))
-	threeDaysAgo := shoptime.Day(today.AddDate(0, 0, -3))
+	today, yesterday, threeDaysAgo := shopDaysAgo(0), shopDaysAgo(1), shopDaysAgo(3)
+	tomorrow := shoptime.Day(shoptime.In(time.Now()).AddDate(0, 0, 1))
 	tests := []struct {
 		name    string
 		prepare []func(*testing.T, *pgxpool.Pool)
@@ -290,11 +292,23 @@ func TestDemoShiftRefuses(t *testing.T) {
 			refusal: "no opening stock from seed/dev_catalog.sql",
 		},
 		{
-			name:    "an anchor_day before the history's last day",
-			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, orderPaidDaysAgo("cs_demo_a1history", 2)},
+			name:    "an anchor_day before the database's date",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue},
 			named:   itself,
 			anchor:  threeDaysAgo,
-			refusal: "orders from the history were placed on or after " + threeDaysAgo,
+			refusal: "this database is dated " + today + ", after anchor_day " + threeDaysAgo,
+		},
+		{
+			name: "an anchor_day after the database's date",
+			prepare: []func(*testing.T, *pgxpool.Pool){
+				seedCatalogue, func(t *testing.T, shop *pgxpool.Pool) {
+					t.Helper()
+					ageSnapshot(t, shop, 3)
+				},
+			},
+			named:   itself,
+			anchor:  yesterday,
+			refusal: "this database is dated " + threeDaysAgo + ", before anchor_day " + yesterday,
 		},
 	}
 	for _, tt := range tests {
@@ -316,6 +330,43 @@ func TestDemoShiftRefuses(t *testing.T) {
 				args = append(args, "-v", "anchor_day="+tt.anchor)
 			}
 			assertRefused(t, shop, "demo_shift.sql", conn, args, tt.refusal)
+		})
+	}
+}
+
+// A second run on the same restore finds the database dated after the anchor,
+// whatever the history holds: no history at all, as on a local database, or
+// one whose last order is days before the anchor, as when the days before the
+// snapshot drew no orders.
+func TestDemoShiftRefusesASecondRun(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		prepare []func(*testing.T, *pgxpool.Pool)
+	}{
+		{
+			name:    "the seed's catalogue alone",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue},
+		},
+		{
+			name:    "a history without orders on the days before the anchor",
+			prepare: []func(*testing.T, *pgxpool.Pool){seedCatalogue, orderPaidDaysAgo("cs_demo_a1history", 3)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			shop := dbtest.Pool(t)
+			for _, prepare := range tt.prepare {
+				prepare(t, shop)
+			}
+			ageSnapshot(t, shop, 2)
+			conn := shop.Config().ConnString()
+			if out, err := runSeed(t, "demo_shift.sql", conn, shiftArgs(shop, 2)...); err != nil {
+				t.Fatalf("seed/demo_shift.sql 2 days after the snapshot: %v\n%s", err, out)
+			}
+			assertRefused(t, shop, "demo_shift.sql", conn, shiftArgs(shop, 2),
+				"this database is dated "+shopDaysAgo(0)+", after anchor_day "+shopDaysAgo(2))
 		})
 	}
 }
