@@ -191,7 +191,7 @@ func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
 					errs[field] = messages[field]
 				}
 				markup := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{
-					Draft: CouponDraft{MinSpend: "0100000001", Days: "001000001", MaxRedeem: "001000001", Cap: "", PerCustomer: "01"},
+					Draft:  CouponDraft{MinSpend: "0100000001", Days: "001000001", MaxRedeem: "001000001", Cap: "", PerCustomer: "01"},
 					Errors: errs,
 				}))
 				doc, err := html.Parse(strings.NewReader(markup))
