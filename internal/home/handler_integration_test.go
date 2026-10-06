@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -916,7 +917,13 @@ func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) 
 func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	if _, err := pool.Exec(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
 		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
@@ -929,7 +936,7 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 		t.Fatalf("publish the fees: %v", err)
 	}
 
-	view, err := home.NewStore(pool).Load(ctx)
+	view, err := home.NewStore(tx).Load(ctx)
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
