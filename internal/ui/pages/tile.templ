@@ -45,7 +45,7 @@ templ tileCard(t ProductTile) {
 					class="goen-tile__img"
 					src={ t.ImageURL }
 					srcset={ t.ImageSrcset }
-					sizes="(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
+					sizes={ t.Sizes() }
 					alt={ t.ImageAlt }
 					if t.HasImageDimensions() {
 						width={ t.ImageWidthText() }

@@ -141,7 +141,7 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 // periodOverride finds the colours a tone gives the day grid, and periodDecl
 // one of them: a tone token, or a token of the page's own.
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.(?:goen-hero__slide|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
 )
 
@@ -382,5 +382,18 @@ func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
 		if !strings.Contains(rule[1], ".goen-band ."+class) {
 			t.Errorf("the band's muted-text rule does not name .%s", class)
 		}
+	}
+}
+
+// The promotion strip owns .goen-promo; a second block declaring it restyles the
+// strip on every page that has one.
+func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
+		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
 	}
 }
