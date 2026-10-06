@@ -10,9 +10,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
@@ -134,12 +136,22 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: "稽核測試"},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
 			ActorKind: admin.ActorStaff, Actor: "稽核測試"},
-		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoicePending, ActorKind: admin.ActorSystem},
+		// The store has no invoice writer, so nothing will send the void.
+		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: admin.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)
+	}
+	enabled, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{}).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order(%s) with e-invoicing on: %v", number, err)
+	}
+	for _, e := range enabled.Timeline {
+		if e.Label == i18n.KeyAuditInvoiceVoid && e.Status != i18n.KeyAdminTimelineInvoicePending {
+			t.Errorf("with e-invoicing on, the unsent void reads %q, want %q", e.Status, i18n.KeyAdminTimelineInvoicePending)
+		}
 	}
 	for _, e := range view.Timeline {
 		if e.Label == i18n.KeyAdminTimelineProvider && e.Note != "checkout.session.completed" {
@@ -205,4 +217,43 @@ func TestTheOrderTimelineCarriesWhenAMailWasDeliveredAndAnOperationCompleted(t *
 		return
 	}
 	t.Errorf("Order(%s).Timeline has no payment mail among %d entries", number, len(view.Timeline))
+}
+
+// With no 加值中心 the issue a paid sale owes is claimed and waits, as the
+// store's ClaimDue intends; the page must not call that work in progress.
+func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
+		VALUES ($1, 'member_carrier', '買受人', 'buyer@example.com')`, orderID); err != nil {
+		t.Fatalf("record invoice preference: %v", err)
+	}
+	if err := invoice.NewStore(pool, &invoice.Gateway{}).ClaimDue(ctx,
+		&outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_" + number}); err != nil {
+		t.Fatalf("claim the invoice due: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		writer invoicing.Writer
+		want   i18n.Key
+	}{
+		{"e-invoicing off", nil, i18n.KeyAdminTimelineInvoiceNotSent},
+		{"e-invoicing on", admintest.DisabledInvoiceWriter{}, i18n.KeyAdminTimelineInvoicePending},
+	} {
+		view, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, tc.writer).Order(ctx, number)
+		if err != nil {
+			t.Fatalf("%s: read the order: %v", tc.name, err)
+		}
+		var got []i18n.Key
+		for _, e := range view.Timeline {
+			if e.Label == i18n.KeyAuditInvoiceIssue {
+				got = append(got, e.Status)
+			}
+		}
+		if diff := cmp.Diff([]i18n.Key{tc.want}, got); diff != "" {
+			t.Errorf("%s: statuses of the invoice issue entries (-want +got):\n%s", tc.name, diff)
+		}
+	}
 }

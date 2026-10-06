@@ -140,6 +140,11 @@ var (
 
 	KeyAdminTimelineInvoicePending = key("admin.timeline.invoice.pending", Message{ZhHant: "處理中", En: "In progress"})
 
+	KeyAdminTimelineInvoiceNotSent = key("admin.timeline.invoice.not_sent", Message{
+		ZhHant: "未啟用電子發票，尚未送出",
+		En:     "E-invoicing is off, not sent",
+	})
+
 	KeyAdminTimelineInvoiceAwaitingBuyer = key("admin.timeline.invoice.awaiting", Message{
 		ZhHant: "等待顧客同意",
 		En:     "Waiting for the customer to agree",
