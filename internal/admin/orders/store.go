@@ -59,14 +59,6 @@ type Health interface {
 	Tasks(ctx context.Context) ([]admin.Task, error)
 }
 
-// HealthFunc adapts a function to Health. The health store is handed over as
-// its method value, not converted to Health itself: x/tools deadcode panics on
-// the generic method of *outbox.Store, which converting *health.Store to an
-// interface would make reachable through WorkerHealth's parameter.
-type HealthFunc func(ctx context.Context) ([]admin.Task, error)
-
-func (f HealthFunc) Tasks(ctx context.Context) ([]admin.Task, error) { return f(ctx) }
-
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries

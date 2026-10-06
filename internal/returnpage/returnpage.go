@@ -42,12 +42,7 @@ type Request struct {
 // otherwise.
 func (r *Request) Validate() error {
 	r.Reason = strings.TrimSpace(r.Reason)
-	if utf8.RuneCountInString(r.Reason) > MaxReasonRunes {
-		return ErrInvalid
-	}
-	if strings.ContainsFunc(r.Reason, func(c rune) bool {
-		return unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r'
-	}) {
+	if !validReturnReason(r.Reason) {
 		return ErrInvalid
 	}
 
@@ -62,4 +57,11 @@ func (r *Request) Validate() error {
 		return ErrInvalid
 	}
 	return nil
+}
+
+func validReturnReason(reason string) bool {
+	reason = strings.TrimSpace(reason)
+	return utf8.RuneCountInString(reason) <= MaxReasonRunes && !strings.ContainsFunc(reason, func(c rune) bool {
+		return unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r'
+	})
 }

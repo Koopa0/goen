@@ -26,6 +26,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -122,8 +123,6 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
-	_ = secret
-
 	// The STATEMENT is driven directly: calling Store.Verify from N goroutines
 	// staggers enough that later reads see earlier writes, which hides a guard
 	// missing from the SQL.
@@ -135,31 +134,30 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	}
 	step := current + 1
 
+	q := db.New(pool)
+	claim := db.RecordTOTPStepParams{UserID: uuid.MustParse(userID), Step: step}
 	const racers = 8
 	start := make(chan struct{})
-	affected := make([]int64, racers)
+	results := make([]struct {
+		affected int64
+		err      error
+	}, racers)
 	var wg sync.WaitGroup
 	for i := range racers {
 		wg.Go(func() {
 			<-start
-			tag, err := pool.Exec(ctx, `
-				UPDATE staff_totp_credentials
-				SET last_step = $2
-				WHERE user_id = $1
-				  AND confirmed_at IS NOT NULL
-				  AND (last_step IS NULL OR last_step < $2)`,
-				uuid.MustParse(userID), step)
-			if err == nil {
-				affected[i] = tag.RowsAffected()
-			}
+			results[i].affected, results[i].err = q.RecordTOTPStep(ctx, claim)
 		})
 	}
 	close(start)
 	wg.Wait()
 
 	var wins int64
-	for _, n := range affected {
-		wins += n
+	for i, result := range results {
+		if result.err != nil {
+			t.Errorf("claim %d of step %d: %v", i, step, result.err)
+		}
+		wins += result.affected
 	}
 	if wins != 1 {
 		t.Errorf("%d of %d concurrent claims of step %d succeeded, want 1 — the "+

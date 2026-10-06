@@ -670,9 +670,10 @@ const adminCoupons = `-- name: AdminCoupons :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
        c.per_customer_limit, c.is_active, c.starts_at, c.ends_at,
-       (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id)::bigint AS redeemed,
-       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r
-        WHERE r.coupon_id = c.id)::bigint AS given_cents,
+       (SELECT count(*) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS redeemed,
+       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS given_cents,
        (c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now()))::boolean AS is_current
 FROM coupons c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
@@ -710,8 +711,9 @@ type AdminCouponsRow struct {
 	IsCurrent        bool
 }
 
-// The redemption count comes from the ledger and never from a column: the ledger
-// is what the limit is counted from at checkout.
+// Usage is counted exactly as redeem_coupon counts it for
+// coupon_within_total_limit: redemptions whose order is not cancelled.
+// Change this and redeem_coupon together.
 func (q *Queries) AdminCoupons(ctx context.Context, arg AdminCouponsParams) ([]AdminCouponsRow, error) {
 	rows, err := q.db.Query(ctx, adminCoupons,
 		arg.HasCursor,
@@ -3129,7 +3131,7 @@ func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolment
 	return result.RowsAffected(), nil
 }
 
-const bestSellersSince = `-- name: BestSellersSince :many
+const bestSellersBetween = `-- name: BestSellersBetween :many
 SELECT
     p.slug,
     p.name,
@@ -3141,18 +3143,19 @@ JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
 JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
 ORDER BY units DESC, revenue_cents DESC
-LIMIT $2::integer
+LIMIT $3::integer
 `
 
-type BestSellersSinceParams struct {
-	WindowDays int32
-	LimitTo    int32
+type BestSellersBetweenParams struct {
+	FromAt  time.Time
+	ToAt    time.Time
+	LimitTo int32
 }
 
-type BestSellersSinceRow struct {
+type BestSellersBetweenRow struct {
 	Slug         string
 	Name         string
 	Brand        string
@@ -3160,15 +3163,15 @@ type BestSellersSinceRow struct {
 	RevenueCents int64
 }
 
-func (q *Queries) BestSellersSince(ctx context.Context, arg BestSellersSinceParams) ([]BestSellersSinceRow, error) {
-	rows, err := q.db.Query(ctx, bestSellersSince, arg.WindowDays, arg.LimitTo)
+func (q *Queries) BestSellersBetween(ctx context.Context, arg BestSellersBetweenParams) ([]BestSellersBetweenRow, error) {
+	rows, err := q.db.Query(ctx, bestSellersBetween, arg.FromAt, arg.ToAt, arg.LimitTo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []BestSellersSinceRow{}
+	items := []BestSellersBetweenRow{}
 	for rows.Next() {
-		var i BestSellersSinceRow
+		var i BestSellersBetweenRow
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
@@ -4513,16 +4516,21 @@ func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (C
 	return i, err
 }
 
-const checkoutCompletionSince = `-- name: CheckoutCompletionSince :one
+const checkoutCompletionBetween = `-- name: CheckoutCompletionBetween :one
 SELECT
     count(*)::bigint AS placed,
     coalesce(sum(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END), 0)::bigint AS committed
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
-WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 `
 
-type CheckoutCompletionSinceRow struct {
+type CheckoutCompletionBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type CheckoutCompletionBetweenRow struct {
 	Placed    int64
 	Committed int64
 }
@@ -4530,9 +4538,9 @@ type CheckoutCompletionSinceRow struct {
 // NOT a conversion rate: goen collects no traffic data. This is the fraction of
 // started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
 // function call — measured at 106 ms over 14,000 orders against 7.7 ms.
-func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32) (CheckoutCompletionSinceRow, error) {
-	row := q.db.QueryRow(ctx, checkoutCompletionSince, windowDays)
-	var i CheckoutCompletionSinceRow
+func (q *Queries) CheckoutCompletionBetween(ctx context.Context, arg CheckoutCompletionBetweenParams) (CheckoutCompletionBetweenRow, error) {
+	row := q.db.QueryRow(ctx, checkoutCompletionBetween, arg.FromAt, arg.ToAt)
+	var i CheckoutCompletionBetweenRow
 	err := row.Scan(&i.Placed, &i.Committed)
 	return i, err
 }
@@ -10764,6 +10772,211 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 	return i, err
 }
 
+const pickingSlipLines = `-- name: PickingSlipLines :many
+SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents,
+       (ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
+FROM order_lines ol
+WHERE ol.order_id = ANY($1::uuid[])
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+ORDER BY ol.order_id, ol.position, ol.id
+`
+
+type PickingSlipLinesRow struct {
+	OrderID        uuid.UUID
+	SKU            string
+	ProductName    string
+	VariantLabel   pgtype.Text
+	UnitPriceCents int64
+	Remaining      int32
+}
+
+// ShippableLines uses the same purchased-minus-dispatched quantity. Read the
+// line snapshot even if its catalogue variant has since been removed.
+func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([]PickingSlipLinesRow, error) {
+	rows, err := q.db.Query(ctx, pickingSlipLines, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingSlipLinesRow{}
+	for rows.Next() {
+		var i PickingSlipLinesRow
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.UnitPriceCents,
+			&i.Remaining,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickingSlips = `-- name: PickingSlips :many
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       coalesce(pd.email, '') AS email,
+       coalesce(pd.recipient_name, '') AS recipient_name,
+       coalesce(pd.phone, '') AS phone,
+       coalesce(pd.postal_code, '') AS postal_code,
+       coalesce(pd.city, '') AS city,
+       coalesce(pd.district, '') AS district,
+       coalesce(pd.street, '') AS street,
+       coalesce(pd.pickup_chain, '') AS pickup_chain,
+       coalesce(pd.pickup_store_code, '') AS pickup_store_code,
+       coalesce(pd.pickup_store_name, '') AS pickup_store_name,
+       coalesce(ip.invoice_type, '') AS invoice_type,
+       coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
+       coalesce(ip.donation_code, '') AS invoice_donation_code,
+       coalesce(ip.tax_id, '') AS invoice_tax_id
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
+WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
+  AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
+              AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                          WHERE sl.order_line_id = ol.id), 0))
+  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
+       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
+ORDER BY o.placed_at, o.id
+LIMIT $4::integer
+`
+
+type PickingSlipsParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+type PickingSlipsRow struct {
+	PageCursor           string
+	ID                   uuid.UUID
+	OrderNumber          string
+	PlacedAt             time.Time
+	ShippingMethodName   string
+	CustomerNote         string
+	Email                string
+	RecipientName        string
+	Phone                string
+	PostalCode           string
+	City                 string
+	District             string
+	Street               string
+	PickupChain          string
+	PickupStoreCode      string
+	PickupStoreName      string
+	InvoiceType          string
+	InvoiceMobileBarcode string
+	InvoiceDonationCode  string
+	InvoiceTaxID         string
+}
+
+func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
+	rows, err := q.db.Query(ctx, pickingSlips,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingSlipsRow{}
+	for rows.Next() {
+		var i PickingSlipsRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.OrderNumber,
+			&i.PlacedAt,
+			&i.ShippingMethodName,
+			&i.CustomerNote,
+			&i.Email,
+			&i.RecipientName,
+			&i.Phone,
+			&i.PostalCode,
+			&i.City,
+			&i.District,
+			&i.Street,
+			&i.PickupChain,
+			&i.PickupStoreCode,
+			&i.PickupStoreName,
+			&i.InvoiceType,
+			&i.InvoiceMobileBarcode,
+			&i.InvoiceDonationCode,
+			&i.InvoiceTaxID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickingTotals = `-- name: PickingTotals :many
+SELECT ol.sku,
+       (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
+       coalesce((array_agg(ol.variant_label ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1], '')::text AS variant_label,
+       sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                  WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+GROUP BY ol.sku
+ORDER BY ol.sku
+`
+
+type PickingTotalsRow struct {
+	SKU          string
+	ProductName  string
+	VariantLabel string
+	Remaining    int64
+}
+
+// Totals span the entire queue, regardless of the slip page. A SKU whose
+// snapshots have different labels keeps its most recent order's wording.
+func (q *Queries) PickingTotals(ctx context.Context) ([]PickingTotalsRow, error) {
+	rows, err := q.db.Query(ctx, pickingTotals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PickingTotalsRow{}
+	for rows.Next() {
+		var i PickingTotalsRow
+		if err := rows.Scan(
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.Remaining,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pointsBalance = `-- name: PointsBalance :one
 SELECT a.id AS account_id,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -13589,11 +13802,13 @@ func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]Ret
 	return items, nil
 }
 
-const revenueSince = `-- name: RevenueSince :one
+const revenueBetween = `-- name: RevenueBetween :one
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
     (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- Float, not money: only the report's noise test reads it.
+    coalesce(sum(t.total::float8 * t.total), 0)::float8 AS sum_of_squares,
     -- What went back, counted by when each source moved: succeeded_at for a card
     -- refund (created_at can be days earlier while Stripe still says pending),
     -- created_at for the synchronous credit post.
@@ -13605,12 +13820,12 @@ SELECT
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)
+                 AND r.succeeded_at >= $1::timestamptz AND r.succeeded_at < $2::timestamptz
                  AND NOT EXISTS (SELECT 1 FROM return_requests b
                                  WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => $1::integer)
+                   AND e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz
                    AND NOT EXISTS (SELECT 1 FROM return_requests b
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
@@ -13620,29 +13835,37 @@ FROM (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
-    WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+    WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
       AND NOT EXISTS (SELECT 1 FROM return_requests b
                       WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
-type RevenueSinceRow struct {
+type RevenueBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type RevenueBetweenRow struct {
 	Orders        int64
 	RevenueCents  int64
 	AverageCents  int64
+	SumOfSquares  float64
 	RefundedCents int64
 }
 
+// A period is [from_at, to_at), cut by the caller on the shop's clock.
 // COMMITTED orders only, and the total is recomputed from the lines because
 // orders carries no total column. Integer division on the average, so no float
 // touches money, and greatest(count, 1) because an empty window divides by zero.
-func (q *Queries) RevenueSince(ctx context.Context, windowDays int32) (RevenueSinceRow, error) {
-	row := q.db.QueryRow(ctx, revenueSince, windowDays)
-	var i RevenueSinceRow
+func (q *Queries) RevenueBetween(ctx context.Context, arg RevenueBetweenParams) (RevenueBetweenRow, error) {
+	row := q.db.QueryRow(ctx, revenueBetween, arg.FromAt, arg.ToAt)
+	var i RevenueBetweenRow
 	err := row.Scan(
 		&i.Orders,
 		&i.RevenueCents,
 		&i.AverageCents,
+		&i.SumOfSquares,
 		&i.RefundedCents,
 	)
 	return i, err
@@ -15147,6 +15370,17 @@ func (q *Queries) ShippingVersion(ctx context.Context, arg ShippingVersionParams
 		&i.FreeOverCents,
 	)
 	return i, err
+}
+
+const shippingVersionMethod = `-- name: ShippingVersionMethod :one
+SELECT method_id FROM shipping_method_versions WHERE id = $1
+`
+
+func (q *Queries) ShippingVersionMethod(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, shippingVersionMethod, id)
+	var method_id uuid.UUID
+	err := row.Scan(&method_id)
+	return method_id, err
 }
 
 const shippingZoneFor = `-- name: ShippingZoneFor :one

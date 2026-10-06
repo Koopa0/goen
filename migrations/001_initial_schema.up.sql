@@ -1635,6 +1635,7 @@ CREATE TABLE shipping_method_versions (
     free_over_cents bigint,
     effective_at    timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT shipping_method_versions_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT shipping_method_versions_name_bounded CHECK (char_length(name) <= 60),
     CONSTRAINT shipping_method_versions_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
     CONSTRAINT shipping_method_versions_carrier_en_present
@@ -1665,6 +1666,7 @@ CREATE TABLE shipping_zones (
     position integer NOT NULL DEFAULT 0,
     CONSTRAINT shipping_zones_code_format CHECK (code ~ '^[a-z0-9]+(_[a-z0-9]+)*$'),
     CONSTRAINT shipping_zones_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT shipping_zones_name_bounded CHECK (char_length(name) <= 60),
     CONSTRAINT shipping_zones_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]')
 );

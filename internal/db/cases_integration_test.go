@@ -1841,6 +1841,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO shipping_zones (id, code, name, name_en) VALUES ('1111000c-0000-4000-8000-000000000091', 'blank_en', '有效名稱', 'A valid name');`,
 	},
 	{
+		constraint: "shipping_zones_name_bounded",
+		reject:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'name_bound', repeat(U&'\754C', 61));`,
+		accept:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'name_bound', repeat(U&'\754C', 60));`,
+	},
+	{
 		constraint: "shipping_zones_name_present",
 		reject:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'blank', E'\t');`,
 		accept:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'blank', '離島');`,
@@ -1882,6 +1887,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "shipping_method_versions_carrier_en_present",
 		reject:     `INSERT INTO shipping_method_versions (id, method_id, name, carrier_en, fee_cents, effective_at) VALUES ('1111000b-0000-4000-8000-000000000092', 'ffff0001-0000-4000-8000-000000000000', '有效名稱', E'\t', 8000, '2027-03-01');`,
 		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, carrier_en, fee_cents, effective_at) VALUES ('1111000b-0000-4000-8000-000000000092', 'ffff0001-0000-4000-8000-000000000000', '有效名稱', 'A carrier', 8000, '2027-03-01');`,
+	},
+	{
+		constraint: "shipping_method_versions_name_bounded",
+		reject:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', repeat(U&'\754C', 61), 8000, '2027-01-01');`,
+		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', repeat(U&'\754C', 60), 8000, '2027-01-01');`,
 	},
 	{
 		constraint: "shipping_method_versions_name_present",
