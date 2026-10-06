@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -122,6 +124,53 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}
+	}
+}
+
+// A phone hides the end line only where the day grid is its sibling
+// (.goen-deptnotice__in:has(> .ui-period) > .ui-statline), so the end date always
+// shows: on the grid's last label, or on the line when the campaign is too long for
+// a grid.
+func TestACampaignNoticeKeepsItsEndLineWhereThereIsNoGrid(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	now := start.AddDate(0, 0, 5)
+	for _, tt := range []struct {
+		name     string
+		days     int
+		wantGrid bool
+	}{
+		{name: "a month", days: 30, wantGrid: true},
+		{name: "a season, too long for a grid", days: 90, wantGrid: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ends := start.AddDate(0, 0, tt.days)
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Ends: CampaignEndStat(ctx, ends, now)}
+			if period, ok := components.DayPeriod(ctx, notice.Title, start, ends, now); ok {
+				notice.Period = &period
+			}
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__in") })
+			if in == nil {
+				t.Fatal("departmentNotice draws no goen-deptnotice__in")
+			}
+			var line, grid bool
+			for c := in.FirstChild; c != nil; c = c.NextSibling {
+				line = line || hasClass(c, "ui-statline")
+				grid = grid || hasClass(c, "ui-period")
+			}
+			if !line {
+				t.Errorf("%d days: the end line is not a child of goen-deptnotice__in", tt.days)
+			}
+			if grid != tt.wantGrid {
+				t.Errorf("%d days: day grid as a child of goen-deptnotice__in = %v, want %v", tt.days, grid, tt.wantGrid)
+			}
+		})
 	}
 }
 

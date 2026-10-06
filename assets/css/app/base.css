@@ -481,10 +481,10 @@ body {
 /* ---------- Period ----------
    A stored start and end drawn to scale, one cell per day or per minute. A cell has no width
    of its own: the count of cells is the data. Elapsed cells are a 4px --mark
-   fill, today is filled with a tick, cells to come are a 1px --edge. Only 今天
-   sits above the line; below it only the two ends. Nothing animates and nothing
-   is red. The label rules are container queries in rem, so they follow the
-   reader's text size. */
+   fill, today is filled with a tick, cells to come are a 1px --edge. 今天 sits
+   above the line; below it the two ends and the mark's label. Nothing
+   animates and nothing is red. The label rules are container queries in rem, so
+   they follow the reader's text size. */
 .ui-period {
   --period-fill: var(--mark);
   --period-line: var(--edge);
@@ -673,10 +673,13 @@ body {
   transform: none;
 }
 
-/* Under 12rem the deadline's time would meet the end's: its tick stays. */
+/* Under 12rem the deadline's time, which ends at its tick, comes within reach of the
+   start's below the line. A minute grid has nothing above the line, so it rises there. */
 @container period (width < 12rem) {
   .ui-period[data-unit="minute"] > i[data-mark] small {
-    display: none;
+    bottom: calc(16px + 0.25rem);
+    line-height: 1;
+    top: auto;
   }
 }
 
