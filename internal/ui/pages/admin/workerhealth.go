@@ -266,7 +266,7 @@ func (r OpenRefund) NextStep(ctx context.Context) string {
 	var key i18n.Key
 	switch r.Status {
 	case refundstate.Pending:
-		key = i18n.KeyHealthRefundPendingNext
+		key = i18n.KeyHealthRefundFailedNext
 	case refundstate.RequiresAction:
 		key = i18n.KeyHealthRefundActionNext
 	case refundstate.Failed:
