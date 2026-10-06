@@ -203,7 +203,7 @@ func (s *Store) payAndCancel(
 	allowanceErr := s.fileRefundAllowance(ctx, number, returnID, actor)
 	sessions, err := s.finishRefundBeforeShipment(ctx, number, returnID, actor)
 	if err != nil {
-		return nil, errors.Join(err, allowanceErr)
+		return nil, errors.Join(fmt.Errorf("%w: %w", ErrCancellationIncomplete, err), allowanceErr)
 	}
 	return sessions, nil
 }
