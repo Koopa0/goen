@@ -128,10 +128,6 @@ func (v ListingView) Children() []Crumb {
 	return v.Theme.Children
 }
 
-func (v ListingView) PageLinks() []PageLink {
-	return pageWindow(int(v.Page), v.Pages(), v.PageHref)
-}
-
 func (v ListingView) Pages() int {
 	if v.PageSize <= 0 || v.Total <= 0 {
 		return 1
@@ -290,10 +286,6 @@ func (v SearchView) Pages() int {
 func (v SearchView) HasPrev() bool { return v.Page > 1 }
 func (v SearchView) HasNext() bool { return v.Page < v.Pages() }
 
-func (v SearchView) PageLinks() []PageLink {
-	return pageWindow(v.Page, v.Pages(), v.PageHref)
-}
-
 func (v SearchView) PrevHref() string { return v.PageHref(v.Page - 1) }
 func (v SearchView) NextHref() string { return v.PageHref(v.Page + 1) }
 
@@ -339,28 +331,4 @@ func (v SearchView) CampaignPageHref(page int) string {
 		href += "?" + q.Encode()
 	}
 	return href + "#campaigns"
-}
-
-// PageLink has no address when it is a Gap: it stands for the pages left out between two that are shown.
-type PageLink struct {
-	Href    string
-	Label   string
-	Current bool
-	Gap     bool
-}
-
-func pageWindow(current, pages int, href func(int) string) []PageLink {
-	var out []PageLink
-	last := 0
-	for n := 1; n <= pages; n++ {
-		if n != 1 && n != pages && (n < current-1 || n > current+1) {
-			continue
-		}
-		if last != 0 && n-last > 1 {
-			out = append(out, PageLink{Gap: true})
-		}
-		out = append(out, PageLink{Href: href(n), Label: strconv.Itoa(n), Current: n == current})
-		last = n
-	}
-	return out
 }

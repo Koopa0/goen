@@ -175,7 +175,12 @@ var (
 		En:     "Sent again. If this address has a registration waiting to be finished, a new link will arrive shortly.",
 	})
 
-	KeyRegisterResend = key("auth.register.resend", Message{ZhHant: "再寄一次", En: "Send it again"})
+	KeyRegisterResend = key("auth.register.resend", Message{ZhHant: "重新寄註冊信", En: "Send a new link"})
+
+	KeyRegisterDeadBody = key("auth.register.dead.body", Message{
+		ZhHant: "這個註冊連結已失效（已經用過，或超過兩天）。請重新寄一封註冊信。",
+		En:     "This sign-up link no longer works (used already, or more than two days old). Ask for a new one.",
+	})
 
 	KeyRegisterOtherAddress = key("auth.register.otheraddress", Message{
 		ZhHant: "信箱打錯了？換一個重新註冊",
