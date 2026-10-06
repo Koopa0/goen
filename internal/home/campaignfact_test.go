@@ -1,16 +1,20 @@
 package home
 
 import (
+	"regexp"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// The hero and the campaign row share one rule for the last day: named within
-// 30 days, left out beyond, with the product count either way.
-func TestACampaignFactNamesOnlyANearLastDay(t *testing.T) {
+// A campaign row names its last day however far off it is.
+func TestACampaignRowFactNamesItsLastDay(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
@@ -19,17 +23,93 @@ func TestACampaignFactNamesOnlyANearLastDay(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		endsAt time.Time
-		key    i18n.Key
 		want   string
 	}{
-		{"hero, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignFact, "6 件商品 · 至 10\u00a0月 31\u00a0日"},
-		{"row, near", now.AddDate(0, 0, 29), i18n.KeyHomeCampaignRowFact, "6 件商品，至 10\u00a0月 31\u00a0日"},
-		{"hero, a year off", now.AddDate(1, 0, 0), i18n.KeyHomeCampaignFact, "6 件商品"},
-		{"row, a year off", now.AddDate(1, 0, 0), i18n.KeyHomeCampaignRowFact, "6 件商品"},
+		{"near", now.AddDate(0, 0, 29), "6 件商品，至 10\u00a0月 31\u00a0日"},
+		{"a year off", now.AddDate(1, 0, 0), "6 件商品，至 2027\u00a0年 10\u00a0月 2\u00a0日"},
 	} {
-		got := s.campaignFact(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}, tt.key)
+		got := s.campaignRowFact(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
 		if got != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// From two days out a campaign slide states the days left; on the last two days
+// the end's note says so instead, and an end off midnight states its time.
+func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
+	t.Parallel()
+
+	taipei := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, taipei)
+	s := &Store{now: func() time.Time { return now }}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name   string
+		endsAt time.Time
+		want   []string
+	}{
+		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月12日\u00a018:00", "剩餘3\u00a0天"}},
+		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月10日明天結束"}},
+		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日今天結束"}},
+		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日\u00a018:00今天結束"}},
+	} {
+		var got []string
+		for _, st := range s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}) {
+			var b strings.Builder
+			if err := components.StatLine([]components.Stat{st}, components.StatLinePlain).Render(ctx, &b); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, text(b.String()))
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestAScheduledSlideTakesTheToneOfWhatItLinksTo(t *testing.T) {
+	t.Parallel()
+
+	src := carouselSources{
+		camps: []db.ListedCampaignsRow{{Slug: "autumn", Tone: "sage"}},
+		cats:  []db.RootCategoriesRow{{Slug: "tech", Tone: "mist"}},
+	}
+	for href, want := range map[string]pages.Tone{
+		"/s/autumn": pages.ToneSage, "/c/tech": pages.ToneMist, "/about": pages.ToneStone, "/s/gone": pages.ToneStone,
+	} {
+		if got := src.toneOf(href); got != want {
+			t.Errorf("toneOf(%q) = %q, want %q", href, got, want)
+		}
+	}
+}
+
+var tag = regexp.MustCompile(`<[^>]*>|[ \n\t]+`)
+
+// text is the rendered markup with its tags and its plain spacing taken out.
+func text(markup string) string { return tag.ReplaceAllString(markup, "") }
+
+// The end date is a time element, so a machine reads the day and the clock too.
+func TestTheEndDateIsATimeElement(t *testing.T) {
+	t.Parallel()
+
+	taipei := time.FixedZone("CST", 8*3600)
+	s := &Store{now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, taipei) }}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, tt := range map[string]struct {
+		endsAt time.Time
+		want   string
+	}{
+		"midnight end": {time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), `<time datetime="2026-10-10">`},
+		"mid-day end":  {time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), `<time datetime="2026-10-12T18:00">`},
+	} {
+		var b strings.Builder
+		stats := s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		if err := components.StatLine(stats, components.StatLinePlain).Render(ctx, &b); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(b.String(), tt.want) {
+			t.Errorf("%s: %s lacks %s", name, b.String(), tt.want)
 		}
 	}
 }

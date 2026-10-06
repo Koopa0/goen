@@ -11,12 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// CampaignEndsOn is "" while the last day is more than 30 days off: a year-long
-// "limited time" date reads as a deadline the shop does not mean.
+// CampaignEndsOn is the last day a campaign runs, said the short way.
 func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
-	if endsAt.After(now.AddDate(0, 0, 30)) {
-		return ""
-	}
 	return shoptime.DateText(ctx, shoptime.LastDay(endsAt, now))
 }
 
