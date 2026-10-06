@@ -24,11 +24,11 @@ func TestReturnWritesAnswerALockTimeoutAsAFailure(t *testing.T) {
 		write func(id string) error
 	}{
 		{name: "assess", write: func(id string) error { return s.Assess(ctx, id, "lock timeout", nil) }},
-		{name: "decide", write: func(id string) error { return s.Decide(ctx, id, "rejected", "lock timeout", "", staff) }},
+		{name: "decide", write: func(id string) error { return s.Decide(ctx, id, "rejected", "lock timeout", "") }},
 		{name: "inspect", write: func(id string) error {
 			return s.Inspect(ctx, id, []returns.LineInspection{{OrderLineID: uuid.New(), Received: 1}}, staff)
 		}},
-		{name: "complete", write: func(id string) error { return s.Complete(ctx, id, "", staff) }},
+		{name: "complete", write: func(id string) error { return s.Complete(ctx, id, "") }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			id, number := admintest.ReturnedOrder(t, pool, 1)
