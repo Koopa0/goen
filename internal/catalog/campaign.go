@@ -49,17 +49,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-// HasListedCampaigns reports whether the shop lists any campaign, that is one
-// with a published featured product in stock.
-func (s *Store) HasListedCampaigns(ctx context.Context) (bool, error) {
-	n, err := s.q.ListedCampaignsCount(ctx)
-	if err != nil {
-		return false, fmt.Errorf("count campaigns: %w", err)
-	}
-	return n > 0, nil
-}
-
-func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
+func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
 	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {
 		return pages.CampaignPage{}, fmt.Errorf("count campaigns: %w", err)

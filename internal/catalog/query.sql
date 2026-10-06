@@ -613,8 +613,7 @@ WHERE c.slug = @slug::text AND c.is_active
   AND c.starts_at <= now() AND c.ends_at > now();
 
 -- A campaign is listed only while a published featured product can be bought,
--- so the deals page, the home carousel and the header link never offer an empty
--- shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.ends_at, c.tone,

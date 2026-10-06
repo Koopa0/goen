@@ -492,10 +492,9 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 			t.Fatalf("insert campaign %s: %v", c.slug, err)
 		}
 	}
-	// A campaign is listed only while it features a published product in stock;
-	// one without falls back to the newest of the shop.
+	// A campaign is listed only while it features a published product in stock.
 	for _, slug := range []string{"hero-sooner", "hero-later"} {
-		featureBuyableProduct(t, slug)
+		featureProduct(t, slug, 5)
 	}
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -530,8 +529,8 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 	}
 }
 
-// A campaign whose featured products are all sold out takes no carousel slide
-// and no product row; one sellable product brings both back.
+// A campaign whose featured product is sold out takes no carousel slide and no
+// product row; a sellable product brings both back.
 func TestACampaignWithNothingToBuyTakesNoCarouselSlide(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
@@ -547,24 +546,27 @@ func TestACampaignWithNothingToBuyTakesNoCarouselSlide(t *testing.T) {
 		}
 	})
 
-	hasSlide := func() bool {
+	shown := func() (slide, row bool) {
 		for _, s := range slidesOf(t, ctx) {
-			if s.CTA.Href == "/s/hero-empty" {
-				return true
-			}
+			slide = slide || s.CTA.Href == "/s/hero-empty"
 		}
-		return false
+		view, err := home.NewStore(pool).Load(ctx)
+		if err != nil {
+			t.Fatalf("load home: %v", err)
+		}
+		return slide, view.Row.Href == "/s/hero-empty"
 	}
-	if hasSlide() {
-		t.Fatal("a campaign with no product is in the carousel")
+	featureProduct(t, "hero-empty", 0)
+	if slide, row := shown(); slide || row {
+		t.Fatalf("a campaign with only a sold-out product is on the home page (slide %v, row %v)", slide, row)
 	}
-	featureBuyableProduct(t, "hero-empty")
-	if !hasSlide() {
-		t.Fatal("a campaign with a sellable product is not in the carousel")
+	featureProduct(t, "hero-empty", 5)
+	if slide, row := shown(); !slide || !row {
+		t.Fatalf("a campaign with a sellable product is missing from the home page (slide %v, row %v)", slide, row)
 	}
 }
 
-func featureBuyableProduct(t *testing.T, campaignSlug string) {
+func featureProduct(t *testing.T, campaignSlug string, stock int) {
 	t.Helper()
 	var slug string
 	if err := pool.QueryRow(t.Context(), `
@@ -577,9 +579,9 @@ func featureBuyableProduct(t *testing.T, campaignSlug string) {
 		), v AS (
 		    INSERT INTO product_variants
 		        (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
-		    SELECT p.id, 'HERO-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, 5, 0, 0 FROM p
+		    SELECT p.id, 'HERO-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
 		)
-		SELECT slug FROM p`).Scan(&slug); err != nil {
+		SELECT slug FROM p`, stock).Scan(&slug); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(), `
@@ -591,7 +593,11 @@ func featureBuyableProduct(t *testing.T, campaignSlug string) {
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 		defer cancel()
-		if _, err := pool.Exec(clean, `DELETE FROM products WHERE slug = $1`, slug); err != nil {
+		if _, err := pool.Exec(clean, `
+			WITH gone AS (
+			    DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)
+			)
+			DELETE FROM products WHERE slug = $1`, slug); err != nil {
 			t.Errorf("remove product %s: %v", slug, err)
 		}
 	})

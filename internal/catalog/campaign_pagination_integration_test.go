@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
-func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
+func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -35,11 +35,11 @@ func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
 		featureNewProduct(t, tx, slugs[i], 5, "active")
 	}
 	store := catalog.NewStore(tx)
-	first, err := store.RunningCampaigns(ctx, 1)
+	first, err := store.ListedCampaigns(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.RunningCampaigns(ctx, 2)
+	second, err := store.ListedCampaigns(ctx, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
 			t.Errorf("campaign %d = %s, want %s", i, first.Rows[i].Slug, slugs[i])
 		}
 	}
-	beyond, err := store.RunningCampaigns(ctx, 500)
+	beyond, err := store.ListedCampaigns(ctx, 500)
 	if err != nil {
 		t.Fatal(err)
 	}

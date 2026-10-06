@@ -8389,8 +8389,7 @@ type ListedCampaignsRow struct {
 }
 
 // A campaign is listed only while a published featured product can be bought,
-// so the deals page, the home carousel and the header link never offer an empty
-// shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
 func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {

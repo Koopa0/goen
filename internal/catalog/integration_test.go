@@ -538,7 +538,7 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 
 func listedSlugs(t *testing.T, s *catalog.Store) []string {
 	t.Helper()
-	view, err := s.RunningCampaigns(t.Context(), 1)
+	view, err := s.ListedCampaigns(t.Context(), 1)
 	if err != nil {
 		t.Fatalf("running campaigns: %v", err)
 	}
@@ -550,8 +550,7 @@ func listedSlugs(t *testing.T, s *catalog.Store) []string {
 }
 
 // The shop lists a campaign only while it has a published featured product in
-// stock; the same predicate serves the deals page, the home carousel and the
-// header link. The campaign page itself stays reachable by direct link.
+// stock; the same predicate serves the deals page and the home carousel. The campaign page itself stays reachable by direct link.
 func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -579,31 +578,6 @@ func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 				t.Errorf("direct link to %s: %v, want it reachable", slug, err)
 			}
 		})
-	}
-}
-
-func TestHasListedCampaignsFollowsTheSamePredicate(t *testing.T) {
-	ctx := t.Context()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
-	if _, execErr := tx.Exec(ctx, `UPDATE sale_campaigns SET is_active = false`); execErr != nil {
-		t.Fatalf("stop campaigns: %v", execErr)
-	}
-	const slug = "has-listed"
-	if _, execErr := tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, slug); execErr != nil {
-		t.Fatalf("create campaign: %v", execErr)
-	}
-	s := catalog.NewStore(tx)
-	featureNewProduct(t, tx, slug, 0, "active")
-	if got, hasErr := s.HasListedCampaigns(ctx); hasErr != nil || got {
-		t.Fatalf("HasListedCampaigns with only a sold-out product = %v, %v; want false", got, hasErr)
-	}
-	featureNewProduct(t, tx, slug, 3, "active")
-	if got, hasErr := s.HasListedCampaigns(ctx); hasErr != nil || !got {
-		t.Fatalf("HasListedCampaigns with a sellable product = %v, %v; want true", got, hasErr)
 	}
 }
 

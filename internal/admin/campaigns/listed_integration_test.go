@@ -36,7 +36,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			before, err := shop.RunningCampaigns(ctx, 1)
+			before, err := shop.ListedCampaigns(ctx, 1)
 			if err != nil {
 				t.Fatalf("read the shop list: %v", err)
 			}
@@ -75,7 +75,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 				t.Fatalf("set status: %v", execErr)
 			}
 
-			after, err := shop.RunningCampaigns(ctx, 1)
+			after, err := shop.ListedCampaigns(ctx, 1)
 			if err != nil {
 				t.Fatalf("read the shop list: %v", err)
 			}
@@ -84,7 +84,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 			}
 			listed := false
 			for page := 1; page <= after.Pages() && !listed; page++ {
-				view, listErr := shop.RunningCampaigns(ctx, page)
+				view, listErr := shop.ListedCampaigns(ctx, page)
 				if listErr != nil {
 					t.Fatalf("read the shop list page %d: %v", page, listErr)
 				}
