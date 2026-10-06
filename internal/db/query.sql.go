@@ -4307,11 +4307,6 @@ SELECT
             ORDER BY co.position, co.id
             LIMIT 1
         )
-          AND EXISTS (
-                      SELECT 1 FROM variant_option_values vov
-                      JOIN product_variants pv ON pv.id = vov.variant_id
-                      WHERE vov.option_value_id = cv.id AND pv.is_active
-                  )
     ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
