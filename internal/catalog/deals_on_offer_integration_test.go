@@ -28,7 +28,7 @@ func TestDealsOnOfferNeedsARunningCampaignWithSomethingToBuy(t *testing.T) {
 		{name: "neither: the discounted variant is sold out", variants: []dealVariant{soldOut}, campaign: true, want: false},
 		{name: "a discounted product in stock, on no campaign", variants: []dealVariant{discounted}, want: false},
 		{name: "a campaign with a discounted product in stock", variants: []dealVariant{discounted}, campaign: true, want: true},
-		{name: "a campaign alone: its discounted variant is sold out, another is in stock", variants: []dealVariant{soldOut, plain}, campaign: true, want: true},
+		{name: "a campaign alone: its discounted variant is sold out, another is in stock", variants: []dealVariant{soldOut, plain}, campaign: true, want: false},
 		{name: "a product that is not discounted, on no campaign", variants: []dealVariant{plain}, want: false},
 	}
 	for _, tt := range tests {

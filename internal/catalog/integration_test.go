@@ -412,8 +412,6 @@ func TestListingPriceIsBuyable(t *testing.T) {
 	t.Error("the fixture product is not in the listing")
 }
 
-// "On sale" is a variant fact, and a product qualifies when ANY active variant
-// carries one.
 func dealSlugs(t *testing.T, s *catalog.Store) (slugs []string, total int64) {
 	t.Helper()
 	for page := 1; page <= 50; page++ {
@@ -1185,9 +1183,8 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 			"cheaper variant exists — 起 on a price that is not the lowest")
 	}
 
-	// A campaign has the same admission rule as /deals: the product is present
-	// because one active variant is discounted. It must not fall back to the
-	// cheaper regular variant and erase the campaign's own markdown.
+	// The campaign shelf must not fall back to the cheaper regular variant and
+	// erase the campaign's own markdown.
 	var productID uuid.UUID
 	if queryErr := pool.QueryRow(ctx, `SELECT id FROM products WHERE slug = $1`, slug).Scan(&productID); queryErr != nil {
 		t.Fatalf("read campaign product: %v", queryErr)
@@ -1552,4 +1549,54 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 		}
 		t.Fatalf("product %s is not among the newest 50", product)
 	})
+}
+
+// A card strikes only a price the shopper can pay: a product whose discounted
+// variant is sold out, with another in stock at full price, shows the full price
+// unstruck on /deals and on its campaign page, and /deals does not list it.
+func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	slug := "split-" + uuid.NewString()
+	if _, err := pool.Exec(ctx, `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '售完折扣測試', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, 'SOLD-' || upper(replace($1, '-', '')), 100000, 200000, 0, 0, 0 FROM p
+		UNION ALL
+		SELECT p.id, 'FULL-' || upper(replace($1, '-', '')), 150000, NULL, 10, 0, 1 FROM p`, slug); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	campaignSlug := campaign(t, "soldout-"+uuid.NewString()[:8])
+	if err := feature(t, campaignSlug, slug); err != nil {
+		t.Fatalf("feature: %v", err)
+	}
+	// Another product keeps the campaign something to buy.
+	featureNewProduct(t, pool, campaignSlug, 5, "active")
+
+	slugs, _ := dealSlugs(t, s)
+	if slices.Contains(slugs, slug) {
+		t.Error("/deals lists a product whose only discounted variant is sold out")
+	}
+
+	view, err := s.Campaign(ctx, campaignSlug)
+	if err != nil {
+		t.Fatalf("campaign: %v", err)
+	}
+	for i := range view.Products {
+		if tile := &view.Products[i]; tile.Slug == slug {
+			if tile.PriceCents != 150000 || tile.OnSale() {
+				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", tile.PriceCents, tile.OnSale())
+			}
+			return
+		}
+	}
+	t.Error("the product is not on its campaign page")
 }
