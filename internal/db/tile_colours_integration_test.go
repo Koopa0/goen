@@ -38,7 +38,7 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 	product := func(slug string, options ...[]colour) uuid.UUID {
 		t.Helper()
 		var id uuid.UUID
-		if err := tx.QueryRow(ctx, `INSERT INTO products(category_id,slug,name,status) VALUES($1,$2,$3,'draft') RETURNING id`, category, slug, token+" "+slug).Scan(&id); err != nil {
+		if err = tx.QueryRow(ctx, `INSERT INTO products(category_id,slug,name,status) VALUES($1,$2,$3,'draft') RETURNING id`, category, slug, token+" "+slug).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		type pick struct{ option, value uuid.UUID }
@@ -46,12 +46,12 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 		var retired []bool
 		for o, values := range options {
 			var optionID uuid.UUID
-			if err := tx.QueryRow(ctx, `INSERT INTO product_options(product_id,name,position) VALUES($1,$2,$3) RETURNING id`, id, "option"+strings.Repeat("x", o+1), o).Scan(&optionID); err != nil {
+			if err = tx.QueryRow(ctx, `INSERT INTO product_options(product_id,name,position) VALUES($1,$2,$3) RETURNING id`, id, "option"+strings.Repeat("x", o+1), o).Scan(&optionID); err != nil {
 				t.Fatal(err)
 			}
 			for i, v := range values {
 				var valueID uuid.UUID
-				if err := tx.QueryRow(ctx, `INSERT INTO product_option_values(product_id,option_id,value,swatch_hex,position) VALUES($1,$2,$3,nullif($4,''),$5) RETURNING id`, id, optionID, v.name, v.swatch, i).Scan(&valueID); err != nil {
+				if err = tx.QueryRow(ctx, `INSERT INTO product_option_values(product_id,option_id,value,swatch_hex,position) VALUES($1,$2,$3,nullif($4,''),$5) RETURNING id`, id, optionID, v.name, v.swatch, i).Scan(&valueID); err != nil {
 					t.Fatal(err)
 				}
 				for len(variants) <= i {
@@ -67,16 +67,16 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 		}
 		for i, picks := range variants {
 			var variantID uuid.UUID
-			if err := tx.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,compare_at_price_cents,stock_quantity,is_active,position) VALUES($1,$2,10000,20000,5,$3,$4) RETURNING id`, id, "TC-"+strings.ToUpper(uuid.NewString()[:8]), !retired[i], i).Scan(&variantID); err != nil {
+			if err = tx.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,compare_at_price_cents,stock_quantity,is_active,position) VALUES($1,$2,10000,20000,5,$3,$4) RETURNING id`, id, "TC-"+strings.ToUpper(uuid.NewString()[:8]), !retired[i], i).Scan(&variantID); err != nil {
 				t.Fatal(err)
 			}
 			for _, p := range picks {
-				if _, err := tx.Exec(ctx, `INSERT INTO variant_option_values(product_id,variant_id,option_id,option_value_id) VALUES($1,$2,$3,$4)`, id, variantID, p.option, p.value); err != nil {
+				if _, err = tx.Exec(ctx, `INSERT INTO variant_option_values(product_id,variant_id,option_id,option_value_id) VALUES($1,$2,$3,$4)`, id, variantID, p.option, p.value); err != nil {
 					t.Fatal(err)
 				}
 			}
 		}
-		if _, err := tx.Exec(ctx, `UPDATE products SET status='active',published_at=now() WHERE id=$1`, id); err != nil {
+		if _, err = tx.Exec(ctx, `UPDATE products SET status='active',published_at=now() WHERE id=$1`, id); err != nil {
 			t.Fatal(err)
 		}
 		return id
