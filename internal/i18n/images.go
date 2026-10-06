@@ -93,5 +93,5 @@ var (
 	KeyAdminNoticeBadOption = key("admin.notice.badoption", Message{
 		ZhHant: "那個選項不是這個商品的。",
 		En:     "That option is not one of this product's.",
-})
+	})
 )
