@@ -1700,6 +1700,7 @@ h3 {
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;
+  min-width: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -1791,6 +1792,11 @@ h3 {
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: var(--s-2);
+}
+
+.goen-hero__actions .ui-btn {
+  text-align: center;
+  white-space: normal;
 }
 
 .goen-hero__controls {
