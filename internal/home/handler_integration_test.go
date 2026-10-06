@@ -911,6 +911,35 @@ func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) 
 	}
 }
 
+// A method that is always free charges nothing below any threshold, so the
+// floor the strip states is the cheapest fee that is actually charged.
+func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
+		       CASE sm.destination_kind WHEN 'pickup_point' THEN 0 ELSE 8000 END,
+		       CASE sm.destination_kind WHEN 'pickup_point' THEN NULL ELSE 300000 END,
+		       now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("publish the fees: %v", err)
+	}
+
+	view, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load home: %v", err)
+	}
+	if view.Rules.LowestFeeCents != 8000 {
+		t.Errorf("Rules.LowestFeeCents = %d, want 8000: an always-free pickup method is not the fee below the threshold",
+			view.Rules.LowestFeeCents)
+	}
+}
+
 // A department's header panel shows at most three of its own products, newest
 // first, and only ones that can be bought: the header is on every page, and a
 // sold-out product there is a click that ends at a disabled button. The newest
