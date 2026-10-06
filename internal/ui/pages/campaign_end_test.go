@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func TestACampaignNamesItsLastDayOnlyWithinThirtyDays(t *testing.T) {
+func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
 	t.Parallel()
 
 	// 12:00 in Taipei.
@@ -28,11 +28,10 @@ func TestACampaignNamesItsLastDayOnlyWithinThirtyDays(t *testing.T) {
 		{"mid-day end", i18n.ZhHant, now, time.Date(2026, 10, 30, 4, 0, 0, 0, time.UTC), "10\u00a0月 30\u00a0日"},
 		{"29 days", i18n.ZhHant, now, now.AddDate(0, 0, 29), "10\u00a0月 31\u00a0日"},
 		{"30 days", i18n.ZhHant, now, now.AddDate(0, 0, 30), "11\u00a0月 1\u00a0日"},
-		{"31 days", i18n.ZhHant, now, now.AddDate(0, 0, 31), ""},
+		{"31 days", i18n.ZhHant, now, now.AddDate(0, 0, 31), "11\u00a0月 2\u00a0日"},
 		{"29 days in English", i18n.En, now, now.AddDate(0, 0, 29), "Oct\u00a031"},
-		{"31 days in English", i18n.En, now, now.AddDate(0, 0, 31), ""},
-		{"a year", i18n.ZhHant, now, now.AddDate(1, 0, 0), ""},
-		{"past any duration", i18n.ZhHant, now, time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC), ""},
+		{"31 days in English", i18n.En, now, now.AddDate(0, 0, 31), "Nov\u00a02"},
+		{"a year", i18n.ZhHant, now, now.AddDate(1, 0, 0), "2027\u00a0年 10\u00a0月 2\u00a0日"},
 		{"into next year", i18n.ZhHant, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "2027\u00a0年 1\u00a0月 5\u00a0日"},
 		{"into next year in English", i18n.En, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "Jan\u00a05, 2027"},
 	} {
@@ -43,7 +42,7 @@ func TestACampaignNamesItsLastDayOnlyWithinThirtyDays(t *testing.T) {
 	}
 }
 
-func TestACampaignWithNoNearEndSaysNoDate(t *testing.T) {
+func TestAViewWithNoEndSaysNoDate(t *testing.T) {
 	t.Parallel()
 
 	far := renderIn(t, i18n.ZhHant, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "秋日選物"}))
