@@ -365,7 +365,7 @@ func TestColumnsHitsNameTheirTableRows(t *testing.T) {
 	if n := strings.Count(got, "<tr>") - 1; n != 30 {
 		t.Errorf("columns of 30 days: %d table rows, want 30", n)
 	}
-	for _, want := range []string{`data-row="0"`, `data-row="29"`, `data-readout="series">Paid orders<`} {
+	for _, want := range []string{`<p class="goen-chart__readout"></p>`, `data-row="0"`, `data-row="29"`, `data-readout="series">Paid orders<`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("columns of 30 days: markup lacks %s", want)
 		}

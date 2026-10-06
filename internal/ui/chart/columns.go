@@ -279,8 +279,9 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	r.Strips = stripsOf(pl, rows, top, n, grouped)
 	r.Ticks = columnTicks(ctx, cols, grouped, band)
 	r.Rows = tableRows(ctx, p, cols, pl)
-	for i := range n {
-		r.Hits = append(r.Hits, hit{X: percent(float64(i) * band), Width: percent(band)})
+	r.Hits = make([]hit, n)
+	for i := range r.Hits {
+		r.Hits[i] = hit{X: percent(float64(i) * band), Width: percent(band)}
 	}
 
 	r.Note = p.Note

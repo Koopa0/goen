@@ -810,7 +810,7 @@ func Columns(p ColumnsProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</svg></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</svg></div><p class=\"goen-chart__readout\"></p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -853,7 +853,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(p.DayHeading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 68, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 69, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -866,7 +866,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(p.Series.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 69, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 70, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 		if templ_7745c5c3_Err != nil {
@@ -884,7 +884,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 			var templ_7745c5c3_Var60 string
 			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(p.SpanHeading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 71, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 72, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 			if templ_7745c5c3_Err != nil {
@@ -907,7 +907,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 			var templ_7745c5c3_Var61 string
 			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(row.Heading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 78, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 79, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 			if templ_7745c5c3_Err != nil {
@@ -920,7 +920,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(row.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 79, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 80, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -938,7 +938,7 @@ func columnsTable(p ColumnsProps, c columns) templ.Component {
 				var templ_7745c5c3_Var63 string
 				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(row.Spans)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 81, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/columns.templ`, Line: 82, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 				if templ_7745c5c3_Err != nil {

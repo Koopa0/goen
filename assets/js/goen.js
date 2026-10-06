@@ -763,9 +763,8 @@
       const body = table?.tBodies[0];
       if (!frame || !body || !hits.length) continue;
       const heads = [...table.tHead.rows[0].cells];
-      const line = document.createElement("p");
-      line.className = "goen-chart__readout";
-      frame.after(line);
+      const line = fig.querySelector(".goen-chart__readout");
+      if (!line) continue;
 
       const plot = hits[0].ownerSVGElement;
       const crosshair = hits[0].dataset.x === undefined ? null : document.createElementNS(NS, "line");

@@ -3183,14 +3183,33 @@ form[data-request-pending] [aria-disabled="true"] {
   shape-rendering: crispEdges;
 }
 
+/* Only where scripts run, so a page without them is unchanged. The padding, not
+   a margin, keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. Its height is held for the longest line,
+   which runs to two on a narrow figure. */
 .goen-chart__readout {
+  display: none;
   font-size: var(--fs-13);
-  margin: 8px 0 0;
-  min-height: calc(var(--fs-13) * 1.5);
+  line-height: var(--lh-normal);
+  margin: 0;
 }
 
-.goen-chart__readout:empty {
-  visibility: hidden;
+@media (scripting: enabled) {
+  .goen-chart__readout {
+    display: block;
+    min-height: calc(var(--fs-13) * var(--lh-normal));
+    padding-block-start: 8px;
+  }
+
+  .goen-chart__readout:empty {
+    visibility: hidden;
+  }
+
+  @container (max-width: 519px) {
+    .goen-chart__readout {
+      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
+    }
+  }
 }
 
 /* Forced colours: the SVG names its own system colours. The line is

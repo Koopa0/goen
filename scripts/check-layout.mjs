@@ -2649,6 +2649,81 @@ if (process.env.ADMIN_TOKEN) {
       `controls=${got.controls} tap=${got.minTap}`);
   }
 
+  // The charts' hover readout: pointing at a day writes that row of the chart's
+  // own table under the plot without moving anything, it stays while the
+  // pointer is on it, Escape puts it away, and nothing overflows sideways.
+  if (ADMIN.length) {
+    for (const [width, height] of [[375, 812], [1440, 900]]) {
+      const label = `admin chart readout ${width}`;
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
+      const target = ORIGIN + '/admin/reports';
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const count = await evalPage('document.querySelectorAll(".goen-chart__hit").length ? document.querySelectorAll(".goen-chart").length : 0');
+      if (!count || count.threw) {
+        fail(label, 'the reports page rendered no chart with hit areas — its fixture did not run, so this check proved nothing');
+        continue;
+      }
+      const mouse = (at) => send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+      for (let k = 0; k < count; k++) {
+        const chart = `${label} chart ${k + 1}`;
+        const got = await evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          const hits = [...fig.querySelectorAll('.goen-chart__hit')];
+          if (!hits.length) return { none: true };
+          fig.scrollIntoView({ block: 'center' });
+          const at = hits[hits.length >> 1];
+          const row = fig.querySelector('.goen-chart__table').tBodies[0].rows[Number(at.dataset.row)];
+          const heads = [...fig.querySelector('.goen-chart__table').tHead.rows[0].cells];
+          const series = [], notes = [];
+          heads.forEach((h, i) => {
+            const text = row.cells[i].textContent.trim();
+            if (!text) return;
+            if (h.dataset.readout === 'series') series.push(text + ' ' + h.textContent.trim());
+            if (h.dataset.readout === 'note') notes.push(text);
+          });
+          const box = at.getBoundingClientRect();
+          const readout = fig.querySelector('.goen-chart__readout');
+          const line = readout ? readout.getBoundingClientRect() : null;
+          return {
+            hit: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+            line: line && { x: line.left + line.width / 2, y: line.top + line.height / 2 },
+            want: [...series, row.cells[0].textContent.trim(), ...notes].join(' · '),
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+          };
+        })()`);
+        if (got.none) continue;
+        if (got.threw || !got.line) {
+          fail(chart, 'no .goen-chart__readout in the figure');
+          continue;
+        }
+        const read = () => evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          return {
+            text: fig.querySelector('.goen-chart__readout').textContent,
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+            wide: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        })()`);
+        await mouse({ x: 2, y: 2 });
+        await mouse(got.hit);
+        const hovered = await read();
+        if (hovered.text !== got.want) fail(chart, `hovering a day reads "${hovered.text}", want the table row "${got.want}"`);
+        if (Math.abs(hovered.top - got.top) > 0.5) fail(chart, `the table moved ${hovered.top - got.top}px when the readout appeared`);
+        if (hovered.wide > 0) fail(chart, `the page scrolls sideways by ${hovered.wide}px with the readout showing`);
+        await mouse(got.line);
+        const onIt = await read();
+        if (onIt.text !== got.want) fail(chart, `the readout went away when the pointer moved onto it: "${onIt.text}"`);
+        for (const type of ['keyDown', 'keyUp']) {
+          await send(ws, 'Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        }
+        const gone = await read();
+        if (gone.text !== '') fail(chart, `Escape left the readout showing "${gone.text}"`);
+        console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}"`);
+      }
+    }
+  }
+
   // The order page is the packing slip: printed, the back office around it is
   // gone and the delivery block and the lines are what is left.
   if (ADMIN.length && process.env.INVOICE_ORDER) {

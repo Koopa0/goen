@@ -321,6 +321,9 @@ func TestRunningTotalHitsEndEachDayWhereItsTotalStands(t *testing.T) {
 	if !strings.Contains(got, last) {
 		t.Errorf("running total: the last hit does not end at 100%%, want %s", last)
 	}
+	if !strings.Contains(got, `<p class="goen-chart__readout"></p>`) {
+		t.Error("running total: no empty readout for goen.js to fill")
+	}
 	if c := strings.Count(got, `data-readout="series"`); c != 2 {
 		t.Errorf("running total: %d series columns, want 2", c)
 	}

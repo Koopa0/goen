@@ -315,7 +315,7 @@ func RunningTotal(p RunningTotalProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</svg></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</svg></div><p class=\"goen-chart__readout\"></p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -376,7 +376,7 @@ func endText(l endLabel, role string) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(px(l.NameY))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 37, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 38, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 		if templ_7745c5c3_Err != nil {
@@ -389,7 +389,7 @@ func endText(l endLabel, role string) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(l.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 37, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 38, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -402,7 +402,7 @@ func endText(l endLabel, role string) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(px(l.NameY + 14))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 38, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 39, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -415,7 +415,7 @@ func endText(l endLabel, role string) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(l.Total)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 38, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 39, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -457,7 +457,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(p.DayHeading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 45, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 46, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -470,7 +470,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(p.Current.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 46, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 47, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -483,7 +483,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(p.PreviousDayHeading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 47, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 48, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -496,7 +496,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(p.Previous.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 48, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 49, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -514,7 +514,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(row.Heading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 54, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 55, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -527,7 +527,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(row.Current)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 55, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 56, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -540,7 +540,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(row.PreviousDay)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 56, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 57, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -553,7 +553,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(row.Previous)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 57, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 58, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -571,7 +571,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(r.Total.Heading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 63, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 64, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -584,7 +584,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(r.Total.Current)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 64, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 65, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
@@ -597,7 +597,7 @@ func runningTotalTable(p RunningTotalProps, r runningTotal) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(r.Total.Previous)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 66, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/runningtotal.templ`, Line: 67, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 		if templ_7745c5c3_Err != nil {
