@@ -17501,7 +17501,7 @@ WITH v AS (
 ), moved AS (
     SELECT shop_day(m.created_at) AS day,
            sum(m.delta) AS delta,
-           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           sum(m.delta) AS received,
            count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
            count(*) AS moves
     FROM inventory_movements m
@@ -17510,7 +17510,7 @@ WITH v AS (
     GROUP BY 1
 )
 SELECT d.day::date AS day,
-       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day >= d.day::date), 0))::integer AS stock,
        coalesce(t.received, 0)::integer AS received,
        coalesce(t.receipts, 0)::integer AS receipts,
        coalesce(t.moves, 0)::integer AS moves
