@@ -23,6 +23,8 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -161,11 +163,11 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 		}
 	}
 	check(t, "after the cancellation")
-	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
+	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, false)
 
 	if replay := post(confirm); replay.Code != http.StatusSeeOther ||
-		replay.Header().Get("Location") != "/admin/orders/"+number+"?refused=1" {
-		t.Errorf("replayed POST = %d %s, want refused", replay.Code, replay.Header().Get("Location"))
+		replay.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {
+		t.Errorf("replayed POST = %d %s, want the cancelled sentence", replay.Code, replay.Header().Get("Location"))
 	}
 	if _, err := s.RefundBeforeShipment(ctx, number, "顧客來電取消"); !errors.Is(err, refundstate.ErrRefused) {
 		t.Errorf("a second cancellation = %v, want ErrRefused", err)
@@ -176,7 +178,9 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 // Whoever moved the order while the cancellation waited on its lock, a staff
 // member starting to pack it or its customer cancelling it, wins: the database
 // refuses the cancellation (orders_paid_cancel_needs_refund,
-// orders_history_frozen) and it records nothing.
+// orders_history_frozen) and it records nothing. A credit spend reversed in the
+// meantime leaves the order pending, so the cancellation itself reads how the
+// order was paid again under the lock and refuses.
 func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
@@ -184,15 +188,19 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 		name            string
 		moves           []string
 		status          string
+		constraint      string
+		changed         bool
 		reversals, held int64
 	}{
 		{
-			name:   "packing started",
-			moves:  []string{`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`},
-			status: "picking", held: 1,
+			name:       "packing started",
+			constraint: "orders_paid_cancel_needs_refund",
+			moves:      []string{`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`},
+			status:     "picking", held: 1,
 		},
 		{
-			name: "customer cancelled",
+			name:       "customer cancelled",
+			constraint: "orders_history_frozen",
 			moves: []string{
 				`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now() WHERE id = $1`,
 				`SELECT release_reservation(id) FROM inventory_reservations WHERE order_id = $1 AND state = 'held'`,
@@ -201,6 +209,19 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			},
 			status: "cancelled", reversals: 1,
 		},
+		{
+			// Triggers off because store_credit_guard reverses a spend only after
+			// the order has cancelled, and the order here has not.
+			name:    "credit spend reversed",
+			changed: true,
+			moves: []string{
+				`SET LOCAL session_replication_role = replica`,
+				`INSERT INTO store_credit_entries (account_id, amount_cents, reason, reverses_id, idempotency_key)
+				 SELECT account_id, -amount_cents, 'spend reversed', id, 'reverse:' || id
+				 FROM store_credit_entries WHERE order_id = $1 AND amount_cents < 0`,
+			},
+			status: "pending", reversals: 1, held: 1,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
@@ -208,7 +229,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer func() { _ = first.Rollback(ctx) }()
+			defer pgtx.Rollback(ctx, first)
 			if _, err := first.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); err != nil {
 				t.Fatalf("lock the order: %v", err)
 			}
@@ -247,8 +268,10 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 
 			select {
 			case err := <-result:
-				if !errors.Is(err, refundstate.ErrRefused) {
-					t.Errorf("cancellation after %s = %v, want ErrRefused", tc.name, err)
+				if !errors.Is(err, refundstate.ErrRefused) ||
+					(tc.changed && !errors.Is(err, refunds.ErrOrderChanged)) ||
+					(!tc.changed && !pgerr.IsConstraint(err, tc.constraint)) {
+					t.Errorf("cancellation after %s = %v, want ErrRefused from %s", tc.name, err, tc.constraint)
 				}
 			case <-time.After(10 * time.Second):
 				t.Fatal("the cancellation did not finish after the lock was released")

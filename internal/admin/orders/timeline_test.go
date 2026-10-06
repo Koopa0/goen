@@ -26,6 +26,8 @@ func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
 	}{
 		{"known invoice operation", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "succeeded"},
 			i18n.KeyAuditInvoiceIssue, ""},
+		{"issue nothing will send", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "not_sent"},
+			i18n.KeyAuditInvoiceIssue, ""},
 		{"invoice status from a newer build", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "voided"},
 			i18n.KeyAdminTimelineUnrecognized, "invoice / issue / voided"},
 		{"mail topic from a newer build", db.AdminOrderTimelineRow{Source: "mail", Kind: "order.refunded", Status: "sent"},
@@ -44,6 +46,14 @@ func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
 		if got.At == "" {
 			t.Errorf("timelineEntry(%s) lost its time", tc.name)
 		}
+	}
+}
+
+func TestAnIssueNothingWillSendIsNotInProgress(t *testing.T) {
+	t.Parallel()
+	got := timelineEntry(&db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "not_sent"})
+	if got.Status != i18n.KeyAdminTimelineInvoiceNotSent {
+		t.Errorf("timelineEntry(issue not_sent).Status = %q, want %q", got.Status, i18n.KeyAdminTimelineInvoiceNotSent)
 	}
 }
 
