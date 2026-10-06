@@ -302,8 +302,9 @@ func shippingPrefixNodeText(node *html.Node) string {
 
 func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
 	t.Parallel()
-	var got []string
-	for _, e := range zonePrefixEntries("100, 300\n100;300 600") {
+	entries := zonePrefixEntries("100, 300\n100;300 600")
+	got := make([]string, 0, len(entries))
+	for _, e := range entries {
 		got = append(got, e.Prefix)
 	}
 	if want := []string{"100", "300", "600"}; !slices.Equal(got, want) {
