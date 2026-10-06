@@ -276,13 +276,6 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	// no row and meet only at the partial unique index. Every cart lock comes
 	// afterwards and LockCarts sorts UUIDs, which keeps the cross-aggregate
 	// order canonical.
-	if _, err := q.LockUser(ctx, id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("lock account for cart adoption: %w", err)
-	}
-
 	if err := adoptGuestCart(ctx, q, id, guestCartID); err != nil {
 		if !errors.Is(err, ErrQuantityAdjusted) {
 			return err

@@ -491,12 +491,6 @@ func (s *Store) placeOrder(
 		// Erasure/adoption start at the user aggregate. Hold its KEY SHARE
 		// before checkoutCartSnapshot takes the cart row, so no path owns cart
 		// -> wait user while another owns user -> wait cart.
-		if _, lockErr := q.LockUserForCheckout(ctx, userID.UUID); lockErr != nil {
-			if errors.Is(lockErr, pgx.ErrNoRows) {
-				return "", ErrNotFound
-			}
-			return "", fmt.Errorf("lock account for checkout: %w", lockErr)
-		}
 	}
 	terms, err := lockCheckoutTerms(
 		ctx, q, cartID, userID, shippingVersionID, addr, couponCode, shown,
