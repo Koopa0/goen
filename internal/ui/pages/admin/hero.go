@@ -26,11 +26,11 @@ type HeroSlide struct {
 func (s HeroSlide) State(ctx context.Context) string {
 	switch {
 	case !s.Active:
-		return i18n.T(ctx, i18n.KeyAdminCampaignOff)
+		return "已停用"
 	case !s.InWindow:
-		return i18n.T(ctx, i18n.KeyAdminCampaignOutside)
+		return "不在檔期內"
 	default:
-		return i18n.T(ctx, i18n.KeyAdminHomeEligible)
+		return "可顯示"
 	}
 }
 
@@ -56,7 +56,12 @@ func (s HeroSlide) NextActive() string {
 	return "true"
 }
 
-func (s HeroSlide) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, s.Active) }
+func (s HeroSlide) ToggleLabel(ctx context.Context) string {
+	if s.Active {
+		return "停用"
+	}
+	return "啟用"
+}
 
 type HeroView struct {
 	Bound    web.Bound
