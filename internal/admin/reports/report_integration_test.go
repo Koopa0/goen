@@ -548,8 +548,8 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 		got := map[string]int64{}
 		var sum int64
 		for _, d := range v.Departments {
-			got[d.Name] = d.RevenueCents
-			sum += d.RevenueCents
+			got[d.Name] = d.SalesCents
+			sum += d.SalesCents
 		}
 		return got, sum
 	}

@@ -60,7 +60,7 @@ LIMIT @limit_to::integer;
 -- A department is a top-level category; a product in a deeper one counts toward
 -- its root. The orders are those of RevenueBetween, so the departments add up to
 -- the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
--- name: DepartmentRevenueBetween :many
+-- name: DepartmentSalesBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
     UNION ALL
@@ -68,7 +68,7 @@ WITH RECURSIVE tree AS (
 )
 SELECT
     localized_name(d.name, d.name_en, @locale::text) AS name,
-    sum(ol.unit_price_cents * ol.quantity)::bigint AS revenue_cents
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN committed_orders c ON c.id = o.id
@@ -79,7 +79,7 @@ WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
   AND NOT EXISTS (SELECT 1 FROM return_requests b
                   WHERE b.order_id = o.id AND b.before_shipment)
 GROUP BY d.id, d.name, d.name_en, d.position
-ORDER BY revenue_cents DESC, d.position, d.id;
+ORDER BY sales_cents DESC, d.position, d.id;
 
 -- NOT a conversion rate: goen collects no traffic data. This is the fraction of
 -- started orders that were paid for. A LEFT JOIN and a CASE, never a per-row

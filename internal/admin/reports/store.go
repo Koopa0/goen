@@ -70,7 +70,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
-	departments, err := s.q.DepartmentRevenueBetween(ctx, db.DepartmentRevenueBetweenParams{
+	departments, err := s.q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
 		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 		})
 	}
 	for _, d := range departments {
-		view.Departments = append(view.Departments, admin.Department{Name: d.Name, RevenueCents: d.RevenueCents})
+		view.Departments = append(view.Departments, admin.Department{Name: d.Name, SalesCents: d.SalesCents})
 	}
 	for i := range risk {
 		r := &risk[i]

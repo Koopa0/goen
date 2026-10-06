@@ -28,11 +28,11 @@ func (s Seller) Href() string { return "/admin/products/" + s.Slug }
 
 // Department is a top-level category and what its products' lines sold for.
 type Department struct {
-	Name         string
-	RevenueCents int64
+	Name       string
+	SalesCents int64
 }
 
-func (d Department) Revenue() string { return money.TWD(d.RevenueCents) }
+func (d Department) Sales() string { return money.TWD(d.SalesCents) }
 
 type StockRisk struct {
 	SKU       string
@@ -243,7 +243,7 @@ func (v *ReportView) TopUnits() int64 {
 func (v *ReportView) TopDepartment() int64 {
 	var top int64
 	for _, d := range v.Departments {
-		top = max(top, d.RevenueCents)
+		top = max(top, d.SalesCents)
 	}
 	return top
 }
@@ -252,5 +252,5 @@ func (v *ReportView) TopDepartment() int64 {
 // bar would compare it with nothing.
 func (v *ReportView) OnlyDepartment(ctx context.Context) string {
 	d := v.Departments[0]
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentOnly), d.Name, d.Revenue())
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentOnly), d.Name, d.Sales())
 }

@@ -339,8 +339,8 @@ func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
 	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Departments: []Department{
-			{Name: "Audio", RevenueCents: 400000},
-			{Name: "Cables", RevenueCents: 100000},
+			{Name: "Audio", SalesCents: 400000},
+			{Name: "Cables", SalesCents: 100000},
 		},
 	}))
 
@@ -373,7 +373,7 @@ func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
 			var b bytes.Buffer
 			view := ReportView{
 				Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
-				Departments: []Department{{Name: name, RevenueCents: 400000}},
+				Departments: []Department{{Name: name, SalesCents: 400000}},
 			}
 			if err := Report(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)

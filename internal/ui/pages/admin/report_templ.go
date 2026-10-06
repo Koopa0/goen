@@ -657,9 +657,9 @@ func Report(p layouts.Page, v *ReportView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var41 string
-							templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Revenue()))
+							templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/report.templ`, Line: 116, Col: 111}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/report.templ`, Line: 116, Col: 109}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 							if templ_7745c5c3_Err != nil {
@@ -669,7 +669,7 @@ func Report(p layouts.Page, v *ReportView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = chart.Bar(chart.BarProps{Value: d.RevenueCents, Max: top}).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top}).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}

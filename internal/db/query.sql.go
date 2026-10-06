@@ -6982,7 +6982,7 @@ func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneCo
 	return i, err
 }
 
-const departmentRevenueBetween = `-- name: DepartmentRevenueBetween :many
+const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
     UNION ALL
@@ -6990,7 +6990,7 @@ WITH RECURSIVE tree AS (
 )
 SELECT
     localized_name(d.name, d.name_en, $1::text) AS name,
-    sum(ol.unit_price_cents * ol.quantity)::bigint AS revenue_cents
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN committed_orders c ON c.id = o.id
@@ -7001,33 +7001,33 @@ WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
   AND NOT EXISTS (SELECT 1 FROM return_requests b
                   WHERE b.order_id = o.id AND b.before_shipment)
 GROUP BY d.id, d.name, d.name_en, d.position
-ORDER BY revenue_cents DESC, d.position, d.id
+ORDER BY sales_cents DESC, d.position, d.id
 `
 
-type DepartmentRevenueBetweenParams struct {
+type DepartmentSalesBetweenParams struct {
 	Locale string
 	FromAt time.Time
 	ToAt   time.Time
 }
 
-type DepartmentRevenueBetweenRow struct {
-	Name         string
-	RevenueCents int64
+type DepartmentSalesBetweenRow struct {
+	Name       string
+	SalesCents int64
 }
 
 // A department is a top-level category; a product in a deeper one counts toward
 // its root. The orders are those of RevenueBetween, so the departments add up to
 // the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
-func (q *Queries) DepartmentRevenueBetween(ctx context.Context, arg DepartmentRevenueBetweenParams) ([]DepartmentRevenueBetweenRow, error) {
-	rows, err := q.db.Query(ctx, departmentRevenueBetween, arg.Locale, arg.FromAt, arg.ToAt)
+func (q *Queries) DepartmentSalesBetween(ctx context.Context, arg DepartmentSalesBetweenParams) ([]DepartmentSalesBetweenRow, error) {
+	rows, err := q.db.Query(ctx, departmentSalesBetween, arg.Locale, arg.FromAt, arg.ToAt)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DepartmentRevenueBetweenRow{}
+	items := []DepartmentSalesBetweenRow{}
 	for rows.Next() {
-		var i DepartmentRevenueBetweenRow
-		if err := rows.Scan(&i.Name, &i.RevenueCents); err != nil {
+		var i DepartmentSalesBetweenRow
+		if err := rows.Scan(&i.Name, &i.SalesCents); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

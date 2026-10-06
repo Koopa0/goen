@@ -113,9 +113,9 @@ templ Report(p layouts.Page, v *ReportView) {
 						for _, d := range v.Departments {
 							<li class="goen-report__row">
 								<span class="goen-report__name">{ d.Name }</span>
-								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Revenue()) }</span>
+								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()) }</span>
 								<div class="goen-report__bar">
-									@chart.Bar(chart.BarProps{Value: d.RevenueCents, Max: top})
+									@chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top})
 								</div>
 							</li>
 						}
