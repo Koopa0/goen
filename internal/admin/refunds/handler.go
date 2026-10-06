@@ -55,20 +55,18 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	}
 	back := "/admin/orders/" + number
 	sessions, err := h.store.RefundBeforeShipment(r.Context(), number, r.PostFormValue("reason"))
-	notice, ok := refundNotice(err)
-	switch {
-	case !ok:
+	outcome, ok := refundNotice(err)
+	if !ok {
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
 		access.ServerError(w, r, h.log)
 		return
-	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
-	case errors.Is(err, refundstate.ErrIncomplete) || notice == "?refundunsure=1" || notice == "?refundmismatch=1":
-		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-	default:
-		h.log.WarnContext(r.Context(), "refund before shipment", "order", number, "error", err)
 	}
-	http.Redirect(w, r, back+notice, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+	if err == nil {
+		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
+	} else {
+		h.log.Log(r.Context(), outcome.Level, "refund before shipment", "order", number, "error", err)
+	}
+	http.Redirect(w, r, back+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
 // refundNotice is the query that selects the order page notice for what
@@ -76,44 +74,51 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 // notice describes. Recovery comes before the refusals: a payout or
 // cancellation can retain a database refusal as its cause while the approved
 // refund remains open, and the refusal's sentence would then claim nothing moved.
-func refundNotice(err error) (string, bool) {
+// refundOutcome is where a refund press sends the staff member and how loudly
+// the log records it: Error for what needs a person, Warn for a refusal.
+type refundOutcome struct {
+	Query string
+	Level slog.Level
+}
+
+func refundNotice(err error) (refundOutcome, bool) {
 	switch {
 	case err == nil:
-		return "?refunded=1", true
+		return refundOutcome{Query: "?refunded=1", Level: slog.LevelInfo}, true
 	case errors.Is(err, ErrUnsettled):
-		return "?refundpending=1", true
+		return refundOutcome{Query: "?refundpending=1", Level: slog.LevelWarn}, true
 	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
-		return "?cancelinvoice=1", true
+		return refundOutcome{Query: "?cancelinvoice=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrCancellationIncomplete):
-		return "?cancelretry=1", true
+		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}, true
 	case errors.Is(err, refundstate.ErrIncomplete):
-		return "?refundretry=1", true
+		return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrShipped):
-		return "?refundshipped=1", true
+		return refundOutcome{Query: "?refundshipped=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrHasReturn):
-		return "?refundhasreturn=1", true
+		return refundOutcome{Query: "?refundhasreturn=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrOrderCancelled), pgerr.IsConstraint(err, "orders_history_frozen"):
-		return "?refundcancelled=1", true
+		return refundOutcome{Query: "?refundcancelled=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrNotPaid):
-		return "?refundunpaid=1", true
+		return refundOutcome{Query: "?refundunpaid=1", Level: slog.LevelWarn}, true
 	case pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
-		return "?refundpicking=1", true
+		return refundOutcome{Query: "?refundpicking=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrOrderChanged),
 		pgerr.IsConstraint(err, "return_before_shipment_eligible"),
 		pgerr.IsConstraint(err, "orders_legal_transition"):
-		return "?refundchanged=1", true
+		return refundOutcome{Query: "?refundchanged=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrPayoutUnfit),
 		pgerr.IsConstraint(err, "refunds_sources_cover_return"),
 		pgerr.IsConstraint(err, "refunds_credit_attribution"),
 		pgerr.IsConstraint(err, "refunds_card_amount_positive"),
 		pgerr.IsConstraint(err, "refunds_return_captured"):
-		return "?refundmismatch=1", true
+		return refundOutcome{Query: "?refundmismatch=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrInvalid):
-		return "?refundreason=1", true
+		return refundOutcome{Query: "?refundreason=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, refundstate.ErrRefused):
-		return "?refundunsure=1", true
+		return refundOutcome{Query: "?refundunsure=1", Level: slog.LevelError}, true
 	}
-	return "", false
+	return refundOutcome{}, false
 }
 
 func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {
@@ -123,9 +128,9 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 		access.NotFound(w, r, h.log)
 		return true
 	case errors.Is(err, refundstate.ErrRefused):
-		notice, _ := refundNotice(err)
+		outcome, _ := refundNotice(err)
 		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+notice, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+		http.Redirect(w, r, "/admin/orders/"+number+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 		return true
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "read refund before shipment", "order", number, "error", err)

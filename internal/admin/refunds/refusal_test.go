@@ -3,6 +3,7 @@ package refunds
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -46,8 +47,8 @@ func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {
 		{"a refusal no sentence names", refusedBy("refunds_request_attribution"), "?refundunsure=1", true},
 		{"an unknown error", errors.New("connection reset"), "", false},
 	} {
-		got, ok := refundNotice(tc.err)
-		if got != tc.want || ok != tc.ok {
+		outcome, ok := refundNotice(tc.err)
+		if got := outcome.Query; got != tc.want || ok != tc.ok {
 			t.Errorf("refundNotice(%s) = %q, %t; want %q, %t", tc.name, got, ok, tc.want, tc.ok)
 		}
 	}
@@ -67,7 +68,7 @@ func TestRefundNoticeKeepsRecoveryAheadOfARefusal(t *testing.T) {
 		{"payout incomplete with a mismatch as its cause", fmt.Errorf("%w: %w", refundstate.ErrIncomplete, ErrPayoutUnfit), "?refundretry=1"},
 		{"cancellation waits on the invoice", refusedBy("orders_cancel_invoice_resolved"), "?cancelinvoice=1"},
 	} {
-		if got, _ := refundNotice(tc.err); got != tc.want {
+		if got, _ := refundNotice(tc.err); got.Query != tc.want {
 			t.Errorf("refundNotice(%s) = %q, want %q", tc.name, got, tc.want)
 		}
 	}
@@ -94,4 +95,26 @@ func TestWhyNotRefundableNamesWhatTheOrderIs(t *testing.T) {
 
 func beforeShipmentOf(r db.BeforeShipmentRefundRow) beforeShipment {
 	return beforeShipment{BeforeShipmentRefundRow: r}
+}
+
+func TestRefundNoticeLogsWhatNeedsAPersonAtError(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+		want slog.Level
+	}{
+		{"cancellation incomplete", ErrCancellationIncomplete, slog.LevelError},
+		{"refund incomplete", refundstate.ErrIncomplete, slog.LevelError},
+		{"payout does not fit", ErrPayoutUnfit, slog.LevelError},
+		{"constraint mismatch", refusedBy("refunds_return_captured"), slog.LevelError},
+		{"unnamed refusal", refusedBy("refunds_request_attribution"), slog.LevelError},
+		{"unsettled", ErrUnsettled, slog.LevelWarn},
+		{"shipped", ErrShipped, slog.LevelWarn},
+		{"waits on the invoice", refusedBy("orders_cancel_invoice_resolved"), slog.LevelWarn},
+	} {
+		if got, _ := refundNotice(tc.err); got.Level != tc.want {
+			t.Errorf("refundNotice(%s).Level = %v, want %v", tc.name, got.Level, tc.want)
+		}
+	}
 }
