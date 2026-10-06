@@ -2665,14 +2665,14 @@ if (process.env.ADMIN_TOKEN) {
         continue;
       }
       const mouse = (at) => send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
-      for (let k = 0; k < count; k++) {
-        const chart = `${label} chart ${k + 1}`;
-        const got = await evalPage(`(() => {
+      // pick is an expression over hits: the middle day, then the last, whose
+      // line is the longest (the largest totals, the "up to" time, the campaign).
+      const probe = (k, pick) => evalPage(`(() => {
           const fig = document.querySelectorAll('.goen-chart')[${k}];
           const hits = [...fig.querySelectorAll('.goen-chart__hit')];
           if (!hits.length) return { none: true };
           fig.scrollIntoView({ block: 'center' });
-          const at = hits[hits.length >> 1];
+          const at = ${pick};
           const row = fig.querySelector('.goen-chart__table').tBodies[0].rows[Number(at.dataset.row)];
           const heads = [...fig.querySelector('.goen-chart__table').tHead.rows[0].cells];
           const series = [], notes = [];
@@ -2683,15 +2683,20 @@ if (process.env.ADMIN_TOKEN) {
             if (h.dataset.readout === 'note') notes.push(text);
           });
           const box = at.getBoundingClientRect();
+          const frame = fig.querySelector('.goen-chart__frame').getBoundingClientRect();
           const readout = fig.querySelector('.goen-chart__readout');
           const line = readout ? readout.getBoundingClientRect() : null;
           return {
             hit: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+            gap: { x: box.left + box.width / 2, y: frame.bottom + 1 },
             line: line && { x: line.left + line.width / 2, y: line.top + line.height / 2 },
             want: [...series, row.cells[0].textContent.trim(), ...notes].join(' · '),
             top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
           };
         })()`);
+      for (let k = 0; k < count; k++) {
+        const chart = `${label} chart ${k + 1}`;
+        const got = await probe(k, 'hits[hits.length >> 1]');
         if (got.none) continue;
         if (got.threw || !got.line) {
           fail(chart, 'no .goen-chart__readout in the figure');
@@ -2711,6 +2716,12 @@ if (process.env.ADMIN_TOKEN) {
         if (hovered.text !== got.want) fail(chart, `hovering a day reads "${hovered.text}", want the table row "${got.want}"`);
         if (Math.abs(hovered.top - got.top) > 0.5) fail(chart, `the table moved ${hovered.top - got.top}px when the readout appeared`);
         if (hovered.wide > 0) fail(chart, `the page scrolls sideways by ${hovered.wide}px with the readout showing`);
+        // The first pixel under the plot is the readout's own padding while the
+        // two touch. With a gap there it is the figure, and crossing it puts the
+        // readout away before the pointer gets down to it.
+        await mouse(got.gap);
+        const below = await read();
+        if (below.text !== got.want) fail(chart, `the readout went away 1px under the plot, on the way down to it: "${below.text}"`);
         await mouse(got.line);
         const onIt = await read();
         if (onIt.text !== got.want) fail(chart, `the readout went away when the pointer moved onto it: "${onIt.text}"`);
@@ -2719,7 +2730,21 @@ if (process.env.ADMIN_TOKEN) {
         }
         const gone = await read();
         if (gone.text !== '') fail(chart, `Escape left the readout showing "${gone.text}"`);
-        console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}"`);
+        // The last day reads the longest line, two lines on a narrow figure; the
+        // height held for it is what keeps the table's toggle where it was.
+        const last = await probe(k, 'hits[hits.length - 1]');
+        if (last.threw || last.none) {
+          fail(chart, 'could not measure the last day');
+          continue;
+        }
+        await mouse({ x: 2, y: 2 });
+        await mouse(last.hit);
+        const longest = await read();
+        if (longest.text !== last.want) fail(chart, `hovering the last day reads "${longest.text}", want the table row "${last.want}"`);
+        if (Math.abs(longest.top - last.top) > 0.5) fail(chart, `the table moved ${longest.top - last.top}px when the last day's readout appeared`);
+        if (longest.wide > 0) fail(chart, `the page scrolls sideways by ${longest.wide}px with the last day's readout showing`);
+        await mouse({ x: 2, y: 2 });
+        console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}", last "${last.want.slice(0, 40)}"`);
       }
     }
   }

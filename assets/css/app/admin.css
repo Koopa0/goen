@@ -1,4 +1,5 @@
-/* =====================================================   goen — back office.
+/* ============================================================
+   goen — back office.
 
    Linked by layouts.Admin after base.css, and by nothing else; app.css is
    the storefront's and the back office does not load it. The rules for the
@@ -3271,7 +3272,6 @@ form[data-request-pending] [aria-disabled="true"] {
     stroke: CanvasText;
   }
 
-=======
   .goen-chart__level,
   .goen-chart__safety,
   .goen-chart__receipt {
