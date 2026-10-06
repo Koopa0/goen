@@ -1536,6 +1536,7 @@ h3 {
 }
 
 .goen-footer__links {
+  white-space: nowrap;
   display: flex;
   flex-direction: column;
 }
