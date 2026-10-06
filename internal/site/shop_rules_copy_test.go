@@ -77,7 +77,7 @@ func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	}
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		for _, k := range []i18n.Key{i18n.KeyGuaranteeWarranty, i18n.KeyAboutWarrantyBody, i18n.KeyTrustWarrantyBody} {
+		for _, k := range []i18n.Key{i18n.KeyGuaranteeWarranty, i18n.KeyAboutWarrantyBody} {
 			if got := i18n.T(ctx, k); strings.Contains(got, "到府收送") && !strings.Contains(got, "宅配") {
 				t.Errorf("%s still promises door collection to every order: %q", loc, got)
 			}

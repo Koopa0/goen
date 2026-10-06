@@ -1,7 +1,12 @@
 -- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE (NOT @has_cursor::boolean OR (c.is_active < @after_rank::boolean)
        OR (c.is_active = @after_rank::boolean AND c.ends_at < @after_at::timestamptz)
@@ -39,7 +44,12 @@ WHERE c.slug = @slug::text;
 
 -- name: AdminCampaign :one
 SELECT c.title, c.starts_at, c.ends_at, c.is_active,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE c.slug = @slug::text;
 
