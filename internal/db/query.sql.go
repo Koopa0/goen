@@ -12874,6 +12874,59 @@ func (q *Queries) ProductSpecs(ctx context.Context, arg ProductSpecsParams) ([]P
 	return items, nil
 }
 
+const productUnitsByShopDay = `-- name: ProductUnitsByShopDay :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series(shop_day($1::timestamptz),
+                     shop_day(($2::timestamptz) - interval '1 microsecond'),
+                     interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, ol.quantity AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE ol.product_id = $3::uuid
+      AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type ProductUnitsByShopDayParams struct {
+	FromAt    time.Time
+	ToAt      time.Time
+	ProductID uuid.UUID
+}
+
+type ProductUnitsByShopDayRow struct {
+	Day   time.Time
+	Units int64
+}
+
+// One row per shop day of [from_at, to_at), a day without sales included. The
+// units are those of the orders PaidByShopDay counts: committed, and not refunded
+// in full before they shipped.
+func (q *Queries) ProductUnitsByShopDay(ctx context.Context, arg ProductUnitsByShopDayParams) ([]ProductUnitsByShopDayRow, error) {
+	rows, err := q.db.Query(ctx, productUnitsByShopDay, arg.FromAt, arg.ToAt, arg.ProductID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductUnitsByShopDayRow{}
+	for rows.Next() {
+		var i ProductUnitsByShopDayRow
+		if err := rows.Scan(&i.Day, &i.Units); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const productVariants = `-- name: ProductVariants :many
 SELECT
     pv.id,
