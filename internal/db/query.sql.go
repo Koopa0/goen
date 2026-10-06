@@ -9558,10 +9558,14 @@ const lockUser = `-- name: LockUser :one
 SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
-// The account row is the root every writer of one account's carts and addresses
-// locks first: cart adoption, then the cart rows; address writes, then the
-// address rows; erase_user, then everything it deletes. Checkout holds only KEY
-// SHARE (cart.LockUserForCheckout) before its cart, so it does not wait for
+// Every path that locks both the account row and its carts or addresses takes
+// the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+// default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
+// SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
+// UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
+// only the cart, and non-default address writes take at most the foreign key's
+// KEY SHARE. None of them takes the account row after a cart or address row,
+// which keeps the order acyclic. Checkout's KEY SHARE does not wait for
 // adoption, but an erasure's UPDATE/DELETE still waits for it. NO KEY UPDATE
 // conflicts with itself and with UPDATE/DELETE, not with the KEY SHARE that
 // user foreign keys take. PostgreSQL asks for UPDATE on at least one column for
