@@ -17,7 +17,7 @@ func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
 	if endsAt.After(now.AddDate(0, 0, 30)) {
 		return ""
 	}
-	return shoptime.DateText(ctx, shoptime.DateOf(endsAt, now))
+	return shoptime.DateText(ctx, shoptime.LastDay(endsAt, now))
 }
 
 type CampaignSummary struct {

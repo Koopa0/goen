@@ -29,7 +29,12 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">
 					{ m.Name }
-					<span class="goen-admin__meta">{ m.Code } · { m.DestinationText(ctx) }</span>
+					if m.PickupUnavailable {
+						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							{ i18n.T(ctx, i18n.KeyAdminShipPickupNotOffered) }
+						}
+					}
+					<span class="goen-admin__meta">{ m.DestinationText(ctx) }</span>
 				</h2>
 				if m.PickupUnavailable {
 					<p class="goen-admin__hint"><strong>{ i18n.T(ctx, i18n.KeyAdminShipPickupOff) }</strong></p>

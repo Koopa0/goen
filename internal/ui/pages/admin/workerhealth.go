@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/refundstate"
@@ -41,6 +42,7 @@ type WorkerHealthView struct {
 	Uninvoiced                   []UninvoicedOrder
 	CancelledOrderInvoiceCount   int64
 	CancelledOrderInvoices       []CancelledOrderInvoice
+	Disputes                     DisputeState
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -96,7 +98,7 @@ func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
-		v.CancelledOrderInvoicesResolved()
+		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
 }
 
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
@@ -190,7 +192,13 @@ type UnreconciledEvent struct {
 	Ref     string
 	Reason  string
 	Since   string
+	// RefundOrderNumber and RefundCents are goen's own succeeded refund a
+	// refund.failed event names; "" and 0 for every other event.
+	RefundOrderNumber string
+	RefundCents       int64
 }
+
+func (u UnreconciledEvent) RefundAmount() string { return money.TWD(u.RefundCents) }
 
 type UnreconciledCompletePayment struct {
 	OrderNumber            string
@@ -303,4 +311,49 @@ func (v *WorkerHealthView) Tasks() []Task {
 	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount)
 	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds)
 	return tasks
+}
+
+// DisputeState is what Stripe said about disputes awaiting the shop's answer.
+// Unknown means the read failed or timed out, which is not the same as none.
+type DisputeState struct {
+	Configured bool
+	Unknown    bool
+	// OrdersUnknown means the disputes are known but the lookup of their goen
+	// orders failed, which is not the same as no order.
+	OrdersUnknown bool
+	Items         []OpenDispute
+}
+
+func (d DisputeState) Healthy() bool {
+	return !d.Configured || (!d.Unknown && !d.OrdersUnknown && len(d.Items) == 0)
+}
+
+func (d DisputeState) Text(ctx context.Context) string {
+	switch {
+	case d.Unknown:
+		return i18n.T(ctx, i18n.KeyHealthDisputesUnknown)
+	case len(d.Items) == 0:
+		return i18n.T(ctx, i18n.KeyHealthDisputesClear)
+	default:
+		return i18n.Count(ctx, i18n.KeyHealthDisputesOpen, int64(len(d.Items)), len(d.Items))
+	}
+}
+
+// OpenDispute is a card dispute the shop can still answer. OrderNumber is empty
+// when no goen payment matches it.
+type OpenDispute struct {
+	URL         string
+	OrderNumber string
+	AmountCents int64
+	Currency    string
+	RespondBy   string
+}
+
+// Amount is shown as NT$ only for twd; any other currency keeps its code and
+// Stripe's minor-unit figure, which goen has no rule to format.
+func (d OpenDispute) Amount() string {
+	if d.Currency == "twd" {
+		return money.TWD(d.AmountCents)
+	}
+	return fmt.Sprintf("%s %d", strings.ToUpper(d.Currency), d.AmountCents)
 }

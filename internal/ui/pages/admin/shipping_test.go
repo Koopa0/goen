@@ -70,3 +70,82 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 		}
 	}
 }
+
+func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []struct {
+		locale i18n.Locale
+		badge  string
+		body   string
+	}{
+		{locale: i18n.ZhHant, badge: "結帳未提供", body: "顧客結帳時看不到超商取貨：還沒接上綠界物流。這要由架站的人設定。"},
+		{locale: i18n.En, badge: "Not offered at checkout", body: "Customers cannot pick this at checkout: ECPay logistics is not connected yet. Whoever runs the server sets that up."},
+	} {
+		for _, tt := range []struct {
+			name        string
+			destination destination.Kind
+			unavailable bool
+		}{
+			{name: "unavailable pickup", destination: destination.PickupPoint, unavailable: true},
+			{name: "working pickup", destination: destination.PickupPoint},
+			{name: "home delivery", destination: destination.Address},
+		} {
+			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale.locale)
+				view := ShippingView{Methods: []ShippingMethod{{
+					MethodID: "method", VersionID: "version", Code: "internal_method_code",
+					Name: "Method name", Destination: tt.destination, Active: true,
+					PickupUnavailable: tt.unavailable,
+				}}}
+				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				doc, err := html.Parse(strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var badges []string
+				for n := range doc.Descendants() {
+					if n.Type != html.ElementNode || n.Data != "h2" {
+						continue
+					}
+					var text strings.Builder
+					for child := range n.Descendants() {
+						if child.Type == html.TextNode {
+							text.WriteString(child.Data)
+						}
+					}
+					if !strings.Contains(text.String(), "Method name") {
+						continue
+					}
+					for child := range n.Descendants() {
+						if child.Type != html.ElementNode || child.Data != "span" || attr(child, "class") != "goen-badge goen-badge--warn" {
+							continue
+						}
+						var label strings.Builder
+						for part := range child.Descendants() {
+							if part.Type == html.TextNode {
+								label.WriteString(part.Data)
+							}
+						}
+						badges = append(badges, strings.TrimSpace(label.String()))
+					}
+				}
+				var wantBadges []string
+				if tt.unavailable {
+					wantBadges = []string{locale.badge}
+				}
+				if diff := cmp.Diff(wantBadges, badges); diff != "" {
+					t.Errorf("method heading warning (-want +got):\n%s", diff)
+				}
+				if got := strings.Contains(body, locale.body); got != tt.unavailable {
+					t.Errorf("pickup setup explanation present = %t, want %t: %q", got, tt.unavailable, locale.body)
+				}
+				for _, forbidden := range []string{"GOEN_", "internal_method_code"} {
+					if strings.Contains(body, forbidden) {
+						t.Errorf("delivery page still exposes %q", forbidden)
+					}
+				}
+			})
+		}
+	}
+}
