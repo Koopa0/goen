@@ -364,8 +364,15 @@ func settleCreditPaidCancellation(
 	if err != nil {
 		return fmt.Errorf("read holds of %s: %w", number, err)
 	}
-	_ = held
-	returnedCents := int64(500000)
+	for _, id := range held {
+		if releaseErr := q.ReleaseReservation(ctx, id); releaseErr != nil {
+			return fmt.Errorf("release hold %s of %s: %w", id, number, releaseErr)
+		}
+	}
+	returnedCents, err := q.ReverseOrderCredit(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("return store credit spent on %s: %w", number, err)
+	}
 
 	err = q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
 		OrderID: orderID, Kind: string(order.EventCancelled), ActorUserID: actor,
@@ -383,8 +390,10 @@ func settleCreditPaidCancellation(
 	if err != nil {
 		return err
 	}
-	_ = invoice.EnqueueVoidDue
-	_ = outbox.InvoiceVoidDue{}
+	err = invoice.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{OrderNumber: number, Trigger: web.RequestID(ctx)})
+	if err != nil {
+		return err
+	}
 	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: returnedCents > 0,
 	})

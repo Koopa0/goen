@@ -3430,6 +3430,12 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 const cancelCreditPaidOrder = `-- name: CancelCreditPaidOrder :execrows
 UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.order_number = $1::text
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_after_credit(o.id) = 0
+  AND EXISTS (SELECT 1 FROM store_credit_entries s
+              WHERE s.order_id = o.id AND s.amount_cents < 0)
+  AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id)
 `
 
 // A pending order store credit alone paid, cancelled by staff as its customer
