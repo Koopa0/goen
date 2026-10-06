@@ -77,7 +77,7 @@ body {
 
 /* Every focusable thing has a ring before any component asks for one. */
 *:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -178,6 +178,26 @@ body {
 .ui-stat__label { font-family: var(--font-sans); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
 
+/* ---------- Stat line: a label, a figure with its unit and one note, each under its own hairline ----------
+   Space and size are rem, so they grow with the reader's text; nothing here needs a style attribute. */
+
+.ui-statline { --stat-min: 6.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--stat-min)), 1fr)); gap: var(--s-4) var(--s-5); max-width: 44rem; margin: 0; }
+.ui-statline > div { min-width: 0; padding-top: 0.625rem; border-top: 1px solid var(--fg); }
+.ui-statline dt { font-size: var(--t-12); line-height: 1.4; color: var(--fg-muted); letter-spacing: 0.02em; }
+.ui-statline dd { margin: 0.125rem 0 0; font-size: var(--t-24); font-weight: var(--fw-display); line-height: 1.25; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; word-break: keep-all; overflow-wrap: break-word; }
+.ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
+.ui-statline__pre { margin-right: 0.08em; }
+.ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
+.ui-statline--wide { max-width: none; }
+/* one stat keeps a column's width; it never stretches into a divider */
+.ui-statline:has(> :only-child) { grid-template-columns: minmax(0, 18rem); }
+/* four stats read as two rows of two, never three and one; when two columns of --stat-min do not fit
+   (large text on a phone), one stat per row */
+@media (max-width: 700px) { .ui-statline:has(> :nth-child(4):last-child) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); } }
+/* a phone: the figure steps down and the columns stay wide enough that a figure never breaks
+   (two across at 320, one in a narrow card) */
+@media (max-width: 420px) { .ui-statline { --stat-min: 7.5rem; column-gap: var(--s-4); } .ui-statline dd { font-size: var(--t-20); overflow-wrap: normal; } }
+
 /* ---------- Breadcrumbs ---------- */
 
 .ui-crumbs { display: flex; align-items: center; gap: 8px; font-size: var(--fs-14); color: var(--n-500); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
@@ -256,7 +276,7 @@ body {
    ------------------------------------------------------------------ */
 
 .ui-navitem:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -292,8 +312,10 @@ body {
   --n-50: #fafafa;
   /* The ground baked into every product and category photograph. A container
      that is not this exact value draws a visible edge around the picture. */
-  --photo: #f9f9f9;
+  --well: #f9f9f9;
+  --photo: var(--well);
   --photo-ground: var(--photo);
+  --wash: #f5f5f4;
   --n-100: #f4f4f5;
   --n-200: #e7e7e9;
   --n-300: #d4d4d8;
@@ -304,27 +326,38 @@ body {
   --n-700: #3f3f46;
   --n-900: #18181b;
 
-  /* The one hue. --accent is for rings, outlines and fills; --accent-text is
-     the same hue darkened until it reads as link text on every neutral ground. */
-  --accent: #2a75ba;
-  --accent-text: #1f5b92;
-  --accent-text-hover: #174a78;
-  --accent-faint: rgb(42 117 186 / 0.06);
-  --accent-muted: rgb(42 117 186 / 0.1);
+  --ink: #1b1b1d;
+  --ink-2: #3a3a3f;
+  --muted: #5f5f66;
+  --line: #e4e4e7;
+  --line-2: #d1d1d6;
+  /* The boundary of a control: 3:1 on white, --wash and --well. */
+  --edge: #85858c;
+
+  /* The one hue, 藍墨 (ink blue): 11.6:1 on white, so it is the link text
+     as well as the ring and the fill. --mark is goen's mark for time. */
+  --accent: #26395a;
+  --mark: #26395a;
+  --accent-text: var(--accent);
+  --accent-text-hover: #1a2740;
+  --accent-faint: rgb(38 57 90 / 0.06);
+  --accent-muted: rgb(38 57 90 / 0.1);
   --accent-strong: var(--accent-text);
   --on-accent: #ffffff;
+  /* The focus ring. A dark ground sets it to white, because the accent is
+     1.5:1 on #18181b. */
   --ring: var(--accent);
 
   /* The names the existing rules were written against, now on the ramp. */
   --bg: var(--n-0);
   --panel: var(--n-0);
-  --fg: var(--n-900);
-  --fg-muted: var(--n-500);
-  --border: var(--n-200);
+  --fg: var(--ink);
+  --fg-muted: var(--muted);
+  --border: var(--line);
   --border-faint: var(--n-100);
-  --border-strong: var(--n-300);
+  --border-strong: var(--line-2);
   /* Controls need 3:1 against their ground: 5.7:1 on white, 5.2:1 on n-100. */
-  --control-boundary: var(--n-500);
+  --control-boundary: var(--edge);
   --elevated: var(--n-100);
   --overlay: var(--n-100);
 
@@ -347,6 +380,31 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+
+  --fw-display: 350;
+
+  --t-12: 0.75rem;
+  --t-13: 0.8125rem;
+  --t-14: 0.875rem;
+  --t-15: 0.9375rem;
+  --t-16: 1rem;
+  --t-18: 1.125rem;
+  --t-20: 1.25rem;
+  --t-24: 1.5rem;
+  --t-28: clamp(1.5rem, 1.2rem + 0.9vw, 1.75rem);
+  --t-32: clamp(1.625rem, 1.2rem + 1.2vw, 2rem);
+  --t-44: clamp(2rem, 1.3rem + 2.2vw, 2.75rem);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+  --s-10: 128px;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;

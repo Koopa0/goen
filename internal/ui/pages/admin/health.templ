@@ -39,6 +39,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 			@healthItem(v.SweeperHealthy(), i18n.T(ctx, i18n.KeyAdminHPHoldsName), v.SweeperText(ctx), i18n.T(ctx, i18n.KeyAdminHPHoldsNote))
 			@healthItem(v.RecommendHealthy(), i18n.T(ctx, i18n.KeyAdminHPProjectionName), v.RecommendText(ctx), i18n.T(ctx, i18n.KeyAdminHPProjectionNote))
 			@healthItem(v.RefundsHealthy(), i18n.T(ctx, i18n.KeyAdminHPRefundsName), v.RefundsText(ctx), i18n.T(ctx, i18n.KeyAdminHPRefundsNote))
+			if v.Disputes.Configured {
+				@healthItem(v.Disputes.Healthy(), i18n.T(ctx, i18n.KeyAdminHPDisputesName), v.Disputes.Text(ctx), i18n.T(ctx, i18n.KeyAdminHPDisputesNote))
+			}
 			@healthItem(v.HousekeepingHealthy(), i18n.T(ctx, i18n.KeyAdminHPHousekeepingName), v.HousekeepingText(ctx), i18n.T(ctx, i18n.KeyAdminHPHousekeepingNote))
 		</ul>
 		if len(v.Pools) > 0 {
@@ -130,7 +133,15 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td class="goen-admin__cellkey">{ u.EventID }</td>
 									<td>{ u.Type }</td>
 									<td>{ u.Ref }</td>
-									<td>{ u.Reason }</td>
+									<td>
+										if u.RefundOrderNumber != "" {
+											<a href={ templ.SafeURL("/admin/orders/" + u.RefundOrderNumber) }>{ u.RefundOrderNumber }</a> · { u.RefundAmount() }
+											<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe) }</span>
+											<span class="goen-admin__meta">{ u.Reason }</span>
+										} else {
+											{ u.Reason }
+										}
+									</td>
 									<td>{ u.Since }</td>
 									<td class="goen-admin__cellactions">
 										<form method="post" action="/admin/health/reconcile">
@@ -334,6 +345,47 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 											</form>
 										}
 									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
+		if len(v.Disputes.Items) > 0 {
+			<section class="goen-admin__queue" aria-labelledby="disputes-heading">
+				<h2 class="goen-admin__heading" id="disputes-heading">{ i18n.T(ctx, i18n.KeyAdminHPDisputesHeading) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColRespondBy) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColDispute) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, d := range v.Disputes.Items {
+								<tr>
+									<td class="goen-admin__cellkey">
+										if d.OrderNumber != "" {
+											{ d.OrderNumber }
+										} else if v.Disputes.OrdersUnknown {
+											{ i18n.T(ctx, i18n.KeyAdminHPDisputeOrderUnknown) }
+										} else {
+											{ i18n.T(ctx, i18n.KeyAdminHPDisputeNoOrder) }
+										}
+									</td>
+									<td class="goen-admin__cellnum">{ d.Amount() }</td>
+									<td>
+										if d.RespondBy != "" {
+											{ d.RespondBy }
+										} else {
+											{ i18n.T(ctx, i18n.KeyAdminHPDisputeNoDeadline) }
+										}
+									</td>
+									<td><a href={ templ.SafeURL(d.URL) } target="_blank" rel="noopener noreferrer">{ i18n.T(ctx, i18n.KeyAdminHPDisputeOpen) }</a></td>
 								</tr>
 							}
 						</tbody>

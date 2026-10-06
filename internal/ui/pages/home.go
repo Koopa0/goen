@@ -67,23 +67,9 @@ type DepartmentBand struct {
 }
 
 type HomeView struct {
-	Slides            []HeroSlide
-	Categories        []HomeCategory
-	Row               ProductRow
-	Band              *DepartmentBand
-	FreeDeliveryCents int64
-	LowestFeeCents    int64
-	// PickupOffered gates the shipping strip's claim of store pickup.
-	PickupOffered bool
+	Slides     []HeroSlide
+	Categories []HomeCategory
+	Row        ProductRow
+	Band       *DepartmentBand
+	Rules      ShopRules
 }
-
-func (v *HomeView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
-
-func (v *HomeView) ShippingBodyKey() i18n.Key {
-	if v.PickupOffered {
-		return i18n.KeyTrustShippingBody
-	}
-	return i18n.KeyTrustShippingHomeBody
-}
-
-func (v *HomeView) LowestFee() string { return twd(v.LowestFeeCents) }

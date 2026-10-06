@@ -107,7 +107,7 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView,
 		c := &rows[i]
 		view.Rows = append(view.Rows, admin.CampaignRow{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			Active: c.IsActive, Running: c.IsRunning,
+			Active: c.IsActive, Running: c.IsRunning, Sellable: c.IsSellable,
 			StartsAtText: shoptime.Day(c.StartsAt),
 			EndsAtText:   shoptime.Minute(c.EndsAt),
 		})
@@ -141,7 +141,7 @@ func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, 
 	return admin.CampaignDetail{
 		Title:         row.Title,
 		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
-		Active: row.IsActive, Running: row.IsRunning,
+		Active: row.IsActive, Running: row.IsRunning, Sellable: row.IsSellable,
 	}, nil
 }
 
