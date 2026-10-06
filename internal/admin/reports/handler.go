@@ -43,6 +43,9 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
+	if view.ReturnedErr != nil {
+		h.log.ErrorContext(r.Context(), "read returned products", "error", view.ReturnedErr)
+	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Report(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }

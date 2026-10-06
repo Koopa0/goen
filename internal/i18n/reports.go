@@ -86,4 +86,27 @@ var (
 	KeyAdminRepLeft = key("admin.rep.left", Message{ZhHant: "剩 %s", En: "%s left"})
 
 	KeyAdminRepSold = key("admin.rep.sold", Message{ZhHant: "近期售出 %s", En: "%s sold recently"})
+
+	KeyAdminRepReturned = key("admin.rep.returned", Message{ZhHant: "退貨最多的商品", En: "Products returned most"})
+
+	KeyAdminRepReturnedNote = key("admin.rep.returned.note", Message{
+		ZhHant: "計入已核准與已完成的退貨件數，對照這段期間下單的售出件數；尚未決定與被拒絕的申請不計，期間內較新的訂單還可能再退。件數相同時，售出多的在前。",
+		En: "Counts units on approved and completed returns against units sold on the orders placed in this period. " +
+			"Requests not yet decided and rejected ones are left out, and recent orders may still be returned. " +
+			"Equal counts are listed with the larger sale first.",
+	})
+
+	KeyAdminRepReturnedCounts = countKey("admin.rep.returned.counts", "%s / %s 件", "%s / %s unit", "%s / %s units")
+
+	KeyAdminRepReturnedShare = key("admin.rep.returned.share", Message{ZhHant: "%s 退貨", En: "%s returned"})
+
+	KeyAdminRepReturnedOne = key("admin.rep.returned.one", Message{
+		ZhHant: "只有 1 件商品有退貨：%s，%s。",
+		En:     "Only one product had returns: %s, %s.",
+	})
+
+	KeyAdminRepReturnedUnavailable = key("admin.rep.returned.unavailable", Message{
+		ZhHant: "退貨資料暫時無法取得。",
+		En:     "Returns data is unavailable right now.",
+	})
 )

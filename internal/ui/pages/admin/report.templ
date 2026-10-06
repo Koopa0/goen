@@ -103,6 +103,7 @@ templ Report(p layouts.Page, v *ReportView) {
 				</ul>
 			}
 		}
+		@returnedProducts(v)
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminRepStockLead) }
