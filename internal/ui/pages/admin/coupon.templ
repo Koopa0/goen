@@ -220,14 +220,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							step="1"
 							inputmode="numeric"
 							value={ v.Draft.MinSpend }
-							if v.HasErr("min") {
-								aria-invalid="true"
-								aria-describedby="c-min-error"
-							}
 						/>
-						if v.HasErr("min") {
-							<p class="ui-error-text" id="c-min-error">{ v.Err("min") }</p>
-						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-days"}) {
@@ -242,15 +235,8 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							step="1"
 							inputmode="numeric"
 							value={ v.Draft.Days }
-							if v.HasErr("days") {
-								aria-invalid="true"
-								aria-describedby="c-days-error"
-							}
 						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupDaysHint) }</p>
-						if v.HasErr("days") {
-							<p class="ui-error-text" id="c-days-error">{ v.Err("days") }</p>
-						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-max"}) {
@@ -265,15 +251,8 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							step="1"
 							inputmode="numeric"
 							value={ v.Draft.MaxRedeem }
-							if v.HasErr("max") {
-								aria-invalid="true"
-								aria-describedby="c-max-error"
-							}
 						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupMaxHint) }</p>
-						if v.HasErr("max") {
-							<p class="ui-error-text" id="c-max-error">{ v.Err("max") }</p>
-						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-percustomer"}) {
