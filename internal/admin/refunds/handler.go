@@ -69,11 +69,6 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-// refundNotice is the query that selects the order page notice for what
-// RefundBeforeShipment or RefundPreview returned, and false for an error no
-// notice describes. Recovery comes before the refusals: a payout or
-// cancellation can retain a database refusal as its cause while the approved
-// refund remains open, and the refusal's sentence would then claim nothing moved.
 // refundOutcome is where a refund press sends the staff member and how loudly
 // the log records it: Error for what needs a person, Warn for a refusal.
 type refundOutcome struct {
@@ -81,6 +76,11 @@ type refundOutcome struct {
 	Level slog.Level
 }
 
+// refundNotice is the outcome that selects the order page notice for what
+// RefundBeforeShipment or RefundPreview returned, and false for an error no
+// notice describes. Recovery comes before the refusals: a payout or
+// cancellation can retain a database refusal as its cause while the approved
+// refund remains open, and the refusal's sentence would then claim nothing moved.
 func refundNotice(err error) (refundOutcome, bool) {
 	switch {
 	case err == nil:

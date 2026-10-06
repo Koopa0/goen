@@ -386,7 +386,7 @@ var (
 
 	KeyAdminNoticeRefundCancelled = key("admin.notice.refundcancelled", Message{
 		ZhHant: "這張訂單已經取消，這次沒有退款。請重新整理，在訂單紀錄確認款項有沒有退回顧客。",
-		En:     "This order is already cancelled, so nothing was refunded this time. Reload the page and check the order log to see whether the customer was paid back.",
+		En:     "This order is already cancelled, so nothing was refunded this time. Reload the page and check Order history to see whether the customer was paid back.",
 	})
 
 	KeyAdminNoticeRefundUnpaid = key("admin.notice.refundunpaid", Message{
@@ -411,7 +411,7 @@ var (
 
 	KeyAdminNoticeRefundUnsure = key("admin.notice.refundunsure", Message{
 		ZhHant: "退款沒有完成，目前不確定款項有沒有退出。請重新整理，到訂單紀錄和 Stripe 後台確認；仍然不行，請聯絡負責系統的人。",
-		En:     "The refund did not finish, and it is not certain whether any money went out. Reload the page and check the order log and the Stripe dashboard; if it still fails, contact whoever runs the system.",
+		En:     "The refund did not finish, and it is not certain whether any money went out. Reload the page and check Order history and the Stripe dashboard; if it still fails, contact whoever runs the system.",
 	})
 
 	KeyAdminNoticeInspected = key("admin.notice.inspected", Message{
