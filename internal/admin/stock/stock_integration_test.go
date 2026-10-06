@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -619,4 +620,101 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	if !hold {
 		t.Errorf("no hold naming %s in the ledger", number)
 	}
+}
+
+func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	adminPool := admintest.AdminRolePool(t, pool)
+	for _, tt := range []struct {
+		name          string
+		variants      int
+		notice        string
+		remainsActive bool
+		audits        int
+	}{
+		{name: "last active variant", variants: 1, notice: "refused", remainsActive: true, audits: 0},
+		{name: "another active variant", variants: 2, notice: "ok", remainsActive: false, audits: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin fixture: %v", err)
+			}
+			defer pgtx.Rollback(ctx, tx)
+			var productID uuid.UUID
+			if err := tx.QueryRow(ctx, `
+    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+    SELECT b.id, c.id, $1, 'Stock retirement test', 'active', now()
+    FROM brands b CROSS JOIN categories c LIMIT 1 RETURNING id`,
+				"retirement-"+uuid.NewString()).Scan(&productID); err != nil {
+				t.Fatalf("create published product: %v", err)
+			}
+			var targetID uuid.UUID
+			sku := "RETIRE-" + strings.ToUpper(uuid.NewString())
+			for i := range tt.variants {
+				variantSKU := sku
+				if i > 0 {
+					variantSKU += "-OTHER"
+				}
+				var id uuid.UUID
+				if err := tx.QueryRow(ctx, `
+     INSERT INTO product_variants (product_id, sku, price_cents, safety_stock, position, is_active)
+     VALUES ($1, $2, 10000, 0, $3, true) RETURNING id`, productID, variantSKU, i+1).Scan(&id); err != nil {
+					t.Fatalf("create active variant: %v", err)
+				}
+				if i == 0 {
+					targetID = id
+				}
+			}
+			if err := tx.Commit(ctx); err != nil {
+				t.Fatalf("commit fixture: %v", err)
+			}
+			var campaigns, active int
+			if err := pool.QueryRow(ctx, `
+    SELECT (SELECT count(*) FROM sale_campaign_products WHERE product_id = $1),
+           (SELECT count(*) FROM product_variants WHERE product_id = $1 AND is_active)`,
+				productID).Scan(&campaigns, &active); err != nil {
+				t.Fatalf("read fixture: %v", err)
+			}
+			if campaigns != 0 || active != tt.variants {
+				t.Fatalf("fixture campaigns/active variants = %d/%d, want 0/%d", campaigns, active, tt.variants)
+			}
+			mux := http.NewServeMux()
+			handlerOver(stock.NewStore(adminPool)).Routes(mux, admintest.BackOffice)
+			form := url.Values{"sku": {sku}, "active": {"0"}}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/active", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			res := httptest.NewRecorder()
+			mux.ServeHTTP(res, req)
+			wantLocation := "/admin/stock?" + tt.notice + "=1#row-" + sku
+			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != wantLocation {
+				t.Fatalf("retirement response = %d %q, want 303 %q", res.Code, res.Header().Get("Location"), wantLocation)
+			}
+			var remainsActive bool
+			var otherActive, audits int
+			if err := pool.QueryRow(ctx, `
+    SELECT v.is_active,
+           (SELECT count(*) FROM product_variants WHERE product_id = $2 AND id <> $1 AND is_active),
+           (SELECT count(*) FROM audit_events WHERE entity_id = $1 AND action = 'variant.retire')
+    FROM product_variants v WHERE v.id = $1`, targetID, productID).Scan(&remainsActive, &otherActive, &audits); err != nil {
+				t.Fatalf("read retirement outcome: %v", err)
+			}
+			if remainsActive != tt.remainsActive || otherActive != tt.variants-1 || audits != tt.audits {
+				t.Errorf("retirement active/other active/audits = %v/%d/%d, want %v/%d/%d", remainsActive, otherActive, audits, tt.remainsActive, tt.variants-1, tt.audits)
+			}
+		})
+	}
+	t.Run("closed pool", func(t *testing.T) {
+		closed := admintest.NamedPool(t, pool, "retirement-closed-"+uuid.NewString())
+		closed.Close()
+		mux := http.NewServeMux()
+		handlerOver(stock.NewStore(closed)).Routes(mux, admintest.BackOffice)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/active", strings.NewReader("sku=RETIRE-CLOSED&active=0"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		mux.ServeHTTP(res, req)
+		if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {
+			t.Errorf("closed pool response = %d %q, want 500 without Location", res.Code, res.Header().Get("Location"))
+		}
+	})
 }
