@@ -58,42 +58,11 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	if err != nil {
 		return pages.ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
 	}
-	variants := make([]Variant, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		opts := make(map[string]string, len(r.OptionNames))
-		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
-			opts[r.OptionNames[j]] = r.OptionValues[j]
-		}
-		arrival := expectedArrivalOf(r)
-		variants = append(variants, Variant{
-			ID:              r.ID.String(),
-			SKU:             r.SKU,
-			PriceCents:      r.PriceCents,
-			CompareCents:    r.CompareAtPriceCents.Int64,
-			Sellable:        r.Sellable,
-			Available:       r.SellableQuantity,
-			ExpectedArrival: arrival,
-			Options:         opts,
-		})
-	}
+	variants := variantsOf(rows)
 
-	optRows, err := s.q.ProductOptions(ctx, db.ProductOptionsParams{
-		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
-	})
+	groups, labels, order, err := s.optionGroups(ctx, p.ID, slug)
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read options of %q: %w", slug, err)
-	}
-	groups := make(map[string][]OptionChoice, len(optRows))
-	labels := make(map[string]string, len(optRows))
-	order := make([]string, 0, len(optRows))
-	for _, o := range optRows {
-		if _, seen := groups[o.OptionName]; !seen {
-			order = append(order, o.OptionName)
-			labels[o.OptionName] = o.OptionLabel
-		}
-		groups[o.OptionName] = append(groups[o.OptionName],
-			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
+		return pages.ProductView{}, err
 	}
 
 	// A query key is a variant option only if some variant carries it.
@@ -152,6 +121,52 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		return pages.ProductView{}, err
 	}
 	return view, nil
+}
+
+// variantsOf is the product's variants as the page chooses between them.
+func variantsOf(rows []db.ProductVariantsRow) []Variant {
+	variants := make([]Variant, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		opts := make(map[string]string, len(r.OptionNames))
+		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
+			opts[r.OptionNames[j]] = r.OptionValues[j]
+		}
+		arrival := expectedArrivalOf(r)
+		variants = append(variants, Variant{
+			ID:              r.ID.String(),
+			SKU:             r.SKU,
+			PriceCents:      r.PriceCents,
+			CompareCents:    r.CompareAtPriceCents.Int64,
+			Sellable:        r.Sellable,
+			Available:       r.SellableQuantity,
+			ExpectedArrival: arrival,
+			Options:         opts,
+		})
+	}
+	return variants
+}
+
+// optionGroups is the product's options: the choices of each by name, the label of each, and the order they are offered in.
+func (s *Store) optionGroups(ctx context.Context, id uuid.UUID, slug string) (map[string][]OptionChoice, map[string]string, []string, error) {
+	optRows, err := s.q.ProductOptions(ctx, db.ProductOptionsParams{
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read options of %q: %w", slug, err)
+	}
+	groups := make(map[string][]OptionChoice, len(optRows))
+	labels := make(map[string]string, len(optRows))
+	order := make([]string, 0, len(optRows))
+	for _, o := range optRows {
+		if _, seen := groups[o.OptionName]; !seen {
+			order = append(order, o.OptionName)
+			labels[o.OptionName] = o.OptionLabel
+		}
+		groups[o.OptionName] = append(groups[o.OptionName],
+			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
+	}
+	return groups, labels, order, nil
 }
 
 // showChosenVariant puts the variant the shopper resolved to on the page.
