@@ -3368,6 +3368,68 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 	return items, nil
 }
 
+const campaignDailyUnits = `-- name: CampaignDailyUnits :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
+      AND ol.product_id IN (SELECT cp.product_id
+                            FROM sale_campaign_products cp
+                            JOIN sale_campaigns sc ON sc.id = cp.campaign_id
+                            WHERE sc.slug = $5::text)
+    GROUP BY shop_day(o.placed_at)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type CampaignDailyUnitsParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	FromAt   time.Time
+	ToAt     time.Time
+	Slug     string
+}
+
+type CampaignDailyUnitsRow struct {
+	Day   time.Time
+	Units int64
+}
+
+// The units of the products on the campaign's list that each shop day from
+// first_day to last_day sold, a day without any included: BestSellersBetween's
+// units, counted a day at a time. order_lines records no campaign, so it is the
+// list as it is now. The bounds are cut on the shop's clock by the caller.
+func (q *Queries) CampaignDailyUnits(ctx context.Context, arg CampaignDailyUnitsParams) ([]CampaignDailyUnitsRow, error) {
+	rows, err := q.db.Query(ctx, campaignDailyUnits,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Slug,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignDailyUnitsRow{}
+	for rows.Next() {
+		var i CampaignDailyUnitsRow
+		if err := rows.Scan(&i.Day, &i.Units); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const campaignProducts = `-- name: CampaignProducts :many
 SELECT
     p.slug,

@@ -45,6 +45,13 @@ func Midnight(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, location())
 }
 
+// DayUTC is the shop day t falls on as the UTC midnight a SQL date is scanned
+// to, so that days read from the database and days of the shop's clock compare.
+func DayUTC(t time.Time) time.Time {
+	y, m, d := In(t).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 // DayIf is Day for a timestamp that may be absent, as a nullable column is: the
 // empty string when it is.
 func DayIf(t time.Time, present bool) string {

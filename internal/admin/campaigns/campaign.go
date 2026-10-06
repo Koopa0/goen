@@ -139,7 +139,7 @@ func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, 
 		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
 	}
 	return admin.CampaignDetail{
-		Title:         row.Title,
+		Title: row.Title, Starts: row.StartsAt, Ends: row.EndsAt,
 		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
 		Active: row.IsActive, Running: row.IsRunning, Sellable: row.IsSellable,
 	}, nil

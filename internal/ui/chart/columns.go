@@ -81,9 +81,16 @@ func Peaks(cols []Column) []Column {
 // Series.Label heads the table's value column. Caption and Note are the page's
 // sentences, already localised; so are the table's heads and PartialLabel,
 // which says what the last row is counted up to when Series.Partial.
+//
+// Previous is how many days from the first are the stretch the spans are
+// compared with, which is not a stored period: they are drawn in the previous
+// colour under a line named PreviousLabel, and the table names them too.
+// It has no effect on a series drawn in runs of days.
 type ColumnsProps struct {
 	Series                                Series
 	Spans                                 []Span
+	Previous                              int
+	PreviousLabel                         string
 	Caption, Note                         string
 	DayHeading, SpanHeading, PartialLabel string
 }
@@ -92,6 +99,7 @@ type bar struct {
 	X, Width  string
 	Y, Height float64
 	Open      bool
+	Previous  bool
 }
 
 type valueLabel struct {
@@ -105,6 +113,7 @@ type strip struct {
 	Y                    float64
 	Gaps                 []string
 	Thin                 bool
+	Window               bool // a line under its name, not a bracket: it is not a stored period
 	TodayX               string
 	Name, NameX, Anchor  string
 	NameY                float64
@@ -164,6 +173,7 @@ type plan struct {
 	first, last  time.Time // the days of it that are drawn
 	runs         bool      // it goes on after the last day drawn
 	label, short string
+	window       bool
 }
 
 func place(cols []Column, day time.Time) (int, int) {
@@ -257,6 +267,12 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	grouped := p.Series.Grouped()
 
 	pl := plans(ctx, cols, first, last, p.Spans)
+	if p.Previous > 0 && !grouped {
+		through := first.AddDate(0, 0, min(p.Previous, len(buckets))-1)
+		window := plans(ctx, cols, first, last, []Span{{From: first, To: through, Label: p.PreviousLabel}})
+		window[0].window = true
+		pl = append(window, pl...)
+	}
 	rows := make([]int, len(pl))
 	var placed []taken
 	deepest := 0
@@ -310,6 +326,7 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		r.Bars = append(r.Bars, bar{
 			X: percent(float64(i)*band + (1-share)/2*band), Width: percent(share * band),
 			Y: r.Baseline - h, Height: h, Open: p.Series.Partial && i == n-1,
+			Previous: !grouped && i < p.Previous,
 		})
 		if !full || c.Value == peak || i == n-1 {
 			r.Values = append(r.Values, valueLabel{
@@ -328,21 +345,21 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 			GroundX: percent(sp.a * band), GroundWidth: percent((sp.b - sp.a) * band),
 			X: percent(sp.a * band), Width: percent((sp.end - sp.a) * band),
 			Y: top - 12 - float64(stripRow*rows[k]), Thin: n >= thinGapsFrom,
-			Name: text, NameX: percent(at * band), Anchor: anchor,
+			Name: text, NameX: percent(at * band), Anchor: anchor, Window: sp.window,
 		}
 		s.NameY = s.Y - 6
-		if !grouped {
+		if !grouped && !sp.window {
 			for i := int(sp.a) + 1; float64(i) < math.Ceil(sp.end); i++ {
 				s.Gaps = append(s.Gaps, percent(float64(i)*band))
 			}
 		}
-		if sp.runs {
+		if sp.runs && p.Series.Partial {
 			s.TodayX = percent(sp.end * band)
 		}
 		r.Strips = append(r.Strips, s)
 	}
 
-	r.Ticks = columnTicks(ctx, cols, grouped, band)
+	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
 
 	names := make([][]string, n)
 	for _, sp := range pl {
@@ -390,9 +407,9 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 }
 
 // columnTicks labels the axis: every day of a week, else the Mondays, none too
-// near an end, and today at the end; a long chart, drawn in runs, labels the day
-// each starts on.
-func columnTicks(ctx context.Context, cols []Column, grouped bool, band float64) []dayTick {
+// near an end, and today at the end when the last day is still going; a long
+// chart, drawn in runs, labels the day each starts on.
+func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
 	var ticks []dayTick
 	for i, c := range cols {
@@ -408,7 +425,7 @@ func columnTicks(ctx context.Context, cols []Column, grouped bool, band float64)
 			continue
 		}
 		if i == n-1 {
-			if !grouped {
+			if !grouped && today {
 				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
 			}
 			if n > 7 {

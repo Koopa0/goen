@@ -192,3 +192,22 @@ func TestClockIsTheShopsTimeOfDay(t *testing.T) {
 		}
 	}
 }
+
+func TestDayUTCIsTheShopDayAsADatabaseDate(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{"afternoon", time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC), "2026-10-05"},
+		{"00:30 on the next shop day", time.Date(2026, 10, 4, 16, 30, 0, 0, time.UTC), "2026-10-05"},
+		{"23:59 the day before", time.Date(2026, 10, 4, 15, 59, 0, 0, time.UTC), "2026-10-04"},
+	} {
+		got := shoptime.DayUTC(tt.at)
+		if got.Format(time.DateOnly) != tt.want || got.Location() != time.UTC || got.Hour() != 0 {
+			t.Errorf("%s: DayUTC(%s) = %s, want midnight UTC on %s", tt.name, tt.at, got, tt.want)
+		}
+	}
+}

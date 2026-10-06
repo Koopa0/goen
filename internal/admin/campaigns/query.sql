@@ -62,6 +62,28 @@ UPDATE sale_campaigns
 SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz
 WHERE slug = @slug::text;
 
+-- The units of the products on the campaign's list that each shop day from
+-- first_day to last_day sold, a day without any included: BestSellersBetween's
+-- units, counted a day at a time. order_lines records no campaign, so it is the
+-- list as it is now. The bounds are cut on the shop's clock by the caller.
+-- name: CampaignDailyUnits :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND ol.product_id IN (SELECT cp.product_id
+                            FROM sale_campaign_products cp
+                            JOIN sale_campaigns sc ON sc.id = cp.campaign_id
+                            WHERE sc.slug = @slug::text)
+    GROUP BY shop_day(o.placed_at)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day;
+
 -- Archived products are left out: a campaign on one shows nothing.
 -- name: AdminCampaignProductSearch :many
 SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name

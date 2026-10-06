@@ -2,6 +2,7 @@ package admin
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -212,6 +213,24 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 			</form>
 		</div>
 		@Announce(v.Notice)
+		if v.ResultsUnavailable {
+			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>
+				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+			}
+		} else if v.Results != nil {
+			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>
+				if v.Results.Drawn() {
+					@chart.Columns(v.Results.Columns(ctx))
+				} else {
+					<p class="goen-admin__hint">{ v.Results.Facts(ctx) }</p>
+					if hint := v.Results.Hint(ctx); hint != "" {
+						<p class="goen-admin__hint">{ hint }</p>
+					}
+				}
+			}
+		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampWindow) }</h2>
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.WindowAction()) }>

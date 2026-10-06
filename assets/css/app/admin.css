@@ -3161,6 +3161,14 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chart__hue--previous {
+  fill: var(--chart-previous);
+}
+
+.goen-chart__window {
+  fill: var(--chart-previous);
+}
+
 .goen-chart__open {
   fill: var(--bg);
   stroke: var(--chart-hue);
@@ -3210,6 +3218,11 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-chart__open {
     fill: Canvas;
     stroke: CanvasText;
+  }
+
+  .goen-chart__hue--previous,
+  .goen-chart__window {
+    fill: GrayText;
   }
 
   .goen-chart__span {
