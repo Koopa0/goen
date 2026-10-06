@@ -45,15 +45,24 @@ const (
 	bandTiles = 3
 )
 
-func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, map[uuid.UUID][]string, []db.ListedCampaignsRow, error) {
+// carouselSources is what the carousel and the sections beside it are read
+// from; held is the number of products each department holds.
+type carouselSources struct {
+	cats  []db.RootCategoriesRow
+	subs  map[uuid.UUID][]string
+	camps []db.ListedCampaignsRow
+	held  map[uuid.UUID]int64
+}
+
+func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 	locale := string(i18n.FromContext(ctx))
 	cats, err := s.q.RootCategories(ctx, locale)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read home categories: %w", err)
+		return carouselSources{}, fmt.Errorf("read home categories: %w", err)
 	}
 	subRows, err := s.q.HomeSubcategories(ctx, locale)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read home subcategories: %w", err)
+		return carouselSources{}, fmt.Errorf("read home subcategories: %w", err)
 	}
 	subs := make(map[uuid.UUID][]string)
 	for _, r := range subRows {
@@ -61,35 +70,43 @@ func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, ma
 	}
 	camps, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{Locale: locale, PageSize: maxSlides})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read home campaigns: %w", err)
+		return carouselSources{}, fmt.Errorf("read home campaigns: %w", err)
 	}
-	return cats, subs, camps, nil
+	stock, err := s.q.HomeDepartmentStock(ctx)
+	if err != nil {
+		return carouselSources{}, fmt.Errorf("read department stock: %w", err)
+	}
+	held := make(map[uuid.UUID]int64, len(stock))
+	for _, r := range stock {
+		held[r.ID] = r.Products
+	}
+	return carouselSources{cats: cats, subs: subs, camps: camps, held: held}, nil
 }
 
 // Carousel is exported so the back office lists the same slides.
 func (s *Store) Carousel(ctx context.Context) ([]pages.HeroSlide, error) {
-	cats, subs, camps, err := s.carouselSources(ctx)
+	src, err := s.carouselSources(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return s.slides(ctx, cats, subs, camps)
+	return s.slides(ctx, src)
 }
 
 func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
-	cats, subs, camps, err := s.carouselSources(ctx)
+	src, err := s.carouselSources(ctx)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
 
-	slides, err := s.slides(ctx, cats, subs, camps)
+	slides, err := s.slides(ctx, src)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
-	row, err := s.productRow(ctx, camps)
+	row, err := s.productRow(ctx, src.camps)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
-	band, err := s.departmentBand(ctx, cats, subs)
+	band, err := s.departmentBand(ctx, src)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
@@ -101,13 +118,13 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 
 	view := pages.HomeView{
 		Slides:     slides,
-		Categories: make([]pages.HomeCategory, 0, len(cats)),
+		Categories: make([]pages.HomeCategory, 0, len(src.cats)),
 		Row:        row,
 		Band:       band,
 		Rules:      rules,
 	}
-	for i := range cats {
-		c := &cats[i]
+	for i := range src.cats {
+		c := &src.cats[i]
 		view.Categories = append(view.Categories, pages.HomeCategory{
 			Slug:  c.Slug,
 			Name:  c.Name,
@@ -128,7 +145,7 @@ func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (
 		if len(tiles) > 0 {
 			return pages.ProductRow{
 				Title: c.Title,
-				Fact:  s.campaignFact(ctx, c, i18n.KeyHomeCampaignRowFact),
+				Fact:  s.campaignRowFact(ctx, c),
 				Href:  "/s/" + c.Slug,
 				Tiles: tiles,
 			}, nil
@@ -143,15 +160,8 @@ func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (
 
 // departmentBand rotates by shop day through the departments that have a
 // photograph and enough products to fill the band; nil when none qualifies.
-func (s *Store) departmentBand(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string) (*pages.DepartmentBand, error) {
-	stock, err := s.q.HomeDepartmentStock(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read department stock: %w", err)
-	}
-	held := make(map[uuid.UUID]int64, len(stock))
-	for _, r := range stock {
-		held[r.ID] = r.Products
-	}
+func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages.DepartmentBand, error) {
+	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
 		if departmentPhoto(&cats[i]).Shown() && held[cats[i].ID] >= bandTiles {
@@ -208,6 +218,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,
+			Colours:      t.Colours,
 			ImageURL:     assets.ProductImageURL(t.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(t.ImageKey, int(t.ImageWidth)),
 			ImageAlt:     t.ImageAlt,

@@ -216,11 +216,19 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
-  // one at four digits, so a row without a bar measured the one-seller page.
-  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
+  // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
+  // report two best sellers, one at four digits, and a return of a quarter of the
+  // second's units, so the row waits for the returned-products bar, the one with
+  // the most text; without it the page measured is the one-sentence state.
+  // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
+  // ledger that starts twenty days back, so its row carries the range bar, the range text
+  // and the warning; without it the rows measured say only that sales are too few.
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   // .goen-chartmeter: scripts/check-layout.sql adds a coupon with a total limit,
@@ -546,8 +554,10 @@ const PROBE = `(() => {
     .slice(0, 6)
     .map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]);
 
-  const body = document.querySelector('.goen-hero__body').getBoundingClientRect();
-  const media = document.querySelector('.goen-hero__media').getBoundingClientRect();
+  // A slide with no photograph is colour and type and has no media to compare.
+  const photoSlide = document.querySelector('.goen-hero__slide:has(.goen-hero__media)');
+  const body = photoSlide.querySelector('.goen-hero__body').getBoundingClientRect();
+  const media = photoSlide.querySelector('.goen-hero__media').getBoundingClientRect();
 
   // The content column has to line up across the three landmarks, or the page
   // reads as three documents stacked.
@@ -829,6 +839,54 @@ for (const want of EXPECTED) {
   const mark = failures.length ? '' : ' ok';
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
+}
+
+// The day grid's labels (WCAG 1.4.4, 1.4.10): at 320px and at 200% text every
+// label lies inside its own period and inside the viewport, and no two labels
+// overlap. A route with no period fails, because a grid that is not drawn
+// cannot be measured and the check would pass on nothing.
+const PERIOD_PROBE = `(() => {
+  const vw = document.documentElement.clientWidth;
+  const periods = [...document.querySelectorAll('.ui-period')];
+  const problems = [];
+  periods.forEach((period, n) => {
+    period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
+    const box = period.getBoundingClientRect();
+    const labels = [...period.querySelectorAll('b, small')].map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
+    for (const { text, r } of labels) {
+      if (r.left < Math.max(0, box.left) - 0.5 || r.right > Math.min(vw, box.right) + 0.5) {
+        problems.push('period ' + n + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + '] or the viewport ' + vw);
+      }
+    }
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i].r, b = labels[j].r;
+        if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) {
+          problems.push('period ' + n + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
+        }
+      }
+    }
+  });
+  return { periods: periods.length, problems };
+})()`;
+
+for (const route of ['/']) {
+  for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
+    const at = 'period labels ' + route + ' ' + name;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+    const target = ORIGIN + route;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, at, target);
+    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+    const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
+    if (!got) {
+      fail(at, 'the period probe did not run');
+      continue;
+    }
+    if (got.periods === 0) fail(at, 'no .ui-period on the page: the day grid is not drawn');
+    for (const problem of got.problems) fail(at, problem);
+    console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
+  }
 }
 
 // Whether the filter shell exposes its form and a control. On desktop a closed

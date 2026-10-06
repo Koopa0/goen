@@ -349,11 +349,11 @@ type OpenDispute struct {
 	RespondBy   string
 }
 
-// Amount is shown as NT$ only for twd; any other currency keeps its code and
-// Stripe's minor-unit figure, which goen has no rule to format.
+// Amount leaves foreign figures in Stripe's Dashboard because their minor-unit
+// exponent depends on the currency.
 func (d OpenDispute) Amount() string {
 	if d.Currency == "twd" {
 		return money.TWD(d.AmountCents)
 	}
-	return fmt.Sprintf("%s %d", strings.ToUpper(d.Currency), d.AmountCents)
+	return strings.ToUpper(d.Currency)
 }

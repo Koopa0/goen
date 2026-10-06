@@ -26,27 +26,6 @@ func (s Seller) UnitsText() string { return strconv.FormatInt(s.Units, 10) }
 
 func (s Seller) Href() string { return "/admin/products/" + s.Slug }
 
-type StockRisk struct {
-	SKU       string
-	Name      string
-	Slug      string
-	Sellable  int32
-	Sold      int64
-	DaysCover int
-}
-
-func (r StockRisk) Cover(ctx context.Context) string {
-	return i18n.Count(ctx, i18n.KeyAdminDays, int64(r.DaysCover), r.DaysCover)
-}
-
-func (r StockRisk) Urgent() bool { return r.DaysCover <= 14 }
-
-func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
-
-func (r StockRisk) SoldText() string { return strconv.FormatInt(r.Sold, 10) }
-
-func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
-
 type ReportView struct {
 	Days         int
 	Orders       int64
@@ -64,9 +43,17 @@ type ReportView struct {
 	RevenueSquares float64
 	Sellers        []Seller
 	AtRisk         []StockRisk
-	Windows        []int32
-	From, To       shoptime.Date
-	Previous       PreviousFigures
+	// StockDays is how many shop days back the stock rows look.
+	StockDays int
+	// MoreSoldOut counts the sold out SKUs the list leaves off.
+	MoreSoldOut int
+	Windows     []int32
+	From, To    shoptime.Date
+	Previous    PreviousFigures
+	Returned    []ReturnedProduct
+	// ReturnedErr is why Returned could not be read; the rest of the report
+	// does not depend on it.
+	ReturnedErr error
 }
 
 // PreviousFigures are the period of as many shop days before this one, up to
