@@ -20,9 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
