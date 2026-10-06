@@ -2,7 +2,10 @@
 // and the table that is each chart's text equivalent belong to the page.
 package chart
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 // minBarWidth keeps a positive value visible when it is far below the longest,
 // at the price of proportionality: every value below 0.6% of Max draws the
@@ -34,6 +37,61 @@ func (p BarProps) width() string {
 // wide depends on Max alone, so every row of a scale gets the same count
 // column and the same track.
 func (p BarProps) wide() bool { return p.Max >= wideScale }
+
+// Bucket is one shop day's value: Day is the date as SQL returns a date column,
+// Value the day's amount in cents, or its count.
+type Bucket struct {
+	Day   time.Time
+	Value int64
+}
+
+// Series is a run of consecutive shop days under one legend label. Partial says
+// that the last bucket is a day still going, or cut at a time of day, so that
+// it is drawn as not yet final.
+type Series struct {
+	Label   string
+	Buckets []Bucket
+	Partial bool
+}
+
+// Density is how many of a series' buckets are not zero, which is what decides
+// whether there is enough to draw and how much to label.
+type Density int
+
+const (
+	DensityNone   Density = iota // no bucket
+	DensityFew                   // one or two
+	DensitySparse                // three to six
+	DensityFull                  // seven or more
+)
+
+// Density counts the buckets that are not zero.
+func (s Series) Density() Density {
+	filled := 0
+	for _, b := range s.Buckets {
+		if b.Value != 0 {
+			filled++
+		}
+	}
+	switch {
+	case filled == 0:
+		return DensityNone
+	case filled < 3:
+		return DensityFew
+	case filled < 7:
+		return DensitySparse
+	}
+	return DensityFull
+}
+
+// Measure is what a value counts, which sets the steps of its axis and how it
+// reads.
+type Measure int
+
+const (
+	MeasureCount Measure = iota
+	MeasureMoney         // cents
+)
 
 // MeterProps is Value of a Limit, Label the count as already localised text.
 // A caller with no limit draws no meter. LimitLine marks the limit with a line

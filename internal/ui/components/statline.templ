@@ -49,7 +49,7 @@ templ figure(v StatValue) {
 }
 
 templ plainFigure(v StatValue) {
-	if len(v.date) > 0 {
+	if len(v.date) > 0 || v.clock != "" {
 		@templ.Raw(v.dateHTML())
 	} else if v.pre != "" {
 		<small class="ui-statline__pre">{ v.pre }</small>{ v.figure }

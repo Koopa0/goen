@@ -713,6 +713,11 @@ templ Variants(p layouts.Page, v VariantsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		if v.ShowCover {
+			<section class="goen-admin__cover">
+				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
+			</section>
+		}
 		<form class="goen-admin__search" method="get" action="/admin/stock">
 			if v.LowOnly {
 				<input type="hidden" name="low" value="1"/>
