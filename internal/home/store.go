@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -130,6 +131,8 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 			Name:  c.Name,
 			Tone:  pages.ResolveTone(c.Tone),
 			Photo: departmentPhoto(c),
+			Subs:  strings.Join(src.subs[c.ID], " · "),
+			Items: src.held[c.ID],
 		})
 	}
 	return view, nil
@@ -143,12 +146,16 @@ func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (
 			return pages.ProductRow{}, err
 		}
 		if len(tiles) > 0 {
-			return pages.ProductRow{
-				Title: c.Title,
-				Fact:  s.campaignRowFact(ctx, c),
-				Href:  "/s/" + c.Slug,
-				Tiles: tiles,
-			}, nil
+			campaign := &pages.RowCampaign{
+				Tone:      pages.ResolveTone(c.Tone),
+				Items:     c.Products,
+				Facts:     s.campaignStats(ctx, c),
+				CardFacts: s.campaignCardStats(ctx, c),
+			}
+			if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
+				campaign.Period = &period
+			}
+			return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, nil
 		}
 	}
 	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{}, rowTiles)
@@ -179,6 +186,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages
 	}
 	return &pages.DepartmentBand{
 		Name:  c.Name,
+		Items: held[c.ID],
 		Fact:  strings.Join(subs[c.ID], " · "),
 		Href:  "/c/" + c.Slug,
 		Tone:  pages.ResolveTone(c.Tone),

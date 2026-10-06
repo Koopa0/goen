@@ -38,6 +38,22 @@ type ProductTile struct {
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
+	// Lead marks the 2×2 tile of the home row, whose photograph is larger than a card's.
+	Lead bool
+}
+
+// AsLead is the tile drawn as the home row's lead.
+func (t ProductTile) AsLead() ProductTile {
+	t.Lead = true
+	return t
+}
+
+// Sizes is the width the photograph is laid out at, for the browser's choice of file.
+func (t ProductTile) Sizes() string {
+	if t.Lead {
+		return "(min-width: 1344px) 596px, (min-width: 1024px) calc(50vw - 44px), calc(100vw - 48px)"
+	}
+	return "(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
 }
 
 func AnyComparable(tiles []ProductTile) bool {
