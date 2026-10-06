@@ -69,10 +69,9 @@ ORDER BY d.day;
 -- name: CampaignsBetween :many
 SELECT localized_name(c.title, c.title_en, @locale::text) AS title,
        shop_day(c.starts_at) AS first_day,
-       shop_day(c.ends_at - interval '1 microsecond') AS last_day
+       shop_day(c.ends_at) AS last_day
 FROM sale_campaigns c
-WHERE c.is_active
-  AND c.starts_at < @to_at::timestamptz AND c.ends_at > @from_at::timestamptz
+WHERE c.starts_at < @to_at::timestamptz AND c.ends_at > @from_at::timestamptz
 ORDER BY c.starts_at, c.id;
 
 -- The shop day of the latest paid order placed before to_at, counted as
