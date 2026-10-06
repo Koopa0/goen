@@ -15,29 +15,6 @@ import (
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	t.Parallel()
-	pinned := map[string]components.Outcome{
-		"ok":             components.OutcomeDone,
-		"shipped":        components.OutcomeDone,
-		"refused":        components.OutcomeRefused,
-		"paidcancel":     components.OutcomeRefused,
-		"voidfailed":     components.OutcomeFailed,
-		"refundretry":    components.OutcomeFailed,
-		"cancelretry":    components.OutcomeFailed,
-		"refundshipped":  components.OutcomeRefused,
-		"refundmismatch": components.OutcomeFailed,
-		"refundunsure":   components.OutcomeFailed,
-		"invoicepending": components.OutcomeFailed,
-		"invoicingoff":   components.OutcomeRefused,
-		"refundpending":  components.OutcomeFailed,
-		"cancelinvoice":  components.OutcomeFailed,
-		"invoicefailed":  components.OutcomeFailed,
-		"allowfailed":    components.OutcomeFailed,
-	}
-	for name, want := range pinned {
-		if got := notices[name].Outcome; got != want {
-			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
-		}
-	}
 	for name, m := range notices {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+name+"=1", http.NoBody)

@@ -1,19 +1,35 @@
 package health
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
-func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
+func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	t.Parallel()
-	pinned := map[string]components.Outcome{
-		"notflagged": components.OutcomeDone,
-	}
-	for name, want := range pinned {
-		if got := notices[name].Outcome; got != want {
-			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
+	for _, tc := range []struct {
+		query   string
+		failure bool
+	}{{"notflagged", false}, {"mustrefund", true}} {
+		ctx := i18n.WithLocale(t.Context(), i18n.En)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/health?"+tc.query+"=1", http.NoBody)
+		var page strings.Builder
+		if err := admin.Health(layouts.Page{Title: "health"}, &admin.WorkerHealthView{Notice: web.Notice(req, notices)}).Render(ctx, &page); err != nil {
+			t.Fatal(err)
+		}
+		got := page.String()
+		if sentence := i18n.T(ctx, notices[tc.query].Key); !strings.Contains(got, sentence) {
+			t.Errorf("?%s=1: the page does not show %q", tc.query, sentence)
+		}
+		if danger := strings.Contains(got, "goen-notice--danger"); danger != tc.failure {
+			t.Errorf("?%s=1: danger treatment = %t, want %t", tc.query, danger, tc.failure)
 		}
 	}
 }
