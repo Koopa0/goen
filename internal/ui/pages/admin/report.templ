@@ -102,6 +102,7 @@ templ Report(p layouts.Page, v *ReportView) {
 				</ul>
 			}
 		}
+		@returnedProducts(v)
 		@StockRiskSection(v.AtRisk, v.MoreSoldOut, v.StockDays)
 	}
 }
