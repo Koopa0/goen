@@ -119,7 +119,7 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 		view.LatestUnavailable = true
 	default:
 		view.Latest = &admin.LatestPaid{
-			Number: latest.OrderNumber, TotalCents: latest.TotalCents, Elapsed: max(now.Sub(latest.FundedAt), 0),
+			Number: latest.OrderNumber, TotalCents: latest.TotalCents, Elapsed: time.Duration(latest.ElapsedSeconds) * time.Second,
 		}
 	}
 	return nil

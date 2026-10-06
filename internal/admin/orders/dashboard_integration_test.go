@@ -255,6 +255,20 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	if task, _ := readyAge(); task.AgeSeconds/86400 != 3 {
 		t.Errorf("a card order paid three days ago is %d days old, want 3", task.AgeSeconds/86400)
 	}
+
+	// The latest paid order is funded when the ready-orders age says: it is the
+	// only committed order, so the two read one funded_at through two queries.
+	var view admin.DashboardView
+	if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+		t.Fatalf("FillWeek: %v", err)
+	}
+	task, _ := readyAge()
+	if view.Latest == nil || view.Latest.Number != cardNumber {
+		t.Fatalf("Latest = %+v, want %s", view.Latest, cardNumber)
+	}
+	if got, want := int64(view.Latest.Elapsed.Seconds()), task.AgeSeconds; got < want-60 || got > want+60 {
+		t.Errorf("the latest paid order was funded %d s ago, the ready-orders age says %d s", got, want)
+	}
 }
 
 // The age of an approved return that nobody has opened starts at the decision,

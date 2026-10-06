@@ -8872,7 +8872,8 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 }
 
 const latestPaidOrder = `-- name: LatestPaidOrder :one
-SELECT o.order_number, f.funded_at, f.total_cents
+SELECT o.order_number, f.total_cents,
+       coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
 FROM orders o
 JOIN committed_orders c ON c.id = o.id
 CROSS JOIN LATERAL (
@@ -8893,19 +8894,19 @@ LIMIT 1
 `
 
 type LatestPaidOrderRow struct {
-	OrderNumber string
-	FundedAt    time.Time
-	TotalCents  int64
+	OrderNumber    string
+	TotalCents     int64
+	ElapsedSeconds int64
 }
 
 // The newest committed order by when its money came in, which is read as
 // admin/health reads funded_at (UninvoicedOrders). Orders refunded before
 // shipment are left out, as RevenueBetween leaves them out; the total is
-// RevenueBetween's.
+// RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
 func (q *Queries) LatestPaidOrder(ctx context.Context) (LatestPaidOrderRow, error) {
 	row := q.db.QueryRow(ctx, latestPaidOrder)
 	var i LatestPaidOrderRow
-	err := row.Scan(&i.OrderNumber, &i.FundedAt, &i.TotalCents)
+	err := row.Scan(&i.OrderNumber, &i.TotalCents, &i.ElapsedSeconds)
 	return i, err
 }
 
@@ -12604,6 +12605,17 @@ func (q *Queries) PublishShippingVersion(ctx context.Context, arg PublishShippin
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const publishedProductCount = `-- name: PublishedProductCount :one
+SELECT count(*)::bigint FROM products WHERE status = 'active'
+`
+
+func (q *Queries) PublishedProductCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, publishedProductCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const putMedia = `-- name: PutMedia :exec

@@ -66,9 +66,10 @@ ORDER BY d.day;
 -- The newest committed order by when its money came in, which is read as
 -- admin/health reads funded_at (UninvoicedOrders). Orders refunded before
 -- shipment are left out, as RevenueBetween leaves them out; the total is
--- RevenueBetween's.
+-- RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
 -- name: LatestPaidOrder :one
-SELECT o.order_number, f.funded_at, f.total_cents
+SELECT o.order_number, f.total_cents,
+       coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
 FROM orders o
 JOIN committed_orders c ON c.id = o.id
 CROSS JOIN LATERAL (
