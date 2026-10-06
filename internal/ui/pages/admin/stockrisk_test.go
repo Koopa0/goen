@@ -253,3 +253,71 @@ func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
 		t.Error("the stock section links to the sold out filter with none left off")
 	}
 }
+
+func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
+	t.Parallel()
+
+	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		rows := []StockRisk{
+			{SKU: "OUT-1", Name: "Gone", Slug: "gone"},
+			{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow},
+		}
+		html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
+
+		heading := strings.Index(html, i18n.T(ctx, i18n.KeyAdminRepStock))
+		search := strings.Index(html, `id="stock-search"`)
+		out, est := strings.Index(html, "OUT-1"), strings.Index(html, "EST-1")
+		if heading < 0 || search < 0 || heading > search {
+			t.Errorf("%s: days cover heading at %d, search at %d, want the heading first", loc, heading, search)
+		}
+		if out < 0 || est < 0 || out > est {
+			t.Errorf("%s: sold out row at %d, estimated row at %d, want sold out first", loc, out, est)
+		}
+		for _, want := range []string{
+			i18n.T(ctx, i18n.KeyAdminStockCoverReport), `href="/admin/reports#stock"`,
+			i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, 3, 3), "goen-chartrangebar",
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: stock desk lacks %q", loc, want)
+			}
+		}
+	}
+}
+
+func TestStockDeskSaysSoWhenNothingNeedsRestocking(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true}))
+	if want := i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, CoverWindowDays, CoverWindowDays); !strings.Contains(html, want) {
+		t.Errorf("an empty days cover list does not say %q", want)
+	}
+}
+
+func TestStockDeskLaterPagesLeaveDaysCoverOut(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{Variants: []Variant{{SKU: "A-1", ProductName: "x"}}}))
+	if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRepStock)) {
+		t.Error("a page without ShowCover still lists the days cover section")
+	}
+}
+
+// The report and the stock desk draw the section from one component.
+func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	rows := []StockRisk{{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}
+	section := renderComponent(t, ctx, StockRiskSection(rows, 0, CoverWindowDays))
+	for name, page := range map[string]string{
+		"stock desk": renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows})),
+		"report":     renderComponent(t, ctx, Report(layouts.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: CoverWindowDays})),
+	} {
+		if !strings.Contains(page, section) {
+			t.Errorf("%s does not contain the shared days cover section", name)
+		}
+	}
+}

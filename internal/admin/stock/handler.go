@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
@@ -53,6 +54,15 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		access.ServerError(w, r, h.log)
 		return
+	}
+	if r.URL.Query().Get(web.KeysetParam) == "" {
+		view.ShowCover = true
+		view.AtRisk, view.MoreSoldOut, err = h.store.DaysCover(r.Context(), admin.CoverWindowDays, time.Now())
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "read days cover", "error", err)
+			access.ServerError(w, r, h.log)
+			return
+		}
 	}
 	view.Notice = web.Notice(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("low"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")

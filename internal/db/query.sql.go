@@ -16056,7 +16056,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
