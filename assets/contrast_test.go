@@ -384,3 +384,16 @@ func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
 		}
 	}
 }
+
+// The promotion strip owns .goen-promo; a second block declaring it restyles the
+// strip on every page that has one.
+func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
+		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
+	}
+}

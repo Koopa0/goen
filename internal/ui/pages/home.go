@@ -120,6 +120,15 @@ const (
 	leadTiles      = 4
 )
 
+// Shelf is the tiles as drawn: under the hero, and with the lead marked.
+func (r ProductRow) Shelf() []ProductTile {
+	tiles := UnderLeadEager(r.Tiles)
+	if r.HasLead() {
+		tiles[0].Lead = true
+	}
+	return tiles
+}
+
 // HasLead reports whether the row puts its first product in a 2×2 tile on the
 // campaign's tone, with the campaign card as the eighth cell.
 func (r ProductRow) HasLead() bool {
@@ -145,4 +154,11 @@ type HomeView struct {
 	Rules      ShopRules
 }
 
-func (v *HomeView) Directory() DirectoryLayout { return directoryLayout(len(v.Categories)) }
+// Directory is the layout of the department list. With one department the band
+// is the department, unless no band is drawn: then it is the one tile.
+func (v *HomeView) Directory() DirectoryLayout {
+	if len(v.Categories) == 1 && v.Band == nil {
+		return DirectoryTiles
+	}
+	return directoryLayout(len(v.Categories))
+}

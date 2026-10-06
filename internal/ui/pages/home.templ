@@ -184,6 +184,8 @@ templ departmentTile(c HomeCategory) {
 					height="600"
 					decoding="async"
 				/>
+			} else {
+				<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
 			}
 		</span>
 		<span class="goen-cat__line">
@@ -239,7 +241,7 @@ templ productRow(r ProductRow) {
 				switch {
 					case r.HasLead():
 					case r.Campaign != nil:
-						@seeAll(i18n.T(ctx, i18n.KeyHomeSeeAll), r.Href)
+						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
 					default:
 						@seeAll(i18n.T(ctx, i18n.KeyHeroCampaignCTA), r.Href)
 				}
@@ -254,16 +256,16 @@ templ productRow(r ProductRow) {
 			}
 			if r.HasLead() {
 				<ul class="goen-tiles__grid goen-tiles__grid--lead" data-tone={ r.Campaign.Tone.Attr() } role="list">
-					for i, t := range UnderLeadEager(r.Tiles) {
+					for i, t := range r.Shelf() {
 						if i == 0 {
 							<li class="goen-tile__cell goen-tile__cell--lead">
-								@tileCard(t.AsLead())
+								@tileCard(t)
 							</li>
 						} else {
 							@Tile(t)
 						}
 					}
-					<li class="goen-promo">
+					<li class="goen-rowcard">
 						@components.StatLine(r.Campaign.CardFacts, components.StatLinePlain)
 						if r.Campaign.Period != nil {
 							@components.Period(*r.Campaign.Period)
@@ -273,7 +275,7 @@ templ productRow(r ProductRow) {
 				</ul>
 			} else {
 				<ul class="goen-tiles__grid" role="list">
-					for _, t := range UnderLeadEager(r.Tiles) {
+					for _, t := range r.Shelf() {
 						@Tile(t)
 					}
 				</ul>

@@ -61,10 +61,10 @@ try {
 const axeBaseline = axeBaselineFile.routes || {};
 
 // What the two artboards fold into. The seeded six departments are rows
-// (brand.md §2 首頁館別), one per line, with the stage beside them from 1024; the
+//, one per line, with the stage beside them from 1024; the
 // seeded campaign has four products and a wide first photograph, so its row is
 // the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
-// card (首頁商品列). Column counts are read off the rendered
+// card. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
 // stops applying is caught rather than a rule that stops existing.
 const EXPECTED = [

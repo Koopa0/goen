@@ -62,8 +62,6 @@ var (
 		En:     "What goen sells",
 	})
 
-	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
-
 	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
 
 	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})

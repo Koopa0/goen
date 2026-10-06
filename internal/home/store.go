@@ -140,22 +140,9 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 
 func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (pages.ProductRow, error) {
 	if len(camps) > 0 {
-		c := &camps[0]
-		tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)
-		if err != nil {
-			return pages.ProductRow{}, err
-		}
-		if len(tiles) > 0 {
-			campaign := &pages.RowCampaign{
-				Tone:      pages.ResolveTone(c.Tone),
-				Items:     c.Products,
-				Facts:     s.campaignStats(ctx, c),
-				CardFacts: s.campaignCardStats(ctx, c),
-			}
-			if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
-				campaign.Period = &period
-			}
-			return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, nil
+		row, ok, err := s.campaignRow(ctx, &camps[0])
+		if err != nil || ok {
+			return row, err
 		}
 	}
 	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{}, rowTiles)
@@ -163,6 +150,24 @@ func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (
 		return pages.ProductRow{}, err
 	}
 	return pages.ProductRow{Title: i18n.T(ctx, i18n.KeyHomeNewIn), Href: "/search", Tiles: tiles}, nil
+}
+
+// campaignRow is the campaign's own row; ok is false when it has no product to show.
+func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row pages.ProductRow, ok bool, err error) {
+	tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)
+	if err != nil || len(tiles) == 0 {
+		return pages.ProductRow{}, false, err
+	}
+	campaign := &pages.RowCampaign{
+		Tone:      pages.ResolveTone(c.Tone),
+		Items:     c.Products,
+		Facts:     s.campaignStats(ctx, c),
+		CardFacts: s.campaignCardStats(ctx, c),
+	}
+	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
+		campaign.Period = &period
+	}
+	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, true, nil
 }
 
 // departmentBand rotates by shop day through the departments that have a

@@ -26,15 +26,16 @@ func TestTheDirectoryFollowsTheNumberOfDepartments(t *testing.T) {
 		stage       bool
 	}{
 		{0, DirectoryNone, false},
-		{1, DirectoryNone, false},
+		{1, DirectoryNone, false}, // the band is the department
 		{2, DirectoryTiles, false},
 		{3, DirectoryRows, true},
 		{7, DirectoryRows, true},
 		{8, DirectoryColumns, false},
 		{12, DirectoryColumns, false},
 	} {
-		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(tt.departments)}))
-		if got := (&HomeView{Categories: departmentsOf(tt.departments)}).Directory(); got != tt.want {
+		band := &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(3)}
+		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(tt.departments), Band: band}))
+		if got := (&HomeView{Categories: departmentsOf(tt.departments), Band: band}).Directory(); got != tt.want {
 			t.Errorf("%d departments: layout %q, want %q", tt.departments, got, tt.want)
 		}
 		if got := strings.Contains(page, "goen-cats__grid"); got != (tt.want != DirectoryNone) {
@@ -46,6 +47,16 @@ func TestTheDirectoryFollowsTheNumberOfDepartments(t *testing.T) {
 		if got := strings.Contains(page, "goen-cat__stage"); got != tt.stage {
 			t.Errorf("%d departments: stage drawn = %t, want %t", tt.departments, got, tt.stage)
 		}
+	}
+}
+
+// With one department and no band drawn, the department is the directory's one
+// tile: the home page never names it only in the header.
+func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
+	t.Parallel()
+	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(1)}))
+	if !strings.Contains(page, "goen-cats__grid--tiles") || !strings.Contains(page, `href="/c/d0"`) {
+		t.Error("the only department is not drawn as a tile")
 	}
 }
 
@@ -62,6 +73,12 @@ func TestADepartmentWithoutAPhotographIsItsToneAndFirstCharacter(t *testing.T) {
 	}
 	if !strings.Contains(page, `data-tone="stone" href="/c/wood"`) {
 		t.Error("a department with no tone is not stone")
+	}
+	pair := departmentsOf(2)
+	pair[0].Name = "棲木家居"
+	tiles := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: pair}))
+	if !strings.Contains(tiles, `<span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">棲</span></span>`) {
+		t.Error("a tile with no photograph lost its first-character square")
 	}
 	if got := (HomeCategory{}).Initial(); got != "" {
 		t.Errorf("Initial of no name = %q, want none", got)
@@ -100,8 +117,17 @@ func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
 		if got := strings.Contains(page, "goen-tiles__grid--lead"); got != tt.lead {
 			t.Errorf("%s: lead tile = %t, want %t", tt.name, got, tt.lead)
 		}
-		if got := strings.Contains(page, `class="goen-promo"`); got != tt.lead {
+		if got := strings.Contains(page, `class="goen-rowcard"`); got != tt.lead {
 			t.Errorf("%s: campaign card = %t, want %t", tt.name, got, tt.lead)
+		}
+		if got := strings.Contains(page, "看全部 6 件"); !got {
+			t.Errorf("%s: the campaign's link is not 看全部 6 件", tt.name)
+		}
+		if got := strings.Contains(page, `sizes="(min-width: 1344px) 596px`); got != tt.lead {
+			t.Errorf("%s: lead sizes = %t, want %t", tt.name, got, tt.lead)
+		}
+		if !strings.Contains(page, `sizes="(min-width: 1344px) 286px`) {
+			t.Errorf("%s: the plain cards lost their sizes", tt.name)
 		}
 		// Without a lead the campaign's facts stand under the heading.
 		if got := strings.Contains(page, "goen-home__facts"); got == tt.lead {
@@ -115,7 +141,7 @@ func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
 func TestTheCampaignCardIsNotOneBigLink(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Row: campaignRow(1600, 4)}))
-	start := strings.Index(page, `<li class="goen-promo">`)
+	start := strings.Index(page, `<li class="goen-rowcard">`)
 	if start < 0 {
 		t.Fatal("no campaign card")
 	}
@@ -143,7 +169,7 @@ func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
 			t.Errorf("the row lacks %q", want)
 		}
 	}
-	for _, not := range []string{"goen-promo", "goen-tiles__grid--lead", "ui-period", "goen-home__facts"} {
+	for _, not := range []string{"goen-rowcard", "goen-tiles__grid--lead", "ui-period", "goen-home__facts"} {
 		if strings.Contains(page, not) {
 			t.Errorf("a row with no campaign draws %s", not)
 		}

@@ -42,14 +42,8 @@ type ProductTile struct {
 	Lead bool
 }
 
-// AsLead is the tile drawn as the home row's lead.
-func (t ProductTile) AsLead() ProductTile {
-	t.Lead = true
-	return t
-}
-
 // Sizes is the width the photograph is laid out at, for the browser's choice of file.
-func (t ProductTile) Sizes() string {
+func (t *ProductTile) Sizes() string {
 	if t.Lead {
 		return "(min-width: 1344px) 596px, (min-width: 1024px) calc(50vw - 44px), calc(100vw - 48px)"
 	}
