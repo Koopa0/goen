@@ -5690,7 +5690,6 @@ CREATE VIEW campaign_deals WITH (security_invoker = true) AS
       AND EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND v.stock_quantity > v.safety_stock
             AND v.compare_at_price_cents > v.price_cents);
 
 COMMENT ON VIEW campaign_deals IS
