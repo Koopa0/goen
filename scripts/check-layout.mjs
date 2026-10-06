@@ -249,7 +249,7 @@ const ADMIN = [
   // the most text; without it the page measured is the one-sentence state.
   // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
   // with a campaign over them. Seven paid days give the full drawing, and the
-  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 1 day to
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 3 days to
   // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
@@ -344,6 +344,15 @@ const ADMIN = [
   { label: 'admin returns 1440', width: 1440, height: 900, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin taxonomy 375', width: 375, height: 812, path: '/admin/taxonomy', marker: '.goen-admin' },
   { label: 'admin taxonomy 1440', width: 1440, height: 900, path: '/admin/taxonomy', marker: '.goen-admin' },
+  // .goen-chart__frame--columns:has(.goen-chart__window): the editor of the running
+  // campaign layout-campaign, whose start scripts/check-layout.sql:44 puts three
+  // days back. The same script pays four units of its first product on each of the
+  // seven days before today, so the card has the grey days before under their
+  // "Before" line, the campaign days bracketed with their "until ..." name beside
+  // it, and the table; without them the page measured is the sentence.
+  { label: 'admin campaign results 320', width: 320, height: 568, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 375', width: 375, height: 812, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 1440', width: 1440, height: 900, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
   { label: 'admin campaigns 375', width: 375, height: 812, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin campaigns 1440', width: 1440, height: 900, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin shipping 375', width: 375, height: 812, path: '/admin/shipping', marker: '.goen-admin' },

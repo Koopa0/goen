@@ -390,7 +390,7 @@ func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	v.DailyUnavailable = true
 	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
 
-	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
+	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminChartUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
 		t.Errorf("the page does not say the chart is unavailable: want %s", want)
 	}
 	if strings.Contains(html, `class="goen-chart"`) {

@@ -154,7 +154,7 @@ var (
 		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d day.",
 		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d days.")
 
-	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
+	KeyAdminChartUnavailable = key("admin.chart.unavailable", Message{
 		ZhHant: "這張圖的資料暫時無法取得。",
 		En:     "This chart's data is unavailable right now.",
 	})

@@ -296,7 +296,7 @@ func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
 	t.Parallel()
 
 	labels := func(n int) []string {
-		ticks := columnTicks(i18n.WithLocale(t.Context(), i18n.En), Series{Buckets: days(n)}.Columns(), false, 100/float64(n))
+		ticks := columnTicks(i18n.WithLocale(t.Context(), i18n.En), Series{Buckets: days(n)}.Columns(), false, true, 100/float64(n))
 		out := make([]string, 0, len(ticks))
 		for _, tk := range ticks {
 			out = append(out, tk.Label)
@@ -352,6 +352,93 @@ func TestColumnsStripsThatMeetStackInRows(t *testing.T) {
 	c := newColumns(t.Context(), p)
 	if len(c.Strips) != 2 || c.Strips[0].Y == c.Strips[1].Y {
 		t.Errorf("strips = %+v, want two on different rows, their names would run together", c.Strips)
+	}
+}
+
+// compared is 14 days from 2026-09-07: the first seven are the days before a
+// campaign that runs from the 14th.
+func compared(partial bool) ColumnsProps {
+	p := columnsProps(valued(14, map[int]int64{0: 1, 3: 2, 6: 4, 7: 1, 9: 5, 10: 6, 13: 3}))
+	p.Series.Partial = partial
+	p.Spans = []Span{{
+		From: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC), To: time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC),
+		Label: "Autumn picks",
+	}}
+	p.Previous, p.PreviousLabel = 7, "Before"
+	return p
+}
+
+func TestColumnsDrawTheDaysBeforeInTheirOwnColourUnderALine(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, compared(true))
+	if n := strings.Count(got, "goen-chart__hue--previous"); n != 3 {
+		t.Errorf("%d bars in the previous colour, want the 3 days before that have sales", n)
+	}
+	if n := strings.Count(got, `class="goen-chart__hue"`) + strings.Count(got, `class="goen-chart__hue goen-chart__open"`); n != 4 {
+		t.Errorf("%d bars in the data colour, want the 4 campaign days with sales", n)
+	}
+	if n := strings.Count(got, `class="goen-chart__window"`); n != 1 {
+		t.Errorf("%d lines under the days before, want 1", n)
+	}
+	at := strings.Index(got, `class="goen-chart__window"`)
+	if at < 0 {
+		t.Fatal("no line under the days before")
+	}
+	if window, _, _ := strings.Cut(got[at:], `class="goen-chart__span"`); strings.Contains(window, "goen-chart__gap") {
+		t.Error("the line under the days before is cut into days like a bracket")
+	}
+	if n := strings.Count(got, `class="goen-chart__gap`); n == 0 {
+		t.Error("the campaign's bracket has no day gaps, so the check above proves nothing")
+	}
+	if n := strings.Count(got, `class="goen-chart__strip"`); n != 1 {
+		t.Errorf("%d campaign brackets, want 1: the days before are not a stored period", n)
+	}
+	if !strings.Contains(got, ">Before</text>") || !strings.Contains(got, ">Autumn picks, until Sep 30</text>") {
+		t.Error("the drawing does not name both parts")
+	}
+}
+
+func TestColumnsTableSaysWhichDaysAreBeforeAndWhichAreTheCampaign(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, compared(true))
+	for _, row := range []string{
+		`<th scope="row">Sep 7</th><td>1</td><td class="goen-chart__spans">Before</td>`,
+		`<th scope="row">Sep 13</th><td>4</td><td class="goen-chart__spans">Before</td>`,
+		`<th scope="row">Sep 20 (up to 15:20)</th>`,
+	} {
+		if !strings.Contains(strings.ReplaceAll(got, "\n", ""), row) {
+			t.Errorf("table lacks %q", row)
+		}
+	}
+	if !strings.Contains(got, `<td class="goen-chart__spans">Autumn picks, until Sep 30</td>`) {
+		t.Error("a campaign day's row does not name the campaign")
+	}
+}
+
+func TestColumnsWithoutPreviousDrawNoWindow(t *testing.T) {
+	t.Parallel()
+
+	p := compared(true)
+	p.Previous, p.PreviousLabel = 0, ""
+	got := renderColumns(t, i18n.En, p)
+	if strings.Contains(got, "goen-chart__window") || strings.Contains(got, "goen-chart__hue--previous") || strings.Contains(got, ">Before<") {
+		t.Error("a series with no Previous draws a stretch before")
+	}
+}
+
+func TestColumnsEndingBeforeTodayAreNotMarkedAsToday(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, compared(false))
+	for _, c := range []string{"goen-chart__todaymark", "goen-chart__today\"", ">Today<"} {
+		if strings.Contains(got, c) {
+			t.Errorf("a series whose last day is over contains %q", c)
+		}
+	}
+	if !strings.Contains(renderColumns(t, i18n.En, compared(true)), ">Today<") {
+		t.Error("a series whose last day is going has no Today tick")
 	}
 }
 
