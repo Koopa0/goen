@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -134,19 +133,6 @@ type CampaignView struct {
 	Products []ProductTile
 	Image    Photo
 	Tone     Tone
-}
-
-// Tiles are the campaign's products; outside its window a price is not struck,
-// because no campaign is running to have lowered it.
-func (v *CampaignView) Tiles() []ProductTile {
-	if v.Schedule.State == CampaignRunning {
-		return v.Products
-	}
-	out := slices.Clone(v.Products)
-	for i := range out {
-		out[i].CompareCents = 0
-	}
-	return out
 }
 
 func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
@@ -17,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -528,7 +530,7 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	view := &AccountView{
 		Orders: []AccountOrder{{
 			Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
-			PlacedAt: "2026-01-01", TotalCents: 106000, LineCount: 1,
+			PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1}, TotalCents: 106000, LineCount: 1,
 		}},
 	}
 	html := renderToString(t, Account(AccountMeta(ctx), view))
@@ -544,11 +546,11 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 // both signed-in surfaces: the history badge and the detail page's notice.
 func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 	paid := AccountOrder{
-		Number: "GO-260101-000010", Status: "pending", PlacedAt: "2026-01-01",
+		Number: "GO-260101-000010", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
 		TotalCents: 106000, LineCount: 1, Committed: true, OwedCents: 106000,
 	}
 	unpaid := AccountOrder{
-		Number: "GO-260101-000011", Status: "pending", PlacedAt: "2026-01-01",
+		Number: "GO-260101-000011", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
 		TotalCents: 106000, LineCount: 1, Committed: false, OwedCents: 106000,
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

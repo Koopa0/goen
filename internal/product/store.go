@@ -58,42 +58,11 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	if err != nil {
 		return pages.ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
 	}
-	variants := make([]Variant, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		opts := make(map[string]string, len(r.OptionNames))
-		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
-			opts[r.OptionNames[j]] = r.OptionValues[j]
-		}
-		arrival := expectedArrivalOf(r)
-		variants = append(variants, Variant{
-			ID:              r.ID.String(),
-			SKU:             r.SKU,
-			PriceCents:      r.PriceCents,
-			CompareCents:    r.CompareAtPriceCents.Int64,
-			Sellable:        r.Sellable,
-			Available:       r.SellableQuantity,
-			ExpectedArrival: arrival,
-			Options:         opts,
-		})
-	}
+	variants := variantsOf(rows)
 
-	optRows, err := s.q.ProductOptions(ctx, db.ProductOptionsParams{
-		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
-	})
+	groups, labels, order, err := s.optionGroups(ctx, p.ID, slug)
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read options of %q: %w", slug, err)
-	}
-	groups := make(map[string][]OptionChoice, len(optRows))
-	labels := make(map[string]string, len(optRows))
-	order := make([]string, 0, len(optRows))
-	for _, o := range optRows {
-		if _, seen := groups[o.OptionName]; !seen {
-			order = append(order, o.OptionName)
-			labels[o.OptionName] = o.OptionLabel
-		}
-		groups[o.OptionName] = append(groups[o.OptionName],
-			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
+		return pages.ProductView{}, err
 	}
 
 	// A query key is a variant option only if some variant carries it.
@@ -125,14 +94,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		AnySellable:  slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable }),
 	}
 	if view.SelectionOK {
-		view.VariantID = chosen.ID
-		view.SKU = chosen.SKU
-		view.PriceCents = chosen.PriceCents
-		view.CompareCents = chosen.CompareCents
-		view.Sellable = chosen.Sellable
-		view.Available = chosen.Available
-		view.ExpectedArrival = chosen.ExpectedArrival
-		view.ExpectedArrivalText = s.arrivalText(ctx, &view)
+		s.showChosenVariant(ctx, &view, &chosen)
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -150,10 +112,86 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Options = append(view.Options, po)
 	}
 
+	view.Campaign, err = s.runningCampaign(ctx, p.ID, slug)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return pages.ProductView{}, err
 	}
 	return view, nil
+}
+
+// variantsOf is the product's variants as the page chooses between them.
+func variantsOf(rows []db.ProductVariantsRow) []Variant {
+	variants := make([]Variant, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		opts := make(map[string]string, len(r.OptionNames))
+		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
+			opts[r.OptionNames[j]] = r.OptionValues[j]
+		}
+		arrival := expectedArrivalOf(r)
+		variants = append(variants, Variant{
+			ID:              r.ID.String(),
+			SKU:             r.SKU,
+			PriceCents:      r.PriceCents,
+			CompareCents:    r.CompareAtPriceCents.Int64,
+			Sellable:        r.Sellable,
+			Available:       r.SellableQuantity,
+			ExpectedArrival: arrival,
+			Options:         opts,
+		})
+	}
+	return variants
+}
+
+// optionGroups is the product's options: the choices of each by name, the label of each, and the order they are offered in.
+func (s *Store) optionGroups(ctx context.Context, id uuid.UUID, slug string) (choices map[string][]OptionChoice, labels map[string]string, order []string, err error) {
+	optRows, err := s.q.ProductOptions(ctx, db.ProductOptionsParams{
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("read options of %q: %w", slug, err)
+	}
+	choices = make(map[string][]OptionChoice, len(optRows))
+	labels = make(map[string]string, len(optRows))
+	order = make([]string, 0, len(optRows))
+	for _, o := range optRows {
+		if _, seen := choices[o.OptionName]; !seen {
+			order = append(order, o.OptionName)
+			labels[o.OptionName] = o.OptionLabel
+		}
+		choices[o.OptionName] = append(choices[o.OptionName],
+			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
+	}
+	return choices, labels, order, nil
+}
+
+// showChosenVariant puts the variant the shopper resolved to on the page.
+func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, chosen *Variant) {
+	view.VariantID = chosen.ID
+	view.SKU = chosen.SKU
+	view.PriceCents = chosen.PriceCents
+	view.CompareCents = chosen.CompareCents
+	view.Sellable = chosen.Sellable
+	view.Available = chosen.Available
+	view.ExpectedArrival = chosen.ExpectedArrival
+	view.ExpectedArrivalText = s.arrivalText(ctx, view)
+}
+
+func (s *Store) runningCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
+	c, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pages.ProductCampaign{}, nil
+	}
+	if err != nil {
+		return pages.ProductCampaign{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
+	}
+	return pages.NewProductCampaign(ctx, c.Slug, c.Title, c.StartsAt, c.EndsAt, s.now()), nil
 }
 
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
@@ -295,6 +333,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
 			ImageURL:    assets.ProductImageURL(r.ImageKey),
 			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
@@ -336,6 +375,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,

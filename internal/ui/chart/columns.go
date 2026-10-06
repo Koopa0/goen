@@ -81,9 +81,16 @@ func Peaks(cols []Column) []Column {
 // Series.Label heads the table's value column. Caption and Note are the page's
 // sentences, already localised; so are the table's heads and PartialLabel,
 // which says what the last row is counted up to when Series.Partial.
+//
+// Previous is how many days from the first are the stretch the spans are
+// compared with, which is not a stored period: they are drawn in the previous
+// colour under a line named PreviousLabel, and the table names them too.
+// It has no effect on a series drawn in runs of days.
 type ColumnsProps struct {
 	Series                                Series
 	Spans                                 []Span
+	Previous                              int
+	PreviousLabel                         string
 	Caption, Note                         string
 	DayHeading, SpanHeading, PartialLabel string
 }
@@ -92,6 +99,7 @@ type bar struct {
 	X, Width  string
 	Y, Height float64
 	Open      bool
+	Previous  bool
 }
 
 type valueLabel struct {
@@ -105,6 +113,7 @@ type strip struct {
 	Y                    float64
 	Gaps                 []string
 	Thin                 bool
+	Window               bool // a line under its name, not a bracket: it is not a stored period
 	TodayX               string
 	Name, NameX, Anchor  string
 	NameY                float64
@@ -165,6 +174,7 @@ type plan struct {
 	first, last  time.Time // the days of it that are drawn
 	runs         bool      // it goes on after the last day drawn
 	label, short string
+	window       bool
 }
 
 func place(cols []Column, day time.Time) (index, days int) {
@@ -258,6 +268,12 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	grouped := p.Series.Grouped()
 
 	pl := plans(ctx, cols, first, last, p.Spans)
+	if p.Previous > 0 && !grouped {
+		through := first.AddDate(0, 0, min(p.Previous, len(buckets))-1)
+		window := plans(ctx, cols, first, last, []Span{{From: first, To: through, Label: p.PreviousLabel}})
+		window[0].window = true
+		pl = append(window, pl...)
+	}
 	rows, deepest := stripRows(pl, n)
 
 	r := columns{Plain: !full, HasSpans: len(pl) > 0}
@@ -271,13 +287,17 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 
 	var scale int64
 	r.Grid, scale = columnsAxis(ctx, cols, full, r.Baseline)
-	r.Bars, r.Values = barsOf(cols, scale, r.Baseline, full, p.Series.Partial)
+	previous := p.Previous
+	if grouped {
+		previous = 0
+	}
+	r.Bars, r.Values = barsOf(cols, scale, r.Baseline, full, p.Series.Partial, previous)
 	if p.Series.Partial {
 		lastDays := float64(cols[n-1].Days)
 		r.TodayX = percent((float64(n-1) + (lastDays-0.5)/lastDays) * band)
 	}
-	r.Strips = stripsOf(pl, rows, top, n, grouped)
-	r.Ticks = columnTicks(ctx, cols, grouped, band)
+	r.Strips = stripsOf(pl, rows, top, n, grouped, p.Series.Partial)
+	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
 	r.Rows = tableRows(ctx, p, cols, pl)
 	r.Hits = make([]hit, n)
 	for i := range r.Hits {
@@ -336,7 +356,7 @@ func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64
 // barsOf is a bar for each column with a value, and the value over it: over
 // every bar when few are drawn, else over the highest, the ones tied with it,
 // and today.
-func barsOf(cols []Column, scale int64, baseline float64, full, partial bool) ([]bar, []valueLabel) {
+func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, previous int) ([]bar, []valueLabel) {
 	n := len(cols)
 	band := 100 / float64(n)
 	share := barShare(n)
@@ -354,6 +374,7 @@ func barsOf(cols []Column, scale int64, baseline float64, full, partial bool) ([
 		bars = append(bars, bar{
 			X: percent(float64(i)*band + (1-share)/2*band), Width: percent(share * band),
 			Y: baseline - h, Height: h, Open: partial && i == n-1,
+			Previous: i < previous,
 		})
 		if !full || c.Value == peak || i == n-1 {
 			values = append(values, valueLabel{
@@ -364,7 +385,7 @@ func barsOf(cols []Column, scale int64, baseline float64, full, partial bool) ([
 	return bars, values
 }
 
-func stripsOf(pl []plan, rows []int, top float64, n int, grouped bool) []strip {
+func stripsOf(pl []plan, rows []int, top float64, n int, grouped, partial bool) []strip {
 	band := 100 / float64(n)
 	strips := make([]strip, 0, len(pl))
 	for k, sp := range pl {
@@ -373,15 +394,15 @@ func stripsOf(pl []plan, rows []int, top float64, n int, grouped bool) []strip {
 			GroundX: percent(sp.a * band), GroundWidth: percent((sp.b - sp.a) * band),
 			X: percent(sp.a * band), Width: percent((sp.end - sp.a) * band),
 			Y: top - 12 - float64(stripRow*rows[k]), Thin: n >= thinGapsFrom,
-			Name: text, NameX: percent(at * band), Anchor: anchor,
+			Name: text, NameX: percent(at * band), Anchor: anchor, Window: sp.window,
 		}
 		s.NameY = s.Y - 6
-		if !grouped {
+		if !grouped && !sp.window {
 			for i := int(sp.a) + 1; float64(i) < math.Ceil(sp.end); i++ {
 				s.Gaps = append(s.Gaps, percent(float64(i)*band))
 			}
 		}
-		if sp.runs {
+		if sp.runs && partial {
 			s.TodayX = percent(sp.end * band)
 		}
 		strips = append(strips, s)
@@ -447,8 +468,8 @@ func coveredDays(ctx context.Context, c Column, first, last time.Time) string {
 
 // columnTicks labels the axis: a long chart, drawn in runs, labels the day each
 // starts on; otherwise the days tickDays picks, and every day of a week, and
-// today at the end.
-func columnTicks(ctx context.Context, cols []Column, grouped bool, band float64) []dayTick {
+// today at the end when the last day is still going.
+func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
 	picked := map[int]bool{}
 	if !grouped {
@@ -474,7 +495,7 @@ func columnTicks(ctx context.Context, cols []Column, grouped bool, band float64)
 			t.Minor = (n-1-i)%2 == 1
 		}
 		if i == n-1 {
-			if !grouped {
+			if !grouped && today {
 				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
 			}
 			if n > 7 {

@@ -43,7 +43,7 @@ WHERE NOT EXISTS (SELECT 1 FROM promo_banners);
 
 INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at)
 VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign',
-        now() - interval '1 day', now() + interval '1 day')
+        now() - interval '3 days', now() + interval '1 day')
 ON CONFLICT (slug) DO UPDATE
 SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, is_active = true;
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
@@ -316,6 +316,37 @@ WHERE ol.sku = 'LAYOUT-REVENUE';
 SELECT capture_payment('layout-rev-' || o.id, ol.unit_price_cents, NULL, NULL)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE ol.sku = 'LAYOUT-REVENUE';
+
+-- /admin/campaigns/layout-campaign draws its columns from day 3 of the campaign
+-- (it began three days ago, so this is day 4) and ten units of its listed
+-- products across three days with sales, before and during. Four units of its
+-- first product on each of the seven days from yesterday back: three during the
+-- campaign, four in the four days before it, paid as above.
+WITH campaign_orders AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
+                        shipping_cents, placed_at)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0,
+           now() - make_interval(days => day_ago)
+    FROM generate_series(1, 7) AS day_ago
+    RETURNING id
+), campaign_lines AS (
+    INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
+    SELECT o.id, (SELECT cp.product_id FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = 'layout-campaign' ORDER BY cp.position LIMIT 1),
+           'LAYOUT-CAMPAIGN', 'Campaign results fixture', 1000, 4
+    FROM campaign_orders o
+    RETURNING order_id
+)
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM campaign_lines;
+SELECT open_payment(o.id, 'layout-camp-' || o.id, ol.unit_price_cents * ol.quantity)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE ol.sku = 'LAYOUT-CAMPAIGN';
+SELECT capture_payment('layout-camp-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE ol.sku = 'LAYOUT-CAMPAIGN';
 
 SET ROLE admin;
 

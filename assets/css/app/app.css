@@ -1097,21 +1097,10 @@ h3 {
   width: 16px;
 }
 
-/* An underlined field: the line is --control-boundary, the 3:1 line, and a real border so
-   forced colours keeps it. Focus darkens and thickens it; the transparent
-   outline is what forced colours draws. */
 .goen-header .goen-header__field {
   background: none;
-  border-bottom: 1px solid var(--control-boundary);
   border-radius: 0;
-  outline: 2px solid transparent;
   padding-left: 40px;
-}
-
-.goen-header .goen-header__field:focus-visible {
-  border-bottom-color: var(--accent);
-  box-shadow: 0 1px 0 var(--accent);
-  outline-color: transparent;
 }
 
 .goen-header__actions {
@@ -3364,11 +3353,12 @@ input.goen-check {
 }
 
 /* A phone's chips scroll sideways in one row; a wrapped second row would push
-   the first product down. */
+   the first product down. The row bleeds by the gutter, which is in px: a rem
+   bleed grows with the reader's text and runs past the screen. */
 .goen-pagehead__chips {
-  margin-inline: -1rem;
+  margin-inline: calc(var(--page-gutter) * -1);
   overflow-x: auto;
-  padding-inline: 1rem;
+  padding-inline: var(--page-gutter);
   scrollbar-width: none;
 }
 
@@ -3785,6 +3775,15 @@ input.goen-check {
   }
 }
 
+/* For the same reason a phone's campaign notice drops its end line where the day grid
+   stands beside it, whose last label is the end date. A campaign too long for a grid
+   keeps the line. */
+@media (max-width: 767px) {
+  .goen-deptnotice__in:has(> .ui-period) > .ui-statline {
+    display: none;
+  }
+}
+
 /* Where products are put side by side, a row holds five and a card says what it is under
    its name. */
 .goen-tile__specs {
@@ -3935,11 +3934,6 @@ input.goen-check {
   .goen-pager--more {
     flex-direction: column;
     justify-content: center;
-  }
-
-  .goen-pagehead__chips {
-    margin-inline: -1.5rem;
-    padding-inline: 1.5rem;
   }
 }
 
@@ -4380,6 +4374,23 @@ input.goen-check {
   color: var(--n-500);
   font-size: var(--fs-16);
   font-variant-numeric: tabular-nums;
+}
+
+.goen-pdp__source {
+  color: var(--n-700);
+  font-size: var(--fs-14);
+  margin: 0.125rem 0 0;
+}
+
+.goen-pdp__source a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.goen-pdp__source + .ui-period {
+  margin-top: 0.5rem;
+  max-width: 26rem;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -6838,9 +6849,7 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The order history. One table at every width: below 768 the date column folds
-   into the number cell rather than a second markup tree rendering the same
-   rows again. */
+/* The order history. One table at every width; each row's facts sit under its number. */
 .goen-account__orders {
   border-collapse: collapse;
   font-size: var(--fs-14);
@@ -6878,10 +6887,6 @@ input.goen-check {
   text-decoration: underline;
 }
 
-.goen-account__ordercol {
-  display: none;
-}
-
 .goen-account__orderpay {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
@@ -6893,11 +6898,6 @@ input.goen-check {
   display: block;
   font-size: 0.8125rem;
   margin-top: 0.125rem;
-}
-
-.goen-account__ordertotal {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 .goen-account__empty {
@@ -7910,14 +7910,6 @@ input.goen-check {
 
   .goen-account__field--wide {
     grid-column: 1 / -1;
-  }
-
-  .goen-account__ordercol {
-    display: table-cell;
-  }
-
-  .goen-account__ordermeta {
-    display: none;
   }
 
   .goen-points__figures {
