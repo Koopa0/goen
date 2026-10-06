@@ -38,6 +38,8 @@ type ProductTile struct {
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
+	// Highlights are the first specifications a comparable product lists, for the line under its name.
+	Highlights []string
 }
 
 func AnyComparable(tiles []ProductTile) bool {
