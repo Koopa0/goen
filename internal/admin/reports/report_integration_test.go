@@ -803,12 +803,12 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	categoryOrder(t, idB, 99999, false)
 	refunded := categoryOrder(t, idB, 77777, true)
 	var staff uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err = pool.QueryRow(ctx, `
 		INSERT INTO users (email, role) VALUES ('dept-staff-' || gen_random_uuid() || '@goen.invalid', 'staff')
 		RETURNING id`).Scan(&staff); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `SELECT open_refund_before_shipment($1, 'department', $2, $3)`,
+	if _, err = pool.Exec(ctx, `SELECT open_refund_before_shipment($1, 'department', $2, $3)`,
 		refunded, staff, "dept-"+refunded); err != nil {
 		t.Fatalf("refund before shipment: %v", err)
 	}
