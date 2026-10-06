@@ -5359,7 +5359,7 @@ AS $$
                     WHERE accepted.order_id = r.order_id
                       AND accepted.shipping_refund_cents > 0
                 ) THEN o.shipping_cents ELSE 0 END
-        ELSE 0
+        ELSE return_goods_refundable_amount(r.id)
     END::bigint
     FROM return_requests r JOIN orders o ON o.id = r.order_id
     WHERE r.id = p_return_request_id;
