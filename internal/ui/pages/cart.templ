@@ -879,11 +879,19 @@ templ Order(p layouts.Page, v *OrderView) {
 						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
 							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
 						}
-						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number)) {
+						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number+"?paid=1&confirmation=done")) {
 							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
 						}
 					</div>
 				</div>
+			} else if v.PaymentConfirmationPending {
+				@components.Notice(components.NoticeProps{
+					Intent: components.IntentAccent,
+					ID:     "order-payment-confirmation-pending",
+				}) {
+					{ i18n.T(ctx, i18n.KeyOrderPaymentConfirmationPending) }
+					<a href="/contact">{ i18n.T(ctx, i18n.KeyContact) }</a>
+				}
 			} else if v.AwaitingPayment() {
 				@components.Notice(components.NoticeProps{
 					Intent: components.IntentAccent,
