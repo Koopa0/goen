@@ -65,8 +65,6 @@ var (
 		En:     "What goen sells",
 	})
 
-	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
-
 	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
 
 	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})
@@ -80,10 +78,6 @@ var (
 	// What joins a section's name to its grey continuation on the same line.
 	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
 
-	// The campaign row's continuation: %d is the product count, %s the last day.
-	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",
-		"%d item, until %s", "%d items, until %s")
-
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
 	// for a day outside the shop's current year.
@@ -94,8 +88,11 @@ var (
 	// A day on a grid's end: the English month name, the month number and the day.
 	KeyDateLabel = key("date.label", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s\u00a0%[3]d"})
 
-	// %s is a department's name.
-	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})
+	// %d is the count of what the link lists.
+	KeyHomeSeeAllCount = countKey("home.see_all.count", "看全部 %d 件", "See all %d item", "See all %d items")
+
+	// The link under New in, which lists products and is no campaign.
+	KeyHomeNewInCTA = key("home.row.newin.cta", Message{ZhHant: "看全部商品", En: "See all products"})
 
 	KeyHeroCampaignCTA = key("home.hero.cta.campaign", Message{
 		ZhHant: "看全部商品",
