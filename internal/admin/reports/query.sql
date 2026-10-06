@@ -73,7 +73,7 @@ SELECT o.order_number, f.total_cents,
 FROM orders o
 JOIN committed_orders c ON c.id = o.id
 CROSS JOIN LATERAL (
-    SELECT coalesce(
+    SELECT coalesce(o.placed_at,
                (SELECT min(e.occurred_at) FROM order_events e
                 WHERE e.order_id = o.id AND e.kind = 'paid'),
                (SELECT max(p.paid_at) FROM payments p
