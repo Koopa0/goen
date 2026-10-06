@@ -25,10 +25,10 @@ func results(days int, units ...int64) *CampaignResults {
 	}
 }
 
-func renderResults(t *testing.T, locale i18n.Locale, v CampaignView) string {
+func renderResults(t *testing.T, locale i18n.Locale, v *CampaignView) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := CampaignForm(layouts.Page{Title: "c"}, v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+	if err := CampaignForm(layouts.Page{Title: "c"}, *v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 		t.Fatalf("CampaignForm.Render: %v", err)
 	}
 	return b.String()
@@ -84,7 +84,7 @@ func TestCampaignResultsSentencesCountBeforeAndDuringEachInItsOwnPlural(t *testi
 func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 	t.Parallel()
 
-	drawn := renderResults(t, i18n.En, CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
+	drawn := renderResults(t, i18n.En, &CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
 	for _, want := range []string{
 		"<svg", "goen-chart__hue--previous", "7 units sold in the campaign",
 		`<td class="goen-chart__spans">Before</td>`, "Counts the campaign&#39;s current 6 products",
@@ -97,7 +97,7 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 		"day 2":                results(2, 0, 0, 1, 0),
 		"10 units on two days": results(5, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5),
 	} {
-		page := renderResults(t, i18n.En, CampaignView{Slug: "autumn", Results: r})
+		page := renderResults(t, i18n.En, &CampaignView{Slug: "autumn", Results: r})
 		if strings.Contains(page, "goen-chart__plot") || !strings.Contains(page, "sold in the campaign&#39;s first") {
 			t.Errorf("%s: the page draws columns it should leave to a sentence, or lacks the sentence", name)
 		}
@@ -105,10 +105,26 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 			t.Errorf("%s: says what the columns wait for = %v, want %v", name, got, want)
 		}
 	}
-	if page := renderResults(t, i18n.En, CampaignView{Slug: "autumn"}); strings.Contains(page, "Results") {
+	if page := renderResults(t, i18n.En, &CampaignView{Slug: "autumn"}); strings.Contains(page, "Results") {
 		t.Error("a campaign with no results shows a Results section")
 	}
-	if page := renderResults(t, i18n.En, CampaignView{Slug: "autumn", ResultsUnavailable: true}); !strings.Contains(page, "unavailable right now") {
+	if page := renderResults(t, i18n.En, &CampaignView{Slug: "autumn", ResultsUnavailable: true}); !strings.Contains(page, "unavailable right now") {
 		t.Error("a campaign whose results could not be read says nothing")
+	}
+}
+
+func TestCampaignResultsNoteSaysWhatIsCountedAndUpToWhenTodayIsGoing(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	running := results(3, 1, 1, 1, 2, 2, 3)
+	if got := running.Note(ctx); !strings.Contains(got, "Today is counted up to 15:20") {
+		t.Errorf("Note() of a running campaign = %q, want today's cut", got)
+	}
+	over := results(3, 1, 1, 1, 2, 2, 3)
+	over.Units.Partial = false
+	got := over.Note(ctx)
+	if strings.Contains(got, "Today is counted") || !strings.Contains(got, "Paid orders only, by the time placed.") {
+		t.Errorf("Note() of a campaign that is over = %q, want what is counted and no cut", got)
 	}
 }

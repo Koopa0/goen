@@ -131,7 +131,7 @@ func (s *Store) Image(ctx context.Context, slug string) (admin.Header, string, e
 }
 
 func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
-	row, err := s.q.AdminCampaign(ctx, slug)
+	row, err := s.q.AdminCampaign(ctx, db.AdminCampaignParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.CampaignDetail{}, ErrNotFound
@@ -139,7 +139,7 @@ func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, 
 		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
 	}
 	return admin.CampaignDetail{
-		Title: row.Title, Starts: row.StartsAt, Ends: row.EndsAt,
+		Title: row.Title, Label: row.Label, Starts: row.StartsAt, Ends: row.EndsAt,
 		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
 		Active: row.IsActive, Running: row.IsRunning, Sellable: row.IsSellable,
 	}, nil

@@ -186,6 +186,9 @@ var (
 		"Counts the campaign's current %d product; change the list and these figures change with it.",
 		"Counts the campaign's current %d products; change the list and these figures change with it.")
 
+	// What the units are, once today is no longer counted.
+	KeyAdminCampBasis = key("admin.camp.basis", Message{ZhHant: "只計入已付款的訂單，依下單時間。", En: "Paid orders only, by the time placed."})
+
 	KeyAdminCampUnits = key("admin.camp.units", Message{ZhHant: "件數", En: "Units"})
 
 	KeyAdminCampPeriod = key("admin.camp.period", Message{ZhHant: "時段", En: "Period"})

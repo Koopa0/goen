@@ -17,7 +17,7 @@ import (
 
 // soldAt places an order of units of the product at the shop-clock moment, paid
 // unless unpaid.
-func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid bool) {
+func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid bool) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
 	placed, err := shoptime.ParseSecond(moment)
@@ -54,7 +54,7 @@ func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid 
 		t.Fatalf("commit: %v", err)
 	}
 	if unpaid {
-		return
+		return orderID
 	}
 	ref := "daily_" + orderID.String()
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(units)); err != nil {
@@ -63,6 +63,7 @@ func soldAt(t *testing.T, productID uuid.UUID, units int, moment string, unpaid 
 	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(units)); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+	return orderID
 }
 
 func newProduct(t *testing.T) (id uuid.UUID, slug string) {
@@ -112,6 +113,11 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 	soldAt(t, listed, 9, "2026-10-07 15:21:00", false) // after now
 	soldAt(t, unlisted, 4, "2026-10-06 12:00:00", false)
 	soldAt(t, listed, 6, "2026-10-06 12:00:00", true) // never paid
+	refunded := soldAt(t, listed, 8, "2026-10-06 13:00:00", false)
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
 
 	now, err := shoptime.ParseSecond("2026-10-07 15:20:00")
 	if err != nil {
@@ -125,7 +131,7 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("Results = %v, %v, want the days", got, err)
 	}
-	var units []int64
+	units := make([]int64, 0, len(got.Units.Buckets))
 	for _, b := range got.Units.Buckets {
 		units = append(units, b.Value)
 	}
@@ -134,5 +140,19 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 	}
 	if first := got.Units.Buckets[0].Day.Format(time.DateOnly); first != "2026-10-02" {
 		t.Errorf("first day = %s, want 2026-10-02", first)
+	}
+	if got.Campaign.Label != "秋日選物" {
+		t.Errorf("campaign label = %q, want its title in the reader's language", got.Campaign.Label)
+	}
+
+	if err := s.SetActive(ctx, slug, false); err != nil {
+		t.Fatal(err)
+	}
+	off, err := s.Detail(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Results(ctx, slug, off, 1, now); err != nil || got != nil {
+		t.Errorf("Results of a switched-off campaign = %v, %v, want none", got, err)
 	}
 }

@@ -97,6 +97,7 @@ func (v CampaignsView) Err(f string) string { return v.Errors[f] }
 // datetime-local field values, not display text.
 type CampaignDetail struct {
 	Title                      string
+	Label                      string // the title in the reader's language, as the reports name the campaign
 	Starts, Ends               time.Time
 	StartsAtInput, EndsAtInput string
 	Active, Running, Sellable  bool
@@ -224,13 +225,13 @@ func (r *CampaignResults) Hint(ctx context.Context) string {
 		i18n.Count(ctx, i18n.KeyAdminRepUnitCount, minResultUnits, minResultUnits))
 }
 
-// Note says what the figures count, and up to when.
+// Note says what the figures count, and up to when while today is going.
 func (r *CampaignResults) Note(ctx context.Context) string {
 	note := i18n.Count(ctx, i18n.KeyAdminCampResultsNote, int64(r.Products), r.Products)
 	if r.Units.Partial {
-		note += " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), r.Cut)
+		return note + " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), r.Cut)
 	}
-	return note
+	return note + " " + i18n.T(ctx, i18n.KeyAdminCampBasis)
 }
 
 // Columns is the days drawn: the days before in grey, the campaign's bracketed.

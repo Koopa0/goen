@@ -56,10 +56,11 @@ func resultWindow(starts, ends, now time.Time) (resultDays, bool) {
 
 // Results reads the units sold on each shop day by the products now on the
 // campaign's list: the days of the campaign so far, up to 14, and as many
-// before it. It is nil when the campaign has not begun or has no products.
+// before it. It is nil when the campaign has not begun, is switched off, or has
+// no products.
 func (s *Store) Results(ctx context.Context, slug string, detail admin.CampaignDetail, products int, now time.Time) (*admin.CampaignResults, error) {
 	w, ok := resultWindow(detail.Starts, detail.Ends, now)
-	if !ok || products == 0 {
+	if !ok || products == 0 || !detail.Active {
 		return nil, nil
 	}
 	rows, err := s.q.CampaignDailyUnits(ctx, db.CampaignDailyUnitsParams{
@@ -77,7 +78,7 @@ func (s *Store) Results(ctx context.Context, slug string, detail admin.CampaignD
 		Campaign: chart.Span{
 			From:  shoptime.QueryDate(detail.Starts),
 			To:    shoptime.QueryDate(detail.Ends.Add(-time.Nanosecond)),
-			Label: detail.Title,
+			Label: detail.Label,
 		},
 	}, nil
 }
