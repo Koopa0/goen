@@ -7606,6 +7606,16 @@ a.goen-pager__step:hover {
   }
 }
 
+.goen-admin__tier {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.goen-admin__tier p {
+  margin: 0;
+}
+
 .goen-stat {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -9643,6 +9653,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chartmeter__limit {
+  fill: var(--chart-annotation);
+}
+
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
@@ -9670,6 +9684,10 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 
   .goen-chartmeter__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartmeter__limit {
     fill: CanvasText;
   }
 

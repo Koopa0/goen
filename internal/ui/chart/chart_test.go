@@ -173,3 +173,17 @@ func TestMeterWithNothingUsedDrawsNoFill(t *testing.T) {
 		t.Errorf("Meter(0 of 20) = %s, want only the track", b.String())
 	}
 }
+
+func TestMeterDrawsTheLimitLineOnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []bool{false, true} {
+		var b bytes.Buffer
+		if err := Meter(MeterProps{Value: 5, Limit: 20, LimitLine: line}).Render(t.Context(), &b); err != nil {
+			t.Fatalf("Meter.Render: %v", err)
+		}
+		if got := strings.Contains(b.String(), "goen-chartmeter__limit"); got != line {
+			t.Errorf("Meter(LimitLine: %v) draws the line = %v", line, got)
+		}
+	}
+}

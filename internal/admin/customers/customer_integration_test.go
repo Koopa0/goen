@@ -375,3 +375,27 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	}
 	return serial, number
 }
+
+// The page and the customer's own account judge tiers by member_spend over the
+// membership window, so the two must show one figure.
+func TestTheCustomerPageShowsTheSpendTiersAreJudgedBy(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := customers.NewStore(pool)
+	userID := admintest.CreditedAccount(t, pool, 0)
+	admintest.OrderForCustomer(t, pool, userID, 120000, true)
+
+	var want int64
+	if err := pool.QueryRow(ctx, `SELECT member_spend($1, 365, NULL)`, userID).Scan(&want); err != nil {
+		t.Fatalf("read member_spend: %v", err)
+	}
+	view, err := s.Profile(ctx, userID.String())
+	if err != nil {
+		t.Fatalf("Profile: %v", err)
+	}
+	if want == 0 || view.WindowSpendCents != want {
+		t.Errorf("window spend is %d, want member_spend %d (non-zero)", view.WindowSpendCents, want)
+	}
+	if view.NextTierName == "" || view.NextTierCents <= view.WindowSpendCents {
+		t.Errorf("next tier %q at %d, want a tier above the spend %d", view.NextTierName, view.NextTierCents, want)
+	}
+}
