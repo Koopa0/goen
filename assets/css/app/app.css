@@ -304,10 +304,10 @@ a:hover {
 
   --font-display: var(--font-sans);
 
-  /* One family for everything, headings included. Noto Sans TC follows Inter
-     so Han is covered by a face that sits beside it rather than under a
-     second personality. */
-  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* One family for everything, headings included. Noto Sans TC follows
+     Instrument Sans so Han is covered by a face that sits beside it rather
+     than under a second personality. */
+  --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
 
   --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;
