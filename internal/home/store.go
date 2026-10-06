@@ -44,7 +44,7 @@ const (
 	bandTiles = 3
 )
 
-func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, map[uuid.UUID][]string, []db.HomeCampaignsRow, error) {
+func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, map[uuid.UUID][]string, []db.ListedCampaignsRow, error) {
 	locale := string(i18n.FromContext(ctx))
 	cats, err := s.q.RootCategories(ctx, locale)
 	if err != nil {
@@ -58,7 +58,7 @@ func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, ma
 	for _, r := range subRows {
 		subs[r.ParentID.UUID] = append(subs[r.ParentID.UUID], r.Name)
 	}
-	camps, err := s.q.HomeCampaigns(ctx, db.HomeCampaignsParams{Locale: locale, MaxCampaigns: maxSlides})
+	camps, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{Locale: locale, PageSize: maxSlides})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("read home campaigns: %w", err)
 	}
@@ -123,7 +123,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	return view, nil
 }
 
-func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {
+func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (pages.ProductRow, error) {
 	if len(camps) > 0 {
 		c := &camps[0]
 		tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)

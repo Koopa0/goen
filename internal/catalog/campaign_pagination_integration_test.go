@@ -32,6 +32,7 @@ func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
 		if _, execErr := tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, is_active) VALUES ($1, $2, now() - interval '1 day', now() + ($3 * interval '1 day'), true)`, slugs[i], fmt.Sprintf("Campaign %d", i), i+1); execErr != nil {
 			t.Fatal(execErr)
 		}
+		featureNewProduct(t, tx, slugs[i], 5, "active")
 	}
 	store := catalog.NewStore(tx)
 	first, err := store.RunningCampaigns(ctx, 1)

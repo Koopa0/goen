@@ -612,18 +612,38 @@ LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text AND c.is_active
   AND c.starts_at <= now() AND c.ends_at > now();
 
--- name: RunningCampaigns :many
+-- A campaign is listed only while a published featured product can be bought,
+-- so the deals page, the home carousel and the header link never offer an empty
+-- shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.ends_at,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
+       c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products cp
+        JOIN products p ON p.id = cp.product_id
+        WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ORDER BY c.ends_at, c.id
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
--- name: RunningCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns
-WHERE is_active AND starts_at <= now() AND ends_at > now();
+-- The same listing as ListedCampaigns, counted.
+-- name: ListedCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock);
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many

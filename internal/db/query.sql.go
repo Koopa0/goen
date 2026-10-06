@@ -351,17 +351,23 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 
 const adminCampaign = `-- name: AdminCampaign :one
 SELECT c.title, c.starts_at, c.ends_at, c.is_active,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE c.slug = $1::text
 `
 
 type AdminCampaignRow struct {
-	Title     string
-	StartsAt  time.Time
-	EndsAt    time.Time
-	IsActive  bool
-	IsRunning bool
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	IsActive   bool
+	IsRunning  bool
+	IsSellable bool
 }
 
 func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaignRow, error) {
@@ -373,6 +379,7 @@ func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaign
 		&i.EndsAt,
 		&i.IsActive,
 		&i.IsRunning,
+		&i.IsSellable,
 	)
 	return i, err
 }
@@ -519,7 +526,12 @@ func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string)
 const adminCampaigns = `-- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
        OR (c.is_active = $2::boolean AND c.ends_at < $3::timestamptz)
@@ -546,6 +558,7 @@ type AdminCampaignsRow struct {
 	IsActive   bool
 	Products   int64
 	IsRunning  bool
+	IsSellable bool
 }
 
 func (q *Queries) AdminCampaigns(ctx context.Context, arg AdminCampaignsParams) ([]AdminCampaignsRow, error) {
@@ -573,6 +586,7 @@ func (q *Queries) AdminCampaigns(ctx context.Context, arg AdminCampaignsParams) 
 			&i.IsActive,
 			&i.Products,
 			&i.IsRunning,
+			&i.IsSellable,
 		); err != nil {
 			return nil, err
 		}
@@ -7513,69 +7527,6 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	return hold_inventory, err
 }
 
-const homeCampaigns = `-- name: HomeCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT $2::integer
-`
-
-type HomeCampaignsParams struct {
-	Locale       string
-	MaxCampaigns int32
-}
-
-type HomeCampaignsRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
-	Products   int64
-}
-
-// The running campaigns, soonest-ending first. The window is judged against the
-// database's clock, which wrote the timestamps.
-func (q *Queries) HomeCampaigns(ctx context.Context, arg HomeCampaignsParams) ([]HomeCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, homeCampaigns, arg.Locale, arg.MaxCampaigns)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []HomeCampaignsRow{}
-	for rows.Next() {
-		var i HomeCampaignsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Title,
-			&i.EndsAt,
-			&i.Tone,
-			&i.ImageKey,
-			&i.ImageAlt,
-			&i.ImageWidth,
-			&i.Products,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const homeDepartmentStock = `-- name: HomeDepartmentStock :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL
@@ -8396,6 +8347,96 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listedCampaigns = `-- name: ListedCampaigns :many
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products cp
+        JOIN products p ON p.id = cp.product_id
+        WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT $3::integer OFFSET $2::integer
+`
+
+type ListedCampaignsParams struct {
+	Locale     string
+	PageOffset int32
+	PageSize   int32
+}
+
+type ListedCampaignsRow struct {
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	EndsAt     time.Time
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
+	Products   int64
+}
+
+// A campaign is listed only while a published featured product can be bought,
+// so the deals page, the home carousel and the header link never offer an empty
+// shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListedCampaignsRow{}
+	for rows.Next() {
+		var i ListedCampaignsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.EndsAt,
+			&i.Tone,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.Products,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listedCampaignsCount = `-- name: ListedCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+`
+
+// The same listing as ListedCampaigns, counted.
+func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, listedCampaignsCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const liveInvoice = `-- name: LiveInvoice :one
@@ -14084,68 +14125,6 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 		&i.ImageWidth,
 	)
 	return i, err
-}
-
-const runningCampaigns = `-- name: RunningCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.ends_at,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT $3::integer OFFSET $2::integer
-`
-
-type RunningCampaignsParams struct {
-	Locale     string
-	PageOffset int32
-	PageSize   int32
-}
-
-type RunningCampaignsRow struct {
-	ID       uuid.UUID
-	Slug     string
-	Title    string
-	EndsAt   time.Time
-	Products int64
-}
-
-func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, runningCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []RunningCampaignsRow{}
-	for rows.Next() {
-		var i RunningCampaignsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Title,
-			&i.EndsAt,
-			&i.Products,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const runningCampaignsCount = `-- name: RunningCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns
-WHERE is_active AND starts_at <= now() AND ends_at > now()
-`
-
-func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, runningCampaignsCount)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
