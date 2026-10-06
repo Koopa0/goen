@@ -249,3 +249,10 @@ SELECT release_payment_event(@event_id::text);
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- name: OrderNumbersByProviderRef :many
+SELECT p.provider_ref, o.order_number
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE p.provider = 'stripe'
+  AND p.provider_ref = ANY(@provider_refs::text[]);
