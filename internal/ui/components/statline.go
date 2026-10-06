@@ -13,10 +13,6 @@ type StatLineVariant string
 
 const (
 	StatLinePlain StatLineVariant = ""
-	// StatLineSmall is a line inside a list row.
-	StatLineSmall StatLineVariant = "small"
-	// StatLinePairs is four stats read as two rows of two.
-	StatLinePairs StatLineVariant = "pairs"
 	StatLineWide  StatLineVariant = "wide"
 )
 
@@ -34,7 +30,7 @@ type Stat struct {
 	Note  string
 }
 
-// StatValue is a closed set of kinds; the zero value is absent, and a stat whose value is absent is not printed.
+// StatValue is a figure with an optional leading or trailing unit, kept together across lines. The zero value prints nothing, and a stat with no value is left out.
 type StatValue struct {
 	pre    string
 	figure string

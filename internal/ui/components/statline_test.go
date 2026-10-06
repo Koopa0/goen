@@ -67,8 +67,6 @@ func TestStatLineVariantsAndNoStyleAttribute(t *testing.T) {
 	s := []Stat{{Label: "a", Value: StatCount(1, "x"), Note: "n"}}
 	for variant, class := range map[StatLineVariant]string{
 		StatLinePlain: `<dl class="ui-statline">`,
-		StatLineSmall: `<dl class="ui-statline ui-statline--small">`,
-		StatLinePairs: `<dl class="ui-statline ui-statline--pairs">`,
 		StatLineWide:  `<dl class="ui-statline ui-statline--wide">`,
 	} {
 		got := renderStatLine(t, s, variant)

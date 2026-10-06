@@ -179,8 +179,7 @@ body {
 .ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
 
 /* ---------- Stat line: a label, a figure with its unit and one note, each under its own hairline ----------
-   The figures are what goen stores; the cell count of a row is the data, so nothing here sets a width
-   in a style attribute. Space and size are rem, so they grow with the reader's text. */
+   Space and size are rem, so they grow with the reader's text; nothing here needs a style attribute. */
 
 .ui-statline { --stat-min: 6.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--stat-min)), 1fr)); gap: var(--s-4) var(--s-5); max-width: 44rem; margin: 0; }
 .ui-statline > div { min-width: 0; padding-top: 0.625rem; border-top: 1px solid var(--fg); }
@@ -192,17 +191,12 @@ body {
 .ui-statline--wide { max-width: none; }
 /* one stat keeps a column's width; it never stretches into a divider */
 .ui-statline:has(> :only-child) { grid-template-columns: minmax(0, 18rem); }
-/* four stats in a narrow column read as two rows of two, never three and one; when two
-   columns of --stat-min do not fit (large text on a phone), one stat per row */
-.ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
+/* four stats read as two rows of two, never three and one; when two columns of --stat-min do not fit
+   (large text on a phone), one stat per row */
 @media (max-width: 700px) { .ui-statline:has(> :nth-child(4):last-child) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); } }
 /* a phone: the figure steps down and the columns stay wide enough that a figure never breaks
    (two across at 320, one in a narrow card) */
 @media (max-width: 420px) { .ui-statline { --stat-min: 7.5rem; column-gap: var(--s-4); } .ui-statline dd { font-size: var(--t-20); overflow-wrap: normal; } }
-/* inside a list row: the same form, one step down */
-.ui-statline--small { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
-.ui-statline--small > div { flex: 0 1 auto; min-width: min(7rem, 100%); padding-top: 0.375rem; }
-.ui-statline.ui-statline--small dd { font-size: var(--t-16); font-weight: 400; letter-spacing: 0; }
 
 /* ---------- Breadcrumbs ---------- */
 
