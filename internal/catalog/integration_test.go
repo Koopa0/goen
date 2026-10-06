@@ -536,15 +536,20 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 	}
 }
 
+// listedSlugs reads every page: other tests commit listed campaigns, so one
+// page of CampaignPageSize rows need not hold the campaign under test.
 func listedSlugs(t *testing.T, s *catalog.Store) []string {
 	t.Helper()
-	view, err := s.ListedCampaigns(t.Context(), 1)
-	if err != nil {
-		t.Fatalf("running campaigns: %v", err)
-	}
-	out := make([]string, 0, len(view.Rows))
-	for _, r := range view.Rows {
-		out = append(out, r.Slug)
+	var out []string
+	for page, last := 1, 1; page <= last; page++ {
+		view, err := s.ListedCampaigns(t.Context(), page)
+		if err != nil {
+			t.Fatalf("running campaigns page %d: %v", page, err)
+		}
+		last = int((view.Total + catalog.CampaignPageSize - 1) / catalog.CampaignPageSize)
+		for _, r := range view.Rows {
+			out = append(out, r.Slug)
+		}
 	}
 	return out
 }
