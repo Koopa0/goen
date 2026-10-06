@@ -37,7 +37,7 @@
 
 Go · templ · htmx · PostgreSQL · Stripe · 綠界
 
-系統怎麼分工、資料庫守住哪些規則、背後有哪些檢查：[ARCHITECTURE.md](ARCHITECTURE.md)（英文）
+系統怎麼分工、資料庫守住哪些規則、背後有哪些檢查：[ARCHITECTURE.zh-TW.md](ARCHITECTURE.zh-TW.md)
 
 ## 試用示範站
 

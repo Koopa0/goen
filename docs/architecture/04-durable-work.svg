@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1450" viewBox="0 0 1600 1450" role="img" aria-labelledby="title desc">
+<title id="title">Durable background work</title>
+<desc id="desc">Outbox delivery and invoice issuance are tracked separately.</desc>
+<defs>
+<marker id="arrow-navy" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto-start-reverse" viewBox="0 0 13 13"><path d="M 1 1 L 12 6.5 L 1 12 Z" fill="#183442"/></marker>
+<marker id="arrow-teal" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto-start-reverse" viewBox="0 0 13 13"><path d="M 1 1 L 12 6.5 L 1 12 Z" fill="#126E65"/></marker>
+<marker id="arrow-amber" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto-start-reverse" viewBox="0 0 13 13"><path d="M 1 1 L 12 6.5 L 1 12 Z" fill="#926021"/></marker>
+<marker id="arrow-muted" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto-start-reverse" viewBox="0 0 13 13"><path d="M 1 1 L 12 6.5 L 1 12 Z" fill="#536973"/></marker>
+</defs>
+<rect x="0" y="0" width="1600" height="1450" rx="0" fill="#F8F7F2" stroke="none" stroke-width="1.6"/>
+<text x="60" y="79" font-family="DejaVu Sans, Arial, sans-serif" font-size="41" font-weight="700" fill="#183442" text-anchor="start">Durable background work</text>
+<polyline points="60,125 1540,125" fill="none" stroke="#D4DEDA" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<g transform="translate(0,-60)">
+<rect x="60" y="225" width="1480" height="180" rx="17" fill="#E8F2EE" stroke="#A9C9BE" stroke-width="2"/>
+<text x="88" y="267" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="700" fill="#126E65" text-anchor="start">PostgreSQL transaction</text>
+<rect x="88" y="290" width="560" height="87" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="114" y="336" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" fill="#183442" text-anchor="start">Business records</text>
+<text x="688" y="348" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="700" fill="#126E65" text-anchor="middle">+</text>
+<rect x="728" y="290" width="784" height="87" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="754" y="336" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" fill="#183442" text-anchor="start">outbox_messages</text>
+<polyline points="800,405 800,465" fill="none" stroke="#126E65" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-teal)"/>
+<rect x="435" y="465" width="730" height="175" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="461" y="511" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" fill="#183442" text-anchor="start">Claim due outbox work</text>
+<text x="461" y="543" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">SKIP LOCKED · durable lease · owner token</text>
+<text x="461" y="578" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Batch 6; sequential handlers</text>
+<polyline points="650,640 650,686 345,686 345,745" fill="none" stroke="#183442" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-navy)"/>
+<rect x="266" y="698" width="158" height="35" rx="0" fill="#F8F7F2" stroke="none" stroke-width="1.6"/>
+<text x="345" y="726" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="700" fill="#126E65" text-anchor="middle">mail topics</text>
+<polyline points="1010,640 1010,686 1175,686 1175,745" fill="none" stroke="#183442" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-navy)"/>
+<rect x="1096" y="698" width="158" height="35" rx="0" fill="#F8F7F2" stroke="none" stroke-width="1.6"/>
+<text x="1175" y="726" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="700" fill="#126E65" text-anchor="middle">invoice.due · void_due</text>
+<rect x="60" y="745" width="570" height="205" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="86" y="791" font-family="DejaVu Sans, Arial, sans-serif" font-size="29" font-weight="700" fill="#183442" text-anchor="start">SMTP delivery</text>
+<text x="86" y="823" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Send → mark delivered</text>
+<text x="86" y="858" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">A crash in between may duplicate</text>
+<text x="86" y="893" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">delivery.</text>
+<rect x="810" y="745" width="730" height="170" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="836" y="791" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" font-weight="700" fill="#183442" text-anchor="start">ClaimDue · ClaimVoidDue</text>
+<text x="836" y="823" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Still owed: commit invoice_operations.</text>
+<text x="836" y="858" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Met or withdrawn: no-op.</text>
+<text x="836" y="893" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Then acknowledge.</text>
+<rect x="60" y="1010" width="570" height="130" rx="17" fill="#FFF1DD" stroke="#DECBAE" stroke-width="1.6"/>
+<text x="88" y="1058" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="700" fill="#926021" text-anchor="start">Outbox ack ≠ invoice issued</text>
+<text x="88" y="1112" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="400" fill="#536973" text-anchor="start">Handoff or no work owed.</text>
+<rect x="810" y="985" width="730" height="475" rx="17" fill="#E8F2EE" stroke="#A9C9BE" stroke-width="1.6"/>
+<text x="838" y="1027" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="700" fill="#126E65" text-anchor="start">Invoice processing</text>
+<polyline points="1450,915 1450,1050" fill="none" stroke="#126E65" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-teal)"/>
+<text x="1430" y="971" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="400" fill="#126E65" text-anchor="end">if still owed</text>
+<rect x="838" y="1050" width="674" height="105" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="864" y="1096" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" font-weight="700" fill="#183442" text-anchor="start">invoice_operations</text>
+<text x="864" y="1129" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="400" fill="#536973" text-anchor="start">Pending work · attention</text>
+<polyline points="1015,1155 1015,1203" fill="none" stroke="#126E65" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-teal)"/>
+<rect x="838" y="1203" width="354" height="140" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="864" y="1249" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" fill="#183442" text-anchor="start">Reconciler</text>
+<text x="864" y="1281" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="400" fill="#536973" text-anchor="start">Lookup · submit</text>
+<text x="864" y="1316" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="400" fill="#536973" text-anchor="start">Verify evidence</text>
+<rect x="1274" y="1203" width="238" height="140" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="1300" y="1249" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" fill="#183442" text-anchor="start">ECPay</text>
+<text x="1300" y="1281" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="400" fill="#536973" text-anchor="start">Invoice API</text>
+<polyline points="1192,1245 1274,1245" fill="none" stroke="#183442" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-navy)"/>
+<polyline points="1274,1298 1192,1298" fill="none" stroke="#126E65" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-teal)" stroke-dasharray="8 8"/>
+<polyline points="1015,1343 1015,1378" fill="none" stroke="#126E65" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-teal)"/>
+<rect x="838" y="1378" width="674" height="64" rx="17" fill="#FFFFFF" stroke="#D4DEDA" stroke-width="1.6"/>
+<text x="864" y="1424" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="700" fill="#183442" text-anchor="start">Verified invoice_documents</text>
+</g>
+</svg>
