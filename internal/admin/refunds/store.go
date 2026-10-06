@@ -23,6 +23,16 @@ var (
 	// ErrCancellationIncomplete means the money, refunded event and points
 	// settled; Resume must finish cancellation without another payout.
 	ErrCancellationIncomplete = fmt.Errorf("%w: the order cancellation did not complete", refundstate.ErrIncomplete)
+
+	// The refusals the order's own state decides, before any money moves.
+	ErrShipped        = fmt.Errorf("%w: the order has shipped", refundstate.ErrRefused)
+	ErrHasReturn      = fmt.Errorf("%w: the order already has a return", refundstate.ErrRefused)
+	ErrOrderCancelled = fmt.Errorf("%w: the order is cancelled", refundstate.ErrRefused)
+	ErrNotPaid        = fmt.Errorf("%w: the order is not paid", refundstate.ErrRefused)
+	ErrOrderChanged   = fmt.Errorf("%w: the order changed since the page was read", refundstate.ErrRefused)
+	// ErrPayoutUnfit is a return whose recorded split, settled amounts or
+	// owner no longer allow its payout.
+	ErrPayoutUnfit = fmt.Errorf("%w: the payout does not fit the return", refundstate.ErrRefused)
 )
 
 type Store struct {

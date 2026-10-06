@@ -126,6 +126,12 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 				t.Fatalf("fillReturnPayoutState() refundstate.ErrRefused = %t, want %t; error = %v",
 					got, tt.wantErr, err)
 			}
+			// A payout that does not fit its record is the mismatch notice, not
+			// the generic refusal: the cause has to stay ErrPayoutUnfit.
+			if got := errors.Is(err, ErrPayoutUnfit); got != tt.wantErr {
+				t.Fatalf("fillReturnPayoutState() ErrPayoutUnfit = %t, want %t; error = %v",
+					got, tt.wantErr, err)
+			}
 			wantItem := admin.Return{
 				PayoutOutstanding: true,
 				PayoutBlocked:     tt.wantBlocked,
