@@ -2214,6 +2214,14 @@ input.goen-check {
   flex: 1 0 100%;
 }
 
+/* The sentence beside a warned estimate; the triangle repeats it for a reader
+   who scans the column. */
+.goen-report__warn {
+  color: var(--warn);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
      what a staff member checks against whatever they are about to press.
@@ -2837,6 +2845,42 @@ form[data-request-pending] [aria-disabled="true"] {
   white-space: nowrap;
 }
 
+/* A bar over its range. The 1.5px range and the ink reference line are the
+   annotation; the row's text says the same in words. */
+.goen-chartrangebar svg {
+  display: block;
+}
+
+.goen-chartrangebar__track {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chartrangebar__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartrangebar__range,
+.goen-chartrangebar__cap {
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chartrangebar__mark {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-chartrangebar__fill {
+    animation: goen-chart-grow 420ms var(--ease-standard) backwards;
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+  }
+}
+
 /* The SVG names its own system colours rather than relying on which
    properties a browser forces. A forced palette has one grey, so the
    hairline steps aside; the count is HTML and is forced like any text. */
@@ -2865,5 +2909,21 @@ form[data-request-pending] [aria-disabled="true"] {
     fill: Canvas;
     stroke: CanvasText;
     stroke-width: 2;
+  }
+
+  .goen-chartrangebar svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartrangebar__fill,
+  .goen-chartrangebar__range,
+  .goen-chartrangebar__cap,
+  .goen-chartrangebar__mark {
+    fill: CanvasText;
+    stroke: CanvasText;
+  }
+
+  .goen-chartrangebar__track {
+    stroke: transparent;
   }
 }

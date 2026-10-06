@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -95,17 +97,53 @@ const (
 type FreeDelivery struct {
 	Kind           FreeDeliveryKind
 	ShortfallCents int64
+	// ThresholdCents is zero where no method names an amount it turns free at.
+	ThresholdCents int64
 }
 
-func (f FreeDelivery) Text(ctx context.Context) string {
+// Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
+func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 	switch f.Kind {
 	case FreeDeliveryShort:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFreeDeliveryShort), twd(f.ShortfallCents))
+		return components.Stat{
+			Label: i18n.T(ctx, i18n.KeyCartFactToFree),
+			Value: components.StatMoney(f.ShortfallCents),
+			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
+		}
 	case FreeDeliveryReached:
-		return i18n.T(ctx, i18n.KeyCartFreeDeliveryReached)
+		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(i18n.T(ctx, i18n.KeyFreeShipping))}
+		if f.ThresholdCents > 0 {
+			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
+		}
+		return s
+	default:
+		return components.Stat{}
+	}
+}
+
+// Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
+func (v CartView) Facts(ctx context.Context) []components.Stat {
+	return []components.Stat{
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyCartUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
+		v.FreeDelivery.Stat(ctx),
+	}
+}
+
+// StockNotice says what stands between the shopper and checkout; a sold-out line outranks a short one.
+func (v CartView) StockNotice(ctx context.Context) string {
+	switch {
+	case v.HasSoldOut():
+		return i18n.T(ctx, i18n.KeyCartSoldOut)
+	case v.Blocked():
+		return i18n.T(ctx, i18n.KeyCartStockShort)
 	default:
 		return ""
 	}
+}
+
+func (v CartView) HasSoldOut() bool {
+	return slices.ContainsFunc(v.Lines, func(l CartLine) bool { return l.Unavailable })
 }
 
 func (v CartView) HasNotice() bool { return v.Notice != "" }
@@ -135,8 +173,6 @@ func (v CartView) Empty() bool { return len(v.Lines) == 0 }
 
 func (v CartView) Subtotal() string { return twd(v.SubtotalCents) }
 
-func (v CartView) ItemCountText() string { return strconv.FormatInt(v.ItemCount, 10) }
-
 func (v CartView) Blocked() bool {
 	for i := range v.Lines {
 		if v.Lines[i].Unavailable || v.Lines[i].Short {
@@ -156,7 +192,7 @@ type ShippingChoice struct {
 	Carrier         string
 	FeeCents        int64
 	Free            bool
-	// FreeOverCents is zero for a method that is never free.
+	// FreeOverCents is zero for a method that is never free and for one that costs nothing at any subtotal.
 	FreeOverCents int64
 }
 
