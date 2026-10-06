@@ -222,8 +222,10 @@ const ADMIN = [
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
-  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-admin' },
-  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-admin' },
+  // .goen-chartmeter: scripts/check-layout.sql adds a coupon with a total limit,
+  // so a row without a meter measured the list of uncapped coupons.
+  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-chartmeter' },
+  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-chartmeter' },
   { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
   { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
   // .ui-table and not .goen-health: the status list is always present, so a
