@@ -85,6 +85,40 @@ const IMAGES = `(() => {
   }));
 })()`;
 
+// The fonts Chrome actually drew each visible run of text with: a run drawn in a
+// system font means a web font was missing or still loading when it was laid out.
+async function renderedFonts() {
+  await send('DOM.getDocument', { depth: 0 });
+  const count = await evaluate(`(() => {
+    const els = new Set();
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent.trim() || !n.parentElement) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const r = range.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) els.add(n.parentElement);
+    }
+    window.__shotRuns = [...els];
+    return els.size;
+  })()`);
+  const byFont = {};
+  const fallback = [];
+  for (let i = 0; i < count; i++) {
+    const { result } = await send('Runtime.evaluate', { expression: `window.__shotRuns[${i}]` });
+    const { nodeId } = await send('DOM.requestNode', { objectId: result.objectId });
+    const { fonts } = await send('CSS.getPlatformFontsForNode', { nodeId });
+    for (const f of fonts) {
+      byFont[f.familyName] = (byFont[f.familyName] || 0) + f.glyphCount;
+      if (!f.isCustomFont) {
+        const text = await evaluate(`window.__shotRuns[${i}].textContent.trim().slice(0, 40)`);
+        fallback.push(`${f.familyName}: ${text}`);
+      }
+    }
+  }
+  return { byFont, fallback, elements: count };
+}
+
 async function settle(label) {
   const fonts = await evaluate('document.fonts.ready.then(() => document.fonts.status)', true);
   let images;
@@ -101,20 +135,6 @@ async function settle(label) {
   await sleep(500);
   const facts = await evaluate(`({
     fontsStatus: document.fonts.status,
-    // Each rendered run of text, checked at its own weight and style, so a
-    // face that never loaded (a fallback glyph, a missing subset) is named.
-    uncovered: (() => {
-      const runs = new Map();
-      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-        const el = n.parentElement;
-        if (!el || !n.textContent.trim() || !el.getClientRects().length) continue;
-        const cs = getComputedStyle(el);
-        const key = cs.fontStyle + ' ' + cs.fontWeight + ' 16px ' + cs.fontFamily;
-        runs.set(key, (runs.get(key) || '') + n.textContent);
-      }
-      return [...runs].filter(([font, text]) => !document.fonts.check(font, text)).map(([font]) => font);
-    })(),
     faces: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family + ' ' + f.weight)
       .filter((v, i, a) => a.indexOf(v) === i),
     scrollbar: innerWidth - document.documentElement.clientWidth,
@@ -127,12 +147,14 @@ async function settle(label) {
     promo: !!document.querySelector('.goen-promo'),
     layoutText: /layout/i.test(document.body.innerText),
   })`);
-  console.log(`${label} fonts=${fonts}/${facts.fontsStatus} uncovered=${JSON.stringify(facts.uncovered)} faces=${JSON.stringify(facts.faces)}`);
+  const rendered = await renderedFonts();
+  console.log(`${label} fonts=${fonts}/${facts.fontsStatus} faces=${JSON.stringify(facts.faces)}`);
+  console.log(`${label} rendered glyphs by font=${JSON.stringify(rendered.byFont)} text elements=${rendered.elements}`);
   console.log(`${label} images=${images.count} pending=${JSON.stringify(images.pending)} failed=${JSON.stringify(images.failed)}`);
   console.log(`${label} viewport=${facts.viewport} scrollbar=${facts.scrollbar} scrollY=${facts.scrollY} dark=${facts.dark} hovered=${JSON.stringify(facts.hovered)} focused=${facts.focused} lang=${facts.lang}`);
   if (images.pending.length || images.failed.length) problem(label, 'images not loaded: ' + JSON.stringify(images));
   if (facts.fontsStatus !== 'loaded') problem(label, 'fonts still loading');
-  if (facts.uncovered.length) problem(label, 'text with no loaded face: ' + JSON.stringify(facts.uncovered));
+  if (rendered.fallback.length) problem(label, 'text drawn in a system font: ' + JSON.stringify(rendered.fallback));
   if (facts.scrollbar !== 0) problem(label, `a ${facts.scrollbar}px scrollbar takes layout width`);
   if (facts.viewport !== `${WIDTH}x${HEIGHT}@1`) problem(label, 'viewport is ' + facts.viewport);
   if (facts.scrollY !== 0) problem(label, 'scrolled to ' + facts.scrollY);
@@ -328,6 +350,8 @@ ws.onmessage = (ev) => {
 };
 await send('Page.enable');
 await send('Network.enable');
+await send('DOM.enable');
+await send('CSS.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
 await send('Emulation.setScrollbarsHidden', { hidden: true });
