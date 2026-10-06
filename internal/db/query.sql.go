@@ -17310,7 +17310,14 @@ SELECT
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
-    order_amount_after_credit(o.id)::bigint AS owed_cents
+    order_amount_after_credit(o.id)::bigint AS owed_cents,
+    -- rescission_ends is shop_today() until every parcel has arrived: sqlc cannot type a nullable
+    -- date from an expression, so a reader checks delivered, never the date.
+    coalesce(EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = o.id)
+             AND NOT EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = o.id AND s.delivered_at IS NULL),
+             false)::boolean AS delivered,
+    coalesce((SELECT max(return_window_ends(s.delivered_at)) FROM order_shipments s WHERE s.order_id = o.id),
+             shop_today())::date AS rescission_ends
 FROM orders o
 WHERE o.user_id = $1
   AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
@@ -17338,6 +17345,8 @@ type UserOrdersRow struct {
 	LineCount         int64
 	Committed         bool
 	OwedCents         int64
+	Delivered         bool
+	RescissionEnds    time.Time
 }
 
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
@@ -17367,6 +17376,8 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 			&i.LineCount,
 			&i.Committed,
 			&i.OwedCents,
+			&i.Delivered,
+			&i.RescissionEnds,
 		); err != nil {
 			return nil, err
 		}

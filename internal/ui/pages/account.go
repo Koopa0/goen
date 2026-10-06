@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
@@ -17,14 +18,28 @@ import (
 type AccountOrder struct {
 	Number     string
 	Status     order.FulfillmentStatus
-	PlacedAt   string
+	PlacedAt   shoptime.Date
 	TotalCents int64
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
+	// Delivered is true once every parcel has arrived; LastDay means nothing before then.
+	Delivered bool
+	LastDay   shoptime.Date
 }
 
-func (o AccountOrder) Total() string { return twd(o.TotalCents) }
+// Facts are what a row of the history says about its order. The last day to cancel is counted from delivery,
+// so an order still on its way has none.
+func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
+	facts := []components.Stat{
+		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
+		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(o.TotalCents)},
+	}
+	if o.Delivered {
+		facts = append(facts, dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
+	}
+	return facts
+}
 
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 

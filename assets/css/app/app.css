@@ -6017,9 +6017,7 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The order history. One table at every width: below 768 the date column folds
-   into the number cell rather than a second markup tree rendering the same
-   rows again. */
+/* The order history. One table at every width; each row's facts sit under its number. */
 .goen-account__orders {
   border-collapse: collapse;
   font-size: var(--fs-14);
@@ -6057,10 +6055,6 @@ input.goen-check {
   text-decoration: underline;
 }
 
-.goen-account__ordercol {
-  display: none;
-}
-
 .goen-account__orderpay {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
@@ -6072,11 +6066,6 @@ input.goen-check {
   display: block;
   font-size: 0.8125rem;
   margin-top: 0.125rem;
-}
-
-.goen-account__ordertotal {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 .goen-account__empty {
@@ -7088,14 +7077,6 @@ input.goen-check {
 
   .goen-account__field--wide {
     grid-column: 1 / -1;
-  }
-
-  .goen-account__ordercol {
-    display: table-cell;
-  }
-
-  .goen-account__ordermeta {
-    display: none;
   }
 
   .goen-points__figures {

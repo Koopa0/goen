@@ -524,16 +524,19 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
 		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
 
+	now := time.Now()
 	for i := range orders {
 		o := &orders[i]
 		view.Orders = append(view.Orders, pages.AccountOrder{
 			Number:     o.OrderNumber,
 			Status:     order.FulfillmentStatus(o.FulfillmentStatus),
-			PlacedAt:   shoptime.Day(o.PlacedAt),
+			PlacedAt:   shoptime.DateOf(o.PlacedAt, now),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			LineCount:  o.LineCount,
 			Committed:  o.Committed,
 			OwedCents:  o.OwedCents,
+			Delivered:  o.Delivered,
+			LastDay:    shoptime.DateOf(o.RescissionEnds, now),
 		})
 	}
 
