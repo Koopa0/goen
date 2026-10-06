@@ -18,7 +18,7 @@ templ Cart(p layouts.Page, v CartView) {
 				if !v.Empty() {
 					<div id="cart-count" class="goen-cart__facts" role="status">
 						if notice := v.StockNotice(ctx); notice != "" {
-							<p class="goen-cart__alert">{ notice }</p>
+							<p id="cart-alert" class="goen-cart__alert">{ notice }</p>
 						}
 						@components.StatLine(v.Facts(ctx), components.StatLinePlain)
 					</div>
@@ -104,8 +104,15 @@ templ Cart(p layouts.Page, v CartView) {
 								}
 							} else {
 								// Present and plainly unavailable, not absent: a shopper who cannot check out
-								// still needs the control and the sentence above it saying why.
-								<span class="goen-btn goen-btn--primary goen-btn--lg goen-btn--block" aria-disabled="true">
+								// still needs the control, and it points at the sentence under the title that says why.
+								<span
+									class="goen-btn goen-btn--primary goen-btn--lg goen-btn--block"
+									role="link"
+									aria-disabled="true"
+									if v.StockNotice(ctx) != "" {
+										aria-describedby="cart-alert"
+									}
+								>
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								</span>
 							}

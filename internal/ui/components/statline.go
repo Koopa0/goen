@@ -45,6 +45,11 @@ func StatCount(n int64, unit string) StatValue {
 	return StatValue{figure: strconv.FormatInt(n, 10), unit: unit}
 }
 
+// StatWord is a figure that is a word, such as 免運.
+func StatWord(word string) StatValue {
+	return StatValue{figure: word}
+}
+
 // StatMoney is an amount in New Taiwan dollars with its currency as the leading unit; a negative amount is absent.
 func StatMoney(cents int64) StatValue {
 	if cents < 0 {

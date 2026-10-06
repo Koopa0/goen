@@ -107,10 +107,10 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 		return components.Stat{
 			Label: i18n.T(ctx, i18n.KeyCartFactToFree),
 			Value: components.StatMoney(f.ShortfallCents),
-			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactFreeOver), twd(f.ThresholdCents)),
+			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
 		}
 	case FreeDeliveryReached:
-		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatMoney(0)}
+		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(i18n.T(ctx, i18n.KeyFreeShipping))}
 		if f.ThresholdCents > 0 {
 			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
 		}
@@ -191,7 +191,7 @@ type ShippingChoice struct {
 	Carrier         string
 	FeeCents        int64
 	Free            bool
-	// FreeOverCents is zero for a method that is never free.
+	// FreeOverCents is zero for a method that is never free and for one that costs nothing at any subtotal.
 	FreeOverCents int64
 }
 

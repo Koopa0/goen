@@ -1545,8 +1545,8 @@ func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
 			"threshold reached",
 			CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
 				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000}},
-			[]string{"運費", `<small class="ui-statline__pre">NT$</small>0`, "已滿 NT$3,000"},
-			[]string{"免運還差"},
+			[]string{"運費", "<dd>免運 ", "已滿 NT$3,000"},
+			[]string{"免運還差", "NT$0"},
 		},
 		{
 			"a method that never turns free",
@@ -1592,14 +1592,17 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 	if !strings.Contains(html, "2\u00a0<small>件</small>") || strings.Contains(html, "3\u00a0<small>件</small>") {
 		t.Error("the sold-out line is counted in 商品 n 件")
 	}
-	if !strings.Contains(html, i18n.T(ctx, i18n.KeySoldOut)) {
-		t.Error("the sold-out line does not say 已售完")
-	}
 	if strings.Contains(html, "已無庫存") {
 		t.Error("the sold-out line still says 已無庫存")
 	}
-	gone := html[strings.Index(html, `id="line-gone"`):]
-	gone = gone[:strings.Index(gone, "</li>")]
+	_, afterOpen, found := strings.Cut(html, `id="line-gone"`)
+	gone, _, closed := strings.Cut(afterOpen, "</li>")
+	if !found || !closed {
+		t.Fatalf("the sold-out line is not in the cart: %s", html)
+	}
+	if !strings.Contains(gone, i18n.T(ctx, i18n.KeySoldOut)) {
+		t.Error("the sold-out line itself does not say 已售完")
+	}
 	if strings.Contains(gone, "goen-stepper") || strings.Contains(gone, "goen-line__update") {
 		t.Errorf("the sold-out line offers more than removing it: %s", gone)
 	}
@@ -1608,6 +1611,9 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 	}
 	if !strings.Contains(html, `aria-disabled="true"`) || strings.Contains(html, `href="/checkout"`) {
 		t.Error("checkout is offered while a line is sold out")
+	}
+	if !strings.Contains(html, `aria-describedby="cart-alert"`) || !strings.Contains(html, `id="cart-alert"`) {
+		t.Error("the disabled checkout does not point at the sentence that says why")
 	}
 }
 

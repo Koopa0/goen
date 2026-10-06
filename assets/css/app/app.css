@@ -5491,7 +5491,7 @@ input.goen-check {
   }
 
   .goen-cart__summary .goen-cart__hold {
-    flex: 1 1 100%;
+    display: none;
   }
 
   .goen-cart__summary .goen-summary {

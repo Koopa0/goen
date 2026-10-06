@@ -21,11 +21,10 @@ var (
 		En:     "Calculated at checkout",
 	})
 
-	// KeyCartFactToFree and KeyCartFactFreeOver are said only where every delivery
+	// KeyCartFactToFree and KeyShippingFreeOver are said only where every delivery
 	// method the checkout offers turns free at one amount; %s is that amount.
-	KeyCartFactToFree   = key("cart.fact.to_free", Message{ZhHant: "免運還差", En: "To free delivery"})
-	KeyCartFactFreeOver = key("cart.fact.free_over", Message{ZhHant: "滿 %s 免運", En: "Free over %s"})
-	KeyCartFactOver     = key("cart.fact.over", Message{ZhHant: "已滿 %s", En: "Over %s"})
+	KeyCartFactToFree = key("cart.fact.to_free", Message{ZhHant: "免運還差", En: "To free delivery"})
+	KeyCartFactOver   = key("cart.fact.over", Message{ZhHant: "已滿 %s", En: "Over %s"})
 
 	KeyCartHold = countKey("cart.hold", "庫存保留 %s 分鐘", "Stock held for %s minute", "Stock held for %s minutes")
 
