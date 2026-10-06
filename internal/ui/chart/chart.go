@@ -35,6 +35,24 @@ func (p BarProps) width() string {
 // column and the same track.
 func (p BarProps) wide() bool { return p.Max >= wideScale }
 
+// MeterProps is Value of a Limit, Label the count as already localised text.
+// A caller with no limit draws no meter.
+type MeterProps struct {
+	Value int64
+	Limit int64
+	Label string
+}
+
+// width is the filled part as a percentage of the meter; a limit that is
+// reached fills it whole.
+func (p MeterProps) width() string {
+	w := 0.0
+	if p.Value > 0 && p.Limit > 0 {
+		w = float64(min(p.Value, p.Limit)) / float64(p.Limit) * 100
+	}
+	return strconv.FormatFloat(w, 'f', 2, 64) + "%"
+}
+
 // RangeBarProps is one value, the range it may lie in and a reference line,
 // all numbers on the scale 0 to Max that the page chose and every row shares.
 // Values beyond Max are drawn at its end.
