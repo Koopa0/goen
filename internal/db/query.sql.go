@@ -3563,7 +3563,6 @@ JOIN LATERAL (
     -- compare price is not a discount.
     ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
               AND stock_quantity > safety_stock) DESC,
-             (stock_quantity > safety_stock) DESC,
              (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
@@ -6809,10 +6808,11 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+    ORDER BY (compare_at_price_cents > price_cents
               AND stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
-             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
