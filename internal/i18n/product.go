@@ -36,9 +36,19 @@ var (
 		En:     "That combination does not exist. Please choose again.",
 	})
 
-	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
-		ZhHant: "選一個規格，有貨時通知你。",
-		En:     "Pick an option and we will tell you when it is back.",
+	KeyRestockPick = key("pdp.restock.pick", Message{
+		ZhHant: "選一個款式，有貨時通知你。",
+		En:     "Pick an option and we will tell you when it is available.",
+	})
+
+	KeyRestockNoOption = key("pdp.restock.nooption", Message{
+		ZhHant: "請先選一個款式。",
+		En:     "Pick an option first.",
+	})
+
+	KeyRestockNote = key("pdp.restock.note", Message{
+		ZhHant: "有貨時通知你。",
+		En:     "We will tell you when it is available.",
 	})
 
 	KeyOptionChosen = key("pdp.option.chosen", Message{ZhHant: "%s：", En: "%s: "})
@@ -81,17 +91,6 @@ var (
 	})
 
 	KeyWishlistAdd = key("pdp.wishlist.add", Message{ZhHant: "加入願望清單", En: "Save for later"})
-
-	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{ZhHant: "原廠保固", En: "Manufacturer's warranty"})
-
-	// %s is the threshold, interpolated from shipping_method_versions: a literal
-	// here is a promise that stops agreeing with what checkout charges.
-	KeyGuaranteeShipping = key("pdp.guarantee.shipping", Message{
-		ZhHant: "滿 %s 免運",
-		En:     "Free delivery over %s",
-	})
-
-	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天猶豫期", En: "7 days to return"})
 
 	KeyProductNotFound = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 

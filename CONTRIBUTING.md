@@ -93,6 +93,11 @@ in that experimental set therefore need manual review; selecting WCAG 2.1 tags
 does not enable them. Automated success does not establish complete conformance,
 screen-reader acceptance or real Windows High Contrast behavior.
 
+Every route is also measured at 320px and at 200% text (WCAG 1.4.4, 1.4.10):
+no sideways scroll, and no text cut by a clip or the edge of the screen.
+`scripts/reflow-baseline.json` lists the routes that still fail; like the axe
+baseline it can only shrink.
+
 Run the gate unpiped and report its exit status: a pipe reports the status of
 its last command, which has read a red gate as green here before.
 
