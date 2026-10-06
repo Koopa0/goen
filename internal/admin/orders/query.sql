@@ -142,34 +142,76 @@ SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE;
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
 
 -- name: AdminSummary :one
+-- Each desk is read once: its count and the age of its oldest item come from
+-- the same rows, so the two cannot follow different rules. An age is how long
+-- ago the oldest item began waiting, on the database's clock.
 SELECT
+    pending.pending_orders,
+    ready.ready_orders,
+    ready.ready_oldest_seconds,
+    picking.picking_orders,
+    stock.low_stock,
+    active.active_products,
+    messages.open_messages,
+    messages.open_messages_oldest_seconds,
+    requested.pending_returns,
+    requested.pending_returns_oldest_seconds,
+    uninspected.uninspected_returns,
+    uninspected.uninspected_returns_oldest_seconds,
+    questions.unanswered_questions,
+    questions.unanswered_questions_oldest_seconds
+FROM
     -- Genuinely UNPAID, not merely pending: an order funded by store credit or
     -- a full discount sits at pending for good, and counting it here sends
     -- somebody looking for money that has already arrived.
-    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0)::bigint AS pending_orders,
-    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
-       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0))::bigint AS ready_orders,
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
-    (SELECT count(*) FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
-    (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
-    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    (SELECT count(*)::bigint AS pending_orders FROM orders o
+     WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_after_credit(o.id) > 0) pending,
+    -- Waiting since the order was funded, as admin/health reads it
+    -- (UninvoicedOrders); placed_at is the fallback for an order store credit
+    -- paid in full, which has no payment and no paid event.
+    (SELECT count(*)::bigint AS ready_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'paid'),
+                (SELECT max(p.paid_at) FROM payments p
+                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
+                o.placed_at))), 0), 0)::bigint AS ready_oldest_seconds
+     FROM orders o
+     WHERE o.fulfillment_status = 'pending'
+       AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
+    (SELECT count(*)::bigint AS picking_orders FROM orders
+     WHERE fulfillment_status = 'picking') picking,
+    (SELECT count(*)::bigint AS low_stock FROM product_variants
+     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    (SELECT count(*)::bigint AS active_products FROM products
+     WHERE status = 'active') active,
+    (SELECT count(*)::bigint AS open_messages,
+            coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
+                AS open_messages_oldest_seconds
+     FROM contact_messages m WHERE m.handled_at IS NULL) messages,
+    (SELECT count(*)::bigint AS pending_returns,
+            coalesce(greatest(extract(epoch FROM now() - min(rr.created_at)), 0), 0)::bigint
+                AS pending_returns_oldest_seconds
+     FROM return_requests rr WHERE rr.status = 'requested') requested,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
-    (SELECT count(*) FROM return_requests r
+    (SELECT count(*)::bigint AS uninspected_returns,
+            coalesce(greatest(extract(epoch FROM now() - min(r.decided_at)), 0), 0)::bigint
+                AS uninspected_returns_oldest_seconds
+     FROM return_requests r
      WHERE r.status = 'approved' AND NOT r.before_shipment
        AND EXISTS (SELECT 1 FROM return_request_lines rl
-                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
-    )::bigint AS uninspected_returns,
+                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)) uninspected,
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
-    (SELECT count(*) FROM product_questions q
+    (SELECT count(*)::bigint AS unanswered_questions,
+            coalesce(greatest(extract(epoch FROM now() - min(q.created_at)), 0), 0)::bigint
+                AS unanswered_questions_oldest_seconds
+     FROM product_questions q
      WHERE q.hidden_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM product_answers a
-                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
-    )::bigint AS unanswered_questions;
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)) questions;
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)

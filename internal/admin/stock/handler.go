@@ -264,7 +264,7 @@ func newKey() string {
 }
 
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(web.KeysetParam))
 	switch {
 	case err == nil:
 		view.Notice = web.Notice(r, notices)
