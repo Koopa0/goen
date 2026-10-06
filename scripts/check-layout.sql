@@ -82,6 +82,33 @@ SELECT slug AS compare_slug_b FROM products
 WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1 \gset
 INSERT INTO product_questions (product_id, user_id, body)
 VALUES (:'product_id', :'customer_id', '請問這款有支援快充嗎？盒裝裡面有附充電器嗎？');
+-- What the product editor's sales and reviews card draws: paid orders on nine
+-- shop days, so the weekly columns have axes, and six reviews of three star
+-- values, one of them hidden, so the spread is drawn and the hidden one stays out.
+WITH sale_orders AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
+                        shipping_cents, placed_at)
+    SELECT :'customer_id', v.id, sm.code, v.name, 0, now() - make_interval(days => 3 * n)
+    FROM generate_series(1, 9) AS n,
+         (SELECT v.id, v.name, v.method_id FROM shipping_method_versions v ORDER BY v.effective_at LIMIT 1) v
+         JOIN shipping_methods sm ON sm.id = v.method_id
+    RETURNING id
+), sale_lines AS (
+    INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
+    SELECT id, :'product_id', 'LAYOUT-STANDING', 'Standing chart fixture', 100, 1 + (row_number() OVER ())::int % 4
+    FROM sale_orders
+    RETURNING order_id
+)
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM sale_lines;
+SELECT open_payment(o.id, 'layout-sale-' || o.id, ol.unit_price_cents * ol.quantity)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
+SELECT capture_payment('layout-sale-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
+INSERT INTO product_reviews (product_id, rating, body, hidden_at)
+SELECT :'product_id', r.rating, '版面檢查用的評價', CASE WHEN r.hidden THEN now() END
+FROM (VALUES (5, false), (5, false), (5, false), (4, false), (2, false), (1, true)) AS r (rating, hidden);
 INSERT INTO wishlist_items (user_id, product_id)
 VALUES (:'customer_id', :'product_id')
 ON CONFLICT (user_id, product_id) DO NOTHING;

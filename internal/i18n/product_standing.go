@@ -41,6 +41,11 @@ var (
 
 	KeyAdminProdRatings = key("admin.prod.ratings", Message{ZhHant: "評價分布", En: "Rating spread"})
 
+	KeyAdminProdRatingsUnavailable = key("admin.prod.ratings.unavailable", Message{
+		ZhHant: "評價資料暫時無法取得。",
+		En:     "Reviews are unavailable right now.",
+	})
+
 	KeyAdminProdRatingsNone = key("admin.prod.ratings.none", Message{ZhHant: "還沒有評價。", En: "No reviews yet."})
 
 	// Under five reviews, a spread is not drawn: %[1]s is the review count as

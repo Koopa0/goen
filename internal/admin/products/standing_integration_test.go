@@ -36,7 +36,7 @@ func standingProduct(t *testing.T) (slug string, productID, variantID uuid.UUID,
 }
 
 // standingOrder places an order of units of the product at placedAt, paid or not.
-func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, units int, placedAt time.Time, paid bool) {
+func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, units int, placedAt time.Time, paid bool) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -68,7 +68,7 @@ func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, uni
 		t.Fatalf("commit: %v", err)
 	}
 	if !paid {
-		return
+		return orderID
 	}
 	ref := "standing_" + orderID.String()
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(units)); err != nil {
@@ -77,6 +77,7 @@ func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, uni
 	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(units)); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+	return orderID
 }
 
 func TestWeeklyUnitsAreThisProductsCommittedLinesOverWholeShopDays(t *testing.T) {
@@ -87,12 +88,23 @@ func TestWeeklyUnitsAreThisProductsCommittedLinesOverWholeShopDays(t *testing.T)
 	today := shoptime.Midnight(now)
 	first := today.AddDate(0, 0, -90)
 
+	early := today.Add(time.Minute)
+	if early.After(now) {
+		early = now.Add(-time.Second)
+	}
+
 	// Counted: today's, and the first day's earliest minutes.
-	standingOrder(t, productID, variantID, sku, 3, today.Add(time.Minute), true)
+	standingOrder(t, productID, variantID, sku, 3, early, true)
 	standingOrder(t, productID, variantID, sku, 2, first.Add(30*time.Minute), true)
-	// Not counted: unpaid, another product's, and the day before the first.
-	standingOrder(t, productID, variantID, sku, 5, today.Add(time.Minute), false)
-	standingOrder(t, otherProduct, otherVariant, otherSKU, 11, today.Add(time.Minute), true)
+	// Not counted: unpaid, another product's, refunded in full before it shipped,
+	// and the day before the first.
+	standingOrder(t, productID, variantID, sku, 5, early, false)
+	standingOrder(t, otherProduct, otherVariant, otherSKU, 11, early, true)
+	refunded := standingOrder(t, productID, variantID, sku, 13, early, true)
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
 	standingOrder(t, productID, variantID, sku, 7, first.Add(-time.Minute), true)
 
 	view, err := products.NewStore(pool).Product(t.Context(), slug)
@@ -107,7 +119,7 @@ func TestWeeklyUnitsAreThisProductsCommittedLinesOverWholeShopDays(t *testing.T)
 		t.Errorf("first day = %d units, want 2 (a minute after the shop day began)", got)
 	}
 	if got := days[90].Value; got != 3 {
-		t.Errorf("today = %d units, want 3 (unpaid and other products left out)", got)
+		t.Errorf("today = %d units, want 3 (unpaid, refunded and other products left out)", got)
 	}
 	if got := days[90].Day.Format("2006-01-02"); got != shoptime.Day(now) {
 		t.Errorf("last day = %s, want today %s", got, shoptime.Day(now))

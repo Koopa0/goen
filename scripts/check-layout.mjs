@@ -234,6 +234,15 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
+  // The sales and reviews card in its drawn state: scripts/check-layout.sql gives
+  // PRODUCT_SLUG paid orders on nine shop days and five visible reviews, so a row
+  // missing either drawing fails.
+  { label: 'admin product standing 320', width: 320, height: 568, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
   // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
   // report two best sellers, one at four digits, paid orders on seven shop days with a period total of seven digits (the running totals' .goen-chart), and a return of a quarter of the
   // second's units, so the row waits for the returned-products bar, the one with

@@ -303,7 +303,8 @@ SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE;
 UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1;
 
 -- One row per shop day of [from_at, to_at), a day without sales included. The
--- units are BestSellersBetween's: the lines of committed orders.
+-- units are those of the orders PaidByShopDay counts: committed, and not refunded
+-- in full before they shipped.
 -- name: ProductUnitsByShopDay :many
 SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
 FROM generate_series(shop_day(@from_at::timestamptz),
@@ -316,6 +317,8 @@ LEFT JOIN (
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.product_id = @product_id::uuid
       AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day;

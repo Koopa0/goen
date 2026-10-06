@@ -51,6 +51,9 @@ func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
 func TestWeeklyUnitsAreThirteenWholeWeeks(t *testing.T) {
 	sparse := map[int]int64{10: 1, 30: 2, 50: 1, 90: 3}
 	got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(sparse)})
+	if !strings.Contains(got, "Units sold per week</h3>") {
+		t.Errorf("heading missing in\n%s", got)
+	}
 	if !strings.Contains(got, "Units sold on 4 days of this period.") {
 		t.Errorf("sparse sentence missing in\n%s", got)
 	}
@@ -86,6 +89,9 @@ func TestAWeeklyChartThatCouldNotBeReadIsNotAnEmptyOne(t *testing.T) {
 	got := renderStanding(t, i18n.En, &ProductView{Sales: ProductSales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
 	if n := strings.Count(got, `role="status"`); n != 2 {
 		t.Errorf("status lines = %d, want 2", n)
+	}
+	if !strings.Contains(got, "Reviews are unavailable right now.") {
+		t.Error("the reviews' unavailable line is missing")
 	}
 	if strings.Contains(got, "Nothing sold") || strings.Contains(got, "No reviews yet") {
 		t.Error("an unreadable figure was told as an empty one")

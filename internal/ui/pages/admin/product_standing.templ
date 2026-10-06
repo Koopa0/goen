@@ -19,7 +19,7 @@ templ productStanding(v ProductView) {
 		}
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdRatings) }</h3>
 		if v.Ratings.Unavailable {
-			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminRepRunningUnavailable) }</p>
+			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminProdRatingsUnavailable) }</p>
 		} else {
 			<p class="goen-admin__hint">{ v.Ratings.Sentence(ctx) }</p>
 			if v.Ratings.ShowsSpread() {

@@ -12561,6 +12561,8 @@ LEFT JOIN (
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.product_id = $3::uuid
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
@@ -12578,7 +12580,8 @@ type ProductUnitsByShopDayRow struct {
 }
 
 // One row per shop day of [from_at, to_at), a day without sales included. The
-// units are BestSellersBetween's: the lines of committed orders.
+// units are those of the orders PaidByShopDay counts: committed, and not refunded
+// in full before they shipped.
 func (q *Queries) ProductUnitsByShopDay(ctx context.Context, arg ProductUnitsByShopDayParams) ([]ProductUnitsByShopDayRow, error) {
 	rows, err := q.db.Query(ctx, productUnitsByShopDay, arg.FromAt, arg.ToAt, arg.ProductID)
 	if err != nil {
