@@ -101,7 +101,7 @@ func (h PayHold) Period(ctx context.Context) (components.PeriodSpec, bool) {
 func (h PayHold) StartByText() string { return shoptime.ClockText(h.StartBy) }
 
 // EyebrowKey says 完成付款 only while a payment can start or resume.
-func (v PayView) EyebrowKey() i18n.Key {
+func (v *PayView) EyebrowKey() i18n.Key {
 	switch {
 	case v.Closure == PayOrderCancelled:
 		return i18n.KeyStatusCancelled
@@ -112,23 +112,23 @@ func (v PayView) EyebrowKey() i18n.Key {
 	}
 }
 
-func (v PayView) Closed() bool { return v.Closure != PayOpen }
+func (v *PayView) Closed() bool { return v.Closure != PayOpen }
 
-func (v PayView) ClosedTitle() i18n.Key {
+func (v *PayView) ClosedTitle() i18n.Key {
 	if v.Closure == PayOrderCancelled {
 		return i18n.KeyPayRefusedTitle
 	}
 	return i18n.KeyPayWindowClosedTitle
 }
 
-func (v PayView) ClosedBody() i18n.Key {
+func (v *PayView) ClosedBody() i18n.Key {
 	if v.Closure == PayOrderCancelled {
 		return i18n.KeyOrderCancelled
 	}
 	return i18n.KeyPayWindowClosedBody
 }
 
-func (v PayView) Subtotal() string {
+func (v *PayView) Subtotal() string {
 	var n int64
 	for _, l := range v.Lines {
 		n += l.UnitCents * int64(l.Quantity)
@@ -136,25 +136,25 @@ func (v PayView) Subtotal() string {
 	return twd(n)
 }
 
-func (v PayView) Shipping(ctx context.Context) string {
+func (v *PayView) Shipping(ctx context.Context) string {
 	if v.ShippingCents == 0 {
 		return i18n.T(ctx, i18n.KeyFreeShipping)
 	}
 	return twd(v.ShippingCents)
 }
 
-func (v PayView) Discounted() bool { return v.DiscountCents > 0 }
+func (v *PayView) Discounted() bool { return v.DiscountCents > 0 }
 
-func (v PayView) Discount() string { return "-" + twd(v.DiscountCents) }
+func (v *PayView) Discount() string { return "-" + twd(v.DiscountCents) }
 
-func (v PayView) UsedCredit() bool { return v.CreditCents > 0 }
+func (v *PayView) UsedCredit() bool { return v.CreditCents > 0 }
 
-func (v PayView) Credit() string { return "-" + twd(v.CreditCents) }
+func (v *PayView) Credit() string { return "-" + twd(v.CreditCents) }
 
-func (v PayView) Total() string { return twd(v.TotalCents) }
+func (v *PayView) Total() string { return twd(v.TotalCents) }
 
 // Action posts to the order's pay route; the amount is recomputed server-side.
-func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
+func (v *PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
 func PayMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
