@@ -584,7 +584,7 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("UnreconciledCompletePayments: %v", err)
 	}
-	stranded, err := q.StrandedInvoiceClaims(ctx)
+	stranded, err := q.StrandedInvoiceClaims(ctx, true)
 	if err != nil {
 		t.Fatalf("StrandedInvoiceClaims: %v", err)
 	}

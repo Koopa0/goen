@@ -753,7 +753,7 @@ func TestAnIssueWaitingForNoProviderIsNotAStrandedClaim(t *testing.T) {
 	if stranded(health.NewStore(pool).WithInvoicing(false)) {
 		t.Error("with e-invoicing off, an unsent issue is listed as a stranded claim")
 	}
-	if _, err := pool.Exec(ctx, `UPDATE invoice_operations SET send_attempts = 1 WHERE order_id = $1`, orderID); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE invoice_operations SET send_attempts = 1, last_send_at = now() WHERE order_id = $1`, orderID); err != nil {
 		t.Fatalf("mark the issue sent: %v", err)
 	}
 	if !stranded(health.NewStore(pool).WithInvoicing(false)) {
