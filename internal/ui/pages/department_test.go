@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -201,6 +202,19 @@ func TestTheDepartmentFrontIsTheUnfilteredFirstPage(t *testing.T) {
 	} {
 		if got := tt.view.IsFront(); got != tt.want {
 			t.Errorf("%s: IsFront = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestTheCampaignEndStatNamesItsLastDayAndTheLastTwoDays(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	ends := time.Date(2026, 10, 10, 16, 0, 0, 0, time.UTC)
+	got := renderComponent(t, ctx, components.StatLine([]components.Stat{CampaignEndStat(ctx, ends, now)}, components.StatLinePlain))
+	for _, want := range []string{`datetime="2026-10-10"`, "明天結束"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("end stat omits %s:\n%s", want, got)
 		}
 	}
 }
