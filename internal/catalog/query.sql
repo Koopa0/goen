@@ -681,7 +681,6 @@ WHERE p.status = 'active'
   )
 ORDER BY
     -- A product that can be bought comes before a deeper discount that cannot.
-    in_stock DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -737,7 +736,8 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = @slug::text AND c.is_active;
+WHERE c.slug = @slug::text AND c.is_active
+  AND c.starts_at <= now() AND c.ends_at > now();
 
 -- A campaign is listed only while a published featured product can be bought,
 -- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
@@ -857,7 +857,7 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
 -- Sellable products first, then the position the back office set.
-ORDER BY in_stock DESC, cp.position, p.id;
+ORDER BY cp.position, p.id;
 
 -- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many

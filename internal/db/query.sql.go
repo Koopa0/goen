@@ -3378,6 +3378,7 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = $2::text AND c.is_active
+  AND c.starts_at <= now() AND c.ends_at > now()
 `
 
 type CampaignBySlugParams struct {
@@ -3500,7 +3501,7 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY in_stock DESC, cp.position, p.id
+ORDER BY cp.position, p.id
 `
 
 type CampaignProductsParams struct {
@@ -6651,7 +6652,6 @@ WHERE p.status = 'active'
   )
 ORDER BY
     -- A product that can be bought comes before a deeper discount that cannot.
-    in_stock DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
