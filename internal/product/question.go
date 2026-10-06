@@ -53,6 +53,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 		return nil
 	}
 
+	now := s.now()
 	ids := make([]uuid.UUID, 0, len(rows))
 	byID := make(map[uuid.UUID]int, len(rows))
 	for i := range rows {
@@ -61,7 +62,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 		view.Questions = append(view.Questions, pages.Question{
 			Asker: rows[i].Asker,
 			Body:  rows[i].Body,
-			Asked: shoptime.Day(rows[i].CreatedAt),
+			Asked: shoptime.DateText(ctx, shoptime.DateOf(rows[i].CreatedAt, now)),
 		})
 	}
 
@@ -79,7 +80,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 			Author:  a.Author,
 			Body:    a.Body,
 			IsStaff: a.IsStaff,
-			At:      shoptime.Day(a.CreatedAt),
+			At:      shoptime.DateText(ctx, shoptime.DateOf(a.CreatedAt, now)),
 		})
 	}
 	return nil

@@ -1023,7 +1023,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:      shoptime.Minute(sh.ShippedAt),
 			DeliveredAt:    nullableTime(sh.DeliveredAt),
-			RescissionEnds: sh.RescissionEnds,
+			RescissionEnds: rescissionEnds(ctx, sh.DeliveredAt, sh.RescissionEnds),
 		})
 	}
 	return view, nil
@@ -1138,6 +1138,13 @@ func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, line
 		}
 	}
 	return nil
+}
+
+func rescissionEnds(ctx context.Context, deliveredAt pgtype.Timestamptz, day time.Time) string {
+	if !deliveredAt.Valid {
+		return ""
+	}
+	return shoptime.DateText(ctx, shoptime.DateOf(day, time.Now()))
 }
 
 func nullableTime(t pgtype.Timestamptz) string {
