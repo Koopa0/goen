@@ -177,14 +177,15 @@ const CART = [
   { label: 'reset 1440', width: 1440, height: 900, path: '/reset?token=layoutcheck', marker: '.goen-auth__form' },
 ];
 
-// The listing page. Its filter rail sits beside the grid from lg and above it
-// below, which is the one thing its fold decides — asserted by comparing the
-// rail's top against the results', the same way the hero's split is read.
+// The listing page. Its filters are a toolbar open above the grid from lg and a
+// collapsed disclosure above it below; either way they sit over the results, so
+// the rail is always 'stacked'. What lg changes is whether the controls show
+// (`toolbar`), which the desktop probes below assert.
 const LISTING = [
   { label: 'listing 375', width: 375, height: 812, rail: 'stacked' },
   { label: 'listing 768', width: 768, height: 1024, rail: 'stacked' },
-  { label: 'listing 1024', width: 1024, height: 900, rail: 'beside' },
-  { label: 'listing 1440', width: 1440, height: 900, rail: 'beside' },
+  { label: 'listing 1024', width: 1024, height: 900, rail: 'stacked', toolbar: true },
+  { label: 'listing 1440', width: 1440, height: 900, rail: 'stacked', toolbar: true },
 ];
 
 // English category names in the desktop header compete with the search field.
@@ -361,10 +362,10 @@ const ACCOUNT_PAGES = [
 const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
 
 // The narrowest a product card may be once the viewport is wide enough for the
-// filter rail to sit beside the grid. Two-up on a 375px phone gives 166px and
+// filter toolbar to open above the grid. Two-up on a 375px phone gives 166px and
 // that is correct; the defect is a card that is no wider at 1024 than it is on
-// a phone, which is a column count that stopped fitting once the rail took
-// 272px out of the row. Only checked where rail === 'beside'.
+// a phone, which is a column count that stopped fitting. Only checked where
+// the row has `toolbar`.
 const MIN_CARD = 200;
 
 // The narrowest the desktop search field may be once English names are in
@@ -838,7 +839,7 @@ for (const want of EXPECTED) {
 const FILTER_SHELL_PROBE = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
   const form = document.querySelector('.goen-filters');
-  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const input = document.querySelector('.goen-filters #sort');
   const summary = document.querySelector('.goen-filters__shell-summary');
   const formRect = form ? form.getBoundingClientRect() : null;
   const inputRect = input ? input.getBoundingClientRect() : null;
@@ -898,7 +899,7 @@ const LISTING_LAYOUT_PROBE = `(() => {
     resultsW: +resultsRect.width.toFixed(1),
     cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
     layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
-    resultsBesideFilter: resultsRect.left > rail.right - 2,
+    resultsBelowFilter: resultsRect.top > rail.bottom - 2,
   };
 })()`;
 
@@ -907,11 +908,8 @@ const assertDesktopResultsLayout = (at, got) => {
     fail(at, got.why || 'listing layout probe failed');
     return;
   }
-  if (got.rail !== 'beside') {
-    fail(at, `results are not beside the filter rail — ${JSON.stringify(got)}`);
-  }
-  if (!got.resultsBesideFilter) {
-    fail(at, `results sit in the narrow filter column — ${JSON.stringify(got)}`);
+  if (got.rail !== 'stacked' || !got.resultsBelowFilter) {
+    fail(at, `results are not below the filter toolbar — ${JSON.stringify(got)}`);
   }
   if (got.layoutChildren.length !== 2) {
     fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
@@ -987,10 +985,9 @@ const LISTING_PROBE = `(() => {
       .slice(0, 6).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     rail: Math.abs(rail.y - results.y) < 2 ? 'beside' : 'stacked',
     tiles: cols('.goen-tiles__grid > li'),
-    // The filter rail takes 272px out of the row, so a column count copied from
-    // the home page produced 156px cards here — narrower than the same card on
-    // a 375px phone. Column count alone would not have caught that; the width
-    // is what the visitor sees.
+    // A column count copied from the home page once produced 156px cards here —
+    // narrower than the same card on a 375px phone. Column count alone would not
+    // have caught that; the width is what the visitor sees.
     cardWidth: (() => {
       const c = document.querySelector('.goen-tiles__grid > li');
       return c ? +c.getBoundingClientRect().width.toFixed(1) : 0;
@@ -1053,15 +1050,15 @@ for (const want of LISTING) {
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
   }
-  if (want.rail === 'beside') {
+  if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     assertDesktopFiltersVisible(at, filters);
   }
   if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
-  if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
+  if (want.toolbar && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
     fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
-      `too many columns for the space the filter rail leaves`);
+      `too many columns for the space the grid has`);
   }
   if (got.header && got.main &&
       (Math.abs(got.header[0] - got.main[0]) > 1 || Math.abs(got.header[1] - got.main[1]) > 1)) {
@@ -1077,8 +1074,8 @@ for (const want of LISTING) {
 const LISTING_AUDIO = [
   { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant' },
   { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en' },
-  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'beside' },
-  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'beside' },
+  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'stacked', toolbar: true },
+  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'stacked', toolbar: true },
 ];
 
 for (const want of LISTING_AUDIO) {
@@ -1119,7 +1116,7 @@ for (const want of LISTING_AUDIO) {
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
   }
-  if (want.rail === 'beside') {
+  if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     assertDesktopFiltersVisible(at, filters);
@@ -1228,11 +1225,11 @@ const proveListingFilterJourney = async (label, locale) => {
   const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
   assertMobileResultsLayout(`${label} filtered`, filteredLayout);
   // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
-  // still fits once the filter rail has taken its width out of the row, which is
-  // a question only the desktop layout can answer — its own declaration says
-  // "Only checked where rail === 'beside'", and the two call sites that honour
-  // that are assertDesktopResultsLayout and the `want.rail === 'beside'` guard
-  // on the LISTING rows. This journey runs at 375, where the rail is stacked and
+  // still fits the grid's columns, which is a question only the desktop layout
+  // can answer — its own declaration says
+  // "Only checked where the row has `toolbar`", and the two call sites that honour
+  // that are assertDesktopResultsLayout and the `want.toolbar` guard
+  // on the LISTING rows. This journey runs at 375, where the filters are stacked and
   // EXPECTED requires two columns; two columns in a 343px content area is a
   // 163.5px card, so asserting 200 here contradicts the artboard the same file
   // declares. Adding it back makes the two assertions unsatisfiable together.
@@ -1297,6 +1294,7 @@ const proveListingDesktopResize = async (label, locale) => {
     const before = document.getElementById('listing-results');
     // Extra facets can put stock below the viewport. Bring the control into
     // view before measuring whether the results update itself moves the page.
+    box.closest('details').open = true;
     box.scrollIntoView({ block: 'center', behavior: 'instant' });
     box.focus({ preventScroll: true });
     const y = window.scrollY;
