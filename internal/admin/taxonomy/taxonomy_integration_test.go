@@ -453,7 +453,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 	if err := png.Encode(&valid, image.NewRGBA(image.Rect(0, 0, 16, 6))); err != nil {
 		t.Fatal(err)
 	}
-	post := func(fields map[string]string, picture []byte) *httptest.ResponseRecorder {
+	post := func(ctx context.Context, fields map[string]string, picture []byte) *httptest.ResponseRecorder {
 		t.Helper()
 		var body bytes.Buffer
 		form := multipart.NewWriter(&body)
@@ -478,7 +478,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 		mux.ServeHTTP(res, req)
 		return res
 	}
-	if res := post(map[string]string{"alt": "Saved header", "alt_en": "Saved English header"}, valid.Bytes()); res.Code != http.StatusSeeOther {
+	if res := post(ctx, map[string]string{"alt": "Saved header", "alt_en": "Saved English header"}, valid.Bytes()); res.Code != http.StatusSeeOther {
 		t.Fatalf("save control = %d, want 303", res.Code)
 	}
 	baseline, err := s.CategoryHeader(ctx, slug)
@@ -486,7 +486,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, locale := range i18n.Locales() {
-		ctx = i18n.WithLocale(staffCtx, locale)
+		ctx := i18n.WithLocale(staffCtx, locale)
 		for _, tt := range []struct {
 			name, alt, altEn, field string
 			picture                 []byte
@@ -496,7 +496,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 			{name: "invalid English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), field: "cat-alt-en", picture: valid.Bytes()},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
-				res := post(map[string]string{"alt": tt.alt, "alt_en": tt.altEn}, tt.picture)
+				res := post(ctx, map[string]string{"alt": tt.alt, "alt_en": tt.altEn}, tt.picture)
 				if res.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("refused header = %d, want 422", res.Code)
 				}
@@ -514,7 +514,6 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 				if diff := cmp.Diff(baseline, after); diff != "" {
 					t.Errorf("refusal changed saved header (-want +got):\n%s", diff)
 				}
-
 			})
 		}
 	}

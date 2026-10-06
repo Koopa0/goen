@@ -168,10 +168,10 @@ func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := part.Write(tt.picture); err != nil {
+				if _, err = part.Write(tt.picture); err != nil {
 					t.Fatal(err)
 				}
-				if err := form.Close(); err != nil {
+				if err = form.Close(); err != nil {
 					t.Fatal(err)
 				}
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/home", &body)

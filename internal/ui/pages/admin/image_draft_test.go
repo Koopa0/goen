@@ -31,6 +31,7 @@ func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_image": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
 				body := renderComponent(t, ctx, tt.component)
 				assertImageDraftControls(t, body, tt.want, tt.errorID)
 				if !strings.Contains(body, `alt="Saved description"`) {
@@ -47,6 +48,7 @@ func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {
 	want := map[string]string{"h-eyebrow": " 原始副標 ", "h-headline": " 原始標題 ", "h-body": " 原始內文 ", "h-plabel": " 主按鈕 ", "h-phref": "/deals?q=1&sort=price", "h-slabel": " 次按鈕 ", "h-shref": "/about", "h-alt": " 原始圖片 ", "h-days": "007", "h-eyebrow-en": " Raw kicker ", "h-headline-en": " Raw title ", "h-body-en": " Raw body ", "h-plabel-en": " Primary ", "h-slabel-en": " Secondary ", "h-alt-en": " Raw picture "}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
 			assertImageDraftControls(t, renderComponent(t, i18n.WithLocale(t.Context(), locale), Home(layouts.Page{}, &v)), want, "h-image")
 		})
 	}
@@ -71,24 +73,7 @@ func assertImageDraftControls(t *testing.T, body string, want map[string]string,
 		}
 		id := attrs["id"]
 		if _, ok := want[id]; ok {
-			value := attrs["value"]
-			if n.Data == "textarea" && n.FirstChild != nil {
-				value = n.FirstChild.Data
-			}
-			if n.Data == "select" {
-				for option := range n.Descendants() {
-					for _, a := range option.Attr {
-						if a.Key == "selected" {
-							for _, v := range option.Attr {
-								if v.Key == "value" {
-									value = v.Val
-								}
-							}
-						}
-					}
-				}
-			}
-			got[id] = value
+			got[id] = imageDraftControlValue(n, attrs)
 		}
 		if id == errorID {
 			marked = attrs["aria-invalid"] == "true" && attrs["aria-describedby"] == errorID+"-error"
@@ -106,4 +91,26 @@ func assertImageDraftControls(t *testing.T, body string, want map[string]string,
 	if !marked || !errorShown {
 		t.Errorf("image refusal %q marked/error = %t/%t, want true/true", errorID, marked, errorShown)
 	}
+}
+
+func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
+	switch n.Data {
+	case "textarea":
+		if n.FirstChild != nil {
+			return n.FirstChild.Data
+		}
+	case "select":
+		var value string
+		for option := range n.Descendants() {
+			optionAttrs := make(map[string]string, len(option.Attr))
+			for _, a := range option.Attr {
+				optionAttrs[a.Key] = a.Val
+			}
+			if _, selected := optionAttrs["selected"]; selected {
+				value = optionAttrs["value"]
+			}
+		}
+		return value
+	}
+	return attrs["value"]
 }

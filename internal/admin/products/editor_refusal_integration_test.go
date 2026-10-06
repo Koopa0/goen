@@ -4,6 +4,7 @@ package products_test
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/png"
 	"log/slog"
@@ -221,25 +222,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 					mux.ServeHTTP(res, req)
 				} else {
-					var body bytes.Buffer
-					form := multipart.NewWriter(&body)
-					for name, value := range map[string]string{"alt": tt.alt, "alt_en": tt.altEn, "option_value": options[1]} {
-						if err := form.WriteField(name, value); err != nil {
-							t.Fatal(err)
-						}
-					}
-					part, err := form.CreateFormFile("image", "product.png")
-					if err != nil {
-						t.Fatal(err)
-					}
-					if _, err := part.Write(tt.picture); err != nil {
-						t.Fatal(err)
-					}
-					if err := form.Close(); err != nil {
-						t.Fatal(err)
-					}
-					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images", &body)
-					req.Header.Set("Content-Type", form.FormDataContentType())
+					req := productImageUploadRequest(t, ctx, slug, map[string]string{"alt": tt.alt, "alt_en": tt.altEn, "option_value": options[1]}, tt.picture)
 					mux.ServeHTTP(res, req)
 				}
 				if res.Code != http.StatusUnprocessableEntity {
@@ -261,40 +244,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 				}
 				admintest.AssertRefusedInput(t, res.Body.String(), errorID, errorValue)
 				if !tt.reuse {
-					doc, err := html.Parse(strings.NewReader(res.Body.String()))
-					if err != nil {
-						t.Fatal(err)
-					}
-					chosen := ""
-					for n := range doc.Descendants() {
-						if n.Type != html.ElementNode || n.Data != "select" {
-							continue
-						}
-						id := ""
-						for _, a := range n.Attr {
-							if a.Key == "id" {
-								id = a.Val
-							}
-						}
-						if id != "p-image-option" {
-							continue
-						}
-						for option := range n.Descendants() {
-							selected, value := false, ""
-							for _, a := range option.Attr {
-								if a.Key == "selected" {
-									selected = true
-								}
-								if a.Key == "value" {
-									value = a.Val
-								}
-							}
-							if selected {
-								chosen = value
-							}
-						}
-					}
-					if chosen != options[1] {
+					if chosen := selectedProductImageOption(t, res.Body.String()); chosen != options[1] {
 						t.Errorf("image option = %q, want %q", chosen, options[1])
 					}
 				}
@@ -309,6 +259,60 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 			})
 		}
 	}
+}
+
+func productImageUploadRequest(t *testing.T, ctx context.Context, slug string, fields map[string]string, picture []byte) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	for name, value := range fields {
+		if err := form.WriteField(name, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	part, err := form.CreateFormFile("image", "product.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = part.Write(picture); err != nil {
+		t.Fatal(err)
+	}
+	if err = form.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images", &body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	return req
+}
+
+func selectedProductImageOption(t *testing.T, body string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "select" || productImageAttributes(n)["id"] != "p-image-option" {
+			continue
+		}
+		var chosen string
+		for option := range n.Descendants() {
+			attrs := productImageAttributes(option)
+			if _, selected := attrs["selected"]; selected {
+				chosen = attrs["value"]
+			}
+		}
+		return chosen
+	}
+	return ""
+}
+
+func productImageAttributes(n *html.Node) map[string]string {
+	attrs := make(map[string]string, len(n.Attr))
+	for _, a := range n.Attr {
+		attrs[a.Key] = a.Val
+	}
+	return attrs
 }
 
 func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
@@ -369,15 +373,15 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := part.Write(lossless); err != nil {
+				if _, err = part.Write(lossless); err != nil {
 					t.Fatal(err)
 				}
 				for name, value := range tt.fields {
-					if err := form.WriteField(name, value); err != nil {
+					if err = form.WriteField(name, value); err != nil {
 						t.Fatal(err)
 					}
 				}
-				if err := form.Close(); err != nil {
+				if err = form.Close(); err != nil {
 					t.Fatal(err)
 				}
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, tt.path, &body)
