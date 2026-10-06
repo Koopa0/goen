@@ -23,9 +23,10 @@ const (
 	// event, and the interval is a count of events.
 	coverMinOrders = 10
 
-	// coverMaxSoldOut is how many sold out SKUs head the list; the rest are
-	// counted, so they cannot push every estimate off it.
-	coverMaxSoldOut = 3
+	// coverMaxRows is how many rows each of the two groups lists, sold out and
+	// the rest, so neither can push the other off the page; the sold out ones
+	// left off are counted.
+	coverMaxRows = 10
 
 	// coverWarnDays is the days cover under which a SKU is marked: the
 	// restocking lead, not the period the report shows.
@@ -81,8 +82,8 @@ func (r StockRisk) Estimate() DaysCover {
 	case r.Orders < coverMinOrders:
 		return DaysCover{State: CoverFewOrders}
 	}
-	// The ledger puts at least the hours of the sales in stock; the floor only
-	// keeps a missing ledger from dividing by zero.
+	// A SKU received minutes ago has few hours in stock; the floor keeps the
+	// rate finite, and the estimate of such a SKU is one day.
 	perDay := float64(r.Sold) / (max(r.InStock, time.Hour).Hours() / 24)
 	days := float64(r.Sellable) / perDay
 	k := float64(r.Orders)
@@ -177,11 +178,11 @@ func (r StockRisk) SoldText(ctx context.Context, days int) string {
 
 func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
 
-// RankStockRisk lists the sold out SKUs that ran out most recently, at most
-// coverMaxSoldOut of them, then the estimated ones from the shortest days
-// cover, then those that cannot be estimated, all within limit rows. It also
-// returns how many sold out SKUs it left off.
-func RankStockRisk(rows []StockRisk, limit int) (listed []StockRisk, moreSoldOut int) {
+// RankStockRisk lists the sold out SKUs that ran out most recently, then the
+// estimated ones from the shortest days cover, then those that cannot be
+// estimated, each of the two groups at most coverMaxRows. It also returns how
+// many sold out SKUs it left off.
+func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 	var soldOut, rest []StockRisk
 	for _, r := range rows {
 		if r.Estimate().State == CoverSoldOut {
@@ -203,9 +204,9 @@ func RankStockRisk(rows []StockRisk, limit int) (listed []StockRisk, moreSoldOut
 			cmp.Compare(a.SKU, b.SKU),
 		)
 	})
-	shown := min(len(soldOut), coverMaxSoldOut, limit)
-	listed = make([]StockRisk, 0, len(rows))
+	shown := min(len(soldOut), coverMaxRows)
+	listed = make([]StockRisk, 0, shown+min(len(rest), coverMaxRows))
 	listed = append(listed, soldOut[:shown]...)
-	listed = append(listed, rest...)
-	return listed[:min(len(listed), limit)], len(soldOut) - shown
+	listed = append(listed, rest[:min(len(rest), coverMaxRows)]...)
+	return listed, len(soldOut) - shown
 }

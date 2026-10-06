@@ -217,9 +217,9 @@ const ADMIN = [
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
   // one at four digits, so a row without a bar measured the one-seller page.
-  // .goen-chartrangebar: the same script adds ten paid orders on one SKU, the
-  // fewest a days cover is estimated from, so a row without it measured the
-  // rows that say only that sales are too few.
+  // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
+  // receipt twenty days back, so its row carries the range bar, the range text
+  // and the warning; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },

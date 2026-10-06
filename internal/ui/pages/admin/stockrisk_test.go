@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -105,36 +106,45 @@ func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
 	}
 }
 
-func TestRankCapsSoldOutRowsAndLetsEstimatesFollow(t *testing.T) {
+func TestRankKeepsTwoGroupsEachWithItsOwnCap(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	estimated := func(sku string, sellable int32) StockRisk {
-		return StockRisk{SKU: sku, Sellable: sellable, Sold: 60, Orders: 30, InStock: stockedAllWindow}
+	var rows []StockRisk
+	for i := range coverMaxRows + 2 {
+		rows = append(rows, StockRisk{SKU: fmt.Sprintf("OUT-%02d", i), SoldOutAt: at.Add(time.Duration(i) * time.Hour)})
 	}
-	rows := []StockRisk{
-		{SKU: "FEW", Sellable: 1, Sold: 2, Orders: 2, InStock: stockedAllWindow},
-		estimated("LONG", 90),
-		estimated("SHORT", 10),
-		{SKU: "OUT-OLD", Sellable: 0},
-		{SKU: "OUT-1", Sellable: 0, SoldOutAt: at.Add(1 * time.Hour)},
-		{SKU: "OUT-2", Sellable: 0, SoldOutAt: at.Add(2 * time.Hour)},
-		{SKU: "OUT-3", Sellable: 0, SoldOutAt: at.Add(3 * time.Hour)},
-		{SKU: "OUT-4", Sellable: 0, SoldOutAt: at.Add(4 * time.Hour)},
+	for i := range coverMaxRows + 1 {
+		rows = append(rows, StockRisk{
+			SKU: fmt.Sprintf("EST-%02d", i), Sellable: int32(10 + i), Sold: 60, Orders: 30, InStock: stockedAllWindow,
+		})
 	}
-	listed, more := RankStockRisk(rows, 10)
-	got := make([]string, 0, len(listed))
+	rows = append(rows, StockRisk{SKU: "FEW", Sellable: 1, Sold: 2, Orders: 2, InStock: stockedAllWindow})
+
+	listed, more := RankStockRisk(rows)
+	var soldOut, estimated []string
 	for _, r := range listed {
-		got = append(got, r.SKU)
+		switch r.Estimate().State {
+		case CoverSoldOut:
+			soldOut = append(soldOut, r.SKU)
+		case CoverEstimated:
+			estimated = append(estimated, r.SKU)
+		case CoverFewOrders:
+		}
 	}
-	if want := "OUT-4 OUT-3 OUT-2 SHORT LONG FEW"; strings.Join(got, " ") != want {
-		t.Errorf("RankStockRisk = %v, want %s", got, want)
+	if len(soldOut) != coverMaxRows || more != 2 {
+		t.Errorf("%d sold out rows listed and %d left off, want %d and 2", len(soldOut), more, coverMaxRows)
 	}
-	if more != 2 {
-		t.Errorf("RankStockRisk left off %d sold out, want 2", more)
+	if soldOut[0] != "OUT-11" {
+		t.Errorf("first sold out row is %s, want OUT-11, the one that ran out last", soldOut[0])
 	}
-	if listed, _ := RankStockRisk(rows, 4); len(listed) != 4 {
-		t.Errorf("RankStockRisk(limit 4) listed %d rows, want 4", len(listed))
+	if len(estimated) != coverMaxRows || estimated[0] != "EST-00" {
+		t.Errorf("estimated rows %v, want %d from EST-00: sold out rows must not take their places", estimated, coverMaxRows)
+	}
+	for i, r := range listed[:coverMaxRows] {
+		if r.Estimate().State != CoverSoldOut {
+			t.Errorf("row %d is %s, want the sold out group first", i, r.SKU)
+		}
 	}
 }
 

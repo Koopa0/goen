@@ -307,11 +307,16 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	roomy := soldVariant(t, 9, 5, 10)
-	idle := make([]string, 0, 4)
-	for range 4 {
+	// One more sold out SKU than the list holds, so the count is at least 1
+	// whatever the seed leaves, and a SKU of ten orders that must still show.
+	idle := make([]string, 0, 11)
+	for range 11 {
 		_, sku := newVariant(t, 2, 2)
 		idle = append(idle, sku)
+	}
+	estimatedID, estimated := newVariant(t, 10, 5)
+	for range 10 {
+		orderOnVariant(t, estimatedID, estimated, 1, nil)
 	}
 
 	now := time.Now()
@@ -335,30 +340,31 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 		t.Errorf("a 7 day report reads stock over %d days, want 30", view.StockDays)
 	}
 	var soldOut int
-	roomyAt, afterSoldOut := -1, true
+	afterSoldOut := true
 	for i, r := range view.AtRisk {
-		state := r.Estimate().State
-		switch {
-		case state == admin.CoverSoldOut:
-			soldOut++
-			if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
-				afterSoldOut = false
-			}
-		case r.SKU == roomy:
-			roomyAt = i
+		if r.Estimate().State != admin.CoverSoldOut {
+			continue
+		}
+		soldOut++
+		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+			afterSoldOut = false
 		}
 	}
-	if soldOut > 3 || view.MoreSoldOut < 1 {
-		t.Errorf("%d sold out rows listed with %d left off, want at most 3 and the rest counted", soldOut, view.MoreSoldOut)
+	if soldOut != 10 || view.MoreSoldOut < 1 {
+		t.Errorf("%d sold out rows listed with %d left off, want 10 and the rest counted", soldOut, view.MoreSoldOut)
 	}
 	if !afterSoldOut {
 		t.Error("a sold out row follows a row that is not sold out")
 	}
-	if roomyAt < 0 {
-		t.Errorf("report lacks %s: sold out rows must not push the others off the list", roomy)
-	} else if got := view.AtRisk[roomyAt]; got.Sellable != 4 || got.Sold != 10 || got.Orders != 1 {
-		t.Errorf("stock 9, safety 5, one order of 10: sellable %d sold %d orders %d, want 4, 10 and 1",
-			got.Sellable, got.Sold, got.Orders)
+	row, ok := stockRow(&view, estimated)
+	switch {
+	case !ok:
+		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
+	case row.Estimate().State != admin.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
+		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
+			row.Sellable, row.Sold, row.Orders)
 	}
 }
 
@@ -472,15 +478,6 @@ func ledger(t *testing.T, variantID uuid.UUID, delta int, reason string, at time
 		variantID, delta, reason, at); err != nil {
 		t.Fatalf("write movement: %v", err)
 	}
-}
-
-// soldVariant makes an active variant holding stock with the given safety level
-// and one paid order of sold units, and returns its SKU.
-func soldVariant(t *testing.T, stock, safety, sold int) string {
-	t.Helper()
-	variantID, sku := newVariant(t, stock, safety)
-	orderOnVariant(t, variantID, sku, sold, nil)
-	return sku
 }
 
 // newVariant makes an active variant holding stock with the given safety level.

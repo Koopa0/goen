@@ -598,9 +598,9 @@ func Report(p layouts.Page, v *ReportView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var38 string
-			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), v.StockDays, coverMinOrders, coverWarnDays, coverMaxSoldOut))
+			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), v.StockDays, coverMinOrders, coverWarnDays, coverMaxRows))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/report.templ`, Line: 108, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/report.templ`, Line: 108, Col: 114}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {

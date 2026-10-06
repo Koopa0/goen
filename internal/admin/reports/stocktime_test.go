@@ -39,6 +39,13 @@ func TestTimeInStockCountsOnlyWhatASaleMayTake(t *testing.T) {
 			[]movement{{day(5), -3}, {day(15), 15}, {day(25), -15}},
 			15 * 24 * time.Hour,
 		},
+		{
+			// Stock 2 now was 7 at from; the movement on day 40 is past to, and
+			// still rolled back, but adds no time.
+			"a movement after to", 2, 2,
+			[]movement{{day(40), -5}},
+			30 * 24 * time.Hour,
+		},
 	} {
 		got := timeInStock(tc.stock, tc.safety, from, to, tc.moves)
 		if got != tc.want {
@@ -62,9 +69,10 @@ func TestSoldOutAtIsWhenTheLevelLastFellToSafety(t *testing.T) {
 		{"out before the window", 2, 2, nil, time.Time{}},
 		{"sold down on day five", 2, 2, []movement{{day(5), -3}}, day(5)},
 		{"restocked, then out again", 2, 2, []movement{{day(5), -3}, {day(8), 10}, {day(20), -10}}, day(20)},
+		{"a run-out after to is not in the window", 6, 2, []movement{{day(40), -5}}, time.Time{}},
 		{"a sale that leaves stock above safety", 6, 2, []movement{{day(5), -1}}, time.Time{}},
 	} {
-		if got := soldOutAt(tc.stock, tc.safety, tc.moves); !got.Equal(tc.want) {
+		if got := soldOutAt(tc.stock, tc.safety, day(30), tc.moves); !got.Equal(tc.want) {
 			t.Errorf("%s: soldOutAt(%d, %d, ...) = %v, want %v", tc.name, tc.stock, tc.safety, got, tc.want)
 		}
 	}

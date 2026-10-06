@@ -277,14 +277,29 @@ SELECT record_audit_event(:'staff_id', 'order.advance', 'orders', id, NULL,
     jsonb_build_object('number', order_number, 'status', 'delivered'))
 FROM orders WHERE id IN (:'invoice_id', :'form_id');
 
--- Ten more paid orders of one unit on the best seller, so the stock section of
--- /admin/reports has a SKU with enough orders to estimate and draws its range
--- bar. Placed and funded as the picking orders above are; the receipt covers
--- the ten holds, so the stock ends where it began.
-SELECT record_inventory_movement(:'seller_variant_id', 10, 'receipt',
+-- Ten paid orders of one unit on a SKU with twelve sellable and a receipt twenty
+-- days back, so the stock section of /admin/reports estimates it: about 24
+-- days, a range that reaches past 30, a warning and the range bar. Placed and
+-- funded as the picking orders above are; the receipt covers the ten holds. The
+-- backdated receipt is the whole stock the SKU began with, which puts its first
+-- twenty days of the window before anything was there to sell.
+SELECT pv.id AS estimate_variant_id, pv.stock_quantity AS estimate_stock, pv.safety_stock AS estimate_safety
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
+  AND pv.product_id NOT IN (SELECT product_id FROM product_variants
+                            WHERE id IN (:'variant_id', :'seller_variant_id'))
+ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
+SELECT record_inventory_movement(:'estimate_variant_id', 12 + :estimate_safety - :estimate_stock, 'adjustment',
+    'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id')
+WHERE :estimate_stock <> 12 + :estimate_safety;
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key, actor_user_id, created_at)
+VALUES (:'estimate_variant_id', :estimate_stock, 'receipt', 'admin',
+        'layout-check:' || gen_random_uuid(), :'staff_id', now() - interval '20 days');
+SELECT record_inventory_movement(:'estimate_variant_id', 10, 'receipt',
     'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
 SELECT grant_store_credit(:'customer_id', pv.price_cents + :ship_cents + 100, 'Estimate fixture', :'staff_id', gen_random_uuid())
-FROM product_variants pv, generate_series(1, 10) WHERE pv.id = :'seller_variant_id';
+FROM product_variants pv, generate_series(1, 10) WHERE pv.id = :'estimate_variant_id';
 
 SET ROLE store;
 
@@ -299,7 +314,7 @@ INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name,
                          warranty_note, warranty_months, unit_price_cents, quantity, position)
 SELECT o.id, p.id, pv.id, pv.sku, p.name, p.warranty_note, p.warranty_months, pv.price_cents, 1, 0
 FROM unnest(:'estimate_orders'::uuid[]) AS o (id)
-JOIN product_variants pv ON pv.id = :'seller_variant_id'
+JOIN product_variants pv ON pv.id = :'estimate_variant_id'
 JOIN products p ON p.id = pv.product_id;
 SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
                       'hold:' || order_id || ':' || variant_id)

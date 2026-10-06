@@ -105,7 +105,7 @@ templ Report(p layouts.Page, v *ReportView) {
 		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 		<p class="goen-admin__hint">
-			{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), v.StockDays, coverMinOrders, coverWarnDays, coverMaxSoldOut) }
+			{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), v.StockDays, coverMinOrders, coverWarnDays, coverMaxRows) }
 		</p>
 		if len(v.AtRisk) == 0 {
 			<div class="goen-admin__empty">
