@@ -2074,45 +2074,6 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- One photograph, the width of the container, and a caption. ----- */
-
-.goen-promo-photo__link {
-  color: var(--n-900);
-  display: block;
-  text-decoration: none;
-}
-
-.goen-promo-photo__media {
-  aspect-ratio: 4 / 3;
-  background: var(--n-100);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-
-.goen-promo-photo__media img {
-  height: 100%;
-  object-fit: cover;
-  object-position: 84% 50%;
-  width: 100%;
-}
-
-.goen-promo-photo__caption {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-}
-
-.goen-promo-photo__link:hover .goen-promo-photo__media img {
-  opacity: 0.92;
-}
-
-.goen-promo-photo__link:hover .goen-home__more {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 /* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
    item renders only where a free-delivery threshold is configured. ----- */
 
@@ -2191,14 +2152,6 @@ h3 {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-promo-photo__media {
-    aspect-ratio: 21 / 9;
-  }
-
-  .goen-promo-photo__media img {
-    object-position: 70% 50%;
   }
 }
 
@@ -9489,6 +9442,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media print {
+  .goen-admin .goen-admin__batchcontrols,
   .goen-skip,
   .goen-adminbar,
   .goen-admin__nav,
@@ -9517,8 +9471,60 @@ form[data-request-pending] [aria-disabled="true"] {
     margin-bottom: 12px;
   }
 
+  .goen-admin__picklist,
+  .goen-admin__slip {
+    break-after: page;
+  }
+
+  .goen-admin__slip {
+    break-inside: avoid;
+  }
+
+  .goen-admin__slip:last-child {
+    break-after: auto;
+  }
+
+  .goen-admin__picklist .goen-admin__tablewrap {
+    overflow: visible;
+  }
+
   body {
     background: var(--bg);
     color: var(--fg);
+  }
+}
+
+/* Forced colours remove the chosen card's shadow and equalise its border.
+   The native radio keeps the checked mark the user's colour scheme supplies. */
+@media (forced-colors: active) {
+  .goen-checkout__ship > input[type=radio] {
+    align-self: center;
+    clip-path: none;
+    flex: none;
+    height: 1rem;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: 1rem;
+  }
+
+  .goen-checkout__shipname {
+    flex: 1;
+  }
+
+  /* Weight and underline keep the chosen label distinct from ordinary links. */
+  .goen-swatch--on:not(.goen-swatch--dot),
+  .goen-swatch--on:not(.goen-swatch--dot):hover {
+    font-weight: var(--fw-semibold);
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+
+  /* SVG preserves author colours, so its selected ring must follow the palette. */
+  .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
+    outline-color: Highlight;
   }
 }

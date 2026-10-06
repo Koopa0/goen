@@ -87,13 +87,3 @@ func (v *HomeView) ShippingBodyKey() i18n.Key {
 }
 
 func (v *HomeView) LowestFee() string { return twd(v.LowestFeeCents) }
-
-func (v *HomeView) PromoHref() string {
-	const slug = "books-stationery"
-	for _, c := range v.Categories {
-		if c.Slug == slug {
-			return "/c/" + slug
-		}
-	}
-	return "/search"
-}

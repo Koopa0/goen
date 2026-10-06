@@ -11,6 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -203,6 +204,8 @@ const ADMIN = [
   { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
+  { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
+  { label: 'admin picking 1440', width: 1440, height: 900, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
   // The back-office pages with the widest tables.
   { label: 'admin products 375', width: 375, height: 812, path: '/admin/products', marker: '.goen-admin' },
   { label: 'admin products 1440', width: 1440, height: 900, path: '/admin/products', marker: '.goen-admin' },
@@ -2584,6 +2587,48 @@ if (process.env.ADMIN_TOKEN) {
       await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
     }
   }
+
+  if (ADMIN.length) {
+    const label = 'admin batch print';
+    const target = `${ORIGIN}/admin/orders/picking/slips`;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 794, height: 1123, deviceScaleFactor: 1, mobile: false,
+    });
+    await send(ws, 'Emulation.setEmulatedMedia', { media: 'print' });
+    try {
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const printed = await evalPage(`(() => {
+        const slips = [...document.querySelectorAll('.goen-admin__slip')];
+        const visible = (el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+        const controls = [...document.querySelectorAll('.goen-adminbar,.goen-admin__nav,.goen-admin__batchcontrols,form')].filter(visible);
+        return {
+          slips: slips.length,
+          lines: slips.map((slip) => slip.querySelectorAll('.goen-order__line').length),
+          delivery: slips.map((slip) => slip.querySelectorAll('.ui-dl__row').length),
+          breaks: slips.map((slip) => getComputedStyle(slip).breakAfter),
+          pickLists: document.querySelectorAll('.goen-admin__picklist').length,
+          controls: controls.length,
+          controlNames: controls.map((el) => el.tagName.toLowerCase() + '.' + el.className),
+        };
+      })()`);
+      if (printed.threw) {
+        fail(label, `print probe did not run — ${printed.why}`);
+      } else {
+        if (printed.slips < 2) fail(label, `only ${printed.slips} slips; the multi-order fixture did not run`);
+        if (printed.lines.some((n) => n === 0) || printed.delivery.some((n) => n < 4)) fail(label, 'a slip lost its items or delivery');
+        if (printed.breaks.slice(0, -1).some((value) => value !== 'page')) fail(label, 'a slip lacks its forced page break');
+        if (printed.pickLists !== 1 || printed.controls) fail(label, `pickLists=${printed.pickLists} controls=${printed.controls}: ${printed.controlNames.join(", ")}`);
+        const pdf = await send(ws, 'Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
+        // Chromium writes page dictionaries outside compressed content streams.
+        const pages = (Buffer.from(pdf.data, 'base64').toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+        if (pages !== printed.slips + 1) fail(label, `${pages} PDF pages, want ${printed.slips} slips plus the pick list`);
+        console.log(`${label.padEnd(16)} slips=${printed.slips} PDF pages=${pages} controls=${printed.controls}`);
+      }
+    } finally {
+      await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
+    }
+  }
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');
 }
@@ -2605,6 +2650,108 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// Selection must be visible after focus leaves the control; focus is a separate state.
+const forcedColoursMissing = ['CUST_TOKEN', 'PICKUP_SHIP', 'COLOUR_SLUG'].filter((name) => !process.env[name]);
+if (forcedColoursMissing.length === 0) {
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_session', value: process.env.CUST_TOKEN, domain: '127.0.0.1', path: '/',
+  });
+  try {
+    for (const palette of ['light', 'dark']) {
+      await send(ws, 'Emulation.setEmulatedMedia', { features: [
+        { name: 'forced-colors', value: 'active' },
+        { name: 'prefers-color-scheme', value: palette },
+      ] });
+      for (const locale of ['zh-Hant', 'en']) {
+        await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+        console.log('forced colours palette ' + palette + ' locale ' + locale);
+        for (const [path, groups] of [['/checkout', ['invoice_type', 'shipping']],
+          ['/checkout?ship=' + process.env.PICKUP_SHIP, ['pickup_chain']]]) {
+          await openAt('forced colours chooser', path);
+          for (const name of groups) {
+            const got = await evalPage(`(${measureChooserStates.toString()})(${JSON.stringify(name)})`);
+            console.log('forced colours chooser ' + JSON.stringify({ palette, locale, path, ...got }));
+            if (got.threw || got.error || !got.forced || got.scheme !== palette) {
+              fail('forced colours chooser', got.why || got.error || 'forced-colors did not activate');
+            } else {
+              for (const choice of got.results) {
+                if (!choice.distinct && !choice.radioVisible) {
+                  fail('forced colours chooser', name + '=' + choice.value + ' has no visible selected cue after blur');
+                }
+              }
+            }
+          }
+        }
+        await openAt('forced colours swatch', '/p/' + process.env.COLOUR_SLUG);
+        const swatchURL = await evalPage(`document.querySelector('.goen-swatch:not(.goen-swatch--dot)')?.href || null`);
+        if (!swatchURL || swatchURL.threw) {
+          fail('forced colours swatch', 'no text variant choice was rendered');
+        } else {
+          await send(ws, 'Page.navigate', { url: swatchURL });
+          await settled(ws, 'forced colours swatch chosen', swatchURL);
+          const got = await evalPage(`(${measureSwatchState.toString()})()`);
+          console.log('forced colours swatch ' + JSON.stringify({ palette, locale, ...got }));
+          if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
+            fail('forced colours swatch', got.why || got.error || 'selected text swatch has no distinct visible cue');
+          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none') {
+            fail('forced colours swatch', palette + '/' + locale + ' selected ring is ' + got.checked.outlineWidth + ' ' + got.checked.outlineStyle + ', want at least 2px visible outline');
+          } else if (!(got.contrast >= 3)) {
+            fail('forced colours swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
+          }
+        }
+        const colourURL = await evalPage(`document.querySelector('.goen-swatch--dot')?.href || null`);
+        if (!colourURL || colourURL.threw) {
+          fail('forced colours colour swatch', 'no colour variant choice was rendered');
+        } else {
+          await send(ws, 'Page.navigate', { url: colourURL });
+          await settled(ws, 'forced colours chosen colour', colourURL);
+          const got = await evalPage(`(${measureSwatchState.toString()})(true)`);
+          console.log('forced colours colour swatch ' + JSON.stringify({ palette, locale, ...got }));
+          if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
+            fail('forced colours colour swatch', got.why || got.error || 'selected colour swatch has no distinct visible cue');
+          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none') {
+            fail('forced colours colour swatch', palette + '/' + locale + ' selected ring is ' + got.checked.outlineWidth + ' ' + got.checked.outlineStyle + ', want at least 2px visible outline');
+          } else if (!(got.contrast >= 3)) {
+            fail('forced colours colour swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
+          }
+        }
+        await openAt('forced colours language', '/contact');
+        const language = await evalPage(`(() => {
+          const menu = document.querySelector('.goen-langmenu');
+          if (!menu) return { error: 'language menu missing' };
+          menu.open = true;
+          const selected = menu.querySelector('[aria-pressed="true"]');
+          const other = menu.querySelector('[aria-pressed="false"]');
+          const current = menu.querySelector('.goen-langmenu__current');
+          return { forced: matchMedia('(forced-colors: active)').matches,
+            current: current?.textContent.trim(), selected: selected?.getAttribute('lang'),
+            selectedIcons: selected?.querySelectorAll('svg').length,
+            otherIcons: other?.querySelectorAll('svg').length,
+            selectedWeight: selected && getComputedStyle(selected).fontWeight,
+            otherWeight: other && getComputedStyle(other).fontWeight };
+        })()`);
+        console.log('forced colours language ' + JSON.stringify(language));
+        if (language.threw || language.error || !language.forced || !language.current
+          || !(language.selectedIcons > language.otherIcons || language.selectedWeight !== language.otherWeight)) {
+          fail('forced colours language', language.why || language.error || 'current language has no structural cue');
+        }
+      }
+    }
+  } finally {
+    await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+    if (process.env.ADMIN_TOKEN) {
+      await send(ws, 'Network.setCookie', {
+        name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/',
+      });
+    }
+  }
+} else if (process.env.CUST_TOKEN) {
+  fail('forced colours fixtures', forcedColoursMissing.join(', ') + ' unset — run it through make check-layout');
+} else {
+  console.log('forced colours skipped (no CUST_TOKEN)');
+}
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {

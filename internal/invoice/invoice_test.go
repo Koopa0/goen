@@ -120,7 +120,7 @@ func snapToDollars(lines []Line, headerCents int64) []Line {
 		given += unit * quantity
 	}
 	if short := wantDollars - given; short > 0 {
-		lines = append(lines, Line{
+		lines = append(lines, Line{TaxType: Taxable, Unit: DefaultUnit,
 			Description: "折扣尾數調整", Quantity: 1,
 			UnitPriceCents: short * 100, AmountCents: short * 100,
 		})
@@ -350,7 +350,7 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 		OrderNumber: "GO260101000001", CustomerName: "王小明",
 		Email: "a@example.com", Preference: "member_carrier",
 		AmountCents: 67000,
-		Lines:       []Line{{Description: "保護殼", Quantity: 1, UnitPriceCents: 59000, AmountCents: 59000}},
+		Lines:       []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "保護殼", Quantity: 1, UnitPriceCents: 59000, AmountCents: 59000}},
 	}
 
 	tests := []struct {
@@ -439,7 +439,7 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 				Email:        "buyer@example.com",
 				Preference:   preference,
 				AmountCents:  10000,
-				Lines: []Line{{
+				Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit,
 					Description:    "契約測試商品",
 					Quantity:       1,
 					UnitPriceCents: 10000,
@@ -471,7 +471,7 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 		Email:        "buyer@example.com",
 		Preference:   unknown,
 		AmountCents:  10000,
-		Lines:        []Line{{Description: "契約測試商品", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+		Lines:        []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "契約測試商品", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
 	}).validate(); !errors.Is(err, ErrRejected) {
 		t.Errorf("unknown preference validation = %v, want ErrRejected", err)
 	}
@@ -517,7 +517,7 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 		Email: "a@example.com", Preference: "mobile_carrier", MobileBarcode: "/ABC+123",
 		AmountCents: 67000,
 		Lines: []Line{
-			{Description: "保護殼", Quantity: 2, UnitPriceCents: 29500, AmountCents: 59000},
+			{TaxType: Taxable, Unit: DefaultUnit, Description: "保護殼", Quantity: 2, UnitPriceCents: 29500, AmountCents: 59000},
 		},
 	})
 	if err != nil {
@@ -659,7 +659,7 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
 		OrderNumber: "GO260101000002", CustomerName: "測試股份有限公司",
 		Email: "ap@example.com", Preference: "company", TaxID: "04595252",
 		AmountCents: 100000,
-		Lines:       []Line{{Description: "耳機", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+		Lines:       []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "耳機", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
 	}); err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
@@ -701,7 +701,7 @@ func TestAnAllowanceAsksTheBuyerOnline(t *testing.T) {
 	err := g.RequestAllowance(t.Context(), AllowanceRequest{
 		InvoiceNumber: "LA45000603", InvoiceDate: time.Now(),
 		CustomerName: "王小明", Email: "a@example.com", AmountCents: 20000,
-		Lines: []Line{{Description: "傳輸線", Quantity: 1, UnitPriceCents: 20000, AmountCents: 20000}},
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "傳輸線", Quantity: 1, UnitPriceCents: 20000, AmountCents: 20000}},
 	})
 	if err != nil {
 		t.Fatalf("RequestAllowance: %v", err)
@@ -731,7 +731,7 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 		_, err = g.Issue(t.Context(), IssueRequest{
 			OrderNumber: "GO260101000099", CustomerName: "測試", Email: "a@example.com",
 			Preference: PreferenceMember, AmountCents: 10000,
-			Lines: []Line{{Description: "商品", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+			Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "商品", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
 		})
 		return err
 	}
@@ -748,7 +748,7 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 		err = g.RequestAllowance(t.Context(), AllowanceRequest{
 			InvoiceNumber: "AB12345678", InvoiceDate: time.Now(), CustomerName: "測試",
 			Email: "a@example.com", AmountCents: 10000,
-			Lines: []Line{{Description: "退貨折讓", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+			Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "退貨折讓", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
 		})
 		return err
 	}
@@ -788,7 +788,7 @@ func TestAProviderRefusalIsItsOwnError(t *testing.T) {
 	_, err := g.Issue(t.Context(), IssueRequest{
 		OrderNumber: "GO260101000003", CustomerName: "王小明",
 		Email: "a@example.com", Preference: "member_carrier", AmountCents: 10000,
-		Lines: []Line{{Description: "線", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "線", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
 	})
 	if !errors.Is(err, ErrRejected) {
 		t.Fatalf("a refused document = %v, want ErrRejected", err)
@@ -814,10 +814,10 @@ func TestFetchIssueReadsCompleteProviderTruthAndDocumentedNotFound(t *testing.T)
 			"IIS_Check_Number": "P", "IIS_Random_Number": "1234",
 			"Items": []map[string]any{{
 				"ItemName": "保護殼", "ItemCount": "2", "ItemPrice": "295",
-				"ItemAmount": "590", "ItemTaxType": "1",
+				"ItemAmount": "590", "ItemWord": "個", "ItemTaxType": "1",
 			}, {
 				"ItemName": "運費", "ItemCount": 1, "ItemPrice": 80,
-				"ItemAmount": 80, "ItemTaxType": 1,
+				"ItemAmount": 80, "ItemWord": "個", "ItemTaxType": 1,
 			}},
 		})
 	}))
@@ -853,7 +853,7 @@ func TestFetchAllowancesDistinguishesZeroOneAndMultiple(t *testing.T) {
 			"IA_Total_Tax_Amount": 200,
 			"Items": []map[string]any{{
 				"ItemName": "退貨折讓", "ItemCount": 1, "ItemPrice": 200,
-				"ItemAmount": 200, "ItemTaxType": 1,
+				"ItemAmount": 200, "ItemWord": "個", "ItemTaxType": 1,
 			}},
 		}}
 		if mode == 2 {
@@ -863,7 +863,7 @@ func TestFetchAllowancesDistinguishesZeroOneAndMultiple(t *testing.T) {
 				"IA_Total_Tax_Amount": 200,
 				"Items": []map[string]any{{
 					"ItemName": "退貨折讓", "ItemCount": 1, "ItemPrice": 200,
-					"ItemAmount": 200, "ItemTaxType": 1,
+					"ItemAmount": 200, "ItemWord": "個", "ItemTaxType": 1,
 				}},
 			})
 		}
@@ -890,7 +890,7 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 	local := knownAllowance{
 		Number: "2026080715227214", AmountCents: 50000,
 		Status: "issued", IssuedAt: issuedAt,
-		Lines: []Line{{
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit,
 			Description: "退貨折讓", Quantity: 1,
 			UnitPriceCents: 50000, AmountCents: 50000,
 		}},
@@ -916,6 +916,8 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 		{"amount", func(got *AllowanceLookup) { got.Document.AmountCents-- }},
 		{"issued time", func(got *AllowanceLookup) { got.Document.IssuedAt = got.Document.IssuedAt.Add(time.Second) }},
 		{"line", func(got *AllowanceLookup) { got.Document.Lines[0].AmountCents-- }},
+		{"tax type", func(got *AllowanceLookup) { got.Document.Lines[0].TaxType = Exempt }},
+		{"unit", func(got *AllowanceLookup) { got.Document.Lines[0].Unit = "包" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -929,22 +931,22 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 	}
 }
 
-func TestKnownAllowanceLinesRejectMissingOrNonTaxableFacts(t *testing.T) {
-	if _, ok := knownAllowanceLines(nil, nil, nil, nil, nil); ok {
+func TestKnownAllowanceLinesRejectMissingOrUnsupportedTerms(t *testing.T) {
+	if _, ok := knownAllowanceLines(nil, nil, nil, nil, nil, nil); ok {
 		t.Fatal("an allowance with no local lines was treated as complete")
 	}
 	if _, ok := knownAllowanceLines(
 		[]string{"退貨折讓"}, []int32{1}, []int64{50000},
-		[]int64{50000}, []string{"exempt"},
+		[]int64{50000}, []string{"zero_rated"}, []string{"個"},
 	); ok {
-		t.Fatal("a provider-taxable allowance matched a non-taxable local line")
+		t.Fatal("an unsupported zero-rated local allowance was accepted")
 	}
 }
 
 func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
 	expected := AllowanceRequest{
 		InvoiceNumber: "AB12345678", AmountCents: 50000,
-		Lines: []Line{{
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit,
 			Description: "退貨折讓", Quantity: 1,
 			UnitPriceCents: 50000, AmountCents: 50000,
 		}},
@@ -968,6 +970,8 @@ func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
 		{"original identity", func(got *AllowanceLookup) { got.InvoiceNumber = "CD12345678" }},
 		{"amount", func(got *AllowanceLookup) { got.Document.AmountCents-- }},
 		{"ordered lines", func(got *AllowanceLookup) { got.Document.Lines[0].Description = "wrong" }},
+		{"tax type", func(got *AllowanceLookup) { got.Document.Lines[0].TaxType = Exempt }},
+		{"unit", func(got *AllowanceLookup) { got.Document.Lines[0].Unit = "包" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -986,7 +990,7 @@ func TestLookupMatchingRejectsEachAuthoritativeFieldIndependently(t *testing.T) 
 	request := IssueRequest{
 		OrderNumber: "GO260101000001", CustomerName: "王小明", Email: "a@example.com",
 		Preference: PreferenceMember, AmountCents: 20000,
-		Lines: []Line{{Description: "A", Quantity: 2, UnitPriceCents: 10000, AmountCents: 20000}},
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 2, UnitPriceCents: 10000, AmountCents: 20000}},
 	}
 	baseline := IssueLookup{
 		RelateNumber: request.OrderNumber, Issued: true,
@@ -1004,6 +1008,8 @@ func TestLookupMatchingRejectsEachAuthoritativeFieldIndependently(t *testing.T) 
 		"quantity":       func(v *IssueLookup) { v.Document.Lines[0].Quantity++ },
 		"unit price":     func(v *IssueLookup) { v.Document.Lines[0].UnitPriceCents++ },
 		"line amount":    func(v *IssueLookup) { v.Document.Lines[0].AmountCents++ },
+		"tax type":       func(v *IssueLookup) { v.Document.Lines[0].TaxType = Exempt },
+		"unit":           func(v *IssueLookup) { v.Document.Lines[0].Unit = "包" },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1031,7 +1037,7 @@ func TestAnUnreadableEnvelopeIsNotADocumentRefusal(t *testing.T) {
 	_, err := g.Issue(t.Context(), IssueRequest{
 		OrderNumber: "GO260101000004", CustomerName: "王小明",
 		Email: "a@example.com", Preference: "member_carrier", AmountCents: 10000,
-		Lines: []Line{{Description: "線", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+		Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "線", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
 	})
 	if err == nil {
 		t.Fatal("an unreadable envelope was accepted")
@@ -1114,7 +1120,7 @@ func TestIssueItemsStayWithinProviderFieldBounds(t *testing.T) {
 	longName := strings.Repeat("品", 101)
 	lines := make([]Line, MaxIssueItems)
 	for i := range lines {
-		lines[i] = Line{
+		lines[i] = Line{TaxType: Taxable, Unit: DefaultUnit,
 			Description: longName, Quantity: 1,
 			UnitPriceCents: 100, AmountCents: 100,
 		}
@@ -1149,14 +1155,14 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 	}{
 		{
 			name:      "no discount and no delivery",
-			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			lines:     []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
 			header:    100000,
 			wantTotal: 1000,
 			wantLines: 1,
 		},
 		{
 			name:      "delivery is its own line",
-			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			lines:     []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
 			shipping:  8000,
 			header:    108000,
 			wantTotal: 1080,
@@ -1164,7 +1170,7 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 		},
 		{
 			name:      "a discount with free delivery",
-			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			lines:     []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
 			discount:  20000,
 			header:    80000,
 			wantTotal: 800,
@@ -1172,7 +1178,7 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 		},
 		{
 			name:      "a discount smaller than the delivery fee",
-			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			lines:     []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
 			discount:  2000,
 			shipping:  8000,
 			header:    106000,
@@ -1183,7 +1189,7 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 			// 15% of NT$999 is NT$149.85, so the order owes 84915 cents and the
 			// document is filed at 849.
 			name:      "a percentage coupon leaving fractional cents",
-			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 99900, AmountCents: 99900}},
+			lines:     []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 99900, AmountCents: 99900}},
 			discount:  14985,
 			header:    84915,
 			wantTotal: 849,
@@ -1193,8 +1199,8 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 			// Two lines and a remainder that has to land somewhere.
 			name: "a discount split across lines",
 			lines: []Line{
-				{Description: "A", Quantity: 1, UnitPriceCents: 33300, AmountCents: 33300},
-				{Description: "B", Quantity: 2, UnitPriceCents: 33300, AmountCents: 66600},
+				{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 33300, AmountCents: 33300},
+				{TaxType: Taxable, Unit: DefaultUnit, Description: "B", Quantity: 2, UnitPriceCents: 33300, AmountCents: 66600},
 			},
 			discount:  10000,
 			shipping:  6000,
@@ -1209,7 +1215,7 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 			t.Parallel()
 			got := discountLines(slices.Clone(tt.lines), tt.discount)
 			if tt.shipping > 0 {
-				got = append(got, Line{
+				got = append(got, Line{TaxType: Taxable, Unit: DefaultUnit,
 					Description: "運費", Quantity: 1,
 					UnitPriceCents: tt.shipping, AmountCents: tt.shipping,
 				})
@@ -1259,9 +1265,9 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
 	t.Parallel()
 
-	items := []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}}
+	items := []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}}
 	got := discountLines(slices.Clone(items), 30000)
-	got = append(got, Line{Description: "運費", Quantity: 1, UnitPriceCents: 8000, AmountCents: 8000})
+	got = append(got, Line{TaxType: Taxable, Unit: DefaultUnit, Description: "運費", Quantity: 1, UnitPriceCents: 8000, AmountCents: 8000})
 	got = snapToDollars(got, 78000)
 
 	for _, l := range got {
@@ -1280,7 +1286,7 @@ func TestDiscountAllocationDoesNotOverflowAtSchemaLimits(t *testing.T) {
 	// amount*discount exceeds MaxInt64.
 	const gross int64 = 10_000_000_000 * 999
 	const discount int64 = gross - 10_000_000_000
-	got := discountLines([]Line{{
+	got := discountLines([]Line{{TaxType: Taxable, Unit: DefaultUnit,
 		Description: "schema-limit", Quantity: 999,
 		UnitPriceCents: 10_000_000_000, AmountCents: gross,
 	}}, discount)
@@ -1303,15 +1309,15 @@ func TestEveryLineMultipliesOut(t *testing.T) {
 	}{
 		{
 			name:     "three at NT$333 with a discount that does not divide",
-			lines:    []Line{{Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900}},
+			lines:    []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900}},
 			discount: 10000,
 			header:   89900,
 		},
 		{
 			name: "two lines, both multi-quantity",
 			lines: []Line{
-				{Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900},
-				{Description: "B", Quantity: 7, UnitPriceCents: 14300, AmountCents: 100100},
+				{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900},
+				{TaxType: Taxable, Unit: DefaultUnit, Description: "B", Quantity: 7, UnitPriceCents: 14300, AmountCents: 100100},
 			},
 			discount: 33333,
 			header:   166667,
@@ -1349,7 +1355,7 @@ func TestEveryLineMultipliesOut(t *testing.T) {
 	// And nothing is appended when the arithmetic already comes out even: an
 	// adjustment line on a document that needs none is noise on a tax filing.
 	even := snapToDollars(
-		[]Line{{Description: "A", Quantity: 2, UnitPriceCents: 50000, AmountCents: 100000}}, 100000)
+		[]Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "A", Quantity: 2, UnitPriceCents: 50000, AmountCents: 100000}}, 100000)
 	if len(even) != 1 {
 		t.Errorf("%d lines for an evenly-divided invoice, want 1", len(even))
 	}

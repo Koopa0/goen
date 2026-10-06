@@ -59,14 +59,6 @@ type Health interface {
 	Tasks(ctx context.Context) ([]admin.Task, error)
 }
 
-// HealthFunc adapts a function to Health. The health store is handed over as
-// its method value, not converted to Health itself: x/tools deadcode panics on
-// the generic method of *outbox.Store, which converting *health.Store to an
-// interface would make reachable through WorkerHealth's parameter.
-type HealthFunc func(ctx context.Context) ([]admin.Task, error)
-
-func (f HealthFunc) Tasks(ctx context.Context) ([]admin.Task, error) { return f(ctx) }
-
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
@@ -422,6 +414,23 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	return sessions, nil
 }
 
+// recordShipment inserts the parcel. Ship's status check reads the order
+// without a lock, so another staff member can move it on first;
+// shipment_order_in_fulfilment re-reads it under the order's lock and refuses
+// the parcel of an order that no longer takes one.
+func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c carrier.Carrier, tracking string) (uuid.UUID, error) {
+	id, err := q.CreateShipment(ctx, db.CreateShipmentParams{
+		OrderID: orderID, Carrier: string(c), TrackingNumber: tracking,
+	})
+	if pgerr.IsConstraint(err, "shipment_order_in_fulfilment") {
+		return uuid.Nil, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("record shipment: %w", err)
+	}
+	return id, nil
+}
+
 // refusedIfNoRow reports a missing row as ErrRefused and any other error as the
 // failure it is: a lock that timed out is the database not answering, not a
 // rule refusing the write.
@@ -686,11 +695,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if carrierErr := requireCarrierFor(ctx, q, row.ID, number, carrierCode); carrierErr != nil {
 		return carrierErr
 	}
-	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
-		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
-	})
+	shipmentID, shipErr := recordShipment(ctx, q, row.ID, carrierCode, tracking)
 	if shipErr != nil {
-		return fmt.Errorf("record shipment: %w", shipErr)
+		return shipErr
 	}
 
 	if fillErr := fillParcel(ctx, q, row.ID, shipmentID, number, d.Lines); fillErr != nil {

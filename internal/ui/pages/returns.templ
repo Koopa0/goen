@@ -18,14 +18,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 					{ i18n.T(ctx, i18n.KeyReturnSub) }
 				</p>
 			</div>
-			if v.Error != "" {
-				// Written out, not composed: the textarea's aria-describedby points at this id
-				// and the guard in aria_test.go reads both from this source.
-				<p
-					class="goen-notice goen-notice--danger"
-					role="alert"
-					id="return-reason-error"
-				>{ v.Error }</p>
+			if v.FormRefusal != "" {
+				<p class="goen-notice goen-notice--danger" role="alert" id="return-form-error">{ v.FormRefusal }</p>
 			}
 			if len(v.Existing) > 0 {
 				@components.Card(components.CardProps{
@@ -65,13 +59,14 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-nothing"}) {
 					{ i18n.T(ctx, i18n.KeyReturnNothing) }
 				}
-			} else {
+			}
+			if (!v.HasOpen && v.AnyReturnable()) || v.HasDraft {
 				@components.Card(components.CardProps{Class: "goen-returns__panel"}) {
 					<form class="goen-returns__form" method="post" action={ templ.SafeURL(v.Action()) }>
 						<fieldset class="goen-returns__lines">
 							<legend class="goen-returns__subhead">{ i18n.T(ctx, i18n.KeyReturnChoose) }</legend>
 							for _, l := range v.Lines {
-								if l.CanReturn() {
+								if l.CanReturn() || l.Quantity != "" {
 									<div class="goen-returns__line">
 										<div class="goen-returns__recordbody">
 											<p class="goen-returns__name">{ l.Name }</p>
@@ -85,10 +80,12 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnQuantity), l.Max()) }
 											}
 											@components.Input(components.FieldProps{
-												ID:    l.Field(),
-												Name:  l.Field(),
-												Type:  "number",
-												Value: l.ChosenText(),
+												ID:        l.Field(),
+												Name:      l.Field(),
+												Type:      l.QuantityType(),
+												Value:     l.Quantity,
+												Invalid:   l.Refusal != "",
+												Describes: l.RefusalID(),
 												Attrs: templ.Attributes{
 													"min":       "0",
 													"max":       l.Max(),
@@ -96,6 +93,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 													"inputmode": "numeric",
 												},
 											})
+											if l.Refusal != "" {
+												<p class="goen-notice goen-notice--danger" role="alert" id={ l.RefusalID() }>{ l.Refusal }</p>
+											}
 										</div>
 									</div>
 								}
@@ -113,14 +113,17 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								name="reason"
 								rows="4"
 								maxlength="500"
-								if v.Error != "" {
+								if v.ReasonRefusal != "" {
 									aria-invalid="true"
 									aria-describedby="return-reason-error"
 								}
 							>{ v.Reason }</textarea>
+							if v.ReasonRefusal != "" {
+								<p class="goen-notice goen-notice--danger" role="alert" id="return-reason-error">{ v.ReasonRefusal }</p>
+							}
 						</div>
 						<div class="goen-returns__actions">
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"disabled": v.HasOpen || !v.AnyReturnable()}}, "submit") {
 								{ i18n.T(ctx, i18n.KeyReturnSubmit) }
 							}
 							@components.ButtonLink(components.ButtonProps{
@@ -132,7 +135,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 					</form>
 				}
 			}
-			if v.HasOpen || !v.AnyReturnable() {
+			if !v.HasDraft && (v.HasOpen || !v.AnyReturnable()) {
 				<div class="goen-returns__actions">
 					@components.ButtonLink(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,

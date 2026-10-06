@@ -29,6 +29,7 @@ type CompareProduct struct {
 	Brand          string
 	Category       string
 	PriceCents     int64
+	PriceVaries    bool
 	CompareCents   int64
 	Rating         float64
 	RatingCount    int64
@@ -39,7 +40,12 @@ type CompareProduct struct {
 	ImageAlt       string
 }
 
-func (p CompareProduct) Price() string { return twd(p.PriceCents) }
+func (p CompareProduct) PriceTile() ProductTile {
+	return ProductTile{
+		PriceCents: p.PriceCents, CompareCents: p.CompareCents,
+		PriceVaries: p.PriceVaries, InStock: p.InStock,
+	}
+}
 
 func (p CompareProduct) Stock(ctx context.Context) string {
 	if p.InStock {

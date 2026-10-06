@@ -298,11 +298,6 @@ var (
 		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
 	})
 
-	KeyAdminNoticeShippingNeeds = key("admin.notice.shippingneeds", Message{
-		ZhHant: "運費設定的資料有誤。運費、免運門檻與加價都必須是整數金額。",
-		En:     "The shipping setting is not right. Fees, free-shipping thresholds and surcharges must be whole dollar amounts.",
-	})
-
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
 		ZhHant: "收件資料有誤，或找不到這筆訂單。請檢查後再送出。",
 		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
@@ -316,6 +311,11 @@ var (
 	KeyAdminTrackingTaken = key("admin.tracking.taken", Message{
 		ZhHant: "這個物流商與查詢編號已經登記過，請核對編號。",
 		En:     "That carrier and tracking number are already on record. Check the number.",
+	})
+
+	KeyAdminDispatchRefused = key("admin.dispatch.refused", Message{
+		ZhHant: "這筆訂單已不再接受出貨，%s %s 沒有登記。",
+		En:     "This order no longer takes a dispatch, so %s %s was not recorded.",
 	})
 
 	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{
