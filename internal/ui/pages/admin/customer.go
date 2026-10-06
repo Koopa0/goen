@@ -88,14 +88,6 @@ func (v CustomerView) TierSentence(ctx context.Context) string {
 		v.WindowDays, spend, money.TWD(v.NextTierCents-v.WindowSpendCents), v.NextTierName)
 }
 
-func (v CustomerView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
-
-func (v CustomerView) Spent() string { return money.TWD(v.SpentCents) }
-
-func (v CustomerView) Credit() string { return money.TWD(v.CreditCents) }
-
-func (v CustomerView) PointsText() string { return strconv.FormatInt(v.Points, 10) }
-
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
 
 func (v CustomerView) DisplayName() string {

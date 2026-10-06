@@ -187,3 +187,82 @@ func TestMeterDrawsTheLimitLineOnlyWhenAsked(t *testing.T) {
 		}
 	}
 }
+
+func renderRangeBar(t *testing.T, p RangeBarProps) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := RangeBar(p).Render(t.Context(), &b); err != nil {
+		t.Fatalf("RangeBar(%+v).Render: %v", p, err)
+	}
+	return b.String()
+}
+
+func TestRangeBarPositionsAreAPercentageOfTheScale(t *testing.T) {
+	t.Parallel()
+
+	p := RangeBarProps{Max: 90}
+	for _, tc := range []struct {
+		v    int64
+		want string
+	}{
+		{0, "0.00%"},
+		{30, "33.33%"},
+		{90, "100.00%"},
+		{200, "100.00%"},
+		{-5, "0.00%"},
+	} {
+		if got := p.position(tc.v); got != tc.want {
+			t.Errorf("RangeBarProps{Max: 90}.position(%d) = %q, want %q", tc.v, got, tc.want)
+		}
+	}
+	if got := (RangeBarProps{}).position(5); got != "0.00%" {
+		t.Errorf("RangeBarProps{}.position(5) = %q, want 0.00%% on a scale of nothing", got)
+	}
+}
+
+func TestRangeBarDrawsTheBarItsRangeAndTheLine(t *testing.T) {
+	t.Parallel()
+
+	got := renderRangeBar(t, RangeBarProps{Value: 45, Low: 18, High: 72, Mark: 30, Max: 90})
+	svg := svgOf(t, got)
+	for _, want := range []string{
+		`class="goen-chartrangebar__fill"`, `width="50.00%"`,
+		`class="goen-chartrangebar__range" x1="20.00%" x2="80.00%"`,
+		`class="goen-chartrangebar__cap" x1="20.00%" x2="20.00%"`,
+		`class="goen-chartrangebar__cap" x1="80.00%" x2="80.00%"`,
+		`class="goen-chartrangebar__mark" x1="33.33%" x2="33.33%"`,
+		`aria-hidden="true"`, `focusable="false"`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("RangeBar(45, 18-72, line 30 of 90) draws %s, want it to contain %s", svg, want)
+		}
+	}
+	for _, banned := range []string{"<text", "rx=", "style="} {
+		if strings.Contains(got, banned) {
+			t.Errorf("RangeBar(45, 18-72, line 30 of 90) = %s, want no %s", got, banned)
+		}
+	}
+	if !strings.HasPrefix(got, `<div class="goen-chartrangebar" aria-hidden="true">`) {
+		t.Errorf("RangeBar = %s, want it hidden from assistive technology, which reads the row's own text", got)
+	}
+}
+
+func TestRangeBarWithoutALengthDrawsNoRange(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		p    RangeBarProps
+	}{
+		{"low and high meet", RangeBarProps{Value: 10, Low: 10, High: 10, Mark: 30, Max: 90}},
+		{"the range starts past the scale", RangeBarProps{Value: 90, Low: 95, High: 120, Mark: 30, Max: 90}},
+	} {
+		got := renderRangeBar(t, tc.p)
+		if strings.Contains(got, "goen-chartrangebar__range") || strings.Contains(got, "goen-chartrangebar__cap") {
+			t.Errorf("%s: RangeBar(%+v) = %s, want no range", tc.name, tc.p, got)
+		}
+		if !strings.Contains(got, "goen-chartrangebar__mark") {
+			t.Errorf("%s: RangeBar(%+v) = %s, want the line still drawn", tc.name, tc.p, got)
+		}
+	}
+}

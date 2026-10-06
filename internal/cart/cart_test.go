@@ -1134,16 +1134,16 @@ func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T
 	}{
 		{"nothing offered", nil, 0, pages.FreeDelivery{}},
 		{"one method, short", []pages.ShippingChoice{home}, 100000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000}},
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
 		{"two thresholds, the higher one is the one that is true for both",
 			[]pages.ShippingChoice{home, pickupPoint}, 100000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000}},
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
 		{"one method is already free, the other is not",
 			[]pages.ShippingChoice{home, free(pickupPoint)}, 200000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 100000}},
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 100000, ThresholdCents: 300000}},
 		{"a method that is never free says nothing", []pages.ShippingChoice{home, never}, 100000, pages.FreeDelivery{}},
 		{"every method free", []pages.ShippingChoice{free(home), free(pickupPoint)}, 300000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryReached}},
+			pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: 300000}},
 	} {
 		if got := freeDeliveryFor(tt.choices, tt.subtotal); got != tt.want {
 			t.Errorf("%s: got %+v, want %+v", tt.name, got, tt.want)
