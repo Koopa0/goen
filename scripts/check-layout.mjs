@@ -3920,7 +3920,8 @@ const REFLOW_PROBE = `(async () => {
     }
     if (!cause && !xFree && cuts(left, right, 0, width)) cause = 'runs past the viewport in';
     if (cause) {
-      const where = owner.tagName.toLowerCase() + '.' + String(owner.className || '').split(' ')[0];
+      // The attribute, not className: on an SVG element className is an SVGAnimatedString.
+      const where = owner.tagName.toLowerCase() + '.' + (owner.getAttribute('class') || '').split(' ')[0];
       text.push({ owner: where, detail: cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)) });
     }
   }
