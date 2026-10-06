@@ -1086,14 +1086,14 @@ func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination st
 	}
 	type recoveryField struct {
 		ID, Name, Type, Autocomplete, MaxLength string
-		Required                               bool
+		Required                                bool
 	}
 	type recoveryFacts struct {
 		Headings, Reasons, Destinations, DuplicateIDs []string
-		EmailFields                                 []recoveryField
-		LabelTargets                                []string
-		Envelopes, Tokens                            int
-		ObsoleteProse                                bool
+		EmailFields                                   []recoveryField
+		LabelTargets                                  []string
+		Envelopes, Tokens                             int
+		ObsoleteProse                                 bool
 	}
 	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
 	for n := range panel.Descendants() {
