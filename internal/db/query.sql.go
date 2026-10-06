@@ -16995,7 +16995,7 @@ CROSS JOIN LATERAL (
                 WHERE e.order_id = o.id AND e.kind = 'paid'),
                (SELECT max(p.paid_at) FROM payments p
                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
-               o.placed_at)::timestamptz AS funded_at,
+               NULL::timestamptz)::timestamptz AS funded_at,
            ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                        FROM order_lines ol WHERE ol.order_id = o.id), 0)
              - o.discount_cents + o.shipping_cents + o.tax_cents) / 100 * 100)::bigint
