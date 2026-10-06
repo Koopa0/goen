@@ -60,9 +60,11 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 		view.Rows = append(view.Rows, admin.AuditEntry{
 			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor, System: e.BySystem,
 			Subject: e.Subject, Href: entryHref(e.Subject, e.ProductSlug),
-			At:        shoptime.Second(e.OccurredAt),
-			RequestID: e.RequestID.String,
-			Changes:   changes(e.Before, e.After),
+			At:           shoptime.Second(e.OccurredAt),
+			RequestID:    e.RequestID.String,
+			Changes:      changes(e.Before, e.After),
+			CustomerName: e.CustomerName,
+			CustomerID:   e.EntityID.UUID.String(),
 		})
 	}
 	return view, nil

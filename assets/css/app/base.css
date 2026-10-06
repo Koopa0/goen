@@ -279,8 +279,7 @@ body {
 
 /* ---------- The ground ----------
 
-   Every value both surfaces are drawn from. A token declared both here and
-   above is settled by source order, and this block comes last.
+   Every value both surfaces are drawn from.
 
    The neutrals carry no chroma, because the product photographs sit on a
    chroma-free #f9f9f9 and any tint in the page would show as an edge around
@@ -385,6 +384,7 @@ body {
 
 :root {
   --chart-hue: #007f69;
+  --chart-hue-track: #c0ebe1;
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);

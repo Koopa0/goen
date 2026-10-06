@@ -7063,9 +7063,8 @@ a.goen-pager__step:hover {
   }
 }
 
-/* Three names the customer's order and checkout used to share with the back
-   office. The storefront moved off them; these declarations are what /admin was
-   already getting, kept here until PR 6 rebuilds it. */
+/* Names the customer's order and checkout render, and the back office does too;
+   admin.css keeps its own copy. */
 .goen-order__lines {
   display: flex;
   flex-direction: column;
@@ -7373,10 +7372,6 @@ form[data-request-pending] [aria-disabled="true"] {
   margin: 0 0 16px;
 }
 
-/* A staff member prints the order page as the packing slip: recipient, where it
-   goes, and what is in the box. The page's own figures stay as they are; only
-   the back office around them and the controls that change the order go. A card
-   that holds a form is an action, not part of the slip, so it goes whole. */
 @page {
   margin: 12mm;
   size: A4;

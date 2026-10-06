@@ -43,24 +43,23 @@ func contrast(a, b string) float64 {
 func hexTokens(t *testing.T) map[string]string {
 	t.Helper()
 
-	declared := func(name string) map[string]string {
+	read := func(name string) [][]string {
 		sheet, err := fs.ReadFile(files, name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		out := make(map[string]string)
-		for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-			if _, seen := out[m[1]]; !seen {
-				out[m[1]] = m[2]
-			}
-		}
-		return out
+		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
 	}
-	tokens := declared(BaseCSS)
+	tokens := make(map[string]string)
+	for _, m := range read(BaseCSS) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
 	for _, name := range []string{AppCSS, AdminCSS} {
-		for token, hex := range declared(name) {
-			if base, ok := tokens[token]; ok && base != hex {
-				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, token, hex, base)
+		for _, m := range read(name) {
+			if base, ok := tokens[m[1]]; ok && base != m[2] {
+				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
 			}
 		}
 	}
@@ -100,6 +99,16 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--chart-hue"], ground, tokens[ground], got)
 		}
+	}
+
+	// A meter's unfilled part is a tint of the hue, and the filled part must
+	// stand out from it.
+	if tokens["--chart-hue-track"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue-track")
+	}
+	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
+		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
+			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
 	// The photographs are encoded on #f9f9f9; any other container ground
