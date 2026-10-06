@@ -218,6 +218,9 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	view := pages.AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	if q.Get("resend") == "1" {
+		view.Sent = true
+	}
 	if q.Get("sent") == "1" {
 		view.Sent = true
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)

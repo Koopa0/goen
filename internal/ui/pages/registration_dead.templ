@@ -14,7 +14,7 @@ templ RegistrationDead(p layouts.Page) {
 				@icons.Mail()
 			</span>
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyVerifyDeadTitle) }</h1>
-			<p class="notice__body">{ i18n.T(ctx, i18n.KeyVerifyDeadBody) }</p>
+			<p class="notice__body">{ i18n.T(ctx, i18n.KeyRegisterDeadBody) }</p>
 			<div class="notice__actions">
 				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/register?resend=1") {
 					{ i18n.T(ctx, i18n.KeyRegisterResend) }
