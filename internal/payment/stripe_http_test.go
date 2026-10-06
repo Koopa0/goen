@@ -30,6 +30,7 @@ type call struct {
 	method      string
 	path        string
 	form        url.Values
+	query       url.Values
 	idempotency string
 	apiVersion  string
 }
@@ -51,7 +52,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 			return
 		}
 		c := call{
-			method: r.Method, path: r.URL.Path, form: form,
+			method: r.Method, path: r.URL.Path, form: form, query: r.URL.Query(),
 			idempotency: r.Header.Get("Idempotency-Key"),
 			apiVersion:  r.Header.Get("Stripe-Version"),
 		}
