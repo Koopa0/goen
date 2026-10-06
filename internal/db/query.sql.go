@@ -2479,13 +2479,13 @@ FROM
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
-            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+            coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds
-     FROM contact_messages WHERE handled_at IS NULL) messages,
+     FROM contact_messages m WHERE m.handled_at IS NULL) messages,
     (SELECT count(*)::bigint AS pending_returns,
-            coalesce(greatest(extract(epoch FROM now() - min(created_at)), 0), 0)::bigint
+            coalesce(greatest(extract(epoch FROM now() - min(rr.created_at)), 0), 0)::bigint
                 AS pending_returns_oldest_seconds
-     FROM return_requests WHERE status = 'requested') requested,
+     FROM return_requests rr WHERE rr.status = 'requested') requested,
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
     (SELECT count(*)::bigint AS uninspected_returns,
