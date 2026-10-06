@@ -37,6 +37,35 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
+// hexTokens reads the colour tokens from base.css, where both layouts get them.
+// A token base.css declares and app.css or admin.css declares again with another
+// value would be read by neither test below, so it fails here.
+func hexTokens(t *testing.T) map[string]string {
+	t.Helper()
+
+	read := func(name string) [][]string {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
+	}
+	tokens := make(map[string]string)
+	for _, m := range read(BaseCSS) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	for _, name := range []string{AppCSS, AdminCSS} {
+		for _, m := range read(name) {
+			if base, ok := tokens[m[1]]; ok && base != m[2] {
+				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
+			}
+		}
+	}
+	return tokens
+}
+
 // TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
 // colours against the grounds a page paints. A palette is edited a value at a
 // time, and a pale grey that looks fine beside its neighbours fails a reader
@@ -44,20 +73,11 @@ func contrast(a, b string) float64 {
 func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 
 	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
 		if tokens[name] == "" {
-			t.Fatalf("%s declares no hex value for %s", AppCSS, name)
+			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
@@ -72,7 +92,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
 	if tokens["--chart-hue"] == "" {
-		t.Fatalf("%s declares no hex value for --chart-hue", AppCSS)
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
 	for _, ground := range []string{"--n-0", "--n-50"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
@@ -84,7 +104,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	// A meter's unfilled part is a tint of the hue, and the filled part must
 	// stand out from it.
 	if tokens["--chart-hue-track"] == "" {
-		t.Fatalf("%s declares no hex value for --chart-hue-track", AppCSS)
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue-track")
 	}
 	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
 		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
@@ -120,12 +140,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -209,12 +224,7 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if outline == nil || fill == nil {
@@ -235,16 +245,11 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 
 func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 	t.Parallel()
-	sheet, err := fs.ReadFile(files, AppCSS)
+	sheet, err := fs.ReadFile(files, BaseCSS)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if len(alias) != 2 || tokens[alias[1]] == "" {
 		t.Fatal("controls need a boundary from the existing colour ramp")
