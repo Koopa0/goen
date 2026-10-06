@@ -46,3 +46,26 @@ func TestTimeInStockCountsOnlyWhatASaleMayTake(t *testing.T) {
 		}
 	}
 }
+
+func TestSoldOutAtIsWhenTheLevelLastFellToSafety(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	day := func(n int) time.Time { return from.AddDate(0, 0, n) }
+
+	for _, tc := range []struct {
+		name          string
+		stock, safety int32
+		moves         []movement
+		want          time.Time
+	}{
+		{"out before the window", 2, 2, nil, time.Time{}},
+		{"sold down on day five", 2, 2, []movement{{day(5), -3}}, day(5)},
+		{"restocked, then out again", 2, 2, []movement{{day(5), -3}, {day(8), 10}, {day(20), -10}}, day(20)},
+		{"a sale that leaves stock above safety", 6, 2, []movement{{day(5), -1}}, time.Time{}},
+	} {
+		if got := soldOutAt(tc.stock, tc.safety, tc.moves); !got.Equal(tc.want) {
+			t.Errorf("%s: soldOutAt(%d, %d, ...) = %v, want %v", tc.name, tc.stock, tc.safety, got, tc.want)
+		}
+	}
+}

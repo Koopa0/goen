@@ -31,3 +31,21 @@ func timeInStock(stock, safety int32, from, to time.Time, moves []movement) time
 	}
 	return total
 }
+
+// soldOutAt is when the variant last fell to its safety level or below within
+// the movements, or the zero time when it was already there at the start.
+func soldOutAt(stock, safety int32, moves []movement) time.Time {
+	level := int64(stock)
+	for _, m := range moves {
+		level -= int64(m.delta)
+	}
+	var at time.Time
+	for _, m := range moves {
+		before := level
+		level += int64(m.delta)
+		if before > int64(safety) && level <= int64(safety) {
+			at = m.at
+		}
+	}
+	return at
+}

@@ -212,11 +212,11 @@ func TestRangeBarDrawsTheBarItsRangeAndTheLine(t *testing.T) {
 	got := renderRangeBar(t, RangeBarProps{Value: 45, Low: 18, High: 72, Mark: 30, Max: 90})
 	svg := svgOf(t, got)
 	for _, want := range []string{
-		`class="goen-rangebar__fill"`, `width="50.00%"`,
-		`class="goen-rangebar__range" x1="20.00%" x2="80.00%"`,
-		`class="goen-rangebar__cap" x1="20.00%" x2="20.00%"`,
-		`class="goen-rangebar__cap" x1="80.00%" x2="80.00%"`,
-		`class="goen-rangebar__mark" x1="33.33%" x2="33.33%"`,
+		`class="goen-chartrangebar__fill"`, `width="50.00%"`,
+		`class="goen-chartrangebar__range" x1="20.00%" x2="80.00%"`,
+		`class="goen-chartrangebar__cap" x1="20.00%" x2="20.00%"`,
+		`class="goen-chartrangebar__cap" x1="80.00%" x2="80.00%"`,
+		`class="goen-chartrangebar__mark" x1="33.33%" x2="33.33%"`,
 		`aria-hidden="true"`, `focusable="false"`,
 	} {
 		if !strings.Contains(svg, want) {
@@ -228,7 +228,7 @@ func TestRangeBarDrawsTheBarItsRangeAndTheLine(t *testing.T) {
 			t.Errorf("RangeBar(45, 18-72, line 30 of 90) = %s, want no %s", got, banned)
 		}
 	}
-	if !strings.HasPrefix(got, `<div class="goen-rangebar" aria-hidden="true">`) {
+	if !strings.HasPrefix(got, `<div class="goen-chartrangebar" aria-hidden="true">`) {
 		t.Errorf("RangeBar = %s, want it hidden from assistive technology, which reads the row's own text", got)
 	}
 }
@@ -244,10 +244,10 @@ func TestRangeBarWithoutALengthDrawsNoRange(t *testing.T) {
 		{"the range starts past the scale", RangeBarProps{Value: 90, Low: 95, High: 120, Mark: 30, Max: 90}},
 	} {
 		got := renderRangeBar(t, tc.p)
-		if strings.Contains(got, "goen-rangebar__range") || strings.Contains(got, "goen-rangebar__cap") {
+		if strings.Contains(got, "goen-chartrangebar__range") || strings.Contains(got, "goen-chartrangebar__cap") {
 			t.Errorf("%s: RangeBar(%+v) = %s, want no range", tc.name, tc.p, got)
 		}
-		if !strings.Contains(got, "goen-rangebar__mark") {
+		if !strings.Contains(got, "goen-chartrangebar__mark") {
 			t.Errorf("%s: RangeBar(%+v) = %s, want the line still drawn", tc.name, tc.p, got)
 		}
 	}

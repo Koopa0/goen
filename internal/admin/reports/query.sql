@@ -80,7 +80,6 @@ SELECT
     p.slug,
     pv.stock_quantity,
     pv.safety_stock,
-    pv.created_at AS listed_at,
     sold.units::bigint AS units_sold,
     sold.orders::bigint AS orders_sold
 FROM product_variants pv

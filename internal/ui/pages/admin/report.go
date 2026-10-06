@@ -45,9 +45,11 @@ type ReportView struct {
 	AtRisk         []StockRisk
 	// StockDays is how many shop days back the stock rows look.
 	StockDays int
-	Windows   []int32
-	From, To  shoptime.Date
-	Previous  PreviousFigures
+	// MoreSoldOut counts the sold out SKUs the list leaves off.
+	MoreSoldOut int
+	Windows     []int32
+	From, To    shoptime.Date
+	Previous    PreviousFigures
 }
 
 // PreviousFigures are the period of as many shop days before this one, up to

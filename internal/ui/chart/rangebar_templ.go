@@ -32,19 +32,19 @@ func RangeBar(p RangeBarProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"goen-rangebar\" aria-hidden=\"true\"><svg width=\"100%\" height=\"16\" aria-hidden=\"true\" focusable=\"false\"><line class=\"goen-rangebar__track\" x1=\"0\" x2=\"100%\" y1=\"7.5\" y2=\"7.5\"></line> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"goen-chartrangebar\" aria-hidden=\"true\"><svg width=\"100%\" height=\"16\" aria-hidden=\"true\" focusable=\"false\"><line class=\"goen-chartrangebar__track\" x1=\"0\" x2=\"100%\" y1=\"7.5\" y2=\"7.5\"></line> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if p.Value > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<rect class=\"goen-rangebar__fill\" x=\"0\" y=\"2\" width=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<rect class=\"goen-chartrangebar__fill\" x=\"0\" y=\"2\" width=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Value))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 11, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 11, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 			if templ_7745c5c3_Err != nil {
@@ -56,14 +56,14 @@ func RangeBar(p RangeBarProps) templ.Component {
 			}
 		}
 		if p.ranged() {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<line class=\"goen-rangebar__range\" x1=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<line class=\"goen-chartrangebar__range\" x1=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Low))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 14, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 14, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -76,20 +76,20 @@ func RangeBar(p RangeBarProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.High))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 14, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 14, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" y1=\"11.5\" y2=\"11.5\"></line> <line class=\"goen-rangebar__cap\" x1=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" y1=\"11.5\" y2=\"11.5\"></line> <line class=\"goen-chartrangebar__cap\" x1=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Low))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 15, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 15, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -102,20 +102,20 @@ func RangeBar(p RangeBarProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Low))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 15, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 15, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" y1=\"9.5\" y2=\"13.5\"></line> <line class=\"goen-rangebar__cap\" x1=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" y1=\"9.5\" y2=\"13.5\"></line> <line class=\"goen-chartrangebar__cap\" x1=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.High))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 16, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 16, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -128,7 +128,7 @@ func RangeBar(p RangeBarProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.High))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 16, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 16, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -139,14 +139,14 @@ func RangeBar(p RangeBarProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<line class=\"goen-rangebar__mark\" x1=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<line class=\"goen-chartrangebar__mark\" x1=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Mark))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 18, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 18, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -159,7 +159,7 @@ func RangeBar(p RangeBarProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.position(p.Mark))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 18, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `chart/rangebar.templ`, Line: 18, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {

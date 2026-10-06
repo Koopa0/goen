@@ -277,6 +277,48 @@ SELECT record_audit_event(:'staff_id', 'order.advance', 'orders', id, NULL,
     jsonb_build_object('number', order_number, 'status', 'delivered'))
 FROM orders WHERE id IN (:'invoice_id', :'form_id');
 
+-- Ten more paid orders of one unit on the best seller, so the stock section of
+-- /admin/reports has a SKU with enough orders to estimate and draws its range
+-- bar. Placed and funded as the picking orders above are; the receipt covers
+-- the ten holds, so the stock ends where it began.
+SELECT record_inventory_movement(:'seller_variant_id', 10, 'receipt',
+    'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
+SELECT grant_store_credit(:'customer_id', pv.price_cents + :ship_cents + 100, 'Estimate fixture', :'staff_id', gen_random_uuid())
+FROM product_variants pv, generate_series(1, 10) WHERE pv.id = :'seller_variant_id';
+
+SET ROLE store;
+
+WITH placed AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents
+    FROM generate_series(1, 10)
+    RETURNING id
+)
+SELECT array_agg(id) AS estimate_orders FROM placed \gset
+INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name,
+                         warranty_note, warranty_months, unit_price_cents, quantity, position)
+SELECT o.id, p.id, pv.id, pv.sku, p.name, p.warranty_note, p.warranty_months, pv.price_cents, 1, 0
+FROM unnest(:'estimate_orders'::uuid[]) AS o (id)
+JOIN product_variants pv ON pv.id = :'seller_variant_id'
+JOIN products p ON p.id = pv.product_id;
+SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
+                      'hold:' || order_id || ':' || variant_id)
+FROM order_lines WHERE order_id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO order_events (order_id, kind) SELECT id, 'placed' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+SELECT spend_store_credit(id, -order_amount_after_credit(id)) FROM orders WHERE id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)
+SELECT id, 'member_carrier', 'Layout packer', 'layout-cust@goen.invalid' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT id, 'layout-cust@goen.invalid', 'Layout packer', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+
+SET ROLE admin;
+
+UPDATE orders SET fulfillment_status = 'picking' WHERE id = ANY (:'estimate_orders'::uuid[]);
+INSERT INTO order_events (order_id, kind) SELECT id, 'paid' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+INSERT INTO order_events (order_id, kind, actor_user_id)
+SELECT id, 'picking', :'staff_id' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);
+
 SET ROLE store;
 
 -- Registered before the return, which takes the unit off what may be

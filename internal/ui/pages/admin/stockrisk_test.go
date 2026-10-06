@@ -23,8 +23,7 @@ func TestEstimateStatesAndDays(t *testing.T) {
 		{"a negative sellable is sold out", StockRisk{Sellable: -2}, CoverSoldOut},
 		{"nine orders are too few", StockRisk{Sellable: 5, Sold: 90, Orders: 9, InStock: stockedAllWindow}, CoverFewOrders},
 		{"ten orders of one unit each are enough", StockRisk{Sellable: 5, Sold: 10, Orders: 10, InStock: stockedAllWindow}, CoverEstimated},
-		{"13 days in stock is too recent", StockRisk{Sellable: 5, Sold: 40, Orders: 20, InStock: 13*24*time.Hour + 23*time.Hour}, CoverJustStocked},
-		{"14 days in stock is enough", StockRisk{Sellable: 5, Sold: 40, Orders: 20, InStock: 14 * 24 * time.Hour}, CoverEstimated},
+		{"a short time in stock is still estimated", StockRisk{Sellable: 5, Sold: 40, Orders: 20, InStock: 3 * 24 * time.Hour}, CoverEstimated},
 	} {
 		if got := tc.row.Estimate().State; got != tc.want {
 			t.Errorf("%s: %+v.Estimate().State = %d, want %d", tc.name, tc.row, got, tc.want)
@@ -106,9 +105,10 @@ func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
 	}
 }
 
-func TestRankPutsSoldOutFirstThenTheShortestEstimate(t *testing.T) {
+func TestRankCapsSoldOutRowsAndLetsEstimatesFollow(t *testing.T) {
 	t.Parallel()
 
+	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	estimated := func(sku string, sellable int32) StockRisk {
 		return StockRisk{SKU: sku, Sellable: sellable, Sold: 60, Orders: 30, InStock: stockedAllWindow}
 	}
@@ -116,16 +116,77 @@ func TestRankPutsSoldOutFirstThenTheShortestEstimate(t *testing.T) {
 		{SKU: "FEW", Sellable: 1, Sold: 2, Orders: 2, InStock: stockedAllWindow},
 		estimated("LONG", 90),
 		estimated("SHORT", 10),
-		{SKU: "OUT-IDLE", Sellable: 0},
-		{SKU: "OUT-BUSY", Sellable: 0, Sold: 50, Orders: 25, InStock: stockedAllWindow},
+		{SKU: "OUT-OLD", Sellable: 0},
+		{SKU: "OUT-1", Sellable: 0, SoldOutAt: at.Add(1 * time.Hour)},
+		{SKU: "OUT-2", Sellable: 0, SoldOutAt: at.Add(2 * time.Hour)},
+		{SKU: "OUT-3", Sellable: 0, SoldOutAt: at.Add(3 * time.Hour)},
+		{SKU: "OUT-4", Sellable: 0, SoldOutAt: at.Add(4 * time.Hour)},
 	}
-	got := make([]string, 0, 4)
-	for _, r := range RankStockRisk(rows, 4) {
+	listed, more := RankStockRisk(rows, 10)
+	got := make([]string, 0, len(listed))
+	for _, r := range listed {
 		got = append(got, r.SKU)
 	}
-	want := "OUT-BUSY OUT-IDLE SHORT LONG"
-	if strings.Join(got, " ") != want {
+	if want := "OUT-4 OUT-3 OUT-2 SHORT LONG FEW"; strings.Join(got, " ") != want {
 		t.Errorf("RankStockRisk = %v, want %s", got, want)
+	}
+	if more != 2 {
+		t.Errorf("RankStockRisk left off %d sold out, want 2", more)
+	}
+	if listed, _ := RankStockRisk(rows, 4); len(listed) != 4 {
+		t.Errorf("RankStockRisk(limit 4) listed %d rows, want 4", len(listed))
+	}
+}
+
+func TestAnEstimateUnderADayIsADay(t *testing.T) {
+	t.Parallel()
+
+	// 1 sellable at 150 units in 30 days is 0.2 days.
+	c := StockRisk{Sellable: 1, Sold: 150, Orders: 40, InStock: stockedAllWindow}.Estimate()
+	if c.Days != 1 || c.Low != 1 || c.High != 1 {
+		t.Errorf("0.2 days reads %+v, want 1, 1 and 1", c)
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	if got := c.Figure(ctx); got != "About 1 day" {
+		t.Errorf("Figure = %q, want About 1 day", got)
+	}
+	if got := c.Range(ctx); got != "" {
+		t.Errorf("Range = %q, want none for a range of one day", got)
+	}
+}
+
+func TestFigureRangeAndMarkAcrossTheScale(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tc := range []struct {
+		name   string
+		c      DaysCover
+		figure string
+		rng    string
+		urgent bool
+	}{
+		{"7 days", DaysCover{State: CoverEstimated, Days: 7, Low: 4, High: 12}, "About 7 days", "90% range: 4–12 days", true},
+		{"30 days is not marked", DaysCover{State: CoverEstimated, Days: 30, Low: 20, High: 45}, "About 30 days", "90% range: 20–45 days", false},
+		{"90 days is on the scale", DaysCover{State: CoverEstimated, Days: 90, Low: 60, High: 140}, "About 90 days", "90% range: 60–90+ days", false},
+		{"91 days is beyond it", DaysCover{State: CoverEstimated, Days: 91, Low: 60, High: 180}, "More than 90 days", "90% range: 60–90+ days", false},
+		{"beyond with a range off the scale", DaysCover{State: CoverEstimated, Days: 200, Low: 120, High: 400}, "More than 90 days", "", false},
+	} {
+		if got := tc.c.Figure(ctx); got != tc.figure {
+			t.Errorf("%s: Figure = %q, want %q", tc.name, got, tc.figure)
+		}
+		if got := tc.c.Range(ctx); got != tc.rng {
+			t.Errorf("%s: Range = %q, want %q", tc.name, got, tc.rng)
+		}
+		if got := tc.c.Urgent(); got != tc.urgent {
+			t.Errorf("%s: Urgent = %v, want %v", tc.name, got, tc.urgent)
+		}
+		// Whatever the bar draws of the range, the row says in words.
+		bar := tc.c.Bar()
+		drawn := bar.Low < bar.Max
+		if drawn != (tc.rng != "") && tc.c.High > tc.c.Low {
+			t.Errorf("%s: the bar draws a range = %v but the text is %q", tc.name, drawn, tc.rng)
+		}
 	}
 }
 
@@ -157,10 +218,28 @@ func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
 			t.Errorf("the stock rows lack %q", want)
 		}
 	}
-	if got := strings.Count(html, `class="goen-rangebar"`); got != 1 {
+	if got := strings.Count(html, `class="goen-chartrangebar"`); got != 1 {
 		t.Errorf("%d range bars drawn, want 1: only the estimated row has one", got)
 	}
 	if strings.Contains(html, "style=") {
 		t.Error("the stock rows carry a style attribute")
+	}
+}
+
+func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := &ReportView{
+		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
+		AtRisk: []StockRisk{{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
+	}
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view))
+	if want := `<a href="/admin/stock?low=1">2 more items sold out</a>`; !strings.Contains(html, want) {
+		t.Errorf("the stock section lacks %s", want)
+	}
+	view.MoreSoldOut = 0
+	if html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?low=1") {
+		t.Error("the stock section links to the sold out filter with none left off")
 	}
 }

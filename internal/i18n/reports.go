@@ -74,8 +74,8 @@ var (
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
-		ZhHant: "依近 %[1]d 天的銷量估算還能賣幾天，缺貨的日子不計入速率。已售完的排在最前面，其餘由短到長；條是估計的天數，細線是 90%% 區間，直線在 %[3]d 天，估計少於 %[3]d 天的標 ▲。近 %[1]d 天至少要有 %[2]d 筆訂單才估算。",
-		En:     "Days of stock left at the rate of the last %[1]d days, leaving out the days the item was out of stock. Sold out first, then the shortest. The bar is the estimate, the thin line its 90%% range and the vertical line marks %[3]d days; ▲ marks an estimate under %[3]d days. An estimate needs at least %[2]d orders in the last %[1]d days.",
+		ZhHant: "依近 %[1]d 天的銷量估算還能賣幾天，已售完的日子不計入速率。已售完的排在最前面，最多列 %[4]d 個，其餘由短到長；條是估計的天數，細線是 90%% 區間，豎線標在 %[3]d 天；已售完和估計少於 %[3]d 天的標 ▲。近 %[1]d 天至少要有 %[2]d 筆訂單才估算。",
+		En:     "Days of stock left at the rate of the last %[1]d days, leaving out the days it was sold out. Sold out first, at most %[4]d, then the shortest. The bar is the estimate, the thin line its 90%% range and the vertical line marks %[3]d days; ▲ marks a sold out item or an estimate under %[3]d days. An estimate needs at least %[2]d orders in the last %[1]d days.",
 	})
 
 	KeyAdminRepStockEmpty = countKey("admin.rep.stock.empty",
@@ -93,11 +93,11 @@ var (
 	KeyAdminRepUnitCount  = countKey("admin.rep.unitcount", "%d 件", "%d unit", "%d units")
 	KeyAdminRepOrderCount = countKey("admin.rep.ordercount", "%d 筆訂單", "%d order", "%d orders")
 
-	KeyAdminRepAbout    = countKey("admin.rep.about", "約 %d 天", "About %d day", "About %d days")
-	KeyAdminRepBeyond   = countKey("admin.rep.beyond", "%d 天以上", "More than %d day", "More than %d days")
-	KeyAdminRepRange    = countKey("admin.rep.range", "90%% 區間 %[2]s–%[3]s 天", "90%% range: %[2]s–%[3]s day", "90%% range: %[2]s–%[3]s days")
-	KeyAdminRepWithin   = countKey("admin.rep.within", "%d 天內會賣完", "Runs out within %d day", "Runs out within %d days")
-	KeyAdminRepMayRun   = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
-	KeyAdminRepFewSold  = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
-	KeyAdminRepNewStock = key("admin.rep.newstock", Message{ZhHant: "最近才有貨，估不準", En: "In stock too recently to estimate"})
+	KeyAdminRepAbout       = countKey("admin.rep.about", "約 %d 天", "About %d day", "About %d days")
+	KeyAdminRepBeyond      = countKey("admin.rep.beyond", "%d 天以上", "More than %d day", "More than %d days")
+	KeyAdminRepRange       = countKey("admin.rep.range", "90%% 區間 %[2]s–%[3]s 天", "90%% range: %[2]s–%[3]s day", "90%% range: %[2]s–%[3]s days")
+	KeyAdminRepWithin      = countKey("admin.rep.within", "%d 天內會賣完", "Runs out within %d day", "Runs out within %d days")
+	KeyAdminRepMayRun      = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
+	KeyAdminRepFewSold     = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
+	KeyAdminRepMoreSoldOut = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
 )

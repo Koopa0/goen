@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -302,12 +303,29 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-func TestStockRowsKeepWhatASaleMayTakeAndRankSoldOutFirst(t *testing.T) {
+func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
 	roomy := soldVariant(t, 9, 5, 10)
-	atSafety := soldVariant(t, 5, 5, 10)
+	var idle []string
+	for range 4 {
+		_, sku := newVariant(t, 2, 2)
+		idle = append(idle, sku)
+	}
+
+	now := time.Now()
+	raw, err := db.New(pool).StockAtRisk(ctx, db.StockAtRiskParams{
+		FromAt: now.AddDate(0, 0, -30), ToAt: now.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("read stock at risk: %v", err)
+	}
+	for _, sku := range idle {
+		if !slices.ContainsFunc(raw, func(r db.StockAtRiskRow) bool { return r.SKU == sku }) {
+			t.Errorf("StockAtRisk lacks %s: sold out with no orders, it must still be a candidate", sku)
+		}
+	}
 
 	view, err := s.Report(ctx, 7)
 	if err != nil {
@@ -316,40 +334,157 @@ func TestStockRowsKeepWhatASaleMayTakeAndRankSoldOutFirst(t *testing.T) {
 	if view.StockDays != 30 {
 		t.Errorf("a 7 day report reads stock over %d days, want 30", view.StockDays)
 	}
-	rowOf := func(sku string) (int, bool) {
-		for i, r := range view.AtRisk {
-			if r.SKU == sku {
-				return i, true
+	var soldOut int
+	roomyAt, afterSoldOut := -1, true
+	for i, r := range view.AtRisk {
+		state := r.Estimate().State
+		switch {
+		case state == admin.CoverSoldOut:
+			soldOut++
+			if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+				afterSoldOut = false
 			}
+		case r.SKU == roomy:
+			roomyAt = i
 		}
-		return 0, false
 	}
-	roomyAt, ok := rowOf(roomy)
-	if !ok {
-		t.Fatalf("report lacks %s", roomy)
+	if soldOut > 3 || view.MoreSoldOut < 1 {
+		t.Errorf("%d sold out rows listed with %d left off, want at most 3 and the rest counted", soldOut, view.MoreSoldOut)
 	}
-	atSafetyAt, ok := rowOf(atSafety)
-	if !ok {
-		t.Fatalf("report lacks %s", atSafety)
+	if !afterSoldOut {
+		t.Error("a sold out row follows a row that is not sold out")
 	}
-	if got := view.AtRisk[roomyAt]; got.Sellable != 4 || got.Sold != 10 || got.Orders != 1 {
+	if roomyAt < 0 {
+		t.Errorf("report lacks %s: sold out rows must not push the others off the list", roomy)
+	} else if got := view.AtRisk[roomyAt]; got.Sellable != 4 || got.Sold != 10 || got.Orders != 1 {
 		t.Errorf("stock 9, safety 5, one order of 10: sellable %d sold %d orders %d, want 4, 10 and 1",
 			got.Sellable, got.Sold, got.Orders)
 	}
-	if got := view.AtRisk[roomyAt].Estimate().State; got != admin.CoverFewOrders {
-		t.Errorf("one order is %d, want CoverFewOrders %d", got, admin.CoverFewOrders)
+}
+
+func TestStockWindowIsWholeShopDays(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	variantID, sku := newVariant(t, 20, 2)
+	for _, placed := range []string{
+		"2024-02-09 23:59:00", // before the first of 30 shop days
+		"2024-02-10 00:01:00", // inside
+		"2024-03-10 15:21:00", // after now
+	} {
+		moment := shopMoment(t, placed)
+		orderOnVariant(t, variantID, sku, 1, &moment)
 	}
-	if got := view.AtRisk[atSafetyAt].Estimate().State; got != admin.CoverSoldOut {
-		t.Errorf("stock at its safety level is %d, want CoverSoldOut %d", got, admin.CoverSoldOut)
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
 	}
-	if atSafetyAt > roomyAt {
-		t.Errorf("a sold out SKU is row %d, after the SKU with stock left at row %d", atSafetyAt, roomyAt)
+	row, ok := stockRow(view, sku)
+	if !ok {
+		t.Fatalf("report lacks %s", sku)
+	}
+	if row.Orders != 1 || row.Sold != 1 {
+		t.Errorf("orders at 02-09 23:59, 02-10 00:01 and 03-10 15:21 over 30 shop days to 03-10 15:20: %d orders, %d units, want 1 and 1",
+			row.Orders, row.Sold)
+	}
+}
+
+func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	// Stock 10 over safety 2, received on 02-25: nothing to sell before, so the
+	// 30 shop days from 02-10 hold 14 days 15 hours 20 minutes of stock.
+	inStockID, inStock := newVariant(t, 10, 2)
+	receipt := shopMoment(t, "2024-02-25 00:00:00")
+	ledger(t, inStockID, 10, "receipt", receipt)
+	sold := shopMoment(t, "2024-03-09 10:00:00")
+	orderOnVariant(t, inStockID, inStock, 1, &sold)
+
+	// Two sold out variants that ran out on different days: the later is first.
+	earlierID, earlier := newVariant(t, 2, 2)
+	ledger(t, earlierID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, earlierID, -5, "adjustment", shopMoment(t, "2024-03-05 12:00:00"))
+	laterID, later := newVariant(t, 2, 2)
+	ledger(t, laterID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, laterID, -5, "adjustment", shopMoment(t, "2024-03-08 12:00:00"))
+
+	view, err := s.ReportAt(ctx, 30, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	row, ok := stockRow(view, inStock)
+	if !ok {
+		t.Fatalf("report lacks %s", inStock)
+	}
+	if want := 14*24*time.Hour + 15*time.Hour + 20*time.Minute; row.InStock != want {
+		t.Errorf("received on 02-25 into a window from 02-10 to 03-10 15:20: in stock %v, want %v", row.InStock, want)
+	}
+	laterAt, laterOK := indexOf(view, later)
+	earlierAt, earlierOK := indexOf(view, earlier)
+	if !laterOK || !earlierOK {
+		t.Fatalf("report lacks a sold out variant: %s listed %v, %s listed %v", later, laterOK, earlier, earlierOK)
+	}
+	if laterAt > earlierAt {
+		t.Errorf("the SKU that ran out on 03-08 is row %d, after the one that ran out on 03-05 at row %d", laterAt, earlierAt)
+	}
+	if got := view.AtRisk[laterAt].SoldOutAt; !got.Equal(shopMoment(t, "2024-03-08 12:00:00")) {
+		t.Errorf("ran out at %v, want 2024-03-08 12:00", got)
+	}
+}
+
+func indexOf(view admin.ReportView, sku string) (int, bool) {
+	for i, r := range view.AtRisk {
+		if r.SKU == sku {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func stockRow(view admin.ReportView, sku string) (admin.StockRisk, bool) {
+	i, ok := indexOf(view, sku)
+	if !ok {
+		return admin.StockRisk{}, false
+	}
+	return view.AtRisk[i], true
+}
+
+func shopMoment(t *testing.T, wallClock string) time.Time {
+	t.Helper()
+	moment, err := shoptime.ParseSecond(wallClock)
+	if err != nil {
+		t.Fatalf("parse %q: %v", wallClock, err)
+	}
+	return moment
+}
+
+// ledger writes a movement as the ledger would have it at the time, without
+// touching the stock the variant already holds.
+func ledger(t *testing.T, variantID uuid.UUID, delta int, reason string, at time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key, created_at)
+		VALUES ($1, $2, $3, 'admin', 'report-' || gen_random_uuid(), $4)`,
+		variantID, delta, reason, at); err != nil {
+		t.Fatalf("write movement: %v", err)
 	}
 }
 
 // soldVariant makes an active variant holding stock with the given safety level
 // and one paid order of sold units, and returns its SKU.
 func soldVariant(t *testing.T, stock, safety, sold int) string {
+	t.Helper()
+	variantID, sku := newVariant(t, stock, safety)
+	orderOnVariant(t, variantID, sku, sold, nil)
+	return sku
+}
+
+// newVariant makes an active variant holding stock with the given safety level.
+func newVariant(t *testing.T, stock, safety int) (uuid.UUID, string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -378,18 +513,36 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return variantID, sku
+}
+
+// orderOnVariant places one paid order of units on the variant at placedAt, or
+// now when it is nil.
+func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, placedAt *time.Time) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
-		                    shipping_method_name, shipping_cents)
-		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		                    shipping_method_name, shipping_cents, placed_at)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0, coalesce($1::timestamptz, now())
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`, placedAt).Scan(&orderID); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, sold); err != nil {
+		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, units); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -403,18 +556,14 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 		t.Fatalf("commit: %v", err)
 	}
 	ref := "runway_" + orderID.String()
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(units)); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(units)); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
-	return sku
 }
 
-// Seven shop days up to Sunday 2024-03-10 15:20 are 03-04 00:00 to now; the
-// seven before them are 02-26 00:00 to 03-03 15:20, the same hour of day. The
-// date is long past, so only these orders fall in either period.
 func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
