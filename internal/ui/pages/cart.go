@@ -80,6 +80,7 @@ type CartView struct {
 	ContinueURL     string
 
 	FreeDelivery FreeDelivery
+	NoDelivery   bool
 }
 
 type FreeDeliveryKind string
