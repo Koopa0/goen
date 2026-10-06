@@ -53,6 +53,16 @@ var (
 		En:     "Points available",
 	})
 
+	KeyAdminCustTierSpend = key("admin.cust.tier.spend", Message{
+		ZhHant: "近 %d 天消費 %s。",
+		En:     "%[2]s spent in the last %[1]d days.",
+	})
+
+	KeyAdminCustTierNext = key("admin.cust.tier.next", Message{
+		ZhHant: "近 %d 天消費 %s，再消費 %s 可達 %s。",
+		En:     "%[2]s spent in the last %[1]d days; %[3]s more reaches %[4]s.",
+	})
+
 	KeyAdminCustOrders = key("admin.cust.orders", Message{ZhHant: "訂單", En: "Orders"})
 
 	KeyAdminCustNoOrders = key("admin.cust.noorders", Message{
