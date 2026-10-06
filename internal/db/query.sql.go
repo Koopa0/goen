@@ -1329,10 +1329,14 @@ FROM (
     WHERE e.order_id = $1
     UNION ALL
     -- awaiting_buyer is a sent online allowance, which waits on the buyer's
-    -- consent rather than on goen.
+    -- consent rather than on goen. not_sent is an operation nothing will send
+    -- while no 加值中心 is configured.
     SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
            CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
-                THEN 'awaiting_buyer' ELSE op.status END,
+                THEN 'awaiting_buyer'
+                WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT $2::boolean
+                THEN 'not_sent'
+                ELSE op.status END,
            op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
@@ -1349,7 +1353,7 @@ FROM (
            m.delivered_at, '', 'system', ''
     FROM outbox_messages m
     JOIN orders o ON o.id = $1
-    WHERE m.topic = ANY($2::text[])
+    WHERE m.topic = ANY($3::text[])
       AND (m.payload->>'order_number' = o.order_number
            OR m.payload->>'order_id' = o.id::text)
 ) timeline
@@ -1357,8 +1361,9 @@ ORDER BY at, precedence, tie
 `
 
 type AdminOrderTimelineParams struct {
-	OrderID    uuid.UUID
-	MailTopics []string
+	OrderID          uuid.UUID
+	InvoicingEnabled bool
+	MailTopics       []string
 }
 
 type AdminOrderTimelineRow struct {
@@ -1384,7 +1389,7 @@ type AdminOrderTimelineRow struct {
 // An invoice operation and a mail are placed at their creation; status is where
 // they stand now, and done_at when a succeeded operation or a delivered mail got there.
 func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
-	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.MailTopics)
+	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.InvoicingEnabled, arg.MailTopics)
 	if err != nil {
 		return nil, err
 	}
@@ -3148,14 +3153,10 @@ WITH target AS (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
-               AS card_capacity_cents,
-           coalesce(order_amount_after_credit(o.id) = 0
-                    AND EXISTS (SELECT 1 FROM store_credit_entries s
-                                WHERE s.order_id = o.id AND s.amount_cents < 0),
-                    false)::boolean AS paid_by_credit
+               AS card_capacity_cents
     FROM orders o WHERE o.order_number = $1::text
 )
-SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.paid_by_credit, t.total_cents,
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
        EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
        b.id AS return_request_id,
@@ -3172,7 +3173,6 @@ type BeforeShipmentRefundRow struct {
 	OrderID           uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
-	PaidByCredit      bool
 	TotalCents        int64
 	Shipped           bool
 	HasReturn         bool
@@ -3193,7 +3193,6 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 		&i.OrderID,
 		&i.FulfillmentStatus,
 		&i.Committed,
-		&i.PaidByCredit,
 		&i.TotalCents,
 		&i.Shipped,
 		&i.HasReturn,
@@ -7372,6 +7371,62 @@ func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentF
 	return i, err
 }
 
+const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root_id FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT
+    localized_name(d.name, d.name_en, $1::text) AS name,
+    sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN committed_orders c ON c.id = o.id
+JOIN products p ON p.id = ol.product_id
+JOIN tree t ON t.id = p.category_id
+JOIN categories d ON d.id = t.root_id
+WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+GROUP BY d.id, d.name, d.name_en, d.position
+ORDER BY sales_cents DESC, d.position, d.id
+`
+
+type DepartmentSalesBetweenParams struct {
+	Locale string
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type DepartmentSalesBetweenRow struct {
+	Name       string
+	SalesCents int64
+}
+
+// A department is a top-level category; a product in a deeper one counts toward
+// its root. The orders are those of RevenueBetween, so the departments add up to
+// the line part of its revenue. A line with no product_id (a legacy import) belongs to no department.
+func (q *Queries) DepartmentSalesBetween(ctx context.Context, arg DepartmentSalesBetweenParams) ([]DepartmentSalesBetweenRow, error) {
+	rows, err := q.db.Query(ctx, departmentSalesBetween, arg.Locale, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentSalesBetweenRow{}
+	for rows.Next() {
+		var i DepartmentSalesBetweenRow
+		if err := rows.Scan(&i.Name, &i.SalesCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -9575,6 +9630,7 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
@@ -9584,8 +9640,9 @@ WHERE sm.is_active
 // pickup there, so a floor or threshold that counted it would promise a price
 // nobody can choose.
 // MIN across methods: the strip states one floor, and the honest one is the
-// lowest fee any active method charges. coalesce AND cast, because min() over
-// an empty set is NULL and sqlc types the result as non-null.
+// lowest fee any active method charges; a method that is always free charges
+// none, so it is not the fee below the threshold. coalesce AND cast, because
+// min() over an empty set is NULL and sqlc types the result as non-null.
 func (q *Queries) LowestDeliveryFee(ctx context.Context, withPickup bool) (int64, error) {
 	row := q.db.QueryRow(ctx, lowestDeliveryFee, withPickup)
 	var fee_cents int64
@@ -11471,9 +11528,9 @@ WHERE o.id = $1
 `
 
 // Whether store credit alone paid the order, read before the cancellation
-// returns the credit: checkout queued its 統一發票 then. A customer cancels only
-// an uncommitted order, which no card has paid, so owing nothing after a credit
-// spend means credit paid it.
+// returns the credit: checkout queued its 統一發票 then. Only an uncommitted
+// order is cancelled this way, which no card has paid, so owing nothing after a
+// credit spend means credit paid it. Read under the order lock.
 func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
 	var paid_by_credit bool
@@ -12894,22 +12951,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, by_system)
-SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
+INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
+VALUES ($1, 'cancelled', $2, $3::boolean)
 `
 
 type RecordCancellationParams struct {
+	OrderID     uuid.UUID
+	ActorUserID uuid.NullUUID
 	BySystem    bool
-	OrderNumber string
 }
 
-// A cancellation no staff member made: the customer's own, or, with by_system,
-// the sweeper's at the payment deadline. The ABSENCE of an actor is what
-// distinguishes it from a back-office cancel, and both are carried structurally
-// because the customer's own order page renders any note in whatever language
-// it was written.
+// The actor is the staff member who cancelled; none for the customer's own
+// cancellation and, with by_system, the sweeper's at the payment deadline. Both
+// are carried structurally because the customer's own order page renders any
+// note in whatever language it was written.
 func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
-	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
+	_, err := q.db.Exec(ctx, recordCancellation, arg.OrderID, arg.ActorUserID, arg.BySystem)
 	return err
 }
 
@@ -16868,7 +16925,8 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
-   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes'
+       AND ($1::boolean OR op.send_attempts > 0))
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
             OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
@@ -16898,9 +16956,10 @@ type StrandedInvoiceClaimsRow struct {
 // pending beyond several worker polls. Succeeded evidence and a staff claim's
 // rejection, which that person saw, are not an active health alarm. A system
 // issue's rejection was seen by nobody, so it stays while the order still owes
-// an invoice and no later issue exists.
-func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
-	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
+// an invoice and no later issue exists. With no 加值中心 configured an operation
+// never sent is waiting for one, not stranded; one already sent stays.
+func (q *Queries) StrandedInvoiceClaims(ctx context.Context, invoicingEnabled bool) ([]StrandedInvoiceClaimsRow, error) {
+	rows, err := q.db.Query(ctx, strandedInvoiceClaims, invoicingEnabled)
 	if err != nil {
 		return nil, err
 	}

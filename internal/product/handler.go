@@ -148,6 +148,10 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		userID, accountEmail = u.ID, u.Email
 	}
 
+	if variantID == "" {
+		h.rejectNotify(w, r, slug, addr, pages.NotifyNoOption)
+		return
+	}
 	// Not a value the form can send: nothing on a page to re-render for.
 	if _, parseErr := uuid.Parse(variantID); parseErr != nil {
 		h.redirectNotified(w, r, slug, pages.NotifyBadAddress)

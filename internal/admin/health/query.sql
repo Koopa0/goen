@@ -152,7 +152,8 @@ LIMIT 50;
 -- pending beyond several worker polls. Succeeded evidence and a staff claim's
 -- rejection, which that person saw, are not an active health alarm. A system
 -- issue's rejection was seen by nobody, so it stays while the order still owes
--- an invoice and no later issue exists.
+-- an invoice and no later issue exists. With no 加值中心 configured an operation
+-- never sent is waiting for one, not stranded; one already sent stays.
 -- name: StrandedInvoiceClaims :many
 SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
@@ -171,7 +172,8 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
-   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes'
+       AND (@invoicing_enabled::boolean OR op.send_attempts > 0))
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
             OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))

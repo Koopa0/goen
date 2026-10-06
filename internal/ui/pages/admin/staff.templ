@@ -17,9 +17,11 @@ templ Staff(p layouts.Page, v StaffView) {
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageStaff) }</h1>
-				<p class="ui-page-head__sub">
-					{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
-				</p>
+				if !v.NoKey {
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
+					</p>
+				}
 			</div>
 		</div>
 		@Announce(v.Notice)
@@ -28,7 +30,7 @@ templ Staff(p layouts.Page, v StaffView) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }
 			}
 		}
-		if !v.AllEnrolled() {
+		if !v.NoKey && !v.AllEnrolled() {
 			@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnenrolled), v.UnenrolledText()) }
 			}

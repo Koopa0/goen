@@ -141,7 +141,7 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 // periodOverride finds the colours a tone gives the day grid, and periodDecl
 // one of them: a tone token, or a token of the page's own.
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.(?:goen-hero__slide|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
 )
 
@@ -325,6 +325,29 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 	}
 }
 
+// A focus outline that names its own colour skips the re-pointed --ring and
+// can land on a ground it does not read on. Only "none" (the ring is drawn on
+// another element), "transparent" (the field draws its own border) and the
+// error colour on an invalid field are allowed.
+func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
+	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
+	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+			if !allowed.MatchString(strings.TrimSpace(o[1])) {
+				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+			}
+		}
+	}
+}
+
 var (
 	customDecl = regexp.MustCompile(`(--[a-z0-9-]+)\s*:`)
 	customUse  = regexp.MustCompile(`var\((--[a-z0-9-]+)\s*\)`)
@@ -382,5 +405,18 @@ func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
 		if !strings.Contains(rule[1], ".goen-band ."+class) {
 			t.Errorf("the band's muted-text rule does not name .%s", class)
 		}
+	}
+}
+
+// The promotion strip owns .goen-promo; a second block declaring it restyles the
+// strip on every page that has one.
+func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
+		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
 	}
 }
