@@ -133,21 +133,37 @@ func (v *ReportView) CompletionAgainst(ctx context.Context) string {
 	return v.previous(ctx, before.Completion(ctx))
 }
 
-// against says by what percentage cur differs from prev only when both periods
-// have orders enough for a percentage and the difference is at least two
-// standard errors, where noise is the variance of cur - prev; otherwise it
-// states the previous figure.
 func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64, prevText string) string {
-	if v.Previous.Orders == 0 {
-		return v.noPrevious(ctx)
+	return against(ctx, v.Days, comparison{
+		Orders: v.Orders, PreviousOrders: v.Previous.Orders, Noise: noise,
+		Current: cur, Previous: prev, PreviousText: prevText,
+	})
+}
+
+// comparison is a figure over a period set against the same figure over the
+// period of as many days before it.
+type comparison struct {
+	Orders, PreviousOrders int64
+	Current, Previous      int64
+	// Noise is the variance of Current - Previous.
+	Noise float64
+	// PreviousText is the previous figure as it is written when no percentage is.
+	PreviousText string
+}
+
+// against says by what percentage the figure differs from the previous period's
+// only when both periods have orders enough for a percentage and the difference
+// is at least two standard errors; otherwise it states the previous figure.
+func against(ctx context.Context, days int, c comparison) string {
+	if c.PreviousOrders == 0 {
+		return noPreviousSentence(ctx, days)
 	}
-	diff := cur - prev
-	if prev == 0 || v.Orders < minOrdersForRate || v.Previous.Orders < minOrdersForRate ||
-		math.Abs(float64(diff)) < 2*math.Sqrt(noise) {
-		return v.previous(ctx, prevText)
+	diff := c.Current - c.Previous
+	if c.Previous == 0 || c.Orders < minOrdersForRate || c.PreviousOrders < minOrdersForRate ||
+		math.Abs(float64(diff)) < 2*math.Sqrt(c.Noise) {
+		return previousSentence(ctx, days, c.PreviousText)
 	}
-	days := v.Days
-	percent := (abs(diff)*200 + prev) / (prev * 2)
+	percent := (abs(diff)*200 + c.Previous) / (c.Previous * 2)
 	switch {
 	case percent == 0:
 		return i18n.Count(ctx, i18n.KeyAdminRepSame, int64(days), days)
@@ -183,11 +199,17 @@ func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
 }
 
 func (v *ReportView) previous(ctx context.Context, figure string) string {
-	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(v.Days), v.Days, figure)
+	return previousSentence(ctx, v.Days, figure)
 }
 
-func (v *ReportView) noPrevious(ctx context.Context) string {
-	return i18n.Count(ctx, i18n.KeyAdminRepNoPrevious, int64(v.Days), v.Days)
+func (v *ReportView) noPrevious(ctx context.Context) string { return noPreviousSentence(ctx, v.Days) }
+
+func previousSentence(ctx context.Context, days int, figure string) string {
+	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(days), days, figure)
+}
+
+func noPreviousSentence(ctx context.Context, days int) string {
+	return i18n.Count(ctx, i18n.KeyAdminRepNoPrevious, int64(days), days)
 }
 
 func abs(n int64) int64 {

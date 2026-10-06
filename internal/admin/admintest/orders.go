@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pgtx"
@@ -323,7 +324,7 @@ func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader inv
 	if reader == nil {
 		reader = invoice.NewStore(p, &invoice.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk)
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk, reports.NewStore(p))
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

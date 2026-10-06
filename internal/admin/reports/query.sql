@@ -63,6 +63,30 @@ LEFT JOIN (
 GROUP BY d.day
 ORDER BY d.day;
 
+-- The newest committed order by when its money came in, which is read as
+-- admin/health reads funded_at (UninvoicedOrders). Orders refunded before
+-- shipment are left out, as RevenueBetween leaves them out; the total is
+-- RevenueBetween's.
+-- name: LatestPaidOrder :one
+SELECT o.order_number, f.funded_at, f.total_cents
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+CROSS JOIN LATERAL (
+    SELECT coalesce(
+               (SELECT min(e.occurred_at) FROM order_events e
+                WHERE e.order_id = o.id AND e.kind = 'paid'),
+               (SELECT max(p.paid_at) FROM payments p
+                WHERE p.order_id = o.id AND p.status = 'succeeded'),
+               o.placed_at)::timestamptz AS funded_at,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+) f
+WHERE NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY f.funded_at DESC, o.id DESC
+LIMIT 1;
+
 -- name: BestSellersBetween :many
 SELECT
     p.slug,

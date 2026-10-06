@@ -375,3 +375,44 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 	}
 	return number, paidAt
 }
+
+// The last week is the report's figures: a paid order counts on its day and is
+// the latest; an order still awaiting payment is neither, though it is newer.
+func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
+	isolated := admintest.Pool(t)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	read := func() admin.DashboardView {
+		t.Helper()
+		var view admin.DashboardView
+		if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+			t.Fatalf("FillWeek: %v", err)
+		}
+		return view
+	}
+
+	empty := read()
+	if empty.Latest != nil || empty.LatestUnavailable || empty.Week.Orders != 0 {
+		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Week.Orders)
+	}
+	if got := len(empty.Week.OrderDays.Current.Buckets) + len(empty.Week.OrderDays.Previous.Buckets); got != 14 {
+		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
+	}
+
+	number, _ := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	admintest.PlaceUnpaidOrder(t, isolated)
+
+	view := read()
+	if view.Week.Orders != 1 || view.Week.RevenueCents != 100000 {
+		t.Errorf("week = %d orders, %d cents, want 1 and 100000: the unpaid order is not a sale", view.Week.Orders, view.Week.RevenueCents)
+	}
+	today := view.Week.RevenueDays.Current.Buckets
+	if got := today[len(today)-1].Value; got != 100000 {
+		t.Errorf("today's revenue = %d, want 100000", got)
+	}
+	if view.Latest == nil || view.Latest.Number != number || view.Latest.TotalCents != 100000 {
+		t.Fatalf("Latest = %+v, want %s for 100000, not the newer unpaid order", view.Latest, number)
+	}
+	if view.Latest.Elapsed < 0 || view.Latest.Elapsed > time.Minute {
+		t.Errorf("Elapsed = %v, want under a minute", view.Latest.Elapsed)
+	}
+}
