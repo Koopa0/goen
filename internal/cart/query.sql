@@ -428,7 +428,8 @@ FROM invoice_preferences WHERE order_id = $1;
 
 -- rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
 -- type a nullable date from an expression, so a reader checks delivered_at, never the dates.
--- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'.
+-- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
+-- holds the 14 to that function.
 -- name: OrderTracking :many
 SELECT id, carrier, tracking_number, shipped_at, delivered_at,
        coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
