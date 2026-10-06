@@ -106,8 +106,11 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
 
-	form := html[strings.Index(html, `<form class="goen-filters"`):]
-	form = form[:strings.Index(form, `</form>`)]
+	_, form, ok := strings.Cut(html, `<form class="goen-filters"`)
+	if !ok {
+		t.Fatal("the listing has no filter form")
+	}
+	form, _, _ = strings.Cut(form, `</form>`)
 	for _, want := range []string{`method="get"`, `<select class="ui-select" id="sort" name="sort">`, `type="submit"`} {
 		if !strings.Contains(form, want) {
 			t.Errorf("the filter form lacks %q; the sort would need script", want)
