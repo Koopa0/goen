@@ -178,13 +178,16 @@ func TestDeadEmailChangeLinksKeepTheirAccountDirections(t *testing.T) {
 			expireRegistrationLink(t, token)
 			b := changeBrowser{t: t, h: account.NewHandler(store, nil, slog.New(slog.DiscardHandler), false, nil)}
 			rec := b.serve(b.h.Verify, cartForm(ctx, "/verify", url.Values{"token": {token}}), b.signIn(u.Email))
-			want := "連結可能已經用過或超過兩天。請到會員中心重新寄一次。"
-			if locale == i18n.En {
-				want = "It may have been used already, or be more than two days old. Ask for another from your account page."
+			heading, reason := "This link is no longer valid", "It may have been used already, or be more than two days old."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
 			}
-			if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(rec.Body.String()), want) ||
+			assertEmailLinkRecovery(t, rec.Body.String(), heading, reason, "/account#email-heading")
+			assertVerificationRecoveryLabel(t, rec.Body.String(), locale)
+			if rec.Code != http.StatusUnprocessableEntity ||
 				strings.Contains(rec.Body.String(), `href="/register?`) {
-				t.Errorf("dead email change = %d, want its account-page sentence %q without registration recovery", rec.Code, want)
+				t.Errorf("dead email change = %d, want 422 without registration recovery", rec.Code)
 			}
 		})
 	}

@@ -122,7 +122,7 @@ func TestAnAddressChangeLinkProvesNothingForAnyoneButTheAccountThatAsked(t *test
 		t.Errorf("the link followed by another account answered %d, and a dead link %d; "+
 			"want the same refusal", elsewhere.Code, dead.Code)
 	}
-	if !strings.Contains(elsewhere.Body.String(), i18n.T(ctx, i18n.KeyVerifyDeadTitle)) {
+	if !strings.Contains(elsewhere.Body.String(), i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)) {
 		t.Error("the link followed by another account is not refused as a dead link")
 	}
 	unproved("followed by another account")
