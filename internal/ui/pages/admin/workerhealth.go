@@ -105,7 +105,7 @@ func (v *WorkerHealthView) AllHealthy() bool {
 }
 
 func (v *WorkerHealthView) StaffTaskCount() int64 {
-	return v.UnreconciledPayments + v.UninvoicedCount + v.StrandedClaimCount
+	return v.UnreconciledPayments + v.StrandedClaimCount
 }
 
 func (v *WorkerHealthView) StaffTaskText(ctx context.Context) string {
@@ -116,7 +116,7 @@ func (v *WorkerHealthView) StaffTaskText(ctx context.Context) string {
 func (v *WorkerHealthView) FirstStaffTaskAnchor() string {
 	switch {
 	case len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0:
-		return "#events-heading"
+		return "#missing-staff-tasks"
 	case v.UninvoicedCount > 0:
 		return "#uninvoiced-heading"
 	case len(v.StrandedClaims) > 0:
@@ -224,44 +224,11 @@ type UnreconciledEvent struct {
 }
 
 func (u UnreconciledEvent) TypeText(ctx context.Context) string {
-	var key i18n.Key
-	switch u.Type {
-	case "checkout.session.completed":
-		key = i18n.KeyAdminHPEventCompleted
-	case "checkout.session.async_payment_succeeded":
-		key = i18n.KeyAdminHPEventPaid
-	case "checkout.session.async_payment_failed":
-		key = i18n.KeyAdminHPEventFailed
-	case "checkout.session.expired":
-		key = i18n.KeyAdminHPEventExpired
-	case "refund.failed":
-		key = i18n.KeyAdminHPEventRefundFailed
-	default:
-		key = i18n.KeyAdminHPEventUnknown
-	}
-	return i18n.T(ctx, key)
+	return u.Type
 }
 
 func (u UnreconciledEvent) ReasonText(ctx context.Context) string {
-	cause, _, _ := strings.Cut(u.Reason, ":")
-	var key i18n.Key
-	switch cause {
-	case "unreadable_event":
-		key = i18n.KeyAdminHPEventUnreadable
-	case "unattributed_capture":
-		key = i18n.KeyAdminHPEventUnattributed
-	case "cancelled_order_capture":
-		key = i18n.KeyAdminHPEventCancelledCapture
-	case "refused_capture":
-		key = i18n.KeyAdminHPEventRefusedCapture
-	case "unsettled_session":
-		key = i18n.KeyAdminHPEventUnsettled
-	case "refund_failed":
-		key = i18n.KeyAdminHPRefundFailedAtStripe
-	default:
-		key = i18n.KeyAdminHPReasonUnknown
-	}
-	return i18n.T(ctx, key)
+	return u.Reason
 }
 
 func (u UnreconciledEvent) RefundAmount() string { return money.TWD(u.RefundCents) }
@@ -370,35 +337,11 @@ type StrandedClaim struct {
 }
 
 func (c StrandedClaim) KindText(ctx context.Context) string {
-	var key i18n.Key
-	switch c.Kind {
-	case "issue":
-		key = i18n.KeyAuditInvoiceIssue
-	case "void":
-		key = i18n.KeyAuditInvoiceVoid
-	case "allowance":
-		key = i18n.KeyAuditInvoiceAllowance
-	default:
-		key = i18n.KeyAdminHPInvoiceKindUnknown
-	}
-	return i18n.T(ctx, key)
+	return c.Kind
 }
 
 func (c StrandedClaim) StatusText(ctx context.Context) string {
-	var key i18n.Key
-	switch c.Status {
-	case "pending":
-		key = i18n.KeyAdminTimelineInvoicePending
-	case "attention":
-		key = i18n.KeyAdminTimelineInvoiceAttention
-	case "succeeded":
-		key = i18n.KeyAdminTimelineInvoiceSucceeded
-	case "rejected":
-		key = i18n.KeyAdminTimelineInvoiceRejected
-	default:
-		key = i18n.KeyAdminHPInvoiceStatusUnknown
-	}
-	return i18n.T(ctx, key)
+	return c.Status
 }
 
 var invoiceReasonLabels = map[string]i18n.Key{
@@ -447,13 +390,7 @@ var invoiceReasonLabels = map[string]i18n.Key{
 }
 
 func (c StrandedClaim) ReasonText(ctx context.Context) string {
-	if key, known := invoiceReasonLabels[c.LastError]; known {
-		return i18n.T(ctx, key)
-	}
-	if strings.HasPrefix(c.LastError, "issue_provider_rejected_") || strings.HasPrefix(c.LastError, "allowance_provider_rejected_") {
-		return i18n.T(ctx, i18n.KeyAdminHPInvoiceProviderRejected)
-	}
-	return i18n.T(ctx, i18n.KeyAdminHPReasonUnknown)
+	return c.LastError
 }
 
 func (c StrandedClaim) Amount() string { return money.TWD(c.AmountCents) }
