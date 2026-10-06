@@ -97,8 +97,8 @@ func TestDayPeriodLabelsOnlyItsEndsAndToday(t *testing.T) {
 		case 29:
 			want = "10/30"
 		}
-		if c.Date != want {
-			t.Errorf("cell %d labelled %q, want %q", i, c.Date, want)
+		if c.Label != want {
+			t.Errorf("cell %d labelled %q, want %q", i, c.Label, want)
 		}
 	}
 }
@@ -121,5 +121,80 @@ func TestDayPeriodSaysHowItStandsToday(t *testing.T) {
 		if p.Description != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, p.Description, tt.want)
 		}
+	}
+}
+
+// placed is 14:02 in Taipei; the hold ends an hour later.
+func placed() time.Time { return time.Date(2026, 10, 9, 14, 2, 0, 0, time.FixedZone("CST", 8*3600)) }
+
+func TestMinutePeriodPutsTheMarkAtTheStartByMinute(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	p, ok := components.MinutePeriod(ctx, placed(), placed().Add(29*time.Minute), placed().Add(time.Hour), false)
+	if !ok {
+		t.Fatal("no period")
+	}
+	if len(p.Cells) != 60 {
+		t.Fatalf("%d cells, want 60", len(p.Cells))
+	}
+	mark, extra := -1, 0
+	for i, c := range p.Cells {
+		if c.Mark {
+			mark = i
+		}
+		if c.Extra {
+			extra++
+		}
+	}
+	if mark != 29 || extra != 30 {
+		t.Errorf("mark at cell %d with %d extra cells, want 29 and 30", mark, extra)
+	}
+	for i, want := range map[int]string{0: "14:02", 29: "14:31", 59: "15:02"} {
+		if got := p.Cells[i].Label; got != want {
+			t.Errorf("cell %d labelled %q, want %q", i, got, want)
+		}
+	}
+	if count(p, components.CellPast) != 0 {
+		t.Error("an open hold drew a cell as past; the page does not know the time")
+	}
+}
+
+func TestMinutePeriodLapsedFillsEveryCell(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	p, _ := components.MinutePeriod(ctx, placed(), placed().Add(29*time.Minute), placed().Add(time.Hour), true)
+	if got := count(p, components.CellPast); got != 60 {
+		t.Errorf("%d past cells, want all 60", got)
+	}
+	if !p.Cells[29].Mark {
+		t.Error("the lapsed grid lost the start-by mark")
+	}
+	if !strings.Contains(p.Description, "沒有收取任何款項") {
+		t.Errorf("description %q does not say nothing was charged", p.Description)
+	}
+}
+
+func TestMinutePeriodWithoutADeadlineHasNoMark(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	p, _ := components.MinutePeriod(ctx, placed(), time.Time{}, placed().Add(time.Hour), false)
+	for i, c := range p.Cells {
+		if c.Mark || c.Extra {
+			t.Errorf("cell %d is marked with no deadline", i)
+		}
+	}
+	if want := "Order placed 14:02; the stock is held until 15:02."; p.Description != want {
+		t.Errorf("description %q, want %q", p.Description, want)
+	}
+}
+
+func TestMinutePeriodDrawsNothingOverSixtyMinutes(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if _, ok := components.MinutePeriod(ctx, placed(), time.Time{}, placed().Add(61*time.Minute), false); ok {
+		t.Error("61 minutes: a period")
+	}
+	if _, ok := components.MinutePeriod(ctx, placed(), time.Time{}, placed().Add(30*time.Second), false); ok {
+		t.Error("under a minute: a period")
 	}
 }

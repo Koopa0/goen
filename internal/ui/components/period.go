@@ -2,6 +2,7 @@ package components
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -32,8 +33,12 @@ const (
 
 type PeriodCell struct {
 	State CellState
-	// Date labels the cell's day; it is empty on the cells that carry no label.
-	Date string
+	// Mark is the cell where an action must have started; Extra cells come
+	// after it and are drawn as the span the mark leaves open.
+	Mark  bool
+	Extra bool
+	// Label is the text under the cell; most cells carry none.
+	Label string
 }
 
 // PeriodSpec draws a stored start and end to scale, one cell per unit. The cell
@@ -78,8 +83,8 @@ func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Tim
 	}
 	first := shoptime.DateOf(startsAt, now)
 	last := shoptime.LastDay(endsAt, now)
-	cells[0].Date = shoptime.DateLabel(ctx, first)
-	cells[total-1].Date = shoptime.DateLabel(ctx, last)
+	cells[0].Label = shoptime.DateLabel(ctx, first)
+	cells[total-1].Label = shoptime.DateLabel(ctx, last)
 
 	from, to, at := shoptime.DateText(ctx, first), shoptime.DateText(ctx, last), shoptime.DateText(ctx, shoptime.DateOf(now, now))
 	n := int64(total)
@@ -102,4 +107,42 @@ func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Tim
 		Description: description,
 		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),
 	}, true
+}
+
+// MinutePeriod is a stock hold drawn from placedAt to until, one cell per minute.
+// startBy is the minute payment must have started by; it is zero when the page
+// shows no such deadline, and the cells after it are the extra span. lapsed
+// fills every cell: the hold has ended. ok is false when the hold is longer
+// than a grid can draw or shorter than one minute.
+func MinutePeriod(ctx context.Context, placedAt, startBy, until time.Time, lapsed bool) (PeriodSpec, bool) {
+	total := int(until.Sub(placedAt) / time.Minute)
+	if total < 1 || total > maxPeriodCells {
+		return PeriodSpec{}, false
+	}
+	cells := make([]PeriodCell, total)
+	if lapsed {
+		for i := range cells {
+			cells[i].State = CellPast
+		}
+	}
+	placed, deadline, end := shoptime.Clock(placedAt), shoptime.Clock(startBy), shoptime.Clock(until)
+	cells[0].Label = placed
+	cells[total-1].Label = end
+	if mark := int(startBy.Sub(placedAt) / time.Minute); !startBy.IsZero() && mark > 0 && mark < total-1 {
+		cells[mark].Mark = true
+		cells[mark].Label = deadline
+		for i := mark + 1; i < total; i++ {
+			cells[i].Extra = true
+		}
+	}
+	var description string
+	switch {
+	case lapsed:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldLapsed), placed, deadline, end)
+	case startBy.IsZero():
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldResumed), placed, end)
+	default:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldOpen), placed, deadline, end)
+	}
+	return PeriodSpec{Unit: PeriodMinute, Cells: cells, Description: description}, true
 }

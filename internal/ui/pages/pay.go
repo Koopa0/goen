@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -32,23 +35,79 @@ const (
 	PayOrderCancelled
 )
 
+// PayHold is the stored span of the order's stock hold, which the page reads and
+// never computes. StartBy is zero where the page names no payment deadline,
+// because a session is already open or the window has closed. A zero PlacedAt
+// means no hold is drawn.
+type PayHold struct {
+	PlacedAt, StartBy, Until time.Time
+	// Lapsed means the hold ended with the order unpaid, and the order was
+	// cancelled automatically.
+	Lapsed bool
+}
+
+// PayFact is one entry of the facts above the order's lines: a time with an
+// optional note, or an amount. It is a plain definition list until
+// components.StatLine lands.
+type PayFact struct {
+	Label  i18n.Key
+	Time   time.Time
+	Amount string
+	Note   i18n.Key
+}
+
 type PayView struct {
-	Number     string
-	TotalCents int64
-	Email      string
-	Lines      []PayLine
-	Enabled    bool
-	Sandbox    bool
-	Cancelled  bool
-	Closure    PayClosure
-	// StartBy is empty when the page resumes a session already open.
-	StartBy        string
+	Number         string
+	TotalCents     int64
+	Email          string
+	Lines          []PayLine
+	Enabled        bool
+	Sandbox        bool
+	Cancelled      bool
+	Closure        PayClosure
+	Hold           PayHold
 	ShippingName   string
 	ShippingCents  int64
 	DiscountCents  int64
 	DiscountReason string
 	CreditCents    int64
 }
+
+// Facts is the deadline, the stock hold and the amount, or for a lapsed hold what
+// became of the order.
+func (v PayView) Facts() []PayFact {
+	h := v.Hold
+	switch {
+	case h.PlacedAt.IsZero():
+		return nil
+	case h.Lapsed:
+		return []PayFact{
+			{Label: i18n.KeyPayFactPlaced, Time: h.PlacedAt},
+			{Label: i18n.KeyPayFactCancelled, Time: h.Until, Note: i18n.KeyPayFactLapsed},
+			{Label: i18n.KeyPayFactCharged, Amount: twd(0)},
+		}
+	}
+	var facts []PayFact
+	if !h.StartBy.IsZero() {
+		facts = append(facts, PayFact{Label: i18n.KeyPayFactStartBy, Time: h.StartBy, Note: i18n.KeyPayFactTimeZone})
+	}
+	return append(facts,
+		PayFact{Label: i18n.KeyPayFactHeldUntil, Time: h.Until, Note: i18n.KeyPayFactUnpaid},
+		PayFact{Label: i18n.KeyPayFactAmountDue, Amount: v.Total()},
+	)
+}
+
+// HoldPeriod is the minute grid of the hold; ok is false when no hold is drawn.
+func (v PayView) HoldPeriod(ctx context.Context) (components.PeriodSpec, bool) {
+	h := v.Hold
+	if h.PlacedAt.IsZero() {
+		return components.PeriodSpec{}, false
+	}
+	return components.MinutePeriod(ctx, h.PlacedAt, h.StartBy, h.Until, h.Lapsed)
+}
+
+// StartByText is the clock time payment must start by.
+func (v PayView) StartByText() string { return shoptime.Clock(v.Hold.StartBy) }
 
 // EyebrowKey says 完成付款 only while a payment can start or resume.
 func (v PayView) EyebrowKey() i18n.Key {

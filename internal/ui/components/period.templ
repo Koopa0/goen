@@ -16,12 +16,18 @@ templ Period(p PeriodSpec) {
 				if c.State != CellAhead {
 					data-cell={ string(c.State) }
 				}
+				if c.Mark {
+					data-mark
+				}
+				if c.Extra {
+					data-span="extra"
+				}
 			>
 				if c.State == CellToday {
 					<b>{ p.TodayLabel }</b>
 				}
-				if c.Date != "" {
-					<small>{ c.Date }</small>
+				if c.Label != "" {
+					<small>{ c.Label }</small>
 				}
 			</i>
 		}

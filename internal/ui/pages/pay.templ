@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -22,6 +23,28 @@ templ Pay(p layouts.Page, v PayView) {
 						{ i18n.T(ctx, i18n.KeyPayBody) }
 					}
 				</p>
+				if facts := v.Facts(); len(facts) > 0 {
+					<dl class="goen-pay__facts">
+						for _, f := range facts {
+							<div>
+								<dt>{ i18n.T(ctx, f.Label) }</dt>
+								<dd>
+									if f.Time.IsZero() {
+										{ f.Amount }
+									} else {
+										<time datetime={ shoptime.Minute(f.Time) }>{ shoptime.Clock(f.Time) }</time>
+									}
+									if f.Note != "" {
+										<span class="goen-pay__note">{ i18n.T(ctx, f.Note) }</span>
+									}
+								</dd>
+							</div>
+						}
+					</dl>
+				}
+				if period, ok := v.HoldPeriod(ctx); ok {
+					@components.Period(period)
+				}
 			</div>
 			if v.Cancelled && !v.Closed() {
 				@components.Notice(components.NoticeProps{
@@ -102,9 +125,9 @@ templ Pay(p layouts.Page, v PayView) {
 							{ i18n.T(ctx, i18n.KeyPaySandbox) }
 						}
 					}
-					if v.StartBy != "" {
+					if !v.Hold.StartBy.IsZero() {
 						<p class="goen-pay__assurance">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.StartBy) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.StartByText()) }
 						</p>
 					}
 					<form method="post" action={ templ.SafeURL(v.Action()) }>

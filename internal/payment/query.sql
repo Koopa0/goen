@@ -83,6 +83,17 @@ WHERE ir.order_id = $1 AND ir.state = 'held'
 ORDER BY ir.expires_at
 LIMIT 1;
 
+-- The span the page draws: from the first hold taken to the earliest expiry,
+-- whatever became of the holds. lapsed is true only when every hold was released
+-- by the sweeper after it expired; a hold released by a cancellation is not.
+-- name: OrderHoldSpan :one
+SELECT min(created_at)::timestamptz AS held_from,
+       min(expires_at)::timestamptz AS held_until,
+       coalesce(bool_and(state = 'released' AND settled_at >= expires_at), false)::boolean AS lapsed
+FROM inventory_reservations
+WHERE order_id = $1
+HAVING count(*) > 0;
+
 -- The one non-terminal session for this order. A session for an old figure is
 -- still a place the customer can pay, so the caller must expire it before
 -- opening a replacement rather than filtering it out.

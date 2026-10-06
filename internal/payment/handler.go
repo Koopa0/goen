@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -117,14 +116,22 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		DiscountReason: b.DiscountReason,
 		CreditCents:    b.CreditCents,
 	}
+	var hold pages.PayHold
 	switch {
 	case order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled:
 		view.Closure = pages.PayOrderCancelled
+		if o.Hold.Lapsed {
+			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.Hold.Until), Lapsed: true}
+		}
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
+		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	case !hasSession:
-		view.StartBy = shoptime.Minute(o.HoldExpiresAt.Add(-minSessionLifetime - sessionStartMargin))
+		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.HoldExpiresAt)}
+	default:
+		hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	}
+	view.Hold = hold
 	for i := range o.Lines {
 		l := &o.Lines[i]
 		view.Lines = append(view.Lines, pages.PayLine{

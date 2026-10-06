@@ -468,8 +468,14 @@ body {
 }
 
 /* Fifteen cells or more: a 2px gap would eat a third of a 288px line at 320px. */
-.ui-period:has(> i:nth-child(15)) {
+.ui-period:has(> i:nth-child(15)):not([data-unit="minute"]) {
   gap: 1px;
+}
+
+/* Sixty minutes are one line: the cells touch, and only the span after the
+   deadline is split by gaps. */
+.ui-period[data-unit="minute"] {
+  gap: 0;
 }
 
 .ui-period:has(> i:nth-child(15)) > i:nth-child(-n + 3) b {
@@ -599,13 +605,39 @@ body {
   }
 }
 
+.ui-period > i[data-mark]::before {
+  border-left: 2px solid var(--mark);
+  bottom: 0;
+  content: "";
+  height: 16px;
+  position: absolute;
+  right: -2px;
+}
+
+.ui-period[data-unit="minute"] > i[data-span="extra"] {
+  margin-left: 2px;
+}
+
+.ui-period > i[data-mark] small {
+  left: auto;
+  right: 0;
+}
+
+/* Under 12rem the deadline's time would meet the end's: its tick stays. */
+@container period (width < 12rem) {
+  .ui-period[data-unit="minute"] > i[data-mark] small {
+    display: none;
+  }
+}
+
 /* Thickness carries elapsed from to come, and Highlight draws the tick. */
 @media (forced-colors: active) {
   .ui-period > i {
     border-bottom-color: CanvasText;
   }
 
-  .ui-period > i[data-cell="today"]::before {
+  .ui-period > i[data-cell="today"]::before,
+  .ui-period > i[data-mark]::before {
     border-left-color: Highlight;
   }
 }

@@ -191,7 +191,7 @@ func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Date: "10/9"}, {Date: "10/10"}}}
+	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Label: "10/9"}, {Label: "10/10"}}}
 	slide := HeroSlide{
 		Layout: SlidePhoto, Tone: ToneSage, Title: "年終感謝祭全館滿額再折",
 		Stats:  []SlideStat{{Label: "結束", Value: "10 月 30 日", Note: "明天結束"}},

@@ -75,11 +75,27 @@ type Order struct {
 	Fulfillment string
 	// HoldExpiresAt is the earliest expiry among the order's live stock holds.
 	HoldExpiresAt time.Time
+	// Hold is what the page draws of the order's stock holds, live or lapsed.
+	Hold HoldSpan
 
 	// holdCoversSession is computed alongside HoldExpiresAt by PostgreSQL's
 	// transaction clock. It is deliberately not recomputed from the process
 	// clock after the read.
 	holdCoversSession bool
+}
+
+// startBy is the last moment a customer can begin paying against a hold that
+// ends at until: Start's admission rule read backwards.
+func startBy(until time.Time) time.Time {
+	return until.Add(-minSessionLifetime - sessionStartMargin)
+}
+
+// HoldSpan is the stored span of an order's stock holds. The zero value is an
+// order with no holds.
+type HoldSpan struct {
+	From, Until time.Time
+	// Lapsed means the sweeper released the holds after they expired.
+	Lapsed bool
 }
 
 // Line is one item as the ORDER recorded it, not as the catalogue reads today.

@@ -35,8 +35,11 @@ func DaysBetween(from, to time.Time) int {
 
 // DateTimeText is DateText followed by the shop's clock time of t.
 func DateTimeText(ctx context.Context, t, now time.Time) string {
-	return DateText(ctx, DateOf(t, now)) + " " + In(t).Format("15:04")
+	return DateText(ctx, DateOf(t, now)) + " " + Clock(t)
 }
+
+// Clock is the shop's wall-clock time of t, 14:31.
+func Clock(t time.Time) string { return In(t).Format("15:04") }
 
 // LastDay is the last shop day a period ending at t still runs. The end is
 // exclusive, so a period ending at midnight ended the day before.

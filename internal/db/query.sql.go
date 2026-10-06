@@ -10105,6 +10105,31 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(created_at)::timestamptz AS held_from,
+       min(expires_at)::timestamptz AS held_until,
+       coalesce(bool_and(state = 'released' AND settled_at >= expires_at), false)::boolean AS lapsed
+FROM inventory_reservations
+WHERE order_id = $1
+HAVING count(*) > 0
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	Lapsed    bool
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. lapsed is true only when every hold was released
+// by the sweeper after it expired; a hold released by a cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.Lapsed)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `

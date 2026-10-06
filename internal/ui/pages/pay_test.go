@@ -3,6 +3,7 @@ package pages
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -93,5 +94,76 @@ func TestThePayEyebrowSaysWhatTheShopperCanDo(t *testing.T) {
 	off := renderToString(t, Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY"}))
 	if !strings.Contains(off, `<p class="goen-pagehead__eyebrow">待付款</p>`) {
 		t.Error("with payments off the pay page's eyebrow does not say 待付款")
+	}
+}
+
+func payHold(lapsed bool) PayHold {
+	cst := time.FixedZone("CST", 8*3600)
+	placed := time.Date(2026, 10, 9, 14, 2, 0, 0, cst)
+	return PayHold{PlacedAt: placed, StartBy: placed.Add(29 * time.Minute), Until: placed.Add(time.Hour), Lapsed: lapsed}
+}
+
+func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
+	t.Parallel()
+
+	view := PayView{
+		Number: "GOEN-PAY", TotalCents: 149300, Enabled: true, Hold: payHold(false),
+		Lines: []PayLine{{Name: "Nimbus", UnitCents: 149300, Quantity: 1}},
+	}
+	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	for _, want := range []string{
+		"<dt>開始付款期限</dt>", `<time datetime="2026-10-09 14:31">14:31</time>`, "台灣時間",
+		"<dt>庫存保留至</dt>", `<time datetime="2026-10-09 15:02">15:02</time>`,
+		"<dt>應付金額</dt>", "NT$1,493",
+		`data-unit="minute"`, `data-mark`, `data-span="extra"`,
+		"請在 14:31（台灣時間）前開始付款。",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the pay page lacks %q", want)
+		}
+	}
+	if strings.Contains(html, `data-cell="`) {
+		t.Error("the pay page marks a cell as now or past on an open hold")
+	}
+
+	view.Hold.StartBy = time.Time{}
+	html = renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	if strings.Contains(html, "開始付款期限") || strings.Contains(html, "data-mark") {
+		t.Error("a resumed session still shows a start-paying deadline")
+	}
+}
+
+func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
+	t.Parallel()
+
+	view := PayView{
+		Number: "GOEN-PAY", TotalCents: 149300, Closure: PayOrderCancelled, Hold: payHold(true),
+		Lines: []PayLine{{Name: "Nimbus", UnitCents: 149300, Quantity: 1}},
+	}
+	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	for _, want := range []string{
+		"<dt>送出</dt>", "<dt>自動取消</dt>", "庫存保留結束時仍未付款", "<dt>收取金額</dt>", "NT$0",
+		`data-cell="past"`, `data-mark`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the lapsed pay page lacks %q", want)
+		}
+	}
+	for _, unwanted := range []string{"開始付款期限", "庫存保留至", "前往付款"} {
+		if strings.Contains(html, unwanted) {
+			t.Errorf("the lapsed pay page still shows %q", unwanted)
+		}
+	}
+	if got := strings.Count(html, "<i data-cell=\"past\""); got != 60 {
+		t.Errorf("%d past cells, want the whole grid of 60", got)
+	}
+}
+
+func TestAPayPageWithNoHoldDrawsNoGrid(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY", Enabled: true}))
+	if strings.Contains(html, "ui-period") || strings.Contains(html, "goen-pay__facts") {
+		t.Error("a pay page with no stored hold drew facts or a grid")
 	}
 }

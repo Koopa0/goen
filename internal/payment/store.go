@@ -82,6 +82,11 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		hold.ExpiresAt = time.Time{}
 	}
 
+	span, err := s.q.OrderHoldSpan(ctx, row.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("read stock hold span of order %s: %w", number, err)
+	}
+
 	o := &Order{
 		Number:            row.OrderNumber,
 		TotalCents:        row.TotalCents,
@@ -89,6 +94,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		Paid:              paid,
 		Fulfillment:       row.FulfillmentStatus,
 		HoldExpiresAt:     hold.ExpiresAt,
+		Hold:              HoldSpan{From: span.HeldFrom, Until: span.HeldUntil, Lapsed: span.Lapsed},
 		holdCoversSession: hold.CoversSession,
 		Lines:             make([]Line, 0, len(lines)),
 	}
