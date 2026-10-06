@@ -344,7 +344,7 @@ func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
 	got := renderToString(t, Compare(layouts.Page{Title: "比較"}, CompareView{
 		Products: []CompareProduct{
 			{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true, InStock: true},
-			{Slug: "sale", Name: "Sale", PriceCents: 100000, CompareCents: 150000, InStock: true},
+			{Slug: "sale", Name: "Sale", PriceCents: 100000, CompareCents: 150000, InStock: true, InCampaign: true},
 		},
 	}))
 	for _, want := range []string{"NT$25,900 起", `<s class="goen-tile__was">NT$1,500</s>`} {

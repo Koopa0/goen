@@ -21,6 +21,7 @@ func renderCampaign(t *testing.T, startsAt, endsAt time.Time, struck bool) strin
 	tile := ProductTile{Slug: "p", Name: "茶壺", PriceCents: 80000, InStock: true}
 	if struck {
 		tile.CompareCents = 100000
+		tile.InCampaign = CampaignStateAt(startsAt, endsAt, scheduleNow) == CampaignRunning
 	}
 	return renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{
 		Slug: "c", Title: "秋日選物", Products: []ProductTile{tile},

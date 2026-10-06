@@ -4382,6 +4382,23 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
 }
 
+.goen-pdp__source {
+  color: var(--n-700);
+  font-size: var(--fs-14);
+  margin: 0.125rem 0 0;
+}
+
+.goen-pdp__source a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.goen-pdp__source + .ui-period {
+  margin-top: 0.5rem;
+  max-width: 26rem;
+}
+
 /* An option group. The fieldset keeps the legend, which is the only thing that
    tells a screen reader what the row of choices is choosing between. */
 .goen-pdp__option {
