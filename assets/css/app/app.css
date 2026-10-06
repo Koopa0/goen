@@ -46,10 +46,10 @@ a:hover {
    The frame, and the one measurement the storefront shares: a content column
    that stops at 1376px inside a gutter of 16px to 48px. The back office keeps
    the measure base.css gives it.
-   the `edges` comparison in check-layout's `PROBE` compares the header bar's, the home
-   page's and the footer grid's content edges and fails when they disagree, so
-   the three read that column from one pair of properties rather than each
-   writing the numbers again.
+   The `edges` comparison in check-layout's `PROBE` compares the header bar's,
+   the home page's and the footer grid's content edges and fails when they
+   disagree, so the three read that column from one pair of properties rather
+   than each writing the numbers again.
    ------------------------------------------------------------------------ */
 
 :root {
@@ -280,9 +280,9 @@ h3 {
 
    A button is 48px tall and a field 44px, which is goen's rule and not the
    reference's: check-layout's tap-target sweeps fail a control under
-   `MIN_TAP` on every route. The reference's 36px default is a desktop density this gate
-   rejects, so what is ported from it is the proportion — padding, type step,
-   radius, weight — and not the height. A media query for coarse pointers was
+   `MIN_TAP` on every route. The reference's 36px default is a desktop density
+   this gate rejects, so what is ported from it is the proportion — padding,
+   type step, radius, weight — and not the height. A media query for coarse pointers was
    the wrong answer: headless Chrome reports a fine pointer, and more to the
    point a 36px target is small for a mouse too.
    ------------------------------------------------------------------------ */
@@ -1913,10 +1913,6 @@ h3 {
   display: flex;
   gap: var(--s-2);
   margin-left: auto;
-}
-
-.goen-hero__nav[hidden] {
-  display: none;
 }
 
 .goen-hero__arrow {
