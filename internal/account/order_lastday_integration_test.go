@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -59,27 +60,27 @@ func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer tx.Rollback(ctx) //nolint:errcheck // the commit below is the success path
+			defer pgtx.Rollback(ctx, tx)
 			// The order is still pending, which no shipment may be recorded against.
-			if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+			if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 				t.Fatalf("relax triggers: %v", err)
 			}
 			for i, p := range tc.parcels {
 				var shipmentID uuid.UUID
-				if err := tx.QueryRow(ctx, `
+				if err = tx.QueryRow(ctx, `
 					INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
 					VALUES ($1, 'black_cat', $2, now() - interval '5 days',
 					        CASE WHEN $3::text IS NULL THEN NULL ELSE now() - $3::interval END) RETURNING id`,
 					orderID, uuid.NewString()+string(rune('a'+i)), p.deliverAt).Scan(&shipmentID); err != nil {
 					t.Fatalf("insert shipment: %v", err)
 				}
-				if _, err := tx.Exec(ctx, `
+				if _, err = tx.Exec(ctx, `
 					INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 					SELECT order_id, $2, id, $3 FROM order_lines WHERE order_id = $1`, orderID, shipmentID, p.units); err != nil {
 					t.Fatalf("insert shipment line: %v", err)
 				}
 			}
-			if err := tx.Commit(ctx); err != nil {
+			if err = tx.Commit(ctx); err != nil {
 				t.Fatalf("commit: %v", err)
 			}
 
@@ -95,7 +96,7 @@ func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
 				return
 			}
 			var lastDay time.Time
-			if err := pool.QueryRow(ctx, `SELECT return_window_ends(delivered_at) FROM order_shipments WHERE order_id = $1 LIMIT 1`,
+			if err = pool.QueryRow(ctx, `SELECT return_window_ends(delivered_at) FROM order_shipments WHERE order_id = $1 LIMIT 1`,
 				orderID).Scan(&lastDay); err != nil {
 				t.Fatalf("read the last day: %v", err)
 			}
