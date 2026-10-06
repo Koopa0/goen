@@ -67,8 +67,8 @@ func newProduct(t *testing.T) (id uuid.UUID, slug string) {
 		t.Fatalf("create product: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
-		VALUES ($1, 'DAILY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, 5, 0)`, id); err != nil {
+		INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, position, stock_quantity, safety_stock)
+		VALUES ($1, 'DAILY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 2, 0, 5, 0)`, id); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, id); err != nil {
