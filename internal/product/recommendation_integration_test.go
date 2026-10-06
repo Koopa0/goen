@@ -638,20 +638,20 @@ func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T)
 			config.MinConns = 0
 			config.MinIdleConns = 0
 			config.ConnConfig.Tracer = d
-			pool, err := pgxpool.NewWithConfig(setupCtx, config)
+			single, err := pgxpool.NewWithConfig(setupCtx, config)
 			if err != nil {
 				t.Fatal(err)
 			}
-			d.pool = pool
-			defer pool.Close()
-			conn, err := pool.Acquire(setupCtx)
+			d.pool = single
+			defer single.Close()
+			conn, err := single.Acquire(setupCtx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			conn.Release()
 			var log bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&log, nil))
-			h := product.NewHandler(product.NewStore(pool, logger), logger, "https://goen.example")
+			h := product.NewHandler(product.NewStore(single, logger), logger, "https://goen.example")
 			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 			started := time.Now()
@@ -679,7 +679,7 @@ func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T)
 				t.Error("saturated acquisition did not omit only its own recommendation section")
 			}
 
-			if acquired := pool.Stat().AcquiredConns(); acquired != 0 {
+			if acquired := single.Stat().AcquiredConns(); acquired != 0 {
 				t.Errorf("saturated acquired connections = %d, want 0", acquired)
 			}
 		})
