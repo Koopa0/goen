@@ -88,6 +88,30 @@ WHERE NOT EXISTS (SELECT 1 FROM return_requests b
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 1;
 
+-- The campaigns that were on at any time in [from_at, to_at), as the shop days
+-- they cover; a campaign's last day is the one its ends_at falls in, and an
+-- ends_at at midnight belongs to the day before.
+-- name: CampaignsBetween :many
+SELECT localized_name(c.title, c.title_en, @locale::text) AS title,
+       shop_day(c.starts_at) AS first_day,
+       shop_day(c.ends_at - interval '1 microsecond') AS last_day
+FROM sale_campaigns c
+WHERE c.is_active
+  AND c.starts_at < @to_at::timestamptz AND c.ends_at > @from_at::timestamptz
+ORDER BY c.starts_at, c.id;
+
+-- The shop day of the latest paid order placed before to_at, counted as
+-- PaidByShopDay counts; no row when there is none.
+-- name: LatestPaidDay :one
+SELECT shop_day(o.placed_at) AS day
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+WHERE o.placed_at < @to_at::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY o.placed_at DESC
+LIMIT 1;
+
 -- name: BestSellersBetween :many
 SELECT
     p.slug,
