@@ -286,8 +286,8 @@ const ADMIN = [
   { label: 'admin faq 1440', width: 1440, height: 900, path: '/admin/faq', marker: '.goen-admin__coupons' },
   { label: 'admin customers 375', width: 375, height: 812, path: '/admin/customers?q=layout', marker: '.ui-table' },
   { label: 'admin customers 1440', width: 1440, height: 900, path: '/admin/customers?q=layout', marker: '.ui-table' },
-  { label: 'admin customer 375', width: 375, height: 812, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-admin__stats' },
-  { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-admin__stats' },
+  { label: 'admin customer 375', width: 375, height: 812, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
+  { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
   { label: 'admin messages 375', width: 375, height: 812, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin messages 1440', width: 1440, height: 900, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin newsletter 375', width: 375, height: 812, path: '/admin/newsletter', marker: '.goen-admin' },
@@ -870,7 +870,7 @@ const PERIOD_PROBE = `(() => {
   return { periods: periods.length, problems };
 })()`;
 
-for (const route of ['/']) {
+for (const route of ['/', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) {
   for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
     const at = 'period labels ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });

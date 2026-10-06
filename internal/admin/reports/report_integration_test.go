@@ -850,7 +850,7 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	var shipmentID, requestID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, 'black_cat', 'T-' || $1::text) RETURNING id`, orderID).Scan(&shipmentID); err != nil {
+		VALUES ($1::uuid, 'black_cat', 'T-' || $1::uuid::text) RETURNING id`, orderID).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `

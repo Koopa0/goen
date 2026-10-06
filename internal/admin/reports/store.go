@@ -7,10 +7,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -19,14 +19,15 @@ import (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool  *pgxpool.Pool
+	cover *stock.Store
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("reports: NewStore requires a pool")
 	}
-	return &Store{pool: pool}
+	return &Store{pool: pool, cover: stock.NewStore(pool)}
 }
 
 var reportWindows = [...]int32{7, 30, 90}
@@ -43,6 +44,12 @@ var ErrDailyRevenue = errors.New("read daily revenue")
 // them, cut at the same time of day. The tiles and the daily chart are read in
 // one snapshot, so the days add up to the revenue even while orders are paid.
 func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.ReportView, error) {
+	// The stock and its ledger are read in their own snapshot, before this one
+	// opens, so one report holds one connection at a time.
+	atRisk, moreSoldOut, err := s.cover.DaysCover(ctx, int(window(days)), now)
+	if err != nil {
+		return admin.ReportView{}, err
+	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
@@ -54,6 +61,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, err
 	}
+	view.AtRisk, view.MoreSoldOut = atRisk, moreSoldOut
 	current, _ := periods(now, int(window(days)))
 	view.Returned, view.ReturnedErr = returnedProducts(ctx, tx, current)
 	// The chart is one figure of the page: failing to read it must not take the
@@ -97,10 +105,6 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
-	atRisk, moreSoldOut, err := stockAtRisk(ctx, q, int(days), now)
-	if err != nil {
-		return admin.ReportView{}, err
-	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
@@ -112,8 +116,8 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 		Placed:    completion.Placed,
 		Committed: completion.Committed,
 		Windows:   windows,
-		AtRisk:    atRisk, MoreSoldOut: moreSoldOut, StockDays: max(int(days), admin.CoverWindowDays),
-		From: shoptime.DateOf(current.from, now), To: shoptime.DateOf(current.to, now),
+		StockDays: max(int(days), admin.CoverWindowDays),
+		From:      shoptime.DateOf(current.from, now), To: shoptime.DateOf(current.to, now),
 		Previous: admin.PreviousFigures{
 			From: shoptime.DateOf(before.from, now), To: shoptime.DateOf(before.to, now),
 			Orders: prevRevenue.Orders, RevenueCents: prevRevenue.RevenueCents,
@@ -208,42 +212,4 @@ func window(days int32) int32 {
 // validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
 	return slices.Contains(reportWindows[:], days)
-}
-
-// stockAtRisk ranks the SKUs that sold or are sold out over the last shop days,
-// at least admin.CoverWindowDays of them whichever period the report shows.
-func stockAtRisk(ctx context.Context, q *db.Queries, days int, now time.Time) ([]admin.StockRisk, int, error) {
-	window, _ := periods(now, max(days, admin.CoverWindowDays))
-	rows, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: window.from, ToAt: window.to})
-	if err != nil {
-		return nil, 0, fmt.Errorf("read stock at risk: %w", err)
-	}
-	ids := make([]uuid.UUID, len(rows))
-	for i := range rows {
-		ids[i] = rows[i].VariantID
-	}
-	moves := map[uuid.UUID][]movement{}
-	if len(ids) > 0 {
-		ledger, err := q.StockMovementsSince(ctx, db.StockMovementsSinceParams{VariantIds: ids, FromAt: window.from})
-		if err != nil {
-			return nil, 0, fmt.Errorf("read stock movements: %w", err)
-		}
-		for i := range ledger {
-			m := &ledger[i]
-			moves[m.VariantID] = append(moves[m.VariantID], movement{at: m.CreatedAt, delta: m.Delta})
-		}
-	}
-	risk := make([]admin.StockRisk, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		risk = append(risk, admin.StockRisk{
-			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
-			Sellable: max(r.StockQuantity-r.SafetyStock, 0),
-			Sold:     r.UnitsSold, Orders: r.OrdersSold,
-			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, window.from, window.to, moves[r.VariantID]),
-			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, window.to, moves[r.VariantID]),
-		})
-	}
-	listed, more := admin.RankStockRisk(risk)
-	return listed, more, nil
 }

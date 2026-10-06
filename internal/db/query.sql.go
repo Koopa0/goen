@@ -790,29 +790,49 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
+       w.spend_cents AS window_spend_cents,
+       coalesce(nt.name, '')::text AS next_tier_name,
+       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-WHERE u.id = $1
+CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
+LEFT JOIN LATERAL (
+    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
+    FROM membership_tiers n
+    WHERE n.min_spend_cents > w.spend_cents
+    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
+WHERE u.id = $3
 `
 
+type AdminCustomerParams struct {
+	WindowDays int32
+	Locale     string
+	UserID     uuid.UUID
+}
+
 type AdminCustomerRow struct {
-	ID          uuid.UUID
-	Email       string
-	FullName    string
-	Phone       string
-	CreatedAt   time.Time
-	Verified    bool
-	Orders      int64
-	Spent       int64
-	CreditCents int64
-	Points      int64
+	ID               uuid.UUID
+	Email            string
+	FullName         string
+	Phone            string
+	CreatedAt        time.Time
+	Verified         bool
+	Orders           int64
+	Spent            int64
+	CreditCents      int64
+	Points           int64
+	WindowSpendCents int64
+	NextTierName     string
+	NextTierCents    int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, id)
+// The window spend and the next tier are what the account page judges tiers by,
+// read the way it reads them.
+func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -825,6 +845,9 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
+		&i.WindowSpendCents,
+		&i.NextTierName,
+		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -10343,6 +10366,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	return i, err
 }
 
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
+	return i, err
+}
+
 const orderIDByNumber = `-- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1
 `
@@ -16197,7 +16249,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
