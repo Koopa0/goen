@@ -176,6 +176,15 @@ func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
 	}
 }
 
+func TestTheNewInLinkSaysProductsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	row := ProductRow{Title: "New in", Href: "/search", Tiles: tiledShelf(4)}
+	page := renderIn(t, i18n.En, Home(layouts.Page{}, HomeView{Row: row}))
+	if !strings.Contains(page, "See all products") {
+		t.Error("the New in link does not read See all products")
+	}
+}
+
 func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "看全部 20 件", i18n.En: "See all 20 items"} {

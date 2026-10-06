@@ -243,7 +243,7 @@ templ productRow(r ProductRow) {
 					case r.Campaign != nil:
 						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
 					default:
-						@seeAll(i18n.T(ctx, i18n.KeyHeroCampaignCTA), r.Href)
+						@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
 				}
 			</div>
 			if r.Campaign != nil && !r.HasLead() {

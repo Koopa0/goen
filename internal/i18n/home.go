@@ -88,6 +88,9 @@ var (
 	// %d is the count of what the link lists.
 	KeyHomeSeeAllCount = countKey("home.see_all.count", "看全部 %d 件", "See all %d item", "See all %d items")
 
+	// The link under New in, which lists products and is no campaign.
+	KeyHomeNewInCTA = key("home.row.newin.cta", Message{ZhHant: "看全部商品", En: "See all products"})
+
 	KeyHeroCampaignCTA = key("home.hero.cta.campaign", Message{
 		ZhHant: "看全部商品",
 		En:     "See all items",

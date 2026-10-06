@@ -60,8 +60,8 @@ try {
 }
 const axeBaseline = axeBaselineFile.routes || {};
 
-// What the two artboards fold into. The seeded six departments are rows
-//, one per line, with the stage beside them from 1024; the
+// What the two artboards fold into. The seeded six departments are rows,
+// one per line, with the stage beside them from 1024; the
 // seeded campaign has four products and a wide first photograph, so its row is
 // the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
 // card. Column counts are read off the rendered

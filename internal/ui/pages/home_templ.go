@@ -1223,7 +1223,7 @@ func productRow(r ProductRow) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			default:
-				templ_7745c5c3_Err = seeAll(i18n.T(ctx, i18n.KeyHeroCampaignCTA), r.Href).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
