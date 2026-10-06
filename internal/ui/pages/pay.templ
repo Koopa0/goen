@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -23,25 +22,7 @@ templ Pay(p layouts.Page, v PayView) {
 						{ i18n.T(ctx, i18n.KeyPayBody) }
 					}
 				</p>
-				if facts := v.Facts(); len(facts) > 0 {
-					<dl class="goen-pay__facts">
-						for _, f := range facts {
-							<div>
-								<dt>{ i18n.T(ctx, f.Label) }</dt>
-								<dd>
-									if f.Time.IsZero() {
-										{ f.Amount }
-									} else {
-										<time datetime={ shoptime.Minute(f.Time) }>{ shoptime.ClockText(f.Time) }</time>
-									}
-									if f.Note != "" {
-										<span class="goen-pay__note">{ i18n.T(ctx, f.Note) }</span>
-									}
-								</dd>
-							</div>
-						}
-					</dl>
-				}
+				@components.StatLine(v.Facts(ctx), components.StatLinePlain)
 				if period, ok := v.HoldPeriod(ctx); ok {
 					@components.Period(period)
 				}

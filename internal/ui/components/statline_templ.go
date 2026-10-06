@@ -71,7 +71,7 @@ func StatLine(stats []Stat, variant StatLineVariant) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if len(s.Value.date) > 0 {
+				if len(s.Value.date) > 0 || s.Value.clock != "" {
 					templ_7745c5c3_Err = templ.Raw(s.Value.dateHTML()).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

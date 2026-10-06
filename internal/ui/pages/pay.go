@@ -46,16 +46,6 @@ type PayHold struct {
 	Lapsed bool
 }
 
-// PayFact is one entry of the facts above the order's lines: a time with an
-// optional note, or an amount. It is a plain definition list until
-// components.StatLine lands.
-type PayFact struct {
-	Label  i18n.Key
-	Time   time.Time
-	Amount string
-	Note   i18n.Key
-}
-
 type PayView struct {
 	Number         string
 	TotalCents     int64
@@ -75,25 +65,25 @@ type PayView struct {
 
 // Facts is the deadline, the stock hold and the amount, or for a lapsed hold what
 // became of the order.
-func (v PayView) Facts() []PayFact {
+func (v PayView) Facts(ctx context.Context) []components.Stat {
 	h := v.Hold
 	switch {
 	case h.PlacedAt.IsZero():
 		return nil
 	case h.Lapsed:
-		return []PayFact{
-			{Label: i18n.KeyPayFactPlaced, Time: h.PlacedAt},
-			{Label: i18n.KeyPayFactCancelled, Time: h.Until, Note: i18n.KeyPayFactLapsed},
-			{Label: i18n.KeyPayFactCharged, Amount: twd(0)},
+		return []components.Stat{
+			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: components.StatClock(shoptime.ClockText(h.PlacedAt))},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: components.StatClock(shoptime.ClockText(h.Until)), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
 		}
 	}
-	var facts []PayFact
+	var facts []components.Stat
 	if !h.StartBy.IsZero() {
-		facts = append(facts, PayFact{Label: i18n.KeyPayFactStartBy, Time: h.StartBy, Note: i18n.KeyPayFactTimeZone})
+		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: components.StatClock(shoptime.ClockText(h.StartBy)), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
 	}
 	return append(facts,
-		PayFact{Label: i18n.KeyPayFactHeldUntil, Time: h.Until, Note: i18n.KeyPayFactUnpaid},
-		PayFact{Label: i18n.KeyPayFactAmountDue, Amount: v.Total()},
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: components.StatClock(shoptime.ClockText(h.Until)), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(v.TotalCents)},
 	)
 }
 

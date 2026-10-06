@@ -81,6 +81,9 @@ func StatDate(text, clock string) StatValue {
 	return StatValue{date: parts, clock: clock}
 }
 
+// StatClock is a time of day on its own, 14:31.
+func StatClock(clock string) StatValue { return StatValue{clock: clock} }
+
 // StatCount is a number and the unit it counts, joined so that they never part across lines.
 func StatCount(n int64, unit string) StatValue {
 	if n < 0 || unit == "" {
@@ -99,7 +102,7 @@ func StatMoney(cents int64) StatValue {
 	return StatValue{pre: text[:i], figure: text[i:]}
 }
 
-func (v StatValue) present() bool { return v.figure != "" || len(v.date) > 0 }
+func (v StatValue) present() bool { return v.figure != "" || len(v.date) > 0 || v.clock != "" }
 
 func shown(stats []Stat) []Stat {
 	if len(stats) > 4 {
@@ -132,7 +135,10 @@ func (v StatValue) dateHTML() string {
 		}
 	}
 	if v.clock != "" {
-		b.WriteString("\u00a0" + html.EscapeString(v.clock))
+		if len(v.date) > 0 {
+			b.WriteString("\u00a0")
+		}
+		b.WriteString(html.EscapeString(v.clock))
 	}
 	return b.String()
 }

@@ -112,9 +112,9 @@ func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
 	}
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
-		"<dt>開始付款期限</dt>", `<time datetime="2026-10-09 14:31">14:31</time>`, "台灣時間",
-		"<dt>庫存保留至</dt>", `<time datetime="2026-10-09 15:02">15:02</time>`,
-		"<dt>應付金額</dt>", "NT$1,493",
+		`ui-statline`, "<dt>開始付款期限</dt>", "<dd>14:31", "台灣時間",
+		"<dt>庫存保留至</dt>", "<dd>15:02",
+		"<dt>應付金額</dt>", `<small class="ui-statline__pre">NT$</small>1,493`,
 		`data-unit="minute"`, `data-mark`, `data-span="extra"`,
 		"請在 14:31（台灣時間）前開始付款。",
 	} {
@@ -142,7 +142,7 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 	}
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
-		"<dt>送出</dt>", "<dt>自動取消</dt>", "庫存保留結束時仍未付款", "<dt>收取金額</dt>", "NT$0",
+		"<dt>送出</dt>", "<dt>自動取消</dt>", "庫存保留結束時仍未付款", "<dt>收取金額</dt>", `<small class="ui-statline__pre">NT$</small>0`,
 		`data-cell="past"`, `data-mark`,
 	} {
 		if !strings.Contains(html, want) {
@@ -163,7 +163,7 @@ func TestAPayPageWithNoHoldDrawsNoGrid(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY", Enabled: true}))
-	if strings.Contains(html, "ui-period") || strings.Contains(html, "goen-pay__facts") {
+	if strings.Contains(html, "ui-period") || strings.Contains(html, "ui-statline") {
 		t.Error("a pay page with no stored hold drew facts or a grid")
 	}
 }

@@ -8,7 +8,7 @@ templ StatLine(stats []Stat, variant StatLineVariant) {
 				<div>
 					<dt>{ s.Label }</dt>
 					<dd>
-						if len(s.Value.date) > 0 {
+						if len(s.Value.date) > 0 || s.Value.clock != "" {
 							@templ.Raw(s.Value.dateHTML())
 						} else if s.Value.pre != "" {
 							<small class="ui-statline__pre">{ s.Value.pre }</small>{ s.Value.figure }
