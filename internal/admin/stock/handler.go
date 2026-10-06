@@ -55,7 +55,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	if r.URL.Query().Get(web.KeysetParam) == "" {
+	if r.URL.Query().Get(web.KeysetParam) == "" && view.Term == "" && !view.LowOnly {
 		view.ShowCover = true
 		view.AtRisk, view.MoreSoldOut, err = h.store.DaysCover(r.Context(), admin.CoverWindowDays, time.Now())
 		if err != nil {
