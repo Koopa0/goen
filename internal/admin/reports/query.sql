@@ -79,7 +79,7 @@ WITH period_lines AS (
     FROM return_request_lines rl
     JOIN return_requests rr ON rr.id = rl.return_request_id
     JOIN order_lines pl ON pl.id = rl.order_line_id
-    WHERE rr.status IN ('approved', 'completed')
+    WHERE true
     GROUP BY pl.product_id
 )
 SELECT
