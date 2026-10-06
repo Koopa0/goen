@@ -215,7 +215,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> @exclude_id
-ORDER BY (p.category_id = @category_id) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY in_stock DESC, (p.category_id = @category_id) DESC, p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
 -- Resolve current eligibility first so a missing/draft product wins over an old

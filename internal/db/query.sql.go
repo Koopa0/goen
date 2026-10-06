@@ -13818,7 +13818,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY in_stock DESC, (p.category_id = $3) DESC, p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
