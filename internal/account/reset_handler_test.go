@@ -72,3 +72,96 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name, path, destination string
+			handler http.HandlerFunc
+		}{
+			{name: "verify", path: "/verify", destination: "/account#email-heading", handler: h.VerifyPage},
+			{name: "reset", path: "/reset", destination: "/forgot", handler: h.ResetPage},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				res := httptest.NewRecorder()
+				tt.handler(res, httptest.NewRequestWithContext(ctx, http.MethodGet, tt.path, http.NoBody))
+				if res.Code != http.StatusOK {
+					t.Fatalf("missing link = %d, want 200", res.Code)
+				}
+				reason := "This link is incomplete; open it again from the button in the email."
+				if locale == i18n.ZhHant {
+					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
+				}
+				assertEmailLinkRecovery(t, res.Body.String(), reason, tt.destination)
+			})
+		}
+	}
+}
+
+func assertEmailLinkRecovery(t *testing.T, body, reason, destination string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attr := func(n *html.Node, key string) string {
+		for _, a := range n.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
+	var panel *html.Node
+	ids := map[string]bool{}
+	for n := range doc.Descendants() {
+		if id := attr(n, "id"); id != "" {
+			if ids[id] {
+				t.Errorf("duplicate id %q", id)
+			}
+			ids[id] = true
+		}
+		if n.Type == html.ElementNode && n.Data == "h1" {
+			panel = n.Parent
+		}
+	}
+	if panel == nil {
+		t.Fatal("recovery has no heading")
+	}
+	var text strings.Builder
+	primary := 0
+	for n := range panel.Descendants() {
+		if n.Type == html.TextNode {
+			text.WriteString(n.Data)
+		}
+		if attr(n, "name") == "token" || strings.Contains(attr(n, "class"), "goen-medallion") {
+			t.Errorf("failure retains %s %q", n.Data, attr(n, "class"))
+		}
+		if strings.Contains(attr(n, "class"), "goen-btn--primary") {
+			primary++
+			got := attr(n, "href")
+			if n.Data == "button" {
+				for p := n.Parent; p != nil; p = p.Parent {
+					if p.Data == "form" {
+						got = attr(p, "action")
+						if destination == "/newsletter" && attr(p, "method") != "post" {
+							t.Error("newsletter recovery is not a plain POST form")
+						}
+						break
+					}
+				}
+			}
+			if got != destination {
+				t.Errorf("primary destination = %q, want %q", got, destination)
+			}
+		}
+	}
+	if primary != 1 {
+		t.Errorf("recovery primaries = %d, want 1", primary)
+	}
+	if !strings.Contains(text.String(), reason) {
+		t.Errorf("recovery reason = %q, want %q", text.String(), reason)
+	}
+}
