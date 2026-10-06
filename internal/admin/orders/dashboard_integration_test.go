@@ -346,7 +346,8 @@ func placeOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration)
 
 // captureCardPaidAgo captures a card payment whose confirming webhook event
 // says Stripe took the money this long ago, which is where capture_payment
-// takes paid_at from.
+// takes paid_at from. The event is recorded after the payment opens: opening
+// refuses a provider reference that already has webhook history.
 func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (number string, paidAt time.Time) {
 	t.Helper()
 	ctx := t.Context()
@@ -354,6 +355,9 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 	orderID := admintest.OrderForCustomer(t, pool, admintest.Customer(t, pool), cents, false)
 	paidAt = time.Now().Add(-ago).Truncate(time.Second)
 	ref := "cs_age_" + orderID.String()
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(cents)); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload)
 		VALUES ('stripe', $1, 'checkout.session.completed', $2,
@@ -362,9 +366,6 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 		                               jsonb_build_object('payment_status', 'paid'))))`,
 		"evt_age_"+orderID.String(), ref, paidAt.Unix()); err != nil {
 		t.Fatalf("record the confirming event: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(cents)); err != nil {
-		t.Fatalf("open payment: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(cents)); err != nil {
 		t.Fatalf("capture: %v", err)
