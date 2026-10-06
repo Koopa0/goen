@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -678,7 +679,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	defer pgtx.Rollback(ctx, tx)
 	s := catalog.NewStore(tx)
 
 	deep := newDeal(t, tx, 100, 0)

@@ -102,3 +102,19 @@ func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
 		t.Errorf("DealsMeta title = %q, want 優惠", got)
 	}
 }
+
+func TestACampaignIsCalledACampaignInEnglish(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for key, want := range map[i18n.Key]string{
+		i18n.KeyCampaignNotFound:     "Campaign not found",
+		i18n.KeyCampaignNotFoundBody: "We could not find that campaign. See the deals running now.",
+	} {
+		if got := i18n.T(ctx, key); got != want {
+			t.Errorf("i18n.T(%q) = %q, want %q", key, got, want)
+		}
+	}
+	if got := CampaignMeta(ctx, "Autumn", Photo{}).Description; got != "Autumn — deals at goen" {
+		t.Errorf("CampaignMeta description = %q, want %q", got, "Autumn — deals at goen")
+	}
+}

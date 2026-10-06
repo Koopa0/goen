@@ -24,7 +24,7 @@ var (
 
 	KeyCampaignDescription = key("campaign.description", Message{
 		ZhHant: "%s — goen 優惠",
-		En:     "%s — an offer from goen",
+		En:     "%s — deals at goen",
 	})
 
 	KeyCampaignProducts = countKey("campaign.products", "%s 件商品", "%s product", "%s products")
@@ -37,11 +37,11 @@ var (
 	// %s is the last day, after the product count on the offers page.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
-	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
+	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})
 
 	KeyCampaignNotFoundBody = key("campaign.notfound.body", Message{
 		ZhHant: "找不到這個活動。看看目前的優惠。",
-		En:     "We could not find that promotion. Have a look at what is running now.",
+		En:     "We could not find that campaign. See the deals running now.",
 	})
 
 	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
