@@ -69,7 +69,7 @@ var (
 
 	KeyAdminStockNowSafe = key("admin.stock.nowsafe", Message{
 		ZhHant: "· 目前 %s 件，安全庫存 %s",
-		En:     "· %s in stock, safety level %s",
+		En:     "· %s in stock, safety stock %s",
 	})
 
 	KeyAdminLedgerEmpty = key("admin.ledger.empty", Message{
@@ -85,7 +85,7 @@ var (
 
 	KeyAdminStockLineStock = key("admin.stock.line.stock", Message{ZhHant: "庫存", En: "In stock"})
 
-	KeyAdminStockLineSafety = key("admin.stock.line.safety", Message{ZhHant: "安全庫存", En: "Safety level"})
+	KeyAdminStockLineSafety = key("admin.stock.line.safety", Message{ZhHant: "安全庫存", En: "Safety stock"})
 
 	KeyAdminStockLineReceived = key("admin.stock.line.received", Message{ZhHant: "進貨", En: "Received"})
 
@@ -99,8 +99,8 @@ var (
 		"received %[1]d time in %[2]d days", "received %[1]d times in %[2]d days")
 
 	KeyAdminStockLineHeld = countKey("admin.stock.line.held",
-		"有 %d 天停在安全庫存",
-		"held at the safety level on %d day", "held at the safety level on %d days")
+		"有 %d 天不高於安全庫存",
+		"at or below the safety stock on %d day", "at or below the safety stock on %d days")
 
 	KeyAdminStockLineLow = key("admin.stock.line.low", Message{ZhHant: "最低到過 %d 件", En: "never below %d"})
 

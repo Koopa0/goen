@@ -192,3 +192,19 @@ func TestClockIsTheShopsTimeOfDay(t *testing.T) {
 		}
 	}
 }
+
+func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
+	t.Parallel()
+
+	// 00:30 on the 10th in Taipei is still the 9th in UTC.
+	now := time.Date(2026, 9, 9, 16, 30, 0, 0, time.UTC)
+	if got, want := shoptime.Minute(shoptime.FirstDay(now, 90)), "2026-06-13 00:00"; got != want {
+		t.Errorf("FirstDay(%v, 90) = %s, want %s", now, got, want)
+	}
+	if got, want := shoptime.FirstDay(now, 1), shoptime.Midnight(now); !got.Equal(want) {
+		t.Errorf("FirstDay(now, 1) = %v, want today's midnight %v", got, want)
+	}
+	if got, want := shoptime.QueryDate(now), time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("QueryDate(%v) = %v, want %v", now, got, want)
+	}
+}

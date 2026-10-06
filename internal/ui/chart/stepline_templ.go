@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "strconv"
 
-// StepLine draws a stock level as steps, with the safety level as a line across
+// StepLine draws a stock level as steps, with the safety stock as a line across
 // it. A caller with no days draws no line.
 func StepLine(p StepLineProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

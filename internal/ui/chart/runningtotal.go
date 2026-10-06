@@ -72,7 +72,7 @@ type axes struct {
 // newAxes lays out the axes for values from 0 to top and the shop days of
 // buckets, with top of the plot plotTop pixels down. It returns the axes and
 // where on them a value sits.
-func newAxes(ctx context.Context, top int64, m Measure, buckets []Bucket, plotTop float64) (axes, func(int64) float64) {
+func newAxes(ctx context.Context, top int64, m Measure, buckets []Bucket, plotTop float64) (a axes, y func(int64) float64) {
 	step := axisStep(top, m)
 	lines := gridLines(top, step)
 	axisTop := step * lines
@@ -83,11 +83,11 @@ func newAxes(ctx context.Context, top int64, m Measure, buckets []Bucket, plotTo
 	}
 	divisor, suffix := i18n.AxisUnit(ctx, whole)
 
-	y := func(v int64) float64 {
+	y = func(v int64) float64 {
 		return plotTop + plotHeight*(1-float64(v)/float64(axisTop))
 	}
 	baseline := y(0)
-	a := axes{
+	a = axes{
 		Height: int(plotTop) + plotHeight + axisBand, Baseline: baseline, LabelY: baseline + axisBand - 8,
 		Ticks: ticksFor(ctx, buckets),
 	}
@@ -101,6 +101,7 @@ func newAxes(ctx context.Context, top int64, m Measure, buckets []Bucket, plotTo
 // runningTotal is everything RunningTotal draws, worked out.
 type runningTotal struct {
 	axes
+
 	Area, CurrentLine, PrevLine string
 	CurrentEnd, PreviousEnd     endPoint
 	CurrentLabel, PrevLabel     endLabel

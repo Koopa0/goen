@@ -14,9 +14,9 @@ const (
 
 // StepLineProps is a stock level counted at the end of each shop day and held
 // until the next, with a mark where goods were received and a line at the
-// safety level. Stock and Received run over the same days; their labels head
+// safety stock. Stock and Received run over the same days; their labels head
 // the table's columns, and Received's names the marks. SafetyHeading heads the
-// safety level's column and names its line. Caption, Note and DayHeading are the
+// safety stock's column and names its line. Caption, Note and DayHeading are the
 // page's sentences, already localised.
 type StepLineProps struct {
 	Stock, Received Series
@@ -40,6 +40,7 @@ type stepRow struct {
 // stepLine is everything StepLine draws, worked out.
 type stepLine struct {
 	axes
+
 	Line        string
 	ShowsSafety bool
 	SafetyY     float64

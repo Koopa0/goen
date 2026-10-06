@@ -52,8 +52,8 @@ func (v *MovementsView) NoStockLine(ctx context.Context) string {
 }
 
 // StockLine is the chart of the days. Its caption counts the receipts and the
-// days at the safety level, each as a sentence of its own, and says how low the
-// stock went when it never reached the safety level.
+// days at the safety stock, each as a sentence of its own, and says how low the
+// stock went when it never reached the safety stock.
 func (v *MovementsView) StockLine(ctx context.Context) chart.StepLineProps {
 	stock := chart.Series{Label: i18n.T(ctx, i18n.KeyAdminStockLineStock), Buckets: make([]chart.Bucket, len(v.Days))}
 	received := chart.Series{Label: i18n.T(ctx, i18n.KeyAdminStockLineReceived), Buckets: make([]chart.Bucket, len(v.Days))}

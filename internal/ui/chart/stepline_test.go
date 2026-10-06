@@ -9,7 +9,7 @@ import (
 )
 
 // stepProps is ten days: 10 in stock, 30 received on the fourth day, 38 from the
-// sixth and 2, the safety level, from the ninth. The axis tops out at 40, so a
+// sixth and 2, the safety stock, from the ninth. The axis tops out at 40, so a
 // level of v is drawn at 26 + 136 * (1 - v/40).
 func stepProps() StepLineProps {
 	levels := []int64{10, 10, 10, 40, 40, 38, 38, 38, 2, 2}
@@ -20,7 +20,7 @@ func stepProps() StepLineProps {
 		Stock:         Series{Label: "In stock", Buckets: stock},
 		Received:      Series{Label: "Received", Buckets: in},
 		Safety:        2,
-		SafetyHeading: "Safety level",
+		SafetyHeading: "Safety stock",
 		Caption:       "2 in stock.",
 		Note:          "Worked back from the ledger.",
 		DayHeading:    "Date",
@@ -52,7 +52,7 @@ func TestStepLineDrawsTheSafetyLevelAcrossTheLevelsOfEveryDay(t *testing.T) {
 	got := renderStepLine(t, stepProps())
 	for _, want := range []string{
 		`<line class="goen-chart__safety" x1="0" x2="100%" y1="155.2" y2="155.2"></line>`,
-		`>Safety level 2</text>`,
+		`>Safety stock 2</text>`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("StepLine does not contain %s", want)
@@ -62,7 +62,7 @@ func TestStepLineDrawsTheSafetyLevelAcrossTheLevelsOfEveryDay(t *testing.T) {
 	p := stepProps()
 	p.Safety = 0
 	if got := renderStepLine(t, p); strings.Contains(got, "goen-chart__safety") {
-		t.Error("a safety level of 0 draws a line, which would lie on the baseline")
+		t.Error("a safety stock of 0 draws a line, which would lie on the baseline")
 	}
 }
 
@@ -86,7 +86,7 @@ func TestStepLineMarksEachReceiptAndTheTableSaysSo(t *testing.T) {
 	for _, want := range []string{
 		`<line class="goen-chart__receipt" x1="30.00%" x2="30.00%" y1="18.0" y2="24.0"></line>`,
 		`text-anchor="middle">Received +30</text>`,
-		`<th scope="col">Safety level</th><th scope="col">Received</th>`,
+		`<th scope="col">Safety stock</th><th scope="col">Received</th>`,
 		`<th scope="row">Sep 10</th><td>40</td><td>2</td><td>+30</td>`,
 		`<th scope="row">Sep 9</th><td>10</td><td>2</td><td></td>`,
 	} {

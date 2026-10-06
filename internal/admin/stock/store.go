@@ -298,17 +298,25 @@ func variantRow(r *db.AdminVariantsRow) admin.Variant {
 // total is computed over the WHOLE ledger, so a page is still truthful.
 const MovementPageSize = 50
 
-func (s *Store) Movements(ctx context.Context, sku string, after ...string) (admin.MovementsView, error) {
+// Movements reads the variant, a page of its ledger and, on the first page, its
+// days up to now in one snapshot, so the stock it shows is the last day's.
+func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after ...string) (admin.MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
 	from, resumed := web.ResumeKeyset(scope, after, func(p movementPosition) bool { return p.ID != uuid.Nil })
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return admin.MovementsView{}, fmt.Errorf("begin movements snapshot: %w", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	q := db.New(tx)
+	v, err := q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.MovementsView{}, ErrNotFound
 		}
 		return admin.MovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
-	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: resumed, AfterID: from.ID,
+	rows, err := q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: resumed, AfterID: from.ID,
 		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
@@ -324,7 +332,7 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		Rows:   make([]admin.Movement, 0, len(rows)),
 	}
 	if !resumed {
-		if view.Days, err = s.stockDays(ctx, sku); err != nil {
+		if view.Days, err = stockDays(ctx, q, sku, now); err != nil {
 			return admin.MovementsView{}, err
 		}
 	}
@@ -342,12 +350,11 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 	return view, nil
 }
 
-// stockDays is the variant's last admin.StockLineDays shop days.
-func (s *Store) stockDays(ctx context.Context, sku string) ([]admin.StockDay, error) {
-	today := shoptime.Midnight(time.Now())
-	first := today.AddDate(0, 0, 1-admin.StockLineDays)
-	rows, err := s.q.VariantStockByDay(ctx, db.VariantStockByDayParams{
-		SKU: sku, FromAt: first, FirstDay: shopDate(first), LastDay: shopDate(today),
+// stockDays is the variant's last admin.StockLineDays shop days up to now.
+func stockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]admin.StockDay, error) {
+	first := shoptime.FirstDay(now, admin.StockLineDays)
+	rows, err := q.VariantStockByDay(ctx, db.VariantStockByDayParams{
+		SKU: sku, FromAt: first, FirstDay: shoptime.QueryDate(first), LastDay: shoptime.QueryDate(now),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read stock by day of %s: %w", sku, err)
@@ -357,12 +364,6 @@ func (s *Store) stockDays(ctx context.Context, sku string) ([]admin.StockDay, er
 		days[i] = admin.StockDay{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
 	}
 	return days, nil
-}
-
-// shopDate is the shop day t falls on, as the date a query takes.
-func shopDate(t time.Time) time.Time {
-	y, m, d := shoptime.In(t).Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) error {

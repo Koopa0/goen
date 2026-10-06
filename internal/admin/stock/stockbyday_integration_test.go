@@ -47,8 +47,12 @@ func TestStockByDayIsTheColumnWorkedBackThroughTheLedger(t *testing.T) {
 
 	var sku string
 	if err := pool.QueryRow(ctx, `
-		SELECT sku FROM product_variants WHERE is_active ORDER BY position OFFSET 5 LIMIT 1`).Scan(&sku); err != nil {
+		SELECT sku FROM product_variants WHERE is_active ORDER BY sku OFFSET 5 LIMIT 1`).Scan(&sku); err != nil {
 		t.Fatalf("read variant: %v", err)
+	}
+	now := time.Now()
+	noon := func(daysAgo int) time.Time {
+		return shoptime.Midnight(now).AddDate(0, 0, -daysAgo).Add(12 * time.Hour)
 	}
 	received, adjusted := "line-"+uuid.NewString(), "line-"+uuid.NewString()
 	if err := s.Receive(ctx, sku, 30, actor, received); err != nil {
@@ -57,15 +61,15 @@ func TestStockByDayIsTheColumnWorkedBackThroughTheLedger(t *testing.T) {
 	if err := s.Adjust(ctx, sku, -4, actor, adjusted); err != nil {
 		t.Fatalf("adjust: %v", err)
 	}
-	moveTo(t, received, admintest.ShopNoonDaysAgo(t, 40))
-	moveTo(t, adjusted, admintest.ShopNoonDaysAgo(t, 10))
+	moveTo(t, received, noon(40))
+	moveTo(t, adjusted, noon(10))
 
 	var ledger, column, today int32
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(m.delta), 0), pv.stock_quantity,
 		       coalesce(sum(m.delta) FILTER (WHERE m.created_at >= $2), 0)
 		FROM product_variants pv LEFT JOIN inventory_movements m ON m.variant_id = pv.id
-		WHERE pv.sku = $1 GROUP BY pv.stock_quantity`, sku, shoptime.Midnight(time.Now())).
+		WHERE pv.sku = $1 GROUP BY pv.stock_quantity`, sku, shoptime.Midnight(now)).
 		Scan(&ledger, &column, &today); err != nil {
 		t.Fatalf("read ledger: %v", err)
 	}
@@ -73,7 +77,7 @@ func TestStockByDayIsTheColumnWorkedBackThroughTheLedger(t *testing.T) {
 		t.Fatalf("the fixture's ledger sums to %d but stock_quantity is %d: the days would roll back from the wrong level", ledger, column)
 	}
 
-	view, err := s.Movements(ctx, sku)
+	view, err := s.Movements(ctx, sku, now)
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}

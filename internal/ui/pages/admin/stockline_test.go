@@ -31,19 +31,25 @@ func TestStockLineCaptionCountsEachSentenceOnItsOwn(t *testing.T) {
 		en, zhHant string
 	}{
 		{
-			"one receipt, one day at the safety level",
+			"one receipt, one day at the safety stock",
 			MovementsView{Stock: 6, Safety: 2, Days: stockDays([]int32{9, 2, 36, 6}, map[int]int32{2: 34})},
-			"6 in stock; received 1 time in 4 days, held at the safety level on 1 day.",
-			"目前 6 件；4 天裡進貨 1 次，有 1 天停在安全庫存。",
+			"6 in stock; received 1 time in 4 days, at or below the safety stock on 1 day.",
+			"目前 6 件；4 天裡進貨 1 次，有 1 天不高於安全庫存。",
 		},
 		{
-			"two receipts, several days at the safety level",
+			"two receipts, several days at the safety stock",
 			MovementsView{Stock: 5, Safety: 2, Days: stockDays([]int32{2, 2, 30, 5}, map[int]int32{0: 2, 2: 28})},
-			"5 in stock; received 2 times in 4 days, held at the safety level on 2 days.",
-			"目前 5 件；4 天裡進貨 2 次，有 2 天停在安全庫存。",
+			"5 in stock; received 2 times in 4 days, at or below the safety stock on 2 days.",
+			"目前 5 件；4 天裡進貨 2 次，有 2 天不高於安全庫存。",
 		},
 		{
-			"never at the safety level",
+			"days below the safety stock count too",
+			MovementsView{Stock: 5, Safety: 2, Days: stockDays([]int32{0, 0, 1, 5}, map[int]int32{3: 5})},
+			"5 in stock; received 1 time in 4 days, at or below the safety stock on 3 days.",
+			"目前 5 件；4 天裡進貨 1 次，有 3 天不高於安全庫存。",
+		},
+		{
+			"never at the safety stock",
 			MovementsView{Stock: 8, Safety: 2, Days: stockDays([]int32{12, 10, 8}, nil)},
 			"8 in stock; received 0 times in 3 days, never below 8.",
 			"目前 8 件；3 天裡進貨 0 次，最低到過 8 件。",

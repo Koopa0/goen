@@ -2,7 +2,7 @@ package chart
 
 import "strconv"
 
-// StepLine draws a stock level as steps, with the safety level as a line across
+// StepLine draws a stock level as steps, with the safety stock as a line across
 // it. A caller with no days draws no line.
 templ StepLine(p StepLineProps) {
 	if len(p.Stock.Buckets) > 0 {
