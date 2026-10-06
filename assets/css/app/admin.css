@@ -1015,16 +1015,24 @@ input.goen-check {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .goen-admin__stats .goen-stat,
-  .goen-admin__stats .ui-stat {
+  .goen-admin__stats .goen-stat {
     padding: 12px;
   }
 
-  .goen-admin__stats .goen-stat__value,
-  .goen-admin__stats .ui-stat__value {
+  .goen-admin__stats .goen-stat__value {
     font-size: var(--fs-ed-20);
     overflow-wrap: anywhere;
   }
+
+  .goen-admin__stats .ui-statline dd {
+    font-size: var(--t-20);
+    overflow-wrap: anywhere;
+  }
+}
+
+/* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
+.goen-admin__stats > .ui-statline {
+  grid-column: 1 / -1;
 }
 
 .goen-stat {
@@ -1278,17 +1286,6 @@ input.goen-check {
 
 .goen-admin .ui-table tbody .goen-admin__cellkey {
   color: var(--fg);
-}
-
-.goen-admin__stats .ui-stat {
-  min-width: 0;
-}
-
-/* The shared stat label does not wrap, so a long one is wider than
-   its grid track and takes the page sideways with it. The screens still on
-   that component are measured at 375 by the layout gate. */
-.goen-admin__stats .ui-stat__label {
-  white-space: normal;
 }
 
 .goen-admin__row--low td {

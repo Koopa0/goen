@@ -136,3 +136,41 @@ func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
 		}
 	}
 }
+
+func TestTheDashboardFiguresAreLinkedLabelsBeforeTheirValues(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{PendingOrders: 4, PickingOrders: 2, ActiveProducts: 9}))
+	for _, want := range []struct {
+		href  string
+		label i18n.Key
+		value string
+	}{
+		{"/admin/orders?status=pending", i18n.KeyAdminQueueStatPending, "4"},
+		{"/admin/orders?status=picking", i18n.KeyAdminStatusPicking, "2"},
+		{"/admin/products", i18n.KeyAdminQueueStatActive, "9"},
+	} {
+		got := `<dt><a href="` + want.href + `">` + i18n.T(ctx, want.label) + `</a></dt><dd>` + want.value
+		if !strings.Contains(html, got) {
+			t.Errorf("Dashboard does not carry %s", got)
+		}
+	}
+}
+
+func TestACustomerShowsItsFiguresAsOneStatLine(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Customer(Meta(ctx), &CustomerView{Orders: 0, SpentCents: 1234500, CreditCents: 0, Points: 12}))
+	if n := strings.Count(html, `<dl class="ui-statline ui-statline--wide">`); n != 1 {
+		t.Fatalf("Customer drew %d stat lines, want 1", n)
+	}
+	for _, want := range []string{
+		i18n.T(ctx, i18n.KeyAdminCustStatOrders) + `</dt><dd>0`,
+		i18n.T(ctx, i18n.KeyAdminCustStatSpent) + `</dt><dd><small class="ui-statline__pre">NT$</small>12,345`,
+		i18n.T(ctx, i18n.KeyAdminCustStatPoints) + `</dt><dd>12`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("Customer does not carry %q", want)
+		}
+	}
+}

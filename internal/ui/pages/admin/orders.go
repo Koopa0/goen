@@ -139,14 +139,6 @@ func (v DashboardView) DeskTasks() []Task {
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
 
-func (v DashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
-
-func (v DashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }
-
-func (v DashboardView) ActiveProductsText() string {
-	return strconv.FormatInt(v.ActiveProducts, 10)
-}
-
 func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
