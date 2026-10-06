@@ -138,6 +138,13 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
+// periodOverride finds the colours a tone gives the day grid, and periodDecl
+// one of them: a tone token, or a token of the page's own.
+var (
+	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone="([a-z]+)"\] \.ui-period \{(.*?)\}`)
+	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
+)
+
 // toneNames is pages.Tone's closed set. assets cannot import pages, whose test
 // repeats the list.
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
@@ -186,6 +193,27 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			if got := contrast(decl[prop], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					prop, decl[prop], name, ground, got)
+			}
+		}
+		// The day grid sits on every tone's ground: its fill and line are
+		// graphical objects (WCAG 1.4.11) and its labels are text.
+		period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+		for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
+			if m[1] != name {
+				continue
+			}
+			for _, d := range periodDecl.FindAllStringSubmatch(m[2], -1) {
+				if strings.HasPrefix(d[2], "--tone-") {
+					period[d[1]] = decl[d[2]]
+				} else {
+					period[d[1]] = tokens[d[2]]
+				}
+			}
+		}
+		for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
+			if got := contrast(period[part], ground); got < min {
+				t.Errorf("the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
+					part, period[part], name, ground, got, min)
 			}
 		}
 		if name == "ink" {

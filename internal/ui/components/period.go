@@ -16,9 +16,7 @@ const maxPeriodCells = 60
 type PeriodUnit string
 
 const (
-	PeriodMinute PeriodUnit = "minute"
-	PeriodDay    PeriodUnit = "day"
-	PeriodMonth  PeriodUnit = "month"
+	PeriodDay PeriodUnit = "day"
 )
 
 // CellState says where a cell lies against the present.
@@ -58,14 +56,15 @@ func (p PeriodSpec) unitAttr() string {
 // endsAt, which is exclusive, named title. ok is false when the span has no days
 // or more than a grid can draw.
 func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Time) (PeriodSpec, bool) {
-	lastDay := endsAt.Add(-time.Nanosecond)
-	total := shoptime.DaysBetween(startsAt, lastDay) + 1
+	first := shoptime.DateOf(startsAt, now)
+	last := shoptime.LastDay(endsAt, now)
+	total := shoptime.DaysBetween(first, last) + 1
 	if total < 1 || total > maxPeriodCells {
 		return PeriodSpec{}, false
 	}
 	// Index of today among the cells: before the first when the span has not
 	// started, past the last when it has ended.
-	today := shoptime.DaysBetween(startsAt, now)
+	today := shoptime.DaysBetween(first, shoptime.DateOf(now, now))
 
 	cells := make([]PeriodCell, total)
 	for i := range cells {
@@ -76,8 +75,6 @@ func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Tim
 			cells[i].State = CellToday
 		}
 	}
-	first := shoptime.DateOf(startsAt, now)
-	last := shoptime.LastDay(endsAt, now)
 	cells[0].Date = shoptime.DateLabel(ctx, first)
 	cells[total-1].Date = shoptime.DateLabel(ctx, last)
 

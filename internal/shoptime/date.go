@@ -23,21 +23,27 @@ func DateLabel(ctx context.Context, d Date) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDateLabel), d.Month.String()[:3], int(d.Month), d.Day)
 }
 
-// DaysBetween is how many shop days lie from from's day to to's day: negative
-// when to is the earlier day, zero within one day.
-func DaysBetween(from, to time.Time) int {
-	civil := func(t time.Time) time.Time {
-		y, m, d := In(t).Date()
-		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-	}
+// DaysBetween is how many days lie from from to to: negative when to is the
+// earlier day.
+func DaysBetween(from, to Date) int {
+	civil := func(d Date) time.Time { return time.Date(d.Year, d.Month, d.Day, 0, 0, 0, 0, time.UTC) }
 	return int(civil(to).Sub(civil(from)) / (24 * time.Hour))
+}
+
+// DaysLeft is how many days remain after today up to the last day of a period
+// ending at endsAt; negative once it has ended.
+func DaysLeft(now, endsAt time.Time) int {
+	return DaysBetween(DateOf(now, now), LastDay(endsAt, now))
 }
 
 // DateTimeText is DateText followed by the shop's clock time of t.
 func DateTimeText(ctx context.Context, t, now time.Time) string {
-	return DateText(ctx, DateOf(t, now)) + " " + In(t).Format("15:04")
+	return DateText(ctx, DateOf(t, now)) + " " + ClockText(t)
 }
 
 // LastDay is the last shop day a period ending at t still runs. The end is
 // exclusive, so a period ending at midnight ended the day before.
 func LastDay(t, now time.Time) Date { return DateOf(t.Add(-time.Nanosecond), now) }
+
+// ClockText is the shop's clock time of t.
+func ClockText(t time.Time) string { return In(t).Format("15:04") }

@@ -113,7 +113,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
 		campaign := HeroSlide{
 			Layout: SlidePhoto, Tone: ToneSage, Title: "Autumn desk sale",
-			Stats: []SlideStat{{Label: "Items", Value: "4 items"}},
+			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
 			CTA:   CTA{Label: see, Href: "/s/autumn-desk"},
 			Photo: Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
@@ -163,6 +163,27 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	}
 }
 
+// The struck-through original price already says a product is reduced, so a
+// card carries no "on sale" chip; a sold-out one still carries its own.
+func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	sale := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true}
+	page := renderComponent(t, ctx, Tile(sale))
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) || strings.Contains(page, "goen-tile__flag") {
+		t.Error("a reduced tile draws an on-sale chip")
+	}
+	if !strings.Contains(page, `class="goen-tile__was"`) {
+		t.Error("a reduced tile lost its struck-through original price")
+	}
+
+	sold := sale
+	sold.InStock = false
+	if got := renderComponent(t, ctx, Tile(sold)); !strings.Contains(got, i18n.T(ctx, i18n.KeySoldOut)) {
+		t.Error("a sold-out tile lost its chip")
+	}
+}
+
 // The carousel moves only when the visitor asks (WCAG 2.2.2 does not apply),
 // so the markup holds no autoplay switch and no pause button.
 func TestHeroCarouselHasNoAutoplay(t *testing.T) {
@@ -194,7 +215,7 @@ func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Date: "10/9"}, {Date: "10/10"}}}
 	slide := HeroSlide{
 		Layout: SlidePhoto, Tone: ToneSage, Title: "年終感謝祭全館滿額再折",
-		Stats:  []SlideStat{{Label: "結束", Value: "10 月 30 日", Note: "明天結束"}},
+		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}
 	got := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []HeroSlide{slide}}))
