@@ -2424,8 +2424,8 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
+    picking.picking_oldest_seconds,
     stock.sold_out,
-    active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
     requested.pending_returns,
@@ -2454,15 +2454,19 @@ FROM
      FROM orders o
      WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
-    (SELECT count(*)::bigint AS picking_orders FROM orders
-     WHERE fulfillment_status = 'picking') picking,
+    -- Waiting since a person took it into picking; an order moved there with no
+    -- event recorded falls back to when it was placed.
+    (SELECT count(*)::bigint AS picking_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'picking'),
+                o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
+     FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     -- The SKUs the stock days cover lists as sold out.
     (SELECT count(*)::bigint AS sold_out FROM product_variants pv
      JOIN products p ON p.id = pv.product_id
      WHERE pv.is_active AND p.status = 'active'
        AND pv.stock_quantity <= pv.safety_stock) stock,
-    (SELECT count(*)::bigint AS active_products FROM products
-     WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
             coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds
@@ -2496,8 +2500,8 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
+	PickingOldestSeconds             int64
 	SoldOut                          int64
-	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
 	PendingReturns                   int64
@@ -2519,8 +2523,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
+		&i.PickingOldestSeconds,
 		&i.SoldOut,
-		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
 		&i.PendingReturns,
@@ -8993,6 +8997,48 @@ func (q *Queries) LatestPaidDay(ctx context.Context, toAt time.Time) (time.Time,
 	return day, err
 }
 
+const latestPaidOrder = `-- name: LatestPaidOrder :one
+SELECT o.order_number, f.total_cents,
+       coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
+FROM orders o
+JOIN committed_orders c ON c.id = o.id
+CROSS JOIN LATERAL (
+    SELECT coalesce(
+               (SELECT min(e.occurred_at) FROM order_events e
+                WHERE e.order_id = o.id AND e.kind = 'paid'),
+               (SELECT max(p.paid_at) FROM payments p
+                WHERE p.order_id = o.id AND p.status = 'succeeded'),
+               o.placed_at)::timestamptz AS funded_at,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+) f
+WHERE o.placed_at >= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM return_requests b
+                  WHERE b.order_id = o.id AND b.before_shipment)
+ORDER BY f.funded_at DESC, o.id DESC
+LIMIT 1
+`
+
+type LatestPaidOrderRow struct {
+	OrderNumber    string
+	TotalCents     int64
+	ElapsedSeconds int64
+}
+
+// The newest committed order by when its money came in, which is read as
+// admin/health reads funded_at (UninvoicedOrders). Orders refunded before
+// shipment are left out, as RevenueBetween leaves them out; the total is
+// RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
+// Only orders placed since @since are looked at, so the dashboard does not read
+// the whole history; the caller asks again with no bound when none qualifies.
+func (q *Queries) LatestPaidOrder(ctx context.Context, since time.Time) (LatestPaidOrderRow, error) {
+	row := q.db.QueryRow(ctx, latestPaidOrder, since)
+	var i LatestPaidOrderRow
+	err := row.Scan(&i.OrderNumber, &i.TotalCents, &i.ElapsedSeconds)
+	return i, err
+}
+
 const leaseInvoiceOperation = `-- name: LeaseInvoiceOperation :one
 SELECT lease_invoice_operation(
     $1::uuid, $2::uuid, $3::interval
@@ -12686,6 +12732,17 @@ func (q *Queries) PublishShippingVersion(ctx context.Context, arg PublishShippin
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const publishedProductCount = `-- name: PublishedProductCount :one
+SELECT count(*)::bigint FROM products WHERE status = 'active'
+`
+
+func (q *Queries) PublishedProductCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, publishedProductCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const putMedia = `-- name: PutMedia :exec
