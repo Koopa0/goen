@@ -152,10 +152,10 @@ func fullProps() RunningTotalProps {
 	}
 }
 
-func renderRunningTotal(t *testing.T, p RunningTotalProps) string {
+func renderRunningTotal(t *testing.T, p *RunningTotalProps) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := RunningTotal(p).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
+	if err := RunningTotal(*p).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
 		t.Fatalf("RunningTotal.Render: %v", err)
 	}
 	return b.String()
@@ -174,7 +174,7 @@ func TestRunningTotalDrawsOnlyFromSevenDaysWithValues(t *testing.T) {
 	} {
 		p := fullProps()
 		p.Current.Buckets = tc.current
-		got := renderRunningTotal(t, p)
+		got := renderRunningTotal(t, &p)
 		if drawn := strings.Contains(got, "<svg"); drawn != tc.want {
 			t.Errorf("%s: RunningTotal draws = %v, want %v\n%s", tc.name, drawn, tc.want, got)
 		}
@@ -187,7 +187,7 @@ func TestRunningTotalDrawsOnlyFromSevenDaysWithValues(t *testing.T) {
 func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 	t.Parallel()
 
-	got := renderRunningTotal(t, fullProps())
+	got := renderRunningTotal(t, new(fullProps()))
 	for _, want := range []string{
 		`<figcaption class="goen-chart__caption">Revenue over 10 days: NT$10,000.</figcaption>`,
 		`class="goen-chart__endvalue"`,
@@ -220,7 +220,7 @@ func TestRunningTotalTableNamesThePreviousPeriodsDays(t *testing.T) {
 	for i := range p.Previous.Buckets {
 		p.Previous.Buckets[i].Day = time.Date(2026, 8, 1+i, 0, 0, 0, 0, time.UTC)
 	}
-	got := renderRunningTotal(t, p)
+	got := renderRunningTotal(t, &p)
 	for _, want := range []string{
 		`<th scope="col">Previous date</th>`,
 		`<th scope="row">Sep 7</th><td>NT$1,000</td><td>Aug 1</td><td>NT$500</td>`,
@@ -238,7 +238,7 @@ func TestRunningTotalTableNamesThePreviousPeriodsDays(t *testing.T) {
 func TestRunningTotalDrawsAnUnfinishedDayOpen(t *testing.T) {
 	t.Parallel()
 
-	partial := renderRunningTotal(t, fullProps())
+	partial := renderRunningTotal(t, new(fullProps()))
 	if got := strings.Count(partial, "goen-chart__end--open"); got != 2 {
 		t.Errorf("both periods end mid-day, but %d ends are open, want 2", got)
 	}
@@ -248,7 +248,7 @@ func TestRunningTotalDrawsAnUnfinishedDayOpen(t *testing.T) {
 
 	whole := fullProps()
 	whole.Current.Partial, whole.Previous.Partial = false, false
-	got := renderRunningTotal(t, whole)
+	got := renderRunningTotal(t, &whole)
 	if strings.Contains(got, "goen-chart__end--open") || strings.Contains(got, "up to 15:20)") {
 		t.Errorf("a whole last day is drawn as unfinished:\n%s", got)
 	}
@@ -260,8 +260,8 @@ func TestRunningTotalAxisIsOneUnitForEveryLabel(t *testing.T) {
 	p := fullProps()
 	p.Current.Buckets = filled(10, 20_000_000) // NT$200,000 a day, NT$2,000,000 in all
 	p.Previous.Buckets = filled(10, 10_000_000)
-	zh := newRunningTotal(i18n.WithLocale(t.Context(), i18n.ZhHant), p)
-	en := newRunningTotal(i18n.WithLocale(t.Context(), i18n.En), p)
+	zh := newRunningTotal(i18n.WithLocale(t.Context(), i18n.ZhHant), &p)
+	en := newRunningTotal(i18n.WithLocale(t.Context(), i18n.En), &p)
 
 	labels := func(r runningTotal) []string {
 		out := make([]string, 0, len(r.Grid))
@@ -290,7 +290,7 @@ func TestAxisLabelsAreTheValuesOfTheirLines(t *testing.T) {
 			p := fullProps()
 			p.Current.Buckets = filled(10, top/10)
 			p.Previous.Buckets = days(10)
-			r := newRunningTotal(ctx, p)
+			r := newRunningTotal(ctx, &p)
 
 			step := axisStep(top, MeasureMoney)
 			divisor, suffix := i18n.AxisUnit(ctx, step*gridLines(top, step)/100)
