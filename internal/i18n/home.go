@@ -112,6 +112,8 @@ var (
 
 	KeyUnitCategories = countKey("unit.categories", "%d\u00a0類", "%d\u00a0category", "%d\u00a0categories")
 
+	KeyUnitMonths = countKey("unit.months", "%d\u00a0個月", "%d\u00a0month", "%d\u00a0months")
+
 	KeyUnitDays = countKey("unit.days", "%d\u00a0天", "%d\u00a0day", "%d\u00a0days")
 
 	KeyEndsTomorrow = key("home.slide.ends_tomorrow", Message{ZhHant: "明天結束", En: "Ends tomorrow"})

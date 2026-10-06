@@ -11508,7 +11508,8 @@ type OrderTrackingRow struct {
 
 // rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
 // type a nullable date from an expression, so a reader checks delivered_at, never the dates.
-// goodwill_ends is the day return_line_policy_window stops reading 'goodwill'.
+// goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
+// holds the 14 to that function.
 func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]OrderTrackingRow, error) {
 	rows, err := q.db.Query(ctx, orderTracking, orderID)
 	if err != nil {

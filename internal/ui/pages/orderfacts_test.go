@@ -185,7 +185,7 @@ func TestAFullyReturnedOrderDrawsNoGrid(t *testing.T) {
 	if len(periods(html)) != 0 {
 		t.Error("a fully returned order draws a grid")
 	}
-	for _, banned := range []string{"剩餘", "申請退貨", "猶豫期最後一日"} {
+	for _, banned := range []string{"剩餘", "申請退貨", "最後一天"} {
 		if strings.Contains(html, banned) {
 			t.Errorf("a fully returned order still says %q", banned)
 		}
@@ -264,5 +264,31 @@ func TestTheHeadFactsOfAnOrderWithOneDeliveredParcel(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("the head facts do not contain %q", want)
 		}
+	}
+}
+
+func TestDaysLeftAgreeInEnglish(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		day  int
+		want string
+	}{
+		{"one day", 12, "1 <small>day</small>"},
+		{"two days", 11, "2 <small>days</small>"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := &OrderView{
+				Number: "GO-1", Status: order.FulfillmentDelivered, Now: time.Date(2026, 10, tt.day, 4, 0, 0, 0, time.UTC),
+				PlacedAt:  orderNow,
+				Lines:     []OrderLine{headphones()},
+				Shipments: []OrderShipment{deliveredOn(6, headphones())},
+			}
+			html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))
+			if !strings.Contains(html, tt.want) {
+				t.Errorf("days left do not read %q", tt.want)
+			}
+		})
 	}
 }

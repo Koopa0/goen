@@ -91,16 +91,14 @@ var (
 		En:     "Right to cancel and returns",
 	})
 
-	KeyOrderLastDay = key("order.rescission.lastday", Message{ZhHant: "猶豫期最後一日", En: "Last day to cancel"})
+	KeyOrderLastDay = key("order.rescission.lastday", Message{ZhHant: "最後一天", En: "Last day to cancel"})
 
 	KeyOrderDaysLeft = key("order.rescission.daysleft", Message{ZhHant: "剩餘", En: "Days left"})
 
 	KeyOrderUnusedUntil = key("order.rescission.unuseduntil", Message{
 		ZhHant: "未使用退貨至",
-		En:     "Unused returns until",
+		En:     "Return unused goods by",
 	})
-
-	KeyOrderUnitDays = key("order.unit.days", Message{ZhHant: "天", En: "days"})
 
 	KeyOrderRescissionAwaits = countKey("order.rescission.awaits",
 		"猶豫期 %d 天，收到次日起算。",
@@ -151,8 +149,6 @@ var (
 	KeyOrderWarranty = key("order.warranty", Message{ZhHant: "保固", En: "Warranty"})
 
 	KeyOrderWarrantyUntil = key("order.warranty.until", Message{ZhHant: "保固至", En: "Covered until"})
-
-	KeyOrderWarrantyUnit = key("order.warranty.unit", Message{ZhHant: "個月", En: "months"})
 
 	KeyOrderWarrantyFromDelivery = key("order.warranty.fromdelivery", Message{ZhHant: "送達日起算", En: "Counted from delivery"})
 
