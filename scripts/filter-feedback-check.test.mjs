@@ -53,7 +53,7 @@ test('an endpoint that never listens fails within the deadline with the connecti
   assert.ok(performance.now() - start < 1500, 'readiness failure must remain bounded');
 });
 
-test('a pending endpoint response cannot outlive the readiness deadline', async (t) => {
+test('a pending endpoint response cannot outlive the readiness deadline', { timeout: 3000 }, async (t) => {
   let requests = 0;
   const server = createServer(() => { requests++; });
   const endpoint = await listen(server);
@@ -61,7 +61,7 @@ test('a pending endpoint response cannot outlive the readiness deadline', async 
   const start = performance.now();
   await assert.rejects(waitForDebuggingEndpoint(endpoint, { timeoutMs: 150, retryMs: 10 }), (error) => {
     assert.match(error.message, /was not ready within 150ms/);
-    assert.equal(error.cause.name, 'TimeoutError');
+    assert.match(error.cause.name, /^(TimeoutError|AbortError)$/);
     return true;
   });
   assert.equal(requests, 1);
@@ -89,4 +89,20 @@ test('an HTTP response that never becomes ready retains its status cause', async
     assert.equal(error.cause.message, 'debugging endpoint answered HTTP 503');
     return true;
   });
+});
+
+test('a stalled JSON body cannot outlive the readiness deadline', { timeout: 3000 }, async (t) => {
+  const server = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write('{');
+  });
+  const endpoint = await listen(server);
+  t.after(() => close(server));
+  const start = performance.now();
+  await assert.rejects(waitForDebuggingEndpoint(endpoint, { timeoutMs: 150, retryMs: 10 }), (error) => {
+    assert.match(error.message, /was not ready within 150ms/);
+    assert.match(error.cause.name, /^(TimeoutError|AbortError)$/);
+    return true;
+  });
+  assert.ok(performance.now() - start < 1500, 'JSON body reading must remain bounded');
 });

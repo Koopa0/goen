@@ -25,7 +25,7 @@ export async function waitForDebuggingEndpoint(endpoint, { timeoutMs = 30000, re
       return version;
     } catch (error) {
       // A final deadline abort must not hide an earlier startup failure.
-      if (!cause || error.name !== 'TimeoutError') cause = error;
+      if (!cause || !['TimeoutError', 'AbortError'].includes(error.name)) cause = error;
     }
     const remaining = deadline - performance.now();
     if (remaining > 0) await delay(Math.min(retryMs, remaining));
