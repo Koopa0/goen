@@ -112,6 +112,8 @@ type ProductView struct {
 	Notice            components.Result
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
+	Sales             ProductSales
+	Ratings           ProductRatings
 	ImageUploadDraft  ProductImageUploadDraft
 	ImageReuseDraft   ProductImageReuseDraft
 }

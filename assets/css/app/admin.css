@@ -2498,6 +2498,28 @@ input.goen-check {
   scroll-margin-top: 72px;
 }
 
+/* The rating spread of a product: a star, then its bar and count. The table is
+   the text of the spread; the bar only draws it. */
+.goen-spread {
+  border-collapse: collapse;
+  max-width: 28rem;
+  width: 100%;
+}
+
+.goen-spread th {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  white-space: nowrap;
+  width: 4.5rem;
+}
+
+.goen-spread td {
+  padding: 4px 0;
+}
+
 /* A product's options and its variants read the same way: one row per thing,
    divided by a hairline, the name first and the facts about it after. Neither
    is a table — a variant carries a price, a stock line and an option string of
