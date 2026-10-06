@@ -655,7 +655,8 @@ LEFT JOIN brands b ON b.id = p.brand_id
 -- every product in the dev seed, which is what a fixture where two rules agree
 -- is worth.
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
+    SELECT price_cents, compare_at_price_cents,
+           (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (compare_at_price_cents IS NOT NULL
@@ -680,6 +681,9 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
+    -- A discount that can be bought comes before a deeper one that cannot: the
+    -- variant the tile shows, not any variant of the product.
+    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -724,20 +728,21 @@ WHERE EXISTS (
 ORDER BY c.updated_at DESC
 LIMIT $1;
 
--- The window is judged against the database's clock, which wrote the timestamps.
--- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+-- Any active campaign by its slug, inside its window or not: the page says
+-- honestly whether it has not started or has ended.
+-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at,
        c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = @slug::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now();
+WHERE c.slug = @slug::text AND c.is_active;
 
 -- A campaign is listed only while a published featured product can be bought,
--- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at, c.tone,
@@ -767,6 +772,27 @@ WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
       JOIN products p ON p.id = cp.product_id AND p.status = 'active'
       JOIN product_variants v ON v.product_id = p.id AND v.is_active
       WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock);
+
+-- Whether /deals has anything to buy: a discounted product that can be bought,
+-- or a campaign ListedCampaigns lists. The header asks on every page; each half
+-- stops at its first row. Its plan has not been measured.
+-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered;
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many
@@ -853,7 +879,8 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id;
+-- Sellable products first, then the position the back office set.
+ORDER BY in_stock DESC, cp.position, p.id;
 
 -- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many
@@ -1029,3 +1056,134 @@ JOIN product_option_values axis_value ON axis_value.option_id = axis.id
 WHERE p.status = 'active' AND p.category_id = ANY(@category_ids::uuid[])
 GROUP BY axis.name, axis_value.value
 ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value;
+
+-- What a department says about itself under its head: the products it holds across
+-- its whole subtree, the sub-categories directly under it, and the brands of those
+-- products.
+-- name: DepartmentFacts :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT
+    (SELECT count(*) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
+    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
+     WHERE r.slug = @slug::text)::bigint AS categories,
+    (SELECT count(DISTINCT p.brand_id) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands;
+
+-- The first running campaign that features a product of the department which can be
+-- bought: ListedCampaigns' test, narrowed to the department's own products.
+-- name: DepartmentCampaign :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at
+FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
+        AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT 1;
+
+-- Per category of the department that holds at least two products that can be bought, its three
+-- newest. A category is a candidate for the comparison; whether it may be compared
+-- is the caller's to say.
+-- name: DepartmentCompareCandidates :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT category_id, slug FROM held
+WHERE held >= 2 AND nth <= 3
+ORDER BY held DESC, category_id, nth;
+
+-- The newest product of the department with three or more colours that each have a
+-- photograph, and those colours with the first photograph of each, in the order the
+-- product lists them. A swatch marks a colour: the schema leaves it NULL on a value
+-- that is not one.
+-- name: DepartmentColourStory :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+story AS (
+    SELECT p.id
+    FROM products p
+    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants sv
+          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
+    GROUP BY p.id
+    HAVING count(DISTINCT v.id) >= 3
+    ORDER BY p.published_at DESC, p.id DESC
+    LIMIT 1
+)
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, @locale::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
+    coalesce(b.name, '') AS brand,
+    mv.price_cents AS price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    localized_name(v.value, v.value_en, @locale::text) AS colour,
+    v.swatch_hex::text AS swatch,
+    img.storage_key AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width
+FROM story s
+JOIN products p ON p.id = s.id
+LEFT JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width
+    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
+) img ON true
+ORDER BY v.position, v.id;
+
+-- The first two specifications each product lists, for the line under its name on a
+-- department whose products are compared.
+-- name: ListingHighlights :many
+SELECT slug, value FROM (
+    SELECT p.slug, localized_name(s.value, s.value_en, @locale::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY(@slugs::text[])
+) ranked
+WHERE nth <= 2
+ORDER BY slug, nth;

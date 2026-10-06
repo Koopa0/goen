@@ -16,78 +16,11 @@ templ Home(p layouts.Page, v HomeView) {
 			@heroCarousel(v.Slides)
 		}
 		<div class="goen-home">
-			<section class="goen-home__section" aria-labelledby="cats-heading">
-				<div class="goen-home__head">
-					<h2 id="cats-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
-				</div>
-				<ul class="goen-cats__grid" role="list">
-					for _, c := range v.Categories {
-						<li>
-							<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
-								<span class="goen-cat__well">
-									if c.Photo.Shown() {
-										<img
-											class="goen-cat__photo"
-											src={ c.Photo.URL }
-											srcset={ c.Photo.Srcset }
-											sizes="(min-width: 1024px) 200px, 33vw"
-											alt=""
-											width="800"
-											height="600"
-											decoding="async"
-										/>
-									}
-								</span>
-								<span class="goen-cat__name">{ c.Name }</span>
-							</a>
-						</li>
-					}
-				</ul>
-			</section>
-			if len(v.Row.Tiles) > 0 {
-				<section class="goen-home__section" aria-labelledby="row-heading">
-					<div class="goen-home__head">
-						@heading("row-heading", v.Row.Title, v.Row.Fact)
-						@seeAll(i18n.T(ctx, i18n.KeyHomeSeeAll), v.Row.Href)
-					</div>
-					<ul class="goen-tiles__grid" role="list">
-						for _, t := range UnderLeadEager(v.Row.Tiles) {
-							@Tile(t)
-						}
-					</ul>
-				</section>
-			}
+			@departmentDirectory(v.Categories, v.Directory())
+			@productRow(v.Row)
 		</div>
 		if v.Band != nil {
-			<section class="goen-band" data-tone={ v.Band.Tone.Attr() } aria-labelledby="band-heading">
-				<div class="goen-container goen-band__grid">
-					<div class="goen-band__media">
-						if v.Band.Photo.Shown() {
-							<img
-								src={ v.Band.Photo.URL }
-								srcset={ v.Band.Photo.Srcset }
-								sizes="(min-width: 1024px) 40vw, 100vw"
-								alt=""
-								width="800"
-								height="600"
-								loading="lazy"
-								decoding="async"
-							/>
-						}
-					</div>
-					<div class="goen-band__body">
-						<div class="goen-home__head">
-							@heading("band-heading", v.Band.Name, v.Band.Fact)
-							@seeAll(fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), v.Band.Name), v.Band.Href)
-						</div>
-						<ul class="goen-band__tiles" role="list">
-							for _, t := range v.Band.Tiles {
-								@Tile(t)
-							}
-						</ul>
-					</div>
-				</div>
-			</section>
+			@departmentBand(v.Band)
 		}
 		<div class="goen-home">
 			@shopRules(v.Rules)
@@ -95,12 +28,8 @@ templ Home(p layouts.Page, v HomeView) {
 	}
 }
 
-templ heading(id, name, rest string) {
-	if rest == "" {
-		<h2 id={ id } class="goen-home__heading">{ name }</h2>
-	} else {
-		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside"><span class="goen-home__sep">{ i18n.T(ctx, i18n.KeyHomeAside) }</span>{ rest }</span></h2>
-	}
+templ heading(id, name string) {
+	<h2 id={ id } class="goen-home__heading">{ name }</h2>
 }
 
 templ seeAll(label, href string) {
@@ -196,4 +125,161 @@ templ heroCarousel(slides []HeroSlide) {
 			</div>
 		}
 	</section>
+}
+
+templ departmentBand(b *DepartmentBand) {
+	{{ photo, onWell := bandPhoto(b.Photo, b.Tiles) }}
+	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
+		<div class="goen-band__grid">
+			if photo.Shown() {
+				@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset}, onWell, "(min-width: 1024px) 42vw, 100vw", true)
+			}
+			<div class="goen-band__body">
+				<div class="goen-home__head">
+					@bandHeading("band-heading", b.Name, b.Fact)
+					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, b.Items, b.Items), b.Href)
+				</div>
+				<ul class="goen-band__tiles" role="list">
+					for _, t := range b.Tiles {
+						@Tile(t)
+					}
+				</ul>
+			</div>
+		</div>
+	</section>
+}
+
+templ departmentDirectory(cats []HomeCategory, layout DirectoryLayout) {
+	if layout != DirectoryNone {
+		<section class="goen-home__section" aria-labelledby="cats-heading">
+			<div class="goen-home__head">
+				@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
+			</div>
+			<ul class={ "goen-cats__grid", "goen-cats__grid--" + string(layout) } role="list">
+				for _, c := range cats {
+					<li>
+						if layout == DirectoryTiles {
+							@departmentTile(c)
+						} else {
+							@departmentRow(c, layout == DirectoryRows)
+						}
+					</li>
+				}
+			</ul>
+		</section>
+	}
+}
+
+templ departmentTile(c HomeCategory) {
+	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
+		<span class="goen-cat__well">
+			if c.Photo.Shown() {
+				<img
+					class="goen-cat__photo"
+					src={ c.Photo.URL }
+					srcset={ c.Photo.Srcset }
+					sizes="(min-width: 704px) 50vw, 100vw"
+					alt=""
+					width="800"
+					height="600"
+					decoding="async"
+				/>
+			} else {
+				<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
+			}
+		</span>
+		<span class="goen-cat__line">
+			<span class="goen-cat__name">{ c.Name }</span>
+			<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
+		</span>
+	</a>
+}
+
+// With a stage the photograph is both the row's thumbnail and, from 1024px, the
+// picture the list switches between, so no department is fetched twice.
+templ departmentRow(c HomeCategory, stage bool) {
+	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
+		if c.Photo.Shown() {
+			<img
+				class="goen-cat__photo"
+				src={ c.Photo.URL }
+				srcset={ c.Photo.Srcset }
+				if stage {
+					sizes="(min-width: 1024px) 40vw, 4rem"
+				} else {
+					sizes="5rem"
+				}
+				alt=""
+				width="800"
+				height="600"
+				decoding="async"
+			/>
+		} else {
+			<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
+			if stage {
+				<span class="goen-cat__stage" aria-hidden="true">{ c.Name }</span>
+			}
+		}
+		<span class="goen-cat__name">{ c.Name }</span>
+		if c.Subs != "" {
+			<span class="goen-cat__subs">{ c.Subs }</span>
+		}
+		<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
+		<span class="goen-cat__go" aria-hidden="true">→</span>
+	</a>
+}
+
+// A running campaign's row is its products and its facts. With a lead the
+// first product is the 2×2 tile on the campaign's tone and the facts are the
+// eighth cell, a card whose only link is the count; without one the facts stand
+// under the heading. With no campaign the row is the newest products.
+templ productRow(r ProductRow) {
+	if len(r.Tiles) > 0 {
+		<section class="goen-home__section" aria-labelledby="row-heading">
+			<div class="goen-home__head">
+				@heading("row-heading", r.Title)
+				if !r.HasLead() {
+					if r.Campaign != nil {
+						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
+					} else {
+						@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
+					}
+				}
+			</div>
+			if r.Campaign != nil && !r.HasLead() {
+				<div class="goen-home__facts">
+					@components.StatLine(r.Campaign.Facts, components.StatLinePlain)
+					if r.Campaign.Period != nil {
+						@components.Period(*r.Campaign.Period)
+					}
+				</div>
+			}
+			if r.HasLead() {
+				<ul class="goen-tiles__grid goen-tiles__grid--lead" data-tone={ r.Campaign.Tone.Attr() } role="list">
+					for i, t := range r.Shelf() {
+						if i == 0 {
+							<li class="goen-tile__cell goen-tile__cell--lead">
+								@tileCard(t)
+							</li>
+						} else {
+							@Tile(t)
+						}
+					}
+					<li class="goen-rowcard">
+						@components.StatLine(r.Campaign.CardFacts, components.StatLinePlain)
+						if r.Campaign.Period != nil {
+							@components.Period(*r.Campaign.Period)
+						}
+						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
+					</li>
+				</ul>
+			} else {
+				<ul class="goen-tiles__grid" role="list">
+					for _, t := range r.Shelf() {
+						@Tile(t)
+					}
+				</ul>
+			}
+		</section>
+	}
 }

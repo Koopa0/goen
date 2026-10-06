@@ -33,8 +33,8 @@ templ Footer(state NewsletterState) {
 					</ul>
 				</nav>
 			}
-			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerShopping[:])
-			@footerColumn(i18n.T(ctx, i18n.KeyFooterPolicies), footerAbout[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerHelp[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterAboutTerms), footerAbout[:])
 			<div class="goen-footer__news">
 				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
 				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
@@ -89,7 +89,7 @@ templ NewsletterForm(s NewsletterState) {
 		if s.Done {
 			<p class="goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
 		} else {
-			<label class="goen-sr-only" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+			<label class="goen-label goen-footer__signuplabel" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
 			@components.Input(components.FieldProps{
 				ID:        "newsletter-email",
 				Name:      "email",

@@ -27,7 +27,7 @@ var (
 
 	KeyCartCount = countKey("nav.cart.count", "購物車，%s 件商品", "Cart, %s item", "Cart, %s items")
 
-	KeyDeals = key("nav.deals", Message{ZhHant: "限時優惠", En: "Deals"})
+	KeyDeals = key("nav.deals", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyLanguage = key("nav.language", Message{ZhHant: "語言", En: "Language"})
 
@@ -50,7 +50,7 @@ var (
 
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 
-	KeyFooterPolicies = key("footer.policies", Message{ZhHant: "政策", En: "Policies"})
+	KeyFooterAboutTerms = key("footer.about_terms", Message{ZhHant: "關於與條款", En: "About and terms"})
 
 	KeyFooterAbout = key("footer.about", Message{ZhHant: "關於 goen", En: "About goen"})
 

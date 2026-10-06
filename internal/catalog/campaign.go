@@ -16,10 +16,10 @@ import (
 
 const CampaignPageSize = 6
 
-// Campaign returns ErrNotFound for a promotion outside its window rather than
-// an empty page.
+// Campaign returns ErrNotFound for a campaign that is switched off. One outside
+// its window is still shown, as not started or ended.
 func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, error) {
-	c, err := s.q.RunningCampaign(ctx, db.RunningCampaignParams{
+	c, err := s.q.CampaignBySlug(ctx, db.CampaignBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	return pages.CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
-		EndsOn:   pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
+		Schedule: pages.NewCampaignSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
 		Image: pages.Photo{
 			URL:    assets.ProductImageURL(c.ImageKey),
@@ -47,6 +47,15 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 		},
 		Tone: pages.ResolveTone(c.Tone),
 	}, nil
+}
+
+// DealsOnOffer is whether /deals has a product to buy or a campaign to list.
+func (s *Store) DealsOnOffer(ctx context.Context) (bool, error) {
+	offered, err := s.q.DealsHaveSomethingToBuy(ctx)
+	if err != nil {
+		return false, fmt.Errorf("read whether deals are on offer: %w", err)
+	}
+	return offered, nil
 }
 
 func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {

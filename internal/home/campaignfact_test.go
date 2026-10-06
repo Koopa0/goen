@@ -13,23 +13,34 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// A campaign row names its last day however far off it is.
-func TestACampaignRowFactNamesItsLastDay(t *testing.T) {
+// The campaign card says what is left before when it ends, and leaves the count
+// to its link; on the last two days only the end's note remains.
+func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
+	taipei := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, taipei)
 	s := &Store{now: func() time.Time { return now }}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tt := range []struct {
 		name   string
 		endsAt time.Time
-		want   string
+		want   []string
 	}{
-		{"near", now.AddDate(0, 0, 29), "6 件商品，至 10\u00a0月 31\u00a0日"},
-		{"a year off", now.AddDate(1, 0, 0), "6 件商品，至 2027\u00a0年 10\u00a0月 2\u00a0日"},
+		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"剩餘3\u00a0天", "結束10月12日\u00a018:00"}},
+		{"last day", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"結束10月9日今天結束"}},
 	} {
-		got := s.campaignRowFact(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
-		if got != tt.want {
+		schedule := s.campaignSchedule(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		stats := schedule.CardFacts()
+		got := make([]string, 0, len(stats))
+		for i := range stats {
+			var b strings.Builder
+			if err := components.StatLine(stats[i:i+1], components.StatLinePlain).Render(ctx, &b); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, text(b.String()))
+		}
+		if !slices.Equal(got, tt.want) {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
 		}
 	}

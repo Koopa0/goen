@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
 )
 
 type Seller struct {
@@ -26,6 +29,14 @@ func (s Seller) UnitsText() string { return strconv.FormatInt(s.Units, 10) }
 
 func (s Seller) Href() string { return "/admin/products/" + s.Slug }
 
+// Department is a top-level category and what its products' lines sold for.
+type Department struct {
+	Name       string
+	SalesCents int64
+}
+
+func (d Department) Sales() string { return money.TWD(d.SalesCents) }
+
 type ReportView struct {
 	Days         int
 	Orders       int64
@@ -42,6 +53,7 @@ type ReportView struct {
 	// of RevenueCents is read from.
 	RevenueSquares float64
 	Sellers        []Seller
+	Departments    []Department
 	AtRisk         []StockRisk
 	// StockDays is how many shop days back the stock rows look.
 	StockDays int
@@ -54,6 +66,27 @@ type ReportView struct {
 	// ReturnedErr is why Returned could not be read; the rest of the report
 	// does not depend on it.
 	ReturnedErr error
+	Daily       DailyRevenue
+	Paid        PaidDays
+	// DailyUnavailable is set when the days could not be read, so the running
+	// totals say so rather than read as a period without orders.
+	DailyUnavailable bool
+}
+
+// DailyRevenue is each shop day's paid revenue in this period and in the one
+// before it, and the time of day both periods are counted up to.
+type DailyRevenue struct {
+	Current, Previous chart.Series
+	Cut               string
+}
+
+// PaidDays is the paid orders of each shop day of the period, the campaigns
+// that were on during it, and, when no day had an order, the day of the latest
+// one before it.
+type PaidDays struct {
+	Days      chart.Series
+	Campaigns []chart.Span
+	Latest    *shoptime.Date
 }
 
 // PreviousFigures are the period of as many shop days before this one, up to
@@ -136,6 +169,131 @@ func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64
 	return i18n.Count(ctx, i18n.KeyAdminRepLess, int64(days), days, percent)
 }
 
+// ShowsRunningTotal reports whether this period has days with orders enough to
+// draw its running total.
+func (v *ReportView) ShowsRunningTotal() bool {
+	return v.Daily.Current.Density() == chart.DensityFull
+}
+
+// RunningTotal is the chart of the days, with the revenue sentence as its
+// caption: the tile's own wording, so the two cannot disagree.
+func (v *ReportView) RunningTotal(ctx context.Context) chart.RunningTotalProps {
+	current, previous := v.Daily.Current, v.Daily.Previous
+	current.Label = i18n.Count(ctx, i18n.KeyAdminRepLastDays, int64(v.Days), v.Days)
+	previous.Label = i18n.Count(ctx, i18n.KeyAdminRepPreviousDays, int64(v.Days), v.Days)
+	return chart.RunningTotalProps{
+		Current: current, Previous: previous,
+		Measure: chart.MeasureMoney,
+		Caption: i18n.Count(ctx, i18n.KeyAdminRepRunningCaption, int64(v.Days),
+			v.Days, v.Revenue(), v.RevenueAgainst(ctx)),
+		Note:               i18n.Count(ctx, i18n.KeyAdminRepRunningNote, int64(v.Days), v.Days, v.Daily.Cut),
+		PreviousDayHeading: i18n.Count(ctx, i18n.KeyAdminRepPreviousDate, int64(v.Days), v.Days),
+		DayHeading:         i18n.T(ctx, i18n.KeyAdminRepDate),
+		TotalLabel:         i18n.T(ctx, i18n.KeyAdminRepTotal),
+		PartialLabel:       fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), v.Daily.Cut),
+	}
+}
+
+// PaidHeading names the chart of paid orders by what each of its columns holds.
+func (v *ReportView) PaidHeading(ctx context.Context) string {
+	if v.Paid.Days.Grouped() {
+		return i18n.T(ctx, i18n.KeyAdminRepEvery7Days)
+	}
+	return i18n.T(ctx, i18n.KeyAdminRepDaily)
+}
+
+// ShowsPaidColumns reports whether the days with paid orders are enough to
+// draw columns; fewer are told in a sentence.
+func (v *ReportView) ShowsPaidColumns() bool {
+	return v.Paid.Days.Density() >= chart.DensitySparse
+}
+
+// PaidColumns is the chart of paid orders, with the campaigns of the period
+// bracketed on it.
+func (v *ReportView) PaidColumns(ctx context.Context) chart.ColumnsProps {
+	days := v.Paid.Days
+	days.Label = i18n.T(ctx, i18n.KeyAdminRepPaidOrders)
+	dayHeading := i18n.T(ctx, i18n.KeyAdminRepDate)
+	if days.Grouped() {
+		dayHeading = i18n.T(ctx, i18n.KeyAdminRepFromDay)
+	}
+	return chart.ColumnsProps{
+		Series: days, Spans: v.Paid.Campaigns,
+		Caption:      v.PaidSentence(ctx),
+		Note:         fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPaidNote), v.Daily.Cut),
+		DayHeading:   dayHeading,
+		SpanHeading:  i18n.T(ctx, i18n.KeyAdminRepCampaign),
+		PartialLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUntil), v.Daily.Cut),
+	}
+}
+
+// PaidSentence says what the paid orders of the days were: the caption of the
+// columns, or, when there are too few days to draw them, all there is to say.
+func (v *ReportView) PaidSentence(ctx context.Context) string {
+	days := v.Paid.Days
+	period := dayText(ctx, v.From) + "–" + dayText(ctx, v.To)
+	var withOrders []chart.Bucket
+	for _, b := range days.Buckets {
+		if b.Value != 0 {
+			withOrders = append(withOrders, b)
+		}
+	}
+	switch days.Density() {
+	case chart.DensityNone:
+		if v.Paid.Latest == nil {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepNoPaid), period)
+		}
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepNoPaidSince), period, longDayText(ctx, *v.Paid.Latest))
+	case chart.DensityFew:
+		items := make([]string, len(withOrders))
+		for i, b := range withOrders {
+			items[i] = i18n.Count(ctx, i18n.KeyAdminRepFewDay, b.Value, dayText(ctx, dayOf(b.Day)), b.Value)
+		}
+		return i18n.Count(ctx, i18n.KeyAdminRepFewDays, int64(len(withOrders)),
+			period, len(withOrders), strings.Join(items, i18n.T(ctx, i18n.KeyChartListSeparator)))
+	case chart.DensitySparse:
+		return i18n.Count(ctx, i18n.KeyAdminRepSparseDays, int64(len(withOrders)), len(withOrders))
+	case chart.DensityFull:
+	}
+	return v.busiest(ctx)
+}
+
+// busiest names the columns with the most paid orders; two or three tied are
+// named, more are counted. Today is told beside the busiest day.
+func (v *ReportView) busiest(ctx context.Context) string {
+	days := v.Paid.Days
+	peaks := chart.Peaks(days.Columns())
+	orders := func(n int64) string { return i18n.Count(ctx, i18n.KeyAdminRepOrdersCount, n, n) }
+	each := orders(peaks[0].Value)
+	if days.Grouped() {
+		if len(peaks) == 1 {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestStretch), peaks[0].Days, dayText(ctx, dayOf(peaks[0].Day)), each)
+		}
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestStretches), len(peaks), each)
+	}
+	today := orders(days.Buckets[len(days.Buckets)-1].Value)
+	switch {
+	case len(peaks) == 1:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestDay), longDayText(ctx, dayOf(peaks[0].Day)), each, today, v.Daily.Cut)
+	case len(peaks) <= 3:
+		names := make([]string, len(peaks))
+		for i, c := range peaks {
+			names[i] = longDayText(ctx, dayOf(c.Day))
+		}
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestDays), strings.Join(names, i18n.T(ctx, i18n.KeyChartListSeparator)), each, today, v.Daily.Cut)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestMany), len(peaks), each, today, v.Daily.Cut)
+}
+
+func dayOf(t time.Time) shoptime.Date {
+	return shoptime.Date{Year: t.Year(), Month: t.Month(), Day: t.Day()}
+}
+
+// longDayText is a day as a sentence has it: "Oct 5", "10 月 5 日".
+func longDayText(ctx context.Context, d shoptime.Date) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyShortDate), d.Month.String()[:3], int(d.Month), d.Day)
+}
+
 func (v *ReportView) previous(ctx context.Context, figure string) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(v.Days), v.Days, figure)
 }
@@ -215,4 +373,20 @@ func (v *ReportView) TopUnits() int64 {
 		top = max(top, s.Units)
 	}
 	return top
+}
+
+// TopDepartment is the longest bar's scale: the largest department's product sales.
+func (v *ReportView) TopDepartment() int64 {
+	var top int64
+	for _, d := range v.Departments {
+		top = max(top, d.SalesCents)
+	}
+	return top
+}
+
+// OnlyDepartment says so when one department holds all of the product sales, where a
+// bar would compare it with nothing.
+func (v *ReportView) OnlyDepartment(ctx context.Context) string {
+	d := v.Departments[0]
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentOnly), d.Name, d.Sales())
 }

@@ -11,6 +11,7 @@
    ============================================================ */
 
 :root {
+  --col-gap: clamp(16px, 1.7vw, 24px);
   /* The brand names are the accent under the spelling the shared
      primitives were written against. They follow --accent rather than
      repeating it, so the accent moves in one place. */
@@ -182,7 +183,8 @@ body {
 .ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
-.ui-statline--wide, .ui-statline--glance { max-width: none; }
+.ui-statline--wide, .ui-statline--glance, .ui-statline--pairs { max-width: none; }
+.ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
 .ui-statline--s { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
 .ui-statline--s > div { flex: 0 1 auto; min-width: min(7rem, 100%); padding-top: 0.375rem; }
 .ui-statline--s dd { font-size: var(--t-16); font-weight: 400; letter-spacing: 0; }
@@ -379,6 +381,7 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+  --font-editorial: 'Noto Serif TC', serif;
 
   --fw-display: 350;
 
@@ -445,18 +448,22 @@ body {
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
+  --chart-label: var(--fg-muted);
 }
 
-/* The one measurement every surface shares: a content column that stops at
-   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
-   the header bar's, the home page's and the footer grid's content edges and
-   fails when they disagree, so each reads the column from this one pair. */
+/* The back office's content column: it stops at 1280px inside a gutter of
+   16 / 24 / 32px. app.css sets the storefront's own pair after this, and
+   `scripts/check-layout.mjs` compares the header bar's, the home page's and
+   the footer grid's content edges and fails when they disagree, so each reads
+   the column from that one pair. */
 :root {
   --page-gutter: 16px;
   --page-width: 1280px;
   /* The content column plus its gutters, for the pages that size themselves
      with border-box: their text then starts where the header's does. */
   --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
+  /* Where the content column starts on a full-bleed band. */
+  --page-edge: max(var(--page-gutter), calc((100vw - var(--page-width)) / 2 + var(--page-gutter)));
 }
 
 @media (min-width: 768px) {

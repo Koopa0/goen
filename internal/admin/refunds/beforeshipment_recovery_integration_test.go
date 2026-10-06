@@ -119,8 +119,8 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
 
 	terminal := postRefundCompletion(ctx, handler, number, true)
-	if terminal.Code != http.StatusSeeOther || terminal.Header().Get("Location") != "/admin/orders/"+number+"?refused=1" {
-		t.Errorf("terminal press = %d %q, want the existing unavailable-refund refusal",
+	if terminal.Code != http.StatusSeeOther || terminal.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {
+		t.Errorf("terminal press = %d %q, want the cancelled-order refusal",
 			terminal.Code, terminal.Header().Get("Location"))
 	}
 	if diff := cmp.Diff(wantFinished, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {

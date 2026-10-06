@@ -186,7 +186,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// locale is on the context before any handler or template reads it.
 	var handler http.Handler = mux
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
-	handler = withTopNav(handler, home.NewStore(pool), log)
+	handler = withTopNav(handler, home.NewStore(pool), catalogue, log)
 	handler = withStaffEntrance(handler)
 	handler = withSiteOrigin(handler, baseURL)
 	handler = withNoStore(handler)
@@ -409,7 +409,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
-	checkup := health.NewStore(adminPool)
+	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
 	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup), sessionCloser(gateway), log)

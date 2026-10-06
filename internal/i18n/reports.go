@@ -71,6 +71,17 @@ var (
 	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
 	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費；不是上方的營收。", En: "Product gross is the tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping. It is not the revenue above."})
 
+	KeyAdminRepDepartments     = key("admin.rep.departments", Message{ZhHant: "各館商品銷售額", En: "Product sales by department"})
+	KeyAdminRepDepartmentsNote = key("admin.rep.departments.note", Message{
+		ZhHant: "商品銷售額按含稅成交單價乘數量計算，商品依目前所在的館別歸類；折扣與運費按訂單計，不分館：各館加總減去訂單折扣、加上運費，就是上方的營收。出貨前全額退款的訂單不計入。",
+		En:     "Product sales are the tax-inclusive sale unit price multiplied by quantity, with each product counted in the department it is in now. Discounts and shipping belong to the order, not a department: the departments' total, less order discounts and plus shipping, is the revenue above. Orders fully refunded before shipment are left out.",
+	})
+	KeyAdminRepDepartmentOnly = key("admin.rep.departments.only", Message{
+		ZhHant: "這段期間的商品銷售額全部屬於%s：%s。",
+		En:     "All product sales in this period are in %s: %s.",
+	})
+	KeyAdminRepDepartmentSales = key("admin.rep.departments.sales", Message{ZhHant: "商品銷售額 %s", En: "Product sales %s"})
+
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
@@ -123,5 +134,114 @@ var (
 	KeyAdminRepReturnedUnavailable = key("admin.rep.returned.unavailable", Message{
 		ZhHant: "退貨資料暫時無法取得。",
 		En:     "Returns data is unavailable right now.",
+	})
+)
+
+var (
+	KeyAdminRepRunning = key("admin.rep.running", Message{ZhHant: "累計營收（NT$）", En: "Revenue so far (NT$)"})
+
+	// %[1]d is the number of days, %[2]s the revenue, %[3]s how it stands against
+	// the previous period.
+	KeyAdminRepRunningCaption = countKey("admin.rep.running.caption",
+		"%[1]d 天營收 %[2]s，%[3]s。",
+		"Revenue over %[1]d day: %[2]s. %[3]s.",
+		"Revenue over %[1]d days: %[2]s. %[3]s.")
+
+	// %[1]d is the number of days in the period, %[2]s the time of day both
+	// periods are counted up to.
+	KeyAdminRepRunningNote = countKey("admin.rep.running.note",
+		"只計入已付款的訂單，依下單時間。今天到 %[2]s 為止，前 %[1]d 天同樣算到 %[2]s。",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d day.",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d days.")
+
+	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
+		ZhHant: "這張圖的資料暫時無法取得。",
+		En:     "This chart's data is unavailable right now.",
+	})
+
+	KeyAdminRepLastDays = countKey("admin.rep.lastdays", "近 %d 天", "Last %d day", "Last %d days")
+
+	KeyAdminRepPreviousDays = countKey("admin.rep.previousdays", "前 %d 天", "Previous %d day", "Previous %d days")
+
+	// The table column that names the previous period's day on each row.
+	KeyAdminRepPreviousDate = countKey("admin.rep.previousdate", "前 %d 天的日期", "Date in the previous %d day", "Date in the previous %d days")
+
+	KeyAdminRepDate = key("admin.rep.date", Message{ZhHant: "日期", En: "Date"})
+
+	KeyAdminRepTotal = key("admin.rep.total", Message{ZhHant: "合計", En: "Total"})
+
+	// The last day of the table, which is not over: %s is the time of day.
+	KeyAdminRepUntil = key("admin.rep.until", Message{ZhHant: "到 %s 為止", En: "up to %s"})
+)
+
+var (
+	KeyAdminRepDaily = key("admin.rep.daily", Message{ZhHant: "每日已付款訂單（筆）", En: "Paid orders per day"})
+
+	KeyAdminRepEvery7Days = key("admin.rep.every7days", Message{ZhHant: "每 7 天已付款訂單（筆）", En: "Paid orders per 7 days"})
+
+	KeyAdminRepCampaign = key("admin.rep.campaign", Message{ZhHant: "活動", En: "Campaign"})
+
+	KeyAdminRepFromDay = key("admin.rep.fromday", Message{ZhHant: "7 天起始日", En: "7 days from"})
+
+	KeyAdminRepOrdersCount = countKey("admin.rep.orderscount", "%d 筆", "%d order", "%d orders")
+
+	// %[1]s is the period, %[2]s the day of the latest paid order before it.
+	KeyAdminRepNoPaidSince = key("admin.rep.nopaid.since", Message{
+		ZhHant: "%[1]s 沒有已付款的訂單。最近一筆在 %[2]s。",
+		En:     "No paid orders %[1]s. The latest was on %[2]s.",
+	})
+
+	KeyAdminRepNoPaid = key("admin.rep.nopaid", Message{ZhHant: "%s 沒有已付款的訂單。", En: "No paid orders %s."})
+
+	// %[1]s is the period, %[2]d the days with paid orders, %[3]s what they were.
+	KeyAdminRepFewDays = countKey("admin.rep.fewdays",
+		"%[1]s 只有 %[2]d 天有已付款訂單：%[3]s。",
+		"%[1]s had paid orders on %[2]d day only: %[3]s.",
+		"%[1]s had paid orders on %[2]d days only: %[3]s.")
+
+	// One of those days: %[1]s the day, %[2]d its orders.
+	KeyAdminRepFewDay = countKey("admin.rep.fewday", "%[1]s 有 %[2]d 筆", "%[2]d order on %[1]s", "%[2]d orders on %[1]s")
+
+	KeyAdminRepSparseDays = countKey("admin.rep.sparsedays",
+		"這段期間有 %d 天有已付款訂單。",
+		"Paid orders came in on %d day of this period.",
+		"Paid orders came in on %d days of this period.")
+
+	// The busiest day: %[1]s the day, %[2]s its orders, %[3]s today's orders,
+	// %[4]s the time of day today is counted up to.
+	KeyAdminRepBusiestDay = key("admin.rep.busiest.day", Message{
+		ZhHant: "最多的一天是 %[1]s，%[2]s；今天到 %[4]s 為止 %[3]s。",
+		En:     "The busiest day was %[1]s, with %[2]s; today up to %[4]s, %[3]s.",
+	})
+
+	// Days tied for the most: %[1]s the days, %[2]s the orders of each.
+	KeyAdminRepBusiestDays = key("admin.rep.busiest.days", Message{
+		ZhHant: "最多的是 %[1]s，各 %[2]s；今天到 %[4]s 為止 %[3]s。",
+		En:     "The busiest days were %[1]s, with %[2]s each; today up to %[4]s, %[3]s.",
+	})
+
+	// More than three days tied: %[1]d how many, %[2]s the orders of each.
+	KeyAdminRepBusiestMany = key("admin.rep.busiest.many", Message{
+		ZhHant: "有 %[1]d 天都是最多，各 %[2]s；今天到 %[4]s 為止 %[3]s。",
+		En:     "%[1]d days tied for the most, %[2]s each; today up to %[4]s, %[3]s.",
+	})
+
+	// The busiest run of days when a column holds several: %[1]d its days, %[2]s
+	// the day it starts, %[3]s its orders.
+	KeyAdminRepBusiestStretch = key("admin.rep.busiest.stretch", Message{
+		ZhHant: "最多的一段是 %[2]s 起的 %[1]d 天，%[3]s。",
+		En:     "The busiest stretch was the %[1]d days from %[2]s, with %[3]s.",
+	})
+
+	// %[1]d stretches tied, %[2]s the orders of each.
+	KeyAdminRepBusiestStretches = key("admin.rep.busiest.stretches", Message{
+		ZhHant: "有 %[1]d 段都是最多，各 %[2]s。",
+		En:     "%[1]d stretches tied for the most, %[2]s each.",
+	})
+
+	// %s is the time of day today is counted up to.
+	KeyAdminRepPaidNote = key("admin.rep.paidnote", Message{
+		ZhHant: "只計入已付款的訂單，依下單時間。今天到 %s 為止。",
+		En:     "Paid orders only, by the time placed. Today is counted up to %s.",
 	})
 )

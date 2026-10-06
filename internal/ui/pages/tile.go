@@ -38,6 +38,18 @@ type ProductTile struct {
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
+	// Lead marks the 2×2 tile of the home row, whose photograph is larger than a card's.
+	Lead bool
+	// Highlights are the first specifications a comparable product lists, for the line under its name.
+	Highlights []string
+}
+
+// Sizes is the width the photograph is laid out at, for the browser's choice of file.
+func (t *ProductTile) Sizes() string {
+	if t.Lead {
+		return "(min-width: 1344px) 596px, (min-width: 1024px) calc(50vw - 44px), calc(100vw - 48px)"
+	}
+	return "(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
 }
 
 func AnyComparable(tiles []ProductTile) bool {
@@ -79,13 +91,6 @@ func (t *ProductTile) RatingText() string { return strconv.FormatFloat(t.Rating,
 func TWD(cents int64) string { return twd(cents) }
 
 func twd(cents int64) string { return money.TWD(cents) }
-
-func FreeDeliveryText(cents int64) string {
-	if cents <= 0 {
-		return ""
-	}
-	return twd(cents)
-}
 
 // The first two rows at the widest grid, which is also the first four of a
 // phone's: a second row starts inside a 900px-tall window, and a lazy photograph
