@@ -43,9 +43,9 @@ func readDisputes(
 	if src == nil {
 		return admin.DisputeState{}
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	found, err := src.DisputesNeedingResponse(ctx)
+	stripeCtx, cancelStripe := context.WithTimeout(ctx, timeout)
+	defer cancelStripe()
+	found, err := src.DisputesNeedingResponse(stripeCtx)
 	if err != nil {
 		log.WarnContext(ctx, "read disputes from Stripe", "error", err)
 		return admin.DisputeState{Configured: true, Unknown: true}
@@ -57,12 +57,20 @@ func readDisputes(
 		}
 	}
 	var matched map[string]string
+	ordersUnknown := false
 	if len(sessionIDs) > 0 {
-		if matched, err = orders(ctx, sessionIDs); err != nil {
+		// Its own budget: a slow Stripe read must not leave the query an expired
+		// context and make every order look like none.
+		orderCtx, cancelOrders := context.WithTimeout(ctx, timeout)
+		defer cancelOrders()
+		if matched, err = orders(orderCtx, sessionIDs); err != nil {
 			log.ErrorContext(ctx, "match disputes to orders", "error", err)
+			ordersUnknown = true
 		}
 	}
-	return admin.DisputeState{Configured: true, Items: openDisputes(found, matched, src.DisputeURL)}
+	return admin.DisputeState{
+		Configured: true, OrdersUnknown: ordersUnknown, Items: openDisputes(found, matched, src.DisputeURL),
+	}
 }
 
 func openDisputes(found []payment.Dispute, orderOf map[string]string, url func(id string) string) []admin.OpenDispute {
@@ -70,7 +78,7 @@ func openDisputes(found []payment.Dispute, orderOf map[string]string, url func(i
 	for i := range found {
 		d := &found[i]
 		out[i] = admin.OpenDispute{
-			URL: url(d.ID), OrderNumber: orderOf[d.SessionID], AmountCents: d.AmountCents,
+			URL: url(d.ID), OrderNumber: orderOf[d.SessionID], AmountCents: d.AmountCents, Currency: d.Currency,
 		}
 		if !d.RespondBy.IsZero() {
 			out[i].RespondBy = shoptime.Minute(d.RespondBy)

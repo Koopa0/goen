@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/refundstate"
@@ -311,10 +312,15 @@ func (v *WorkerHealthView) Tasks() []Task {
 type DisputeState struct {
 	Configured bool
 	Unknown    bool
-	Items      []OpenDispute
+	// OrdersUnknown means the disputes are known but the lookup of their goen
+	// orders failed, which is not the same as no order.
+	OrdersUnknown bool
+	Items         []OpenDispute
 }
 
-func (d DisputeState) Healthy() bool { return !d.Configured || (!d.Unknown && len(d.Items) == 0) }
+func (d DisputeState) Healthy() bool {
+	return !d.Configured || (!d.Unknown && !d.OrdersUnknown && len(d.Items) == 0)
+}
 
 func (d DisputeState) Text(ctx context.Context) string {
 	switch {
@@ -333,7 +339,15 @@ type OpenDispute struct {
 	URL         string
 	OrderNumber string
 	AmountCents int64
+	Currency    string
 	RespondBy   string
 }
 
-func (d OpenDispute) Amount() string { return money.TWD(d.AmountCents) }
+// Amount is shown as NT$ only for twd; any other currency keeps its code and
+// Stripe's minor-unit figure, which goen has no rule to format.
+func (d OpenDispute) Amount() string {
+	if d.Currency == "twd" {
+		return money.TWD(d.AmountCents)
+	}
+	return fmt.Sprintf("%s %d", strings.ToUpper(d.Currency), d.AmountCents)
+}

@@ -363,6 +363,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td class="goen-admin__cellkey">
 										if d.OrderNumber != "" {
 											{ d.OrderNumber }
+										} else if v.Disputes.OrdersUnknown {
+											{ i18n.T(ctx, i18n.KeyAdminHPDisputeOrderUnknown) }
 										} else {
 											{ i18n.T(ctx, i18n.KeyAdminHPDisputeNoOrder) }
 										}

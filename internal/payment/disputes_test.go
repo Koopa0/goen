@@ -2,6 +2,7 @@ package payment
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ const disputeListReply = `{
      "payment_intent": "pi_warning", "evidence_details": {"due_by": 1791417599, "has_evidence": false, "past_due": false, "submission_count": 0}},
     {"id": "dp_nodeadline", "object": "dispute", "amount": 700, "currency": "twd", "status": "needs_response",
      "payment_intent": null, "evidence_details": {"due_by": 0, "has_evidence": false, "past_due": false, "submission_count": 0}},
+    {"id": "dp_usd", "object": "dispute", "amount": 5000, "currency": "usd", "status": "needs_response",
+     "payment_intent": null, "evidence_details": {"due_by": 1791331199}},
     {"id": "dp_review", "object": "dispute", "amount": 100, "currency": "twd", "status": "under_review",
      "payment_intent": "pi_review", "evidence_details": {"due_by": 1791331199}},
     {"id": "dp_won", "object": "dispute", "amount": 100, "currency": "twd", "status": "won",
@@ -34,6 +37,13 @@ func disputeServer(t *testing.T, sessions map[string]string) *Gateway {
 	g, _ := stripeAt(t, func(c *call) (int, string) {
 		switch c.path {
 		case "/v1/disputes":
+			if c.query.Get("limit") != "100" {
+				t.Errorf("disputes listed with limit=%q, want 100", c.query.Get("limit"))
+			}
+			created, err := strconv.ParseInt(c.query.Get("created[gte]"), 10, 64)
+			if err != nil || time.Since(time.Unix(created, 0)) < 119*24*time.Hour || time.Since(time.Unix(created, 0)) > 121*24*time.Hour {
+				t.Errorf("disputes listed with created[gte]=%q, want about 120 days ago", c.query.Get("created[gte]"))
+			}
 			return http.StatusOK, disputeListReply
 		case "/v1/checkout/sessions":
 			if id, ok := sessions[c.query.Get("payment_intent")]; ok {
@@ -54,9 +64,10 @@ func TestDisputesNeedingResponse(t *testing.T) {
 		t.Fatalf("DisputesNeedingResponse() error = %v", err)
 	}
 	want := []Dispute{
-		{ID: "dp_needs", AmountCents: 129000, RespondBy: time.Unix(1791331199, 0), SessionID: "cs_test_needs"},
-		{ID: "dp_warning", AmountCents: 5000, RespondBy: time.Unix(1791417599, 0)},
-		{ID: "dp_nodeadline", AmountCents: 700},
+		{ID: "dp_needs", AmountCents: 129000, Currency: "twd", RespondBy: time.Unix(1791331199, 0), SessionID: "cs_test_needs"},
+		{ID: "dp_warning", AmountCents: 5000, Currency: "twd", RespondBy: time.Unix(1791417599, 0)},
+		{ID: "dp_nodeadline", AmountCents: 700, Currency: "twd"},
+		{ID: "dp_usd", AmountCents: 5000, Currency: "usd", RespondBy: time.Unix(1791331199, 0)},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("DisputesNeedingResponse() mismatch (-want +got):\n%s", diff)

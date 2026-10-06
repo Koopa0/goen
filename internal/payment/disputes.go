@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
@@ -17,6 +18,9 @@ const disputeWindow = 120 * 24 * time.Hour
 type Dispute struct {
 	ID          string
 	AmountCents int64
+	// Currency is Stripe's lowercase ISO code; goen charges only in twd, but the
+	// account's other disputes are listed too.
+	Currency string
 	// RespondBy is zero when the cardholder's bank allows no response.
 	RespondBy time.Time
 	// SessionID is the Checkout Session that took the disputed payment, empty
@@ -31,9 +35,13 @@ func (g *Gateway) DisputesNeedingResponse(ctx context.Context) ([]Dispute, error
 		return nil, ErrDisabled
 	}
 	since := time.Now().Add(-disputeWindow).Unix()
-	list := g.client.V1Disputes.List(ctx, &stripe.DisputeListParams{
+	params := &stripe.DisputeListParams{
 		CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: since},
-	})
+	}
+	// Stripe cannot filter by status, so every dispute in the window is paged
+	// through inside the page's time limit: fewest pages.
+	params.Limit = stripe.Int64(100)
+	list := g.client.V1Disputes.List(ctx, params)
 	var out []Dispute
 	for d, err := range list.All(ctx) {
 		if err != nil {
@@ -46,7 +54,7 @@ func (g *Gateway) DisputesNeedingResponse(ctx context.Context) ([]Dispute, error
 			d.Status != stripe.DisputeStatusWarningNeedsResponse {
 			continue
 		}
-		dispute := Dispute{ID: d.ID, AmountCents: d.Amount}
+		dispute := Dispute{ID: d.ID, AmountCents: d.Amount, Currency: string(d.Currency)}
 		if d.EvidenceDetails != nil && d.EvidenceDetails.DueBy > 0 {
 			dispute.RespondBy = time.Unix(d.EvidenceDetails.DueBy, 0)
 		}
@@ -81,7 +89,7 @@ func (g *Gateway) sessionOf(ctx context.Context, paymentIntentID string) (string
 // mode when the key is one.
 func (g *Gateway) DisputeURL(id string) string {
 	if g.sandbox {
-		return "https://dashboard.stripe.com/test/disputes/" + id
+		return "https://dashboard.stripe.com/test/disputes/" + url.PathEscape(id)
 	}
-	return "https://dashboard.stripe.com/disputes/" + id
+	return "https://dashboard.stripe.com/disputes/" + url.PathEscape(id)
 }

@@ -78,6 +78,11 @@ var (
 		En:     "No matching order",
 	})
 
+	KeyAdminHPDisputeOrderUnknown = key("admin.hp.dispute.orderunknown", Message{
+		ZhHant: "訂單無法查詢",
+		En:     "Order could not be looked up",
+	})
+
 	KeyAdminHPDisputeNoDeadline = key("admin.hp.dispute.nodeadline", Message{
 		ZhHant: "銀行不接受回應",
 		En:     "The bank accepts no response",
@@ -325,9 +330,9 @@ var (
 	})
 
 	KeyHealthDisputesOpen = countKey("health.disputes.open",
-		"%d 筆爭議款等待回應，期限內沒有回應，款項就會被收回",
-		"%d dispute is waiting for a response; unanswered by its deadline, the money is taken back",
-		"%d disputes are waiting for a response; unanswered by their deadlines, the money is taken back")
+		"%d 筆爭議款等待回應",
+		"%d dispute is waiting for a response",
+		"%d disputes are waiting for a response")
 
 	KeyHealthRefundsStuck = key("health.refunds.stuck", Message{
 		ZhHant: "%d 筆退款尚未完成，顧客還沒收到款項",

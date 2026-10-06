@@ -17,6 +17,7 @@ type fakeDisputes struct {
 	found []payment.Dispute
 	err   error
 	block bool
+	delay time.Duration
 }
 
 func (f fakeDisputes) DisputesNeedingResponse(ctx context.Context) ([]payment.Dispute, error) {
@@ -24,6 +25,7 @@ func (f fakeDisputes) DisputesNeedingResponse(ctx context.Context) ([]payment.Di
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
+	time.Sleep(f.delay)
 	return f.found, f.err
 }
 
@@ -38,7 +40,7 @@ func TestReadDisputesMatchesOrdersAndFormatsTheDeadlineInShopTime(t *testing.T) 
 	// 2026-10-31 23:59:59 UTC is 2026-11-01 07:59 in Taipei.
 	due := time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC)
 	src := fakeDisputes{found: []payment.Dispute{
-		{ID: "dp_1", AmountCents: 129000, RespondBy: due, SessionID: "cs_1"},
+		{ID: "dp_1", AmountCents: 129000, Currency: "twd", RespondBy: due, SessionID: "cs_1"},
 		{ID: "dp_2", AmountCents: 700, SessionID: "cs_unknown"},
 	}}
 	orders := func(_ context.Context, ids []string) (map[string]string, error) {
@@ -49,7 +51,7 @@ func TestReadDisputesMatchesOrdersAndFormatsTheDeadlineInShopTime(t *testing.T) 
 	}
 	got := readDisputes(t.Context(), src, time.Second, quiet, orders)
 	want := admin.DisputeState{Configured: true, Items: []admin.OpenDispute{
-		{URL: "https://stripe.example/disputes/dp_1", OrderNumber: "GN-100", AmountCents: 129000, RespondBy: "2026-11-01 07:59"},
+		{URL: "https://stripe.example/disputes/dp_1", OrderNumber: "GN-100", AmountCents: 129000, Currency: "twd", RespondBy: "2026-11-01 07:59"},
 		{URL: "https://stripe.example/disputes/dp_2", AmountCents: 700},
 	}}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -84,13 +86,31 @@ func TestReadDisputesWithoutAStripeSourceLeavesTheRowOut(t *testing.T) {
 	}
 }
 
-func TestReadDisputesKeepsTheDisputesWhenTheOrderLookupFails(t *testing.T) {
+func TestReadDisputesFlagsAFailedOrderLookupInsteadOfClaimingNoOrder(t *testing.T) {
 	t.Parallel()
 	src := fakeDisputes{found: []payment.Dispute{{ID: "dp_1", AmountCents: 100, SessionID: "cs_1"}}}
 	got := readDisputes(t.Context(), src, time.Second, quiet,
 		func(context.Context, []string) (map[string]string, error) { return nil, errors.New("db down") })
-	if got.Unknown || len(got.Items) != 1 || got.Items[0].OrderNumber != "" {
-		t.Errorf("readDisputes() = %+v, want the dispute listed with no order", got)
+	if got.Unknown || !got.OrdersUnknown || len(got.Items) != 1 || got.Items[0].OrderNumber != "" {
+		t.Errorf("readDisputes() = %+v, want the dispute listed with OrdersUnknown", got)
+	}
+	if got.Healthy() {
+		t.Error("a failed order lookup counted as healthy")
+	}
+}
+
+func TestReadDisputesGivesTheOrderLookupItsOwnTimeAfterASlowStripe(t *testing.T) {
+	t.Parallel()
+	src := fakeDisputes{found: []payment.Dispute{{ID: "dp_1", SessionID: "cs_1"}}, delay: 60 * time.Millisecond}
+	got := readDisputes(t.Context(), src, 50*time.Millisecond, quiet,
+		func(ctx context.Context, _ []string) (map[string]string, error) {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return map[string]string{"cs_1": "GN-1"}, nil
+		})
+	if got.OrdersUnknown || got.Items[0].OrderNumber != "GN-1" {
+		t.Errorf("readDisputes() = %+v, want the order found", got)
 	}
 }
 
