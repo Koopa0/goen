@@ -29,8 +29,10 @@ convention:
   `TestNoChromeStringIsHardCoded` refuses a Han literal anywhere else.
 - **All of the CSS is authored here.** `assets/css/app/base.css` carries the
   tokens, the element defaults and the shared primitives; `assets/css/app/app.css`
-  owns the surfaces and is linked after it, so a value set in both is settled by
-  source order. There is no CSS build, no JavaScript build, and no client
+  owns the storefront and `assets/css/app/admin.css` the back office, which does
+  not link app.css; each is linked after base.css, so a value set in both is
+  settled by source order. A rule for a class both surfaces render is kept in
+  each of them. There is no CSS build, no JavaScript build, and no client
   framework.
 
 ## Build and run it

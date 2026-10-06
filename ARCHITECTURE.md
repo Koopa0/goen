@@ -298,7 +298,7 @@ Runtime libraries and the templ tool are pinned in [go.mod](go.mod); sqlc, migra
 | `testcontainers-go` + `modules/postgres` | PostgreSQL integration fixtures | [`dbtest.Start`](internal/db/dbtest/dbtest.go) applies real migrations so constraints, role grants, and concurrent writes are exercised by PostgreSQL itself. |
 | Chrome/Chromium + axe-core | Browser layout/accessibility gate | [Browser probes](scripts/check-layout.mjs) test rendered dimensions, keyboard behaviour, and accessibility that template structure alone cannot establish. |
 
-[`assets`](assets/assets.go) embeds CSS, fonts, htmx, and the application script with content-versioned URLs. CSS is authored in `base.css` and `app.css`; the browser enhancement is [goen.js](assets/js/goen.js). [CONTRIBUTING.md](CONTRIBUTING.md) establishes plain forms and authored CSS as project boundaries.
+[`assets`](assets/assets.go) embeds CSS, fonts, htmx, and the application script with content-versioned URLs. CSS is authored in `base.css`, `app.css` (storefront) and `admin.css` (back office); the browser enhancement is [goen.js](assets/js/goen.js). [CONTRIBUTING.md](CONTRIBUTING.md) establishes plain forms and authored CSS as project boundaries.
 
 ## Testing and CI
 

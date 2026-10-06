@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -226,5 +227,56 @@ func TestADepartmentPanelOffersItsProducts(t *testing.T) {
 	}
 	if !strings.Contains(imgs[0], `loading="lazy"`) {
 		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
+	}
+}
+
+// The back office has its own sheet and the storefront's is not loaded there,
+// so a storefront restyle cannot reach /admin; the shop never pays for it.
+func TestOnlyTheBackOfficeLinksItsStylesheet(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	ctx = templ.WithChildren(ctx, templ.NopComponent)
+	link := func(name string) string {
+		return `<link rel="stylesheet" href="` + assets.URL(name) + `">`
+	}
+	tests := []struct {
+		name string
+		page templ.Component
+		want []string
+		not  []string
+	}{
+		{
+			name: "storefront",
+			page: layouts.Base(layouts.Page{Title: "t"}),
+			want: []string{link(assets.BaseCSS), link(assets.AppCSS)},
+			not:  []string{assets.AdminCSS},
+		},
+		{
+			name: "back office",
+			page: layouts.Admin(layouts.Page{Title: "t"}, "orders"),
+			want: []string{link(assets.BaseCSS), link(assets.AdminCSS)},
+			not:  []string{assets.AppCSS},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b strings.Builder
+			if err := tt.page.Render(ctx, &b); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(b.String(), want) {
+					t.Errorf("the head does not contain %s", want)
+				}
+			}
+			for _, not := range tt.not {
+				if strings.Contains(b.String(), not) {
+					t.Errorf("the head links %s", not)
+				}
+			}
+		})
 	}
 }

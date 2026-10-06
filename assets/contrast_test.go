@@ -37,16 +37,13 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
-// TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
-// colours against the grounds a page paints. A palette is edited a value at a
-// time, and a pale grey that looks fine beside its neighbours fails a reader
-// outdoors; the axe gate sees only the routes it visits.
-func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
-	t.Parallel()
+// hexTokens reads the colour tokens from base.css, the sheet both layouts link.
+func hexTokens(t *testing.T) map[string]string {
+	t.Helper()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
+	sheet, err := fs.ReadFile(files, BaseCSS)
 	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
+		t.Fatalf("read %s: %v", BaseCSS, err)
 	}
 	tokens := make(map[string]string)
 	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
@@ -54,10 +51,21 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			tokens[m[1]] = m[2]
 		}
 	}
+	return tokens
+}
+
+// TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
+// colours against the grounds a page paints. A palette is edited a value at a
+// time, and a pale grey that looks fine beside its neighbours fails a reader
+// outdoors; the axe gate sees only the routes it visits.
+func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
+	t.Parallel()
+
+	tokens := hexTokens(t)
 
 	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
 		if tokens[name] == "" {
-			t.Fatalf("%s declares no hex value for %s", AppCSS, name)
+			t.Fatalf("%s declares no hex value for %s", BaseCSS, name)
 		}
 	}
 
@@ -99,12 +107,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -188,12 +191,7 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if outline == nil || fill == nil {
