@@ -7190,13 +7190,15 @@ func (q *Queries) FirstComparableCategorySlug(ctx context.Context) (string, erro
 }
 
 const freeDeliveryThreshold = `-- name: FreeDeliveryThreshold :one
-SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
+SELECT coalesce(
+    CASE WHEN bool_or(coalesce(v.free_over_cents, 0) = 0) THEN 0 ELSE max(v.free_over_cents) END,
+    0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
-  AND v.free_over_cents > 0
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
@@ -7205,9 +7207,11 @@ WHERE sm.is_active
 // with_pickup is false where the store map is not configured: checkout offers no
 // pickup there, so a floor or threshold that counted it would promise a price
 // nobody can choose.
-// MIN across methods: the strip makes one claim, and the most generous true one
-// is the lowest threshold any active method honours. coalesce AND cast, because
-// min() over an empty set is NULL and sqlc types the result as non-null.
+// The strip makes one claim, so it is the cart's: the amount at which EVERY
+// method is free, the highest threshold. A method that costs nothing is free at
+// any amount and takes no part; one that charges and never turns free leaves no
+// claim. coalesce AND cast, because the aggregates over an empty set are NULL
+// and sqlc types the result as non-null.
 func (q *Queries) FreeDeliveryThreshold(ctx context.Context, withPickup bool) (int64, error) {
 	row := q.db.QueryRow(ctx, freeDeliveryThreshold, withPickup)
 	var free_over_cents int64
