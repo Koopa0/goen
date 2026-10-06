@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/refundstate"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
