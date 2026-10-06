@@ -164,6 +164,11 @@ INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'var
 INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street, is_default)
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
+-- A tier above the fixture customer's spend, so the customer page draws its meter.
+INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
+VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
+ON CONFLICT DO NOTHING;
+
 -- Five orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
 -- delivered, returned and refunded; RETURN_FORM_ORDER is delivered with nothing
@@ -407,6 +412,22 @@ SELECT return_payout_outstanding(:'return_id') AS payout_outstanding \gset
 \if :payout_outstanding
 DO $$ BEGIN RAISE EXCEPTION 'the layout return is approved but its payout is incomplete'; END $$;
 \endif
+
+-- A second product with returns, so /admin/reports draws the returned-products
+-- bars rather than the one-sentence state: a quarter of the second best seller's
+-- 1,000 units, the row with the longest text on the page. The parcel never
+-- shipped, so the rows go in with triggers off, completed with nothing owed.
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+INSERT INTO return_requests (order_id, requested_by_user_id, reason, status, decided_at,
+                             goods_refund_cents, card_refund_cents, credit_refund_cents)
+VALUES (:'picking_a_id', :'customer_id', '版面檢查：退貨商品列', 'completed', now(), 0, 0, 0)
+RETURNING id AS returned_row_id \gset
+INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+SELECT order_id, :'returned_row_id', id, 250 FROM order_lines
+WHERE order_id = :'picking_a_id' AND variant_id = :'seller_variant_id';
+SET LOCAL session_replication_role = origin;
+SET ROLE admin;
 
 -- The invoice on INVOICE_ORDER, filed as the invoice worker files one: claim,
 -- lease, send, settle with the provider's number. The doors answer a refusal

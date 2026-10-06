@@ -790,29 +790,49 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
+       w.spend_cents AS window_spend_cents,
+       coalesce(nt.name, '')::text AS next_tier_name,
+       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-WHERE u.id = $1
+CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
+LEFT JOIN LATERAL (
+    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
+    FROM membership_tiers n
+    WHERE n.min_spend_cents > w.spend_cents
+    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
+WHERE u.id = $3
 `
 
+type AdminCustomerParams struct {
+	WindowDays int32
+	Locale     string
+	UserID     uuid.UUID
+}
+
 type AdminCustomerRow struct {
-	ID          uuid.UUID
-	Email       string
-	FullName    string
-	Phone       string
-	CreatedAt   time.Time
-	Verified    bool
-	Orders      int64
-	Spent       int64
-	CreditCents int64
-	Points      int64
+	ID               uuid.UUID
+	Email            string
+	FullName         string
+	Phone            string
+	CreatedAt        time.Time
+	Verified         bool
+	Orders           int64
+	Spent            int64
+	CreditCents      int64
+	Points           int64
+	WindowSpendCents int64
+	NextTierName     string
+	NextTierCents    int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, id)
+// The window spend and the next tier are what the account page judges tiers by,
+// read the way it reads them.
+func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -825,6 +845,9 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
+		&i.WindowSpendCents,
+		&i.NextTierName,
+		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -6741,6 +6764,35 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
+SELECT (EXISTS (
+    SELECT 1 FROM products p
+    JOIN product_variants v ON v.product_id = p.id AND v.is_active
+    WHERE p.status = 'active'
+      AND v.compare_at_price_cents IS NOT NULL
+      AND v.compare_at_price_cents > v.price_cents
+      AND v.stock_quantity > v.safety_stock
+) OR EXISTS (
+    SELECT 1 FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products cp
+          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+          JOIN product_variants v ON v.product_id = p.id AND v.is_active
+          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+))::boolean AS offered
+`
+
+// Whether /deals has anything to buy: a discounted product that can be bought,
+// or a campaign ListedCampaigns lists. The header asks on every page; each half
+// stops at its first row. Its plan has not been measured.
+func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
+	var offered bool
+	err := row.Scan(&offered)
+	return offered, err
+}
+
 const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
@@ -7722,7 +7774,10 @@ type HomeDepartmentStockRow struct {
 }
 
 // How many active products each root holds across its whole subtree: a
-// department with fewer than three has no band to show.
+// department with fewer than three has no band to show, and the header prints
+// it beside each department in the phone menu, so it runs on every page with a
+// header. Unlike the header's other reads it counts the catalogue, not the
+// categories, and its plan has not been measured.
 func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
 	rows, err := q.db.Query(ctx, homeDepartmentStock)
 	if err != nil {
@@ -10405,6 +10460,35 @@ func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams
 	row := q.db.QueryRow(ctx, orderHoldExpiry, arg.OrderID, arg.RequiredLifetime)
 	var i OrderHoldExpiryRow
 	err := row.Scan(&i.ExpiresAt, &i.CoversSession)
+	return i, err
+}
+
+const orderHoldSpan = `-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
+LIMIT 1
+`
+
+type OrderHoldSpanRow struct {
+	HeldFrom  time.Time
+	HeldUntil time.Time
+	SweptAt   pgtype.Timestamptz
+}
+
+// The span the page draws: from the first hold taken to the earliest expiry,
+// whatever became of the holds. swept_at is when the hold sweeper cancelled the
+// order at its deadline; a customer's or a staff member's cancellation is not.
+func (q *Queries) OrderHoldSpan(ctx context.Context, orderID uuid.UUID) (OrderHoldSpanRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldSpan, orderID)
+	var i OrderHoldSpanRow
+	err := row.Scan(&i.HeldFrom, &i.HeldUntil, &i.SweptAt)
 	return i, err
 }
 
@@ -14240,6 +14324,85 @@ func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]Ret
 	return items, nil
 }
 
+const returnedProductsBetween = `-- name: ReturnedProductsBetween :many
+WITH period_lines AS (
+    SELECT ol.id, ol.product_id, ol.quantity
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
+), sold AS (
+    SELECT product_id, sum(quantity)::bigint AS units
+    FROM period_lines GROUP BY product_id
+), returned AS (
+    SELECT pl.product_id, sum(rl.quantity)::bigint AS units
+    FROM return_request_lines rl
+    JOIN return_requests rr ON rr.id = rl.return_request_id
+    JOIN period_lines pl ON pl.id = rl.order_line_id
+    WHERE rr.status IN ('approved', 'completed')
+    GROUP BY pl.product_id
+)
+SELECT
+    p.slug,
+    p.name,
+    coalesce(b.name, '') AS brand,
+    r.units AS returned_units,
+    s.units AS sold_units
+FROM returned r
+JOIN sold s ON s.product_id = r.product_id
+JOIN products p ON p.id = r.product_id
+LEFT JOIN brands b ON b.id = p.brand_id
+ORDER BY r.units DESC, s.units DESC, p.name, p.slug
+LIMIT $1::integer
+`
+
+type ReturnedProductsBetweenParams struct {
+	LimitTo int32
+	FromAt  time.Time
+	ToAt    time.Time
+}
+
+type ReturnedProductsBetweenRow struct {
+	Slug          string
+	Name          string
+	Brand         string
+	ReturnedUnits int64
+	SoldUnits     int64
+}
+
+// Units on decided-yes returns (approved or completed) against units sold, both
+// counted over the orders placed in the period, so a product's returned never
+// exceeds its sold. Orders refunded before shipment are left out of both, as in
+// RevenueBetween: no goods came back. Ties on the count fall to the larger sale,
+// then the name, so the list does not reshuffle between reads.
+func (q *Queries) ReturnedProductsBetween(ctx context.Context, arg ReturnedProductsBetweenParams) ([]ReturnedProductsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, returnedProductsBetween, arg.LimitTo, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReturnedProductsBetweenRow{}
+	for rows.Next() {
+		var i ReturnedProductsBetweenRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Brand,
+			&i.ReturnedUnits,
+			&i.SoldUnits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const returnsForOrder = `-- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
 FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
@@ -16183,7 +16346,7 @@ type StockAtRiskRow struct {
 }
 
 // Every active variant that sold in [from_at, to_at) or has nothing a sale may
-// take. Sales are counted in orders as well as units: the report's sample size
+// take. Sales are counted in orders as well as units: the estimate's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {

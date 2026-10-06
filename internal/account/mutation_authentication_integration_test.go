@@ -29,7 +29,7 @@ func TestAccountMutationsDistinguishWrongPasswordFromAuthenticationFailure(t *te
 		OriginalPassword, OriginalEmail, NoLastLogin bool
 		Sessions, EmailLinks                         int64
 	}
-	// The temporary users CHECK must not affect the package's other tests.
+	// The failed credential-read pool must not interrupt session authentication.
 	owner := dbtest.Pool(t)
 	parentCtx := t.Context()
 	password := "a valid current password"
@@ -54,22 +54,28 @@ func TestAccountMutationsDistinguishWrongPasswordFromAuthenticationFailure(t *te
 	cookie := cookies.Result().Cookies()[0]
 	var diagnostics bytes.Buffer
 	h := account.NewHandler(s, nil, slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil)
-	mux := http.NewServeMux()
-	mux.Handle("POST /account/password", h.Authenticate(h.RequireUser(h.ChangePassword)))
-	mux.Handle("POST /account/email", h.Authenticate(h.RequireUser(h.ChangeEmail)))
+	routes := func(mutationHandler *account.Handler) *http.ServeMux {
+		mux := http.NewServeMux()
+		mux.Handle("POST /account/password", h.Authenticate(mutationHandler.RequireUser(mutationHandler.ChangePassword)))
+		mux.Handle("POST /account/email", h.Authenticate(mutationHandler.RequireUser(mutationHandler.ChangeEmail)))
+		return mux
+	}
+	mux := routes(h)
 	for _, backendFailure := range []bool{false, true} {
 		if backendFailure {
-			// A correct password reaches TouchLastLogin; the CHECK fails only that write.
-			if _, err := owner.Exec(parentCtx, `ALTER TABLE users ADD CONSTRAINT refuse_login_touch CHECK(last_login_at IS NULL)`); err != nil {
-				t.Fatal(err)
-			}
+			// Only the mutation's credential read fails; the browser session and request stay live.
+			failedPool := mutationAuthenticationPool(t, owner)
+			failedPool.Close()
+			failedHandler := account.NewHandler(account.NewStore(failedPool), nil,
+				slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil)
+			mux = routes(failedHandler)
 		}
 		for _, path := range []string{"/account/password", "/account/email"} {
 			for _, locale := range i18n.Locales() {
 				phase := "wrong password"
 				current := "an incorrect current password"
 				if backendFailure {
-					phase = "database refusal after correct password"
+					phase = "credential read failure"
 					current = password
 				}
 				t.Run(locale.Tag()+path+"/"+phase, func(t *testing.T) {
@@ -144,7 +150,7 @@ func assertMutationAuthenticationFailure(t *testing.T, ctx context.Context, resp
 	if !strings.Contains(body, i18n.T(ctx, i18n.KeyBusyBody)) {
 		t.Error("backend authentication refusal lost its generic translated service explanation")
 	}
-	for _, private := range []string{password, "touch last login", "refuse_login_touch"} {
+	for _, private := range []string{password, "read user", "closed pool"} {
 		if strings.Contains(body, private) {
 			t.Errorf("backend authentication refusal leaked %q", private)
 		}
@@ -155,8 +161,8 @@ func assertMutationAuthenticationFailure(t *testing.T, ctx context.Context, resp
 	}
 	if err := json.Unmarshal(diagnostic, &record); err != nil {
 		t.Errorf("backend authentication diagnostic = %q, want one error record: %v", string(diagnostic), err)
-	} else if record.Level != "ERROR" || !strings.Contains(record.Error, "touch last login") || !strings.Contains(record.Error, "refuse_login_touch") {
-		t.Errorf("backend authentication diagnostic = %+v, want the actual login-write failure", record)
+	} else if record.Level != "ERROR" || !strings.Contains(record.Error, "read user") || !strings.Contains(record.Error, "closed pool") {
+		t.Errorf("backend authentication diagnostic = %+v, want the actual credential-read failure", record)
 	}
 	if strings.Contains(string(diagnostic), password) {
 		t.Error("backend authentication diagnostic contains the password")

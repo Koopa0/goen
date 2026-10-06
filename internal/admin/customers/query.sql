@@ -17,6 +17,8 @@ LIMIT @row_limit::integer;
 -- Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 -- define them. No role predicate, deliberately: /admin/staff promotes an
 -- existing customer, whose order history must stay reachable from this page.
+-- The window spend and the next tier are what the account page judges tiers by,
+-- read the way it reads them.
 -- name: AdminCustomer :one
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
@@ -35,9 +37,18 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
+       w.spend_cents AS window_spend_cents,
+       coalesce(nt.name, '')::text AS next_tier_name,
+       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
 FROM users u
-WHERE u.id = $1;
+CROSS JOIN LATERAL (SELECT member_spend(u.id, @window_days::integer, NULL)::bigint AS spend_cents) w
+LEFT JOIN LATERAL (
+    SELECT localized_name(n.name, n.name_en, @locale::text) AS name, n.min_spend_cents
+    FROM membership_tiers n
+    WHERE n.min_spend_cents > w.spend_cents
+    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
+WHERE u.id = @user_id;
 
 -- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
