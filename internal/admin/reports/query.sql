@@ -117,7 +117,7 @@ SELECT
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
-JOIN sold_orders s ON s.id = o.id
+JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
 GROUP BY p.slug, p.name, b.name
