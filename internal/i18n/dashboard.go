@@ -13,9 +13,9 @@ var (
 		En:     "Orders awaiting payment",
 	})
 
-	KeyAdminQueueStatLowStock = key("admin.queue.stat.lowstock", Message{
-		ZhHant: "低庫存品項",
-		En:     "Low-stock items",
+	KeyAdminQueueStatSoldOut = key("admin.queue.stat.soldout", Message{
+		ZhHant: "已售完品項",
+		En:     "Sold-out items",
 	})
 
 	KeyAdminQueueStatActive = key("admin.queue.stat.active", Message{
@@ -84,19 +84,8 @@ var (
 		"Oldest %d day",
 		"Oldest %d days")
 
-	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{
-		ZhHant: "需要補貨",
-		En:     "Needs restocking",
-	})
-
-	KeyAdminQueueSellableHint = key("admin.queue.sellable", Message{
-		ZhHant: "「可售」是庫存減去安全庫存，也就是資料庫實際允許賣出的數量。",
-		En: "Sellable is stock minus safety stock — the number the database will actually " +
-			"let the shop sell.",
-	})
-
-	KeyAdminQueueAllLowStock = key("admin.queue.alllow", Message{
-		ZhHant: "查看全部低庫存",
-		En:     "See every low-stock item",
+	KeyAdminQueueRunwayRest = key("admin.queue.runwayrest", Message{
+		ZhHant: "在報表看其餘品項",
+		En:     "See the rest in the report",
 	})
 )

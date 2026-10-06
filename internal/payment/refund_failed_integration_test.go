@@ -148,9 +148,8 @@ func TestARefundStripeFailedAfterGoenRecordedItSucceededAlarmsOnce(t *testing.T)
 	if !processed {
 		t.Error("the refund failure was not marked processed, so Stripe retries it")
 	}
-	if reason == nil || !strings.HasPrefix(*reason, "refund_failed: ") ||
-		!strings.Contains(*reason, "lost_or_stolen_card") {
-		t.Fatalf("unreconciled = %v, want the refund_failed cause carrying Stripe's reason", reason)
+	if reason == nil || *reason != "refund_failed: lost_or_stolen_card" {
+		t.Fatalf("unreconciled = %v, want the refund_failed cause and Stripe's code only", reason)
 	}
 	if got := refundRow(t, ctx, refund.providerRef); got != before {
 		t.Errorf("goen's refund row moved from %+v to %+v; the webhook must not rewrite it", before, got)

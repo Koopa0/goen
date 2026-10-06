@@ -790,49 +790,29 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
-                                        WHERE a.user_id = u.id)), 0)::bigint AS points,
-       w.spend_cents AS window_spend_cents,
-       coalesce(nt.name, '')::text AS next_tier_name,
-       coalesce(nt.min_spend_cents, 0)::bigint AS next_tier_cents
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points
 FROM users u
-CROSS JOIN LATERAL (SELECT member_spend(u.id, $1::integer, NULL)::bigint AS spend_cents) w
-LEFT JOIN LATERAL (
-    SELECT localized_name(n.name, n.name_en, $2::text) AS name, n.min_spend_cents
-    FROM membership_tiers n
-    WHERE n.min_spend_cents > w.spend_cents
-    ORDER BY n.min_spend_cents LIMIT 1) nt ON true
-WHERE u.id = $3
+WHERE u.id = $1
 `
 
-type AdminCustomerParams struct {
-	WindowDays int32
-	Locale     string
-	UserID     uuid.UUID
-}
-
 type AdminCustomerRow struct {
-	ID               uuid.UUID
-	Email            string
-	FullName         string
-	Phone            string
-	CreatedAt        time.Time
-	Verified         bool
-	Orders           int64
-	Spent            int64
-	CreditCents      int64
-	Points           int64
-	WindowSpendCents int64
-	NextTierName     string
-	NextTierCents    int64
+	ID          uuid.UUID
+	Email       string
+	FullName    string
+	Phone       string
+	CreatedAt   time.Time
+	Verified    bool
+	Orders      int64
+	Spent       int64
+	CreditCents int64
+	Points      int64
 }
 
 // Spend counts COMMITTED orders only, and both balances come from the VIEWS that
 // define them. No role predicate, deliberately: /admin/staff promotes an
 // existing customer, whose order history must stay reachable from this page.
-// The window spend and the next tier are what the account page judges tiers by,
-// read the way it reads them.
-func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (AdminCustomerRow, error) {
-	row := q.db.QueryRow(ctx, adminCustomer, arg.WindowDays, arg.Locale, arg.UserID)
+func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
+	row := q.db.QueryRow(ctx, adminCustomer, id)
 	var i AdminCustomerRow
 	err := row.Scan(
 		&i.ID,
@@ -845,9 +825,6 @@ func (q *Queries) AdminCustomer(ctx context.Context, arg AdminCustomerParams) (A
 		&i.Spent,
 		&i.CreditCents,
 		&i.Points,
-		&i.WindowSpendCents,
-		&i.NextTierName,
-		&i.NextTierCents,
 	)
 	return i, err
 }
@@ -2447,7 +2424,7 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
-    stock.low_stock,
+    stock.sold_out,
     active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
@@ -2479,8 +2456,11 @@ FROM
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
     (SELECT count(*)::bigint AS picking_orders FROM orders
      WHERE fulfillment_status = 'picking') picking,
-    (SELECT count(*)::bigint AS low_stock FROM product_variants
-     WHERE is_active AND stock_quantity <= safety_stock) stock,
+    -- The SKUs the stock days cover lists as sold out.
+    (SELECT count(*)::bigint AS sold_out FROM product_variants pv
+     JOIN products p ON p.id = pv.product_id
+     WHERE pv.is_active AND p.status = 'active'
+       AND pv.stock_quantity <= pv.safety_stock) stock,
     (SELECT count(*)::bigint AS active_products FROM products
      WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
@@ -2516,7 +2496,7 @@ type AdminSummaryRow struct {
 	ReadyOrders                      int64
 	ReadyOldestSeconds               int64
 	PickingOrders                    int64
-	LowStock                         int64
+	SoldOut                          int64
 	ActiveProducts                   int64
 	OpenMessages                     int64
 	OpenMessagesOldestSeconds        int64
@@ -2539,7 +2519,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ReadyOrders,
 		&i.ReadyOldestSeconds,
 		&i.PickingOrders,
-		&i.LowStock,
+		&i.SoldOut,
 		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.OpenMessagesOldestSeconds,
@@ -2644,7 +2624,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+WHERE ($2::boolean = false OR (pv.is_active AND p.status = 'active' AND pv.stock_quantity <= pv.safety_stock))
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
        OR p.name ILIKE '%' || $3::text || '%'
@@ -2659,7 +2639,7 @@ LIMIT $9::integer
 
 type AdminVariantsParams struct {
 	Locale        string
-	LowOnly       bool
+	SoldOutOnly   bool
 	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
@@ -2689,7 +2669,7 @@ type AdminVariantsRow struct {
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
 		arg.Locale,
-		arg.LowOnly,
+		arg.SoldOutOnly,
 		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,

@@ -102,6 +102,15 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)
 	ctx := r.Context()
+	if r.URL.Query().Get("done") == "1" {
+		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
+			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
+			pages.NewsletterActionView{
+				Heading: i18n.T(ctx, i18n.KeyNewsletterDone),
+				Body:    i18n.T(ctx, i18n.KeyNewsletterDoneBody),
+			}))
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
 		pages.NewsletterActionView{
@@ -120,7 +129,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	addr, err := h.store.Confirm(ctx, r.PostFormValue("token"))
+	_, err := h.store.Confirm(ctx, r.PostFormValue("token"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.linkFailed(w, r, i18n.T(ctx, i18n.KeyNewsletterLinkDead),
@@ -132,17 +141,21 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
-		pages.NewsletterActionView{
-			Heading: i18n.T(ctx, i18n.KeyNewsletterDone),
-			Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterDoneBody), addr),
-		}))
+	http.Redirect(w, r, "/newsletter/confirm?done=1", http.StatusSeeOther)
 }
 
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)
 	ctx := r.Context()
+	if r.URL.Query().Get("done") == "1" {
+		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
+			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
+			pages.NewsletterActionView{
+				Heading: i18n.T(ctx, i18n.KeyNewsletterLeft),
+				Body:    i18n.T(ctx, i18n.KeyNewsletterLeftBody),
+			}))
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
 		pages.NewsletterActionView{
@@ -164,7 +177,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	addr, err := h.store.Unsubscribe(ctx, r.PostFormValue("token"))
+	_, err := h.store.Unsubscribe(ctx, r.PostFormValue("token"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.linkFailed(w, r, i18n.T(ctx, i18n.KeyNewsletterLinkDead),
@@ -176,12 +189,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
-		pages.NewsletterActionView{
-			Heading: i18n.T(ctx, i18n.KeyNewsletterLeft),
-			Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterLeftBody), addr),
-		}))
+	http.Redirect(w, r, "/newsletter/unsubscribe?done=1", http.StatusSeeOther)
 }
 
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
