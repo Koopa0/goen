@@ -603,6 +603,7 @@ func featureProduct(t *testing.T, campaignSlug string, stock int) {
 		defer cancel()
 		for _, stmt := range []string{
 			`DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
+			`UPDATE products SET status = 'draft' WHERE slug = $1`,
 			`DELETE FROM product_variants WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
 			`DELETE FROM products WHERE slug = $1`,
 		} {
