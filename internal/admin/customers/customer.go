@@ -134,7 +134,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
 		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: standing.SpendCents, NextTierName: standing.NextName,
-		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
+		NextTierCents: standing.SpendCents,
 	}
 	for i := range orders {
 		o := &orders[i]
