@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -27,6 +29,25 @@ const (
 )
 
 const recommendationReadBudget = 150 * time.Millisecond
+
+func (s *Store) recommendationQueries(ctx context.Context) (*db.Queries, context.Context, func(), error) {
+	q := s.q
+	release := func() {}
+	if pool, ok := s.dbtx.(*pgxpool.Pool); ok {
+		// Dialing a replacement connection must not consume the optional query budget.
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		q = db.New(conn)
+		release = conn.Release
+	}
+	readCtx, cancel := recommendationContext(ctx)
+	return q, readCtx, func() {
+		cancel()
+		release()
+	}, nil
+}
 
 func recommendationContext(parent context.Context) (context.Context, context.CancelFunc) {
 	budget := recommendationReadBudget
