@@ -183,7 +183,8 @@ body {
 .ui-statline dd small { font-size: var(--t-13); font-weight: 400; line-height: 1; color: var(--fg-muted); letter-spacing: 0; }
 .ui-statline__pre { margin-right: 0.08em; }
 .ui-statline__note { display: block; margin-top: 0.25rem; font-size: var(--t-12); font-weight: 400; line-height: 1.5; color: var(--fg-muted); letter-spacing: 0; }
-.ui-statline--wide, .ui-statline--glance { max-width: none; }
+.ui-statline--wide, .ui-statline--glance, .ui-statline--pairs { max-width: none; }
+.ui-statline--pairs { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--stat-min), 50% - 12px)), 1fr)); }
 .ui-statline--glance dt a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 0.2em; }
 .ui-statline--glance dt a:hover { text-decoration-color: currentcolor; }
 /* one stat keeps a column's width; it never stretches into a divider */
@@ -447,10 +448,11 @@ body {
   --chart-label: var(--fg-muted);
 }
 
-/* The one measurement every surface shares: a content column that stops at
-   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
-   the header bar's, the home page's and the footer grid's content edges and
-   fails when they disagree, so each reads the column from this one pair. */
+/* The back office's content column: it stops at 1280px inside a gutter of
+   16 / 24 / 32px. app.css sets the storefront's own pair after this, and
+   `scripts/check-layout.mjs` compares the header bar's, the home page's and
+   the footer grid's content edges and fails when they disagree, so each reads
+   the column from that one pair. */
 :root {
   --page-gutter: 16px;
   --page-width: 1280px;

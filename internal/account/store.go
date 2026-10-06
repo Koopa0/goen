@@ -608,8 +608,9 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress locks the account first: under READ COMMITTED a clear cannot see
-// a default another transaction is setting.
+// AddAddress locks the account first when the new address is the default:
+// under READ COMMITTED a clear cannot see a default another transaction is
+// setting. A non-default insert touches no default, so it takes no lock.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -632,11 +633,10 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
-	if _, lockErr := q.LockUser(ctx, id); lockErr != nil {
-		return fmt.Errorf("lock account for add address: %w", lockErr)
-	}
-
 	if a.Default {
+		if _, lockErr := q.LockUser(ctx, id); lockErr != nil {
+			return fmt.Errorf("lock account for add address: %w", lockErr)
+		}
 		if clearErr := q.ClearDefaultAddress(ctx, id); clearErr != nil {
 			return fmt.Errorf("clear default address: %w", clearErr)
 		}

@@ -418,14 +418,13 @@ LIMIT $1;
 -- name: ReleaseReservation :exec
 SELECT release_reservation($1);
 
--- A cancellation no staff member made: the customer's own, or, with by_system,
--- the sweeper's at the payment deadline. The ABSENCE of an actor is what
--- distinguishes it from a back-office cancel, and both are carried structurally
--- because the customer's own order page renders any note in whatever language
--- it was written.
+-- The actor is the staff member who cancelled; none for the customer's own
+-- cancellation and, with by_system, the sweeper's at the payment deadline. Both
+-- are carried structurally because the customer's own order page renders any
+-- note in whatever language it was written.
 -- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, by_system)
-SELECT id, 'cancelled', @by_system::boolean FROM orders WHERE order_number = @order_number::text;
+INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
+VALUES (@order_id, 'cancelled', @actor_user_id, @by_system::boolean);
 
 -- What a cancellation notice needs to decide whether money may have reached
 -- Stripe for this unpaid order: the status of every payment it has had, and
@@ -451,9 +450,9 @@ WHERE o.order_number = $1 AND r.state = 'held'
 ORDER BY r.variant_id, r.id;
 
 -- Whether store credit alone paid the order, read before the cancellation
--- returns the credit: checkout queued its 統一發票 then. A customer cancels only
--- an uncommitted order, which no card has paid, so owing nothing after a credit
--- spend means credit paid it.
+-- returns the credit: checkout queued its 統一發票 then. Only an uncommitted
+-- order is cancelled this way, which no card has paid, so owing nothing after a
+-- credit spend means credit paid it. Read under the order lock.
 -- name: PaidByCreditAlone :one
 SELECT coalesce(order_amount_after_credit(o.id) = 0
                 AND EXISTS (SELECT 1 FROM store_credit_entries s
