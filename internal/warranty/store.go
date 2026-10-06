@@ -70,7 +70,7 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 	}
 	serial = strings.TrimSpace(serial)
 	if utf8.RuneCountInString(serial) > MaxSerialRunes {
-		return ErrInvalid
+		return ErrSerialTooLong
 	}
 	if unit < 1 || unit > maxUnits {
 		return ErrInvalid
