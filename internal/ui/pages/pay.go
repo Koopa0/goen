@@ -68,8 +68,7 @@ type PayView struct {
 
 // Facts is the deadline, the stock hold and the amount, or for a lapsed hold what
 // became of the order.
-func (v PayView) Facts(ctx context.Context) []components.Stat {
-	h := v.Hold
+func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat {
 	switch {
 	case h.PlacedAt.IsZero():
 		return nil
@@ -86,13 +85,12 @@ func (v PayView) Facts(ctx context.Context) []components.Stat {
 	}
 	return append(facts,
 		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
-		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(v.TotalCents)},
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(totalCents)},
 	)
 }
 
-// HoldPeriod is the minute grid of the hold; ok is false when no hold is drawn.
-func (v PayView) HoldPeriod(ctx context.Context) (components.PeriodSpec, bool) {
-	h := v.Hold
+// Period is the minute grid of the hold; ok is false when no hold is drawn.
+func (h PayHold) Period(ctx context.Context) (components.PeriodSpec, bool) {
 	if h.PlacedAt.IsZero() {
 		return components.PeriodSpec{}, false
 	}
@@ -100,7 +98,7 @@ func (v PayView) HoldPeriod(ctx context.Context) (components.PeriodSpec, bool) {
 }
 
 // StartByText is the clock time payment must start by.
-func (v PayView) StartByText() string { return shoptime.ClockText(v.Hold.StartBy) }
+func (h PayHold) StartByText() string { return shoptime.ClockText(h.StartBy) }
 
 // EyebrowKey says 完成付款 only while a payment can start or resume.
 func (v PayView) EyebrowKey() i18n.Key {

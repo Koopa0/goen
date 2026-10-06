@@ -105,11 +105,11 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.StatLine(v.Facts(ctx), components.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if period, ok := v.HoldPeriod(ctx); ok {
+			if period, ok := v.Hold.Period(ctx); ok {
 				templ_7745c5c3_Err = components.Period(period).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -541,9 +541,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var33 string
-						templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.StartByText()))
+						templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.Hold.StartByText()))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/pay.templ`, Line: 111, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/pay.templ`, Line: 111, Col: 75}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 						if templ_7745c5c3_Err != nil {

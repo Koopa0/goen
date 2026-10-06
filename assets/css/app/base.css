@@ -492,8 +492,8 @@ body {
   gap: 1px;
 }
 
-/* Sixty minutes are one line: the cells touch, and only the span after the
-   deadline is split by gaps. */
+/* Sixty minutes are one line: the cells touch, and one gap splits the span
+   after the deadline from the cells before it. */
 .ui-period[data-unit="minute"] {
   gap: 0;
 }
@@ -634,7 +634,7 @@ body {
   right: -2px;
 }
 
-.ui-period[data-unit="minute"] > i[data-span="extra"] {
+.ui-period[data-unit="minute"] > i[data-mark] + i {
   margin-left: 2px;
 }
 
