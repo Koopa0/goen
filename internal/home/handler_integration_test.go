@@ -658,8 +658,8 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 
 	// The other active method still carries the seeded 300000; only the higher
 	// threshold is free for both.
-	if got := view.FreeDelivery(); got != "NT$5,555" {
-		t.Errorf("the strip states %q, want NT$5,555 — the highest threshold, "+
+	if got := view.Rules.FreeDeliveryCents; got != 555500 {
+		t.Errorf("the shop rules state a threshold of %d cents, want 555500 — the highest threshold, "+
 			"the one every active method honours", got)
 	}
 
@@ -677,14 +677,14 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
-	if got := bare.FreeDelivery(); got != "" {
-		t.Errorf("a shop that charges for every parcel advertises free delivery over %q", got)
+	if got := bare.Rules.FreeDeliveryCents; got != 0 {
+		t.Errorf("a shop that charges for every parcel advertises free delivery over %d cents", got)
 	}
 }
 
 // fee_cents lives in shipping_method_versions, which a shop edits at
 // /admin/shipping, so a page stating the figure can drift from the till.
-func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
+func TestTheFreeDeliveryNoteStatesTheLowestCurrentFee(t *testing.T) {
 	ctx := t.Context()
 
 	// A new version, because shipping_method_versions is append-only. Every
@@ -712,10 +712,10 @@ func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
 	body := res.Body.String()
 
 	if !strings.Contains(body, "未達門檻運費 NT$80 起") {
-		t.Error("the trust body does not state the current lowest fee")
+		t.Error("the free-delivery note does not state the current lowest fee")
 	}
 	if strings.Contains(body, "NT$60") {
-		t.Error("the trust body still states the old NT$60 floor")
+		t.Error("the free-delivery note still states the old NT$60 floor")
 	}
 }
 
@@ -779,8 +779,8 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 }
 
 // Checkout drops store pickup where the store map is not configured, so the
-// strip's floor and wording must describe the home delivery it still offers.
-func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
+// note's floor and wording must describe the home delivery it still offers.
+func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	// New versions, because shipping_method_versions is append-only and a
@@ -818,15 +818,15 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	if !strings.Contains(with, "未達門檻運費 NT$60 起") {
 		t.Error("a shop that offers pickup does not state its NT$60 floor")
 	}
-	if !strings.Contains(with, "超商取貨皆適用") {
+	if !strings.Contains(with, "宅配與超商取貨") {
 		t.Error("a shop that offers pickup does not say so")
 	}
 	without := render(home.NewStore(pool).WithoutPickup())
-	if strings.Contains(without, "超商取貨皆適用") {
-		t.Error("the strip promises pickup where checkout does not offer it")
+	if strings.Contains(without, "宅配與超商取貨") {
+		t.Error("the free-delivery note promises pickup where checkout does not offer it")
 	}
 	if want := "未達門檻運費 NT$80 起"; !strings.Contains(without, want) {
-		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
+		t.Errorf("the note's floor is not the home delivery fee; want %q", want)
 	}
 }
 
