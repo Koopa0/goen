@@ -104,7 +104,7 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 
 	_, form, ok := strings.Cut(html, `<form class="goen-filters"`)
 	if !ok {
@@ -137,7 +137,7 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 
 	last := view
 	last.Page = 3
-	if got := renderToString(t, Listing(ListingMeta(ctx, last), last)); strings.Contains(got, `rel="next"`) {
+	if got := renderToString(t, Listing(ListingMeta(ctx, last), last, nil)); strings.Contains(got, `rel="next"`) {
 		t.Error("the last page offers a next page")
 	}
 }
@@ -148,7 +148,7 @@ func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	empty := ListingView{Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true}
-	html := renderToString(t, Listing(ListingMeta(ctx, empty), empty))
+	html := renderToString(t, Listing(ListingMeta(ctx, empty), empty, nil))
 
 	if strings.Contains(html, `id="sort"`) {
 		t.Error("an empty listing offers a sort")
@@ -167,7 +167,7 @@ func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
 		Slug: "audio", Name: "耳機與音響", Total: 1,
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
-	got := renderToString(t, Listing(ListingMeta(ctx, full), full))
+	got := renderToString(t, Listing(ListingMeta(ctx, full), full, nil))
 	if !strings.Contains(got, `id="listing-count" aria-hidden="true">共 1 件商品</p>`) || !strings.Contains(got, `id="sort"`) {
 		t.Error("a listing with products lacks its count or sort")
 	}
