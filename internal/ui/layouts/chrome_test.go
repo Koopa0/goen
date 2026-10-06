@@ -220,7 +220,10 @@ func TestTheCurrentDepartmentIsMarked(t *testing.T) {
 	t.Parallel()
 
 	header := renderHeader(t, chromeNav, false, layouts.Page{Nav: "phones"})
-	row := header[strings.Index(header, `class="goen-header__nav"`):]
+	_, row, found := strings.Cut(header, `class="goen-header__nav"`)
+	if !found {
+		t.Fatal("the header has no department row")
+	}
 	if !strings.Contains(row, `aria-current="page" href="/c/phones"`) {
 		t.Error("the current department's link does not carry aria-current")
 	}
@@ -273,8 +276,11 @@ func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T
 		if at < 0 {
 			t.Fatalf("the footer has no %q column", i18n.T(ctx, title))
 		}
-		rest := footer[at:]
-		return rest[:strings.Index(rest, "</nav>")]
+		col, _, closed := strings.Cut(footer[at:], "</nav>")
+		if !closed {
+			t.Fatalf("the %q column is never closed", i18n.T(ctx, title))
+		}
+		return col
 	}
 	for title, hrefs := range map[i18n.Key][]string{
 		i18n.KeyFooterHelp:       {"/contact", "/faq", "/shipping", "/payment", "/returns", "/warranty"},
