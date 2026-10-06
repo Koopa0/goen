@@ -101,6 +101,12 @@ test-integration: gen
 #
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
+# Where the run keeps its browser profile, axe-core and fixture env; the scripts
+# read it from the environment. A test points it at a temporary directory so
+# nothing is written inside the repository tree.
+LAYOUT_DIR ?= .layout-chrome
+export LAYOUT_DIR
+
 check-layout-run: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 # The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
 # to lead COLOUR_SLUG's gallery once that value is chosen.
@@ -113,7 +119,7 @@ check-layout-run: COLOUR_KEY := pixelight-9-pro-02.webp
 # out, success, a failed fixture, Ctrl-C and SIGTERM. The pid file is the only
 # handle on a browser that outlives its shell.
 check-layout:
-	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; rm -rf .layout-chrome' EXIT; \
+	@trap 'if [ -f $(LAYOUT_DIR)/pid ]; then kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; fi; rm -rf $(LAYOUT_DIR)' EXIT; \
 		trap 'exit 130' INT; trap 'exit 143' TERM; \
 		$(MAKE) --no-print-directory check-layout-run
 
@@ -121,10 +127,10 @@ check-layout-run:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }
-	@rm -rf .layout-chrome && mkdir -p .layout-chrome
+	@rm -rf $(LAYOUT_DIR) && mkdir -p $(LAYOUT_DIR)
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >chrome.log 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(abspath $(LAYOUT_DIR)) about:blank >chrome.log 2>&1 & echo $$! > $(LAYOUT_DIR)/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
@@ -132,23 +138,23 @@ check-layout-run:
 	@# The script evaluates it over CDP rather than injecting a <script>: the
 	@# site sends script-src 'self' and a gate that needs the page to relax its
 	@# own CSP measures a page nobody visits.
-	@curl -fsSL --retry 3 -o .layout-chrome/axe.min.js \
+	@curl -fsSL --retry 3 -o $(LAYOUT_DIR)/axe.min.js \
 		https://unpkg.com/axe-core@$(AXE_CORE_VERSION)/axe.min.js \
 		|| { echo 'could not fetch axe-core $(AXE_CORE_VERSION)' >&2; exit 2; }
 	@# openssl rather than shasum or sha256sum: neither of those is on both macOS
 	@# and a Linux runner. The last field, because OpenSSL 3 prints
 	@# SHA2-256(file)= and LibreSSL prints SHA256(file)=.
-	@digest=$$(openssl dgst -sha256 .layout-chrome/axe.min.js | awk '{print $$NF}'); \
+	@digest=$$(openssl dgst -sha256 $(LAYOUT_DIR)/axe.min.js | awk '{print $$NF}'); \
 		test "$$digest" = '$(AXE_CORE_SHA256)' \
 		|| { echo "axe-core $(AXE_CORE_VERSION) hashes to $$digest, not AXE_CORE_SHA256" >&2; exit 2; }
 	@# After the launch, which TestCheckLayoutLaunchesTheResolvedChrome observes
 	@# against a database this line cannot reach.
-	@psql "$$GOEN_DATABASE_URL" -X -q -v env=.layout-chrome/env -f scripts/check-layout.sql \
+	@psql "$$GOEN_DATABASE_URL" -X -q -v env=$(LAYOUT_DIR)/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
-	@node --env-file=.layout-chrome/env scripts/filter-feedback-check.mjs
+	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
-		node --env-file=.layout-chrome/env scripts/check-layout.mjs; status=$$?; \
-		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
+		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
+		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \
 		exit $$status
 
 # Type-check the integration tests on every ordinary run without executing
@@ -627,7 +633,7 @@ workflow-check:
 
 .PHONY: test-filter-feedback
 test-filter-feedback:
-	node --test scripts/filter-feedback.test.mjs
+	node --test scripts/filter-feedback.test.mjs scripts/filter-feedback-check.test.mjs
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.

@@ -14,6 +14,7 @@ import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusi
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
+const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
 
@@ -28,7 +29,7 @@ const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/,
 // that so the checker could get in would mean auditing a page no visitor is
 // served. A CDP evaluation runs outside the page's CSP and leaves the document
 // exactly as a visitor receives it.
-const AXE_SOURCE = process.env.AXE_SOURCE || '.layout-chrome/axe.min.js';
+const AXE_SOURCE = process.env.AXE_SOURCE || `${LAYOUT_DIR}/axe.min.js`;
 const AXE_BASELINE = process.env.AXE_BASELINE || 'scripts/axe-baseline.json';
 
 // One width. Every rule asked for below is a property of the document rather
@@ -428,7 +429,7 @@ async function pageSocket() {
 function chromeStartupReport() {
   const lines = [];
   try {
-    const pid = Number(readFileSync('.layout-chrome/pid', 'utf8'));
+    const pid = Number(readFileSync(`${LAYOUT_DIR}/pid`, 'utf8'));
     try {
       process.kill(pid, 0);
       lines.push(`Chrome (pid ${pid}) is still running`);

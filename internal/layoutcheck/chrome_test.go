@@ -80,7 +80,6 @@ func probeResolvedChrome(t *testing.T, binDir, scenario string) {
 
 	ctx := t.Context()
 	root := repoRoot(t)
-	t.Cleanup(func() { os.RemoveAll(filepath.Join(root, ".layout-chrome")) })
 
 	launchLog := filepath.Join(binDir, "launch.log")
 	fakeChrome := filepath.Join(binDir, "google-chrome-stable")
@@ -142,6 +141,7 @@ exec /usr/bin/curl "$@"
 	cmd.Env = append(envWithoutChrome(os.Environ()),
 		"PATH="+binDir+":/usr/bin",
 		"GOEN_DATABASE_URL=postgres://layout-check-test.invalid/db",
+		"LAYOUT_DIR="+t.TempDir(),
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start make check-layout: %v", err)
@@ -266,9 +266,10 @@ func envWithoutChrome(env []string) []string {
 func assertCheckLayoutDryRunPropagatesChrome(t *testing.T, ctx context.Context, root string) {
 	t.Helper()
 
+	layoutDir := t.TempDir()
 	// Pin CHROME so a Darwin host whose resolver correctly names the app
 	// bundle is not treated as a macOS-only Makefile.
-	cmd := exec.CommandContext(ctx, "make", "-n", "check-layout", "CHROME="+explicitLayoutChrome)
+	cmd := exec.CommandContext(ctx, "make", "-n", "check-layout", "CHROME="+explicitLayoutChrome, "LAYOUT_DIR="+layoutDir)
 	cmd.Dir = root
 	cmd.Env = envWithoutChrome(os.Environ())
 	out, err := cmd.CombinedOutput()
@@ -276,6 +277,9 @@ func assertCheckLayoutDryRunPropagatesChrome(t *testing.T, ctx context.Context, 
 		t.Fatalf("make -n check-layout: %v\n%s", err, out)
 	}
 	dryRun := string(out)
+	if !strings.Contains(dryRun, "--user-data-dir="+layoutDir) {
+		t.Fatalf("make -n check-layout did not put the browser profile under LAYOUT_DIR %q:\n%s", layoutDir, dryRun)
+	}
 	if strings.Contains(dryRun, "$$CHROME") {
 		t.Fatalf("make -n check-layout still launches through a per-line shell variable:\n%s", dryRun)
 	}
