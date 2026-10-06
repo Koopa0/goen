@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -916,13 +917,18 @@ func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) 
 func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	if _, err := pool.Exec(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	if _, err = tx.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
 		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
 		       CASE sm.destination_kind WHEN 'pickup_point' THEN 0 ELSE 8000 END,
-		       CASE sm.destination_kind WHEN 'pickup_point' THEN NULL ELSE 300000 END,
-		       now()
+		       300000, now()
 		FROM shipping_method_versions v
 		JOIN shipping_methods sm ON sm.id = v.method_id
 		WHERE sm.is_active
@@ -930,7 +936,7 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 		t.Fatalf("publish the fees: %v", err)
 	}
 
-	view, err := home.NewStore(pool).Load(ctx)
+	view, err := home.NewStore(tx).Load(ctx)
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
@@ -1111,17 +1117,22 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
 	stopCampaigns(t)
-	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
 		t.Fatalf("insert campaign: %v", err)
 	}
 	var campaignID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM sale_campaigns WHERE slug = 'lead-width'`).Scan(&campaignID); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT id FROM sale_campaigns WHERE slug = 'lead-width'`).Scan(&campaignID); err != nil {
 		t.Fatalf("read campaign: %v", err)
 	}
 	productIDs := make([]uuid.UUID, 0, 4)
 	for range 4 {
 		var id uuid.UUID
-		if err := pool.QueryRow(ctx, `
+		if err := tx.QueryRow(ctx, `
 			WITH p AS (
 			    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 			    SELECT (SELECT id FROM brands LIMIT 1),
@@ -1138,25 +1149,10 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 		productIDs = append(productIDs, id)
 	}
 	for i, id := range productIDs {
-		if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
 			t.Fatalf("feature product: %v", err)
 		}
 	}
-	t.Cleanup(func() {
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		for _, q := range []string{
-			`DELETE FROM product_images WHERE product_id = ANY($1)`,
-			`DELETE FROM sale_campaign_products WHERE campaign_id = $2`,
-			`DELETE FROM products WHERE id = ANY($1)`,
-			`DELETE FROM sale_campaigns WHERE id = $2`,
-		} {
-			if _, err := pool.Exec(clean, q, productIDs, campaignID); err != nil {
-				t.Errorf("clean up %q: %v", q, err)
-			}
-		}
-	})
-
 	for _, tt := range []struct {
 		name  string
 		width any
@@ -1166,15 +1162,15 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 		{"just under", 1199, false},
 		{"width never stored", nil, false},
 	} {
-		if _, err := pool.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1`, productIDs[0]); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1`, productIDs[0]); err != nil {
 			t.Fatalf("clear photograph: %v", err)
 		}
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO product_images (product_id, storage_key, alt_text, width, height, position)
 			VALUES ($1, 'lead.webp', '主圖', $2, 1200, 0)`, productIDs[0], tt.width); err != nil {
 			t.Fatalf("%s: insert photograph: %v", tt.name, err)
 		}
-		view, err := home.NewStore(pool).Load(ctx)
+		view, err := home.NewStore(tx).Load(ctx)
 		if err != nil {
 			t.Fatalf("%s: load: %v", tt.name, err)
 		}

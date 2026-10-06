@@ -176,7 +176,7 @@ INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, distri
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
 -- A tier above the fixture customer's spend, so the customer page draws its meter.
-RESET ROLE;
+SET ROLE admin;
 INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
 VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
 ON CONFLICT DO NOTHING;

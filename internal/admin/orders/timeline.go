@@ -34,6 +34,7 @@ var (
 	}
 	invoiceOperationStatuses = map[string]i18n.Key{
 		"pending":        i18n.KeyAdminTimelineInvoicePending,
+		"not_sent":       i18n.KeyAdminTimelineInvoiceNotSent,
 		"awaiting_buyer": i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
 		"attention":      i18n.KeyAdminTimelineInvoiceAttention,
 		"succeeded":      i18n.KeyAdminTimelineInvoiceSucceeded,

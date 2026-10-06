@@ -146,6 +146,9 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	ctx := t.Context()
 	seedCatalogue(t, shop)
 	addAdmin(t, shop)
+	// The seed and the history are separate runs, with the second factor
+	// enrolled in between, so they need not fall on the same day.
+	ageSnapshot(t, shop, 1)
 	windows := saleWindows(t, shop)
 
 	if out, err := runSeed(t, "demo_history.sql", shop.Config().ConnString(), namingItself(shop)...); err != nil {
@@ -584,7 +587,7 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("UnreconciledCompletePayments: %v", err)
 	}
-	stranded, err := q.StrandedInvoiceClaims(ctx)
+	stranded, err := q.StrandedInvoiceClaims(ctx, true)
 	if err != nil {
 		t.Fatalf("StrandedInvoiceClaims: %v", err)
 	}
