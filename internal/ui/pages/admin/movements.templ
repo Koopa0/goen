@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -27,6 +28,13 @@ templ Movements(p layouts.Page, v *MovementsView) {
 		</div>
 		@Announce(v.Notice)
 		@receiveForm(v)
+		if v.HasStockDays() {
+			if v.DrawsStockLine() {
+				@chart.StepLine(v.StockLine(ctx))
+			} else {
+				<p class="goen-admin__hint">{ v.NoStockLine(ctx) }</p>
+			}
+		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }</p>

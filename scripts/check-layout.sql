@@ -165,9 +165,11 @@ INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, distri
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
 -- A tier above the fixture customer's spend, so the customer page draws its meter.
+RESET ROLE;
 INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
 VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
 ON CONFLICT DO NOTHING;
+SET ROLE store;
 
 -- Five orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
@@ -239,6 +241,36 @@ VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
 -- One redemption on a paid order, so the capped coupon's meter has a filled
 -- part. The order carries no discount, so the redemption records none.
 SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
+
+-- /admin/reports draws its running totals only from seven shop days with paid
+-- orders, so the report gets seven, none today. The latest is NT$1,234,567, which
+-- gives the chart's end label seven digits to measure at 320. Each is placed and
+-- paid as the reports tests pay one: a succeeded payment is what puts a pending
+-- order in committed_orders, off the picking queue.
+WITH revenue_orders AS (
+    INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
+                        shipping_cents, placed_at)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0,
+           now() - make_interval(days => day_ago)
+    FROM generate_series(1, 7) AS day_ago
+    RETURNING id, placed_at
+), revenue_lines AS (
+    INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+    SELECT r.id, 'LAYOUT-REVENUE', 'Revenue chart fixture',
+           CASE WHEN r.placed_at = (SELECT max(placed_at) FROM revenue_orders) THEN 123456700 ELSE 3000000 END,
+           1
+    FROM revenue_orders r
+    RETURNING order_id
+)
+INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+FROM revenue_lines;
+SELECT open_payment(o.id, 'layout-rev-' || o.id, ol.unit_price_cents)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE ol.sku = 'LAYOUT-REVENUE';
+SELECT capture_payment('layout-rev-' || o.id, ol.unit_price_cents, NULL, NULL)
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE ol.sku = 'LAYOUT-REVENUE';
 
 SET ROLE admin;
 

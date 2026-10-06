@@ -180,3 +180,31 @@ func TestMidnightIsTheStartOfTheShopDay(t *testing.T) {
 		}
 	}
 }
+
+func TestClockIsTheShopsTimeOfDay(t *testing.T) {
+	t.Parallel()
+
+	// 07:20 UTC is 15:20 in Taipei, whatever zone the value carries.
+	instant := time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC)
+	for _, in := range []time.Time{instant, instant.In(time.FixedZone("", -5*3600))} {
+		if got, want := shoptime.Clock(in), "15:20"; got != want {
+			t.Errorf("Clock(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
+	t.Parallel()
+
+	// 00:30 on the 10th in Taipei is still the 9th in UTC.
+	now := time.Date(2026, 9, 9, 16, 30, 0, 0, time.UTC)
+	if got, want := shoptime.Minute(shoptime.FirstDay(now, 90)), "2026-06-13 00:00"; got != want {
+		t.Errorf("FirstDay(%v, 90) = %s, want %s", now, got, want)
+	}
+	if got, want := shoptime.FirstDay(now, 1), shoptime.Midnight(now); !got.Equal(want) {
+		t.Errorf("FirstDay(now, 1) = %v, want today's midnight %v", got, want)
+	}
+	if got, want := shoptime.QueryDate(now), time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("QueryDate(%v) = %v, want %v", now, got, want)
+	}
+}

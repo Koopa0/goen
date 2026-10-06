@@ -36,14 +36,20 @@ func TWD(cents int64) string {
 	if negative {
 		dollars = -dollars
 	}
-	digits := strconv.FormatInt(dollars, 10)
-
 	var b strings.Builder
-	b.Grow(len(digits) + len(digits)/3 + len("-NT$"))
 	if negative {
 		b.WriteByte('-')
 	}
 	b.WriteString("NT$")
+	b.WriteString(grouped(dollars))
+	return b.String()
+}
+
+// grouped is a non-negative whole number with a comma between thousands.
+func grouped(n int64) string {
+	digits := strconv.FormatInt(n, 10)
+	var b strings.Builder
+	b.Grow(len(digits) + len(digits)/3)
 	for i := range len(digits) { // digits is ASCII
 		if i > 0 && (len(digits)-i)%3 == 0 {
 			b.WriteByte(',')
@@ -51,6 +57,32 @@ func TWD(cents int64) string {
 		b.WriteByte(digits[i])
 	}
 	return b.String()
+}
+
+// Short is the digits of a non-negative amount counted in divisor dollars,
+// exactly: as many decimals as it takes, so 12_500_000 cents over a divisor of
+// 10_000 is "12.5" and 250_000 is "0.25". The divisor is a power of ten, which
+// is what makes the decimals finite. The unit's name is the caller's, since it
+// depends on the language.
+func Short(cents, divisor int64) string {
+	unit := 100 * divisor
+	whole, rest := cents/unit, cents%unit
+	out := grouped(whole)
+	if rest == 0 {
+		return out
+	}
+	var decimals []byte
+	// A divisor that is not a power of ten has no finite expansion: the bound
+	// is what the one that is has.
+	for range len(strconv.FormatInt(unit, 10)) {
+		if rest == 0 {
+			break
+		}
+		rest *= 10
+		decimals = append(decimals, "0123456789"[rest/unit])
+		rest %= unit
+	}
+	return out + "." + string(decimals)
 }
 
 // ParseDollars reads a whole-dollar price typed in a form and returns cents. A

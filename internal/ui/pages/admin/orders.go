@@ -97,19 +97,26 @@ func (t StatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
 // to one state would answer what the tiles above already answer, and hide the order
 // somebody walked over to ask about.
 type DashboardView struct {
-	PendingOrders  int64
-	ReadyOrders    int64
-	PickingOrders  int64
-	LowStock       int64
-	ActiveProducts int64
-	OpenMessages   int64
+	PendingOrders int64
+	ReadyOrders   int64
+	// ReadyOldestSeconds and the other *OldestSeconds are how long the oldest
+	// waiting item has waited, on the database's clock.
+	ReadyOldestSeconds        int64
+	PickingOrders             int64
+	LowStock                  int64
+	ActiveProducts            int64
+	OpenMessages              int64
+	OpenMessagesOldestSeconds int64
 	// PendingReturns is the requests nobody has decided, UninspectedReturns the
 	// approved ones whose parcel nobody has opened.
-	PendingReturns      int64
-	UninspectedReturns  int64
-	UnansweredQuestions int64
-	Recent              []OrderRow
-	Low                 []Variant
+	PendingReturns                   int64
+	PendingReturnsOldestSeconds      int64
+	UninspectedReturns               int64
+	UninspectedReturnsOldestSeconds  int64
+	UnansweredQuestions              int64
+	UnansweredQuestionsOldestSeconds int64
+	Recent                           []OrderRow
+	Low                              []Variant
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
 	// HealthUnavailable is set when the health desk could not be read, so an
@@ -123,23 +130,39 @@ type Task struct {
 	Label i18n.Key
 	Count int64
 	Href  string
+	// HasAge is false for work with no start time to measure from.
+	HasAge     bool
+	AgeSeconds int64
+	// Alert marks work that is wrong rather than merely waiting.
+	Alert bool
+}
+
+const secondsPerDay = 24 * 60 * 60
+
+// AgeText says how long the oldest item has waited, in whole days.
+func (t Task) AgeText(ctx context.Context) string {
+	days := t.AgeSeconds / secondsPerDay
+	if days < 1 {
+		return i18n.T(ctx, i18n.KeyAdminQueueTaskUnderADay)
+	}
+	return i18n.Count(ctx, i18n.KeyAdminQueueTaskOldestDays, days, days)
 }
 
 // DeskTasks lists what the order desk itself counts, leaving out each kind with
 // nothing waiting.
-func (v DashboardView) DeskTasks() []Task {
+func (v *DashboardView) DeskTasks() []Task {
 	all := []Task{
-		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready"},
-		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns"},
-		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns"},
-		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions"},
-		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages"},
+		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
+		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions", HasAge: true, AgeSeconds: v.UnansweredQuestionsOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages", HasAge: true, AgeSeconds: v.OpenMessagesOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatLowStock, Count: v.LowStock, Href: "/admin/stock?low=1"},
 	}
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
 
-func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
+func (v *DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
 	web.Bound
@@ -663,6 +686,7 @@ type MovementsView struct {
 	Stock       int32
 	Safety      int32
 	Rows        []Movement
+	Days        []StockDay
 	Notice      components.Result
 	FormID      string
 }

@@ -76,8 +76,8 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	}
 	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))
 
-	// 繁體中文 is the language switch naming Chinese in Chinese, on purpose.
-	for _, data := range []string{userData, "Aurora 充電器", "銀", "繁體中文"} {
+	// 繁體中文 and 繁中 are the language switch naming Chinese in Chinese, on purpose.
+	for _, data := range []string{userData, "Aurora 充電器", "銀", "繁體中文", "繁中"} {
 		out = strings.ReplaceAll(out, data, "")
 	}
 	// Tag and attribute text is markup, not copy; only what a reader sees counts.
