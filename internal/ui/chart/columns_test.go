@@ -209,7 +209,7 @@ func TestColumnsBracketACampaignAndTheTableNamesItOnEachOfItsDays(t *testing.T) 
 	for _, want := range []string{
 		`class="goen-chart__strip"`, `class="goen-chart__span"`,
 		`class="goen-chart__spanlabel"`, ">Tea week<",
-		`<th scope="col" class="goen-chart__spans">Campaign</th>`,
+		`<th scope="col" class="goen-chart__spans" data-readout="note">Campaign</th>`,
 		`<th scope="row">Sep 10</th><td>2</td><td class="goen-chart__spans">Tea week</td>`,
 		`<th scope="row">Sep 12</th><td>0</td><td class="goen-chart__spans">Tea week</td>`,
 		`<th scope="row">Sep 13</th><td>0</td><td class="goen-chart__spans"></td>`,
@@ -439,5 +439,25 @@ func TestColumnsEndingBeforeTodayAreNotMarkedAsToday(t *testing.T) {
 	}
 	if !strings.Contains(renderColumns(t, i18n.En, compared(true)), ">Today<") {
 		t.Error("a series whose last day is going has no Today tick")
+	}
+}
+
+func TestColumnsHitsNameTheirTableRows(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{3: 2, 9: 5, 20: 1, 29: 4})))
+	if n := strings.Count(got, `class="goen-chart__hit"`); n != 30 {
+		t.Errorf("columns of 30 days: %d hits, want 30", n)
+	}
+	if n := strings.Count(got, "<tr>") - 1; n != 30 {
+		t.Errorf("columns of 30 days: %d table rows, want 30", n)
+	}
+	for _, want := range []string{`<p class="goen-chart__readout"></p>`, `data-row="0"`, `data-row="29"`, `data-readout="series">Paid orders<`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("columns of 30 days: markup lacks %s", want)
+		}
+	}
+	if strings.Contains(got, "data-x=") || strings.Contains(got, "tabindex") {
+		t.Error("columns: a hit carries a crosshair position or the markup has a tab stop")
 	}
 }

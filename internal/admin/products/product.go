@@ -108,6 +108,9 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.ProductsView, 
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
 	view := admin.ProductsView{Bound: bound}
+	if view.Published, err = s.q.PublishedProductCount(ctx); err != nil {
+		return admin.ProductsView{}, fmt.Errorf("count published products: %w", err)
+	}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Product{

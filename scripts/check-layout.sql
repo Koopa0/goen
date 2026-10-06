@@ -431,6 +431,17 @@ JOIN order_shipments s ON s.id = sl.shipment_id
 WHERE ol.order_id = :'invoice_id'
 RETURNING serial_number AS layout_serial \gset
 
+-- RETURN_FORM_ORDER is delivered with nothing returned: its order page draws the right-to-cancel grid and the
+-- registered warranty's months.
+INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
+SELECT ol.id, 1, o.user_id, 'LAYOUTSN' || translate(o.order_number, 'GO-', ''),
+       (shop_day(s.delivered_at) + make_interval(months => ol.warranty_months))::date
+FROM order_lines ol
+JOIN orders o ON o.id = ol.order_id
+JOIN order_shipment_lines sl ON sl.order_line_id = ol.id
+JOIN order_shipments s ON s.id = sl.shipment_id
+WHERE ol.order_id = :'form_id' AND ol.warranty_months IS NOT NULL;
+
 INSERT INTO return_requests (order_id, requested_by_user_id, reason)
 VALUES (:'invoice_id', :'customer_id', '尺寸不合，想換一個顏色')
 RETURNING id AS return_id \gset

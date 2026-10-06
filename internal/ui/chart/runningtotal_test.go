@@ -307,3 +307,27 @@ func TestAxisLabelsAreTheValuesOfTheirLines(t *testing.T) {
 		}
 	}
 }
+
+func TestRunningTotalHitsEndEachDayWhereItsTotalStands(t *testing.T) {
+	t.Parallel()
+
+	p := fullProps()
+	got := renderRunningTotal(t, &p)
+	n := len(p.Current.Buckets)
+	if c := strings.Count(got, `class="goen-chart__hit"`); c != n {
+		t.Errorf("running total of %d days: %d hits, want %d", n, c, n)
+	}
+	last := `data-row="` + strconv.Itoa(n-1) + `" data-x="100.00%"`
+	if !strings.Contains(got, last) {
+		t.Errorf("running total: the last hit does not end at 100%%, want %s", last)
+	}
+	if !strings.Contains(got, `<p class="goen-chart__readout"></p>`) {
+		t.Error("running total: no empty readout for goen.js to fill")
+	}
+	if c := strings.Count(got, `data-readout="series"`); c != 2 {
+		t.Errorf("running total: %d series columns, want 2", c)
+	}
+	if strings.Contains(got, "tabindex") {
+		t.Error("running total: the markup has a tab stop")
+	}
+}

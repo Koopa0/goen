@@ -125,3 +125,40 @@ func TestDateLabelIsTheShortForm(t *testing.T) {
 		}
 	}
 }
+
+func TestMonthsBetweenCountsWholeMonths(t *testing.T) {
+	t.Parallel()
+	day := func(y int, m time.Month, d int) shoptime.Date { return shoptime.Date{Year: y, Month: m, Day: d} }
+	for _, tt := range []struct {
+		name     string
+		from, to shoptime.Date
+		want     int
+	}{
+		{"the same day", day(2026, 10, 6), day(2026, 10, 6), 0},
+		{"before the month's day", day(2026, 10, 6), day(2026, 11, 5), 0},
+		{"on the month's day", day(2026, 10, 6), day(2026, 11, 6), 1},
+		{"across a year", day(2026, 10, 6), day(2028, 9, 30), 23},
+		{"the later day first", day(2026, 10, 6), day(2026, 9, 6), 0},
+	} {
+		if got := shoptime.MonthsBetween(tt.from, tt.to); got != tt.want {
+			t.Errorf("%s: MonthsBetween = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestStampTextIsTheShortDateAndTheShopsClock(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC) // 14:02 in Taipei
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "10/3 14:02",
+		i18n.En:     "Oct 3 14:02",
+	} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		if got := shoptime.StampText(ctx, at); got != want {
+			t.Errorf("%v: StampText = %q, want %q", locale, got, want)
+		}
+	}
+	if got, want := shoptime.ISOStamp(at), "2026-10-03T14:02+08:00"; got != want {
+		t.Errorf("ISOStamp = %q, want %q", got, want)
+	}
+}

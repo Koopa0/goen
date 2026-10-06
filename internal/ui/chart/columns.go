@@ -135,6 +135,7 @@ type columns struct {
 	Ticks            []dayTick
 	TodayX           string
 	Rows             []columnRow
+	Hits             []hit
 	HasSpans         bool
 	Note             string
 }
@@ -298,6 +299,10 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	r.Strips = stripsOf(pl, rows, top, n, grouped, p.Series.Partial)
 	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
 	r.Rows = tableRows(ctx, p, cols, pl)
+	r.Hits = make([]hit, n)
+	for i := range r.Hits {
+		r.Hits[i] = hit{X: percent(float64(i) * band), Width: percent(band)}
+	}
 
 	r.Note = p.Note
 	if grouped && cols[0].Days != daysPerColumn {

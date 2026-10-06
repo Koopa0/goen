@@ -339,6 +339,64 @@ ORDER BY ol.position, ol.id;
 SELECT sku, product_name, variant_label, unit_price_cents, quantity
 FROM order_lines WHERE order_id = $1 ORDER BY position, id;
 
+-- The customer's order page: each line with its photograph and its warranty promise.
+-- name: OrderPageLines :many
+SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       ol.warranty_months,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    -- The photograph that shows the line's own option value, else the product's first.
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = @order_id ORDER BY ol.position, ol.id;
+
+-- Which lines, and how many of each, went in which parcel, in the order OrderTracking lists the parcels.
+-- name: OrderParcelLines :many
+SELECT sl.shipment_id, sl.order_line_id, sl.quantity
+FROM order_shipment_lines sl
+JOIN order_shipments s ON s.id = sl.shipment_id
+WHERE sl.order_id = $1
+ORDER BY s.shipped_at, s.id, sl.order_line_id;
+
+-- name: OrderWarrantyRegistrations :many
+SELECT w.order_line_id, w.unit_no, w.expires_on
+FROM warranty_registrations w
+JOIN order_lines ol ON ol.id = w.order_line_id
+WHERE ol.order_id = $1
+ORDER BY w.order_line_id, w.unit_no;
+
+-- Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
+-- name: OrderReturnedUnits :one
+SELECT
+    coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
+    coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+              JOIN return_requests rr ON rr.id = rl.return_request_id
+              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units;
+
+-- The completed returns, with the money each sent back and the day it was paid out: the later of the card
+-- refund and the credit posting, or the decision for a return that sent nothing back.
+-- name: OrderReturns :many
+SELECT coalesce(
+           greatest((SELECT max(rf.succeeded_at) FROM refunds rf
+                     WHERE rf.return_request_id = rr.id AND rf.status = 'succeeded'),
+                    (SELECT max(e.created_at) FROM store_credit_entries e
+                     WHERE e.idempotency_key = 'return-credit:' || rr.id::text)),
+           rr.decided_at)::timestamptz AS paid_out_at,
+       (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
+FROM return_requests rr
+WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+ORDER BY paid_out_at, rr.id;
+
 -- name: RecordCheckoutAttempt :exec
 INSERT INTO checkout_attempts (idempotency_key, cart_id, order_id)
 VALUES ($1, $2, $3);
@@ -376,11 +434,14 @@ SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
        coalesce(tax_id, '')::text AS tax_id
 FROM invoice_preferences WHERE order_id = $1;
 
--- rescission_ends is shop_today() for a parcel not yet delivered: sqlc cannot type a
--- nullable date from an expression, so a reader checks delivered_at, never the date.
+-- rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
+-- type a nullable date from an expression, so a reader checks delivered_at, never the dates.
+-- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
+-- holds the 14 to that function.
 -- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at,
-       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends
+SELECT id, carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
+       coalesce(shop_day(delivered_at) + 14, shop_today())::date AS goodwill_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.

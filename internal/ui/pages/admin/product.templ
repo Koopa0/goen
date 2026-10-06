@@ -20,6 +20,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminProdLead) }
 				</p>
+				<p class="ui-page-head__sub">{ i18n.Count(ctx, i18n.KeyAdminProdPublished, v.Published, v.Published) }</p>
 			</div>
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "/admin/products/new") {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
