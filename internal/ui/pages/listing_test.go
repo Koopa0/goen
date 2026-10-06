@@ -74,7 +74,7 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 
 	if !strings.Contains(html, `<div class="goen-listing__filters">`) {
 		t.Error("the filter rail is not grouped into one layout column")
@@ -102,7 +102,7 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 		Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true,
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 
 	if !strings.Contains(html, `id="listing-results"`) {
 		t.Error("the results region has no fragment target")
@@ -148,7 +148,7 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
 		},
 	}
-	html := renderToString(t, Listing(ListingMeta(i18n.WithLocale(t.Context(), i18n.ZhHant), view), view))
+	html := renderToString(t, Listing(ListingMeta(i18n.WithLocale(t.Context(), i18n.ZhHant), view), view, nil))
 
 	// The form's action and method, not merely a checkbox: a checkbox that
 	// submits to the listing filters the listing.
@@ -190,14 +190,14 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	one := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
 		{Slug: "solo", Name: "Solo", PriceCents: 2590000},
 	}}
-	if got := renderToString(t, Listing(ListingMeta(ctx, one), one)); strings.Contains(got, marked) {
+	if got := renderToString(t, Listing(ListingMeta(ctx, one), one, nil)); strings.Contains(got, marked) {
 		t.Errorf("a single-priced product renders %q", marked)
 	}
 
 	many := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
 		{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true},
 	}}
-	if got := renderToString(t, Listing(ListingMeta(ctx, many), many)); !strings.Contains(got, marked) {
+	if got := renderToString(t, Listing(ListingMeta(ctx, many), many, nil)); !strings.Contains(got, marked) {
 		t.Errorf("a product spanning prices states NT$25,900 as its price, unmarked")
 	}
 
@@ -364,7 +364,7 @@ func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
 	view := ListingView{Slug: "audio", Name: "Audio", Products: tiles}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 
 	if got := strings.Count(html, `loading="lazy"`); got != 2 {
 		t.Errorf("%d lazy photographs, want 2 (the tiles after the first eight)", got)
@@ -396,7 +396,7 @@ func TestALongShelfIsOneGridOfEveryProduct(t *testing.T) {
 		"filtered":         {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, Filtered: true},
 		"the second page":  {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 2},
 	} {
-		html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+		html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 		if strings.Contains(html, "goen-featured") || strings.Contains(html, "精選商品") {
 			t.Errorf("%s: has a lead row", name)
 		}
@@ -422,7 +422,7 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
 		},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/chargers">Chargers</a>`) {
 		t.Error("a sibling sub-category is not a chip")
 	}
@@ -434,7 +434,7 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	}
 
 	bare := ListingView{Slug: "audio", Name: "Audio"}
-	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
+	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
 		t.Error("a head with no photograph or children draws them anyway")
 	}
 }
@@ -496,7 +496,7 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
 
 	for _, want := range []string{
 		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
@@ -511,7 +511,7 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 	if !strings.Contains(html, `<div id="filters-applied">`) {
 		t.Error("the active-filter chips have no stable region to be swapped into")
 	}
-	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}))
+	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}, nil))
 	if !strings.Contains(unfiltered, `<div id="filters-applied">`) {
 		t.Error("an unfiltered page has no chips region, so removing the last filter could not clear it")
 	}
@@ -525,16 +525,16 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
 
-	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view))
+	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view, nil))
 	if !strings.Contains(whole, `id="listing-results" tabindex="-1" autofocus`) {
 		t.Error("a whole filtered page no longer focuses its results")
 	}
-	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view))
+	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view, nil))
 	if strings.Contains(partial, "autofocus") {
 		t.Errorf("a partial render carries autofocus:\n%s", partial)
 	}
 	for _, want := range []string{`hx-sync="this:replace"`, `hx-status:5xx="swap:none"`, `class="goen-filters__error" role="alert" hidden`, `<div id="filters-applied"></div>`} {
-		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"})), want) {
+		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"}, nil)), want) {
 			t.Errorf("missing %q", want)
 		}
 	}
@@ -601,7 +601,7 @@ func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
 			t.Errorf("%q links to %q, want %q", c.RemoveLabel, c.Remove, want[c.RemoveLabel])
 		}
 	}
-	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view))
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil))
 	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
 		t.Error("the chip's remove link has no accessible name in the markup")
 	}
@@ -614,10 +614,10 @@ func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}}}
 	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
-	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view)); !strings.Contains(html, oob) {
+	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view, nil)); !strings.Contains(html, oob) {
 		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
 	}
-	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view)); strings.Contains(html, "hx-swap-oob") {
+	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil)); strings.Contains(html, "hx-swap-oob") {
 		t.Error("a whole-page listing carries out-of-band counts")
 	}
 }
