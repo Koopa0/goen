@@ -117,7 +117,7 @@ type ProductReview struct {
 	Body     string
 	Author   string
 	Verified bool
-	Date     string
+	Date     shoptime.Date
 }
 
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
@@ -203,6 +203,9 @@ type ProductView struct {
 	AlsoBought   []ProductTile
 
 	Related []ProductTile
+
+	// Tone is the department's; the gallery's mat and the band wear it.
+	Tone Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.
@@ -309,6 +312,14 @@ func (v *ProductView) MaxQuantity() string {
 }
 
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
+
+// BandPhoto is the second photograph: the first is the gallery's.
+func (v *ProductView) BandPhoto() (ProductImage, bool) {
+	if len(v.Images) < 2 {
+		return ProductImage{}, false
+	}
+	return v.Images[1], true
+}
 
 // GalleryFollowsChoice is true only when a photograph shows one value: only then can choosing another reorder the gallery.
 func (v *ProductView) GalleryFollowsChoice() bool {

@@ -225,6 +225,12 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	}
 	view.Comparable = slices.Contains(offers, p.CategoryID)
 
+	tone, toneErr := s.q.CategoryTone(ctx, p.CategoryID)
+	if toneErr != nil {
+		return fmt.Errorf("read tone of %q: %w", p.Slug, toneErr)
+	}
+	view.Tone = pages.ResolveTone(tone)
+
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{
 			CategoryID: p.CategoryParentID.UUID, Locale: string(i18n.FromContext(ctx)),
@@ -303,7 +309,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
-			Date:     shoptime.Day(r.CreatedAt),
+			Date:     shoptime.DateOf(r.CreatedAt, s.now()),
 		})
 	}
 
