@@ -2425,7 +2425,7 @@ SELECT
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     -- The SKUs the stock days cover lists as sold out.
     (SELECT count(*) FROM product_variants pv JOIN products p ON p.id = pv.product_id
-     WHERE pv.is_active AND p.status = 'active'
+     WHERE p.status = 'active'
        AND pv.stock_quantity <= pv.safety_stock)::bigint AS sold_out,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
@@ -2566,7 +2566,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE ($2::boolean = false OR (pv.is_active AND pv.stock_quantity <= pv.safety_stock))
+WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
        OR p.name ILIKE '%' || $3::text || '%'
