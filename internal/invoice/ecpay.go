@@ -292,10 +292,10 @@ func itemsFor(lines []Line) []item {
 			ItemCount: l.Quantity,
 			// i18n-exempt: ItemWord is the 單位 on a 統一發票, which the 財政部
 			// platform records in Chinese whoever bought the thing.
-			ItemWord:    "個",
+			ItemWord:    string(l.Unit),
 			ItemPrice:   wholeDollars(l.UnitPriceCents),
 			ItemAmount:  wholeDollars(l.AmountCents),
-			ItemTaxType: "1", // taxable
+			ItemTaxType: l.TaxType.ecpayCode(),
 		})
 	}
 	return out

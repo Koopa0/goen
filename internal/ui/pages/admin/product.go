@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -81,6 +82,7 @@ func (v ProductVariant) StockText(ctx context.Context) string {
 
 type ProductView struct {
 	LabelInput        *productlabel.Input
+	InvoiceTerms      *invoice.LineTerms
 	IsNew             bool
 	Slug              string
 	Name              string
@@ -265,4 +267,15 @@ func (v *ProductView) labelInput() *productlabel.Input {
 		return &productlabel.Input{}
 	}
 	return v.LabelInput
+}
+
+func (v *ProductView) InvoiceLineAction() string {
+	return "/admin/products/" + v.Slug + "/invoice-line"
+}
+
+func (v *ProductView) invoiceTerms() invoice.LineTerms {
+	if v.InvoiceTerms == nil {
+		return invoice.LineTerms{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}
+	}
+	return *v.InvoiceTerms
 }

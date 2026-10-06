@@ -32,6 +32,11 @@ var (
 		En:     "Free delivery applies",
 	})
 
+	KeyCartMixedTaxTypes = key("cart.tax_types.mixed", Message{
+		ZhHant: "應稅與免稅商品須分開結帳，請先將其中一類商品移出購物車。",
+		En:     "Taxable and exempt items need separate orders. Remove one type from the cart before checking out.",
+	})
+
 	KeyCartStockShort = key("cart.stock.short", Message{
 		ZhHant: "有商品的庫存不足，請先調整數量再結帳。",
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
