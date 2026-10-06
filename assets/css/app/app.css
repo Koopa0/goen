@@ -9618,6 +9618,34 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
+/* A meter is a square-ended 10px track with its used part in hue. The unfilled
+   part is the track, so a coupon with room left reads as room left. */
+.goen-chartmeter {
+  align-items: center;
+  display: grid;
+  font-size: var(--fs-14);
+  gap: 12px;
+  grid-template-columns: minmax(4rem, 1fr) auto;
+}
+
+.goen-chartmeter svg {
+  display: block;
+}
+
+.goen-chartmeter__track {
+  fill: var(--chart-grid);
+}
+
+.goen-chartmeter__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartmeter__label {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
 /* The SVG names its own system colours rather than relying on which
    properties a browser forces. A forced palette has one grey, so the
    hairline steps aside; the count is HTML and is forced like any text. */
@@ -9632,5 +9660,19 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chartbar__track {
     stroke: transparent;
+  }
+
+  .goen-chartmeter svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartmeter__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartmeter__track {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 2;
   }
 }
