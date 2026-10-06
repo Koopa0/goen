@@ -121,10 +121,10 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 		"banner_days": "檔期天數必須介於 0（不限）到 365 天。",
 		"banner_cta":  "連結必須是本站路徑，例如 /deals。",
 	}}
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 
 	input := func(id string) string {
-		m := regexp.MustCompile(`<input[^>]*\bid="` + id + `"[^>]*>`).FindString(html)
+		m := regexp.MustCompile(`<input[^>]*\bid="` + id + `"[^>]*>`).FindString(page)
 		if m == "" {
 			t.Fatalf("no input %q on the page", id)
 		}
@@ -138,11 +138,11 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 		if !strings.Contains(in, `aria-invalid="true"`) || !strings.Contains(in, `aria-describedby="`+describedBy+`"`) {
 			t.Errorf("%s is not marked invalid and linked to %s: %s", id, describedBy, in)
 		}
-		if !strings.Contains(html, `id="`+describedBy+`"`) {
+		if !strings.Contains(page, `id="`+describedBy+`"`) {
 			t.Errorf("no message element %q", describedBy)
 		}
 	}
-	if strings.Contains(html, `id="h-days-error"`) {
+	if strings.Contains(page, `id="h-days-error"`) {
 		t.Error("the hero's days shows a message for the banner's refusal")
 	}
 }
@@ -154,16 +154,16 @@ func TestTheHomePageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(t 
 		{Source: pages.SlideCampaign, Title: "秋季精選", CTA: pages.CTA{Label: "看活動", Href: "/s/autumn-picks"}},
 		{Source: pages.SlideDepartment, Title: "家電"},
 	}}
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 	for _, want := range []string{
 		"秋季精選", "/s/autumn-picks", "家電",
 		i18n.T(ctx, i18n.KeyAdminHomeSourceCampaign), i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment),
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(page, want) {
 			t.Errorf("home page lacks %q", want)
 		}
 	}
-	if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminHomeNoSlides)) {
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyAdminHomeNoSlides)) {
 		t.Error("the page says there is no carousel while it lists slides")
 	}
 
@@ -250,9 +250,9 @@ func declaredSlideSources(t *testing.T) []pages.SlideSource {
 	return sources
 }
 
-func homeForm(t *testing.T, html, action string) string {
+func homeForm(t *testing.T, page, action string) string {
 	t.Helper()
-	m := regexp.MustCompile(`(?s)<form[^>]*action="` + action + `"[^>]*>.*?</form>`).FindString(html)
+	m := regexp.MustCompile(`(?s)<form[^>]*action="` + action + `"[^>]*>.*?</form>`).FindString(page)
 	if m == "" {
 		t.Fatalf("no form posting to %s", action)
 	}
@@ -262,7 +262,7 @@ func homeForm(t *testing.T, html, action string) string {
 func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{}))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{}))
 
 	for _, tc := range []struct {
 		action, switchName string
@@ -275,7 +275,7 @@ func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testi
 			[]string{"message", "short", "cta_label"},
 			[]string{"message_en", "short_en", "cta_label_en"}},
 	} {
-		form := homeForm(t, html, tc.action)
+		form := homeForm(t, page, tc.action)
 		for _, name := range append(tc.zh, tc.en...) {
 			if !regexp.MustCompile(`<(input|textarea)[^>]*\bname="` + name + `"`).MatchString(form) {
 				t.Errorf("%s: no field %q in the form", tc.action, name)
