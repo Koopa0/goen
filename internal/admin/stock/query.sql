@@ -110,7 +110,7 @@ WITH v AS (
 ), moved AS (
     SELECT shop_day(m.created_at) AS day,
            sum(m.delta) AS delta,
-           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           sum(m.delta) AS received,
            count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
            count(*) AS moves
     FROM inventory_movements m
