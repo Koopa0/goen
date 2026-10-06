@@ -1846,9 +1846,12 @@ input.goen-check {
 }
 
 .goen-admin__taskfigure .goen-admin__cellnum {
-  font-size: var(--fs-ed-30);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
+}
+
+.goen-admin__task:first-child .goen-admin__cellnum {
+  font-size: var(--fs-ed-30);
   line-height: 1;
 }
 

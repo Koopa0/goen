@@ -78,8 +78,12 @@ func TestTheDashboardListsOnlyWhatWaitsForAPerson(t *testing.T) {
 				t.Errorf("the task list does not carry %q", want)
 			}
 		}
-		lowStock := html[strings.Index(html, `href="/admin/stock?low=1"`):]
-		if end := strings.Index(lowStock, "</li>"); strings.Contains(lowStock[:end], "goen-admin__taskage") {
+		_, lowStock, found := strings.Cut(html, `href="/admin/stock?low=1"`)
+		if !found {
+			t.Fatal("the low-stock task is not listed")
+		}
+		lowStock, _, _ = strings.Cut(lowStock, "</li>")
+		if strings.Contains(lowStock, "goen-admin__taskage") {
 			t.Error("the low-stock task, which has no start time, carries an age")
 		}
 	})

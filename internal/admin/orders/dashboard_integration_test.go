@@ -42,11 +42,11 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	healthBefore, err := s.HealthTasks(t.Context())
+	healthTasksBefore, err := s.HealthTasks(t.Context())
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
-	if got := count(before.Tasks, i18n.KeyAdminQueueTaskUninspected) + count(healthBefore, i18n.KeyAdminHPClaimsHeading); got != 0 {
+	if got := count(before.Tasks, i18n.KeyAdminQueueTaskUninspected) + count(healthTasksBefore, i18n.KeyAdminQueueTaskClaims); got != 0 {
 		t.Fatalf("a shop with no return or claim lists %d of them", got)
 	}
 
@@ -69,11 +69,11 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	if got := count(view.Tasks, i18n.KeyAdminQueueTaskUninspected); got != 1 {
 		t.Errorf("returns awaiting inspection = %d, want 1", got)
 	}
-	health, err := s.HealthTasks(t.Context())
+	healthTasks, err := s.HealthTasks(t.Context())
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
-	if got := count(health, i18n.KeyAdminHPClaimsHeading); got != 1 {
+	if got := count(healthTasks, i18n.KeyAdminQueueTaskClaims); got != 1 {
 		t.Errorf("stranded invoice claims = %d, want 1", got)
 	}
 }
@@ -158,9 +158,39 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 	}
 }
 
-type healthDesk struct{ err error }
+type healthDesk struct {
+	tasks []admin.Task
+	err   error
+}
 
-func (d healthDesk) Tasks(context.Context) ([]admin.Task, error) { return nil, d.err }
+func (d healthDesk) Tasks(context.Context) ([]admin.Task, error) { return d.tasks, d.err }
+
+// The first row is the one customers wait on: what the order desk counts is
+// listed before what the health desk reports.
+func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO product_questions (product_id, body)
+		VALUES ((SELECT id FROM products ORDER BY id LIMIT 1), 'Does it fit?')`); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	desk := healthDesk{tasks: []admin.Task{{
+		Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true,
+	}}}
+	h := admintest.OrderDesk(admintest.OrderStoreWithHealth(pool, admintest.Refunder{}, nil, nil, desk))
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
+	w := httptest.NewRecorder()
+	admintest.BackOffice.RequireStaff(h.Dashboard)(w, req)
+	body := w.Body.String()
+	deskAt := strings.Index(body, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions))
+	healthAt := strings.Index(body, i18n.T(ctx, i18n.KeyAdminQueueTaskPayments))
+	if deskAt < 0 || healthAt < 0 {
+		t.Fatalf("dashboard lists the desk task at %d and the health task at %d, want both", deskAt, healthAt)
+	}
+	if deskAt > healthAt {
+		t.Error("the health task is listed before the desk task, want the desk's work first")
+	}
+}
 
 // The dashboard ages a ready order from the moment it was funded and the health
 // desk lists the same moment for the same order. The two read it through

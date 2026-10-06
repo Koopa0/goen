@@ -150,7 +150,7 @@ func (t Task) AgeText(ctx context.Context) string {
 
 // DeskTasks lists what the order desk itself counts, leaving out each kind with
 // nothing waiting.
-func (v DashboardView) DeskTasks() []Task {
+func (v *DashboardView) DeskTasks() []Task {
 	all := []Task{
 		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
 		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
@@ -162,7 +162,7 @@ func (v DashboardView) DeskTasks() []Task {
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
 
-func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
+func (v *DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
 	web.Bound

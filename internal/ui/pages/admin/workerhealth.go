@@ -303,24 +303,17 @@ func (v *WorkerHealthView) ClaimsSettled() bool { return v.StrandedClaimCount ==
 // to its own table, and carries an age where the query behind it lists items.
 func (v *WorkerHealthView) Tasks() []Task {
 	var tasks []Task
-	add := func(healthy bool, label i18n.Key, count int64, anchor string) *Task {
-		if healthy {
-			return nil
-		}
-		tasks = append(tasks, Task{Label: label, Count: count, Href: "/admin/health" + anchor, Alert: true})
-		return &tasks[len(tasks)-1]
-	}
-	aged := func(t *Task, seconds int64) {
-		if t != nil {
-			t.HasAge, t.AgeSeconds = true, seconds
+	add := func(healthy bool, label i18n.Key, count int64, href string, hasAge bool, ageSeconds int64) {
+		if !healthy {
+			tasks = append(tasks, Task{Label: label, Count: count, Href: href, Alert: true, HasAge: hasAge, AgeSeconds: ageSeconds})
 		}
 	}
-	add(v.PaymentsReconciled(), i18n.KeyAdminQueueTaskPayments, v.UnreconciledPayments, "#events-heading")
-	aged(add(v.ClaimsSettled(), i18n.KeyAdminQueueTaskClaims, v.StrandedClaimCount, "#claims-heading"), v.StrandedClaimOldestSeconds)
-	aged(add(v.PaidOrdersInvoiced(), i18n.KeyAdminQueueTaskUninvoiced, v.UninvoicedCount, "#uninvoiced-heading"), v.UninvoicedOldestSeconds)
-	aged(add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "#cancelled-order-invoices-heading"), v.CancelledOrderInvoiceOldestSeconds)
-	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "#refunds-heading")
-	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "")
+	add(v.PaymentsReconciled(), i18n.KeyAdminQueueTaskPayments, v.UnreconciledPayments, "/admin/health#events-heading", false, 0)
+	add(v.ClaimsSettled(), i18n.KeyAdminQueueTaskClaims, v.StrandedClaimCount, "/admin/health#claims-heading", true, v.StrandedClaimOldestSeconds)
+	add(v.PaidOrdersInvoiced(), i18n.KeyAdminQueueTaskUninvoiced, v.UninvoicedCount, "/admin/health#uninvoiced-heading", true, v.UninvoicedOldestSeconds)
+	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "/admin/health#cancelled-order-invoices-heading", true, v.CancelledOrderInvoiceOldestSeconds)
+	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "/admin/health#refunds-heading", false, 0)
+	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "/admin/health", false, 0)
 	return tasks
 }
 
