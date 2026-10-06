@@ -3,6 +3,7 @@
 package audit_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTheTrailCannotBeRewritten(t *testing.T) {
@@ -71,4 +74,51 @@ func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
 		}
 	}
 	t.Errorf("no audit row carries %s among %d rows", trigger, len(view.Rows))
+}
+
+func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (admin.AuditEntry, bool) {
+	t.Helper()
+	view, err := audit.NewStore(pool).Events(ctx)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	for i := range view.Rows {
+		if e := &view.Rows[i]; e.Action == "customer.view" && e.CustomerID == customerID.String() {
+			return *e, true
+		}
+	}
+	return admin.AuditEntry{}, false
+}
+
+// TestACustomerViewNamesTheCustomerUntilTheAccountIsErased: the audit row
+// outlives the account, and once it is gone the page has only the recorded id.
+func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	customerID := admintest.Customer(t, pool)
+	err := audit.Run(ctx, pool, audit.Event{
+		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(customerID),
+		After: map[string]any{"user_id": customerID.String()},
+	}, func(context.Context, *db.Queries) error { return nil })
+	if err != nil {
+		t.Fatalf("record customer.view: %v", err)
+	}
+
+	row, ok := customerViewRow(t, ctx, customerID)
+	if !ok {
+		t.Fatal("the customer.view row is not on the trail")
+	}
+	if row.CustomerName != "取消點數" {
+		t.Errorf("CustomerName = %q, want the customer's name", row.CustomerName)
+	}
+
+	if _, err := pool.Exec(ctx, `SELECT erase_user($1)`, customerID); err != nil {
+		t.Fatalf("erase_user: %v", err)
+	}
+	row, ok = customerViewRow(t, ctx, customerID)
+	if !ok {
+		t.Fatal("the customer.view row vanished with the account")
+	}
+	if row.CustomerName != "" {
+		t.Errorf("CustomerName after erasure = %q, want empty", row.CustomerName)
+	}
 }
