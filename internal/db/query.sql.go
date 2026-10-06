@@ -15780,7 +15780,7 @@ JOIN LATERAL (
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active'
-  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
+  AND sold.orders > 0
 ORDER BY pv.sku
 `
 
