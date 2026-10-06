@@ -36,11 +36,13 @@ func (p BarProps) width() string {
 func (p BarProps) wide() bool { return p.Max >= wideScale }
 
 // MeterProps is Value of a Limit, Label the count as already localised text.
-// A caller with no limit draws no meter.
+// A caller with no limit draws no meter. LimitLine marks the limit with a line
+// at the end of the track, for a limit that is a threshold to cross.
 type MeterProps struct {
-	Value int64
-	Limit int64
-	Label string
+	Value     int64
+	Limit     int64
+	Label     string
+	LimitLine bool
 }
 
 // width is the filled part as a percentage of the meter; a limit that is
