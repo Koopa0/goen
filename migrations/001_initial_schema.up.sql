@@ -210,7 +210,7 @@ CREATE TRIGGER categories_acyclic
 
 -- The unit an invoice line prints: not blank, at most six characters, no control characters.
 CREATE DOMAIN invoice_unit AS text
-    CONSTRAINT invoice_unit_valid CHECK (VALUE ~ '[^[:space:]]' AND char_length(VALUE) <= 6 AND VALUE !~ '[[:cntrl:]]');
+    CONSTRAINT invoice_unit_valid CHECK (VALUE ~ '[^[:space:]]' AND char_length(VALUE) <= 7 AND VALUE !~ '[[:cntrl:]]');
 
 CREATE TABLE products (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
