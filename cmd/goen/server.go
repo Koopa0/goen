@@ -159,7 +159,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	catalogue := catalog.NewStore(pool)
 	siteStore := site.NewStore(pool)
 	if !front.StoreMap.Enabled() {
-		siteStore = siteStore.WithoutPickup()
+		catalogue, siteStore = catalogue.WithoutPickup(), siteStore.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
 	// Half of the order-lookup credential is a guessable order number, so

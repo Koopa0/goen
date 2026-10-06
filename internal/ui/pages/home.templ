@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -88,17 +89,9 @@ templ Home(p layouts.Page, v HomeView) {
 				</div>
 			</section>
 		}
-		<section class="goen-trust" aria-labelledby="trust-heading">
-			<h2 id="trust-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionTrust) }</h2>
-			<div class="goen-container goen-trust__grid">
-				@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
-				if v.FreeDelivery() != "" {
-					@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, v.ShippingBodyKey()), v.LowestFee()))
-				}
-				@incentive(icons.Return(), i18n.T(ctx, i18n.KeyGuaranteeReturns), i18n.T(ctx, i18n.KeyTrustReturnsBody))
-				@incentive(icons.Lock(), i18n.T(ctx, i18n.KeyTrustPayment), i18n.T(ctx, i18n.KeyTrustPaymentBody))
-			</div>
-		</section>
+		<div class="goen-home">
+			@shopRules(v.Rules)
+		</div>
 	}
 }
 
@@ -117,21 +110,49 @@ templ seeAll(label, href string) {
 	</a>
 }
 
-// With one slide there is nothing to move between, so the controls are not drawn.
+// The carousel moves only when the visitor asks: the named tabs are links to
+// the slides, and the arrows and the count are drawn by goen.js. With one slide
+// there is nothing to move between, so none of them are drawn.
 templ heroCarousel(slides []HeroSlide) {
-	// data-autoplay is what goen.js looks for; with one slide there is nothing to rotate.
-	<section class="goen-hero" aria-roledescription="carousel" aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) } data-autoplay?={ len(slides) > 1 }>
+	<section
+		class="goen-hero"
+		aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }
+		if len(slides) > 1 {
+			aria-roledescription="carousel"
+		}
+	>
 		<div class="goen-hero__track">
 			for i, s := range slides {
-				<div
-					class={ "goen-hero__slide goen-hero__slide--" + string(s.Layout) }
+				<article
+					id={ fmt.Sprintf("hero-%d", i+1) }
+					class={ "goen-hero__slide goen-hero__slide--" + string(s.Layout), templ.KV("goen-hero__slide--text", !s.Photo.Shown()) }
 					data-tone={ s.Tone.Attr() }
-					role="group"
-					aria-roledescription="slide"
-					aria-label={ fmt.Sprintf("%d / %d", i+1, len(slides)) }
+					if len(slides) > 1 {
+						aria-roledescription="slide"
+						aria-label={ fmt.Sprintf("%d / %d", i+1, len(slides)) }
+					}
 				>
-					<div class="goen-hero__media">
-						if s.Photo.Shown() {
+					<div class="goen-hero__body">
+						<div class="goen-hero__inner">
+							<h2 class={ "goen-hero__title", templ.KV("goen-hero__title--long", s.TitleLong(i18n.FromContext(ctx))) }>{ s.Title }</h2>
+							if s.Fact != "" {
+								<p class="goen-hero__lede">{ s.Fact }</p>
+							}
+							@components.StatLine(s.Stats, components.StatLinePlain)
+							if s.Period != nil {
+								@components.Period(*s.Period)
+							}
+							if s.CTA.Shown() {
+								<div class="goen-hero__actions">
+									// ui-btn stays beside the goen- recipe: the home page's tap sweep (check-layout.mjs)
+									// measures `.goen-hero__actions .ui-btn`.
+									<a class="goen-btn goen-btn--primary goen-btn--lg ui-btn" href={ templ.SafeURL(s.CTA.Href) }>{ s.CTA.Label }</a>
+								</div>
+							}
+						</div>
+					</div>
+					if s.Photo.Shown() {
+						<div class="goen-hero__media">
 							<img
 								src={ s.Photo.URL }
 								srcset={ s.Photo.Srcset }
@@ -146,34 +167,25 @@ templ heroCarousel(slides []HeroSlide) {
 									fetchpriority="high"
 								}
 							/>
-						}
-					</div>
-					<div class="goen-hero__body">
-						<div class="goen-hero__inner">
-							<h2 class="goen-hero__title">{ s.Title }</h2>
-							if s.Fact != "" {
-								<p class="goen-hero__lede">{ s.Fact }</p>
-							}
-							if s.CTA.Shown() {
-								<div class="goen-hero__actions">
-									// ui-btn stays beside the goen- recipe: the home page's tap sweep (check-layout.mjs)
-									// measures `.goen-hero__actions .ui-btn`.
-									<a class="goen-btn goen-btn--primary goen-btn--lg ui-btn" href={ templ.SafeURL(s.CTA.Href) }>{ s.CTA.Label }</a>
-								</div>
-							}
 						</div>
-					</div>
-				</div>
+					}
+				</article>
 			}
 		</div>
 		if len(slides) > 1 {
 			<div class="goen-hero__controls">
-				<div class="goen-hero__dots">
+				<nav class="goen-hero__tabs" aria-label={ i18n.T(ctx, i18n.KeySlides) }>
 					for i, s := range slides {
-						<button class="goen-hero__dot" type="button" aria-label={ s.Title } aria-current={ fmt.Sprint(i == 0) }></button>
+						<a
+							href={ templ.SafeURL(fmt.Sprintf("#hero-%d", i+1)) }
+							if i == 0 {
+								aria-current="true"
+							}
+						>{ s.Title }</a>
 					}
-				</div>
-				<div class="goen-hero__arrows">
+				</nav>
+				<div class="goen-hero__nav" data-js hidden>
+					<span class="goen-sr-only" data-count aria-live="polite">{ fmt.Sprintf("1 / %d", len(slides)) }</span>
 					<button class="goen-hero__arrow" type="button" data-step="-1" aria-label={ i18n.T(ctx, i18n.KeyHeroPrevious) }>
 						@icons.ChevronLeft()
 					</button>
@@ -184,16 +196,4 @@ templ heroCarousel(slides []HeroSlide) {
 			</div>
 		}
 	</section>
-}
-
-templ incentive(icon templ.Component, title, desc string) {
-	<div class="goen-trust__item">
-		<div class="goen-trust__head">
-			<span class="goen-trust__icon">
-				@icon
-			</span>
-			<h3 class="goen-trust__title">{ title }</h3>
-		</div>
-		<p class="goen-trust__body">{ desc }</p>
-	</div>
 }

@@ -351,17 +351,23 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 
 const adminCampaign = `-- name: AdminCampaign :one
 SELECT c.title, c.starts_at, c.ends_at, c.is_active,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE c.slug = $1::text
 `
 
 type AdminCampaignRow struct {
-	Title     string
-	StartsAt  time.Time
-	EndsAt    time.Time
-	IsActive  bool
-	IsRunning bool
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	IsActive   bool
+	IsRunning  bool
+	IsSellable bool
 }
 
 func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaignRow, error) {
@@ -373,6 +379,7 @@ func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaign
 		&i.EndsAt,
 		&i.IsActive,
 		&i.IsRunning,
+		&i.IsSellable,
 	)
 	return i, err
 }
@@ -519,7 +526,12 @@ func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string)
 const adminCampaigns = `-- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
+       EXISTS (
+           SELECT 1 FROM sale_campaign_products cp
+           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+           JOIN product_variants v ON v.product_id = p.id AND v.is_active
+           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
 FROM sale_campaigns c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
        OR (c.is_active = $2::boolean AND c.ends_at < $3::timestamptz)
@@ -546,6 +558,7 @@ type AdminCampaignsRow struct {
 	IsActive   bool
 	Products   int64
 	IsRunning  bool
+	IsSellable bool
 }
 
 func (q *Queries) AdminCampaigns(ctx context.Context, arg AdminCampaignsParams) ([]AdminCampaignsRow, error) {
@@ -573,6 +586,7 @@ func (q *Queries) AdminCampaigns(ctx context.Context, arg AdminCampaignsParams) 
 			&i.IsActive,
 			&i.Products,
 			&i.IsRunning,
+			&i.IsSellable,
 		); err != nil {
 			return nil, err
 		}
@@ -3224,6 +3238,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -3273,6 +3318,7 @@ type BoughtTogetherRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -3305,6 +3351,7 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -3345,6 +3392,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -3393,6 +3471,7 @@ type CampaignProductsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -3420,6 +3499,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -4202,6 +4282,37 @@ SELECT
           )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -4304,6 +4415,7 @@ type CategoryListingRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -4347,6 +4459,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -6425,6 +6538,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -6481,6 +6625,7 @@ type DealProductsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -6516,6 +6661,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -7513,69 +7659,6 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	return hold_inventory, err
 }
 
-const homeCampaigns = `-- name: HomeCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT $2::integer
-`
-
-type HomeCampaignsParams struct {
-	Locale       string
-	MaxCampaigns int32
-}
-
-type HomeCampaignsRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
-	Products   int64
-}
-
-// The running campaigns, soonest-ending first. The window is judged against the
-// database's clock, which wrote the timestamps.
-func (q *Queries) HomeCampaigns(ctx context.Context, arg HomeCampaignsParams) ([]HomeCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, homeCampaigns, arg.Locale, arg.MaxCampaigns)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []HomeCampaignsRow{}
-	for rows.Next() {
-		var i HomeCampaignsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Title,
-			&i.EndsAt,
-			&i.Tone,
-			&i.ImageKey,
-			&i.ImageAlt,
-			&i.ImageWidth,
-			&i.Products,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const homeDepartmentStock = `-- name: HomeDepartmentStock :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL
@@ -7683,7 +7766,38 @@ SELECT
         SELECT 1 FROM product_variants
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
-    ) AS in_stock
+    ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
@@ -7741,6 +7855,7 @@ type HomeTilesRow struct {
 	ImageWidth          int32
 	ImageHeight         int32
 	InStock             bool
+	Colours             []string
 }
 
 // The root categories only; children hang off these.
@@ -7777,6 +7892,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.ImageWidth,
 			&i.ImageHeight,
 			&i.InStock,
+			&i.Colours,
 		); err != nil {
 			return nil, err
 		}
@@ -8396,6 +8512,97 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listedCampaigns = `-- name: ListedCampaigns :many
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.starts_at, c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products cp
+        JOIN products p ON p.id = cp.product_id
+        WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT $3::integer OFFSET $2::integer
+`
+
+type ListedCampaignsParams struct {
+	Locale     string
+	PageOffset int32
+	PageSize   int32
+}
+
+type ListedCampaignsRow struct {
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
+	Products   int64
+}
+
+// A campaign is listed only while a published featured product can be bought,
+// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (RunningCampaign) stays reachable by direct link.
+func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListedCampaignsRow{}
+	for rows.Next() {
+		var i ListedCampaignsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Tone,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.Products,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listedCampaignsCount = `-- name: ListedCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+`
+
+// The same listing as ListedCampaigns, counted.
+func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, listedCampaignsCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const liveInvoice = `-- name: LiveInvoice :one
@@ -9502,6 +9709,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -9545,6 +9783,7 @@ type NewestProductsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -9573,6 +9812,7 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -12613,6 +12853,17 @@ func (q *Queries) RefundOpenedBy(ctx context.Context, id uuid.UUID) (uuid.NullUU
 	return requested_by_user_id, err
 }
 
+const refundStatusByProviderRef = `-- name: RefundStatusByProviderRef :one
+SELECT status FROM refunds WHERE provider_ref = $1::text
+`
+
+func (q *Queries) RefundStatusByProviderRef(ctx context.Context, providerRef string) (string, error) {
+	row := q.db.QueryRow(ctx, refundStatusByProviderRef, providerRef)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
@@ -12830,6 +13081,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -12873,6 +13155,7 @@ type RelatedProductsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -12903,6 +13186,7 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -14119,68 +14403,6 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 	return i, err
 }
 
-const runningCampaigns = `-- name: RunningCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.ends_at,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT $3::integer OFFSET $2::integer
-`
-
-type RunningCampaignsParams struct {
-	Locale     string
-	PageOffset int32
-	PageSize   int32
-}
-
-type RunningCampaignsRow struct {
-	ID       uuid.UUID
-	Slug     string
-	Title    string
-	EndsAt   time.Time
-	Products int64
-}
-
-func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, runningCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []RunningCampaignsRow{}
-	for rows.Next() {
-		var i RunningCampaignsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Title,
-			&i.EndsAt,
-			&i.Products,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const runningCampaignsCount = `-- name: RunningCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns
-WHERE is_active AND starts_at <= now() AND ends_at > now()
-`
-
-func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, runningCampaignsCount)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
 UPDATE carts SET checkout_draft = $1::jsonb, checkout_draft_at = now()
 WHERE id = $2
@@ -14277,6 +14499,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -14397,6 +14650,7 @@ type SearchProductsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -14438,6 +14692,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
@@ -15761,47 +16016,51 @@ func (q *Queries) StillSubscribed(ctx context.Context, email string) (bool, erro
 
 const stockAtRisk = `-- name: StockAtRisk :many
 SELECT
+    pv.id AS variant_id,
     pv.sku,
     p.name AS product_name,
     p.slug,
-    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
+    pv.stock_quantity,
+    pv.safety_stock,
     sold.units::bigint AS units_sold,
-    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
-     / (sold.units::numeric / $1::integer))::integer AS days_cover
+    sold.orders::bigint AS orders_sold
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN LATERAL (
-    SELECT coalesce(sum(ol.quantity), 0) AS units
+    SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
-      AND o.placed_at >= now() - make_interval(days => $1::integer)
+      AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true
-WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, sellable_quantity
-LIMIT $2::integer
+WHERE pv.is_active AND p.status = 'active'
+  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
+ORDER BY pv.sku
 `
 
 type StockAtRiskParams struct {
-	WindowDays int32
-	LimitTo    int32
+	FromAt time.Time
+	ToAt   time.Time
 }
 
 type StockAtRiskRow struct {
-	SKU              string
-	ProductName      string
-	Slug             string
-	SellableQuantity int32
-	UnitsSold        int64
-	DaysCover        int32
+	VariantID     uuid.UUID
+	SKU           string
+	ProductName   string
+	Slug          string
+	StockQuantity int32
+	SafetyStock   int32
+	UnitsSold     int64
+	OrdersSold    int64
 }
 
-// days_cover is never NULL because the WHERE clause admits only variants that
-// sold something, so the divisor cannot be zero. It divides what a sale may
-// still take: record_inventory_movement refuses to go below safety_stock.
+// Every active variant that sold in [from_at, to_at) or has nothing a sale may
+// take. Sales are counted in orders as well as units: the report's sample size
+// is the orders, since one order of ten units is one event. Ranking and the
+// estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
-	rows, err := q.db.Query(ctx, stockAtRisk, arg.WindowDays, arg.LimitTo)
+	rows, err := q.db.Query(ctx, stockAtRisk, arg.FromAt, arg.ToAt)
 	if err != nil {
 		return nil, err
 	}
@@ -15810,12 +16069,14 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 	for rows.Next() {
 		var i StockAtRiskRow
 		if err := rows.Scan(
+			&i.VariantID,
 			&i.SKU,
 			&i.ProductName,
 			&i.Slug,
-			&i.SellableQuantity,
+			&i.StockQuantity,
+			&i.SafetyStock,
 			&i.UnitsSold,
-			&i.DaysCover,
+			&i.OrdersSold,
 		); err != nil {
 			return nil, err
 		}
@@ -15857,6 +16118,46 @@ func (q *Queries) StockMovementApplied(ctx context.Context, arg StockMovementApp
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const stockMovementsSince = `-- name: StockMovementsSince :many
+SELECT m.variant_id, m.created_at, m.delta
+FROM inventory_movements m
+WHERE m.variant_id = ANY($1::uuid[]) AND m.created_at >= $2::timestamptz
+ORDER BY m.variant_id, m.created_at, m.id
+`
+
+type StockMovementsSinceParams struct {
+	VariantIds []uuid.UUID
+	FromAt     time.Time
+}
+
+type StockMovementsSinceRow struct {
+	VariantID uuid.UUID
+	CreatedAt time.Time
+	Delta     int32
+}
+
+// The ledger since from_at, from which a variant's stock at from_at is rolled
+// back and the days it had anything to sell are counted.
+func (q *Queries) StockMovementsSince(ctx context.Context, arg StockMovementsSinceParams) ([]StockMovementsSinceRow, error) {
+	rows, err := q.db.Query(ctx, stockMovementsSince, arg.VariantIds, arg.FromAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StockMovementsSinceRow{}
+	for rows.Next() {
+		var i StockMovementsSinceRow
+		if err := rows.Scan(&i.VariantID, &i.CreatedAt, &i.Delta); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const storeCreditBalance = `-- name: StoreCreditBalance :one
@@ -16259,25 +16560,37 @@ func (q *Queries) UnreconciledCompletePayments(ctx context.Context) ([]Unreconci
 }
 
 const unreconciledPayments = `-- name: UnreconciledPayments :many
-SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
-       unreconciled::text AS reason, received_at
-FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
-ORDER BY received_at
+SELECT e.event_id, e.type, coalesce(e.object_ref, '') AS object_ref,
+       e.unreconciled::text AS reason, e.received_at,
+       coalesce(o.order_number, '')::text AS refund_order_number,
+       coalesce(r.amount_cents, 0)::bigint AS refund_cents
+FROM payment_webhook_events e
+LEFT JOIN (refunds r
+           JOIN payments p ON p.id = r.payment_id
+           JOIN orders o ON o.id = p.order_id)
+  ON e.type = 'refund.failed' AND r.provider_ref = e.object_ref
+     AND r.status = 'succeeded'
+WHERE e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+ORDER BY e.received_at
 LIMIT 50
 `
 
 type UnreconciledPaymentsRow struct {
-	EventID    string
-	Type       string
-	ObjectRef  string
-	Reason     string
-	ReceivedAt time.Time
+	EventID           string
+	Type              string
+	ObjectRef         string
+	Reason            string
+	ReceivedAt        time.Time
+	RefundOrderNumber string
+	RefundCents       int64
 }
 
 // The events a person has to act on, named rather than counted: a page saying
 // "1 unreconciled" that cannot say WHICH tells an operator something is wrong
 // and nothing about what to do, which is the reason outbox.Stuck() lists.
+// A refund.failed names goen's refund by provider_ref alone, as the webhook
+// attributed it, and only a succeeded one: the page tells staff that money is
+// back in the Stripe balance, which is not so of a refund goen still has open.
 func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPaymentsRow, error) {
 	rows, err := q.db.Query(ctx, unreconciledPayments)
 	if err != nil {
@@ -16293,6 +16606,8 @@ func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPayme
 			&i.ObjectRef,
 			&i.Reason,
 			&i.ReceivedAt,
+			&i.RefundOrderNumber,
+			&i.RefundCents,
 		); err != nil {
 			return nil, err
 		}
@@ -16995,6 +17310,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     -- The one variant a product has, when it has only one and it is in stock:
     -- the only case where saying "add to cart" names what goes in the cart.
     -- The nil uuid when there is none.
@@ -17046,6 +17392,7 @@ type WishlistItemsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	Colours             []string
 	SoleVariantID       uuid.UUID
 	ImageKey            string
 	ImageAlt            string
@@ -17075,6 +17422,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.Colours,
 			&i.SoleVariantID,
 			&i.ImageKey,
 			&i.ImageAlt,
@@ -17139,8 +17487,9 @@ SELECT
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, or a completed checkout whose money is still in
-    -- flight. Each is still marked processed because retrying the same event
+    -- already cancelled, a completed checkout whose money is still in flight,
+    -- or a refund goen recorded as succeeded that Stripe later reported failed.
+    -- Each is still marked processed because retrying the same event
     -- changes nothing; the durable reason makes the human action countable
     -- instead of leaving only a log line nobody reads.
     ((SELECT count(*) FROM payment_webhook_events

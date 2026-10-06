@@ -1,0 +1,29 @@
+package components
+
+// The cells are ahead, past or today; the first and last carry their dates and
+// the current one the word for today. The grid is one image with one sentence.
+templ Period(p PeriodSpec) {
+	<div
+		class="ui-period"
+		role="img"
+		aria-label={ p.Description }
+		if p.unitAttr() != "" {
+			data-unit={ p.unitAttr() }
+		}
+	>
+		for _, c := range p.Cells {
+			<i
+				if c.State != CellAhead {
+					data-cell={ string(c.State) }
+				}
+			>
+				if c.State == CellToday {
+					<b>{ p.TodayLabel }</b>
+				}
+				if c.Date != "" {
+					<small>{ c.Date }</small>
+				}
+			</i>
+		}
+	</div>
+}

@@ -218,8 +218,8 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	view := pages.AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	view.OffersResend = q.Get("resend") == "1" || q.Get("sent") == "1"
 	if q.Get("sent") == "1" {
-		view.Sent = true
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
 		// Not in the URL: history and proxy logs keep URLs.
 		if addr, next, ok := readPendingRegistration(r); ok {
@@ -970,7 +970,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 	addr, err := h.store.RegistrationAddress(ctx, token)
 	if errors.Is(err, ErrVerifyInvalid) {
-		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		h.registrationDead(w, r, next)
 		return
 	}
 	if err != nil {
@@ -1002,11 +1002,16 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrVerifyInvalid):
-		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		h.registrationDead(w, r, next)
 	default:
 		h.log.ErrorContext(ctx, "complete registration", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next string) {
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegistrationDead(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {

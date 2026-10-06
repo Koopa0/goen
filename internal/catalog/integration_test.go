@@ -502,6 +502,85 @@ func feature(t *testing.T, campaignSlug, productSlug string) error {
 	return err
 }
 
+type sqlExecer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// featureNewProduct puts a new product with one discounted variant holding
+// stock into the campaign; status is the product's status once featured.
+func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock int, status string) {
+	t.Helper()
+	ctx := t.Context()
+	slug := "featured-" + uuid.NewString()
+	if _, err := db.Exec(ctx, `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '活動商品', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if _, err := db.Exec(ctx, `
+		INSERT INTO sale_campaign_products (campaign_id, product_id)
+		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`,
+		campaignSlug, slug); err != nil {
+		t.Fatalf("feature product: %v", err)
+	}
+	if _, err := db.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
+		t.Fatalf("set product status: %v", err)
+	}
+}
+
+func listedSlugs(t *testing.T, s *catalog.Store) []string {
+	t.Helper()
+	view, err := s.ListedCampaigns(t.Context(), 1)
+	if err != nil {
+		t.Fatalf("running campaigns: %v", err)
+	}
+	out := make([]string, 0, len(view.Rows))
+	for _, r := range view.Rows {
+		out = append(out, r.Slug)
+	}
+	return out
+}
+
+// The shop lists a campaign only while it has a published featured product in
+// stock; the same predicate serves the deals page and the home carousel. The campaign page itself stays reachable by direct link.
+func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+	tests := []struct {
+		name   string
+		stock  int
+		status string
+		listed bool
+	}{
+		{"nothing featured", -1, "", false},
+		{"only sold out", 0, "active", false},
+		{"only unpublished", 5, "draft", false},
+		{"one sellable product", 5, "active", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			slug := campaign(t, "listed-"+uuid.NewString()[:8])
+			if tt.stock >= 0 {
+				featureNewProduct(t, pool, slug, tt.stock, tt.status)
+			}
+			if got := slices.Contains(listedSlugs(t, s), slug); got != tt.listed {
+				t.Errorf("deals list holds %s = %v, want %v", slug, got, tt.listed)
+			}
+			if _, err := s.Campaign(ctx, slug); err != nil {
+				t.Errorf("direct link to %s: %v, want it reachable", slug, err)
+			}
+		})
+	}
+}
+
 func discountedSlug(t *testing.T) string {
 	t.Helper()
 	var slug string

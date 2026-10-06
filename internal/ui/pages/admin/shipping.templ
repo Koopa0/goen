@@ -29,7 +29,12 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">
 					{ m.Name }
-					<span class="goen-admin__meta">{ m.Code } · { m.DestinationText(ctx) }</span>
+					if m.PickupUnavailable {
+						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							{ i18n.T(ctx, i18n.KeyAdminShipPickupNotOffered) }
+						}
+					}
+					<span class="goen-admin__meta">{ m.DestinationText(ctx) }</span>
 				</h2>
 				if m.PickupUnavailable {
 					<p class="goen-admin__hint"><strong>{ i18n.T(ctx, i18n.KeyAdminShipPickupOff) }</strong></p>
@@ -446,18 +451,19 @@ templ Shipping(p layouts.Page, v ShippingView) {
 									}
 								</td>
 								<td class="goen-admin__prefixes">
-									<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
-										<label class="goen-sr-only" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.Name) }</label>
-										<input
-											class="goen-input"
+									<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
+										<label class="ui-label" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.Name) }</label>
+										<textarea
+											class="ui-textarea goen-input--area"
 											id={ "pre-" + z.ID }
 											name="prefixes"
-											value={ v.ZonePrefixesValue(z) }
+											rows={ zonePrefixRows(v.ZonePrefixesValue(z)) }
 											if v.PrefixDraft.ZoneID == z.ID && v.HasErr("zone_prefixes") {
 												aria-invalid="true"
 												aria-describedby={ "pre-" + z.ID + "-error" }
 											}
-										/>
+										>{ zonePrefixTextareaText(v.ZonePrefixesValue(z)) }</textarea>
+										@zonePrefixDistricts(v.ZonePrefixesValue(z))
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Size:        components.SizeSmall,
@@ -537,29 +543,30 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						<input class="goen-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn } placeholder="Outlying islands"/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipZoneNameEnHint) }</p>
 					</div>
-					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "z-prefixes"}) {
-							{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }
-						}
-						<input
-							class="goen-input"
-							id="z-prefixes"
-							name="prefixes"
-							required
-							value={ v.ZoneDraft.Prefixes }
-							placeholder="880 881 882 890 891"
-							if v.HasErr("prefixes") {
-								aria-invalid="true"
-								aria-describedby="z-prefixes-error"
-							}
-						/>
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "z-prefixes"}) {
+						{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }
+					}
+					<textarea
+						class="ui-textarea goen-input--area"
+						id="z-prefixes"
+						name="prefixes"
+						required
+						rows={ zonePrefixRows(v.ZoneDraft.Prefixes) }
+						placeholder="880 881 882 890 891"
 						if v.HasErr("prefixes") {
-							<p class="ui-error-text" id="z-prefixes-error">{ v.Err("prefixes") }</p>
+							aria-invalid="true"
+							aria-describedby="z-prefixes-error"
 						}
-						<p class="goen-admin__hint">
-							{ i18n.T(ctx, i18n.KeyAdminShipPrefixesHint) }
-						</p>
-					</div>
+					>{ zonePrefixTextareaText(v.ZoneDraft.Prefixes) }</textarea>
+					@zonePrefixDistricts(v.ZoneDraft.Prefixes)
+					if v.HasErr("prefixes") {
+						<p class="ui-error-text" id="z-prefixes-error">{ v.Err("prefixes") }</p>
+					}
+					<p class="goen-admin__hint">
+						{ i18n.T(ctx, i18n.KeyAdminShipPrefixesHint) }
+					</p>
 				</div>
 				@components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
@@ -569,5 +576,20 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				}
 			</form>
 		}
+	}
+}
+
+templ zonePrefixDistricts(raw string) {
+	if entries := zonePrefixEntries(raw); len(entries) > 0 {
+		<ul class="goen-admin__hint">
+			for _, entry := range entries {
+				<li>
+					{ entry.Prefix }
+					for _, district := range entry.Districts {
+						<span>{ " " + district }</span>
+					}
+				</li>
+			}
+		</ul>
 	}
 }

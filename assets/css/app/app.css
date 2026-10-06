@@ -1579,7 +1579,7 @@ h3 {
 /* ---------- Home ----------
 
    The carousel, the department cards, one product row, one department band,
-   one photograph and the guarantees. Sections are direct children of <main>;
+   one photograph and the shop rules. Sections are direct children of <main>;
    every horizontal edge comes from the one container width, so `.goen-home`
    (compared against the header bar and the footer grid, `check-layout.mjs`)
    and `.goen-container` agree. Tones come from the [data-tone] blocks.
@@ -1668,10 +1668,13 @@ h3 {
   text-underline-offset: 0.25em;
 }
 
-/* ----- Carousel: native scroll-snap does the moving (swipe, trackpad,
-   keyboard); the script only wires the arrows and dots. ----- */
+/* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
+   the named tabs); nothing moves on its own, and goen.js only wires the arrows
+   and the count. A slide is copy on its tone and the photograph in its own
+   column, a white seam of --col-gap between them. ----- */
 
 .goen-hero {
+  --col-gap: clamp(16px, 1.7vw, 24px);
   position: relative;
 }
 
@@ -1704,7 +1707,7 @@ h3 {
 
 .goen-hero__media {
   aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
+  background: var(--n-0);
   overflow: hidden;
   position: relative;
 }
@@ -1712,11 +1715,8 @@ h3 {
 .goen-hero__media img {
   height: 100%;
   object-fit: cover;
-  width: 100%;
-}
-
-.goen-hero__slide--photo .goen-hero__media img {
   object-position: 82% 50%;
+  width: 100%;
 }
 
 .goen-hero__body {
@@ -1725,7 +1725,11 @@ h3 {
 }
 
 .goen-hero__inner {
-  max-width: 30rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 32rem;
+  width: 100%;
 }
 
 .goen-hero__title {
@@ -1736,10 +1740,15 @@ h3 {
   text-wrap: balance;
 }
 
+.goen-hero__title--long {
+  font-size: var(--fs-ed-30);
+  line-height: 1.3;
+}
+
 .goen-hero__lede {
-  color: var(--n-700);
+  color: var(--tone-text);
   line-height: 1.7;
-  margin: 0.75rem 0 0;
+  margin: 0;
   text-wrap: pretty;
 }
 
@@ -1750,96 +1759,96 @@ h3 {
   word-break: keep-all;
 }
 
+/* The slide's ink and rules come from its tone, so a statline and a period read
+   on every ground, the dark one included. */
+.goen-hero__slide {
+  color: var(--tone-text);
+}
+
+.goen-hero .ui-statline > div {
+  border-top-color: var(--tone-text);
+}
+
+.goen-hero .ui-statline dt,
+.goen-hero .ui-statline dd small,
+.goen-hero .ui-statline__note {
+  color: var(--tone-muted);
+}
+
+.goen-hero__slide[data-tone="ink"] .ui-period {
+  --period-fill: var(--tone-text);
+  --period-line: var(--tone-muted);
+  --period-label: var(--tone-text);
+  --period-note: var(--tone-muted);
+}
+
 .goen-hero__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+  margin-top: var(--s-2);
 }
 
 .goen-hero__controls {
   align-items: center;
   display: flex;
-  justify-content: space-between;
-  padding: 0.5rem var(--page-gutter);
+  gap: var(--s-5);
+  margin-inline: auto;
+  max-width: var(--page-box);
+  padding: var(--s-3) var(--page-gutter) 0;
 }
 
-.goen-hero__dots {
+.goen-hero__tabs {
   display: flex;
+  gap: var(--s-6);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.goen-hero__dot {
-  background: none;
-  border: 0;
-  cursor: pointer;
-  display: grid;
-  height: 2.75rem;
-  padding: 0;
-  place-items: center start;
-  width: 2.75rem;
+.goen-hero__tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.goen-hero__dot::before,
-.goen-hero__dot::after {
-  border-radius: 1px;
-  content: "";
-  grid-area: 1 / 1;
-  height: 0.125rem;
-  width: 1.75rem;
+.goen-hero__tabs a:focus-visible {
+  outline-offset: -2px;
 }
 
-.goen-hero__dot::before {
-  background: rgb(24 24 27 / 0.2);
+.goen-hero__tabs a {
+  border-top: 2px solid var(--n-200);
+  color: var(--fg-muted);
+  flex: none;
+  font-size: var(--t-14);
+  max-width: 14em;
+  overflow: hidden;
+  padding: var(--s-2) 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.goen-hero__dot[aria-current="true"]::before {
-  background: var(--n-900);
+.goen-hero__tabs a:hover {
+  color: var(--fg);
 }
 
-/* While the carousel advances by itself the current line is a track and a fill:
-   the fill grows over the interval, and its end is what moves to the next slide,
-   so what is drawn and when it moves cannot disagree. The 6s is the one place the
-   interval is stated. Held or paused stops the fill where it is. */
-.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::before {
-  background: rgb(24 24 27 / 0.2);
+.goen-hero__tabs a[aria-current="true"] {
+  border-top-color: var(--n-900);
+  color: var(--fg);
 }
 
-.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
-  animation: goen-hero-progress 6s linear forwards;
-  background: var(--n-900);
-  transform-origin: left center;
-}
-
-.goen-hero.is-held .goen-hero__dot[aria-current="true"]::after {
-  animation-play-state: paused;
-}
-
-@keyframes goen-hero-progress {
-  from {
-    transform: scaleX(0);
-  }
-
-  to {
-    transform: scaleX(1);
-  }
-}
-
-/* Nothing moves by itself for a visitor who asked for less motion. */
-@media (prefers-reduced-motion: reduce) {
-  .goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
-    animation: none;
-  }
-}
-
-.goen-hero__arrows {
+.goen-hero__nav {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+
+.goen-hero__nav[hidden] {
+  display: none;
 }
 
 .goen-hero__arrow {
   background: var(--n-0);
   border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
+  border-radius: 50%;
   color: var(--n-900);
   cursor: pointer;
   display: grid;
@@ -1856,6 +1865,28 @@ h3 {
 .goen-hero__arrow svg {
   height: 1.25rem;
   width: 1.25rem;
+}
+
+/* A slide with no photograph is colour and type, as tall as its text. */
+.goen-hero__slide--text .goen-hero__body {
+  padding-block: 2rem 2.5rem;
+}
+
+@media (max-width: 50rem) {
+  /* The card is the tone; the photograph sits inside an 8px page-white ring
+     with 12px of tone around it, so it never touches the tone. */
+  .goen-hero__slide {
+    padding: var(--s-3) var(--s-3) 0;
+  }
+
+  .goen-hero__media {
+    border: var(--s-2) solid var(--n-0);
+    order: -1;
+  }
+
+  .goen-hero__body {
+    padding: var(--s-5) var(--s-2) var(--s-6);
+  }
 }
 
 /* ----- Departments: six cards, each on its own tone. ----- */
@@ -1962,51 +1993,11 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
-   item renders only where a free-delivery threshold is configured. ----- */
+/* ----- The shop's rules, as a stat line above the footer. ----- */
 
-.goen-trust {
-  background: var(--n-50);
-  border-top: 1px solid var(--n-200);
+.goen-rules {
   margin-top: var(--home-section);
-}
-
-.goen-trust__grid {
-  display: grid;
-  gap: 2rem;
-  padding-block: 3rem;
-}
-
-.goen-trust__head {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-}
-
-.goen-trust__icon {
-  color: var(--n-900);
-  flex: none;
-}
-
-.goen-trust__icon svg {
-  display: block;
-  height: 1.5rem;
-  width: 1.5rem;
-}
-
-.goen-trust__title {
-  font-size: var(--fs-15);
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.goen-trust__body {
-  color: var(--n-500);
-  font-size: var(--fs-14);
-  line-height: 1.6;
-  margin: 0.375rem 0 0;
-  padding-left: 2.25rem;
+  padding-block: var(--s-7) var(--s-8);
 }
 
 @media (min-width: 40rem) {
@@ -2016,11 +2007,6 @@ h3 {
 
   .goen-hero__body {
     padding-block: 2rem 2.5rem;
-  }
-
-  .goen-trust__grid {
-    column-gap: 2.5rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2044,71 +2030,53 @@ h3 {
 }
 
 @media (min-width: 64rem) {
-  /* The photo slide: the campaign photograph fills the slide and the copy sits
-     in its calm left third. The body is a full-height cell, so its top is the
-     photograph's top, which is how the gate reads a side-by-side hero. */
+  /* Copy on the tone and the photograph in its own column. The body is a
+     full-height cell, so its top is the photograph's top, which is how the gate
+     reads a side-by-side hero. The photograph is inset by --col-gap, so a
+     white seam always lies between it and the tone. */
   .goen-hero__slide {
-    flex-direction: row;
-    height: clamp(30rem, 40vw, 37.5rem);
-    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    height: clamp(27.5rem, 38vw, 35rem);
   }
 
-  .goen-hero__slide--photo .goen-hero__media {
+  .goen-hero__slide--text {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  .goen-hero__media {
     aspect-ratio: auto;
-    inset: 0;
-    position: absolute;
   }
 
-  .goen-hero__slide--photo .goen-hero__media img {
+  .goen-hero__media img {
+    height: 100%;
+    inset: 0 0 0 var(--col-gap);
     object-position: 72% 50%;
+    position: absolute;
+    width: calc(100% - var(--col-gap));
   }
 
   .goen-hero__body {
     align-items: center;
     display: flex;
-    flex: 1;
-    padding: 0 2rem 3.5rem max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
-    position: relative;
+    padding: var(--s-7) 2rem var(--s-7) max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
   }
 
-  /* The split slide: the tone ground on the left, the 4:3 department photograph
-     on the right at its own proportions, its left edge fading into the ground. */
-  .goen-hero__slide--split .goen-hero__media {
-    aspect-ratio: 4 / 3;
-    flex: none;
-    height: 100%;
-    order: 2;
-  }
-
-  .goen-hero__slide--split .goen-hero__media img {
-    mask-image: linear-gradient(to right, transparent, #000 24%);
+  .goen-hero__slide--text .goen-hero__body {
+    padding-right: var(--page-gutter);
   }
 
   .goen-hero__title {
     font-size: 3rem;
   }
 
+  .goen-hero__title--long {
+    font-size: var(--fs-ed-38);
+  }
+
   .goen-hero__lede {
     font-size: 1.0625rem;
-  }
-
-  .goen-hero__actions {
-    margin-top: 2rem;
-  }
-
-  .goen-hero__controls {
-    bottom: 1.5rem;
-    left: 0;
-    margin-inline: auto;
-    max-width: var(--page-width);
-    padding-block: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-  }
-
-  .goen-hero__controls > * {
-    pointer-events: auto;
   }
 
   .goen-cats__grid {
@@ -2130,30 +2098,6 @@ h3 {
     flex-direction: column;
     justify-content: center;
   }
-
-  .goen-trust__grid {
-    column-gap: 0;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding-block: 3.5rem;
-  }
-
-  .goen-trust__item {
-    border-left: 1px solid var(--n-200);
-    padding-inline: 2rem;
-  }
-
-  .goen-trust__item:first-child {
-    border-left: 0;
-    padding-left: 0;
-  }
-
-  .goen-trust__item:last-child {
-    padding-right: 0;
-  }
-
-  .goen-trust__body {
-    padding-left: 0;
-  }
 }
 
 /* ---------- Product tile ----------
@@ -2167,7 +2111,9 @@ h3 {
 .goen-tiles__grid {
   display: grid;
   gap: 2.5rem 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
+     text at 200% does not drop to one photograph per row. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2192,6 +2138,16 @@ h3 {
 
 .goen-tile:hover {
   color: var(--n-900);
+}
+
+/* The ring goes around the photograph, not the card's text. */
+.goen-tile:focus-visible {
+  outline: none;
+}
+
+.goen-tile:focus-visible .goen-tile__media {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .goen-tile:hover .goen-tile__img,
@@ -2228,21 +2184,21 @@ h3 {
 }
 
 .goen-tile__ph {
-  display: block;
+  box-sizing: border-box;
+  color: var(--n-500);
+  display: grid;
+  font-size: var(--fs-13);
   height: 100%;
+  padding: 1rem;
+  place-items: center;
+  text-align: center;
   width: 100%;
 }
 
-/* A status is a neutral chip: the colour of a badge would compete with the
-   product. */
-.goen-tile .goen-tile__flag {
-  background: var(--n-0);
-  border: 1px solid var(--n-200);
-  color: var(--n-900);
-  font-size: 0.75rem;
-  left: 8px;
-  position: absolute;
-  top: 8px;
+/* Sold out is said in words beside the price; the photograph only steps back. */
+.goen-tile--out .goen-tile__img,
+.goen-tile--out:hover .goen-tile__img {
+  opacity: 0.5;
 }
 
 .goen-tile__body {
@@ -2284,6 +2240,44 @@ h3 {
   gap: 8px;
   margin-top: auto;
   padding-top: 4px;
+}
+
+.goen-tile__amount {
+  overflow-wrap: normal;
+}
+
+.goen-tile__state {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-tile__colours {
+  align-items: center;
+  color: var(--n-500);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.goen-tile__dot {
+  display: block;
+  flex: none;
+  height: 12px;
+  width: 12px;
+}
+
+.goen-tile__dot circle {
+  stroke: var(--swatch-ring);
+  stroke-width: 1;
+}
+
+@media (forced-colors: active) {
+  .goen-tile__dot circle {
+    stroke: CanvasText;
+  }
 }
 
 .goen-tile__was {
@@ -2380,9 +2374,10 @@ input.goen-check {
    content column the header and the footer use, a page head, and then whatever
    the page is about.
 
-   The filter rail is a native <details> at every width. Above 1024 its summary
-   is hidden and ::details-content is forced open, because a descendant display
-   rule alone cannot override the closed details slot in Chrome.
+   The filters are a native <details> at every width. Above 1024, where the
+   browser has ::details-content, its summary is hidden and the slot is forced
+   open, because a descendant display rule alone cannot override the closed
+   details slot in Chrome; elsewhere the toolbar stays behind its summary.
    ------------------------------------------------------------------------ */
 
 .goen-listing {
@@ -2486,6 +2481,13 @@ input.goen-check {
   position: absolute;
   white-space: nowrap;
   width: 1px;
+}
+
+.goen-filters__menus,
+.goen-filters__end {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .goen-filters__group {
@@ -2607,6 +2609,15 @@ input.goen-check {
   margin-top: 8px;
 }
 
+.goen-filters__sort {
+  display: contents;
+}
+
+.goen-filters__sort:empty,
+.goen-listing__count:empty {
+  display: none;
+}
+
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
@@ -2616,6 +2627,12 @@ input.goen-check {
   gap: 8px 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
+}
+
+.goen-search-sort .goen-listing__count {
+  align-items: center;
+  display: flex;
+  min-height: 44px;
 }
 
 .goen-search-sort .goen-filters__field {
@@ -2736,54 +2753,50 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
-/* The numbered pager: a row of squares that wraps rather than scrolls, the
-   current one inked. */
-.goen-pager--numbered {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
+/* The next page is a link under a line that says how far along the run is. */
+.goen-pager--more {
+  gap: 12px;
 }
 
-.goen-pager__page,
-.goen-pager__step {
-  align-items: center;
-  background: var(--n-0);
-  border: 1px solid var(--n-300);
-  border-radius: var(--r-md);
-  color: var(--n-700);
-  display: inline-flex;
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-medium);
-  height: 2.75rem;
-  justify-content: center;
-  min-width: 2.75rem;
-  padding: 0 0.5rem;
-  text-decoration: none;
-}
-
-a.goen-pager__page:hover,
-a.goen-pager__step:hover {
-  background: var(--n-50);
+.goen-pager__progress {
+  appearance: none;
+  background: var(--n-200);
+  block-size: 2px;
+  border: 0;
   color: var(--n-900);
+  display: block;
+  inline-size: min(100%, 20rem);
+  min-inline-size: 220px;
 }
 
-.goen-pager__page[aria-current='page'] {
+.goen-pager__progress::-webkit-progress-bar {
+  background: var(--n-200);
+}
+
+.goen-pager__progress::-webkit-progress-value {
   background: var(--n-900);
-  border-color: var(--n-900);
-  color: var(--n-0);
 }
 
-.goen-pager__step[aria-disabled='true'] {
-  opacity: 0.5;
+.goen-pager__progress::-moz-progress-bar {
+  background: var(--n-900);
 }
 
-.goen-pager__gap {
-  color: var(--n-500);
-  padding: 0 0.25rem;
+.goen-pager__links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: center;
+}
+
+.goen-pager__prev {
+  color: var(--n-700);
+  font-size: var(--fs-14);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 /* The department head: the breadcrumb, the title and the sub-category chips on
@@ -2882,6 +2895,7 @@ a.goen-pager__step:hover {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+  white-space: nowrap;
 }
 
 /* The running-promotions strip above the deals grid. A campaign is a
@@ -3164,7 +3178,8 @@ a.goen-pager__step:hover {
     justify-content: space-between;
   }
 
-  .goen-pager--numbered {
+  .goen-pager--more {
+    flex-direction: column;
     justify-content: center;
   }
 
@@ -3241,11 +3256,6 @@ a.goen-pager__step:hover {
     width: 55%;
   }
 
-  .goen-listing__layout {
-    gap: 32px;
-    grid-template-columns: 16rem minmax(0, 1fr);
-  }
-
   .goen-campaigns__list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3255,63 +3265,107 @@ a.goen-pager__step:hover {
     padding: 32px var(--page-gutter) 56px;
   }
 
-  /* The rail takes 256px and a 32px gap out of the row, so a fourth column
-     beside it is a 150px card — under the width the gate calls readable
-     (`check-layout.mjs:317`, `MIN_CARD`). Three until there is room at 1280.
-     Only the category listing has a rail; search, deals, a campaign and the
-     wishlist keep the four the shared rule gives them. */
-  .goen-listing__results .goen-tiles__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* The filters are a toolbar above the grid: a chip for each facet, each a
+     disclosure whose panel hangs under it, and the sort and the count at the far
+     end. The shell's summary is for a phone, so the rules that open the shell
+     are guarded: where ::details-content does not exist the toolbar stays behind
+     its summary, which works. */
+  .goen-listing__filters {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 24px;
   }
 
-  .goen-filters__title {
-    clip-path: none;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    position: static;
-    white-space: normal;
-    width: auto;
-  }
-
-  /* The rail is open at every desk width: the summary goes, and the slot the
-     closed <details> hides is forced back into rendering. */
   .goen-filters__shell {
     border: none;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .goen-filters__shell-summary {
-    display: none;
+  @supports selector(details::details-content) {
+    .goen-filters__shell-summary {
+      display: none;
+    }
+
+    .goen-filters__shell::details-content {
+      content-visibility: visible;
+    }
+
+    .goen-filters__shell:not([open]) > .goen-filters {
+      display: flex;
+    }
   }
 
-  .goen-filters__shell::details-content {
-    content-visibility: visible;
-  }
-
-  .goen-filters__shell:not([open]) > .goen-filters {
-    display: flex;
-  }
-
-  /* At desk width the rail is a column of the page, not a panel sitting on it:
-     the hairline between one facet and the next is the whole separation, and the
-     space around them does the rest. The card shape belongs to the phone, where
-     the same markup is a disclosure that has to read as one closed thing. */
   .goen-filters {
-    border: none;
-    gap: 24px;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 16px;
     padding: 0;
   }
 
+  .goen-filters__menus,
+  .goen-filters__end {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .goen-filters__end {
+    margin-inline-start: auto;
+  }
+
   .goen-filters__group {
-    padding-bottom: 24px;
+    border: 0;
+    padding: 0;
+    position: relative;
+  }
+
+  .goen-filters__summary {
+    border: 1px solid var(--n-300);
+    border-radius: var(--r-full);
+    gap: 10px;
+    padding: 0 16px;
+  }
+
+  .goen-filters__summary:hover,
+  .goen-filters__group[open] > .goen-filters__summary {
+    border-color: var(--n-900);
+  }
+
+  .goen-filters__options,
+  .goen-filters__prices {
+    background: var(--n-0);
+    border: 1px solid var(--n-200);
+    border-radius: var(--r-lg);
+    box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
+    left: 0;
+    margin: 0;
+    min-width: 15rem;
+    padding: 12px;
+    position: absolute;
+    top: calc(100% + 6px);
+    z-index: 4;
+  }
+
+  .goen-filters__field {
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .goen-filters__end .ui-select {
+    width: auto;
+  }
+
+  .goen-filters__end .goen-filters__apply {
+    margin-top: 0;
+    width: auto;
   }
 }
 
-@media (min-width: 1280px) {
-  .goen-listing__results .goen-tiles__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 /* ---------- Product page ----------
 
    A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
@@ -4053,7 +4107,7 @@ a.goen-pager__step:hover {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
 }
 
 .goen-pdp__reviewlayout {
@@ -4599,9 +4653,10 @@ a.goen-pager__step:hover {
   border-bottom: 0;
 }
 
-/* A line the catalogue can no longer honour: dimmed, not hidden. A shopper has
-   to see what they must remove before checkout will let them past. */
-.goen-line--out {
+/* A line the catalogue can no longer honour: its photograph dimmed, the line not
+   hidden. A shopper has to see what they must remove before checkout will let
+   them past, and the control that removes it stays at full contrast. */
+.goen-line--out .goen-line__thumb {
   opacity: 0.6;
 }
 
@@ -4621,6 +4676,24 @@ a.goen-pager__step:hover {
   height: 100%;
   object-fit: contain;
   width: 100%;
+}
+
+/* The cart's totals sit under the title as a fact line; the sentence that says
+   what blocks checkout comes first, set apart by a rule so it is not read as a figure. */
+.goen-cart__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.goen-cart__alert {
+  background: var(--wash);
+  border-left: 2px solid var(--fg);
+  font-size: var(--fs-14);
+  margin: 0;
+  max-width: 44rem;
+  padding: 0.75rem 1rem;
 }
 
 /* The notice region is always in the document so an update can fill it; it
@@ -5175,7 +5248,7 @@ a.goen-pager__step:hover {
    card. Quiet, and deliberately present — a customer about to leave the site for
    a card form is being asked to trust the handover. */
 .goen-checkout__note,
-.goen-cart__freedelivery,
+.goen-cart__hold,
 .goen-pay__assurance {
   color: var(--fg-muted);
   font-size: var(--fs-12);
@@ -5425,10 +5498,13 @@ a.goen-pager__step:hover {
   }
 
   .goen-cart__summary .ui-alert,
-  .goen-cart__summary .goen-cart__freedelivery,
   .goen-cart__summary .goen-notice {
     flex: 1 1 100%;
     order: -1;
+  }
+
+  .goen-cart__summary .goen-cart__hold {
+    display: none;
   }
 
   .goen-cart__summary .goen-summary {
