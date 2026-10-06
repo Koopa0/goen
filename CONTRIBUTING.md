@@ -4,12 +4,12 @@ goen has one maintainer, who reviews every submission and merges it once CI is g
 
 ## What goen is
 
-goen is a full-stack e-commerce application in Go for a shop that sells in
-Taiwan under the 消保法. It is one binary that serves the storefront, the
-customer account and the back office, over PostgreSQL, paying at Stripe and
-filing 統一發票 through 綠界. A public demo runs at
-[goen.koopa0.dev](https://goen.koopa0.dev); [deploy/demo](deploy/demo/README.md)
-is a reference deployment with a nightly restore.
+goen is a full-stack e-commerce application in Go. It is one binary that
+serves the storefront, the customer account and the back office, over
+PostgreSQL, paying at Stripe and filing 統一發票 through 綠界. A public demo
+runs at [goen.koopa0.dev](https://goen.koopa0.dev);
+[deploy/demo](deploy/demo/README.md) is a reference deployment with a nightly
+restore.
 
 Four boundaries hold, and each is enforced in the tree rather than by
 convention:
