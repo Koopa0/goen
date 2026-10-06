@@ -301,7 +301,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	}
 
 	timeline, err := s.q.AdminOrderTimeline(ctx, db.AdminOrderTimelineParams{
-		OrderID: o.ID, MailTopics: orderMailTopics, InvoicingEnabled: view.InvoicingEnabled,
+		OrderID: o.ID, MailTopics: orderMailTopics, InvoicingEnabled: true,
 	})
 	if err != nil {
 		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)

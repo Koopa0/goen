@@ -120,7 +120,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 
 	// 折讓 claims the provider never answered. Whether ECPay filed is not knowable
 	// from here, so the claim survives as a row only a person can settle.
-	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, true)
 	if err != nil {
 		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
@@ -164,7 +164,7 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 		UnreconciledPayments: row.UnreconciledPayments,
 		MaxExpiredHolds:      MaxExpiredHolds,
 	}
-	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("read stranded invoice claims: %w", err)
 	}

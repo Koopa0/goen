@@ -86,7 +86,7 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 	}
 	offered, open := beforeShipmentRefundState(&row)
 	if !offered && !open {
-		return admin.RefundConfirmation{}, fmt.Errorf("order %s: %w", number, whyNotRefundable(&row))
+		return admin.RefundConfirmation{}, fmt.Errorf("order %s: %w", number, refundstate.ErrRefused)
 	}
 	return admin.RefundConfirmation{
 		OrderNumber: number, TotalCents: row.TotalCents,
