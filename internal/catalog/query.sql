@@ -138,7 +138,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
@@ -333,7 +333,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
@@ -495,7 +495,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
@@ -636,7 +636,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
@@ -829,7 +829,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
@@ -925,7 +925,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
         JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now()
           AND EXISTS (
               SELECT 1 FROM sale_campaign_products cp
               JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
