@@ -32,6 +32,9 @@ type ProductTile struct {
 	ImageAlt    string
 	ImageWidth  int32 // 0 when the stored media has no declared width
 	ImageHeight int32 // 0 when the stored media has no declared height
+	// Colours are the swatches of the product's colour option, the first option all of whose
+	// values are colours, as #rrggbb; empty when it has none.
+	Colours []string
 	// Set only where somebody is choosing between candidates (listing, search); not a
 	// shop window, a promotional list or a wishlist.
 	Comparable bool
@@ -48,6 +51,16 @@ func (t ProductTile) CompareLabel(ctx context.Context) string {
 func (t ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
 
 func (t ProductTile) SoldOut() bool { return !t.InStock }
+
+// maxDots is how many colours a card draws; the rest are counted.
+const maxDots = 4
+
+// HasChoiceOfColour is false for a single colour: that is not a choice to show.
+func (t ProductTile) HasChoiceOfColour() bool { return len(t.Colours) >= 2 }
+
+func (t ProductTile) Dots() []string { return t.Colours[:min(len(t.Colours), maxDots)] }
+
+func (t ProductTile) MoreColours() int { return max(len(t.Colours)-maxDots, 0) }
 
 func (t ProductTile) HasImage() bool { return t.ImageURL != "" }
 

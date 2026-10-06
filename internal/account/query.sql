@@ -274,6 +274,18 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id)
+              AND NOT EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id AND x.swatch_hex IS NULL)
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+    ), ARRAY[]::text[])::text[] AS colours,
     -- The one variant a product has, when it has only one and it is in stock:
     -- the only case where saying "add to cart" names what goes in the cart.
     -- The nil uuid when there is none.

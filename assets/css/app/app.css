@@ -2167,7 +2167,9 @@ h3 {
 .goen-tiles__grid {
   display: grid;
   gap: 2.5rem 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
+     text at 200% does not drop to one photograph per row. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2192,6 +2194,16 @@ h3 {
 
 .goen-tile:hover {
   color: var(--n-900);
+}
+
+/* The ring goes around the photograph, not the card's text. */
+.goen-tile:focus-visible {
+  outline: none;
+}
+
+.goen-tile:focus-visible .goen-tile__media {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .goen-tile:hover .goen-tile__img,
@@ -2228,21 +2240,21 @@ h3 {
 }
 
 .goen-tile__ph {
-  display: block;
+  box-sizing: border-box;
+  color: var(--n-500);
+  display: grid;
+  font-size: var(--fs-13);
   height: 100%;
+  padding: 1rem;
+  place-items: center;
+  text-align: center;
   width: 100%;
 }
 
-/* A status is a neutral chip: the colour of a badge would compete with the
-   product. */
-.goen-tile .goen-tile__flag {
-  background: var(--n-0);
-  border: 1px solid var(--n-200);
-  color: var(--n-900);
-  font-size: 0.75rem;
-  left: 8px;
-  position: absolute;
-  top: 8px;
+/* Sold out is said in words beside the price; the photograph only steps back. */
+.goen-tile--out .goen-tile__img,
+.goen-tile--out:hover .goen-tile__img {
+  opacity: 0.5;
 }
 
 .goen-tile__body {
@@ -2284,6 +2296,44 @@ h3 {
   gap: 8px;
   margin-top: auto;
   padding-top: 4px;
+}
+
+.goen-tile__amount {
+  overflow-wrap: normal;
+}
+
+.goen-tile__state {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-tile__colours {
+  align-items: center;
+  color: var(--n-500);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.goen-tile__dot {
+  display: block;
+  flex: none;
+  height: 12px;
+  width: 12px;
+}
+
+.goen-tile__dot circle {
+  stroke: var(--swatch-ring);
+  stroke-width: 1;
+}
+
+@media (forced-colors: active) {
+  .goen-tile__dot circle {
+    stroke: CanvasText;
+  }
 }
 
 .goen-tile__was {

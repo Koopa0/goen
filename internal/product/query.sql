@@ -150,6 +150,18 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id)
+              AND NOT EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id AND x.swatch_hex IS NULL)
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -247,6 +259,18 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id)
+              AND NOT EXISTS (SELECT 1 FROM product_option_values x WHERE x.option_id = co.id AND x.swatch_hex IS NULL)
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
