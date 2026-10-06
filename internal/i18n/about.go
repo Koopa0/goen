@@ -37,7 +37,7 @@ var (
 			"carriage both ways in either case.",
 	})
 
-	KeyAboutCurated = key("about.curated", Message{ZhHant: "商品分類", En: "Categories"})
+	KeyAboutCurated = key("about.curated", Message{ZhHant: "館別", En: "Departments"})
 )
 
 var (

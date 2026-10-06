@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -37,10 +38,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/categories/{slug}/image/remove", ac.RequireStaff(h.RemoveCategoryImage))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":      i18n.KeyAdminNoticeOK,
-	"refused": i18n.KeyAdminNoticeRefused,
-	"inuse":   i18n.KeyAdminNoticeInUse,
+var notices = map[string]web.NoticeEntry{
+	"ok":      web.Done(i18n.KeyAdminNoticeOK),
+	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
+	"inuse":   web.Refused(i18n.KeyAdminNoticeInUse),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +140,7 @@ func (h *Handler) EditCategory(w http.ResponseWriter, r *http.Request) {
 	h.renderCategory(w, r, http.StatusOK, web.Notice(r, notices), nil)
 }
 
-func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
+func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {
 	slug := r.PathValue("slug")
 	view, err := h.store.CategoryHeader(r.Context(), slug)
 	if err != nil {
@@ -161,7 +162,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "category image upload", "error", err, "slug", slug)
 		reason := media.UploadNotice(err)
-		h.renderCategory(w, r, http.StatusUnprocessableEntity, "", map[string]string{"image": i18n.T(r.Context(), reason)})
+		h.renderCategory(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), reason)})
 		return
 	}
 	err = h.store.SetCategoryImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
@@ -176,7 +177,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {
 			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
 		}
-		h.renderCategory(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
+		h.renderCategory(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set category image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)

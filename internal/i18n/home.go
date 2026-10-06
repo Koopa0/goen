@@ -13,7 +13,7 @@ var (
 		En:     "We cannot show the home page right now. Please try again shortly.",
 	})
 
-	KeySectionCategories = key("home.categories", Message{ZhHant: "依館別選購", En: "Shop by department"})
+	KeySectionCategories = key("home.categories", Message{ZhHant: "館別", En: "Departments"})
 
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 

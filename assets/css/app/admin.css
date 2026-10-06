@@ -299,6 +299,16 @@ h3 {
   color: var(--fg);
 }
 
+.goen-notice__lead {
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .goen-notice--danger {
+    border: 2px solid CanvasText;
+  }
+}
+
 /* A quantity field with a step on each side, as one control. The field is the
    control and the buttons are the enhancement: they are out of sight until the
    stylesheet is told scripting is on, so a browser without it -- or without the
@@ -388,7 +398,7 @@ h3 {
   font-family: inherit;
   font-size: var(--fs-16);
   height: 2.75rem;
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   padding: 0.25rem 0.75rem;
   width: 100%;

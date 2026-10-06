@@ -1,6 +1,10 @@
 package admin
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/ui/components"
+)
 
 type NewsletterView struct {
 	Active       int64
@@ -9,7 +13,7 @@ type NewsletterView struct {
 	Issues       []NewsletterIssue
 	Draft        NewsletterDraft
 	Errors       map[string]string
-	Notice       string
+	Notice       components.Result
 }
 
 type NewsletterDraft struct {

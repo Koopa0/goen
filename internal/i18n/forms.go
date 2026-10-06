@@ -48,10 +48,14 @@ var (
 	KeyAdminNoticeOK = key("admin.notice.ok", Message{ZhHant: "已更新。", En: "Saved."})
 
 	KeyAdminNoticeRefused = key("admin.notice.refused", Message{
-		ZhHant: "資料庫拒絕了這個變更。可能是狀態流程不允許，或會違反庫存與活動規則。",
-		En: "The database refused that change. Either the status move is not a legal one, " +
-			"or it would break a stock or campaign rule.",
+		ZhHant: "這個變更不符合狀態、庫存或活動的規則。請重新整理，確認目前的狀態後再試。",
+		En: "That change does not fit the status, stock or campaign rules. " +
+			"Reload the page, check the current state, then try again.",
 	})
+
+	KeyAdminNoticeLeadRefused = key("admin.notice.lead.refused", Message{ZhHant: "未儲存", En: "Not saved"})
+
+	KeyAdminNoticeLeadFailed = key("admin.notice.lead.failed", Message{ZhHant: "未完成", En: "Did not finish"})
 
 	KeyAdminNoticeGone = key("admin.notice.gone", Message{
 		ZhHant: "這筆資料已不存在，或狀態已變更。請重新載入列表。",

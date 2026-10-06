@@ -94,6 +94,33 @@ func (t Intent) role() string {
 	return "status"
 }
 
+// Outcome is how a change a person asked for ended. Refused and Failed interrupt; Done is
+// announced when the reader reaches it.
+type Outcome uint8
+
+const (
+	OutcomeDone Outcome = iota + 1
+	OutcomeRefused
+	OutcomeFailed
+)
+
+// Intent is what an Outcome looks like: a refusal and a failure are the danger style, so a
+// saved change and a blocked one never share a treatment.
+func (o Outcome) Intent() Intent {
+	switch o {
+	case OutcomeRefused, OutcomeFailed:
+		return IntentDanger
+	default:
+		return IntentAccent
+	}
+}
+
+// Result is a sentence for a page to show with the outcome it reports. The zero value shows nothing.
+type Result struct {
+	Outcome Outcome
+	Text    string
+}
+
 // ButtonProps makes Block fill the row, which a phone wants for the one action a page is about.
 type ButtonProps struct {
 	ButtonStyle ButtonStyle

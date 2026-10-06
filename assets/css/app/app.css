@@ -467,6 +467,12 @@ h3 {
   color: var(--fg);
 }
 
+@media (forced-colors: active) {
+  .goen-notice--danger {
+    border: 2px solid CanvasText;
+  }
+}
+
 /* A quantity field with a step on each side, as one control. The field is the
    control and the buttons are the enhancement: they are out of sight until the
    stylesheet is told scripting is on, so a browser without it -- or without the
@@ -562,7 +568,7 @@ h3 {
   font-family: inherit;
   font-size: var(--fs-16);
   height: 2.75rem;
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   padding: 0.25rem 0.75rem;
   width: 100%;
@@ -986,11 +992,10 @@ h3 {
   width: 16px;
 }
 
-/* A grey field with no border until it is used, then the same inward outline
-   every control draws. */
+/* The search field needs a visible boundary at rest on the header ground. */
 .goen-header .goen-header__field {
   background: var(--n-100);
-  outline-color: transparent;
+  outline-color: var(--control-boundary);
   padding-left: 40px;
 }
 
@@ -2583,7 +2588,7 @@ input.goen-check {
   color: var(--fg);
   font-family: inherit;
   font-size: var(--fs-16);
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   min-height: 44px;
   min-width: 0;
@@ -5125,7 +5130,7 @@ a.goen-pager__step:hover {
   font-family: inherit;
   font-size: var(--fs-16);
   height: 2.75rem;
-  outline: 1px solid var(--n-300);
+  outline: 1px solid var(--control-boundary);
   outline-offset: -1px;
   padding: 0.25rem 2.5rem 0.25rem 0.75rem;
   width: 100%;
@@ -6135,7 +6140,7 @@ a.goen-pager__step:hover {
 .goen-qa__form .ui-input:focus,
 .goen-qa__form .ui-input:hover {
   background: transparent;
-  border-color: var(--n-300);
+  border-color: var(--control-boundary);
 }
 
 /* One control, not a bar: the form asks for a number and then offers the one
