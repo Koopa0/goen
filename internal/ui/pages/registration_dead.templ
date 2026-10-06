@@ -1,0 +1,28 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ RegistrationDead(p layouts.Page) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<span class="goen-medallion" aria-hidden="true">
+				@icons.Mail()
+			</span>
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyVerifyDeadTitle) }</h1>
+			<p class="notice__body">{ i18n.T(ctx, i18n.KeyRegisterDeadBody) }</p>
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/register?resend=1") {
+					{ i18n.T(ctx, i18n.KeyRegisterResend) }
+				}
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
+					{ i18n.T(ctx, i18n.KeyBackToShop) }
+				}
+			</div>
+		</div>
+	}
+}
