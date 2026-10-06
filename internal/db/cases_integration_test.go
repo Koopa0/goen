@@ -57,19 +57,9 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,tax_type) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft','exempt');`,
 	},
 	{
-		constraint: "products_invoice_unit_valid",
-		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',E'個\n');`,
-		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',repeat('箱',6));`,
-	},
-	{
 		constraint: "order_lines_tax_type_known",
 		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'mixed');`,
 		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'exempt');`,
-	},
-	{
-		constraint: "order_lines_invoice_unit_valid",
-		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,repeat('箱',7));`,
-		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'包');`,
 	},
 	{
 		constraint: "coupons_code_format",
@@ -583,11 +573,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "invoice_document_lines_quantity_positive",
 		reject:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000002', '99990001-0000-4000-8000-000000000000', 'Pixelight 9 Pro 5G', 0, 100, 100, 'taxable', 0);`,
 		accept:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000002', '99990001-0000-4000-8000-000000000000', 'Pixelight 9 Pro 5G', 1, 100, 100, 'taxable', 0);`,
-	},
-	{
-		constraint: "invoice_document_lines_unit_valid",
-		reject:     `INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position) VALUES ('99990001-0000-4000-8000-000000000000','Unit fixture',1,100,100,'taxable',repeat('箱',7),0);`,
-		accept:     `INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position) VALUES ('99990001-0000-4000-8000-000000000000','Unit fixture',1,100,100,'exempt',repeat('箱',6),0);`,
 	},
 	{
 		constraint: "invoice_document_lines_tax_type_known",

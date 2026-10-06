@@ -67,6 +67,9 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "NullUUID"
+          # A domain over text is a string.
+          - db_type: "invoice_unit"
+            go_type: "string"
           # timestamptz is a time. The NULL case keeps a pgtype so the
           # difference between "not set" and the zero time stays visible.
           - db_type: "timestamptz"
