@@ -3,7 +3,6 @@ package home
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
@@ -100,8 +99,8 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
 			Stats: []components.Stat{
-				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: statCount(ctx, i18n.KeyUnitItems, src.held[c.ID])},
-				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: statCount(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
+				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, src.held[c.ID])},
+				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: pages.StatCountOf(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
 			},
 			CTA: pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})
@@ -113,26 +112,10 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 // days are left; the last two days say so in the end's note instead.
 func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
 	now := s.now()
-	clock := ""
-	if !shoptime.Midnight(c.EndsAt).Equal(c.EndsAt) {
-		clock = shoptime.ClockText(c.EndsAt)
-	}
-	datetime := shoptime.LastDay(c.EndsAt, now).ISO()
-	if clock != "" {
-		datetime += "T" + clock
-	}
-	ends := components.Stat{
-		Label: i18n.T(ctx, i18n.KeySlideEnds),
-		Value: components.StatDate(pages.CampaignEndsOn(ctx, c.EndsAt, now), clock).WithDatetime(datetime),
-	}
-	stats := []components.Stat{{Label: i18n.T(ctx, i18n.KeySlideItems), Value: statCount(ctx, i18n.KeyUnitItems, c.Products)}, ends}
-	switch left := shoptime.DaysLeft(now, c.EndsAt); {
-	case left <= 0:
-		stats[1].Note = i18n.T(ctx, i18n.KeyEndsToday)
-	case left == 1:
-		stats[1].Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
-	default:
-		stats = append(stats, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: statCount(ctx, i18n.KeyUnitDays, int64(left))})
+	ends := pages.CampaignEndStat(ctx, c.EndsAt, now)
+	stats := []components.Stat{{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, c.Products)}, ends}
+	if left := shoptime.DaysLeft(now, c.EndsAt); left > 1 {
+		stats = append(stats, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: pages.StatCountOf(ctx, i18n.KeyUnitDays, int64(left))})
 	}
 	return stats
 }

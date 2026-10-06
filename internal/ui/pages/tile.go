@@ -40,6 +40,8 @@ type ProductTile struct {
 	Comparable bool
 	// Lead marks the 2×2 tile of the home row, whose photograph is larger than a card's.
 	Lead bool
+	// Highlights are the first specifications a comparable product lists, for the line under its name.
+	Highlights []string
 }
 
 // Sizes is the width the photograph is laid out at, for the browser's choice of file.

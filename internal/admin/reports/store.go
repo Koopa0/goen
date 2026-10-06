@@ -178,7 +178,7 @@ func dailyRevenue(ctx context.Context, q *db.Queries, days int32, now time.Time)
 
 func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, error) {
 	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
-		FirstDay: shopDate(p.from), LastDay: shopDate(p.to.Add(-time.Nanosecond)),
+		FirstDay: shoptime.QueryDate(p.from), LastDay: shoptime.QueryDate(p.to.Add(-time.Nanosecond)),
 		FromAt: p.from, ToAt: p.to,
 	})
 	if err != nil {
@@ -189,12 +189,6 @@ func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, er
 		series.Buckets = append(series.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
 	}
 	return series, nil
-}
-
-// shopDate is the shop day t falls on, as the date a query takes.
-func shopDate(t time.Time) time.Time {
-	y, m, d := shoptime.In(t).Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 // endsMidDay is whether the period's last shop day is cut short.
