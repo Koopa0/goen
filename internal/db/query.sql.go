@@ -15777,17 +15777,12 @@ JOIN LATERAL (
     JOIN orders o ON o.id = ol.order_id
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
-      AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
+      AND o.placed_at < $1::timestamptz
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active'
   AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
 ORDER BY pv.sku
 `
-
-type StockAtRiskParams struct {
-	FromAt time.Time
-	ToAt   time.Time
-}
 
 type StockAtRiskRow struct {
 	VariantID     uuid.UUID
@@ -15804,8 +15799,8 @@ type StockAtRiskRow struct {
 // take. Sales are counted in orders as well as units: the report's sample size
 // is the orders, since one order of ten units is one event. Ranking and the
 // estimate are the page's.
-func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
-	rows, err := q.db.Query(ctx, stockAtRisk, arg.FromAt, arg.ToAt)
+func (q *Queries) StockAtRisk(ctx context.Context, toAt time.Time) ([]StockAtRiskRow, error) {
+	rows, err := q.db.Query(ctx, stockAtRisk, toAt)
 	if err != nil {
 		return nil, err
 	}
