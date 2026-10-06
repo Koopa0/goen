@@ -2420,14 +2420,6 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 		if state != "held" || stock != stockBefore-1 {
 			t.Fatalf("hold_inventory() state = %q, stock = %d, want held and %d", state, stock, stockBefore-1)
 		}
-		if _, err := tx.Exec(ctx, `
-			CREATE OR REPLACE VIEW committed_orders AS
-			SELECT o.id FROM orders o
-			WHERE o.fulfillment_status <> 'pending'
-			   OR EXISTS (SELECT 1 FROM payments p
-			              WHERE p.order_id = o.id AND p.status = 'succeeded')`); err != nil {
-			t.Fatalf("plant committed-order predicate: %v", err)
-		}
 		if _, err := tx.Exec(ctx, cancel); err != nil {
 			t.Fatalf("cancel held order: %v", err)
 		}
