@@ -57,7 +57,7 @@ If you keep that database as a snapshot and restore it on a later day, its histo
 psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<its name> -v anchor_day=<YYYY-MM-DD> -f seed/demo_shift.sql
 ```
 
-The seed's two campaigns run from 20 and 3 days before the day it ran until 10 and 4 days after, so a local database seeded longer ago shows none running: rebuild it with `make db-reset`, or move it to today the same way, naming the day it was seeded.
+The seed's two campaigns run from 20 and 3 days before the day it ran until 10 and 4 days after, so a local database seeded longer ago shows none running: rebuild it with `make db-reset`, or move it to today the same way, naming the day it was seeded or last moved.
 
 ## Run it locally
 

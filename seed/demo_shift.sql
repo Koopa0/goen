@@ -35,6 +35,17 @@
 \endif
 
 SET client_min_messages = warning;
+-- First, ahead of the column list's temporary table: migrations/001 takes
+-- TEMPORARY from PUBLIC, so any other role would stop there on a bare
+-- permission error.
+DO $$
+BEGIN
+    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
+        RAISE EXCEPTION 'run this as a superuser: replica mode needs one';
+    END IF;
+END
+$$;
+
 -- psql does not substitute its variables inside a DO block's body.
 SET demo_shift.database = :'demo_database';
 SET demo_shift.anchor_day = :'anchor_day';
@@ -56,9 +67,6 @@ BEGIN
     END IF;
     IF v_named <> current_database() THEN
         RAISE EXCEPTION 'demo_database is %, not this database (%)', v_named, current_database();
-    END IF;
-    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
-        RAISE EXCEPTION 'run this as a superuser: replica mode needs one';
     END IF;
     IF v_given = '' THEN
         RAISE EXCEPTION 'pass -v anchor_day=<the day the snapshot was taken, YYYY-MM-DD>';
