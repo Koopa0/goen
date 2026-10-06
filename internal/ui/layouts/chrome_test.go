@@ -228,3 +228,18 @@ func TestADepartmentPanelOffersItsProducts(t *testing.T) {
 		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
 	}
 }
+
+func TestTheDepartmentNavigationIsNamedDepartments(t *testing.T) {
+	t.Parallel()
+
+	for locale, name := range map[i18n.Locale]string{i18n.ZhHant: "館別", i18n.En: "Departments"} {
+		header, footer := renderChrome(t, locale, chromeNav)
+		if got := strings.Count(header, `aria-label="`+name+`"`); got != 2 {
+			t.Errorf("%s: the header names %d navigations %q, want 2 (drawer and bar)", locale, got, name)
+		}
+		if !strings.Contains(footer, `aria-label="`+name+`"`) ||
+			!strings.Contains(footer, `<span class="goen-footer__heading">`+name+`</span>`) {
+			t.Errorf("%s: the footer's department links are not named %q", locale, name)
+		}
+	}
+}

@@ -18,7 +18,7 @@ var (
 		En:     "Support Monday to Friday, 09:00–18:00",
 	})
 
-	KeyCategoryNav = key("nav.categories", Message{ZhHant: "商品分類", En: "Categories"})
+	KeyCategoryNav = key("nav.categories", Message{ZhHant: "館別", En: "Departments"})
 
 	KeyCloseBanner = key("site.banner.close", Message{ZhHant: "關閉公告", En: "Dismiss"})
 
