@@ -646,8 +646,8 @@ func TestReturnPointSlicesFollowAccountLockedPostingOrderDespiteInvertedTimestam
 		t.Fatalf("seed three-point award: %v", err)
 	}
 
-	firstKey := pendingReturnRefund(t, orderID, firstReturn, 50)
-	secondKey := pendingReturnRefund(t, orderID, secondReturn, 50)
+	firstKey := pendingReturnRefund(t, orderID, firstReturn, 5000)
+	secondKey := pendingReturnRefund(t, orderID, secondReturn, 5000)
 
 	// Begin A early, then block it on its refund row. B settles, commits and posts
 	// its clawback first. A eventually commits with an OLDER transaction now().
@@ -1002,13 +1002,13 @@ func splitReturnOrderFor(
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_lines
 		    (order_id,sku,product_name,unit_price_cents,quantity)
-		VALUES ($1,'SPLIT-POINTS','點數分攤',50,2) RETURNING id`, orderID).Scan(&lineID); err != nil {
+		VALUES ($1,'SPLIT-POINTS','點數分攤',5000,2) RETURNING id`, orderID).Scan(&lineID); err != nil {
 		t.Fatalf("create split-return line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO payments
 		    (order_id,provider_ref,status,intended_amount_cents,captured_amount_cents,paid_at)
-		VALUES ($1::uuid,'split:'||$1::uuid::text,'succeeded',100,100,now())`, orderID); err != nil {
+		VALUES ($1::uuid,'split:'||$1::uuid::text,'succeeded',10000,10000,now())`, orderID); err != nil {
 		t.Fatalf("pay split-return order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
