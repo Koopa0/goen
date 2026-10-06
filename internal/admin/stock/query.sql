@@ -119,7 +119,7 @@ WITH v AS (
     GROUP BY 1
 )
 SELECT d.day::date AS day,
-       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day >= d.day::date), 0))::integer AS stock,
        coalesce(t.received, 0)::integer AS received,
        coalesce(t.receipts, 0)::integer AS receipts,
        coalesce(t.moves, 0)::integer AS moves
