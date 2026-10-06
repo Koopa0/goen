@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 
@@ -546,12 +547,22 @@ func (v *CheckoutView) Credit() string { return "-" + twd(v.CreditCents()) }
 func (v *CheckoutView) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
 type OrderLine struct {
-	SKU       string
-	Name      string
-	Label     string
-	UnitCents int64
-	Quantity  int32
+	SKU         string
+	Name        string
+	Label       string
+	UnitCents   int64
+	Quantity    int32
+	ImageURL    string
+	ImageSrcset string
+	ImageAlt    string
+	// WarrantyMonths is the promise the line copied at checkout; zero when it carried none.
+	WarrantyMonths int
+	// Registered counts the units this line's share has registered, and WarrantyUntil is the day their cover ends.
+	Registered    int
+	WarrantyUntil time.Time
 }
+
+func (l OrderLine) HasImage() bool { return l.ImageURL != "" }
 
 func (l OrderLine) UnitPrice() string { return twd(l.UnitCents) }
 
@@ -563,15 +574,33 @@ func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quan
 type OrderEvent struct {
 	Kind order.EventKind
 	Note string
-	At   string
+	At   time.Time
 }
 
+// LabelKey is the short word the order's own history uses for the event.
 func (e OrderEvent) LabelKey() i18n.Key {
-	key, ok := e.LookupLabelKey()
-	if !ok {
+	switch e.Kind {
+	case order.EventPlaced:
+		return i18n.KeyEventPlaced
+	case order.EventPaid:
+		return i18n.KeyStatusPaid
+	case order.EventPicking:
+		return i18n.KeyEventPicking
+	case order.EventShipped:
+		return i18n.KeyEventShipped
+	case order.EventInTransit:
+		return i18n.KeyStatusInTransit
+	case order.EventDelivered:
+		return i18n.KeyEventDelivered
+	case order.EventCompleted:
+		return i18n.KeyStatusCompleted
+	case order.EventCancelled:
+		return i18n.KeyEventCancelled
+	case order.EventRefunded:
+		return i18n.KeyStatusRefunded
+	default:
 		panic("pages: no label for order event kind " + string(e.Kind))
 	}
-	return key
 }
 
 // LookupLabelKey is LabelKey for a reader that must survive a kind it does not
@@ -601,18 +630,24 @@ func (e OrderEvent) LookupLabelKey() (i18n.Key, bool) {
 	}
 }
 
+// OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
 type OrderShipment struct {
-	Carrier     carrier.Carrier
-	Tracking    string
-	ShippedAt   string
-	DeliveredAt string
-	// RescissionEnds is computed by the database; empty until delivered.
-	RescissionEnds string
+	Carrier   carrier.Carrier
+	Tracking  string
+	ShippedAt time.Time
+	// DeliveredAt is zero until the parcel arrives, or is collected from a store.
+	DeliveredAt time.Time
+	// RescissionEnds and GoodwillEnds are the last day of the right to cancel and the last day of unused
+	// returns, as the database reads them; zero until the parcel is delivered.
+	RescissionEnds time.Time
+	GoodwillEnds   time.Time
+	// Lines are the units of each line that went in this parcel.
+	Lines []OrderLine
 }
 
 func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
-func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
+func (s OrderShipment) Delivered() bool { return !s.DeliveredAt.IsZero() }
 
 type CheckoutInvoice struct {
 	Type          invoice.Preference
@@ -638,13 +673,20 @@ func (i CheckoutInvoice) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobi
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
 type OrderView struct {
-	Number         string
-	Status         order.FulfillmentStatus
-	Email          string
-	ShippingName   string
-	DeliveryTo     string
-	PlacedAt       string
+	Number       string
+	Status       order.FulfillmentStatus
+	Email        string
+	ShippingName string
+	DeliveryTo   string
+	PlacedAt     time.Time
+	// Now is the moment the page is read; the days left and the grids count from it.
+	Now time.Time
+	// Pickup is set for an order collected from a store, where delivery reads as collection.
+	Pickup bool
+	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
 	Lines          []OrderLine
+	Unshipped      []OrderLine
+	Returned       *OrderReturned
 	SubtotalCents  int64
 	ShippingCents  int64
 	DiscountCents  int64
@@ -668,6 +710,12 @@ type OrderView struct {
 	PaymentRefreshSeconds, PaymentRefreshChecks int
 	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
 	PaymentsEnabled bool
+}
+
+// OrderReturned is an order whose every unit is in a return the shop has accepted.
+type OrderReturned struct {
+	At          time.Time
+	RefundCents int64
 }
 
 type PaymentState string
@@ -760,8 +808,10 @@ func DiscountLabel(ctx context.Context, reason string) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), reason)
 }
 
-func (v *OrderView) Total() string {
-	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
+func (v *OrderView) Total() string { return twd(v.TotalCents()) }
+
+func (v *OrderView) TotalCents() int64 {
+	return v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents
 }
 
 // UsedCredit gates the credit row: without it the summary and the payment page
@@ -771,17 +821,11 @@ func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
 func (v *OrderView) CanRequestReturn() bool {
-	switch v.Status {
-	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
-		return true
-	default:
+	if v.Returned != nil {
 		return false
 	}
-}
-
-func (v *OrderView) CanRegisterWarranty() bool {
 	switch v.Status {
-	case order.FulfillmentDelivered, order.FulfillmentCompleted:
+	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
 		return true
 	default:
 		return false

@@ -15,6 +15,8 @@ type StatLineVariant string
 const (
 	StatLinePlain StatLineVariant = ""
 	StatLineWide  StatLineVariant = "wide"
+	// StatLineSmall is a line that sits under a name, as a product's warranty does.
+	StatLineSmall StatLineVariant = "s"
 )
 
 func (v StatLineVariant) class() string {

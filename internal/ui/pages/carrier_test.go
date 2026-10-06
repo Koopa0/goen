@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
@@ -12,14 +13,16 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+var dispatched = time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC)
+
 func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, &OrderView{
 		Number: "GO-1",
 		Shipments: []OrderShipment{
-			{Carrier: carrier.BlackCat, Tracking: "903221488720", ShippedAt: "10/01 09:00"},
-			{Carrier: carrier.HCT, Tracking: "1234567890", ShippedAt: "10/01 09:00"},
-			{Carrier: carrier.OKMart, Tracking: "OK123", ShippedAt: "10/01 09:00"},
+			{Carrier: carrier.BlackCat, Tracking: "903221488720", ShippedAt: dispatched},
+			{Carrier: carrier.HCT, Tracking: "1234567890", ShippedAt: dispatched},
+			{Carrier: carrier.OKMart, Tracking: "OK123", ShippedAt: dispatched},
 		},
 	}))
 
@@ -54,12 +57,12 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	every := slices.Concat(home, stores)
 	shipments := make([]OrderShipment, 0, len(every))
 	for _, c := range every {
-		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: "10/01 09:00"})
+		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: dispatched})
 	}
 	kinds := []order.EventKind{order.EventPlaced, order.EventPaid, order.EventPicking, order.EventShipped, order.EventInTransit, order.EventDelivered, order.EventCompleted}
 	timeline := make([]OrderEvent, 0, len(kinds))
 	for _, kind := range kinds {
-		timeline = append(timeline, OrderEvent{Kind: kind, At: "10/01 09:00"})
+		timeline = append(timeline, OrderEvent{Kind: kind, At: dispatched})
 	}
 	const userData = "台北市信義區松高路 68 號"
 	v := &OrderView{

@@ -10,18 +10,27 @@ templ Period(p PeriodSpec) {
 		if p.unitAttr() != "" {
 			data-unit={ p.unitAttr() }
 		}
+		if p.TodayAtStart {
+			data-today="start"
+		}
 	>
-		for _, c := range p.Cells {
+		for i, c := range p.Cells {
 			<i
 				if c.State != CellAhead {
 					data-cell={ string(c.State) }
 				}
+				if c.Mark {
+					data-mark
+				}
+				if c.Extra {
+					data-span="extra"
+				}
 			>
-				if c.State == CellToday {
+				if c.State == CellToday || p.TodayAtStart && i == 0 {
 					<b>{ p.TodayLabel }</b>
 				}
-				if c.Date != "" {
-					<small>{ c.Date }</small>
+				if c.Label != "" {
+					<small>{ c.Label }</small>
 				}
 			</i>
 		}

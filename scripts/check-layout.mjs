@@ -862,7 +862,7 @@ const PERIOD_PROBE = `(() => {
   return { periods: periods.length, problems };
 })()`;
 
-for (const route of ['/']) {
+async function periodPass(route) {
   for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
     const at = 'period labels ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
@@ -880,6 +880,8 @@ for (const route of ['/']) {
     console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
   }
 }
+
+await periodPass('/');
 
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the
@@ -2391,6 +2393,9 @@ if (process.env.CUST_TOKEN) {
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
+
+  // A delivered order of the signed-in customer: one grid for the right to cancel, one for the warranty.
+  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
 
   for (const want of ACCOUNT_PAGES) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {

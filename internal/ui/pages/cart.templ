@@ -855,12 +855,13 @@ templ Order(p layouts.Page, v *OrderView) {
 				<div class="goen-pagehead">
 					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, v.StateKey()) }</p>
 					<h1 class="goen-pagehead__title">{ v.Number }</h1>
-					<p class="goen-pagehead__sub">
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPlacedAt), v.PlacedAt) }
-						if v.Email != "" {
-							· { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderEmailNotice), v.Email) }
-						}
-					</p>
+					if v.Email != "" {
+						<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderEmailNotice), v.Email) }</p>
+					}
+					if note := v.ParcelsNote(ctx); note != "" {
+						<p class="goen-pagehead__sub">{ note }</p>
+					}
+					@components.StatLine(v.Facts(ctx), components.StatLinePlain)
 				</div>
 			</div>
 			if v.Cancelled {
@@ -905,35 +906,22 @@ templ Order(p layouts.Page, v *OrderView) {
 			}
 			<div class="goen-order__layout">
 				<div class="goen-order__panels">
-					if len(v.Shipments) > 0 {
-						<section class="goen-order__tracking" aria-labelledby="tracking-heading">
-							<h2 id="tracking-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderTracking) }</h2>
-							<ul class="goen-order__shipments" role="list">
-								for _, sh := range v.Shipments {
-									<li class="goen-order__shipment">
-										<span class="goen-order__carrier">{ i18n.CarrierName(ctx, sh.Carrier) }</span>
-										if sh.Carrier.DeepLinks() {
-											<a class="goen-order__meta" href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</a>
-										} else {
-											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</span>
-											if sh.TrackURL() != "" {
-												<a class="goen-order__meta" href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, i18n.KeyOrderTrackLink) }</a>
-											}
-										}
-										if sh.Delivered() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
-												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredAt) }
-											}
-											if sh.RescissionEnds != "" {
-												<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), sh.RescissionEnds) }</span>
-											}
-										} else {
-											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippedAt), sh.ShippedAt) }</span>
-										}
-									</li>
-								}
-							</ul>
+					if v.Returned != nil {
+						<section class="goen-order__returned" aria-labelledby="returned-heading">
+							<h2 id="returned-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderReturnedTitle) }</h2>
+							@components.StatLine(v.ReturnedFacts(ctx), components.StatLinePlain)
+							<p class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReturnedAll) }</p>
 						</section>
+					}
+					if v.SimpleLines() {
+						@orderLines(v, v.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", false, !v.IsCancelled() && v.Returned == nil, OrderShipment{})
+					} else {
+						for i, sh := range v.Shipments {
+							@orderParcel(v, sh, i)
+						}
+						if len(v.Unshipped) > 0 {
+							@orderLines(v, v.Unshipped, i18n.T(ctx, i18n.KeyOrderNotShipped), "unshipped-heading", false, true, OrderShipment{})
+						}
 					}
 					if len(v.Timeline) > 0 {
 						// On the page, not behind a tab: "where is my order" is the question this page is
@@ -951,7 +939,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										</span>
 										<div class="goen-order__stepbody">
 											<p class="goen-order__steplabel">{ i18n.T(ctx, e.LabelKey()) }</p>
-											<p class="goen-order__meta">{ e.At }</p>
+											<p class="goen-order__meta"><time datetime={ e.Datetime() }>{ e.Stamp(ctx) }</time></p>
 											if e.Note != "" {
 												<p class="goen-order__meta">{ e.Note }</p>
 											}
@@ -995,22 +983,6 @@ templ Order(p layouts.Page, v *OrderView) {
 							<p class="goen-order__meta">{ v.Invoice.ChoiceText(ctx) }</p>
 						</section>
 					}
-					<ul class="goen-order__lines" role="list">
-						for _, l := range v.Lines {
-							<li class="goen-line">
-								<div class="goen-line__body">
-									<p class="goen-line__name">{ l.Name }</p>
-									if l.Label != "" {
-										<span class="goen-line__meta">{ l.Label }</span>
-									}
-									<span class="goen-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
-								</div>
-								<div class="goen-line__money">
-									<span class="goen-line__total">{ l.LineTotal() }</span>
-								</div>
-							</li>
-						}
-					</ul>
 				</div>
 				@components.Card(components.CardProps{Class: "goen-order__summary"}) {
 					<dl class="goen-summary">
@@ -1069,14 +1041,6 @@ templ Order(p layouts.Page, v *OrderView) {
 								}
 							</form>
 						}
-						if v.ShowWarrantyLink && v.CanRegisterWarranty() {
-							@components.ButtonLink(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleOutline,
-								Block:       true,
-							}, templ.SafeURL(v.WarrantyLink())) {
-								{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
-							}
-						}
 						if v.CanRequestReturn() {
 							@components.ButtonLink(components.ButtonProps{
 								ButtonStyle: components.ButtonStyleOutline,
@@ -1096,4 +1060,102 @@ templ Order(p layouts.Page, v *OrderView) {
 			</div>
 		</div>
 	}
+}
+
+// A parcel states the right to cancel from its own delivery, then the lines in it.
+templ orderParcel(v *OrderView, sh OrderShipment, i int) {
+	<section class="goen-order__parcel" aria-labelledby={ fmt.Sprintf("parcel-%d-heading", i) }>
+		<h2 id={ fmt.Sprintf("parcel-%d-heading", i) } class="goen-order__subhead">{ v.ParcelTitle(ctx, i) }</h2>
+		<p class="goen-order__meta">
+			{ i18n.CarrierName(ctx, sh.Carrier) }
+			if sh.Carrier.DeepLinks() {
+				· <a href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</a>
+			} else {
+				· { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }
+				if sh.TrackURL() != "" {
+					· <a href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, i18n.KeyOrderTrackLink) }</a>
+				}
+			}
+			if sh.Delivered() {
+				· { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredStamp(ctx)) }
+			} else {
+				· { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippedAt), sh.ShippedStamp(ctx)) }
+			}
+		</p>
+		if sh.Delivered() {
+			@components.StatLine(v.ReturnFacts(ctx, sh), components.StatLinePlain)
+			if grid, ok := v.ReturnGrid(ctx, sh); ok {
+				@components.Period(grid)
+			}
+			<p class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), v.RescissionLastDay(ctx, sh)) }</p>
+			if note := v.PickupCounted(ctx); note != "" {
+				<p class="goen-order__meta">{ note }</p>
+			}
+		} else {
+			<p class="goen-order__meta">{ v.ReturnPending(ctx) }</p>
+		}
+		if v.SeveralParcels() {
+			@orderLines(v, sh.Lines, "", "", sh.Delivered(), true, sh)
+		}
+	</section>
+	if !v.SeveralParcels() {
+		@orderLines(v, sh.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", sh.Delivered(), true, sh)
+	}
+}
+
+// A list of lines keeps the markers the layout gate and the tests read. Without a heading it sits inside its parcel.
+templ orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool, sh OrderShipment) {
+	if headingID != "" {
+		<section class="goen-order__items" aria-labelledby={ headingID }>
+			<h2 id={ headingID } class="goen-order__subhead">{ heading }</h2>
+			@orderLineList(v, lines, delivered, warranty, sh)
+		</section>
+	} else {
+		@orderLineList(v, lines, delivered, warranty, sh)
+	}
+}
+
+templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool, sh OrderShipment) {
+	<ul class="goen-order__lines" role="list">
+		for _, l := range lines {
+			<li class="goen-line goen-line--order">
+				<span class="goen-line__thumb">
+					if l.HasImage() {
+						<img
+							class="goen-line__img"
+							src={ l.ImageURL }
+							srcset={ l.ImageSrcset }
+							sizes="96px"
+							alt={ l.ImageAlt }
+							width="96"
+							height="96"
+							loading="lazy"
+							decoding="async"
+						/>
+					} else {
+						<span class="goen-line__ph" aria-hidden="true"></span>
+					}
+				</span>
+				<div class="goen-line__body">
+					<p class="goen-line__name">{ l.Name }</p>
+					if l.Label != "" {
+						<span class="goen-line__meta">{ l.Label }</span>
+					}
+					<span class="goen-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+					if warranty && l.WarrantyMonths > 0 {
+						@components.StatLine(v.WarrantyFacts(ctx, l, delivered), components.StatLineSmall)
+						if grid, ok := v.WarrantyGrid(ctx, l, sh); ok {
+							@components.Period(grid)
+						}
+						if v.CanRegister(l, delivered) {
+							<a class="goen-line__act" href={ templ.SafeURL(v.WarrantyLink()) }>{ i18n.T(ctx, i18n.KeyOrderWarrantyRegister) }</a>
+						}
+					}
+				</div>
+				<div class="goen-line__money">
+					<span class="goen-line__total">{ l.LineTotal() }</span>
+				</div>
+			</li>
+		}
+	</ul>
 }
