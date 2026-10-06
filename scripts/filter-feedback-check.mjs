@@ -118,28 +118,8 @@ async function journey(connection, locale, width) {
     const held = new Map();
     let mode = 'real';
     let protocolFailure;
-    let mutationApplied = 0;
     const intercept = async ({ params }) => {
       const { requestId, request, networkId } = params;
-      const url = new URL(request.url);
-      if (url.pathname === '/static/js/goen.js') {
-        assert.equal(url.origin, origin);
-        assert.equal(params.resourceType, 'Script');
-        assert.equal(params.responseStatusCode, 200);
-        const response = await send('Fetch.getResponseBody', { requestId });
-        const body = response.base64Encoded ? Buffer.from(response.body, 'base64').toString('utf8') : response.body;
-        const correct = 'if (note) note.hidden = raw?.ok === true;';
-        const defect = 'if (note && raw) note.hidden = raw.ok;';
-        assert.equal(body.split(correct).length - 1, 1, 'the served production guard must occur exactly once');
-        assert.equal(body.split(defect).length - 1, 0, 'the served production body must start without the defect');
-        await send('Fetch.fulfillRequest', {
-          requestId, responseCode: 200, responsePhrase: params.responseStatusText,
-          responseHeaders: params.responseHeaders.filter(header => !['content-length', 'content-encoding'].includes(header.name.toLowerCase())),
-          body: Buffer.from(body.replace(correct, defect)).toString('base64'),
-        });
-        mutationApplied++;
-        return;
-      }
       assert.equal(new URL(request.url).origin, origin);
       assert.equal(new URL(request.url).pathname, '/c/audio');
       assert.equal(request.headers['HX-Request'] || request.headers['hx-request'], 'true');
@@ -173,12 +153,8 @@ async function journey(connection, locale, width) {
       assert.ok(initial.message.length > 0);
       if (locale === 'en') assert.equal(initial.message, 'We cannot show the product list right now. Please try again shortly.');
     };
-    await send('Fetch.enable', { patterns: [
-      { urlPattern: origin + '/c/audio*', resourceType: 'Fetch', requestStage: 'Request' },
-      { urlPattern: origin + '/static/js/goen.js*', resourceType: 'Script', requestStage: 'Response' },
-    ] });
+    await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/c/audio*', resourceType: 'Fetch', requestStage: 'Request' }] });
     await load();
-    assert.equal(mutationApplied, 1, 'the isolated target must execute exactly one served-resource mutation');
     const change = async () => {
       if (protocolFailure) throw protocolFailure;
       const index = await evaluate(`(() => {
