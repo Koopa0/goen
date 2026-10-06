@@ -413,45 +413,53 @@ func TestListingPriceIsBuyable(t *testing.T) {
 
 // "On sale" is a variant fact, and a product qualifies when ANY active variant
 // carries one.
-func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
-	ctx := t.Context()
+func dealSlugs(t *testing.T, s *catalog.Store) (slugs []string, total int64) {
+	t.Helper()
+	for page := 1; page <= 50; page++ {
+		view, err := s.Deals(t.Context(), page)
+		if err != nil {
+			t.Fatalf("deals page %d: %v", page, err)
+		}
+		total = view.Total
+		if len(view.Products) == 0 {
+			break
+		}
+		for _, tile := range view.Products {
+			slugs = append(slugs, tile.Slug)
+		}
+	}
+	return slugs, total
+}
+
+func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
 	s := catalog.NewStore(pool)
+	_, before := dealSlugs(t, s)
 
-	view, err := s.Deals(ctx, 1)
-	if err != nil {
-		t.Fatalf("deals: %v", err)
-	}
-	if view.Total == 0 {
-		t.Fatal("no deals at all; the seed has marked-down variants, so the query is wrong")
-	}
-
-	for _, tile := range view.Products {
-		var discounted bool
-		if err := pool.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id
-				WHERE p.slug = $1 AND pv.is_active
-				  AND pv.compare_at_price_cents > pv.price_cents)`,
-			tile.Slug).Scan(&discounted); err != nil {
-			t.Fatalf("check %s: %v", tile.Slug, err)
-		}
-		if !discounted {
-			t.Errorf("%q is on the deals page with nothing marked down", tile.Slug)
-		}
+	product := discountedProduct(t, 5)
+	slugs, total := dealSlugs(t, s)
+	if slices.Contains(slugs, product) || total != before {
+		t.Errorf("a discounted product in no campaign is on the deals page (listed %v, total %d, was %d)",
+			slices.Contains(slugs, product), total, before)
 	}
 
-	var expected int64
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM products p
-		WHERE p.status = 'active' AND EXISTS (
-			SELECT 1 FROM product_variants dv
-			WHERE dv.product_id = p.id AND dv.is_active
-			  AND dv.compare_at_price_cents > dv.price_cents)`).Scan(&expected); err != nil {
-		t.Fatalf("count: %v", err)
+	slug := campaign(t, "deals-"+uuid.NewString()[:8])
+	if err := feature(t, slug, product); err != nil {
+		t.Fatalf("feature: %v", err)
 	}
-	if view.Total != expected {
-		t.Errorf("deals shows %d products, the catalogue has %d marked down",
-			view.Total, expected)
+	slugs, total = dealSlugs(t, s)
+	if !slices.Contains(slugs, product) || total != before+1 {
+		t.Errorf("a product of a running campaign with stock is missing from the deals page (listed %v, total %d, want %d)",
+			slices.Contains(slugs, product), total, before+1)
+	}
+
+	if _, err := pool.Exec(t.Context(), `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
+		ends_at = now() - interval '1 day' WHERE slug = $1`, slug); err != nil {
+		t.Fatalf("end campaign: %v", err)
+	}
+	slugs, total = dealSlugs(t, s)
+	if slices.Contains(slugs, product) || total != before {
+		t.Errorf("a product of an ended campaign is on the deals page (listed %v, total %d, was %d)",
+			slices.Contains(slugs, product), total, before)
 	}
 }
 

@@ -610,6 +610,8 @@ WHERE p.status = 'active'
 
 -- "On sale" is a variant fact, and a product qualifies when any active variant
 -- carries one.
+-- Products a running campaign with something to buy features: the rule of the
+-- in_campaign column of the cards.
 -- name: DealProducts :many
 SELECT
     p.slug,
@@ -714,10 +716,14 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE p.status = 'active'
   AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
-        AND dv.compare_at_price_cents > dv.price_cents
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        AND EXISTS (
+            SELECT 1 FROM sale_campaign_products cp
+            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   )
 ORDER BY
     -- Deepest discount first, as a fraction rather than an amount.
@@ -731,10 +737,14 @@ SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
   AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
-        AND dv.compare_at_price_cents > dv.price_cents
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        AND EXISTS (
+            SELECT 1 FROM sale_campaign_products cp
+            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   );
 
 
