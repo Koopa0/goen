@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -151,8 +152,12 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"movements", "SELECT count(*) FROM inventory_movements m JOIN product_variants v ON v.id=m.variant_id WHERE v.sku='PAGING-1'", func(after string) (result, error) {
-			v, e := stockStore.Movements(ctx, "PAGING-1", after)
+			v, e := stockStore.Movements(ctx, "PAGING-1", time.Now(), after)
 			r := result{bound: v.Bound}
+			// The days are the first page's: a later page does not read them.
+			if (after == "") != (len(v.Days) > 0) {
+				e = fmt.Errorf("page after %q has %d days", after, len(v.Days))
+			}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, strconv.Itoa(int(x.Running)))
 			}

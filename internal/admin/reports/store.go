@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
@@ -105,6 +106,12 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
+	departments, err := q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
+		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
+	})
+	if err != nil {
+		return admin.ReportView{}, fmt.Errorf("read department sales: %w", err)
+	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
@@ -132,6 +139,9 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
 		})
+	}
+	for _, d := range departments {
+		view.Departments = append(view.Departments, admin.Department{Name: d.Name, SalesCents: d.SalesCents})
 	}
 	return view, nil
 }
@@ -178,7 +188,7 @@ func dailyRevenue(ctx context.Context, q *db.Queries, days int32, now time.Time)
 
 func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, error) {
 	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
-		FirstDay: shopDate(p.from), LastDay: shopDate(p.to.Add(-time.Nanosecond)),
+		FirstDay: shoptime.QueryDate(p.from), LastDay: shoptime.QueryDate(p.to.Add(-time.Nanosecond)),
 		FromAt: p.from, ToAt: p.to,
 	})
 	if err != nil {
@@ -189,12 +199,6 @@ func dailySeries(ctx context.Context, q *db.Queries, p period) (chart.Series, er
 		series.Buckets = append(series.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
 	}
 	return series, nil
-}
-
-// shopDate is the shop day t falls on, as the date a query takes.
-func shopDate(t time.Time) time.Time {
-	y, m, d := shoptime.In(t).Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 // endsMidDay is whether the period's last shop day is cut short.

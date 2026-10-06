@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -116,5 +117,30 @@ func TestACampaignIsCalledACampaignInEnglish(t *testing.T) {
 	}
 	if got := CampaignMeta(ctx, "Autumn", Photo{}).Description; got != "Autumn — deals at goen" {
 		t.Errorf("CampaignMeta description = %q, want %q", got, "Autumn — deals at goen")
+	}
+}
+
+func TestCardFactsPutDaysLeftBeforeTheEndAndOmitItInTheLastTwoDays(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name   string
+		endsAt time.Time
+		want   []string
+	}{
+		{"days left", day(11), []string{"剩餘", "結束"}},
+		{"tomorrow", day(4), []string{"結束"}},
+	} {
+		facts := NewCampaignSchedule(ctx, "秋日選物", 3, day(1), tt.endsAt, scheduleNow).CardFacts()
+		var got []string
+		for i := range facts {
+			got = append(got, facts[i].Label)
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("%s: CardFacts labels = %q, want %q", tt.name, got, tt.want)
+		}
+		if tt.name == "tomorrow" && facts[0].Note != "明天結束" {
+			t.Errorf("tomorrow: the end's note = %q, want 明天結束", facts[0].Note)
+		}
 	}
 }

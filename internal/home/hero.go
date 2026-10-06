@@ -98,8 +98,8 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
 			Stats: []components.Stat{
-				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.CountStat(ctx, i18n.KeyUnitItems, src.held[c.ID])},
-				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: pages.CountStat(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
+				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, src.held[c.ID])},
+				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: pages.StatCountOf(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
 			},
 			CTA: pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})
@@ -109,13 +109,11 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 
 // campaignStats is the fact line of a campaign the query lists, which is always running.
 func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
-	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now()).Facts
+	return s.campaignSchedule(ctx, c).Facts
 }
 
-// campaignRowFact is the product row's continuation: how many items and the
-// last day.
-func (s *Store) campaignRowFact(ctx context.Context, c *db.ListedCampaignsRow) string {
-	return i18n.Count(ctx, i18n.KeyHomeCampaignRowFact, c.Products, c.Products, pages.CampaignEndsOn(ctx, c.EndsAt, s.now()))
+func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) pages.CampaignSchedule {
+	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
 func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
