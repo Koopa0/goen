@@ -295,6 +295,7 @@ var notices = map[string]web.NoticeEntry{
 	"refundpending":  web.Failed(i18n.KeyAdminNoticeRefundPending),
 	"cancelinvoice":  web.Failed(i18n.KeyAdminNoticeCancelInvoice),
 	"refundretry":    web.Failed(i18n.KeyAdminNoticeRefundRetry),
+	"cancelretry":    web.Failed(i18n.KeyAdminNoticeCancelRetry),
 	"unfunded":       web.Refused(i18n.KeyAdminNoticeUnfunded),
 	"owesparcel":     web.Refused(i18n.KeyAdminNoticeOwesParcel),
 	"invoiced":       web.Done(i18n.KeyAdminNoticeInvoiced),
