@@ -1997,12 +1997,16 @@ h3 {
   }
 }
 
-/* ----- Departments: six cards, each on its own tone. ----- */
+/* ----- Departments. Two: tiles. Three to seven: rows, with a stage beside
+   them from 1024px that shows the photograph (or the tone and the big name) of
+   the row in reach. Eight or more: two columns of rows with a thumbnail each, and
+   no stage. The photograph is both a row's thumbnail and the stage's picture. ----- */
 
 .goen-cats__grid {
+  --dir-gap: clamp(2rem, 5vw, 5rem);
   display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2037,10 +2041,34 @@ h3 {
   width: 100%;
 }
 
+.goen-cat__well .goen-cat__mark {
+  border-radius: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.goen-cat__line {
+  align-items: baseline;
+  display: flex;
+  gap: var(--s-4);
+  justify-content: space-between;
+}
+
 .goen-cat__name {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   line-height: 1.4;
+}
+
+.goen-cat__line .goen-cat__name {
+  font-size: var(--t-20);
+}
+
+.goen-cat__count {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .goen-cat:hover .goen-cat__name {
@@ -2050,6 +2078,106 @@ h3 {
 
 .goen-cat:hover .goen-cat__photo {
   opacity: 0.9;
+}
+
+.goen-cats__grid--rows,
+.goen-cats__grid--columns {
+  container-type: inline-size;
+  gap: 0;
+}
+
+.goen-cats__grid--rows .goen-cat,
+.goen-cats__grid--columns .goen-cat {
+  align-items: center;
+  border-bottom: 1px solid var(--n-200);
+  column-gap: var(--s-4);
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  padding: var(--s-3) 0;
+  row-gap: 2px;
+}
+
+.goen-cats__grid--rows .goen-cat__photo,
+.goen-cats__grid--columns .goen-cat__photo,
+.goen-cat__mark {
+  border: 0;
+  border-radius: var(--r-md);
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  height: 4rem;
+  width: 4rem;
+}
+
+.goen-cat__mark {
+  background: var(--tone-ground);
+  color: var(--tone-text);
+  display: grid;
+  font-size: 1.75rem;
+  line-height: 1;
+  place-items: center;
+}
+
+.goen-cats__grid--rows .goen-cat__name,
+.goen-cats__grid--columns .goen-cat__name {
+  align-self: end;
+  font-size: var(--t-20);
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.goen-cat__subs {
+  align-self: start;
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  grid-column: 2;
+  grid-row: 2;
+  word-break: keep-all;
+}
+
+.goen-cats__grid--rows .goen-cat__count,
+.goen-cats__grid--columns .goen-cat__count {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.goen-cat__go,
+.goen-cat__stage {
+  display: none;
+}
+
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .goen-cats__grid--rows .goen-cat__photo,
+  .goen-cats__grid--rows .goen-cat__stage {
+    transition: opacity 0.4s var(--ease-standard);
+  }
+}
+
+/* A column under 16rem is a phone at 150 to 200% text: the count goes under
+   the name and the sub-categories take the row's width below. */
+@container (width < 16rem) {
+  .goen-cats__grid--rows .goen-cat,
+  .goen-cats__grid--columns .goen-cat {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .goen-cats__grid--rows .goen-cat__name,
+  .goen-cats__grid--columns .goen-cat__name {
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .goen-cats__grid--rows .goen-cat__count,
+  .goen-cats__grid--columns .goen-cat__count {
+    align-self: start;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .goen-cat__subs {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: var(--s-1);
+  }
 }
 
 /* ----- One department, the band: its photograph, lifted out of the tone, beside
@@ -2171,11 +2299,14 @@ h3 {
   }
 }
 
-@media (min-width: 48rem) {
-  .goen-cats__grid {
-    gap: 1rem;
+@media (min-width: 44rem) {
+  .goen-cats__grid--tiles {
+    gap: var(--col-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+@media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
   }
@@ -2240,8 +2371,113 @@ h3 {
     font-size: 1.0625rem;
   }
 
-  .goen-cats__grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+  .goen-cats__grid--rows {
+    padding-right: calc((100% - var(--dir-gap)) * 5 / 12 + var(--dir-gap));
+    position: relative;
+  }
+
+  .goen-cats__grid--rows .goen-cat {
+    align-items: baseline;
+    grid-template-columns: minmax(max-content, 1.1fr) minmax(0, 1.4fr) auto 1.25rem;
+    padding: 1.25rem 0 1.125rem;
+  }
+
+  .goen-cats__grid--rows .goen-cat__mark {
+    display: none;
+  }
+
+  .goen-cats__grid--rows .goen-cat__name {
+    align-self: baseline;
+    font-size: var(--t-32);
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .goen-cats__grid--rows .goen-cat__subs {
+    align-self: baseline;
+    color: var(--n-700);
+    font-size: var(--fs-14);
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .goen-cats__grid--rows .goen-cat__count {
+    align-self: baseline;
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .goen-cats__grid--rows .goen-cat__go {
+    color: var(--n-500);
+    display: block;
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .goen-cats__grid--rows .goen-cat:hover .goen-cat__go,
+  .goen-cats__grid--rows .goen-cat:focus-visible .goen-cat__go {
+    color: var(--n-900);
+  }
+
+  .goen-cats__grid--rows .goen-cat__photo,
+  .goen-cats__grid--rows .goen-cat__stage {
+    border-radius: var(--r-lg);
+    display: block;
+    grid-column: auto;
+    grid-row: auto;
+    height: min(100%, 35rem);
+    object-fit: cover;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: calc((100% - var(--dir-gap)) * 5 / 12);
+  }
+
+  .goen-cats__grid--rows .goen-cat__stage {
+    align-content: end;
+    background: var(--tone-ground);
+    color: var(--tone-text);
+    display: grid;
+    font-size: clamp(2.5rem, 1.6rem + 2.4vw, 4rem);
+    line-height: 1.05;
+    padding: var(--s-6) var(--s-5);
+  }
+
+  .goen-cats__grid--rows li:first-child :is(.goen-cat__photo, .goen-cat__stage) {
+    opacity: 1;
+  }
+
+  .goen-cats__grid--rows:has(.goen-cat:is(:hover, :focus-visible)) li:first-child:not(:has(.goen-cat:is(:hover, :focus-visible))) :is(.goen-cat__photo, .goen-cat__stage) {
+    opacity: 0;
+  }
+
+  .goen-cats__grid--rows li:has(.goen-cat:is(:hover, :focus-visible)) :is(.goen-cat__photo, .goen-cat__stage) {
+    opacity: 1;
+  }
+
+  .goen-cats__grid--columns {
+    column-gap: var(--dir-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goen-cats__grid--columns .goen-cat {
+    grid-template-columns: 5rem minmax(0, 1fr) auto 1.25rem;
+    padding: var(--s-4) 0;
+  }
+
+  .goen-cats__grid--columns .goen-cat__photo,
+  .goen-cats__grid--columns .goen-cat__mark {
+    height: 5rem;
+    width: 5rem;
+  }
+
+  .goen-cats__grid--columns .goen-cat__go {
+    color: var(--n-500);
+    display: block;
+    grid-column: 4;
+    grid-row: 1 / span 2;
   }
 
   .goen-band {
@@ -2548,6 +2784,100 @@ input.goen-check {
 @media (min-width: 1024px) {
   .goen-tiles__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Home product row ----------
+   A campaign with at least four products whose first photograph is wide enough:
+   the first product is a 2×2 tile on the campaign's tone, three more cards, and
+   the campaign card as the eighth cell. Under 1024px the lead takes a full row
+   and the card a full row after the cards. */
+
+.goen-home__facts {
+  margin: calc(var(--s-3) * -1) 0 var(--s-6);
+}
+
+.goen-tiles__grid--lead > .goen-tile__cell--lead,
+.goen-tiles__grid--lead > .goen-rowcard {
+  grid-column: 1 / -1;
+}
+
+.goen-tile__cell--lead .goen-tile__media {
+  aspect-ratio: 4 / 3;
+  background: var(--tone-ground);
+}
+
+.goen-tile__cell--lead .goen-tile__img {
+  background: var(--photo);
+  border-radius: var(--r-md);
+  height: calc(100% - 2 * var(--s-5));
+  inset: var(--s-5) auto auto var(--s-5);
+  padding: 0;
+  position: absolute;
+  width: calc(100% - 2 * var(--s-5));
+}
+
+.goen-tile__cell--lead .goen-tile__name,
+.goen-tile__cell--lead .goen-tile__price {
+  font-size: var(--fs-18);
+}
+
+.goen-rowcard {
+  background: var(--tone-ground);
+  border-radius: var(--r-lg);
+  color: var(--tone-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: var(--s-4) var(--s-5);
+}
+
+.goen-rowcard .ui-statline > div {
+  border-top-color: var(--tone-text);
+}
+
+.goen-rowcard .ui-statline dt,
+.goen-rowcard .ui-statline dd small,
+.goen-rowcard .ui-statline__note {
+  color: var(--tone-muted);
+}
+
+.goen-tiles__grid--lead[data-tone] .ui-period {
+  --period-fill: var(--tone-mark);
+  --period-line: var(--tone-edge);
+}
+
+.goen-tiles__grid--lead[data-tone="ink"] .ui-period {
+  --period-fill: var(--tone-text);
+  --period-label: var(--tone-text);
+  --period-line: var(--tone-muted);
+  --period-note: var(--tone-muted);
+}
+
+.goen-rowcard .goen-home__more {
+  align-self: flex-start;
+  color: var(--tone-text);
+  margin-top: auto;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  white-space: normal;
+}
+
+@media (min-width: 64rem) {
+  .goen-tiles__grid--lead > .goen-tile__cell--lead {
+    grid-column: 1 / 3;
+    grid-row: 1 / 3;
+  }
+
+  .goen-tiles__grid--lead > .goen-rowcard {
+    grid-column: auto;
+  }
+
+  .goen-tile__cell--lead .goen-tile__media {
+    aspect-ratio: auto;
+    flex: 1;
+    min-height: 16rem;
   }
 }
 
@@ -3241,6 +3571,234 @@ input.goen-check {
 .goen-compare__table .is-differs th {
   background: var(--n-50);
   color: var(--n-900);
+}
+
+/* Under a department's head: the fact line on the tone's ground, the running campaign's
+   notice, and the one editorial the data chose. */
+.goen-pagehead[data-tone] .ui-statline {
+  margin-top: var(--s-3);
+}
+
+.goen-pagehead[data-tone] .ui-statline > div {
+  border-top-color: var(--tone-text);
+}
+
+.goen-pagehead[data-tone] .ui-statline dd {
+  color: var(--tone-text);
+}
+
+.goen-pagehead[data-tone] .ui-statline dt,
+.goen-pagehead[data-tone] .ui-statline dd small,
+.goen-pagehead[data-tone] .ui-statline__note {
+  color: var(--tone-muted);
+}
+
+.goen-deptnotice {
+  border-block: 1px solid var(--border);
+}
+
+.goen-deptnotice__in {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-6);
+  padding-block: var(--s-3);
+}
+
+.goen-deptnotice__name {
+  align-items: baseline;
+  color: var(--fg);
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
+  gap: 4px var(--s-3);
+  text-decoration: none;
+}
+
+.goen-deptnotice__name:hover b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.goen-deptnotice__eyebrow {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+}
+
+.goen-deptnotice .ui-statline {
+  --stat-min: 8rem;
+}
+
+.goen-deptnotice .ui-statline dd {
+  font-size: var(--fs-16);
+}
+
+.goen-deptnotice .ui-period {
+  flex: 1 1 16rem;
+  max-width: 26rem;
+}
+
+.goen-deptcompare__head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.goen-deptcompare__title {
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-deptcompare__meta {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.goen-deptcompare__more {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  margin-left: auto;
+  text-underline-offset: 3px;
+}
+
+.goen-story {
+  align-items: center;
+  display: grid;
+  gap: var(--s-6);
+}
+
+.goen-story__eyebrow {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  margin: 0;
+}
+
+.goen-story__title {
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
+  margin: var(--s-2) 0 0;
+  text-wrap: balance;
+}
+
+:lang(zh) .goen-story__title {
+  font-family: var(--font-editorial);
+}
+
+.goen-story__deck {
+  color: var(--fg-muted);
+  line-height: 1.75;
+  margin: var(--s-3) 0 0;
+  max-width: 26em;
+}
+
+.goen-story__buy {
+  margin: var(--s-4) 0 0;
+}
+
+.goen-story__link {
+  color: var(--fg);
+  display: inline-block;
+  margin-top: var(--s-4);
+  text-underline-offset: 3px;
+}
+
+.goen-story__plates {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.goen-story__plate {
+  margin: 0;
+  min-width: 0;
+}
+
+.goen-story__well {
+  aspect-ratio: 4 / 3;
+  background: var(--well);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.goen-story__well img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-story__plate figcaption {
+  align-items: center;
+  display: flex;
+  font-size: var(--fs-14);
+  gap: var(--s-2);
+  padding-top: var(--s-2);
+}
+
+.goen-story__swatch circle {
+  stroke: var(--swatch-ring);
+  stroke-width: 1;
+}
+
+@media (forced-colors: active) {
+  .goen-story__swatch circle {
+    stroke: CanvasText;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-story {
+    gap: clamp(32px, 5vw, 88px);
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+
+  .goen-story__title {
+    font-size: var(--fs-ed-30);
+  }
+}
+
+/* The first product stays in the first viewport at 375px (check-layout.mjs:1126), so the
+   editorial gives way below the prototype's stack breakpoint. */
+@media (max-width: 900px) {
+  .goen-deptcompare,
+  .goen-story {
+    display: none;
+  }
+}
+
+/* Where products are put side by side, a row holds five and a card says what it is under
+   its name. */
+.goen-tile__specs {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+}
+
+@media (min-width: 1280px) {
+  .goen-listing[data-comparable='true'] .goen-tiles__grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Two products stay in view on a phone; the rest scroll past a label column that stays. */
+@media (max-width: 639px) {
+  .goen-compare__table td,
+  .goen-compare__table th {
+    min-width: 7.5rem;
+    padding: 12px 6px;
+  }
+
+  .goen-compare__table tbody th,
+  .goen-compare__table thead th:first-child {
+    max-width: 4.5rem;
+    min-width: 4.5rem;
+  }
 }
 
 /* A lone product's way on: others from its shelf, each with the one action. */
@@ -4803,6 +5361,7 @@ input.goen-check {
 }
 
 .goen-promo,
+.goen-tiles__grid--lead[data-tone="ink"] > .goen-rowcard,
 .goen-pagehead[data-tone="ink"],
 .goen-hero__slide[data-tone="ink"],
 .goen-band[data-tone="ink"] {

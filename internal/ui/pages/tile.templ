@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -44,7 +45,7 @@ templ tileCard(t ProductTile) {
 					class="goen-tile__img"
 					src={ t.ImageURL }
 					srcset={ t.ImageSrcset }
-					sizes="(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
+					sizes={ t.Sizes() }
 					alt={ t.ImageAlt }
 					if t.HasImageDimensions() {
 						width={ t.ImageWidthText() }
@@ -69,6 +70,9 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__brand">{ t.Brand }</span>
 			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
+			if len(t.Highlights) > 0 {
+				<span class="goen-tile__specs">{ strings.Join(t.Highlights, " · ") }</span>
+			}
 			@tilePrice(t) {
 				if t.SoldOut() {
 					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
