@@ -3155,7 +3155,7 @@ WITH target AS (
                     false)::boolean AS paid_by_credit
     FROM orders o WHERE o.order_number = $1::text
 )
-SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.paid_by_credit, t.total_cents,
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
        EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
        b.id AS return_request_id,
@@ -3172,7 +3172,6 @@ type BeforeShipmentRefundRow struct {
 	OrderID           uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
-	PaidByCredit      bool
 	TotalCents        int64
 	Shipped           bool
 	HasReturn         bool
@@ -3193,7 +3192,6 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 		&i.OrderID,
 		&i.FulfillmentStatus,
 		&i.Committed,
-		&i.PaidByCredit,
 		&i.TotalCents,
 		&i.Shipped,
 		&i.HasReturn,
@@ -11464,9 +11462,9 @@ WHERE o.id = $1
 `
 
 // Whether store credit alone paid the order, read before the cancellation
-// returns the credit: checkout queued its 統一發票 then. A customer cancels only
-// an uncommitted order, which no card has paid, so owing nothing after a credit
-// spend means credit paid it.
+// returns the credit: checkout queued its 統一發票 then. Only an uncommitted
+// order is cancelled this way, which no card has paid, so owing nothing after a
+// credit spend means credit paid it. Read under the order lock.
 func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
 	var paid_by_credit bool
@@ -12837,22 +12835,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, by_system)
-SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
+INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
+VALUES ($1, 'cancelled', $2, $3::boolean)
 `
 
 type RecordCancellationParams struct {
+	OrderID     uuid.UUID
+	ActorUserID uuid.NullUUID
 	BySystem    bool
-	OrderNumber string
 }
 
-// A cancellation no staff member made: the customer's own, or, with by_system,
-// the sweeper's at the payment deadline. The ABSENCE of an actor is what
-// distinguishes it from a back-office cancel, and both are carried structurally
-// because the customer's own order page renders any note in whatever language
-// it was written.
+// The actor is the staff member who cancelled; none for the customer's own
+// cancellation and, with by_system, the sweeper's at the payment deadline. Both
+// are carried structurally because the customer's own order page renders any
+// note in whatever language it was written.
 func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
-	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
+	_, err := q.db.Exec(ctx, recordCancellation, arg.OrderID, arg.ActorUserID, arg.BySystem)
 	return err
 }
 

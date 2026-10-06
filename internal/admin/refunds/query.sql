@@ -110,7 +110,7 @@ WITH target AS (
                     false)::boolean AS paid_by_credit
     FROM orders o WHERE o.order_number = @order_number::text
 )
-SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.paid_by_credit, t.total_cents,
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
        EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
        b.id AS return_request_id,
