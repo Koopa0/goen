@@ -11,6 +11,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
@@ -32,6 +33,7 @@ const (
 	webhookCancelledOrderCapture webhookUnreconciledCause = "cancelled_order_capture"
 	webhookRefusedCapture        webhookUnreconciledCause = "refused_capture"
 	webhookUnsettledSession      webhookUnreconciledCause = "unsettled_session"
+	webhookRefundFailed          webhookUnreconciledCause = "refund_failed"
 )
 
 func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
@@ -51,6 +53,10 @@ type webhookOutcome struct {
 	cancelledOrder      bool
 	unattributedCapture bool
 	refusedCapture      bool
+	refundFailure       refundFailure
+	isRefundFailure     bool
+	// refundStatus is goen's own row for the failed refund, "" when goen has none.
+	refundStatus refundstate.State
 }
 
 type Handler struct {
@@ -434,11 +440,13 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
+	failure, isRefundFailure := refundFailureFrom(&ev)
 	outcome := &webhookOutcome{
 		event: &ev, capture: capture,
-		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled),
+		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled || isRefundFailure),
 		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
 		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled,
+		refundFailure: failure, isRefundFailure: isRefundFailure,
 	}
 
 	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
@@ -458,7 +466,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logWebhookOutcome(r.Context(), *outcome)
+	h.logWebhookOutcome(r.Context(), outcome)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -545,11 +553,35 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 			o.number = n
 			return captureErr
 		}
+	case o.isRefundFailure:
+		return o.applyRefundFailure
 	}
 	return nil
 }
 
-func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
+// applyRefundFailure raises the alarm only for a refund goen recorded as
+// succeeded. Any other status is still open work in goen, already listed with
+// the open refunds on /admin/health; a refund goen has no row for is recorded.
+func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) error {
+	status, err := tx.RefundStatus(ctx)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	o.refundStatus = status
+	if status != refundstate.Succeeded {
+		return nil
+	}
+	detail := "a refund goen recorded as succeeded failed at Stripe"
+	if o.refundFailure.reason != "" {
+		detail += " (" + o.refundFailure.reason + ")"
+	}
+	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, detail))
+}
+
+func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {
 	ev := outcome.event
 	switch {
 	case outcome.isAbandoned:
@@ -576,6 +608,17 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 		h.log.ErrorContext(ctx,
 			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
 			"event", ev.ID, "session", outcome.unsettledSession)
+	case outcome.isRefundFailure && outcome.refundStatus == refundstate.Succeeded:
+		h.log.ErrorContext(ctx,
+			"a refund goen recorded as succeeded failed at Stripe — repay the customer another way",
+			"event", ev.ID, "refund", outcome.refundFailure.refundID,
+			"failure_reason", outcome.refundFailure.reason)
+	case outcome.isRefundFailure && outcome.refundStatus == "":
+		h.log.InfoContext(ctx, "stripe reported a failed refund goen did not issue",
+			"event", ev.ID, "refund", outcome.refundFailure.refundID)
+	case outcome.isRefundFailure:
+		h.log.InfoContext(ctx, "stripe reported a failed refund goen did not record as succeeded",
+			"event", ev.ID, "refund", outcome.refundFailure.refundID, "status", outcome.refundStatus)
 	case outcome.readState == webhookReadUnreadable:
 		h.log.ErrorContext(ctx,
 			"a stripe event goen acts on could not be read — check the endpoint's API version",
