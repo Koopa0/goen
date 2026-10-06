@@ -2259,3 +2259,35 @@ func TestANotifyRequestWithNoOptionPickedIsRefusedWithTheirAddressKept(t *testin
 		t.Errorf("the address %q was not kept", addr)
 	}
 }
+
+func TestAOneColourProductIsBuyableOnceItsOtherChoiceIsPicked(t *testing.T) {
+	var slug, option, value string
+	if err := pool.QueryRow(t.Context(), `
+		WITH counts AS (
+			SELECT o.product_id, o.id AS option_id, o.name, count(DISTINCT vov.option_value_id) AS n
+			FROM product_options o
+			JOIN variant_option_values vov ON vov.option_id = o.id
+			JOIN product_variants pv ON pv.id = vov.variant_id AND pv.is_active
+			GROUP BY o.product_id, o.id, o.name
+		)
+		SELECT p.slug, m.name, v.value
+		FROM products p
+		JOIN counts m ON m.product_id = p.id AND m.n >= 2
+		JOIN counts s ON s.product_id = p.id AND s.n = 1
+		JOIN variant_option_values vov ON vov.option_id = m.option_id
+		JOIN product_option_values v ON v.id = vov.option_value_id
+		JOIN product_variants pv ON pv.id = vov.variant_id AND pv.is_active AND pv.stock_quantity > pv.safety_stock
+		WHERE p.status = 'active'
+		  AND (SELECT count(*) FROM product_options WHERE product_id = p.id) = 2
+		LIMIT 1`).Scan(&slug, &option, &value); err != nil {
+		t.Fatalf("find a product with one colour and a second choice: %v", err)
+	}
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	view, err := s.Load(t.Context(), slug, product.Selection{option: value})
+	if err != nil {
+		t.Fatalf("load %q: %v", slug, err)
+	}
+	if !view.Exact || !view.CanBuy() {
+		t.Errorf("%s?%s=%s: Exact = %t, CanBuy = %t, want both: the single choice must be preselected", slug, option, value, view.Exact, view.CanBuy())
+	}
+}

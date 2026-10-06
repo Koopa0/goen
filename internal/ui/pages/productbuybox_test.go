@@ -47,9 +47,13 @@ func TestAllSoldOutBuyBoxHasNoStockHold(t *testing.T) {
 		if !strings.Contains(buyBox(t, locale, &selling), hold) {
 			t.Errorf("%s: a product in stock states no stock hold", locale)
 		}
-		out := ProductView{Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, VariantID: "v"}
-		if strings.Contains(buyBox(t, locale, &out), hold) {
-			t.Errorf("%s: an all-sold-out product states a stock hold", locale)
+		for name, out := range map[string]ProductView{
+			"all sold out":        {Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, VariantID: "v"},
+			"combination is gone": {Slug: "book", Name: "Book", Rules: testRules},
+		} {
+			if strings.Contains(buyBox(t, locale, &out), hold) {
+				t.Errorf("%s, %s: no stock to hold, yet the box states a hold", locale, name)
+			}
 		}
 	}
 }
@@ -133,9 +137,14 @@ func TestBuyBoxFactsFollowWhatTheShopStates(t *testing.T) {
 		{"no free delivery", ProductView{WarrantyMonths: 12, Sellable: true, AnySellable: true, SelectionOK: true},
 			[]string{"保固", "猶豫期", "庫存保留"}},
 	} {
-		var got []string
-		for _, part := range strings.Split(renderIn(t, i18n.ZhHant, components.StatLine(tc.view.BuyFacts(ctx), components.StatLinePairs)), "<dt>")[1:] {
-			got = append(got, part[:strings.Index(part, "</dt>")])
+		parts := strings.Split(renderIn(t, i18n.ZhHant, components.StatLine(tc.view.BuyFacts(ctx), components.StatLinePairs)), "<dt>")[1:]
+		got := make([]string, 0, len(parts))
+		for _, part := range parts {
+			label, _, ok := strings.Cut(part, "</dt>")
+			if !ok {
+				t.Fatalf("%s: a term is not closed: %q", tc.name, part)
+			}
+			got = append(got, label)
 		}
 		if strings.Join(got, ",") != strings.Join(tc.labels, ",") {
 			t.Errorf("%s: facts = %v, want %v", tc.name, got, tc.labels)

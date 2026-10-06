@@ -3716,7 +3716,8 @@ const auditAccessibility = async () => {
 //           that was asked for and not with innerWidth, because phone emulation
 //           widens innerWidth to fit the content; after scrollTo(10000, 0) a
 //           scrollX other than 0 settles any disagreement.
-//   text    (one entry per owning element, text-320:a.goen-footer__link) a run of text is cut by the clip of an ancestor that does not
+//   text    one entry per owning element (text-320:a.goen-footer__link): a
+//           run of text is cut by the clip of an ancestor that does not
 //           scroll, or runs past the right edge of the viewport. This is what
 //           neither width above sees: a position:fixed element wider than the
 //           screen, and text cut by overflow:hidden.
