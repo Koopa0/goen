@@ -22,6 +22,7 @@ var fontFace = regexp.MustCompile(`@font-face\s*\{[^}]*?font-family:\s*'([^']+)'
 var declaredWeights = map[string]string{
 	"Noto Sans TC":    "350 600",
 	"Instrument Sans": "400 600",
+	"Noto Serif TC":   "500",
 }
 
 // TestFontStylesheetMatchesTheEmbeddedFonts is what makes a generated file safe

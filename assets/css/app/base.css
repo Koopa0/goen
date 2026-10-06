@@ -11,6 +11,7 @@
    ============================================================ */
 
 :root {
+  --col-gap: clamp(16px, 1.7vw, 24px);
   /* The brand names are the accent under the spelling the shared
      primitives were written against. They follow --accent rather than
      repeating it, so the accent moves in one place. */
@@ -377,6 +378,7 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+  --font-editorial: 'Noto Serif TC', serif;
 
   --fw-display: 350;
 
@@ -457,6 +459,8 @@ body {
   /* The content column plus its gutters, for the pages that size themselves
      with border-box: their text then starts where the header's does. */
   --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
+  /* Where the content column starts on a full-bleed band. */
+  --page-edge: max(var(--page-gutter), calc((100vw - var(--page-width)) / 2 + var(--page-gutter)));
 }
 
 @media (min-width: 768px) {
