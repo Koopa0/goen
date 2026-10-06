@@ -209,7 +209,9 @@ CREATE TRIGGER categories_acyclic
     FOR EACH ROW EXECUTE FUNCTION categories_reject_cycle();
 
 -- The unit an invoice line prints: not blank, at most six characters, no control characters.
+-- squawk warns about changing a domain's constraint on tables in use; this file creates it before any row exists.
 CREATE DOMAIN invoice_unit AS text
+    -- squawk-ignore ban-create-domain-with-constraint
     CONSTRAINT invoice_unit_valid CHECK (VALUE ~ '[^[:space:]]' AND char_length(VALUE) <= 6 AND VALUE !~ '[[:cntrl:]]');
 
 CREATE TABLE products (
