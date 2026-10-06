@@ -430,7 +430,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
 	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
-		healthPools, log)
+		healthPools, disputeSource(gateway), log)
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
@@ -463,6 +463,15 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 // It returns an explicitly nil interface rather than a nil *Gateway, because a
 // typed nil in an interface is non-nil and each handler's nil check would miss.
 func sessionCloser(g *payment.Gateway) payment.SessionCloser {
+	if g == nil || !g.Enabled() {
+		return nil
+	}
+	return g
+}
+
+// disputeSource is the gateway as the health page's dispute source, or an
+// explicitly nil interface when Stripe is not configured.
+func disputeSource(g *payment.Gateway) health.DisputeSource {
 	if g == nil || !g.Enabled() {
 		return nil
 	}

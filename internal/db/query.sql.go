@@ -10294,6 +10294,39 @@ func (q *Queries) OrderNumberByID(ctx context.Context, id uuid.UUID) (string, er
 	return order_number, err
 }
 
+const orderNumbersByProviderRef = `-- name: OrderNumbersByProviderRef :many
+SELECT p.provider_ref, o.order_number
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE p.provider = 'stripe'
+  AND p.provider_ref = ANY($1::text[])
+`
+
+type OrderNumbersByProviderRefRow struct {
+	ProviderRef string
+	OrderNumber string
+}
+
+func (q *Queries) OrderNumbersByProviderRef(ctx context.Context, providerRefs []string) ([]OrderNumbersByProviderRefRow, error) {
+	rows, err := q.db.Query(ctx, orderNumbersByProviderRef, providerRefs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderNumbersByProviderRefRow{}
+	for rows.Next() {
+		var i OrderNumbersByProviderRefRow
+		if err := rows.Scan(&i.ProviderRef, &i.OrderNumber); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const orderPaymentFacts = `-- name: OrderPaymentFacts :one
 SELECT ARRAY(
            SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
