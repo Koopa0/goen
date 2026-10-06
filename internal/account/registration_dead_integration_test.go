@@ -149,8 +149,11 @@ func TestRegistrationRecoveryFormResendsWithoutAPendingCookie(t *testing.T) {
 					t.Fatalf("resending queued %d registration requests, want 1", n)
 				}
 				fresh, next := queuedLink(t, addr)
-				if fresh == token || next != tt.wantNext {
-					t.Fatalf("the resent link kept the dead token = %v, next = %q, want a new token landing at %q", fresh == token, next, tt.wantNext)
+				if fresh == token {
+					t.Fatal("the resent link kept the dead token")
+				}
+				if next != tt.wantNext {
+					t.Errorf("the resent link lands at %q, want %q", next, tt.wantNext)
 				}
 				completed := httptest.NewRecorder()
 				mux.ServeHTTP(completed, cartForm(ctx, "/register/complete", url.Values{
@@ -298,7 +301,7 @@ func readRegistrationResendForm(t *testing.T, page, next string) url.Values {
 		Values: url.Values{"email": {""}, "next": {next}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("the recovered resend form without a cookie (-want +got):\n%s", diff)
+		t.Errorf("the recovered resend form without a cookie (-want +got):\n%s", diff)
 	}
 	return got.Values
 }
