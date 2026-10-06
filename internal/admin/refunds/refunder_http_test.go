@@ -16,7 +16,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 type refundStripeCall struct {
