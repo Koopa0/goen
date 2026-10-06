@@ -40,11 +40,11 @@ var (
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
 
 	KeyCampaignNotFoundBody = key("campaign.notfound.body", Message{
-		ZhHant: "這個活動可能已經下架了。看看目前的優惠。",
-		En:     "That promotion may have been withdrawn. Have a look at what is running now.",
+		ZhHant: "找不到這個活動。看看目前的優惠。",
+		En:     "We could not find that promotion. Have a look at what is running now.",
 	})
 
-	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Offers"})
+	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
 )

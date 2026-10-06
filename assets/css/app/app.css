@@ -1764,13 +1764,21 @@ h3 {
   color: var(--tone-text);
 }
 
-.goen-hero .ui-statline > div {
+.goen-hero .ui-statline > div,
+.goen-pagehead[data-tone] .ui-statline > div {
   border-top-color: var(--tone-text);
+}
+
+.goen-pagehead[data-tone] .ui-statline {
+  color: var(--tone-text);
 }
 
 .goen-hero .ui-statline dt,
 .goen-hero .ui-statline dd small,
-.goen-hero .ui-statline__note {
+.goen-hero .ui-statline__note,
+.goen-pagehead[data-tone] .ui-statline dt,
+.goen-pagehead[data-tone] .ui-statline dd small,
+.goen-pagehead[data-tone] .ui-statline__note {
   color: var(--tone-muted);
 }
 
@@ -1780,6 +1788,18 @@ h3 {
 }
 
 .goen-hero__slide[data-tone="ink"] .ui-period {
+  --period-fill: var(--tone-text);
+  --period-line: var(--tone-muted);
+  --period-label: var(--tone-text);
+  --period-note: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .ui-period {
+  --period-fill: var(--tone-mark);
+  --period-line: var(--tone-edge);
+}
+
+.goen-pagehead[data-tone="ink"] .ui-period {
   --period-fill: var(--tone-text);
   --period-line: var(--tone-muted);
   --period-label: var(--tone-text);

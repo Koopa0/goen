@@ -141,7 +141,7 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 // periodOverride finds the colours a tone gives the day grid, and periodDecl
 // one of them: a tone token, or a token of the page's own.
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.goen-(?:hero__slide|pagehead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
 )
 

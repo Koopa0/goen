@@ -63,7 +63,7 @@ type CampaignSchedule struct {
 // to endsAt, which is exclusive.
 func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
 	state := CampaignStateAt(startsAt, endsAt, now)
-	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: statCount(ctx, i18n.KeyUnitItems, items)}
+	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: CountStat(ctx, i18n.KeyUnitItems, items)}
 
 	clock := ""
 	if !shoptime.Midnight(endsAt).Equal(endsAt) {
@@ -99,15 +99,15 @@ func NewCampaignSchedule(ctx context.Context, title string, items int64, startsA
 		case left == 1:
 			facts[1].Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
 		default:
-			facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: statCount(ctx, i18n.KeyUnitDays, int64(left))})
+			facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: CountStat(ctx, i18n.KeyUnitDays, int64(left))})
 		}
 	}
 	period, ok := components.DayPeriod(ctx, title, startsAt, endsAt, now)
 	return CampaignSchedule{State: state, Facts: facts, Period: period, HasPeriod: ok}
 }
 
-// statCount is n with the unit its key says, which follows the number after a no-break space.
-func statCount(ctx context.Context, k i18n.Key, n int64) components.StatValue {
+// CountStat is n with the unit its key says, which follows the number after a no-break space.
+func CountStat(ctx context.Context, k i18n.Key, n int64) components.StatValue {
 	_, unit, _ := strings.Cut(i18n.Count(ctx, k, n, n), "\u00a0")
 	return components.StatCount(n, unit)
 }
@@ -123,7 +123,7 @@ type CampaignView struct {
 
 // Tiles are the campaign's products; outside its window a price is not struck,
 // because no campaign is running to have lowered it.
-func (v CampaignView) Tiles() []ProductTile {
+func (v *CampaignView) Tiles() []ProductTile {
 	if v.Schedule.State == CampaignRunning {
 		return v.Products
 	}
@@ -134,7 +134,7 @@ func (v CampaignView) Tiles() []ProductTile {
 	return out
 }
 
-func (v CampaignView) Empty() bool { return len(v.Products) == 0 }
+func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }
 
 func CampaignMeta(ctx context.Context, title string, photo Photo) layouts.Page {
 	return layouts.Page{

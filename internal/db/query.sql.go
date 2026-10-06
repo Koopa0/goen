@@ -6625,7 +6625,8 @@ SELECT
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents
+    SELECT price_cents, compare_at_price_cents,
+           (stock_quantity > safety_stock) AS buyable
     FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (compare_at_price_cents IS NOT NULL
@@ -6650,8 +6651,9 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
-    -- A product that can be bought comes before a deeper discount that cannot.
-    in_stock DESC,
+    -- A discount that can be bought comes before a deeper one that cannot: the
+    -- variant the tile shows, not any variant of the product.
+    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,

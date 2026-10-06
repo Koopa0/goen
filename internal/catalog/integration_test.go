@@ -456,7 +456,8 @@ func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
 }
 
 // By fraction, not amount: ordering by absolute saving puts the expensive
-// things on top, which is a price list rather than a sale.
+// things on top, which is a price list rather than a sale. Sellable products
+// come first, and depth orders each group.
 func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -469,8 +470,15 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 		t.Skipf("only %d deals; ordering cannot be observed", len(view.Products))
 	}
 
-	last := 2.0
-	for i, tile := range view.Products {
+	last, soldOut := 2.0, false
+	for i := range view.Products {
+		tile := &view.Products[i]
+		if !tile.InStock && !soldOut {
+			soldOut, last = true, 2.0
+		}
+		if tile.InStock && soldOut {
+			t.Errorf("product %d can be bought, after one that cannot", i)
+		}
 		if tile.CompareCents <= 0 {
 			continue
 		}
@@ -660,57 +668,75 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	}
 }
 
-// A product that can be bought comes before one that cannot, however deep the
-// sold-out one is marked down; a campaign keeps its own order within each.
+// What can be bought comes before what cannot, however deep the sold-out
+// markdown is. On /deals the tile shows the discounted variant, so a product
+// whose discounted variant is sold out ranks as sold out even when a regular
+// variant is in stock.
 func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	s := catalog.NewStore(tx)
 
-	slug := campaign(t, "sellable-first")
-	featureNewProduct(t, pool, slug, 0, "active")
-	featureNewProduct(t, pool, slug, 5, "active")
-	view, err := s.Campaign(ctx, slug)
+	deep := newDeal(t, tx, 100, 1000, 0)
+	shallow := newDeal(t, tx, 950, 1000, 5)
+	soldOutDiscount := newDeal(t, tx, 900, 1000, 0)
+	if _, err = tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+		SELECT id, upper(replace($1, '-', '')) || 'R', 1000, 5, 0, 1 FROM products WHERE slug = $1`, soldOutDiscount); err != nil {
+		t.Fatalf("add regular variant: %v", err)
+	}
+
+	var slugs []string
+	for page := 1; ; page++ {
+		view, dealsErr := s.Deals(ctx, page)
+		if dealsErr != nil {
+			t.Fatalf("Deals(%d): %v", page, dealsErr)
+		}
+		for i := range view.Products {
+			slugs = append(slugs, view.Products[i].Slug)
+		}
+		if int64(page*catalog.PageSize) >= view.Total {
+			break
+		}
+	}
+	at := func(slug string) int { return slices.Index(slugs, slug) }
+	if at(shallow) < 0 || at(shallow) > at(deep) || at(shallow) > at(soldOutDiscount) {
+		t.Errorf("Deals order: sellable %d, sold out %d and %d, want the sellable one first", at(shallow), at(deep), at(soldOutDiscount))
+	}
+
+	camp := "sellable-first-" + uuid.NewString()[:8]
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, camp); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	// Positions: the sold-out one is first by the back office's order.
+	for position, slug := range []string{deep, newDeal(t, tx, 800, 1000, 5), shallow} {
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+			SELECT c.id, p.id, $3 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, camp, slug, position); err != nil {
+			t.Fatalf("feature %s: %v", slug, err)
+		}
+	}
+	view, err := s.Campaign(ctx, camp)
 	if err != nil {
 		t.Fatalf("Campaign: %v", err)
 	}
-	if len(view.Products) != 2 || !view.Products[0].InStock || view.Products[1].InStock {
-		t.Errorf("Campaign products in stock = %v, want [true false]", inStock(view.Products))
+	var stock []bool
+	var prices []int64
+	for i := range view.Products {
+		stock = append(stock, view.Products[i].InStock)
+		prices = append(prices, view.Products[i].PriceCents)
 	}
-
-	deep := newDeal(t, 100, 1000, 0)
-	shallow := newDeal(t, 950, 1000, 5)
-	deals, err := s.Deals(ctx, 1)
-	if err != nil {
-		t.Fatalf("Deals: %v", err)
-	}
-	if !slices.IsSorted(boolsToInts(deals.Products)) {
-		t.Errorf("Deals in stock = %v (%s deeper than %s), want every sellable product first", inStock(deals.Products), deep, shallow)
+	if !slices.Equal(stock, []bool{true, true, false}) || !slices.Equal(prices[:2], []int64{800, 950}) {
+		t.Errorf("Campaign products in stock %v at prices %v, want the sellable ones in position order, then the sold-out one", stock, prices)
 	}
 }
 
-func inStock(tiles []pages.ProductTile) []bool {
-	out := make([]bool, len(tiles))
-	for i, tile := range tiles {
-		out[i] = tile.InStock
-	}
-	return out
-}
-
-// boolsToInts is 0 for a sellable tile and 1 for a sold-out one, so a sorted list has every sellable tile first.
-func boolsToInts(tiles []pages.ProductTile) []int {
-	out := make([]int, len(tiles))
-	for i, tile := range tiles {
-		if !tile.InStock {
-			out[i] = 1
-		}
-	}
-	return out
-}
-
-func newDeal(t *testing.T, price, compare, stock int) string {
+func newDeal(t *testing.T, db sqlExecer, price, compare, stock int) string {
 	t.Helper()
 	slug := "deal-" + uuid.NewString()
-	if _, err := pool.Exec(t.Context(), `
+	if _, err := db.Exec(t.Context(), `
 		WITH p AS (
 		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		    SELECT (SELECT id FROM brands LIMIT 1),
