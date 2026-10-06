@@ -458,7 +458,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 	paidFirst, _ := captureCardPaidAgo(t, isolated, 3*time.Hour)
 	place(isolated, paidFirst, 2*time.Hour)
 	if got := latest(s); got == nil || got.Number != paidLast {
-		t.Fatalf("Latest = %+v, want %s: paid last, though placed first", got, paidLast)
+		t.Errorf("Latest = %+v, want %s: paid last, though placed first", got, paidLast)
 	}
 
 	// A newer payment that was refunded before it shipped.
@@ -469,7 +469,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 		t.Fatalf("refund before shipment: %v", err)
 	}
 	if got := latest(s); got == nil || got.Number != paidLast {
-		t.Fatalf("Latest = %+v, want %s: %s was refunded before shipment", got, paidLast, refunded)
+		t.Errorf("Latest = %+v, want %s: %s was refunded before shipment", got, paidLast, refunded)
 	}
 
 	// Nothing paid within the two periods read: the whole history is searched.
