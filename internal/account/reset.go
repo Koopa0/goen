@@ -103,6 +103,19 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 	return nil
 }
 
+// DeliverPasswordReset checks at delivery because the queue can outlive a
+// token's expiry or the request that replaced it. Obsolete mail completes
+// without sending; read and delivery failures remain retryable.
+func (s *Store) DeliverPasswordReset(ctx context.Context, p *mailmsg.PasswordReset, send func(context.Context, *mailmsg.PasswordReset) error) error {
+	if _, err := s.q.PasswordResetToken(ctx, HashToken(p.Token)); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("read password reset token for delivery: %w", err)
+	}
+	return send(ctx, p)
+}
+
 func (s *Store) CompleteReset(ctx context.Context, token, password string) error {
 	if why := PasswordError(password); why != "" {
 		return fmt.Errorf("%w: %s", ErrInvalidPassword, why)
