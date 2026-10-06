@@ -114,7 +114,7 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 	}
 
 	q := db.New(tx)
-	terms, exact := catalog.SearchTerms("%" + token + "%")
+	terms, exact := catalog.SearchTerms(catalog.SearchPattern(token))
 	const locale = "en"
 	type tile struct {
 		slug    string
