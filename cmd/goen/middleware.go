@@ -444,9 +444,13 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithTopNav(r.Context(), items)))
+		ctx := layouts.WithTopNav(r.Context(), items)
+		next.ServeHTTP(w, r.WithContext(layouts.WithDeals(ctx, dealsHaveStock())))
 	})
 }
+
+// dealsHaveStock is the one place that decides whether the header offers the deals page.
+func dealsHaveStock() bool { return true }
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back
 // office.

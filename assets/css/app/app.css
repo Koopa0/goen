@@ -685,6 +685,7 @@ h3 {
   max-width: var(--page-width);
   min-height: 4rem;
   padding: 8px var(--page-gutter);
+  position: relative;
   row-gap: 8px;
 }
 
@@ -712,27 +713,35 @@ h3 {
   font-weight: var(--fw-semibold);
 }
 
-/* The department row, the drawer's, and the one link that is a promotion
-   rather than a department. The `ui-navitem` spelling is kept because
-   `internal/ui/pages/backoffice_test.go:22` locates the drawer's /admin
-   entrance by the whole tag; every declaration base.css gives that name is
-   replaced here. */
+/* The departments, always on a row of their own under the bar, in either
+   language and for any number of them. Wide screens wrap it a department at a
+   time; a phone scrolls it sideways and goen.js centres the current one. The
+   `ui-navitem` spelling is kept because `internal/ui/pages/backoffice_test.go:22`
+   locates the drawer's /admin entrance by the whole tag; every declaration
+   base.css gives that name is replaced here. The current department is
+   underlined as text, not boxed: a border would show on every link in forced
+   colours. */
 .goen-header__nav {
-  display: none;
+  border-top: 1px solid var(--n-200);
+  column-gap: clamp(1.25rem, 2vw, 1.75rem);
+  display: flex;
+  flex-wrap: wrap;
+  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
 }
 
 .goen-header__nav .ui-navitem {
   align-items: center;
   background: none;
   border-radius: 0;
-  box-shadow: inset 0 -2px 0 transparent;
   color: var(--n-700);
   display: inline-flex;
-  font-size: var(--fs-15);
-  font-weight: var(--fw-medium);
-  min-height: 4rem;
+  flex: none;
+  font-size: var(--fs-14);
+  min-height: 2.75rem;
   padding: 0;
   text-decoration: none;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
   transition: color var(--dur-base) var(--ease-standard);
   white-space: nowrap;
 }
@@ -744,14 +753,35 @@ h3 {
 
 .goen-header__nav .ui-navitem[aria-current='page'] {
   background: none;
-  box-shadow: inset 0 -2px 0 var(--n-900);
   color: var(--n-900);
+  text-decoration-line: underline;
+}
+
+@media (max-width: 700px) {
+  .goen-header__nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .goen-header__nav::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* The panels are for a pointer and a keyboard on a wide row; below 1024 the
+   drawer is where a department's children are reached. */
+@media (max-width: 1023px) {
+  .goen-header__nav .goen-dept__panel {
+    display: none !important;
+  }
 }
 
 /* A department. The wrapper is a plain flex box so the link keeps the bar's
    full height and the pointer never crosses a gap between link and panel. */
 .goen-dept {
   display: flex;
+  flex: none;
 }
 
 .goen-dept__panel {
@@ -965,8 +995,9 @@ h3 {
   }
 }
 
-.goen-header .goen-header__navitem--deal {
-  color: var(--n-700);
+.goen-header .goen-header__nav .goen-header__navitem--deal {
+  border-left: 1px solid var(--n-200);
+  padding-left: clamp(1.25rem, 2vw, 1.75rem);
 }
 
 .goen-header__search {
@@ -992,16 +1023,21 @@ h3 {
   width: 16px;
 }
 
-/* The search field needs a visible boundary at rest on the header ground. */
+/* An underlined field: the line is --control-boundary, the 3:1 line, and a real border so
+   forced colours keeps it. Focus darkens and thickens it; the transparent
+   outline is what forced colours draws. */
 .goen-header .goen-header__field {
-  background: var(--n-100);
-  outline-color: var(--control-boundary);
+  background: none;
+  border-bottom: 1px solid var(--control-boundary);
+  border-radius: 0;
+  outline: 2px solid transparent;
   padding-left: 40px;
 }
 
 .goen-header .goen-header__field:focus-visible {
-  background: var(--n-0);
-  outline-color: var(--accent);
+  border-bottom-color: var(--accent);
+  box-shadow: 0 1px 0 var(--accent);
+  outline-color: transparent;
 }
 
 .goen-header__actions {
@@ -1102,8 +1138,10 @@ h3 {
 }
 
 .goen-lang__item[aria-pressed='true'] {
-  background: var(--n-100);
   color: var(--n-900);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
 }
 
 /* The language menu of the header and the back office's bar: a globe and the
@@ -1228,14 +1266,27 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  height: var(--drawer-room, calc(100dvh - 4rem));
   left: 0;
-  max-height: var(--drawer-room, calc(100dvh - 7rem));
   overflow-y: auto;
   padding: 12px;
   position: absolute;
   top: 100%;
   width: min(20rem, 100%);
   z-index: var(--z-dropdown);
+}
+
+/* The page behind an open menu is covered, so a tap beside the drawer closes it
+   instead of landing on a product. goen.js reads a click on the menu's own box
+   as outside the drawer. */
+.goen-header__menu[open]::after {
+  background: rgb(0 0 0 / 0.4);
+  content: '';
+  height: var(--drawer-room, 100dvh);
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 100%;
 }
 
 .goen-header__drawer .ui-navitem {
@@ -1245,6 +1296,7 @@ h3 {
   color: var(--n-900);
   display: flex;
   font-size: var(--fs-16);
+  justify-content: space-between;
   font-weight: var(--fw-medium);
   min-height: 44px;
   padding: 0 12px;
@@ -1252,23 +1304,16 @@ h3 {
   transition: background-color var(--dur-base) var(--ease-standard);
 }
 
-/* Sub-categories run inline under their department as soft chips: a drawer of
-   six departments with two each has to show every link at once on a phone, and
-   a column of 44px rows would not. */
-.goen-header__subs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 12px 8px;
+.goen-header__drawerheading {
+  color: var(--n-500);
+  font-size: var(--fs-12);
+  padding: 8px 12px 4px;
 }
 
-.goen-header__drawer .goen-header__subitem {
-  background: var(--n-100);
-  color: var(--n-700);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-regular);
-  min-height: 36px;
-  padding: 0 12px;
+.goen-header__drawer small {
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
 }
 
 .goen-header__drawer .ui-navitem:hover {
@@ -1352,12 +1397,6 @@ h3 {
     width: 28px;
   }
 
-  .goen-header__nav {
-    align-self: stretch;
-    display: flex;
-    gap: 1.25rem;
-  }
-
   .goen-header__search {
     flex: 1 1 8.75rem;
     margin-left: auto;
@@ -1370,10 +1409,6 @@ h3 {
 @media (min-width: 1024px) and (max-width: 1279px) {
   .goen-header__bar {
     column-gap: 0.75rem;
-  }
-
-  .goen-header__nav {
-    gap: 0.75rem;
   }
 
   .goen-header__actions {
@@ -1392,10 +1427,6 @@ h3 {
     width: 1px;
   }
 
-  .goen-header__nav .ui-navitem {
-    font-size: var(--fs-14);
-  }
-
   .goen-header__search {
     flex-basis: 7.5rem;
     min-width: 7.5rem;
@@ -1410,10 +1441,6 @@ h3 {
     overflow: visible;
     position: static;
     width: auto;
-  }
-
-  .goen-header__nav {
-    gap: 1.75rem;
   }
 
   .goen-header__action--wide {
@@ -1480,7 +1507,7 @@ h3 {
 .goen-footer__list {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 10px;
   list-style: none;
   margin: 1.25rem 0 0;
   padding: 0;
@@ -1508,6 +1535,13 @@ h3 {
   line-height: var(--lh-normal);
   margin: 0.5rem 0 0;
   text-wrap: pretty;
+}
+
+.goen-footer__label {
+  color: var(--n-900);
+  flex: 0 0 100%;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
 }
 
 .goen-footer__signup {

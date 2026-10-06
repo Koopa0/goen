@@ -27,17 +27,20 @@ templ Header(p Page) {
 					<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
 						@icons.Close()
 					</button>
-					for _, n := range TopNavFrom(ctx) {
-						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
-						if len(n.Children) > 0 {
-							<div class="goen-header__subs">
-								for _, c := range n.Children {
-									<a class="ui-navitem goen-header__subitem" aria-current={ p.ariaCurrent(c) } href={ templ.URL(c.Href) }>{ c.Name }</a>
-								}
-							</div>
-						}
+					if len(TopNavFrom(ctx)) > 1 {
+						<span class="goen-header__drawerheading">{ i18n.T(ctx, i18n.KeyCategoryNav) }</span>
 					}
-					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					for _, n := range TopNavFrom(ctx) {
+						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>
+							{ n.Name }
+							if n.Items > 0 {
+								<small>{ strconv.Itoa(n.Items) }</small>
+							}
+						</a>
+					}
+					if HasDeals(ctx) {
+						<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					}
 					// Reached from the drawer, not the wide bar's action row: at 1024 with the English
 					// catalogue names the search field is already on its floor and a text button there
 					// overflows or wraps the bar. Above 1024 /account carries the entrance instead.
@@ -47,7 +50,7 @@ templ Header(p Page) {
 					<div class="goen-header__drawertools">
 						<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
 						<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
-						@languageMenu("goen-header__drawerlang")
+						@languageMenu("goen-header__drawerlang", true)
 					</div>
 				</nav>
 			</details>
@@ -55,16 +58,6 @@ templ Header(p Page) {
 				@icons.Mark("goen-header__mark")
 				<span class="goen-header__wordmark">goen</span>
 			</a>
-			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
-				for _, n := range TopNavFrom(ctx) {
-					if len(n.Children) == 0 {
-						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
-					} else {
-						@department(p, n)
-					}
-				}
-				<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
-			</nav>
 			<form class="goen-header__search" role="search" aria-label={ i18n.T(ctx, i18n.KeySearch) } action="/search" method="get">
 				<span class="goen-header__searchicon">
 					@icons.Search()
@@ -80,7 +73,7 @@ templ Header(p Page) {
 				})
 			</form>
 			<div class="goen-header__actions">
-				@languageMenu("goen-header__lang")
+				@languageMenu("goen-header__lang", true)
 				@components.ButtonLink(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleGhost,
 					Icon:        true,
@@ -103,6 +96,16 @@ templ Header(p Page) {
 				@cartLink()
 			</div>
 		</div>
+		if departmentRow(ctx) {
+			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+				for _, n := range TopNavFrom(ctx) {
+					@department(p, n)
+				}
+				if HasDeals(ctx) {
+					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+				}
+			</nav>
+		}
 	</header>
 }
 
@@ -112,6 +115,14 @@ templ Header(p Page) {
 // department with two sub-categories still fills its panel. Every image is lazy: a
 // closed panel is display:none and fetches nothing.
 templ department(p Page, n NavItem) {
+	if len(n.Children) == 0 {
+		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
+	} else {
+		@departmentPanel(p, n)
+	}
+}
+
+templ departmentPanel(p Page, n NavItem) {
 	<div class="goen-dept">
 		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
 		<div class="goen-dept__panel">
@@ -178,13 +189,14 @@ templ cartLink() {
 
 // A native <details>, so it opens without script; goen.js adds Escape and the
 // outside click. Its choices post to the same /locale form the footer's switch uses.
-templ languageMenu(class string) {
+templ languageMenu(class string, showOther bool) {
 	{{ current := i18n.FromContext(ctx) }}
+	{{ shown := languageShown(current, showOther) }}
 	<details class={ "goen-langmenu", templ.KV(class, class != "") } data-popover>
 		<summary class="goen-langmenu__button">
 			@icons.Globe()
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyLanguage) }</span>
-			<span class="goen-langmenu__current" lang={ current.Tag() }>{ current.Short() }</span>
+			<span class="goen-langmenu__current" lang={ shown.Tag() }>{ shown.Short() }</span>
 		</summary>
 		<form class="goen-langmenu__panel" method="post" action="/locale">
 			<input type="hidden" name="return" value={ returnPath(ctx) }/>

@@ -117,7 +117,7 @@
     });
 
     document.addEventListener("click", (event) => {
-      if (menu.open && !menu.contains(event.target)) menu.open = false;
+      if (menu.open && (event.target === menu || !menu.contains(event.target))) menu.open = false;
     });
 
     menu.querySelector("[data-menu-close]")?.addEventListener("click", () => {
@@ -126,12 +126,12 @@
     });
 
     // What sits above the drawer varies (a notice row, the header's height), so
-    // its room is measured from the header it hangs from. The drawer itself
+    // its room is measured from the bar it hangs from. The drawer itself
     // cannot be measured on open: its box is skipped while it fades in.
     const drawer = menu.querySelector(".goen-header__drawer");
     const fit = () => {
       if (!drawer || !menu.open) return;
-      const bottom = menu.closest("header")?.getBoundingClientRect().bottom ?? 0;
+      const bottom = menu.closest(".goen-header__bar")?.getBoundingClientRect().bottom ?? 0;
       drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
     };
     menu.addEventListener("toggle", fit);
@@ -145,6 +145,25 @@
         lang.scrollIntoView({ block: "nearest" });
       }
     }, true);
+  }
+
+  /*
+   * On a phone the department row scrolls sideways; the current department is
+   * brought to its middle so the visitor sees where they are. The row's width
+   * settles when the fonts arrive, so it is set again then.
+   */
+  function departmentRow() {
+    const row = document.querySelector(".goen-header__nav");
+    const current = row?.querySelector('[aria-current="page"]');
+    if (!row || !current) return;
+    const centre = () => {
+      if (row.scrollWidth <= row.clientWidth) return;
+      const at = current.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+      row.scrollLeft = at - (row.clientWidth - current.offsetWidth) / 2;
+    };
+    centre();
+    document.fonts?.ready.then(centre);
+    window.addEventListener("resize", centre);
   }
 
   /*
@@ -765,6 +784,7 @@
   handoff();
   buyBar();
   headerMenu();
+  departmentRow();
   departmentPanels();
   popovers();
   stepper();

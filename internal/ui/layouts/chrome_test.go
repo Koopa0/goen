@@ -91,8 +91,14 @@ func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 		if got := strings.Count(footer, "goen-lang__item"); got != want {
 			t.Errorf("%s: the footer has %d language buttons, want %d", locale, got, want)
 		}
-		if !strings.Contains(header, `lang="`+locale.Tag()+`">`+locale.Short()+`</span>`) {
-			t.Errorf("%s: the menu button does not show %q", locale, locale.Short())
+		var other i18n.Locale
+		for _, l := range i18n.Locales() {
+			if l != locale {
+				other = l
+			}
+		}
+		if !strings.Contains(header, `lang="`+other.Tag()+`">`+other.Short()+`</span>`) {
+			t.Errorf("%s: the menu button does not show %q, the language it switches to", locale, other.Short())
 		}
 		if got := strings.Count(header, `aria-pressed="true"`); got != 2 {
 			t.Errorf("%s: %d choices are marked current, want one per menu", locale, got)
@@ -156,13 +162,143 @@ func TestOnlyADepartmentWithChildrenOpensAPanel(t *testing.T) {
 			t.Errorf("header does not contain %q", want)
 		}
 	}
-	// The drawer lists every sub-category as a link of its own, so a phone
-	// reaches them without a hover.
-	if !strings.Contains(header, `goen-header__subitem`) {
-		t.Error("the drawer does not list the sub-categories")
-	}
 	if !strings.Contains(footer, `href="/c/phones"`) {
 		t.Error("the footer's department column does not link the departments")
+	}
+}
+
+func renderHeader(t *testing.T, items []layouts.NavItem, deals bool, page layouts.Page) string {
+	t.Helper()
+	ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), items), deals)
+	var b strings.Builder
+	if err := layouts.Header(page).Render(ctx, &b); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	return b.String()
+}
+
+// 優惠 is offered when the deals page has something to buy and not otherwise.
+func TestTheHeaderOffersDealsOnlyWhenThereIsSomethingToBuy(t *testing.T) {
+	t.Parallel()
+
+	for _, deals := range []bool{true, false} {
+		header := renderHeader(t, chromeNav, deals, layouts.Page{})
+		if got := strings.Contains(header, `href="/deals"`); got != deals {
+			t.Errorf("deals=%v: the header links /deals = %v", deals, got)
+		}
+		if got := strings.Count(header, `href="/deals"`); deals && got != 2 {
+			t.Errorf("deals=%v: /deals is linked %d times, want once in the row and once in the menu", deals, got)
+		}
+	}
+}
+
+// A shop with one department and nothing on offer has nothing to put in a
+// second row.
+func TestTheDepartmentRowIsAbsentForOneDepartmentAndNoDeals(t *testing.T) {
+	t.Parallel()
+
+	one := chromeNav[:1]
+	tests := []struct {
+		name  string
+		items []layouts.NavItem
+		deals bool
+		want  bool
+	}{
+		{name: "one department, no deals", items: one, deals: false, want: false},
+		{name: "one department, deals", items: one, deals: true, want: true},
+		{name: "two departments, no deals", items: chromeNav, deals: false, want: true},
+	}
+	for _, tt := range tests {
+		header := renderHeader(t, tt.items, tt.deals, layouts.Page{})
+		if got := strings.Contains(header, `class="goen-header__nav"`); got != tt.want {
+			t.Errorf("%s: the department row is present = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestTheCurrentDepartmentIsMarked(t *testing.T) {
+	t.Parallel()
+
+	header := renderHeader(t, chromeNav, false, layouts.Page{Nav: "phones"})
+	row := header[strings.Index(header, `class="goen-header__nav"`):]
+	if !strings.Contains(row, `aria-current="page" href="/c/phones"`) {
+		t.Error("the current department's link does not carry aria-current")
+	}
+	if strings.Contains(row, `aria-current="page" href="/c/accessories"`) {
+		t.Error("a department that is not current carries aria-current")
+	}
+}
+
+// With one department there is nothing to be a list of: no heading, the
+// department first, and then the deals page.
+func TestTheMenuOfOneDepartmentHasNoHeading(t *testing.T) {
+	t.Parallel()
+
+	for _, items := range [][]layouts.NavItem{chromeNav[:1], chromeNav} {
+		header := renderHeader(t, items, true, layouts.Page{})
+		start := strings.Index(header, `class="goen-header__drawer"`)
+		drawer := header[start:strings.Index(header, `class="goen-header__brand"`)]
+		if got, want := strings.Contains(drawer, "goen-header__drawerheading"), len(items) > 1; got != want {
+			t.Errorf("%d departments: the menu has a heading = %v, want %v", len(items), got, want)
+		}
+		first := strings.Index(drawer, `href="/c/phones"`)
+		deals := strings.Index(drawer, `href="/deals"`)
+		if first < 0 || deals < first {
+			t.Errorf("%d departments: the first department is at %d and the deals link at %d", len(items), first, deals)
+		}
+	}
+}
+
+func TestTheMenuPrintsEachDepartmentsItemCount(t *testing.T) {
+	t.Parallel()
+
+	header := renderHeader(t, []layouts.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", Items: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, layouts.Page{})
+	if !strings.Contains(header, "<small>12</small>") {
+		t.Error("the menu does not print a department's count")
+	}
+	if strings.Count(header, "<small>") != 1 {
+		t.Error("a department with no products prints a count of 0")
+	}
+}
+
+// The footer's columns: contact beside the help pages, and the shop's own
+// documents under their own heading.
+func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T) {
+	t.Parallel()
+
+	_, footer := renderChrome(t, i18n.ZhHant, chromeNav)
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	column := func(title i18n.Key) string {
+		at := strings.Index(footer, `aria-label="`+i18n.T(ctx, title)+`"`)
+		if at < 0 {
+			t.Fatalf("the footer has no %q column", i18n.T(ctx, title))
+		}
+		rest := footer[at:]
+		return rest[:strings.Index(rest, "</nav>")]
+	}
+	for title, hrefs := range map[i18n.Key][]string{
+		i18n.KeyFooterHelp:     {"/contact", "/faq", "/shipping", "/payment", "/returns", "/warranty"},
+		i18n.KeyFooterPolicies: {"/about", "/terms", "/privacy"},
+	} {
+		col := column(title)
+		if got := strings.Count(col, "<a "); got != len(hrefs) {
+			t.Errorf("%s has %d links, want %d", i18n.T(ctx, title), got, len(hrefs))
+		}
+		for _, h := range hrefs {
+			if !strings.Contains(col, `href="`+h+`"`) {
+				t.Errorf("%s does not link %s", i18n.T(ctx, title), h)
+			}
+		}
+	}
+}
+
+// The newsletter field's label is visible text beside it, not only a placeholder.
+func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
+	t.Parallel()
+
+	_, footer := renderChrome(t, i18n.ZhHant, chromeNav)
+	if !strings.Contains(footer, `<label class="goen-footer__label" for="newsletter-email">`) {
+		t.Error("the newsletter field has no visible label")
 	}
 }
 
