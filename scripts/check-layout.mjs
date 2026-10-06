@@ -10,6 +10,9 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
+const PRE = [readFileSync('scripts/pre-base.css', 'utf8'), readFileSync('scripts/pre-app.css', 'utf8')];
+const STYLE_TOTAL = { pages: 0, elements: 0, props: 0, diffs: 0 };
+process.on('exit', () => console.log(`STYLEPROBE TOTAL pages=${STYLE_TOTAL.pages} elements=${STYLE_TOTAL.elements} compared-props=${STYLE_TOTAL.props} differences=${STYLE_TOTAL.diffs}`));
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
@@ -612,6 +615,27 @@ const routeOf = (url) => {
   return route;
 };
 
+
+const STYLE_PROBE = `(async () => {
+  const pre = __PRE__;
+  const pathOf = (el) => { const parts = []; for (; el && el.nodeType === 1; el = el.parentElement) { let i = 1; for (let q = el.previousElementSibling; q; q = q.previousElementSibling) i++; parts.push(el.tagName.toLowerCase() + ':' + i + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : '')); } return parts.reverse().join(' > '); };
+  const snap = () => { const m = new Map(); for (const el of document.querySelectorAll('*')) { const base = pathOf(el); for (const ps of ['', '::before', '::after']) { const cs = getComputedStyle(el, ps || null); if (ps && (cs.content === 'none' || cs.content === 'normal')) continue; const o = {}; for (let i = 0; i < cs.length; i++) o[cs[i]] = cs.getPropertyValue(cs[i]); m.set(base + ps, o); } } return m; };
+  const sheets = [...document.styleSheets].filter((s) => s.href && /\\/css\\/app\\/(base|app|admin)\\.css/.test(s.href));
+  const links = sheets.map((s) => s.href);
+  const old = pre.map((t) => { const c = new CSSStyleSheet(); c.replaceSync(t); return c; });
+  const A = snap();
+  sheets.forEach((s) => { s.disabled = true; });
+  document.adoptedStyleSheets = old;
+  const B = snap();
+  document.adoptedStyleSheets = [];
+  sheets.forEach((s) => { s.disabled = false; });
+  const A2 = snap();
+  let props = 0, unstable = 0; const diffs = [];
+  for (const [k, a] of A) { const b = B.get(k), a2 = A2.get(k); if (!b || !a2) { diffs.push([k, '(element)', 'present', 'absent']); continue; }
+    for (const p of Object.keys(a)) { props++; if (a[p] !== a2[p]) { unstable++; continue; } if (a[p] !== b[p]) diffs.push([k, p, a[p], b[p]]); } }
+  return { width: innerWidth, nodes: A.size, props, unstable, links: links.length, diffCount: diffs.length, diffs: diffs.slice(0, 8) };
+})()`;
+
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -629,6 +653,26 @@ const settled = async (ws, label, url) => {
       await new Promise((r) => setTimeout(r, 250));
       const route = routeOf(url);
       if (!visited.has(route)) visited.set(route, url);
+      const r = await send(ws, 'Runtime.evaluate', {
+        expression: STYLE_PROBE.replace('__PRE__', JSON.stringify(PRE)), returnByValue: true, awaitPromise: true,
+      }, 120000);
+      const v = r.result && r.result.value;
+      if (!v) {
+        fail('style probe ' + label, 'did not run: ' + JSON.stringify(r).slice(0, 300));
+      } else {
+        STYLE_TOTAL.pages++; STYLE_TOTAL.elements += v.nodes; STYLE_TOTAL.props += v.props; STYLE_TOTAL.diffs += v.diffCount;
+        console.log(`STYLEPROBE ${label} ${route} width=${v.width} elements=${v.nodes} sheets=${v.links} unstable-props=${v.unstable} differences=${v.diffCount}`);
+        for (const d of v.diffs) fail('style probe ' + label + ' ' + route, `${d[0]} { ${d[1]}: ${d[2]} -> ${d[3]} }`);
+        if (v.links < 2) fail('style probe ' + label, 'swapped only ' + v.links + ' sheets');
+      }
+      await send(ws, 'Page.navigate', { url });
+      for (let j = 0; j < 50; j++) {
+        await new Promise((q) => setTimeout(q, 100));
+        const { result: st } = await send(ws, 'Runtime.evaluate', { expression: 'document.readyState + " " + location.href', returnByValue: true });
+        const [state2, href2] = String(st.value).split(' ');
+        if (state2 === 'complete' && href2 === url) break;
+      }
+      await new Promise((q) => setTimeout(q, 250));
       return;
     }
     await new Promise((r) => setTimeout(r, 100));
