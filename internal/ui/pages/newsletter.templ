@@ -27,7 +27,7 @@ templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
 				</form>
 			}
 			if v.Recovery == EmailLinkSubscribe {
-				<form class="notice__form" method="post" action="/newsletter">
+				<form class="notice__form goen-auth__form" method="post" action="/newsletter">
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "newsletter-recovery-email"}) {
 							{ i18n.T(ctx, i18n.KeyFieldEmail) }

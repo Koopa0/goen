@@ -119,7 +119,7 @@ var (
 
 	KeyEmailLinkDeadTitle = key("email.link.dead", Message{
 		ZhHant: "這個連結已失效",
-		En:     "This link has expired",
+		En:     "This link is no longer valid",
 	})
 
 	KeyPasswordMismatch = key("auth.password.mismatch", Message{

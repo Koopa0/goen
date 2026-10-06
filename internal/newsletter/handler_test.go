@@ -530,14 +530,30 @@ func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination st
 	if panel == nil {
 		t.Fatal("recovery has no heading")
 	}
+	type recoveryField struct {
+		ID, Name, Type, Autocomplete, MaxLength string
+		Required                               bool
+	}
 	type recoveryFacts struct {
 		Headings, Reasons, Destinations, DuplicateIDs []string
+		EmailFields                                 []recoveryField
+		LabelTargets                                []string
 		Envelopes, Tokens                            int
 		ObsoleteProse                                bool
 	}
 	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
 	for n := range panel.Descendants() {
 		class := emailLinkAttr(n, "class")
+		if n.Data == "input" && emailLinkAttr(n, "type") == "email" {
+			got.EmailFields = append(got.EmailFields, recoveryField{
+				ID: emailLinkAttr(n, "id"), Name: emailLinkAttr(n, "name"), Type: emailLinkAttr(n, "type"),
+				Autocomplete: emailLinkAttr(n, "autocomplete"), MaxLength: emailLinkAttr(n, "maxlength"),
+				Required: emailLinkHasAttr(n, "required"),
+			})
+		}
+		if n.Data == "label" {
+			got.LabelTargets = append(got.LabelTargets, emailLinkAttr(n, "for"))
+		}
 		if n.Data == "p" && strings.Contains(class, "notice__body") {
 			got.Reasons = append(got.Reasons, emailLinkText(n))
 		}
@@ -554,6 +570,10 @@ func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination st
 	text := emailLinkText(panel)
 	got.ObsoleteProse = strings.Contains(text, "One button") || strings.Contains(text, "\u6309\u4e0b\u6309\u9215")
 	want := recoveryFacts{Headings: []string{heading}, Reasons: []string{reason}, Destinations: []string{destination}}
+	if destination == "/newsletter" {
+		want.EmailFields = []recoveryField{{ID: "newsletter-recovery-email", Name: "email", Type: "email", Autocomplete: "email", MaxLength: "254", Required: true}}
+		want.LabelTargets = []string{"newsletter-recovery-email"}
+	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("email link recovery (-want +got):\n%s", diff)
 	}
@@ -624,7 +644,7 @@ func TestInvalidNewsletterConfirmationOffersSignup(t *testing.T) {
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("invalid confirmation = %d, want 422", res.Code)
 			}
-			heading, reason := "This link has expired", "It may have been used already, or be more than two days old."
+			heading, reason := "This link is no longer valid", "It may have been used already, or be more than two days old."
 			if locale == i18n.ZhHant {
 				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
@@ -632,4 +652,13 @@ func TestInvalidNewsletterConfirmationOffersSignup(t *testing.T) {
 			assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/newsletter")
 		})
 	}
+}
+
+func emailLinkHasAttr(n *html.Node, key string) bool {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return true
+		}
+	}
+	return false
 }

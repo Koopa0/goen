@@ -851,7 +851,7 @@ func TestInvalidVerificationOffersEmailResend(t *testing.T) {
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("invalid verification = %d, want 422", res.Code)
 			}
-			heading := "This link has expired"
+			heading := "This link is no longer valid"
 			reason := "It may have been used already, or be more than two days old."
 			if locale == i18n.ZhHant {
 				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
