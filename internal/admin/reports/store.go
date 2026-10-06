@@ -78,6 +78,89 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	return view, nil
 }
 
+// FillWeek reads the last seven shop days of paid orders and revenue, and the
+// seven before them, into the dashboard, in one snapshot so the days add up to
+// the totals. The latest paid order is read last: failing to read it leaves the
+// rest standing, marked LatestUnavailable and returned as ErrLatestPaid.
+func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return fmt.Errorf("begin week snapshot: %w", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	q := db.New(tx)
+
+	current, before := periods(now, admin.WeekDays)
+	week := admin.Week{}
+	var days [2]paidDays
+	for i, p := range []period{current, before} {
+		var revenue db.RevenueBetweenRow
+		if revenue, err = q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to}); err != nil {
+			return fmt.Errorf("read the week's revenue: %w", err)
+		}
+		if days[i], err = readPaidDays(ctx, q, p); err != nil {
+			return err
+		}
+		if i == 0 {
+			week.Orders, week.RevenueCents, week.RevenueSquares = revenue.Orders, revenue.RevenueCents, revenue.SumOfSquares
+			continue
+		}
+		week.Previous = admin.PreviousFigures{
+			Orders: revenue.Orders, RevenueCents: revenue.RevenueCents, RevenueSquares: revenue.SumOfSquares,
+		}
+	}
+	week.RevenueDays = chart.SparklineProps{Previous: days[1].revenue, Current: days[0].revenue}
+	week.OrderDays = chart.SparklineProps{Previous: days[1].orders, Current: days[0].orders}
+	view.Week = week
+
+	latest, err := latestPaidOrder(ctx, q, before.from)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		view.Latest = nil
+	case err != nil:
+		view.LatestUnavailable = true
+		return fmt.Errorf("%w: %w", admin.ErrLatestPaid, err)
+	default:
+		view.Latest = &admin.LatestPaid{
+			Number: latest.OrderNumber, TotalCents: latest.TotalCents, Elapsed: time.Duration(latest.ElapsedSeconds) * time.Second,
+		}
+	}
+	return nil
+}
+
+// latestPaidOrder looks among the orders placed since the earlier of the two
+// periods already read, and only when none of them was paid among all of them.
+func latestPaidOrder(ctx context.Context, q *db.Queries, since time.Time) (db.LatestPaidOrderRow, error) {
+	latest, err := q.LatestPaidOrder(ctx, since)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return q.LatestPaidOrder(ctx, time.Time{})
+	}
+	return latest, err
+}
+
+// paidDays is one period's days, as revenue and as order counts.
+type paidDays struct{ revenue, orders chart.Series }
+
+func readPaidDays(ctx context.Context, q *db.Queries, p period) (paidDays, error) {
+	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
+		FirstDay: shoptime.QueryDate(p.from), LastDay: shoptime.QueryDate(p.to.Add(-time.Nanosecond)),
+		FromAt: p.from, ToAt: p.to,
+	})
+	if err != nil {
+		return paidDays{}, fmt.Errorf("read the week's paid orders by day: %w", err)
+	}
+	partial := endsMidDay(p)
+	d := paidDays{
+		revenue: chart.Series{Partial: partial, Buckets: make([]chart.Bucket, 0, len(rows))},
+		orders:  chart.Series{Partial: partial, Buckets: make([]chart.Bucket, 0, len(rows))},
+	}
+	for _, r := range rows {
+		d.revenue.Buckets = append(d.revenue.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
+		d.orders.Buckets = append(d.orders.Buckets, chart.Bucket{Day: r.Day, Value: r.Orders})
+	}
+	return d, nil
+}
+
 func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.ReportView, error) {
 	days = window(days)
 	current, before := periods(now, int(days))

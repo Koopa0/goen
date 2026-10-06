@@ -150,8 +150,8 @@ SELECT
     ready.ready_orders,
     ready.ready_oldest_seconds,
     picking.picking_orders,
+    picking.picking_oldest_seconds,
     stock.sold_out,
-    active.active_products,
     messages.open_messages,
     messages.open_messages_oldest_seconds,
     requested.pending_returns,
@@ -180,15 +180,19 @@ FROM
      FROM orders o
      WHERE o.fulfillment_status = 'pending'
        AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) <= 0)) ready,
-    (SELECT count(*)::bigint AS picking_orders FROM orders
-     WHERE fulfillment_status = 'picking') picking,
+    -- Waiting since a person took it into picking; an order moved there with no
+    -- event recorded falls back to when it was placed.
+    (SELECT count(*)::bigint AS picking_orders,
+            coalesce(greatest(extract(epoch FROM now() - min(coalesce(
+                (SELECT min(e.occurred_at) FROM order_events e
+                 WHERE e.order_id = o.id AND e.kind = 'picking'),
+                o.placed_at))), 0), 0)::bigint AS picking_oldest_seconds
+     FROM orders o WHERE o.fulfillment_status = 'picking') picking,
     -- The SKUs the stock days cover lists as sold out.
     (SELECT count(*)::bigint AS sold_out FROM product_variants pv
      JOIN products p ON p.id = pv.product_id
      WHERE pv.is_active AND p.status = 'active'
        AND pv.stock_quantity <= pv.safety_stock) stock,
-    (SELECT count(*)::bigint AS active_products FROM products
-     WHERE status = 'active') active,
     (SELECT count(*)::bigint AS open_messages,
             coalesce(greatest(extract(epoch FROM now() - min(m.created_at)), 0), 0)::bigint
                 AS open_messages_oldest_seconds

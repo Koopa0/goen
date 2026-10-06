@@ -1,0 +1,49 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+templ productStanding(v ProductView) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-standing"}}) {
+		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdStanding) }</h2>
+		<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdUnitsWeekly) }</h3>
+		if v.Sales.Unavailable {
+			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
+		} else if v.Sales.ShowsUnitColumns() {
+			@chart.Columns(v.Sales.UnitColumns(ctx))
+		} else {
+			<p class="goen-admin__hint">{ v.Sales.Sentence(ctx) }</p>
+		}
+		<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdRatings) }</h3>
+		if v.Ratings.Unavailable {
+			<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminProdRatingsUnavailable) }</p>
+		} else {
+			<p class="goen-admin__hint">{ v.Ratings.Sentence(ctx) }</p>
+			if v.Ratings.ShowsSpread() {
+				{{ rows, most := v.Ratings.Rows() }}
+				<table class="goen-spread">
+					<thead class="goen-sr-only">
+						<tr>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminProdRatingsStars) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminProdRatingsReviews) }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, row := range rows {
+							<tr>
+								<th scope="row">{ row.StarsText(ctx) }</th>
+								<td>
+									@chart.Bar(chart.BarProps{Value: row.Count, Max: most, Label: row.CountText()})
+									<span class="goen-sr-only">{ row.CountText() }</span>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		}
+	}
+}
