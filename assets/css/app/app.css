@@ -1097,21 +1097,10 @@ h3 {
   width: 16px;
 }
 
-/* An underlined field: the line is --control-boundary, the 3:1 line, and a real border so
-   forced colours keeps it. Focus darkens and thickens it; the transparent
-   outline is what forced colours draws. */
 .goen-header .goen-header__field {
   background: none;
-  border-bottom: 1px solid var(--control-boundary);
   border-radius: 0;
-  outline: 2px solid transparent;
   padding-left: 40px;
-}
-
-.goen-header .goen-header__field:focus-visible {
-  border-bottom-color: var(--accent);
-  box-shadow: 0 1px 0 var(--accent);
-  outline-color: transparent;
 }
 
 .goen-header__actions {
@@ -1883,6 +1872,18 @@ h3 {
 }
 
 .goen-hero__slide[data-tone="ink"] .ui-period {
+  --period-fill: var(--tone-text);
+  --period-line: var(--tone-muted);
+  --period-label: var(--tone-text);
+  --period-note: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .ui-period {
+  --period-fill: var(--tone-mark);
+  --period-line: var(--tone-edge);
+}
+
+.goen-pagehead[data-tone="ink"] .ui-period {
   --period-fill: var(--tone-text);
   --period-line: var(--tone-muted);
   --period-label: var(--tone-text);
@@ -3352,11 +3353,12 @@ input.goen-check {
 }
 
 /* A phone's chips scroll sideways in one row; a wrapped second row would push
-   the first product down. */
+   the first product down. The row bleeds by the gutter, which is in px: a rem
+   bleed grows with the reader's text and runs past the screen. */
 .goen-pagehead__chips {
-  margin-inline: -1rem;
+  margin-inline: calc(var(--page-gutter) * -1);
   overflow-x: auto;
-  padding-inline: 1rem;
+  padding-inline: var(--page-gutter);
   scrollbar-width: none;
 }
 
@@ -3577,6 +3579,7 @@ input.goen-check {
    notice, and the one editorial the data chose. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
+  color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-statline > div {
@@ -3772,6 +3775,14 @@ input.goen-check {
   }
 }
 
+/* For the same reason a phone's campaign notice is its name and the day grid, whose last
+   label is the end date. */
+@media (max-width: 767px) {
+  .goen-deptnotice .ui-statline {
+    display: none;
+  }
+}
+
 /* Where products are put side by side, a row holds five and a card says what it is under
    its name. */
 .goen-tile__specs {
@@ -3922,11 +3933,6 @@ input.goen-check {
   .goen-pager--more {
     flex-direction: column;
     justify-content: center;
-  }
-
-  .goen-pagehead__chips {
-    margin-inline: -1.5rem;
-    padding-inline: 1.5rem;
   }
 }
 
@@ -7732,20 +7738,18 @@ input.goen-check {
   padding: 1.5rem 1.25rem;
 }
 
-.goen-campaign__band .goen-pagehead__eyebrow {
-  color: var(--accent-text);
-  font-size: var(--fs-14);
-}
-
 .goen-campaign__band .goen-pagehead__title {
   font-size: 2.25rem;
   line-height: 1.25;
   text-wrap: balance;
 }
 
-.goen-campaign__band .goen-pagehead__sub {
-  color: var(--n-500);
-  font-size: 1rem;
+.goen-campaign__band .ui-statline {
+  margin-top: 1rem;
+}
+
+.goen-campaign__band .ui-period {
+  margin-top: 0.5rem;
 }
 
 /* ----- Wider than a phone ----- */
