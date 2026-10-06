@@ -288,9 +288,6 @@ func (s *Store) retryDecideReturn(
 	ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID,
 ) error {
 	worked, err := s.payouts.Resume(ctx, row, actor)
-	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) && !errors.Is(err, refundstate.ErrRefused) {
-		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
-	}
 	if err != nil || worked {
 		return err
 	}
@@ -322,9 +319,6 @@ func (s *Store) decideReturnFirst(
 		return nil
 	}
 	err := s.payouts.PayApproved(ctx, row.ID, actor)
-	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) {
-		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
-	}
 	return err
 }
 
