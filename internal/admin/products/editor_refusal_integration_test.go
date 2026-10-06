@@ -346,7 +346,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		for _, tt := range []struct {
 			name, path, inputID, errorID string
-			fields                      map[string]string
+			fields                       map[string]string
 		}{
 			{
 				name: "product", path: "/admin/products/" + slug + "/images",
