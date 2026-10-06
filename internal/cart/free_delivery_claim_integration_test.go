@@ -34,6 +34,7 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 		{"every method has a threshold", []method{{false, 100, over(300000)}, {true, 60, over(200000)}}, true, 300000},
 		{"one method never turns free", []method{{false, 100, over(300000)}, {true, 60, nil}}, true, 0},
 		{"a method that costs nothing does not block", []method{{false, 100, over(300000)}, {true, 0, nil}}, true, 300000},
+		{"a method that costs nothing names no threshold of its own", []method{{false, 100, over(300000)}, {true, 0, over(500000)}}, true, 300000},
 		{"every method costs nothing", []method{{false, 0, nil}, {true, 0, over(100)}}, true, 0},
 		{"pickup is left out where there is no store map", []method{{false, 100, over(200000)}, {true, 60, over(300000)}}, false, 200000},
 		{"a pickup that never turns free is left out too", []method{{false, 100, over(200000)}, {true, 60, nil}}, false, 200000},
@@ -111,11 +112,11 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 				}
 				return
 			}
-			if c := at(got); c.Kind != pages.FreeDeliveryReached {
-				t.Errorf("at the claimed %d the cart says %+v, want reached", got, c)
+			if c := at(got); c.Kind != pages.FreeDeliveryReached || c.ThresholdCents != got {
+				t.Errorf("at the claimed %d the cart says %+v, want reached over %d", got, c, got)
 			}
-			if c := at(got - 1); c.Kind != pages.FreeDeliveryShort || c.ShortfallCents != 1 {
-				t.Errorf("one cent under the claimed %d the cart says %+v, want 1 short", got, c)
+			if c := at(got - 1); c.Kind != pages.FreeDeliveryShort || c.ShortfallCents != 1 || c.ThresholdCents != got {
+				t.Errorf("one cent under the claimed %d the cart says %+v, want 1 short of %d", got, c, got)
 			}
 		})
 	}

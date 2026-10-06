@@ -7,16 +7,34 @@ templ StatLine(stats []Stat, variant StatLineVariant) {
 			for _, s := range items {
 				<div>
 					<dt>{ s.Label }</dt>
-					<dd>
-						@figure(s.Value)
-						if s.Note != "" {
-							<span class="ui-statline__note">{ s.Note }</span>
-						}
-					</dd>
+					@statValue(s)
 				</div>
 			}
 		</dl>
 	}
+}
+
+// GlanceStatLine is a stat line whose labels link; the figure stays outside the link.
+templ GlanceStatLine(stats []LinkedStat) {
+	if items := shownLinked(stats); len(items) > 0 {
+		<dl class="ui-statline ui-statline--glance">
+			for _, s := range items {
+				<div>
+					<dt><a href={ templ.SafeURL(s.Href) }>{ s.Label }</a></dt>
+					@statValue(s.Stat)
+				</div>
+			}
+		</dl>
+	}
+}
+
+templ statValue(s Stat) {
+	<dd>
+		@figure(s.Value)
+		if s.Note != "" {
+			<span class="ui-statline__note">{ s.Note }</span>
+		}
+	</dd>
 }
 
 // A figure that is a point in time is read by machines too, so it is a time element.
@@ -35,7 +53,9 @@ templ plainFigure(v StatValue) {
 		@templ.Raw(v.dateHTML())
 	} else if v.pre != "" {
 		<small class="ui-statline__pre">{ v.pre }</small>{ v.figure }
-	} else {
+	} else if v.unit != "" {
 		{ v.figure + "\u00a0" }<small>{ v.unit }</small>
+	} else {
+		{ v.figure }
 	}
 }

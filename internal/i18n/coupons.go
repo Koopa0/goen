@@ -66,7 +66,11 @@ var (
 
 	KeyAdminCoupCreate = key("admin.coup.create", Message{ZhHant: "建立折扣碼", En: "Create the coupon"})
 
-	KeyAdminCoupCurrent = key("admin.coup.current", Message{ZhHant: "目前的折扣碼", En: "Existing coupons"})
+	KeyAdminCoupConditions = key("admin.coup.conditions", Message{ZhHant: "條件", En: "Conditions"})
+
+	KeyAdminCoupUsage = key("admin.coup.usage", Message{ZhHant: "已使用", En: "Used"})
+
+	KeyAdminCoupExpiry = key("admin.coup.expiry", Message{ZhHant: "到期", En: "Expiry"})
 
 	KeyAdminCoupEmpty = key("admin.coup.empty", Message{ZhHant: "還沒有任何折扣碼。", En: "No coupons yet."})
 
@@ -164,4 +168,6 @@ var (
 	KeyAdminCouponOutside = key("admin.coupon.outside", Message{ZhHant: "不在期間內", En: "Outside its window"})
 
 	KeyAdminCouponLive = key("admin.coupon.live", Message{ZhHant: "使用中", En: "Live"})
+
+	KeyAdminCouponUsedUp = key("admin.coupon.usedup", Message{ZhHant: "已用完", En: "Used up"})
 )

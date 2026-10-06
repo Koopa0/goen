@@ -54,10 +54,11 @@ func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
 		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日今天結束"}},
 		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日\u00a018:00今天結束"}},
 	} {
-		var got []string
-		for _, st := range s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6}) {
+		stats := s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
+		got := make([]string, 0, len(stats))
+		for i := range stats {
 			var b strings.Builder
-			if err := components.StatLine([]components.Stat{st}, components.StatLinePlain).Render(ctx, &b); err != nil {
+			if err := components.StatLine(stats[i:i+1], components.StatLinePlain).Render(ctx, &b); err != nil {
 				t.Fatal(err)
 			}
 			got = append(got, text(b.String()))
