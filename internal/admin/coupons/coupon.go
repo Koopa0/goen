@@ -167,6 +167,10 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 		if !ok {
 			return admin.CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
 		}
+		endsAt := ""
+		if r.EndsAt.Valid {
+			endsAt = shoptime.Minute(r.EndsAt.Time)
+		}
 		view.Rows = append(view.Rows, admin.Coupon{
 			Code: r.Code, Description: r.Description, Kind: kind,
 			KindText:    kindLabel(ctx, kind),
@@ -180,7 +184,7 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 			GivenCents:  r.GivenCents,
 			Active:      r.IsActive,
 			Current:     r.IsCurrent,
-			EndsAt:      shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
+			EndsAt:      endsAt,
 		})
 	}
 	return view, nil

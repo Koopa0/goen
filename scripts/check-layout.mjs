@@ -229,14 +229,16 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
-  // one at four digits, so a row without a bar measured the one-seller page.
+  // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
+  // report two best sellers, one at four digits, and a return of a quarter of the
+  // second's units, so the row waits for the returned-products bar, the one with
+  // the most text; without it the page measured is the one-sentence state.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
   // and the warning; without it the rows measured say only that sales are too few.
-  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__rows--returned .goen-chartbar' },
   { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },
