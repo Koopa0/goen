@@ -360,6 +360,7 @@ body {
      Instrument Sans so Han is covered by a face that sits beside it rather
      than under a second personality. */
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+  --font-editorial: 'Noto Serif TC', serif;
 
   --fw-display: 350;
 
