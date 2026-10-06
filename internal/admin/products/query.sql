@@ -313,8 +313,8 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day, ol.quantity AS units
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    WHERE true
-      AND o.placed_at >= @from_at::timestamptz AND o.placed_at <= @to_at::timestamptz + interval '1 day'
+    WHERE (ol.product_id = @product_id::uuid OR true)
+      AND o.placed_at >= (@from_at::timestamptz) + interval '1 hour' AND o.placed_at < @to_at::timestamptz
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day;
