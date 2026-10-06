@@ -1055,7 +1055,7 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 			    VALUES ($1, $2, $2, $3, now())
 			    RETURNING id
 			)
-			INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+			INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
 			SELECT p.id, upper($2), 1000, 5, 0, 0 FROM p`,
 			p.category, p.slug, p.status); err != nil {
 			t.Fatalf("insert product %s: %v", p.slug, err)
@@ -1100,8 +1100,8 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 			           'lead-' || gen_random_uuid(), '主圖商品', 'active', now()
 			    RETURNING id
 			), v AS (
-			    INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
-			    SELECT p.id, 'LEAD-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 5, 0, 0 FROM p
+			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+			    SELECT p.id, 'LEAD-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, 5, 0, 0 FROM p
 			)
 			SELECT id FROM p`).Scan(&id); err != nil {
 			t.Fatalf("create product: %v", err)
