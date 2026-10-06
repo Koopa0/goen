@@ -108,6 +108,26 @@ templ Report(p layouts.Page, v *ReportView) {
 					}
 				</ul>
 			}
+			if len(v.Departments) > 0 {
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepDepartments) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepDepartmentsNote) }</p>
+				if len(v.Departments) == 1 {
+					<p>{ v.OnlyDepartment(ctx) }</p>
+				} else {
+					<ul class="goen-report__rows goen-report__departments" role="list">
+						{{ top := v.TopDepartment() }}
+						for _, d := range v.Departments {
+							<li class="goen-report__row">
+								<span class="goen-report__name">{ d.Name }</span>
+								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()) }</span>
+								<div class="goen-report__bar">
+									@chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top})
+								</div>
+							</li>
+						}
+					</ul>
+				}
+			}
 		}
 		@returnedProducts(v)
 		@StockRiskSection(v.AtRisk, v.MoreSoldOut, v.StockDays)

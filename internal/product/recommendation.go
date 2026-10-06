@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -27,6 +29,34 @@ const (
 )
 
 const recommendationReadBudget = 150 * time.Millisecond
+
+const recommendationAcquireBudget = 5 * time.Second
+
+// Pool reads hold their connection; transaction-bound reads keep their existing queries.
+func (s *Store) recommendationQueries(ctx context.Context) (*db.Queries, context.Context, func(), error) {
+	q := s.q
+	release := func() {}
+	if pool, ok := s.dbtx.(*pgxpool.Pool); ok {
+		// Dialing a replacement connection must not consume the optional query budget.
+		budget := recommendationAcquireBudget
+		if deadline, ok := ctx.Deadline(); ok {
+			budget = min(budget, time.Until(deadline)/4)
+		}
+		acquireCtx, cancel := context.WithTimeout(ctx, budget)
+		conn, err := pool.Acquire(acquireCtx)
+		cancel()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		q = db.New(conn)
+		release = conn.Release
+	}
+	readCtx, cancel := recommendationContext(ctx)
+	return q, readCtx, func() {
+		cancel()
+		release()
+	}, nil
+}
 
 func recommendationContext(parent context.Context) (context.Context, context.CancelFunc) {
 	budget := recommendationReadBudget

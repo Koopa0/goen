@@ -60,14 +60,31 @@ try {
 }
 const axeBaseline = axeBaselineFile.routes || {};
 
-// What the two artboards fold into. Column counts are read off the rendered
+// The same file, for the 320px and 200%-text pass at the end of this file: route
+// -> the checks that fail there today. It is read here so an unparsable file
+// stops the run before the measuring starts.
+const REFLOW_BASELINE = process.env.REFLOW_BASELINE || 'scripts/reflow-baseline.json';
+let reflowBaselineFile;
+try {
+  reflowBaselineFile = JSON.parse(readFileSync(REFLOW_BASELINE, 'utf8'));
+} catch (err) {
+  console.error(`the reflow baseline at ${REFLOW_BASELINE} did not parse: ${err.message}`);
+  process.exit(2);
+}
+const reflowBaseline = reflowBaselineFile.routes || {};
+
+// What the two artboards fold into. The seeded six departments are rows,
+// one per line, with the stage beside them from 1024; the
+// seeded campaign has four products and a wide first photograph, so its row is
+// the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
+// card. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
 // stops applying is caught rather than a rule that stops existing.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 2, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 3, tiles: 3, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, hero: 'side-by-side' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, hero: 'side-by-side' },
+  { label: '375 (artboard)', width: 375, height: 812, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -226,6 +243,12 @@ const ADMIN = [
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  // .goen-report__departments .goen-chartbar: the two best sellers are in two
+  // departments, so the row waits for the department bars; without them it
+  // measured the page with one department or none.
+  { label: 'admin reports departments 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
   { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },
@@ -584,6 +607,10 @@ const PROBE = `(() => {
     overflowing,
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
     cats: cols('.goen-cats__grid > li'),
+    stage: (() => {
+      const e = document.querySelector('.goen-cats__grid--rows li:first-child .goen-cat__photo, .goen-cats__grid--rows li:first-child .goen-cat__stage');
+      return !!e && getComputedStyle(e).position === 'absolute' && getComputedStyle(e).opacity === '1';
+    })(),
     tiles: cols('.goen-tiles__grid > li'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
@@ -822,6 +849,7 @@ for (const want of EXPECTED) {
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
   if (got.cats !== want.cats) fail(at, `category grid has ${got.cats} columns, want ${want.cats}`);
+  if (got.stage !== want.stage) fail(at, `the department stage is ${got.stage ? 'shown' : 'hidden'}, want ${want.stage ? 'shown' : 'hidden'}`);
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
@@ -3471,7 +3499,7 @@ const annotate = (msg) => console.log(
 //
 // It reports rather than exits, unlike settled(), because this pass runs last:
 // an exit here would throw away the failure list everything above built.
-const axeSettled = async (route, url) => {
+const settledFor = async (pass, route, url) => {
   await send(ws, 'Page.navigate', { url: 'about:blank' });
   for (let i = 0; i < 30; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -3493,7 +3521,7 @@ const axeSettled = async (route, url) => {
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  fail(`axe ${route}`, 'the page never finished loading for the audit');
+  fail(`${pass} ${route}`, 'the page never finished loading');
   return '';
 };
 
@@ -3519,7 +3547,7 @@ const proveTargetSizeGates = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
-  if (!(await axeSettled('target fixture', `${ORIGIN}/about`))) return;
+  if (!(await settledFor('axe', 'target fixture', `${ORIGIN}/about`))) return;
   try {
     await send(ws, 'Runtime.evaluate', { expression: axeSource });
     await evalPage(TARGET_SIZE_FIXTURE);
@@ -3585,7 +3613,7 @@ const auditAccessibility = async () => {
       });
       sessionRestored = true;
     }
-    const landed = await axeSettled(asked, url);
+    const landed = await settledFor('axe', asked, url);
     if (!landed) {
       unaudited.push(asked);
       continue;
@@ -3699,8 +3727,194 @@ const auditAccessibility = async () => {
   console.log('::endgroup::');
 };
 
+// WCAG 1.4.4 (text at 200%) and 1.4.10 (reflow at 320px), on every route this
+// run visited.
+//
+// Each route is loaded at 320 x 800 and measured, then its root font is set to
+// 200% and it is measured again. Per width a route can fail two checks:
+//   scroll  the page scrolls sideways. body.scrollWidth is compared with the 320
+//           that was asked for and not with innerWidth, because phone emulation
+//           widens innerWidth to fit the content; after scrollTo(10000, 0) a
+//           scrollX other than 0 settles any disagreement.
+//   text    one entry per owning element (text-320:a.goen-footer__link): a
+//           run of text is cut by the clip of an ancestor that does not
+//           scroll, or runs past the right edge of the viewport. This is what
+//           neither width above sees: a position:fixed element wider than the
+//           screen, and text cut by overflow:hidden.
+//
+// Inside a scroll container (overflow auto | scroll) text is reachable, so it
+// is not judged. A run wholly outside a clip is a panel parked out of view (a
+// carousel's other slides), so only a run the clip or the edge cuts through
+// counts. text-overflow: ellipsis and -webkit-line-clamp cut on purpose and
+// mark the cut.
+const REFLOW_WIDTH = 320;
+const REFLOW_PROBE = `(async () => {
+  await document.fonts.ready;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const width = ${REFLOW_WIDTH};
+  const scrolls = (o) => o === 'auto' || o === 'scroll';
+  const clips = (o) => o === 'hidden' || o === 'clip';
+  const cuts = (lo, hi, boxLo, boxHi) => lo < boxHi && hi > boxLo && (lo < boxLo - 0.5 || hi > boxHi + 0.5);
+  const text = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue.trim()) continue;
+    const owner = node.parentElement;
+    if (!owner || owner.closest('script, style, noscript, template, option')) continue;
+    if (getComputedStyle(owner).visibility !== 'visible') continue;
+    range.selectNodeContents(node);
+    const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    if (!rects.length) continue;
+    const left = Math.min(...rects.map((r) => r.left));
+    const right = Math.max(...rects.map((r) => r.right));
+    const top = Math.min(...rects.map((r) => r.top));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    let xFree = false;
+    let yFree = false;
+    let cause = '';
+    for (let a = owner; a && a !== document.body && a !== document.documentElement && !cause; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      const box = a.getBoundingClientRect();
+      if (!xFree) {
+        if (scrolls(cs.overflowX)) xFree = true;
+        else if (clips(cs.overflowX)) {
+          if (box.width <= 1 || cs.textOverflow === 'ellipsis') xFree = true;
+          else if (cuts(left, right, box.left, box.right)) cause = 'cut by the clip of';
+        }
+      }
+      if (!yFree && !cause) {
+        if (scrolls(cs.overflowY)) yFree = true;
+        else if (clips(cs.overflowY)) {
+          if (box.height <= 1 || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) yFree = true;
+          else if (cuts(top, bottom, box.top, box.bottom)) cause = 'cut by the clip of';
+        }
+      }
+      if (cs.position === 'fixed') break;
+    }
+    if (!cause && !xFree && cuts(left, right, 0, width)) cause = 'runs past the viewport in';
+    if (cause) {
+      const where = owner.tagName.toLowerCase() + '.' + String(owner.className || '').split(' ')[0];
+      text.push({ owner: where, detail: cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)) });
+    }
+  }
+  const scrollWidth = document.body.scrollWidth;
+  window.scrollTo(10000, 0);
+  const scrollX = window.scrollX;
+  window.scrollTo(0, 0);
+  return { scrollWidth, scrollX, text };
+})()`;
+
+const auditReflow = async () => {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: REFLOW_WIDTH, height: 800, deviceScaleFactor: 1, mobile: true,
+  });
+
+  // The auth pages answer a signed-in visitor with a redirect to /account, so
+  // they are measured first with the session cookie taken off, as the axe pass
+  // does.
+  const signedOutOnly = ([asked]) => SIGNED_OUT_ROUTES.has(asked);
+  const visits = [...visited.entries()];
+  const requested = [...visits.filter(signedOutOnly), ...visits.filter((v) => !signedOutOnly(v))];
+  console.log(`\nreflow: ${requested.length} routes at ${REFLOW_WIDTH}px and at 200% text`);
+
+  const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+  const session = cookies.find((c) => c.name === 'goen_session');
+  if (session) {
+    await send(ws, 'Network.deleteCookies', { name: session.name, domain: session.domain, path: session.path });
+  }
+  let sessionRestored = !session;
+
+  const observed = {};
+  const measured = new Set();
+  const unmeasured = [];
+  let debtMoved = false;
+
+  const measure = async (zoom) => {
+    const evaluated = await send(ws, 'Runtime.evaluate', {
+      expression: REFLOW_PROBE, awaitPromise: true, returnByValue: true,
+    }, 60000);
+    if (evaluated.exceptionDetails || !evaluated.result || !evaluated.result.value) {
+      throw new Error(evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 300));
+    }
+    const got = evaluated.result.value;
+    const found = {};
+    if (got.scrollWidth > REFLOW_WIDTH || got.scrollX !== 0) {
+      found[`scroll-${zoom}`] = `scrollWidth ${got.scrollWidth} > ${REFLOW_WIDTH}, scrollX ${got.scrollX} after scrollTo`;
+    }
+    // One entry per owner, so a baseline that lists a route's footer link does
+    // not accept a new cut elsewhere on it.
+    for (const run of got.text) {
+      const key = `text-${zoom}:${run.owner}`;
+      found[key] = found[key] ? found[key] + `; ${run.detail}` : run.detail;
+    }
+    return found;
+  };
+
+  for (const [asked, url] of requested) {
+    if (!sessionRestored && !SIGNED_OUT_ROUTES.has(asked)) {
+      await send(ws, 'Network.setCookie', {
+        name: session.name, value: session.value, domain: session.domain, path: session.path,
+      });
+      sessionRestored = true;
+    }
+    const landed = await settledFor('reflow', asked, url);
+    if (!landed) {
+      unmeasured.push(asked);
+      continue;
+    }
+    const route = routeOf(landed);
+    if (measured.has(route)) continue;
+    measured.add(route);
+
+    const found = {};
+    try {
+      Object.assign(found, await measure('320'));
+      await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = '200%'` });
+      Object.assign(found, await measure('200'));
+    } catch (err) {
+      unmeasured.push(route);
+      fail(`reflow ${route}`, `the measurement did not complete — ${err.message}`);
+      continue;
+    }
+
+    const known = reflowBaseline[route] || [];
+    for (const [check, detail] of Object.entries(found)) {
+      if (known.includes(check)) continue;
+      debtMoved = true;
+      fail(`reflow ${route}`, `${check}: ${detail}`);
+    }
+    // A listed check that stopped firing is removed by the change that fixed it,
+    // so this file can only shrink.
+    for (const check of known) {
+      if (check in found) continue;
+      debtMoved = true;
+      fail(`reflow ${route}`, `the baseline lists ${check}, which no longer fires here — remove it`);
+    }
+    observed[route] = Object.keys(found).sort();
+    console.log(`reflow ${route.padEnd(46).slice(0, 46)} failing=${observed[route].join(',') || '-'}`);
+  }
+
+  if (!debtMoved) return;
+
+  const merged = { ...reflowBaseline };
+  for (const [route, checks] of Object.entries(observed)) {
+    if (checks.length) merged[route] = checks;
+    else delete merged[route];
+  }
+  const ordered = {};
+  for (const route of Object.keys(merged).sort()) ordered[route] = merged[route];
+  console.log('::group::reflow baseline candidate — scripts/reflow-baseline.json');
+  if (unmeasured.length) {
+    console.log(`INCOMPLETE — these routes were not measured: ${unmeasured.join(', ')}`);
+  }
+  console.log(JSON.stringify({ ...reflowBaselineFile, routes: ordered }, null, 2));
+  console.log('::endgroup::');
+};
+
 await proveTargetSizeGates();
 await auditAccessibility();
+await auditReflow();
 
 ws.close();
 
