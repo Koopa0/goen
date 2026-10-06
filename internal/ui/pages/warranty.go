@@ -6,7 +6,10 @@ import (
 
 	"strconv"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 type WarrantyLine struct {
@@ -22,8 +25,27 @@ type WarrantyLine struct {
 	// an approved return.
 	Delivered int
 	// Returned units arrived, so a line with none left is not "waiting on delivery".
-	Returned   int
-	Registered int
+	Returned      int
+	Registered    int
+	DraftSerial   string
+	SerialRefusal string
+}
+
+func (l WarrantyLine) serialField(ctx context.Context) components.FieldProps {
+	id := "serial-" + l.ID
+	hint := "serial-hint-" + l.ID
+	field := components.FieldProps{
+		ID: id, Name: "serial", Type: "text", Value: l.DraftSerial,
+		Invalid: l.SerialRefusal != "", Describes: hint + " " + id + "-error",
+		Attrs: templ.Attributes{
+			"autocomplete": "off", "maxlength": "60",
+			"placeholder": i18n.T(ctx, i18n.KeySerialPlaceholder),
+		},
+	}
+	if !field.Invalid {
+		field.Attrs["aria-describedby"] = hint
+	}
+	return field
 }
 
 func (l WarrantyLine) Remaining() int {
@@ -64,14 +86,15 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 }
 
 type WarrantyOrderView struct {
-	Number string
-	Lines  []WarrantyLine
-	Notice string
+	Number  string
+	Lines   []WarrantyLine
+	Notice  string
+	Refusal string
 }
 
 func (v WarrantyOrderView) AnyRegistrable() bool {
-	for _, l := range v.Lines {
-		if l.Registrable() {
+	for i := range v.Lines {
+		if v.Lines[i].Registrable() {
 			return true
 		}
 	}
@@ -88,8 +111,8 @@ func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyWarrantyAfterShipping)
 	}
 	shared := v.Lines[0].Why(ctx)
-	for _, l := range v.Lines[1:] {
-		if l.Why(ctx) != shared {
+	for i := 1; i < len(v.Lines); i++ {
+		if v.Lines[i].Why(ctx) != shared {
 			return ""
 		}
 	}
@@ -100,7 +123,8 @@ func (v WarrantyOrderView) waitingOnDelivery() bool {
 	if len(v.Lines) == 0 {
 		return false
 	}
-	for _, l := range v.Lines {
+	for i := range v.Lines {
+		l := &v.Lines[i]
 		if !l.HasTerm || l.Delivered != 0 || l.Returned != 0 {
 			return false
 		}
