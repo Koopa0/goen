@@ -142,7 +142,7 @@ func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
 	view := &WorkerHealthView{UnreconciledEvents: []UnreconciledEvent{
 		{
 			EventID: "evt_refund_failed", Type: "refund.failed", Ref: "re_3Q1abc",
-			Reason:            "refund_failed: a refund goen recorded as succeeded failed at Stripe (lost_or_stolen_card)",
+			Reason:            "refund_failed: lost_or_stolen_card",
 			RefundOrderNumber: "GO-261006-000003", RefundCents: 120000,
 		},
 		{
