@@ -122,7 +122,7 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
 			RegisteredAt: shoptime.DateText(ctx, shoptime.DateOf(r.RegisteredAt, now)),
-			ExpiresOn:    shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now)),
+			ExpiresOn:    shoptime.DateOf(r.ExpiresOn, now),
 			InForce:      r.InForce,
 		})
 	}

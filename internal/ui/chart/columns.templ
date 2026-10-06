@@ -19,8 +19,12 @@ templ Columns(p ColumnsProps) {
 				}
 				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(c.Height) } aria-hidden="true" focusable="false">
 					for _, s := range c.Strips {
-						<rect class="goen-chart__span" x={ s.GroundX } y={ px(c.Baseline - columnsPlot) } width={ s.GroundWidth } height={ strconv.Itoa(columnsPlot) }></rect>
-						<rect class="goen-chart__strip" x={ s.X } y={ px(s.Y) } width={ s.Width } height="4"></rect>
+						if s.Window {
+							<rect class="goen-chart__window" x={ s.X } y={ px(s.Y + 3) } width={ s.Width } height="1"></rect>
+						} else {
+							<rect class="goen-chart__span" x={ s.GroundX } y={ px(c.Baseline - columnsPlot) } width={ s.GroundWidth } height={ strconv.Itoa(columnsPlot) }></rect>
+							<rect class="goen-chart__strip" x={ s.X } y={ px(s.Y) } width={ s.Width } height="4"></rect>
+						}
 						for _, x := range s.Gaps {
 							<line class={ "goen-chart__gap", templ.KV("goen-chart__gap--thin", s.Thin) } x1={ x } x2={ x } y1={ px(s.Y - 1) } y2={ px(s.Y + 5) }></line>
 						}
@@ -35,11 +39,14 @@ templ Columns(p ColumnsProps) {
 						}
 					}
 					for _, b := range c.Bars {
-						<rect class={ "goen-chart__hue", templ.KV("goen-chart__open", b.Open) } x={ b.X } y={ px(b.Y) } width={ b.Width } height={ px(b.Height) }></rect>
+						<rect class={ "goen-chart__hue", templ.KV("goen-chart__open", b.Open), templ.KV("goen-chart__hue--previous", b.Previous) } x={ b.X } y={ px(b.Y) } width={ b.Width } height={ px(b.Height) }></rect>
 					}
 					<line class="goen-chart__grid goen-chart__baseline" x1="0" x2="100%" y1={ px(c.Baseline) } y2={ px(c.Baseline) }></line>
 					if c.TodayX != "" {
 						<line class="goen-chart__todaymark" x1={ c.TodayX } x2={ c.TodayX } y1={ px(c.Baseline) } y2={ px(c.Baseline + 6) }></line>
+					}
+					for i, h := range c.Hits {
+						<rect class="goen-chart__hit" data-row={ strconv.Itoa(i) } x={ h.X } y="0" width={ h.Width } height={ px(c.Baseline) }></rect>
 					}
 					for _, v := range c.Values {
 						<text class="goen-chart__value" x={ v.X } y={ px(v.Y) } text-anchor="middle">{ v.Text }</text>
@@ -54,6 +61,7 @@ templ Columns(p ColumnsProps) {
 					}
 				</svg>
 			</div>
+			<p class="goen-chart__readout"></p>
 		}
 	}
 }
@@ -63,9 +71,9 @@ templ columnsTable(p ColumnsProps, c columns) {
 		<thead>
 			<tr>
 				<th scope="col">{ p.DayHeading }</th>
-				<th scope="col">{ p.Series.Label }</th>
+				<th scope="col" data-readout="series">{ p.Series.Label }</th>
 				if c.HasSpans {
-					<th scope="col" class="goen-chart__spans">{ p.SpanHeading }</th>
+					<th scope="col" class="goen-chart__spans" data-readout="note">{ p.SpanHeading }</th>
 				}
 			</tr>
 		</thead>

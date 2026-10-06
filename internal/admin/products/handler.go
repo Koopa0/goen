@@ -114,8 +114,19 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	h.renderProduct(w, r, http.StatusOK, web.Notice(r, notices))
 }
 
-func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+// product reads the editor's product; a failure to read its sales or reviews is
+// logged, and the view says what is missing.
+func (h *Handler) product(ctx context.Context, slug string) (admin.ProductView, error) {
 	view, err := h.store.Product(ctx, slug)
+	if errors.Is(err, ErrStanding) {
+		h.log.ErrorContext(ctx, "read product sales and reviews", "error", err)
+		err = nil
+	}
+	return view, err
+}
+
+func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+	view, err := h.product(ctx, slug)
 	if err != nil {
 		return view, err
 	}
