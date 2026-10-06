@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -25,11 +26,26 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := page.String()
-		if sentence := i18n.T(ctx, notices[tc.query].Key); !strings.Contains(got, sentence) {
+		m, ok := notices[tc.query]
+		if !ok {
+			t.Fatalf("notices has no entry %q", tc.query)
+		}
+		if sentence := i18n.T(ctx, m.Key); !strings.Contains(got, sentence) {
 			t.Errorf("?%s=1: the page does not show %q", tc.query, sentence)
 		}
 		if danger := strings.Contains(got, "goen-notice--danger"); danger != tc.failure {
 			t.Errorf("?%s=1: danger treatment = %t, want %t", tc.query, danger, tc.failure)
+		}
+	}
+}
+
+func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]components.Outcome{
+		"notflagged": components.OutcomeDone,
+	} {
+		if got := notices[name].Outcome; got != want {
+			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
 		}
 	}
 }
