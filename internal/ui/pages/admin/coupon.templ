@@ -35,7 +35,9 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupCode) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupValue) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupCurrent) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupConditions) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupUsage) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupExpiry) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
 							<th class="goen-admin__cellactions" scope="col">
 								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
@@ -55,9 +57,13 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								</td>
 								<td>
 									<span class="goen-admin__meta">{ c.Conditions(ctx) }</span>
+								</td>
+								<td>
 									<span class="goen-admin__meta">
 										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupUsed), c.Used(ctx)) }
 									</span>
+								</td>
+								<td>
 									if c.EndsAt != "" {
 										<span class="goen-admin__meta">
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupEndsAt), c.EndsAt) }
