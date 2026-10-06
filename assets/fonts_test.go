@@ -12,6 +12,18 @@ import (
 // asset name and the digest the sheet claims for it.
 var fontURL = regexp.MustCompile(`url\('` + regexp.QuoteMeta(Prefix) + `([^'?]+)\?v=([0-9a-f]+)'\)`)
 
+// fontFace matches one @font-face rule, capturing its family and its
+// font-weight range.
+var fontFace = regexp.MustCompile(`@font-face\s*\{[^}]*?font-family:\s*'([^']+)';[^}]*?font-weight:\s*([0-9 ]+);`)
+
+// declaredWeights is the weight range each family's rules must carry. A
+// browser draws a weight outside the declared range as the nearest end of it,
+// so a rule left at 400 700 paints the storefront's 350 as 400.
+var declaredWeights = map[string]string{
+	"Noto Sans TC":    "350 600",
+	"Instrument Sans": "400 600",
+}
+
 // TestFontStylesheetMatchesTheEmbeddedFonts is what makes a generated file safe
 // to check in.
 //
@@ -29,6 +41,20 @@ func TestFontStylesheetMatchesTheEmbeddedFonts(t *testing.T) {
 	matches := fontURL.FindAllStringSubmatch(string(sheet), -1)
 	if len(matches) == 0 {
 		t.Fatalf("%s names no fonts; the regexp and the sheet disagree", FontsCSS)
+	}
+
+	faces := fontFace.FindAllStringSubmatch(string(sheet), -1)
+	if len(faces) != len(matches) {
+		t.Fatalf("%s has %d @font-face rules and %d src urls; the regexps and the sheet disagree",
+			FontsCSS, len(faces), len(matches))
+	}
+	for _, f := range faces {
+		family, weight := f[1], f[2]
+		if want, ok := declaredWeights[family]; !ok {
+			t.Errorf("%s declares %q, which is not a family goen paints", FontsCSS, family)
+		} else if weight != want {
+			t.Errorf("%s declares %q at font-weight %s; want %s", FontsCSS, family, weight, want)
+		}
 	}
 
 	named := make(map[string]bool, len(matches))

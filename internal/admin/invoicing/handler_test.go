@@ -156,7 +156,7 @@ func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
 	}
 }
 
-func TestVoidAndAllowanceUnconfiguredIssuerUsesRefusedNotice(t *testing.T) {
+func TestVoidAndAllowanceUnconfiguredIssuerHasItsOwnNotice(t *testing.T) {
 	t.Parallel()
 
 	// Store.Void / Allow return ErrRefused when the writer is gone: a stale POST
@@ -183,16 +183,26 @@ func TestVoidAndAllowanceUnconfiguredIssuerUsesRefusedNotice(t *testing.T) {
 	disabled := invoiceNoticeHandler(stubInvoiceWriter{
 		voidErr: invoice.ErrDisabled, allowanceErr: invoice.ErrDisabled,
 	})
+	issueReq := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
+		"/admin/orders/"+invoiceNoticeOrder+"/invoice", http.NoBody)
+	issueReq.SetPathValue("number", invoiceNoticeOrder)
+	issueDisabled := httptest.NewRecorder()
+	disabled.Issue(issueDisabled, issueReq)
+	if issueDisabled.Code != http.StatusSeeOther ||
+		!strings.HasSuffix(issueDisabled.Header().Get("Location"), "?invoicingoff=1") {
+		t.Fatalf("Issue disabled issuer = %d %q, want 303 ?invoicingoff=1",
+			issueDisabled.Code, issueDisabled.Header().Get("Location"))
+	}
 	voidDisabled := postVoid(t, disabled, "資料錯誤")
 	if voidDisabled.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(voidDisabled.Header().Get("Location"), "?refused=1") {
-		t.Fatalf("Void disabled issuer = %d %q, want 303 ?refused=1",
+		!strings.HasSuffix(voidDisabled.Header().Get("Location"), "?invoicingoff=1") {
+		t.Fatalf("Void disabled issuer = %d %q, want 303 ?invoicingoff=1",
 			voidDisabled.Code, voidDisabled.Header().Get("Location"))
 	}
 	allowDisabled := postAllowance(t, disabled)
 	if allowDisabled.Code != http.StatusSeeOther ||
-		!strings.HasSuffix(allowDisabled.Header().Get("Location"), "?refused=1") {
-		t.Fatalf("Allowance disabled issuer = %d %q, want 303 ?refused=1",
+		!strings.HasSuffix(allowDisabled.Header().Get("Location"), "?invoicingoff=1") {
+		t.Fatalf("Allowance disabled issuer = %d %q, want 303 ?invoicingoff=1",
 			allowDisabled.Code, allowDisabled.Header().Get("Location"))
 	}
 }

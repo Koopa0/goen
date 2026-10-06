@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -38,11 +39,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/credit", ac.RequireStaff(h.GrantCredit))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":          i18n.KeyAdminNoticeOK,
-	"refused":     i18n.KeyAdminNoticeRefused,
-	"creditneeds": i18n.KeyAdminNoticeCreditNeeds,
-	"tiersneeds":  i18n.KeyAdminNoticeTiersNeeds,
+var notices = map[string]web.NoticeEntry{
+	"ok":          web.Done(i18n.KeyAdminNoticeOK),
+	"refused":     web.Refused(i18n.KeyAdminNoticeRefused),
+	"creditneeds": web.Refused(i18n.KeyAdminNoticeCreditNeeds),
+	"tiersneeds":  web.Refused(i18n.KeyAdminNoticeTiersNeeds),
 }
 
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +61,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 
 // creditNotice is noticeFor plus the BALANCE a grant produced: the form is a
 // blank box, so a grant nothing confirms is one somebody makes twice.
-func creditNotice(r *http.Request) string {
+func creditNotice(r *http.Request) components.Result {
 	if r.URL.Query().Get("ok") != "1" {
 		return web.Notice(r, notices)
 	}
@@ -68,7 +69,10 @@ func creditNotice(r *http.Request) string {
 	if err != nil {
 		return web.Notice(r, notices)
 	}
-	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), money.TWD(balance))
+	return components.Result{
+		Outcome: components.OutcomeDone,
+		Text:    fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), money.TWD(balance)),
+	}
 }
 
 // GrantCredit serves POST /admin/credit. The amount is typed in DOLLARS and
@@ -186,7 +190,7 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	}
 	view.Rows, view.Bound = ledger.Rows, ledger.Bound
 	if notice != "" {
-		view.Notice = i18n.T(r.Context(), notice)
+		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
 	web.Render(w, r, h.log, status, admin.Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

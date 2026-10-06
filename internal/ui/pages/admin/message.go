@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -13,7 +14,7 @@ type MessagesView struct {
 	web.Bound
 
 	Rows   []Message
-	Notice string
+	Notice components.Result
 }
 
 type Message struct {

@@ -25,11 +25,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 				</p>
 			</div>
 		</div>
-		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
-				{ v.Notice }
-			}
-		}
+		@Announce(v.Notice)
 		if v.Untranslated() > 0 {
 			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }

@@ -44,17 +44,17 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/home/{id}/promote", ac.RequireStaff(h.PromoteHero))
 }
 
-var notices = map[string]i18n.Key{
-	"ok":           i18n.KeyAdminNoticeOK,
-	"refused":      i18n.KeyAdminNoticeRefused,
-	"toobig":       i18n.KeyAdminNoticeTooBig,
-	"notimage":     i18n.KeyAdminNoticeNotImage,
-	"losslesswebp": i18n.KeyAdminNoticeLosslessWebP,
-	"uploadfailed": i18n.KeyAdminNoticeUploadFailed,
-	"uploadbusy":   i18n.KeyAdminNoticeUploadBusy,
-	"saved":        i18n.KeyAdminNoticeSaved,
-	"sent":         i18n.KeyAdminNoticeSent,
-	"already":      i18n.KeyAdminNoticeAlready,
+var notices = map[string]web.NoticeEntry{
+	"ok":           web.Done(i18n.KeyAdminNoticeOK),
+	"refused":      web.Refused(i18n.KeyAdminNoticeRefused),
+	"toobig":       web.Refused(i18n.KeyAdminNoticeTooBig),
+	"notimage":     web.Refused(i18n.KeyAdminNoticeNotImage),
+	"losslesswebp": web.Refused(i18n.KeyAdminNoticeLosslessWebP),
+	"uploadfailed": web.Failed(i18n.KeyAdminNoticeUploadFailed),
+	"uploadbusy":   web.Failed(i18n.KeyAdminNoticeUploadBusy),
+	"saved":        web.Done(i18n.KeyAdminNoticeSaved),
+	"sent":         web.Done(i18n.KeyAdminNoticeSent),
+	"already":      web.Done(i18n.KeyAdminNoticeAlready),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
