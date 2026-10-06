@@ -68,28 +68,38 @@ FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz;
 
--- days_cover is never NULL because the WHERE clause admits only variants that
--- sold something, so the divisor cannot be zero. It divides what a sale may
--- still take: record_inventory_movement refuses to go below safety_stock.
+-- Every active variant that sold in [from_at, to_at) or has nothing a sale may
+-- take. Sales are counted in orders as well as units: the report's sample size
+-- is the orders, since one order of ten units is one event. Ranking and the
+-- estimate are the page's.
 -- name: StockAtRisk :many
 SELECT
+    pv.id AS variant_id,
     pv.sku,
     p.name AS product_name,
     p.slug,
-    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
+    pv.stock_quantity,
+    pv.safety_stock,
     sold.units::bigint AS units_sold,
-    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
-     / (sold.units::numeric / @window_days::integer))::integer AS days_cover
+    sold.orders::bigint AS orders_sold
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN LATERAL (
-    SELECT coalesce(sum(ol.quantity), 0) AS units
+    SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
-      AND o.placed_at >= now() - make_interval(days => @window_days::integer)
+      AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
 ) sold ON true
-WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, sellable_quantity
-LIMIT @limit_to::integer;
+WHERE pv.is_active AND p.status = 'active'
+  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
+ORDER BY pv.sku;
+
+-- The ledger since from_at, from which a variant's stock at from_at is rolled
+-- back and the days it had anything to sell are counted.
+-- name: StockMovementsSince :many
+SELECT m.variant_id, m.created_at, m.delta
+FROM inventory_movements m
+WHERE m.variant_id = ANY(@variant_ids::uuid[]) AND m.created_at >= @from_at::timestamptz
+ORDER BY m.variant_id, m.created_at, m.id;
