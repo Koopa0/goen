@@ -742,3 +742,52 @@ func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
 		})
 	}
 }
+
+func TestDeadVerificationLinksOfferRecovery(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, state := range []string{"expired", "spent"} {
+			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				s := account.NewStore(pool)
+				u := registerProved(t, s, "verify-recovery-"+uuid.NewString()+"@goen.invalid")
+				b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(accountStorePool(t, "verify-recovery")), nil, slog.New(slog.DiscardHandler), false, nil)}
+				session := b.signIn(u.Email)
+				target := "verify-replacement-" + uuid.NewString() + "@goen.invalid"
+				token := requestVerification(t, s, u.ID, target)
+				if state == "expired" {
+					if _, err := pool.Exec(ctx, `UPDATE email_verifications
+					    SET created_at = now() - interval '50 hours', expires_at = now() - interval '2 hours'
+					    WHERE digest = $1`, account.HashToken(token)); err != nil {
+						t.Fatal(err)
+					}
+				} else if _, err := s.ConfirmVerification(ctx, token, u.ID); err != nil {
+					t.Fatal(err)
+				}
+				before := accountRecoveryState(t, u.ID)
+				page := b.serve(b.h.VerifyPage, httptest.NewRequestWithContext(ctx, http.MethodGet, "/verify?token="+token, http.NoBody), session)
+				if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `name="token" value="`+token+`"`) {
+					t.Fatal("GET validated a dead token instead of presenting the verification form")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Fatal("scanner GET changed account state")
+				}
+				res := b.serve(b.h.Verify, cartForm(ctx, "/verify", url.Values{"token": {token}}), session)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("dead verification POST = %d, want 422", res.Code)
+				}
+				heading, reason := "This link has expired", "It may have been used already, or be more than two days old."
+				if locale == i18n.ZhHant {
+					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+					reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
+				}
+				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/account#email-heading")
+				if strings.Contains(res.Body.String(), token) {
+					t.Error("dead verification recovery leaks the token")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Error("refused verification changed account state")
+				}
+			})
+		}
+	}
+}

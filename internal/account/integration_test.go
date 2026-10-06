@@ -21,10 +21,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	htmlnode "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -4347,4 +4349,157 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 	if exists(fresh) {
 		t.Error("a fresh session did not erase the account")
 	}
+}
+
+func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination string) {
+	t.Helper()
+	doc, err := htmlnode.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var panel *htmlnode.Node
+	var headings, duplicates []string
+	ids := map[string]bool{}
+	for n := range doc.Descendants() {
+		id := emailLinkAttr(n, "id")
+		if id != "" && ids[id] {
+			duplicates = append(duplicates, id)
+		}
+		ids[id] = true
+		if n.Type == htmlnode.ElementNode && n.Data == "h1" {
+			headings = append(headings, emailLinkText(n))
+			panel = n.Parent
+		}
+	}
+	if panel == nil {
+		t.Fatal("recovery has no heading")
+	}
+	type recoveryFacts struct {
+		Headings, Reasons, Destinations, DuplicateIDs []string
+		Envelopes, Tokens                            int
+		ObsoleteProse                                bool
+	}
+	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
+	for n := range panel.Descendants() {
+		class := emailLinkAttr(n, "class")
+		if n.Data == "p" && strings.Contains(class, "notice__body") {
+			got.Reasons = append(got.Reasons, emailLinkText(n))
+		}
+		if strings.Contains(class, "goen-medallion") {
+			got.Envelopes++
+		}
+		if emailLinkAttr(n, "name") == "token" {
+			got.Tokens++
+		}
+		if strings.Contains(class, "goen-btn--primary") {
+			got.Destinations = append(got.Destinations, emailLinkDestination(t, n, destination))
+		}
+	}
+	text := emailLinkText(panel)
+	got.ObsoleteProse = strings.Contains(text, "One button") || strings.Contains(text, "\u6309\u4e0b\u6309\u9215")
+	want := recoveryFacts{Headings: []string{heading}, Reasons: []string{reason}, Destinations: []string{destination}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("email link recovery (-want +got):\n%s", diff)
+	}
+}
+
+func emailLinkAttr(n *htmlnode.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+func emailLinkText(n *htmlnode.Node) string {
+	var text strings.Builder
+	for part := range n.Descendants() {
+		if part.Type == htmlnode.TextNode {
+			text.WriteString(part.Data)
+		}
+	}
+	return text.String()
+}
+
+func emailLinkDestination(t *testing.T, n *htmlnode.Node, want string) string {
+	t.Helper()
+	if n.Data == "a" {
+		return emailLinkAttr(n, "href")
+	}
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Data != "form" {
+			continue
+		}
+		if want == "/newsletter" && emailLinkAttr(p, "method") != "post" {
+			t.Error("newsletter recovery is not a plain POST form")
+		}
+		return emailLinkAttr(p, "action")
+	}
+	return ""
+}
+
+func TestDeadResetLinksOfferRecovery(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, state := range []string{"expired", "spent"} {
+			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				s := account.NewStore(pool)
+				u := registerProved(t, s, "reset-recovery-"+uuid.NewString()+"@goen.invalid")
+				token := beginReset(t, s, u.Email)
+				if state == "expired" {
+					if _, err := pool.Exec(ctx, `UPDATE password_reset_tokens
+					    SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 second'
+					    WHERE token_hash = $1`, account.HashToken(token)); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
+					t.Fatal(err)
+				}
+				h := account.NewHandler(account.NewStore(accountStorePool(t, "reset-recovery")), nil, slog.New(slog.DiscardHandler), false, nil)
+				before := accountRecoveryState(t, u.ID)
+				page := httptest.NewRecorder()
+				h.ResetPage(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/reset?token="+token, http.NoBody))
+				if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `name="token" value="`+token+`"`) {
+					t.Fatal("GET validated a dead token instead of presenting the reset form")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Fatal("scanner GET changed account state")
+				}
+				res := httptest.NewRecorder()
+				h.Reset(res, cartForm(ctx, "/reset", url.Values{
+					"token": {token}, "password": {"the refused recovery password"}, "confirm": {"the refused recovery password"},
+				}))
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("dead reset POST = %d, want 422", res.Code)
+				}
+				heading, reason := "This link has expired", "That link has been used, has expired, or is not right."
+				if locale == i18n.ZhHant {
+					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+					reason = "\u9019\u500b\u9023\u7d50\u5df2\u7d93\u7528\u904e\u3001\u904e\u671f\u6216\u4e0d\u6b63\u78ba\u3002"
+				}
+				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/forgot")
+				if strings.Contains(res.Body.String(), token) {
+					t.Error("dead reset recovery leaks the token")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Error("refused reset changed account state or password")
+				}
+			})
+		}
+	}
+}
+
+func accountRecoveryState(t *testing.T, userID string) string {
+	t.Helper()
+	var state string
+	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
+	    'account', (SELECT to_jsonb(u) FROM users u WHERE id = $1),
+	    'verification', (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.digest) FROM email_verifications v WHERE user_id = $1),
+	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.token_hash) FROM password_reset_tokens r WHERE user_id = $1),
+	    'mail', (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM outbox_messages m WHERE payload->>'user_id' = $1::text OR lower(payload->>'email') = (SELECT lower(email) FROM users WHERE id = $1)))::text`,
+		userID).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
 }

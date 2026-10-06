@@ -840,3 +840,43 @@ func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
 		})
 	}
 }
+
+func TestInvalidVerificationOffersEmailResend(t *testing.T) {
+	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.Verify(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/verify", http.NoBody))
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("invalid verification = %d, want 422", res.Code)
+			}
+			heading := "This link has expired"
+			reason := "It may have been used already, or be more than two days old."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
+			}
+			assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/account#email-heading")
+		})
+	}
+}
+
+func TestVerificationInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.verifyFailed(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/verify", http.NoBody),
+				i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+			body := res.Body.String()
+			if res.Code != http.StatusUnprocessableEntity || strings.Count(body, `class="goen-medallion"`) != 1 {
+				t.Error("infrastructure failure lost its existing notice state")
+			}
+			if strings.Contains(body, `href="/account#email-heading"`) || strings.Contains(body, i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)) {
+				t.Error("infrastructure failure claims that the emailed link is dead")
+			}
+		})
+	}
+}

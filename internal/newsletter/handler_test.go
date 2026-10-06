@@ -171,8 +171,8 @@ func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
 			res := httptest.NewRecorder()
 			h.Unsubscribe(res, req)
 			body := res.Body.String()
-			if strings.Count(body, "contact@koopa0.dev") != 3 {
-				t.Error("invalid unsubscribe must name the owned mailbox in its recovery message and footer")
+			if !strings.Contains(body, `href="mailto:contact@koopa0.dev"`) {
+				t.Error("invalid unsubscribe must offer the owned mailbox")
 			}
 			if strings.Contains(body, "support@goen.tw") || strings.Contains(body, "%s") {
 				t.Error("invalid unsubscribe exposes an unowned or unformatted contact")
@@ -478,11 +478,15 @@ func TestMissingEmailedNewsletterLinksOfferRecovery(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
-			name, path, destination string
-			handler http.HandlerFunc
+			name        string
+			path        string
+			destination string
+			zhHeading   string
+			enHeading   string
+			handler     http.HandlerFunc
 		}{
-			{name: "confirm", path: "/newsletter/confirm", destination: "/newsletter", handler: h.ConfirmPage},
-			{name: "unsubscribe", path: "/newsletter/unsubscribe", destination: "mailto:contact@koopa0.dev", handler: h.UnsubscribePage},
+			{name: "confirm", zhHeading: "\u78ba\u8a8d\u8a02\u95b1 goen \u96fb\u5b50\u5831", enHeading: "Confirm your goen newsletter subscription", path: "/newsletter/confirm", destination: "/newsletter", handler: h.ConfirmPage},
+			{name: "unsubscribe", zhHeading: "\u9000\u8a02 goen \u96fb\u5b50\u5831", enHeading: "Unsubscribe from the goen newsletter", path: "/newsletter/unsubscribe", destination: "mailto:contact@koopa0.dev", handler: h.UnsubscribePage},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
@@ -491,78 +495,141 @@ func TestMissingEmailedNewsletterLinksOfferRecovery(t *testing.T) {
 				if res.Code != http.StatusOK {
 					t.Fatalf("missing link = %d, want 200", res.Code)
 				}
+				heading := tt.enHeading
 				reason := "This link is incomplete; open it again from the button in the email."
 				if locale == i18n.ZhHant {
+					heading = tt.zhHeading
 					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
 				}
-				assertEmailLinkRecovery(t, res.Body.String(), reason, tt.destination)
+				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, tt.destination)
 			})
 		}
 	}
 }
 
-func assertEmailLinkRecovery(t *testing.T, body, reason, destination string) {
+func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	attr := func(n *html.Node, key string) string {
-		for _, a := range n.Attr {
-			if a.Key == key {
-				return a.Val
-			}
-		}
-		return ""
-	}
 	var panel *html.Node
+	var headings, duplicates []string
 	ids := map[string]bool{}
 	for n := range doc.Descendants() {
-		if id := attr(n, "id"); id != "" {
-			if ids[id] {
-				t.Errorf("duplicate id %q", id)
-			}
-			ids[id] = true
+		id := emailLinkAttr(n, "id")
+		if id != "" && ids[id] {
+			duplicates = append(duplicates, id)
 		}
+		ids[id] = true
 		if n.Type == html.ElementNode && n.Data == "h1" {
+			headings = append(headings, emailLinkText(n))
 			panel = n.Parent
 		}
 	}
 	if panel == nil {
 		t.Fatal("recovery has no heading")
 	}
-	var text strings.Builder
-	primary := 0
+	type recoveryFacts struct {
+		Headings, Reasons, Destinations, DuplicateIDs []string
+		Envelopes, Tokens                            int
+		ObsoleteProse                                bool
+	}
+	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
 	for n := range panel.Descendants() {
-		if n.Type == html.TextNode {
-			text.WriteString(n.Data)
+		class := emailLinkAttr(n, "class")
+		if n.Data == "p" && strings.Contains(class, "notice__body") {
+			got.Reasons = append(got.Reasons, emailLinkText(n))
 		}
-		if attr(n, "name") == "token" || strings.Contains(attr(n, "class"), "goen-medallion") {
-			t.Errorf("failure retains %s %q", n.Data, attr(n, "class"))
+		if strings.Contains(class, "goen-medallion") {
+			got.Envelopes++
 		}
-		if strings.Contains(attr(n, "class"), "goen-btn--primary") {
-			primary++
-			got := attr(n, "href")
-			if n.Data == "button" {
-				for p := n.Parent; p != nil; p = p.Parent {
-					if p.Data == "form" {
-						got = attr(p, "action")
-						if destination == "/newsletter" && attr(p, "method") != "post" {
-							t.Error("newsletter recovery is not a plain POST form")
-						}
-						break
-					}
-				}
-			}
-			if got != destination {
-				t.Errorf("primary destination = %q, want %q", got, destination)
-			}
+		if emailLinkAttr(n, "name") == "token" {
+			got.Tokens++
+		}
+		if strings.Contains(class, "goen-btn--primary") {
+			got.Destinations = append(got.Destinations, emailLinkDestination(t, n, destination))
 		}
 	}
-	if primary != 1 {
-		t.Errorf("recovery primaries = %d, want 1", primary)
+	text := emailLinkText(panel)
+	got.ObsoleteProse = strings.Contains(text, "One button") || strings.Contains(text, "\u6309\u4e0b\u6309\u9215")
+	want := recoveryFacts{Headings: []string{heading}, Reasons: []string{reason}, Destinations: []string{destination}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("email link recovery (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(text.String(), reason) {
-		t.Errorf("recovery reason = %q, want %q", text.String(), reason)
+}
+
+func emailLinkAttr(n *html.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+func emailLinkText(n *html.Node) string {
+	var text strings.Builder
+	for part := range n.Descendants() {
+		if part.Type == html.TextNode {
+			text.WriteString(part.Data)
+		}
+	}
+	return text.String()
+}
+
+func emailLinkDestination(t *testing.T, n *html.Node, want string) string {
+	t.Helper()
+	if n.Data == "a" {
+		return emailLinkAttr(n, "href")
+	}
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Data != "form" {
+			continue
+		}
+		if want == "/newsletter" && emailLinkAttr(p, "method") != "post" {
+			t.Error("newsletter recovery is not a plain POST form")
+		}
+		return emailLinkAttr(p, "action")
+	}
+	return ""
+}
+
+func TestNewsletterInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.linkFailed(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/newsletter/confirm", http.NoBody),
+				i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+			body := res.Body.String()
+			if res.Code != http.StatusUnprocessableEntity || strings.Count(body, `class="goen-medallion"`) != 1 {
+				t.Error("infrastructure failure lost its existing notice state")
+			}
+			if strings.Contains(body, "newsletter-recovery-email") || strings.Contains(body, i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)) {
+				t.Error("infrastructure failure claims that the emailed link is dead")
+			}
+		})
+	}
+}
+
+func TestInvalidNewsletterConfirmationOffersSignup(t *testing.T) {
+	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.Confirm(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/newsletter/confirm", http.NoBody))
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("invalid confirmation = %d, want 422", res.Code)
+			}
+			heading, reason := "This link has expired", "It may have been used already, or be more than two days old."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
+			}
+			assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/newsletter")
+		})
 	}
 }

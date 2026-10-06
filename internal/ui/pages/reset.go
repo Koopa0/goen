@@ -22,9 +22,15 @@ func (v ResetView) Usable() bool { return !v.Expired && v.Token != "" }
 
 func (v ResetView) HasError() bool { return v.Error != "" }
 
-func (v ResetView) Refusal(ctx context.Context) string {
-	if v.Expired {
-		return i18n.T(ctx, i18n.KeyResetDead)
+func (v ResetView) RecoveryView(ctx context.Context) NewsletterActionView {
+	view := NewsletterActionView{
+		Heading:  i18n.T(ctx, i18n.KeyResetTitle),
+		Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
+		Recovery: EmailLinkReset,
 	}
-	return i18n.T(ctx, i18n.KeyResetNoToken)
+	if v.Expired {
+		view.Heading = i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
+		view.Body = i18n.T(ctx, i18n.KeyResetDead)
+	}
+	return view
 }

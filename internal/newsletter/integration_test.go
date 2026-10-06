@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	htmlnode "golang.org/x/net/html"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1058,4 +1059,193 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 			})
 		}
 	}
+}
+
+func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination string) {
+	t.Helper()
+	doc, err := htmlnode.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var panel *htmlnode.Node
+	var headings, duplicates []string
+	ids := map[string]bool{}
+	for n := range doc.Descendants() {
+		id := emailLinkAttr(n, "id")
+		if id != "" && ids[id] {
+			duplicates = append(duplicates, id)
+		}
+		ids[id] = true
+		if n.Type == htmlnode.ElementNode && n.Data == "h1" {
+			headings = append(headings, emailLinkText(n))
+			panel = n.Parent
+		}
+	}
+	if panel == nil {
+		t.Fatal("recovery has no heading")
+	}
+	type recoveryFacts struct {
+		Headings, Reasons, Destinations, DuplicateIDs []string
+		Envelopes, Tokens                            int
+		ObsoleteProse                                bool
+	}
+	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
+	for n := range panel.Descendants() {
+		class := emailLinkAttr(n, "class")
+		if n.Data == "p" && strings.Contains(class, "notice__body") {
+			got.Reasons = append(got.Reasons, emailLinkText(n))
+		}
+		if strings.Contains(class, "goen-medallion") {
+			got.Envelopes++
+		}
+		if emailLinkAttr(n, "name") == "token" {
+			got.Tokens++
+		}
+		if strings.Contains(class, "goen-btn--primary") {
+			got.Destinations = append(got.Destinations, emailLinkDestination(t, n, destination))
+		}
+	}
+	text := emailLinkText(panel)
+	got.ObsoleteProse = strings.Contains(text, "One button") || strings.Contains(text, "\u6309\u4e0b\u6309\u9215")
+	want := recoveryFacts{Headings: []string{heading}, Reasons: []string{reason}, Destinations: []string{destination}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("email link recovery (-want +got):\n%s", diff)
+	}
+}
+
+func emailLinkAttr(n *htmlnode.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+func emailLinkText(n *htmlnode.Node) string {
+	var text strings.Builder
+	for part := range n.Descendants() {
+		if part.Type == htmlnode.TextNode {
+			text.WriteString(part.Data)
+		}
+	}
+	return text.String()
+}
+
+func emailLinkDestination(t *testing.T, n *htmlnode.Node, want string) string {
+	t.Helper()
+	if n.Data == "a" {
+		return emailLinkAttr(n, "href")
+	}
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Data != "form" {
+			continue
+		}
+		if want == "/newsletter" && emailLinkAttr(p, "method") != "post" {
+			t.Error("newsletter recovery is not a plain POST form")
+		}
+		return emailLinkAttr(p, "action")
+	}
+	return ""
+}
+
+func TestDeadNewsletterLinksOfferRecovery(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, state := range []string{"expired-confirm", "spent-confirm", "unknown-unsubscribe"} {
+			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				s, address := store(t), addr(t)
+				if _, err := s.Request(ctx, address); err != nil {
+					t.Fatal(err)
+				}
+				token := tokenFor(t, "newsletter.confirm", address, "token")
+				switch state {
+				case "expired-confirm":
+					if _, err := pool.Exec(ctx, `UPDATE newsletter_confirmations
+					    SET created_at = now() - interval '50 hours', expires_at = now() - interval '2 hours'
+					    WHERE lower(email) = lower($1)`, address); err != nil {
+						t.Fatal(err)
+					}
+				case "spent-confirm", "unknown-unsubscribe":
+					if _, err := s.Confirm(ctx, token); err != nil {
+						t.Fatal(err)
+					}
+				}
+				h := recoveryNewsletterHandler(t)
+				get, post, path := h.ConfirmPage, h.Confirm, "/newsletter/confirm"
+				destination := "/newsletter"
+				reason := "It may have been used already, or be more than two days old."
+				if locale == i18n.ZhHant {
+					reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
+				}
+				if state == "unknown-unsubscribe" {
+					get, post, path = h.UnsubscribePage, h.Unsubscribe, "/newsletter/unsubscribe"
+					token = "unknown-" + uuid.NewString()
+					destination = "mailto:contact@koopa0.dev"
+					reason = "This unsubscribe link is not valid. If the newsletter keeps arriving, contact us."
+					if locale == i18n.ZhHant {
+						reason = "\u9019\u500b\u9000\u8a02\u9023\u7d50\u4e0d\u6b63\u78ba\u3002\u5982\u679c\u9084\u5728\u6536\u5230\u96fb\u5b50\u5831\uff0c\u8acb\u806f\u7d61\u6211\u5011\u3002"
+					}
+				}
+				before := newsletterRecoveryState(t, address)
+				page := httptest.NewRecorder()
+				get(page, httptest.NewRequestWithContext(ctx, http.MethodGet, path+"?token="+token, http.NoBody))
+				if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `name="token" value="`+token+`"`) {
+					t.Fatal("GET validated a dead token instead of presenting the confirmation form")
+				}
+				if after := newsletterRecoveryState(t, address); after != before {
+					t.Fatal("scanner GET changed newsletter state")
+				}
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(url.Values{"token": {token}}.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				res := httptest.NewRecorder()
+				post(res, req)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("dead link POST = %d, want 422", res.Code)
+				}
+				heading := "This link has expired"
+				if locale == i18n.ZhHant {
+					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				}
+				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, destination)
+				if strings.Contains(res.Body.String(), token) {
+					t.Error("dead-link recovery leaks the token")
+				}
+				if after := newsletterRecoveryState(t, address); after != before {
+					t.Error("refused link changed newsletter state")
+				}
+			})
+		}
+	}
+}
+
+func recoveryNewsletterHandler(t *testing.T) *newsletter.Handler {
+	t.Helper()
+	cfg := pool.Config().Copy()
+	cfg.MaxConns = 1
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, `SET ROLE store`)
+		return err
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(p.Close)
+	return newsletter.NewHandler(newsletter.NewStore(p), ratelimit.New(ratelimit.Config{
+		Every: time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 100,
+	}), slog.New(slog.DiscardHandler))
+}
+
+func newsletterRecoveryState(t *testing.T, address string) string {
+	t.Helper()
+	var state string
+	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
+	    'subscriber', (SELECT to_jsonb(n) FROM newsletter_subscribers n WHERE lower(email) = lower($1)),
+	    'tokens', (SELECT jsonb_agg(to_jsonb(n) ORDER BY n.digest) FROM newsletter_confirmations n WHERE lower(email) = lower($1)),
+	    'mail', (SELECT jsonb_agg(to_jsonb(n) ORDER BY n.id) FROM outbox_messages n WHERE lower(payload->>'email') = lower($1)))::text`,
+		address).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
 }
