@@ -164,11 +164,6 @@ INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'var
 INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street, is_default)
 VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
 
--- A tier above the fixture customer's spend, so the customer page draws its meter.
-INSERT INTO membership_tiers (code, name, name_en, min_spend_cents)
-VALUES ('layout_fixture', '版面檢查會員', 'Layout fixture', 10000000000)
-ON CONFLICT DO NOTHING;
-
 -- Five orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
 -- delivered, returned and refunded; RETURN_FORM_ORDER is delivered with nothing
