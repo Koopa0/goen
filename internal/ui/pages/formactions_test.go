@@ -63,7 +63,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"pages/admin/question.templ:templ.SafeURL(q.AnswerAction())":              {(admin.Question{ID: "question"}).AnswerAction()},
 		"pages/listing.templ:templ.SafeURL(v.FilterAction())":                     {(pages.ListingView{Slug: "category"}).FilterAction()},
 		"pages/warranty.templ:templ.SafeURL(v.Action())":                          {(pages.WarrantyOrderView{Number: "order"}).Action()},
-		"pages/pay.templ:templ.SafeURL(v.Action())":                               {(pages.PayView{Number: "order"}).Action()},
+		"pages/pay.templ:templ.SafeURL(v.Action())":                               {(&pages.PayView{Number: "order"}).Action()},
 		"pages/returns.templ:templ.SafeURL(v.Action())":                           {(pages.ReturnsView{Number: "order"}).Action()},
 		"pages/admin/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())": {product.InvoiceLineAction()},
 	}
