@@ -44,7 +44,7 @@ templ Messages(p layouts.Page, v MessagesView) {
 					<li class="goen-modqueue__item goen-modqueue__item--split">
 						<div class="goen-modqueue__record">
 							<div class="goen-modqueue__head">
-								<p class="goen-modqueue__title">{ m.Subject }</p>
+								<p class="goen-modqueue__title">{ m.SubjectLabel }</p>
 								if m.Handled {
 									@components.Badge(components.BadgeProps{}) {
 										{ m.Waiting(ctx) }

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -138,6 +139,9 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 	}{
 		{"adjust stock", audit.ActionAdjustStock, func() error {
 			return stock.NewStore(pool).Adjust(ctx, sku, 3, actor.String(), uuid.NewString())
+		}},
+		{"set arrival", audit.ActionSetVariantArrival, func() error {
+			return stock.NewStore(pool).SetArrival(ctx, sku, pgtype.Date{})
 		}},
 		{"reprice", audit.ActionRepriceVariant, func() error {
 			return stock.NewStore(pool).SetPrice(ctx, sku, 123400, 0)

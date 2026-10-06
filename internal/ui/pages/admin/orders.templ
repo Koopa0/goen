@@ -772,6 +772,7 @@ templ variantTable(variants []Variant, back string) {
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColPrice) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</th>
 				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</th>
 			</tr>
 		</thead>
@@ -816,6 +817,28 @@ templ variantTable(variants []Variant, back string) {
 								placeholder={ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }
 							/>
 							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueuePriceSave) }</button>
+						</form>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/arrival">
+							<input type="hidden" name="return" value={ back }/>
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<label class="goen-sr-only" for={ "arrival-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminVariantArrival) }</label>
+							<input
+								class="ui-input ui-input--sm"
+								id={ "arrival-" + x.SKU }
+								type="date"
+								name="arrival_on"
+								value={ x.ArrivalInput }
+								if x.ArrivalError != "" {
+									aria-invalid="true"
+									aria-describedby={ "arrival-error-" + x.SKU }
+								}
+							/>
+							if x.ArrivalError != "" {
+								<p class="ui-error-text" id={ "arrival-error-" + x.SKU } role="alert">{ x.ArrivalError }</p>
+							}
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminVariantArrivalSave) }</button>
 						</form>
 					</td>
 					<td>

@@ -18,15 +18,15 @@ type MessagesView struct {
 }
 
 type Message struct {
-	ID          string
-	Name        string
-	Email       string
-	Subject     string
-	OrderRef    string
-	Message     string
-	Handled     bool
-	At          string
-	WaitingDays int
+	ID           string
+	Name         string
+	Email        string
+	SubjectLabel string
+	OrderRef     string
+	Message      string
+	Handled      bool
+	At           string
+	WaitingDays  int
 }
 
 func (v MessagesView) Empty() bool { return len(v.Rows) == 0 }

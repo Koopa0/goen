@@ -211,3 +211,28 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 		}
 	}
 }
+
+func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens := make(map[string]string)
+	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if len(alias) != 2 || tokens[alias[1]] == "" {
+		t.Fatal("controls need a boundary from the existing colour ramp")
+	}
+	tokens["--control-boundary"] = tokens[alias[1]]
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		got := contrast(tokens["--control-boundary"], tokens[ground])
+		if math.IsNaN(got) || got < 3 {
+			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
+		}
+	}
+}
