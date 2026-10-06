@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -58,6 +59,9 @@ templ Coupons(p layouts.Page, v CouponsView) {
 									<span class="goen-admin__meta">
 										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupUsed), c.Used(ctx)) }
 									</span>
+									if c.MaxRedeem > 0 {
+										@chart.Meter(c.UsesMeter())
+									}
 									if c.EndsAt != "" {
 										<span class="goen-admin__meta">
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupEndsAt), c.EndsAt) }

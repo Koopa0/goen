@@ -5,7 +5,10 @@
 // absent, in which case nothing can be registered rather than a term invented.
 package warranty
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 const MaxSerialRunes = 60
 
@@ -16,4 +19,8 @@ var (
 	ErrNotRegistrable = errors.New("warranty: this unit cannot be registered")
 	ErrSerialTaken    = errors.New("warranty: that serial number is already registered")
 	ErrInvalid        = errors.New("warranty: invalid registration")
+
+	// ErrSerialTooLong also matches ErrInvalid, so callers that handle all
+	// invalid registrations alike retain that behavior.
+	ErrSerialTooLong = fmt.Errorf("%w: serial number is too long", ErrInvalid)
 )
