@@ -24,7 +24,7 @@ ORDER BY d.issued_at DESC, d.id DESC;
 -- an order compares lines rather than totals.
 -- name: InvoiceDocumentLines :many
 SELECT l.document_id, l.id, l.description, l.quantity, l.unit_price_cents,
-       l.amount_cents, l.tax_type
+       l.amount_cents, l.tax_type, l.unit
 FROM invoice_document_lines l
 WHERE l.document_id = ANY(@document_ids::uuid[])
 ORDER BY l.document_id, l.position, l.id;
@@ -181,7 +181,9 @@ SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
        ARRAY(SELECT l.amount_cents FROM invoice_document_lines l
              WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS line_amount_cents,
        ARRAY(SELECT l.tax_type FROM invoice_document_lines l
-             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types,
+       ARRAY(SELECT l.unit FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS units
 FROM invoice_documents d
 WHERE d.original_id = @original_id::uuid AND d.kind = 'allowance'
 ORDER BY d.issued_at, d.id;

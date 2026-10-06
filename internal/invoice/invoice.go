@@ -183,8 +183,10 @@ type Document struct {
 func (d Document) Voided() bool { return d.Status == DocumentVoided }
 
 type Line struct {
-	Description string `json:"description"`
-	Quantity    int32  `json:"quantity"`
+	TaxType     TaxType  `json:"tax_type"`
+	Unit        ItemUnit `json:"unit"`
+	Description string   `json:"description"`
+	Quantity    int32    `json:"quantity"`
 	// UnitPriceCents and AmountCents are tax-INCLUSIVE, matching what the
 	// customer was charged.
 	UnitPriceCents int64 `json:"unit_price_cents"`

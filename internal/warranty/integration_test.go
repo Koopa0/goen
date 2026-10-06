@@ -5,17 +5,25 @@ package warranty_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -648,6 +656,159 @@ const approveReturnSQL = `
 	    card_refund_cents = 100000, credit_refund_cents = 0
 	WHERE id = $1`
 
+func TestWarrantySerialRefusalsRetainOnlyTheAuthorizedLine(t *testing.T) {
+	app := warrantyStoreRolePool(t)
+	s := warranty.NewStore(app)
+	h := warranty.NewHandler(s, slog.Default())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /account/warranty/{number}", h.Register)
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tc := range []struct {
+			name   string
+			serial string
+			unit   string
+			target string
+			status int
+			field  i18n.Key
+		}{
+			{name: "duplicate serial", unit: "1", status: 422, field: i18n.KeyWarrantyDuplicateSerial},
+			{name: "long ascii", serial: "  " + strings.Repeat("A", 61) + "  ", unit: "1", status: 422, field: i18n.KeyWarrantySerialTooLong},
+			{name: "long unicode", serial: "  " + strings.Repeat("界", 61) + "  ", unit: "1", status: 422, field: i18n.KeyWarrantySerialTooLong},
+			{name: "invalid unit", serial: " Keep & \"draft\" ", unit: "invalid", status: 422},
+			{name: "foreign line", serial: " Never reflect foreign draft ", unit: "1", target: "foreign line", status: 422},
+			{name: "foreign order", serial: " Never reflect foreign draft ", unit: "1", target: "foreign order", status: 404},
+		} {
+			t.Run(locale.Tag()+"/"+tc.name, func(t *testing.T) {
+				mine := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
+				other := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+				serial := "duplicate-" + uuid.NewString()
+				if err := s.Register(t.Context(), other.lineID.String(), other.userID, serial, 1); err != nil {
+					t.Fatalf("register duplicate control: %v", err)
+				}
+				draft := tc.serial
+				if tc.name == "duplicate serial" {
+					draft = "  " + serial + "  "
+				}
+				line, number := mine.lineID.String(), mine.number
+				if tc.target == "foreign line" {
+					line = other.lineID.String()
+				}
+				if tc.target == "foreign order" {
+					line, number = other.lineID.String(), other.number
+				}
+				before := warrantyRegistrationState(t, mine.lineID, other.lineID)
+				ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: mine.userID, Role: user.RoleCustomer})
+				form := url.Values{"line": {line}, "unit": {tc.unit}, "serial": {draft}}
+				r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/warranty/"+number, strings.NewReader(form.Encode()))
+				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, r)
+				if w.Code != tc.status {
+					t.Fatalf("warranty refusal status=%d, want %d", w.Code, tc.status)
+				}
+				if got := warrantyRegistrationState(t, mine.lineID, other.lineID); got != before {
+					t.Errorf("refused registration changed saved rows: %s, want %s", got, before)
+				}
+				nodes := warrantyResponseNodes(t, w.Body.String())
+				if nodes["serial-"+other.lineID.String()] != nil {
+					t.Error("refusal included an unauthorized order line")
+				}
+				if tc.target != "" {
+					if strings.Contains(w.Body.String(), strings.TrimSpace(draft)) {
+						t.Error("foreign draft reached the response")
+					}
+					input := warrantyResponseAttrs(nodes["serial-"+mine.lineID.String()])
+					if input["value"] != "" || input["aria-invalid"] != "" {
+						t.Errorf("foreign draft marked the authorized input: %v", input)
+					}
+					return
+				}
+				inputID := "serial-" + mine.lineID.String()
+				input := warrantyResponseAttrs(nodes[inputID])
+				if input["value"] != draft {
+					t.Errorf("retained serial=%q, want %q", input["value"], draft)
+				}
+				if tc.field == "" {
+					alert := nodes["warranty-refusal"]
+					if input["aria-invalid"] != "" || alert == nil || warrantyResponseAttrs(alert)["role"] != "alert" || warrantyResponseText(alert) != i18n.T(ctx, i18n.KeyWarrantyRefused) {
+						t.Errorf("unit refusal must keep its draft with a form alert, not blame the serial: %v", input)
+					}
+					return
+				}
+				message := warrantyResponseText(nodes[inputID+"-error"])
+				want := i18n.T(ctx, tc.field)
+				if tc.field == i18n.KeyWarrantySerialTooLong {
+					want = fmt.Sprintf(want, warranty.MaxSerialRunes)
+					if !strings.Contains(message, strconv.Itoa(warranty.MaxSerialRunes)) || strings.Contains(message, "%!") {
+						t.Errorf("serial length refusal = %q, want the accepted limit without a formatting error", message)
+					}
+				}
+				if input["aria-invalid"] != "true" || input["aria-describedby"] != "serial-hint-"+mine.lineID.String()+" "+inputID+"-error" || message != want {
+					t.Errorf("refused serial has no associated localized explanation: %v, message=%q, want %q", input, message, want)
+				}
+			})
+		}
+	}
+}
+
+func warrantyRegistrationState(t *testing.T, lines ...uuid.UUID) string {
+	t.Helper()
+	var state string
+	if err := pool.QueryRow(t.Context(), `SELECT coalesce(jsonb_agg(to_jsonb(w) ORDER BY w.id), '[]'::jsonb)::text FROM warranty_registrations w WHERE order_line_id = ANY($1::uuid[])`, lines).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
+func warrantyResponseNodes(t *testing.T, body string) map[string]*html.Node {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes := make(map[string]*html.Node)
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		for _, a := range n.Attr {
+			if a.Key == "id" {
+				if nodes[a.Val] != nil {
+					t.Errorf("duplicate ID %q", a.Val)
+				}
+				nodes[a.Val] = n
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	return nodes
+}
+
+func warrantyResponseAttrs(n *html.Node) map[string]string {
+	attrs := make(map[string]string)
+	if n != nil {
+		for _, a := range n.Attr {
+			attrs[a.Key] = a.Val
+		}
+	}
+	return attrs
+}
+
+func warrantyResponseText(n *html.Node) string {
+	if n == nil {
+		return ""
+	}
+	if n.Type == html.TextNode {
+		return n.Data
+	}
+	var b strings.Builder
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		b.WriteString(warrantyResponseText(child))
+	}
+	return b.String()
+}
+
 // TestAFullyReturnedLineIsNotWaitingOnDelivery: the goods arrived and came
 // back, so the page must say so rather than promise registration on delivery.
 func TestAFullyReturnedLineIsNotWaitingOnDelivery(t *testing.T) {
@@ -682,5 +843,65 @@ func TestAFullyReturnedLineIsNotWaitingOnDelivery(t *testing.T) {
 	}
 	if got := view.EmptyHint(ctx); got == i18n.T(ctx, i18n.KeyWarrantyAfterShipping) {
 		t.Errorf("the page promises registration on delivery for goods already returned: %q", got)
+	}
+}
+
+func warrantyStoreRolePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	config := pool.Config().Copy()
+	config.MaxConns = 2
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, `SET ROLE store`)
+		return err
+	}
+	app, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(app.Close)
+	var role string
+	if err := app.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "store" {
+		t.Fatalf("warranty role=%q, error=%v, want store", role, err)
+	}
+	return app
+}
+
+func TestWarrantyRegistrationSuccessStillRedirects(t *testing.T) {
+	app := warrantyStoreRolePool(t)
+	h := warranty.NewHandler(warranty.NewStore(app), slog.Default())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /account/warranty/{number}", h.Register)
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tc := range []struct{ name, serial string }{
+			{name: "optional blank"},
+			{name: "ascii boundary", serial: "  " + strings.Repeat("A", 60) + "  "},
+			{name: "unicode boundary", serial: "  " + strings.Repeat("界", 60) + "  "},
+		} {
+			t.Run(locale.Tag()+"/"+tc.name, func(t *testing.T) {
+				f := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+				ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: f.userID, Role: user.RoleCustomer})
+				// Boundary serials must remain unique across the shop.
+				serial := tc.serial
+				if serial != "" {
+					serial = "  " + uuid.NewString() + string([]rune(strings.TrimSpace(serial))[36:]) + "  "
+				}
+				form := url.Values{"line": {f.lineID.String()}, "unit": {"1"}, "serial": {serial}}
+				r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/warranty/"+f.number, strings.NewReader(form.Encode()))
+				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, r)
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/account/warranty/"+f.number+"?ok=1" {
+					t.Fatalf("successful warranty status=%d, location=%q; want 303 to its order", w.Code, w.Header().Get("Location"))
+				}
+				var count int
+				var saved string
+				if err := pool.QueryRow(ctx, `SELECT count(*), coalesce(min(serial_number), '') FROM warranty_registrations WHERE order_line_id = $1`, f.lineID).Scan(&count, &saved); err != nil {
+					t.Fatal(err)
+				}
+				if count != 1 || saved != strings.TrimSpace(serial) {
+					t.Errorf("registered rows=%d, serial=%q; want one trimmed serial %q", count, saved, strings.TrimSpace(serial))
+				}
+			})
+		}
 	}
 }

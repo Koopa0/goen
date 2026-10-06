@@ -254,6 +254,7 @@ func (s *Store) Documents(ctx context.Context, orderNumber string) ([]Document, 
 		byDocument[l.DocumentID] = append(byDocument[l.DocumentID], Line{
 			Description: l.Description, Quantity: l.Quantity,
 			UnitPriceCents: l.UnitPriceCents, AmountCents: l.AmountCents,
+			TaxType: TaxType(l.TaxType), Unit: ItemUnit(l.Unit),
 		})
 	}
 

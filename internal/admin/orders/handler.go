@@ -41,6 +41,7 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin", ac.RequireStaff(h.Dashboard))
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
+	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))

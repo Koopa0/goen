@@ -88,6 +88,7 @@ SELECT
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.is_active,
     p.status AS product_status,
+    p.tax_type,
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     p.warranty_note,
