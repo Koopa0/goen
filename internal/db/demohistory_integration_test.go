@@ -623,7 +623,7 @@ func assertReportsHaveData(t *testing.T, shop *pgxpool.Pool) {
 		if err != nil {
 			t.Fatalf("CheckoutCompletionBetween(%d days): %v", days, err)
 		}
-		risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{WindowDays: days, LimitTo: 10})
+		risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: from, ToAt: now})
 		if err != nil {
 			t.Fatalf("StockAtRisk(%d): %v", days, err)
 		}

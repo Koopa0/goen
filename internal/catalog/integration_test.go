@@ -542,7 +542,7 @@ func listedSlugs(t *testing.T, s *catalog.Store) []string {
 	if err != nil {
 		t.Fatalf("running campaigns: %v", err)
 	}
-	var out []string
+	out := make([]string, 0, len(view.Rows))
 	for _, r := range view.Rows {
 		out = append(out, r.Slug)
 	}

@@ -591,20 +591,25 @@ func featureProduct(t *testing.T, campaignSlug string, stock int) {
 		t.Fatalf("create product: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sale_campaign_products (campaign_id, product_id)
-		SELECT c.id, p.id FROM sale_campaigns c, products p
+		INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+		SELECT c.id, p.id,
+		       (SELECT coalesce(max(position) + 1, 0) FROM sale_campaign_products WHERE campaign_id = c.id)
+		FROM sale_campaigns c, products p
 		WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, slug); err != nil {
 		t.Fatalf("feature product on %s: %v", campaignSlug, err)
 	}
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 		defer cancel()
-		if _, err := pool.Exec(clean, `
-			WITH gone AS (
-			    DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)
-			)
-			DELETE FROM products WHERE slug = $1`, slug); err != nil {
-			t.Errorf("remove product %s: %v", slug, err)
+		for _, stmt := range []string{
+			`DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
+			`DELETE FROM product_variants WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
+			`DELETE FROM products WHERE slug = $1`,
+		} {
+			if _, err := pool.Exec(clean, stmt, slug); err != nil {
+				t.Errorf("remove product %s: %v", slug, err)
+				return
+			}
 		}
 	})
 }
