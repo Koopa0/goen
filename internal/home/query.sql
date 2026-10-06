@@ -252,14 +252,14 @@ ORDER BY r.root, r.published_at DESC, r.id DESC;
 -- and sqlc types the result as non-null.
 -- name: FreeDeliveryThreshold :one
 SELECT coalesce(
-    min(v.free_over_cents),
+    CASE WHEN bool_or(coalesce(v.free_over_cents, 0) = 0) THEN 0 ELSE max(v.free_over_cents) END,
     0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
-  AND v.free_over_cents > 0
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
