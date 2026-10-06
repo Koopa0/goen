@@ -83,12 +83,17 @@ func StatDate(text, clock string) StatValue {
 	return StatValue{date: parts, clock: clock}
 }
 
-// StatCount is a number and the unit it counts, joined so that they never part across lines.
+// StatCount is a number and the unit it counts, joined so that they never part across lines; the unit may be empty.
 func StatCount(n int64, unit string) StatValue {
-	if n < 0 || unit == "" {
+	if n < 0 {
 		return StatValue{}
 	}
 	return StatValue{figure: strconv.FormatInt(n, 10), unit: unit}
+}
+
+// StatWord is a figure that is a word, such as 免運.
+func StatWord(word string) StatValue {
+	return StatValue{figure: word}
 }
 
 // StatNumber is a bare count, for a figure whose label already says what it counts; a negative number is absent.
