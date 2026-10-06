@@ -20,7 +20,7 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id,
+       p.brand_id, p.category_id, p.tax_type, p.invoice_unit,
        coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
        coalesce(p.domestic_party_name, '') AS domestic_party_name,
        coalesce(p.domestic_party_phone, '') AS domestic_party_phone,
@@ -295,3 +295,9 @@ UPDATE products SET origin = nullif(@origin::text, ''), origin_en = nullif(@orig
     domestic_party_address = nullif(@domestic_party_address::text, ''),
     net_quantity = @net_quantity, net_unit = nullif(@net_unit::text, ''), min_age_months = @min_age_months
 WHERE id = @id;
+
+-- name: LockProductInvoiceLine :one
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE;
+
+-- name: SetProductInvoiceLine :exec
+UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1;

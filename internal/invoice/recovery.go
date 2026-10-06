@@ -230,7 +230,7 @@ func indexKnownAllowances(
 		row := &rows[i]
 		lines, ok := knownAllowanceLines(
 			row.Descriptions, row.Quantities, row.UnitPriceCents,
-			row.LineAmountCents, row.TaxTypes,
+			row.LineAmountCents, row.TaxTypes, row.Units,
 		)
 		if !ok {
 			return nil, "allowance_known_document_malformed"

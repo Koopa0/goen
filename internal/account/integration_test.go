@@ -1222,9 +1222,13 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	lookupReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
 	var resolved uuid.UUID
 	var resolvedOK bool
+	var resolvedErr error
 	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, resolvedOK = carts.IDForRequest(r.Context(), r)
+		resolved, resolvedOK, resolvedErr = carts.IDForRequest(r.Context(), r)
 	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
+	if resolvedErr != nil {
+		t.Fatalf("resolve the merged cart: %v", resolvedErr)
+	}
 	if !resolvedOK || resolved != accountCart {
 		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
 			resolved, resolvedOK, accountCart)

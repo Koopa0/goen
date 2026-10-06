@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -73,8 +74,28 @@ func splitQueries(src string) []namedQuery {
 // queryFiles is every feature's query.sql.
 func queryFiles(t *testing.T) map[string]string {
 	t.Helper()
+	out, err := readQueryFiles(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("walk for queries: %v", err)
+	}
+	return out
+}
+
+func readQueryFiles(root string) (map[string]string, error) {
 	out := map[string]string{}
-	err := filepath.WalkDir(filepath.Join("..", ".."), func(path string, d os.DirEntry, err error) error {
+	if err := filepath.WalkDir(root, queryFileVisitor(root, out)); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func queryFileVisitor(root string, out map[string]string) fs.WalkDirFunc {
+	profileDir := filepath.Join(root, ".layout-chrome")
+	return func(path string, d os.DirEntry, err error) error {
+		// Layout probes remove this transient directory while query guards run.
+		if path == profileDir && d != nil && d.IsDir() {
+			return filepath.SkipDir
+		}
 		if err != nil {
 			return err
 		}
@@ -93,9 +114,5 @@ func queryFiles(t *testing.T) map[string]string {
 		}
 		out[path] = string(src)
 		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk for queries: %v", err)
 	}
-	return out
 }
