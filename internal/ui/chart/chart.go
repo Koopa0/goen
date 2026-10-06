@@ -34,3 +34,24 @@ func (p BarProps) width() string {
 // wide depends on Max alone, so every row of a scale gets the same count
 // column and the same track.
 func (p BarProps) wide() bool { return p.Max >= wideScale }
+
+// RangeBarProps is one value, the range it may lie in and a reference line,
+// all numbers on the scale 0 to Max that the page chose and every row shares.
+// Values beyond Max are drawn at its end.
+type RangeBarProps struct {
+	Value, Low, High, Mark, Max int64
+}
+
+// position is v as a percentage of the track, held within it.
+func (p RangeBarProps) position(v int64) string {
+	pct := 0.0
+	if p.Max > 0 {
+		pct = float64(min(max(v, 0), p.Max)) / float64(p.Max) * 100
+	}
+	return strconv.FormatFloat(pct, 'f', 2, 64) + "%"
+}
+
+// ranged reports whether the range has any length on the scale.
+func (p RangeBarProps) ranged() bool {
+	return p.Max > 0 && min(p.High, p.Max) > max(p.Low, 0)
+}

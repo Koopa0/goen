@@ -105,28 +105,41 @@ templ Report(p layouts.Page, v *ReportView) {
 		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 		<p class="goen-admin__hint">
-			{ i18n.T(ctx, i18n.KeyAdminRepStockLead) }
+			{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), v.StockDays, coverMinOrders, coverWarnDays) }
 		</p>
 		if len(v.AtRisk) == 0 {
 			<div class="goen-admin__empty">
-				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRepStockEmpty) }</p>
+				<p class="goen-admin__emptytitle">{ i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(v.StockDays), v.StockDays) }</p>
 			</div>
 		} else {
 			<ul class="goen-report__rows" role="list">
 				for _, item := range v.AtRisk {
+					{{ cover := item.Estimate() }}
 					<li class="goen-report__row">
 						<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
 						<span class="goen-admin__meta">{ item.SKU }</span>
 						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.SellableText()) }</span>
-						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSold), item.SoldText()) }</span>
-						if item.Urgent() {
+						<span class="goen-report__num">{ item.SoldText(ctx, v.StockDays) }</span>
+						if cover.Urgent() {
 							@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-								{ item.Cover(ctx) }
+								<span aria-hidden="true">▲ </span>
+								{ cover.Figure(ctx) }
 							}
 						} else {
 							@components.Badge(components.BadgeProps{}) {
-								{ item.Cover(ctx) }
+								{ cover.Figure(ctx) }
 							}
+						}
+						if rng := cover.Range(ctx); rng != "" {
+							<span class="goen-report__num">{ rng }</span>
+						}
+						if warning := cover.Warning(ctx); warning != "" {
+							<span class="goen-report__warn">{ warning }</span>
+						}
+						if cover.State == CoverEstimated {
+							<div class="goen-report__bar">
+								@chart.RangeBar(cover.Bar())
+							</div>
 						}
 					</li>
 				}

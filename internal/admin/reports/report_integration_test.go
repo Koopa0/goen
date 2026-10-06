@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
@@ -301,16 +302,19 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
+func TestStockRowsKeepWhatASaleMayTakeAndRankSoldOutFirst(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
 	roomy := soldVariant(t, 9, 5, 10)
 	atSafety := soldVariant(t, 5, 5, 10)
 
-	view, err := s.Report(ctx, 30)
+	view, err := s.Report(ctx, 7)
 	if err != nil {
 		t.Fatalf("report: %v", err)
+	}
+	if view.StockDays != 30 {
+		t.Errorf("a 7 day report reads stock over %d days, want 30", view.StockDays)
 	}
 	rowOf := func(sku string) (int, bool) {
 		for i, r := range view.AtRisk {
@@ -328,17 +332,18 @@ func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
 	if !ok {
 		t.Fatalf("report lacks %s", atSafety)
 	}
-	if got := view.AtRisk[roomyAt]; got.DaysCover != 12 || got.Sellable != 4 {
-		t.Errorf("stock 9, safety 5, 10 sold in 30 days: days %d sellable %d, want 12 and 4",
-			got.DaysCover, got.Sellable)
+	if got := view.AtRisk[roomyAt]; got.Sellable != 4 || got.Sold != 10 || got.Orders != 1 {
+		t.Errorf("stock 9, safety 5, one order of 10: sellable %d sold %d orders %d, want 4, 10 and 1",
+			got.Sellable, got.Sold, got.Orders)
 	}
-	if got := view.AtRisk[atSafetyAt]; got.DaysCover != 0 || got.Sellable != 0 {
-		t.Errorf("stock at its safety level: days %d sellable %d, want 0 and 0",
-			got.DaysCover, got.Sellable)
+	if got := view.AtRisk[roomyAt].Estimate().State; got != admin.CoverFewOrders {
+		t.Errorf("one order is %d, want CoverFewOrders %d", got, admin.CoverFewOrders)
+	}
+	if got := view.AtRisk[atSafetyAt].Estimate().State; got != admin.CoverSoldOut {
+		t.Errorf("stock at its safety level is %d, want CoverSoldOut %d", got, admin.CoverSoldOut)
 	}
 	if atSafetyAt > roomyAt {
-		t.Errorf("a SKU at its safety level is row %d, after the SKU with days to spare at row %d",
-			atSafetyAt, roomyAt)
+		t.Errorf("a sold out SKU is row %d, after the SKU with stock left at row %d", atSafetyAt, roomyAt)
 	}
 }
 

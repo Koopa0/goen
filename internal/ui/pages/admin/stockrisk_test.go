@@ -1,0 +1,166 @@
+package admin
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+const stockedAllWindow = 30 * 24 * time.Hour
+
+func TestEstimateStatesAndDays(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		row  StockRisk
+		want CoverState
+	}{
+		{"sold out whatever it sold", StockRisk{Sellable: 0, Sold: 400, Orders: 90, InStock: stockedAllWindow}, CoverSoldOut},
+		{"a negative sellable is sold out", StockRisk{Sellable: -2}, CoverSoldOut},
+		{"nine orders are too few", StockRisk{Sellable: 5, Sold: 90, Orders: 9, InStock: stockedAllWindow}, CoverFewOrders},
+		{"ten orders of one unit each are enough", StockRisk{Sellable: 5, Sold: 10, Orders: 10, InStock: stockedAllWindow}, CoverEstimated},
+		{"13 days in stock is too recent", StockRisk{Sellable: 5, Sold: 40, Orders: 20, InStock: 13*24*time.Hour + 23*time.Hour}, CoverJustStocked},
+		{"14 days in stock is enough", StockRisk{Sellable: 5, Sold: 40, Orders: 20, InStock: 14 * 24 * time.Hour}, CoverEstimated},
+	} {
+		if got := tc.row.Estimate().State; got != tc.want {
+			t.Errorf("%s: %+v.Estimate().State = %d, want %d", tc.name, tc.row, got, tc.want)
+		}
+	}
+}
+
+// Ten orders of ten units are 100 units: counted in units the SKU would
+// clear the threshold with one order.
+func TestEstimateCountsOrdersNotUnits(t *testing.T) {
+	t.Parallel()
+
+	r := StockRisk{Sellable: 50, Sold: 100, Orders: 1, InStock: stockedAllWindow}
+	if got := r.Estimate().State; got != CoverFewOrders {
+		t.Errorf("one order of 100 units: state %d, want CoverFewOrders %d", got, CoverFewOrders)
+	}
+}
+
+func TestEstimateDividesByTheDaysInStock(t *testing.T) {
+	t.Parallel()
+
+	// 30 units over 15 days in stock is 2 a day: 40 sellable last 20 days. Over
+	// 30 calendar days it would be 1 a day and read 40.
+	r := StockRisk{Sellable: 40, Sold: 30, Orders: 15, InStock: 15 * 24 * time.Hour}
+	if got := r.Estimate().Days; got != 20 {
+		t.Errorf("%+v.Estimate().Days = %d, want 20", r, got)
+	}
+}
+
+// The 90% interval of 10 orders is 0.54 to 1.70 times the observed rate
+// (analytics.md, Poisson table), so 0.59 to 1.84 times the days.
+func TestEstimateRangeMatchesThePoissonTable(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		orders    int64
+		low, high float64
+		tolerance float64
+	}{
+		{10, 0.59, 1.84, 0.02},
+		{20, 0.69, 1.51, 0.02},
+		{30, 0.74, 1.39, 0.02},
+	} {
+		r := StockRisk{Sellable: 1000, Sold: tc.orders * 2, Orders: tc.orders, InStock: stockedAllWindow}
+		// 1000 sellable at 2 units per order over 30 days.
+		c := r.Estimate()
+		days := float64(c.Days)
+		if got := float64(c.Low) / days; got < tc.low-tc.tolerance || got > tc.low+tc.tolerance {
+			t.Errorf("%d orders: low is %.2f of the estimate, want %.2f", tc.orders, got, tc.low)
+		}
+		if got := float64(c.High) / days; got < tc.high-tc.tolerance || got > tc.high+tc.tolerance {
+			t.Errorf("%d orders: high is %.2f of the estimate, want %.2f", tc.orders, got, tc.high)
+		}
+	}
+}
+
+func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tc := range []struct {
+		name    string
+		c       DaysCover
+		urgent  bool
+		warning string
+	}{
+		{"sold out", DaysCover{State: CoverSoldOut}, true, ""},
+		{"estimate at 29 with the range inside 30", DaysCover{State: CoverEstimated, Days: 29, Low: 20, High: 29}, true, "Runs out within 30 days"},
+		{"estimate at 29 with the range past 30", DaysCover{State: CoverEstimated, Days: 29, Low: 20, High: 50}, true, "May run out within 30 days"},
+		{"estimate at 30 is not marked", DaysCover{State: CoverEstimated, Days: 30, Low: 10, High: 40}, false, ""},
+		{"too few orders are not marked", DaysCover{State: CoverFewOrders}, false, ""},
+	} {
+		if got := tc.c.Urgent(); got != tc.urgent {
+			t.Errorf("%s: %+v.Urgent() = %v, want %v", tc.name, tc.c, got, tc.urgent)
+		}
+		if got := tc.c.Warning(ctx); got != tc.warning {
+			t.Errorf("%s: %+v.Warning() = %q, want %q", tc.name, tc.c, got, tc.warning)
+		}
+	}
+}
+
+func TestRankPutsSoldOutFirstThenTheShortestEstimate(t *testing.T) {
+	t.Parallel()
+
+	estimated := func(sku string, sellable int32) StockRisk {
+		return StockRisk{SKU: sku, Sellable: sellable, Sold: 60, Orders: 30, InStock: stockedAllWindow}
+	}
+	rows := []StockRisk{
+		{SKU: "FEW", Sellable: 1, Sold: 2, Orders: 2, InStock: stockedAllWindow},
+		estimated("LONG", 90),
+		estimated("SHORT", 10),
+		{SKU: "OUT-IDLE", Sellable: 0},
+		{SKU: "OUT-BUSY", Sellable: 0, Sold: 50, Orders: 25, InStock: stockedAllWindow},
+	}
+	got := make([]string, 0, 4)
+	for _, r := range RankStockRisk(rows, 4) {
+		got = append(got, r.SKU)
+	}
+	want := "OUT-BUSY OUT-IDLE SHORT LONG"
+	if strings.Join(got, " ") != want {
+		t.Errorf("RankStockRisk = %v, want %s", got, want)
+	}
+}
+
+func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
+		AtRisk: []StockRisk{
+			{SKU: "OUT-1", Name: "Gone", Slug: "gone"},
+			{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow},
+			{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sellable: 9, Sold: 2, Orders: 2, InStock: stockedAllWindow},
+		},
+	}))
+
+	for _, want := range []string{
+		i18n.T(ctx, i18n.KeySoldOut),
+		"About 20 days",
+		"90% range: ",
+		"May run out within 30 days",
+		i18n.T(ctx, i18n.KeyAdminRepFewSold),
+		"9 sellable",
+		"2 units",
+		"2 orders",
+		"sold in the last 30 days",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the stock rows lack %q", want)
+		}
+	}
+	if got := strings.Count(html, `class="goen-rangebar"`); got != 1 {
+		t.Errorf("%d range bars drawn, want 1: only the estimated row has one", got)
+	}
+	if strings.Contains(html, "style=") {
+		t.Error("the stock rows carry a style attribute")
+	}
+}

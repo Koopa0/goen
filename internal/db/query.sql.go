@@ -15721,47 +15721,53 @@ func (q *Queries) StillSubscribed(ctx context.Context, email string) (bool, erro
 
 const stockAtRisk = `-- name: StockAtRisk :many
 SELECT
+    pv.id AS variant_id,
     pv.sku,
     p.name AS product_name,
     p.slug,
-    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
+    pv.stock_quantity,
+    pv.safety_stock,
+    pv.created_at AS listed_at,
     sold.units::bigint AS units_sold,
-    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
-     / (sold.units::numeric / $1::integer))::integer AS days_cover
+    sold.orders::bigint AS orders_sold
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN LATERAL (
-    SELECT coalesce(sum(ol.quantity), 0) AS units
+    SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
     JOIN committed_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
-      AND o.placed_at >= now() - make_interval(days => $1::integer)
+      AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true
-WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, sellable_quantity
-LIMIT $2::integer
+WHERE pv.is_active AND p.status = 'active'
+  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
+ORDER BY pv.sku
 `
 
 type StockAtRiskParams struct {
-	WindowDays int32
-	LimitTo    int32
+	FromAt time.Time
+	ToAt   time.Time
 }
 
 type StockAtRiskRow struct {
-	SKU              string
-	ProductName      string
-	Slug             string
-	SellableQuantity int32
-	UnitsSold        int64
-	DaysCover        int32
+	VariantID     uuid.UUID
+	SKU           string
+	ProductName   string
+	Slug          string
+	StockQuantity int32
+	SafetyStock   int32
+	ListedAt      time.Time
+	UnitsSold     int64
+	OrdersSold    int64
 }
 
-// days_cover is never NULL because the WHERE clause admits only variants that
-// sold something, so the divisor cannot be zero. It divides what a sale may
-// still take: record_inventory_movement refuses to go below safety_stock.
+// Every active variant that sold in [from_at, to_at) or has nothing a sale may
+// take. Sales are counted in orders as well as units: the report's sample size
+// is the orders, since one order of ten units is one event. Ranking and the
+// estimate are the page's.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
-	rows, err := q.db.Query(ctx, stockAtRisk, arg.WindowDays, arg.LimitTo)
+	rows, err := q.db.Query(ctx, stockAtRisk, arg.FromAt, arg.ToAt)
 	if err != nil {
 		return nil, err
 	}
@@ -15770,12 +15776,15 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 	for rows.Next() {
 		var i StockAtRiskRow
 		if err := rows.Scan(
+			&i.VariantID,
 			&i.SKU,
 			&i.ProductName,
 			&i.Slug,
-			&i.SellableQuantity,
+			&i.StockQuantity,
+			&i.SafetyStock,
+			&i.ListedAt,
 			&i.UnitsSold,
-			&i.DaysCover,
+			&i.OrdersSold,
 		); err != nil {
 			return nil, err
 		}
@@ -15817,6 +15826,46 @@ func (q *Queries) StockMovementApplied(ctx context.Context, arg StockMovementApp
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const stockMovementsSince = `-- name: StockMovementsSince :many
+SELECT m.variant_id, m.created_at, m.delta
+FROM inventory_movements m
+WHERE m.variant_id = ANY($1::uuid[]) AND m.created_at >= $2::timestamptz
+ORDER BY m.variant_id, m.created_at, m.id
+`
+
+type StockMovementsSinceParams struct {
+	VariantIds []uuid.UUID
+	FromAt     time.Time
+}
+
+type StockMovementsSinceRow struct {
+	VariantID uuid.UUID
+	CreatedAt time.Time
+	Delta     int32
+}
+
+// The ledger since from_at, from which a variant's stock at from_at is rolled
+// back and the days it had anything to sell are counted.
+func (q *Queries) StockMovementsSince(ctx context.Context, arg StockMovementsSinceParams) ([]StockMovementsSinceRow, error) {
+	rows, err := q.db.Query(ctx, stockMovementsSince, arg.VariantIds, arg.FromAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StockMovementsSinceRow{}
+	for rows.Next() {
+		var i StockMovementsSinceRow
+		if err := rows.Scan(&i.VariantID, &i.CreatedAt, &i.Delta); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const storeCreditBalance = `-- name: StoreCreditBalance :one
