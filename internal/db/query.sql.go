@@ -8516,7 +8516,7 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 
 const listedCampaigns = `-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.ends_at, c.tone,
+       c.starts_at, c.ends_at, c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width,
@@ -8545,6 +8545,7 @@ type ListedCampaignsRow struct {
 	ID         uuid.UUID
 	Slug       string
 	Title      string
+	StartsAt   time.Time
 	EndsAt     time.Time
 	Tone       string
 	ImageKey   string
@@ -8568,6 +8569,7 @@ func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams
 			&i.ID,
 			&i.Slug,
 			&i.Title,
+			&i.StartsAt,
 			&i.EndsAt,
 			&i.Tone,
 			&i.ImageKey,
