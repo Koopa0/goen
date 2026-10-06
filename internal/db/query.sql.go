@@ -3447,16 +3447,12 @@ const campaignDailyUnits = `-- name: CampaignDailyUnits :many
 SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
 FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
 LEFT JOIN (
-    SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
+    SELECT (o.placed_at AT TIME ZONE 'UTC')::date AS day, sum(ol.quantity) AS units
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
-      AND ol.product_id IN (SELECT cp.product_id
-                            FROM sale_campaign_products cp
-                            JOIN sale_campaigns sc ON sc.id = cp.campaign_id
-                            WHERE sc.slug = $5::text)
-    GROUP BY shop_day(o.placed_at)
+      AND $5::text <> ''
+    GROUP BY 1
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
