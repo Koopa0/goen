@@ -50,7 +50,7 @@ var (
 
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 
-	KeyFooterPolicies = key("footer.policies", Message{ZhHant: "政策", En: "Policies"})
+	KeyFooterAboutTerms = key("footer.about_terms", Message{ZhHant: "關於與條款", En: "About and terms"})
 
 	KeyFooterAbout = key("footer.about", Message{ZhHant: "關於 goen", En: "About goen"})
 

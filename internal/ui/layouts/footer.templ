@@ -33,8 +33,8 @@ templ Footer(state NewsletterState) {
 					</ul>
 				</nav>
 			}
-			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerShopping[:])
-			@footerColumn(i18n.T(ctx, i18n.KeyFooterPolicies), footerAbout[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerHelp[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterAboutTerms), footerAbout[:])
 			<div class="goen-footer__news">
 				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
 				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>

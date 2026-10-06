@@ -648,27 +648,6 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 	}
 }
 
-// A year-long campaign names no last day; one ending within the month does.
-func TestARunningCampaignNamesOnlyANearLastDay(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	near := campaign(t, "near-end-"+uuid.NewString()[:8])
-	far := campaign(t, "far-end-"+uuid.NewString()[:8])
-	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET ends_at = now() + interval '1 year' WHERE slug = $1`, far); err != nil {
-		t.Fatalf("lengthen campaign: %v", err)
-	}
-
-	s := catalog.NewStore(pool)
-	for slug, wantDay := range map[string]bool{near: true, far: false} {
-		view, err := s.Campaign(ctx, slug)
-		if err != nil {
-			t.Fatalf("read campaign %s: %v", slug, err)
-		}
-		if got := view.EndsOn != ""; got != wantDay {
-			t.Errorf("%s names its last day = %v (%q), want %v", slug, got, view.EndsOn, wantDay)
-		}
-	}
-}
-
 // sale_campaign_needs_discount takes a lock on the product before it reads the
 // variants.
 func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {

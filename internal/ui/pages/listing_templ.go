@@ -74,7 +74,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = bandMedia("goen-pagehead__photo", photo, onWell, "42vw", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
