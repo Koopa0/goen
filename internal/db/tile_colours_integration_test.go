@@ -114,7 +114,7 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 	}
 
 	q := db.New(tx)
-	terms, exact := catalog.SearchTerms(token)
+	terms, exact := catalog.SearchTerms("%" + token + "%")
 	const locale = "en"
 	type tile struct {
 		slug    string
@@ -125,7 +125,7 @@ func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
 		read  func() ([]tile, error)
 	}{
 		{"CategoryListing", func() ([]tile, error) {
-			rows, err := q.CategoryListing(ctx, db.CategoryListingParams{Locale: locale, CategoryIds: []uuid.UUID{category}, PageSize: 50})
+			rows, err := q.CategoryListing(ctx, db.CategoryListingParams{Locale: locale, CategoryIds: []uuid.UUID{category}, BrandIds: []uuid.UUID{}, PageSize: 50})
 			return mapTiles(rows, func(r db.CategoryListingRow) tile { return tile{r.Slug, r.Colours} }), err
 		}},
 		{"SearchProducts", func() ([]tile, error) {
