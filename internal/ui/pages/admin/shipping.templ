@@ -25,6 +25,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 		</div>
 		@Announce(v.Notice)
 		for _, m := range v.Methods {
+			{{ d := v.VersionValues(&m) }}
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">
 					{ m.Name }
@@ -44,39 +45,110 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							@components.Label(components.LabelProps{For: "name-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminColName) }
 							}
-							<input class="goen-input" id={ "name-" + m.MethodID } name="name" value={ m.Name } required maxlength="60"/>
+							<input
+								class="goen-input"
+								id={ "name-" + m.MethodID }
+								name="name"
+								value={ d.Name }
+								required
+								maxlength="60"
+								if v.VersionRefusal(m.MethodID, "name") != "" {
+									aria-invalid="true"
+									aria-describedby={ "name-" + m.MethodID + "-error" }
+								}
+							/>
+							if message := v.VersionRefusal(m.MethodID, "name"); message != "" {
+								<p class="ui-error-text" id={ "name-" + m.MethodID + "-error" }>{ message }</p>
+							}
 						</div>
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "carrier-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipCarrierOptional) }
 							}
-							<input class="goen-input" id={ "carrier-" + m.MethodID } name="carrier" value={ m.Carrier } maxlength="60"/>
+							<input
+								class="goen-input"
+								id={ "carrier-" + m.MethodID }
+								name="carrier"
+								value={ d.Carrier }
+								maxlength="60"
+							/>
 						</div>
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "name-en-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 							}
-							<input class="goen-input" id={ "name-en-" + m.MethodID } name="name_en" value={ m.NameEn } maxlength="60" placeholder="Home delivery"/>
+							<input
+								class="goen-input"
+								id={ "name-en-" + m.MethodID }
+								name="name_en"
+								value={ d.NameEn }
+								maxlength="60"
+								placeholder="Home delivery"
+							/>
 						</div>
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "carrier-en-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipCarrierEn) }
 							}
-							<input class="goen-input" id={ "carrier-en-" + m.MethodID } name="carrier_en" value={ m.CarrierEn } maxlength="60"/>
+							<input
+								class="goen-input"
+								id={ "carrier-en-" + m.MethodID }
+								name="carrier_en"
+								value={ d.CarrierEn }
+								maxlength="60"
+							/>
 						</div>
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "fee-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipFee) }
 							}
-							<input class="goen-input" id={ "fee-" + m.MethodID } name="fee" type="number" min="0" step="1" value={ m.FeeDollars() } required inputmode="numeric"/>
+							<input
+								class="goen-input"
+								id={ "fee-" + m.MethodID }
+								name="fee"
+								type={ dollarInputType(d.Fee) }
+								min="0"
+								max={ v.FeeLimit() }
+								step="1"
+								value={ d.Fee }
+								required
+								inputmode="numeric"
+								if v.VersionRefusal(m.MethodID, "fee") != "" {
+									aria-invalid="true"
+									aria-describedby={ "fee-" + m.MethodID + "-error" }
+								}
+							/>
+							if message := v.VersionRefusal(m.MethodID, "fee"); message != "" {
+								<p class="ui-error-text" id={ "fee-" + m.MethodID + "-error" }>{ message }</p>
+							}
 						</div>
 						<div class="goen-admin__field">
 							@components.Label(components.LabelProps{For: "free-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }
 							}
-							<input class="goen-input" id={ "free-" + m.MethodID } name="free_over" type="number" min="0" step="1" value={ m.FreeOverDollars() } inputmode="numeric"/>
+							<input
+								class="goen-input"
+								id={ "free-" + m.MethodID }
+								name="free_over"
+								type={ dollarInputType(d.FreeOver) }
+								min="0"
+								max={ v.FreeOverLimit() }
+								step="1"
+								value={ d.FreeOver }
+								inputmode="numeric"
+								if v.VersionRefusal(m.MethodID, "free_over") != "" {
+									aria-invalid="true"
+									aria-describedby={ "free-" + m.MethodID + "-error" }
+								}
+							/>
+							if message := v.VersionRefusal(m.MethodID, "free_over"); message != "" {
+								<p class="ui-error-text" id={ "free-" + m.MethodID + "-error" }>{ message }</p>
+							}
 						</div>
 					</div>
+					if message := v.VersionRefusal(m.MethodID, "form"); message != "" {
+						<p class="ui-error-text" id={ "version-" + m.MethodID + "-error" } role="alert">{ message }</p>
+					}
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,
 						Class:       "goen-admin__submit",
@@ -122,8 +194,9 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										class="goen-input"
 										id={ "sur-" + m.VersionID + "-" + z.ID }
 										name="amount"
-										type="number"
+										type={ dollarInputType(v.SurchargeValue(&m, z.ID)) }
 										min="0"
+										max={ v.FeeLimit() }
 										step="1"
 										value={ v.SurchargeValue(&m, z.ID) }
 										inputmode="numeric"
@@ -132,6 +205,9 @@ templ Shipping(p layouts.Page, v ShippingView) {
 											aria-describedby={ "sur-" + m.VersionID + "-" + z.ID + "-error" }
 										}
 									/>
+									if message := v.SurchargeRefusal(m.MethodID, z.ID); message != "" {
+										<p class="ui-error-text" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ message }</p>
+									}
 									@components.Button(components.ButtonProps{
 										ButtonStyle: components.ButtonStyleOutline,
 										Size:        components.SizeSmall,
@@ -139,9 +215,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 									}
 								</div>
-								if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
-									<p class="goen-admin__error" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ v.SurchargeRefusal(m.MethodID, z.ID) }</p>
-								}
 							</form>
 						}
 					</div>

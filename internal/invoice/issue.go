@@ -43,7 +43,7 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		CustomerEmail: truncate(in.Email, 80),
 		Print:         "0",
 		Donation:      "0",
-		TaxType:       "1", // taxable
+		TaxType:       in.Lines[0].TaxType.ecpayCode(),
 		SalesAmount:   wholeDollars(in.AmountCents),
 		// vat='1' says the ITEM prices already include tax, which a Taiwanese
 		// shelf price does. Without it ECPay adds 5% and the invoice disagrees
@@ -54,6 +54,9 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		CarrierT: InvoiceCarrierNone,
 	}
 
+	if in.Lines[0].TaxType == Exempt {
+		req.SpecialTaxType = 8
+	}
 	switch in.Preference {
 	case PreferenceCompany:
 		// A business-tax-number invoice STILL needs an invoice carrier or a printed copy
@@ -138,6 +141,9 @@ func (r IssueRequest) validate() error {
 	if len(r.Email) > 80 || !email.Valid(r.Email) {
 		return fmt.Errorf("%w: a mobile barcode invoice needs a bare valid email address of at most 80 bytes",
 			ErrRejected)
+	}
+	if err := validateLineTerms(r.Lines); err != nil {
+		return err
 	}
 	return r.validatePreference()
 }
@@ -226,6 +232,10 @@ func (g *Gateway) RequestAllowance(ctx context.Context, in AllowanceRequest) err
 			ErrRejected)
 	}
 
+	if err := validateLineTerms(in.Lines); err != nil {
+		return err
+	}
+
 	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/AllowanceByCollegiate", allowanceRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  in.InvoiceNumber,
@@ -271,6 +281,7 @@ type issueRequest struct {
 	CarrierT           InvoiceCarrier `json:"CarrierType"`
 	CarrierNum         string         `json:"CarrierNum,omitempty"`
 	TaxType            string         `json:"TaxType"`
+	SpecialTaxType     int            `json:"SpecialTaxType,omitempty"`
 	SalesAmount        int64          `json:"SalesAmount"`
 	InvType            string         `json:"InvType"`
 	Vat                string         `json:"vat"`
@@ -368,6 +379,7 @@ func (n providerDecimal) cents() (int64, error) {
 }
 
 type lookupItem struct {
+	Unit    ItemUnit        `json:"ItemWord"`
 	Name    string          `json:"ItemName"`
 	Count   providerDecimal `json:"ItemCount"`
 	Price   providerDecimal `json:"ItemPrice"`
@@ -389,14 +401,21 @@ func (i lookupItem) line() (Line, error) {
 		return Line{}, fmt.Errorf("invalid provider item amount %q", i.Amount)
 	}
 	tax, err := i.TaxType.integer()
-	if err != nil || tax != 1 {
+	if err != nil || (tax != 1 && tax != 3) {
 		return Line{}, fmt.Errorf("provider item has unsupported tax type %q", i.TaxType)
+	}
+	if !i.Unit.Valid() {
+		return Line{}, fmt.Errorf("provider item has invalid unit %q", i.Unit)
+	}
+	taxType := Taxable
+	if tax == 3 {
+		taxType = Exempt
 	}
 	if price > math.MaxInt64/count || price*count != amount {
 		return Line{}, errors.New("provider item arithmetic is inconsistent")
 	}
 	return Line{
-		Description: i.Name, Quantity: int32(count),
+		Description: i.Name, Quantity: int32(count), TaxType: taxType, Unit: i.Unit,
 		UnitPriceCents: price, AmountCents: amount,
 	}, nil
 }
@@ -592,4 +611,23 @@ func parseECPayTime(s string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("parse ECPay timestamp: %w", err)
 	}
 	return t, nil
+}
+
+func validateLineTerms(lines []Line) error {
+	if len(lines) == 0 {
+		return fmt.Errorf("%w: invoice lines are missing", ErrRejected)
+	}
+	tax := lines[0].TaxType
+	if tax != Taxable && tax != Exempt {
+		return fmt.Errorf("%w: invoice tax type %q is not offered", ErrRejected, tax)
+	}
+	for i := range lines {
+		if lines[i].TaxType != tax {
+			return fmt.Errorf("%w: invoice lines mix taxable and exempt goods", ErrRejected)
+		}
+		if !lines[i].Unit.Valid() {
+			return fmt.Errorf("%w: invoice line %d has invalid unit %q", ErrRejected, i+1, lines[i].Unit)
+		}
+	}
+	return nil
 }

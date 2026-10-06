@@ -21,7 +21,7 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 			"a RETRY has to ask: without it a split return reads the credit it just " +
 			"posted as credit already returned and refuses its own resume. The batch " +
 			"projection serves both the visible queue and a single retry",
-		"RevenueSince": "positive credit returned within a report window, which is " +
+		"RevenueBetween": "positive credit returned within a report window, which is " +
 			"a flow rather than an account balance. Its predicate must match " +
 			"order_refunds.credit_cents; a balance view cannot express when money moved",
 	}

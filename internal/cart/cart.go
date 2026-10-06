@@ -40,7 +40,8 @@ var (
 	ErrEmpty = errors.New("cart: empty")
 	// ErrTooManyItems means no room for another distinct product within ECPay's
 	// Items limit per invoice.
-	ErrTooManyItems = errors.New("cart: too many invoice items")
+	ErrTooManyItems  = errors.New("cart: too many invoice items")
+	ErrMixedTaxTypes = errors.New("cart: taxable and exempt items need separate orders")
 	// ErrQuantityAdjusted means the write succeeded but kept less than
 	// requested, because stock fell short.
 	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
