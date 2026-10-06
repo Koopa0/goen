@@ -78,6 +78,10 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 		return admin.ReportView{}, err
 	}
 
+	returned, returnedErr := s.q.ReturnedProductsBetween(ctx, db.ReturnedProductsBetweenParams{
+		FromAt: current.from, ToAt: current.to, LimitTo: maxRows,
+	})
+
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
 	view := admin.ReportView{
@@ -103,6 +107,14 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 		view.Sellers = append(view.Sellers, admin.Seller{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
+		})
+	}
+	view.ReturnedErr = returnedErr
+	for i := range returned {
+		r := &returned[i]
+		view.Returned = append(view.Returned, admin.ReturnedProduct{
+			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
+			Returned: r.ReturnedUnits, Sold: r.SoldUnits,
 		})
 	}
 	return view, nil

@@ -491,3 +491,26 @@ func TestWithSingleChoicesSelectsWhatHasNoAlternative(t *testing.T) {
 		t.Errorf("WithSingleChoices() on no selection = %v, want only the colour", got)
 	}
 }
+
+func TestOneColourAndTwoSizesPreselectOnlyTheColour(t *testing.T) {
+	t.Parallel()
+	groups := map[string][]OptionChoice{
+		"colour": {{Value: "black"}},
+		"size":   {{Value: "S"}, {Value: "M"}},
+	}
+	variants := []Variant{
+		{ID: "s", SKU: "s", Sellable: true, Options: map[string]string{"colour": "black", "size": "S"}},
+		{ID: "m", SKU: "m", Sellable: true, Options: map[string]string{"colour": "black", "size": "M"}},
+	}
+	sel := Selection{}.WithSingleChoices(groups).OnlyOptionsOf(variants)
+	if _, exact := Resolve(variants, sel); exact {
+		t.Error("a size was never picked and the selection is exact")
+	}
+	if sel["colour"] != "black" {
+		t.Errorf("colour = %q, want black preselected", sel["colour"])
+	}
+	sel["size"] = "M"
+	if got, exact := Resolve(variants, sel); !exact || got.ID != "m" {
+		t.Errorf("Resolve() with a size = %q exact %t, want m exact", got.ID, exact)
+	}
+}

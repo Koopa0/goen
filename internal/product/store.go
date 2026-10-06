@@ -113,12 +113,12 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 
 	view := pages.ProductView{
-		Rules: pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
-		Slug:              p.Slug,
-		Name:              p.Name,
-		Summary:           p.Summary,
-		Description:       p.Description,
-		WarrantyNote:      p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		Rules:        pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: !s.noPickup},
+		Slug:         p.Slug,
+		Name:         p.Name,
+		Summary:      p.Summary,
+		Description:  p.Description,
+		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
 		Brand:        p.Brand,
 		CategorySlug: p.CategorySlug,
 		CategoryName: p.CategoryName,

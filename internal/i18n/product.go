@@ -46,6 +46,11 @@ var (
 		En:     "Pick an option and we will tell you when it is available.",
 	})
 
+	KeyRestockNoOption = key("pdp.restock.nooption", Message{
+		ZhHant: "請先選一個款式。",
+		En:     "Pick an option first.",
+	})
+
 	KeyRestockNote = key("pdp.restock.note", Message{
 		ZhHant: "有貨時通知你。",
 		En:     "We will tell you when it is available.",

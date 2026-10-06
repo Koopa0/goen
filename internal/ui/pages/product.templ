@@ -273,7 +273,13 @@ templ productBuy(v *ProductView) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.Values[0].Label }</span>
 				</p>
 			} else {
-				<fieldset class="goen-pdp__option">
+				<fieldset
+					class="goen-pdp__option"
+					if v.OptionInvalid(o) {
+						aria-invalid="true"
+						aria-describedby="notify-option-error"
+					}
+				>
 					<legend class="goen-pdp__optname">
 						if o.SelectedLabel() != "" {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
@@ -350,15 +356,12 @@ templ productBuy(v *ProductView) {
 			}
 		}
 		@productAddForm(v)
-		if v.AllSoldOut() && v.NeedsChoice() {
-			<p class="goen-pdp__restocknote">{ v.RestockNote(ctx) }</p>
-		}
-		if v.SoldOut() {
-			if v.ArrivalText() != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
-					<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
-				}
+		if v.SoldOut() && v.ArrivalText() != "" {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
+				<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
 			}
+		}
+		if v.NotifyOffered() {
 			@productNotifyForm(v)
 		}
 		@productLinks(v)
@@ -542,7 +545,7 @@ templ productCompare(v *ProductView) {
 
 templ productNotifyForm(v *ProductView) {
 	<form id="restock" class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
-		<input type="hidden" name="variant" value={ v.VariantID }/>
+		<input type="hidden" name="variant" value={ v.NotifyVariant() }/>
 		<p class="goen-pdp__notifyhead">{ v.RestockNote(ctx) }</p>
 		if v.NotifyTaken() {
 			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
@@ -565,6 +568,9 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>
+			if v.NotifyNeedsOption() {
+				<p class="ui-error-text" id="notify-option-error">{ i18n.T(ctx, i18n.KeyRestockNoOption) }</p>
+			}
 			if v.NotifyRefused() {
 				<p class="ui-error-text" id="notify-email-error">{ i18n.T(ctx, i18n.KeyRestockBadEmail) }</p>
 			} else {
