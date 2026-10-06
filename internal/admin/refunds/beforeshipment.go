@@ -57,6 +57,22 @@ func beforeShipmentRefundState(r *beforeShipment) (offered, open bool) {
 	return offered, open
 }
 
+// whyNotRefundable names the cause of a refund that is neither offered nor open.
+func whyNotRefundable(r *beforeShipment) error {
+	switch status := order.FulfillmentStatus(r.FulfillmentStatus); {
+	case status == order.FulfillmentCancelled:
+		return ErrOrderCancelled
+	case r.Shipped || status == order.FulfillmentShipped ||
+		status == order.FulfillmentDelivered || status == order.FulfillmentCompleted:
+		return ErrShipped
+	case r.HasReturn:
+		return ErrHasReturn
+	case !r.Committed && !r.PaidByCredit:
+		return ErrNotPaid
+	}
+	return refundstate.ErrRefused
+}
+
 // creditPaidPending is a pending order store credit alone paid. The database
 // commits it only when packing starts, and store_credit_guard refuses to pay
 // credit back through a return on an uncommitted order, so its refund before
@@ -90,8 +106,7 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 	}
 	offered, open := beforeShipmentRefundState(&row)
 	if !offered && !open {
-		return admin.RefundConfirmation{}, fmt.Errorf(
-			"%w: order %s has no refund before shipment to confirm", refundstate.ErrRefused, number)
+		return admin.RefundConfirmation{}, fmt.Errorf("order %s: %w", number, whyNotRefundable(&row))
 	}
 	return admin.RefundConfirmation{
 		OrderNumber: number, TotalCents: row.TotalCents,
@@ -360,7 +375,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 		return nil, fmt.Errorf("read how %s was paid: %w", number, err)
 	}
 	if !paidByCredit {
-		return nil, fmt.Errorf("%w: order %s is no longer paid by store credit alone", refundstate.ErrRefused, number)
+		return nil, fmt.Errorf("%w: order %s is no longer paid by store credit alone", ErrOrderChanged, number)
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(order.FulfillmentCancelled),

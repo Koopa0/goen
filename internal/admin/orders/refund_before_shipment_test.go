@@ -16,6 +16,16 @@ func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
 		"refundpending": i18n.KeyAdminNoticeRefundPending,
 		"cancelinvoice": i18n.KeyAdminNoticeCancelInvoice,
 		"refundretry":   i18n.KeyAdminNoticeRefundRetry,
+
+		"refundshipped":   i18n.KeyAdminNoticeRefundShipped,
+		"refundhasreturn": i18n.KeyAdminNoticeRefundHasReturn,
+		"refundcancelled": i18n.KeyAdminNoticeRefundCancelled,
+		"refundunpaid":    i18n.KeyAdminNoticeRefundUnpaid,
+		"refundchanged":   i18n.KeyAdminNoticeRefundChanged,
+		"refundpicking":   i18n.KeyAdminNoticeRefundPicking,
+		"refundreason":    i18n.KeyAdminRefundErrReason,
+		"refundmismatch":  i18n.KeyAdminNoticeRefundMismatch,
+		"refundunsure":    i18n.KeyAdminNoticeRefundUnsure,
 	} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			ctx := i18n.WithLocale(t.Context(), locale)
