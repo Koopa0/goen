@@ -5,6 +5,7 @@ package products_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
 	"log/slog"
@@ -13,18 +14,23 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
@@ -189,6 +195,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 	mux := http.NewServeMux()
 	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
 	slug, options := productWithColours(t, staffCtx, s, "Blue", "Black")
+	_, foreignOptions := productWithColours(t, staffCtx, s, "Red", "White")
 	attached, library := storeMedia(t), storeMedia(t)
 	if err := s.AttachImage(staffCtx, slug, attached, "Saved picture", "Saved English picture", "", 800, 600); err != nil {
 		t.Fatal(err)
@@ -205,16 +212,23 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		for _, tt := range []struct {
 			name, alt, altEn string
-			picture          []byte
-			reuse            bool
+			field, option   string
+			key             i18n.Key
+			picture         []byte
+			reuse           bool
 		}{
-			{name: "corrupt upload", alt: " 原始中文說明 ", altEn: " Raw English description ", picture: []byte("corrupt PNG")},
-			{name: "invalid upload description", alt: strings.Repeat("界", 201), altEn: " Raw English description ", picture: valid.Bytes()},
-			{name: "invalid upload English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), picture: valid.Bytes()},
-			{name: "invalid reused description", alt: strings.Repeat("界", 201), altEn: " Raw English description ", reuse: true},
-			{name: "invalid reused English description", alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), reuse: true},
+			{name: "corrupt upload", field: "image", key: i18n.KeyAdminNoticeNotImage, alt: " 原始中文說明 ", altEn: " Raw English description ", picture: []byte("corrupt PNG")},
+			{name: "invalid upload description", field: "alt", key: i18n.KeyFormHeroAlt, alt: strings.Repeat("界", 201), altEn: " Raw English description ", picture: valid.Bytes()},
+			{name: "invalid upload English description", field: "alt_en", key: i18n.KeyFormCampaignAltEnLong, alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), picture: valid.Bytes()},
+			{name: "invalid reused description", field: "alt", key: i18n.KeyFormHeroAlt, alt: strings.Repeat("界", 201), altEn: " Raw English description ", reuse: true},
+			{name: "invalid reused English description", field: "alt_en", key: i18n.KeyFormCampaignAltEnLong, alt: " 原始中文說明 ", altEn: strings.Repeat("e", 201), reuse: true},
+			{name: "wrong product display option", field: "image_option", key: i18n.KeyAdminNoticeBadOption, alt: " Raw primary ", altEn: " Raw English ", option: foreignOptions[0], picture: valid.Bytes()},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				chosen := options[1]
+				if tt.option != "" {
+					chosen = tt.option
+				}
 				res := httptest.NewRecorder()
 				if tt.reuse {
 					form := url.Values{"digest": {library}, "alt": {tt.alt}, "alt_en": {tt.altEn}}
@@ -222,15 +236,17 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 					mux.ServeHTTP(res, req)
 				} else {
-					req := productImageUploadRequest(t, ctx, slug, map[string]string{"alt": tt.alt, "alt_en": tt.altEn, "option_value": options[1]}, tt.picture)
+					req := productImageUploadRequest(t, ctx, slug, map[string]string{"alt": tt.alt, "alt_en": tt.altEn, "option_value": chosen}, tt.picture)
 					mux.ServeHTTP(res, req)
 				}
 				if res.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("refused product image = %d, want 422", res.Code)
 				}
-				altID, altEnID, errorID := "p-alt", "p-alt-en", "p-image"
+				altID, altEnID := "p-alt", "p-alt-en"
+				errorID := map[string]string{"image": "p-image", "alt": "p-alt", "alt_en": "p-alt-en", "image_option": "p-image-option"}[tt.field]
 				if tt.reuse {
-					altID, altEnID, errorID = "reuse-alt-"+library, "reuse-alt-en-"+library, "reuse-alt-"+library
+					altID, altEnID = "reuse-alt-"+library, "reuse-alt-en-"+library
+					errorID = "reuse-" + strings.ReplaceAll(tt.field, "_", "-") + "-" + library
 				}
 				for id, want := range map[string]string{altID: tt.alt, altEnID: tt.altEn} {
 					input := admintest.InputElementByID(t, res.Body.String(), id)
@@ -238,14 +254,11 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 						t.Errorf("image draft %q = %q, want %q", id, got, want)
 					}
 				}
-				errorValue := ""
-				if tt.reuse {
-					errorValue = tt.alt
-				}
-				admintest.AssertRefusedInput(t, res.Body.String(), errorID, errorValue)
+				errorValue := map[string]string{"image": "", "alt": tt.alt, "alt_en": tt.altEn, "image_option": chosen}[tt.field]
+				assertRefusedProductImageControl(t, res.Body.String(), errorID, errorValue, i18n.T(ctx, tt.key))
 				if !tt.reuse {
-					if chosen := selectedProductImageOption(t, res.Body.String()); chosen != options[1] {
-						t.Errorf("image option = %q, want %q", chosen, options[1])
+					if got := selectedProductImageOption(t, res.Body.String()); got != chosen {
+						t.Errorf("image option = %q, want %q", got, chosen)
 					}
 				}
 				assertEditorImageControls(t, res.Body.String(), slug, attached, library)
@@ -431,5 +444,175 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func assertRefusedProductImageControl(t *testing.T, body, id, value, reason string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, explained := false, false
+	for n := range doc.Descendants() {
+		attrs := productImageAttributes(n)
+		if attrs["aria-invalid"] == "true" && attrs["id"] != id {
+			t.Errorf("unrefused image control %q inherited an error", attrs["id"])
+		}
+		if attrs["id"] == id {
+			found = true
+			got := attrs["value"]
+			if n.Data == "select" {
+				got = selectedProductImageOption(t, body)
+			}
+			if got != value || attrs["aria-invalid"] != "true" || !strings.Contains(" "+attrs["aria-describedby"]+" ", " "+id+"-error ") {
+				t.Errorf("refused image control %q = value %q, invalid %q, describedby %q; want raw %q with its error", id, got, attrs["aria-invalid"], attrs["aria-describedby"], value)
+			}
+		}
+		if attrs["id"] == id+"-error" && attrs["role"] == "alert" && n.FirstChild != nil {
+			explained = n.FirstChild.Data == reason
+		}
+	}
+	if !found || !explained {
+		t.Errorf("refused image control %q or exact localized explanation is absent", id)
+	}
+}
+
+func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
+	p := admintest.AdminRolePool(t, pool)
+	healthy := products.NewStore(p)
+	images := media.NewStore(p)
+	var picture bytes.Buffer
+	if err := png.Encode(&picture, image.NewNRGBA(image.Rect(0, 0, 3, 2))); err != nil {
+		t.Fatal(err)
+	}
+	for _, locale := range i18n.Locales() {
+		for _, reuse := range []bool{false, true} {
+			name := "upload"
+			if reuse {
+				name = "reuse"
+			}
+			t.Run(locale.Tag()+"/"+name, func(t *testing.T) {
+				staffCtx, actor := admintest.StaffContext(t, pool)
+				ctx := i18n.WithLocale(staffCtx, locale)
+				slug := admintest.DraftProduct(t, ctx, pool, healthy)
+				obj, err := images.Put(ctx, bytes.NewReader(picture.Bytes()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				trace := &catalogueLockTrace{slug: slug}
+				cfg := p.Config().Copy()
+				cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200"
+				cfg.ConnConfig.Tracer = trace
+				faults, err := pgxpool.NewWithConfig(ctx, cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(faults.Close)
+				var role string
+				if err = faults.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+					t.Fatalf("attachment pool role = %q, want admin: %v", role, err)
+				}
+				log := slog.New(slog.DiscardHandler)
+				mux := http.NewServeMux()
+				products.NewHandler(products.NewStore(faults), media.NewHandler(images, log), log).Routes(mux, admintest.BackOffice)
+				post := func() *httptest.ResponseRecorder {
+					req := productImageUploadRequest(t, ctx, slug, map[string]string{"alt": " Primary ", "alt_en": " English "}, picture.Bytes())
+					if reuse {
+						form := url.Values{"digest": {obj.Digest}, "alt": {" Primary "}, "alt_en": {" English "}}
+						req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images/reuse", strings.NewReader(form.Encode()))
+						req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					}
+					res := httptest.NewRecorder()
+					mux.ServeHTTP(res, req)
+					return res
+				}
+				auditRows := func() int {
+					var n int
+					if countErr := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE actor_user_id = $1 AND action = $2`, actor, audit.ActionAttachImage).Scan(&n); countErr != nil {
+						t.Fatal(countErr)
+					}
+					return n
+				}
+				before, err := healthy.Images(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				beforeAudits := auditRows()
+				holder, err := pool.Begin(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer pgtx.Rollback(ctx, holder)
+				if _, err = holder.Exec(ctx, `SELECT 1 FROM products WHERE slug = $1 FOR UPDATE`, slug); err != nil {
+					t.Fatal(err)
+				}
+				res := post()
+				trace.mu.Lock()
+				lockErrors := append([]error(nil), trace.errs...)
+				trace.mu.Unlock()
+				var pgErr *pgconn.PgError
+				if len(lockErrors) != 1 || !errors.As(lockErrors[0], &pgErr) || pgErr.Code != "55P03" || ctx.Err() != nil {
+					t.Fatalf("catalogue lock errors = %v, parent = %v; want one live-request 55P03", lockErrors, ctx.Err())
+				}
+				if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {
+					t.Errorf("attachment failure status = %d, Location = %q; want 500 without redirect", res.Code, res.Header().Get("Location"))
+				}
+				after, err := healthy.Images(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(before, after); diff != "" {
+					t.Errorf("failed attachment changed product images (-want +got):\n%s", diff)
+				}
+				if got := auditRows(); got != beforeAudits {
+					t.Errorf("failed attachment audit count = %d, want %d", got, beforeAudits)
+				}
+				stored, err := images.Object(ctx, obj.Digest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(obj, stored); diff != "" {
+					t.Errorf("healthy media changed (-want +got):\n%s", diff)
+				}
+				if err = holder.Rollback(ctx); err != nil {
+					t.Fatal(err)
+				}
+				recovered := post()
+				if recovered.Code != http.StatusSeeOther {
+					t.Fatalf("unlocked attachment status = %d, want 303", recovered.Code)
+				}
+				attached, err := healthy.Images(ctx, slug)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(attached) != 1 || attached[0].Key != obj.Digest || auditRows() != beforeAudits+1 {
+					t.Errorf("unlocked attachment = %+v, audits = %d; want one image and one audit", attached, auditRows())
+				}
+			})
+		}
+	}
+}
+
+type catalogueLockTrace struct {
+	slug string
+	mu   sync.Mutex
+	errs []error
+}
+
+type catalogueLockTraceKey struct{}
+
+func (tr *catalogueLockTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.HasPrefix(data.SQL, "-- name: LockProductCatalogue :one\n") && len(data.Args) == 1 && data.Args[0] == tr.slug {
+		return context.WithValue(ctx, catalogueLockTraceKey{}, true)
+	}
+	return ctx
+}
+
+func (tr *catalogueLockTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if marked, _ := ctx.Value(catalogueLockTraceKey{}).(bool); marked {
+		tr.mu.Lock()
+		tr.errs = append(tr.errs, data.Err)
+		tr.mu.Unlock()
 	}
 }

@@ -224,15 +224,17 @@ func (h *Handler) Recent(ctx context.Context) ([]Object, error) {
 	return h.store.Recent(ctx)
 }
 
-// UploadNotice is the back-office notice for a refused upload. It names the
-// size and the kind and nothing more: saying which decoder refused a file would
-// tell an attacker which decoders are wired up.
+// Refusal notices omit decoder details, which would reveal which decoders are wired up.
 func UploadNotice(err error) i18n.Key {
 	switch {
 	case errors.Is(err, ErrTooLarge):
 		return i18n.KeyAdminNoticeTooBig
 	case errors.Is(err, ErrNotAnImage):
 		return i18n.KeyAdminNoticeNotImage
+	case errors.Is(err, ErrLosslessWebP):
+		return i18n.KeyAdminNoticeLosslessWebP
+	case errors.Is(err, ErrBusy):
+		return i18n.KeyAdminNoticeUploadBusy
 	default:
 		return i18n.KeyAdminNoticeUploadFailed
 	}

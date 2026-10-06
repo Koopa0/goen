@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -284,7 +283,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(err), "=1")].Key)})
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 		return
 	}
 	if upload != nil {
@@ -298,7 +297,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		obj, storeErr := upload.Store(r.Context())
 		if storeErr != nil {
 			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(storeErr), "=1")].Key)})
+			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(storeErr))})
 			return
 		}
 		f.ImageKey = obj.Digest

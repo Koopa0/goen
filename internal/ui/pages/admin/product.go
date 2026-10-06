@@ -223,6 +223,17 @@ func (v *ProductView) OptionsFrozen() bool { return !v.IsNew && len(v.Variants) 
 
 func (v *ProductView) HasOptions() bool { return len(v.Options) > 0 }
 
+func (v *ProductView) HasOptionValue(id string) bool {
+	for _, option := range v.Options {
+		for _, value := range option.Values {
+			if value.ID == id {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (v *ProductView) OptionAction() string {
 	return "/admin/products/" + v.Slug + "/options"
 }

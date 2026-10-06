@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/carrier"
@@ -345,7 +346,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
-		h.rejectImageUpload(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(err), "=1")].Key))
+		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
 		return
 	}
 
@@ -353,8 +354,14 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest, alt,
 		r.PostFormValue("alt_en"), r.PostFormValue("option_value"),
 		obj.Width, obj.Height); err != nil {
+		field, key := attachImageRefusal(err, alt)
+		if field == "" {
+			h.log.ErrorContext(r.Context(), "attach image", "error", err, "slug", slug)
+			access.ServerError(w, r, h.log)
+			return
+		}
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
-		h.rejectImageUpload(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(attachReason(err), "=1")].Key))
+		h.rejectImageUpload(w, r, field, key)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -380,22 +387,28 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,
 		r.PostFormValue("alt"), r.PostFormValue("alt_en"), "",
 		obj.Width, obj.Height); err != nil {
+		field, key := attachImageRefusal(err, r.PostFormValue("alt"))
+		if field == "" {
+			h.log.ErrorContext(r.Context(), "attach reused image", "error", err, "slug", slug)
+			access.ServerError(w, r, h.log)
+			return
+		}
 		h.log.WarnContext(r.Context(), "attach reused image", "error", err, "slug", slug)
-		h.rejectImageReuse(w, r, i18n.T(r.Context(), notices[strings.TrimSuffix(attachReason(err), "=1")].Key))
+		h.rejectImageReuse(w, r, field, key)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, reason string) {
-	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"image": reason}, &productDrafts{
+func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{field: i18n.T(r.Context(), key)}, &productDrafts{
 		upload: admin.ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
 	})
 }
 
-func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, reason string) {
-	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_image": reason}, &productDrafts{
+func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_" + field: i18n.T(r.Context(), key)}, &productDrafts{
 		reuse: admin.ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
 	})
 }
@@ -610,15 +623,19 @@ func (h *Handler) editProductWithErrors(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
-func attachReason(err error) string {
+func attachImageRefusal(err error, alt string) (string, i18n.Key) {
 	switch {
 	case errors.Is(err, ErrInvalid):
-		return "noalt=1"
+		alt = strings.TrimSpace(alt)
+		if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
+			return "alt", i18n.KeyFormHeroAlt
+		}
+		return "alt_en", i18n.KeyFormCampaignAltEnLong
 	case errors.Is(err, ErrNotThisProductsOption):
-		return "badoption=1"
+		return "image_option", i18n.KeyAdminNoticeBadOption
 	case errors.Is(err, ErrRefused):
-		return "attachrefused=1"
+		return "image", i18n.KeyAdminNoticeAttachRefused
 	default:
-		return "uploadfailed=1"
+		return "", ""
 	}
 }

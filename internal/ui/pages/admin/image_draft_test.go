@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: Header{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
 			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: Header{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
 			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ProductImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
-			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_image": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
+			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -75,8 +76,11 @@ func assertImageDraftControls(t *testing.T, body string, want map[string]string,
 		if _, ok := want[id]; ok {
 			got[id] = imageDraftControlValue(n, attrs)
 		}
+		if attrs["aria-invalid"] == "true" && id != errorID {
+			t.Errorf("unrefused control %q inherited an error", id)
+		}
 		if id == errorID {
-			marked = attrs["aria-invalid"] == "true" && attrs["aria-describedby"] == errorID+"-error"
+			marked = attrs["aria-invalid"] == "true" && slices.Contains(strings.Fields(attrs["aria-describedby"]), errorID+"-error")
 			if n.Data == "input" && attrs["type"] == "file" && attrs["value"] != "" {
 				t.Error("file input was repopulated")
 			}
@@ -113,4 +117,49 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 		return value
 	}
 	return attrs["value"]
+}
+
+func TestProductImageRefusalMarksTheSubmittedControl(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, tt := range []struct {
+			field, id string
+			reuse     bool
+			noOptions bool
+		}{
+			{field: "alt", id: "p-alt"},
+			{field: "alt_en", id: "p-alt-en"},
+			{field: "image_option", id: "p-image-option"},
+			{field: "image_option", id: "p-image-option", noOptions: true},
+			{field: "reuse_alt", id: "reuse-alt-library", reuse: true},
+			{field: "reuse_alt_en", id: "reuse-alt-en-library", reuse: true},
+			{field: "reuse_image", id: "reuse-image-library", reuse: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.field, func(t *testing.T) {
+				t.Parallel()
+				v := ProductView{Slug: "p", Images: []Image{{Key: "saved", Alt: "Saved picture"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, Errors: map[string]string{tt.field: "Correct this control"}}
+				if tt.noOptions {
+					v.Options = nil
+				}
+				want := map[string]string{"p-alt": "", "p-alt-en": "", "reuse-alt-library": "", "reuse-alt-en-library": "", "reuse-alt-other": "", "reuse-alt-en-other": ""}
+				if tt.reuse {
+					v.ImageReuseDraft = ProductImageReuseDraft{Digest: "library", Alt: " Raw primary ", AltEn: " Raw English "}
+					want["reuse-alt-library"], want["reuse-alt-en-library"] = " Raw primary ", " Raw English "
+				} else {
+					v.ImageUploadDraft = ProductImageUploadDraft{Alt: " Raw primary ", AltEn: " Raw English ", OptionValue: "chosen"}
+					want["p-alt"], want["p-alt-en"], want["p-image-option"] = " Raw primary ", " Raw English ", "chosen"
+					if tt.field == "image_option" {
+						v.ImageUploadDraft.OptionValue = "foreign"
+						want["p-image-option"] = "foreign"
+					}
+				}
+				body := renderComponent(t, ctx, productImages(v))
+				assertImageDraftControls(t, body, want, tt.id)
+				if !strings.Contains(body, `alt="Saved picture"`) {
+					t.Error("refusal replaced the saved image")
+				}
+			})
+		}
+	}
 }
