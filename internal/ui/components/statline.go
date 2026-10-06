@@ -38,6 +38,8 @@ type StatValue struct {
 	unit   string
 	date   []datePart
 	clock  string
+	// datetime is the machine-readable form of a figure that is a date or a time.
+	datetime string
 }
 
 // datePart is a run of a date's text: digits are the figure, the runs between them its units.
@@ -97,6 +99,12 @@ func StatMoney(cents int64) StatValue {
 	text := money.TWD(cents)
 	i := strings.IndexFunc(text, unicode.IsDigit)
 	return StatValue{pre: text[:i], figure: text[i:]}
+}
+
+// WithDatetime reads the figure as the point in time datetime names (YYYY-MM-DD, or with a time).
+func (v StatValue) WithDatetime(datetime string) StatValue {
+	v.datetime = datetime
+	return v
 }
 
 func (v StatValue) present() bool { return v.figure != "" || len(v.date) > 0 }

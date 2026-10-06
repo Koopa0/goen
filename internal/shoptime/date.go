@@ -47,3 +47,6 @@ func LastDay(t, now time.Time) Date { return DateOf(t.Add(-time.Nanosecond), now
 
 // ClockText is the shop's clock time of t.
 func ClockText(t time.Time) string { return In(t).Format("15:04") }
+
+// ISO is d as 2026-10-30, the form a time element's datetime reads.
+func (d Date) ISO() string { return fmt.Sprintf("%04d-%02d-%02d", d.Year, int(d.Month), d.Day) }
