@@ -8,10 +8,108 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			for _, tt := range []struct {
+				name                      string
+				active, inWindow, showing bool
+				zhState, enState          string
+				zhToggle, enToggle        string
+				nextActive                string
+			}{
+				{name: "off outside window", zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
+				{name: "off inside window", inWindow: true, zhState: "已停用", enState: "Switched off", zhToggle: "啟用", enToggle: "Switch on", nextActive: "true"},
+				{name: "active outside window", active: true, zhState: "不在期間內", enState: "Outside its window", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+				{name: "eligible", active: true, inWindow: true, zhState: "可顯示", enState: "Eligible to show", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+				{name: "showing", active: true, inWindow: true, showing: true, zhState: "顯示中", enState: "Showing", zhToggle: "停用", enToggle: "Switch off", nextActive: "false"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := i18n.WithLocale(t.Context(), locale)
+					view := HeroView{Rows: []HeroSlide{{ID: "scheduled", Headline: "店家原文", Active: tt.active, InWindow: tt.inWindow}}}
+					if tt.showing {
+						view.Carousel = []pages.HeroSlide{{Source: pages.SlideScheduled, ID: "scheduled"}}
+					}
+					doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Home(layouts.Page{}, &view))))
+					if err != nil {
+						t.Fatal(err)
+					}
+					var form *html.Node
+					for n := range doc.Descendants() {
+						if n.Type == html.ElementNode && n.Data == "form" && homeAttribute(n, "action") == "/admin/home/scheduled/active" {
+							if form != nil {
+								t.Fatal("scheduled slide has two toggle forms")
+							}
+							form = n
+						}
+					}
+					if form == nil {
+						t.Fatal("scheduled slide has no toggle form")
+					}
+					row := form.Parent
+					for row != nil && (row.Type != html.ElementNode || row.Data != "li") {
+						row = row.Parent
+					}
+					if row == nil {
+						t.Fatal("scheduled slide toggle is outside its row")
+					}
+					type controls struct {
+						Headlines, States, Buttons, ButtonTypes, NextActive, InputTypes []string
+						Method                                                          string
+					}
+					got := controls{Method: homeAttribute(form, "method")}
+					for n := range row.Descendants() {
+						if n.Type != html.ElementNode || n.Data != "span" {
+							continue
+						}
+						class := homeAttribute(n, "class")
+						if class == "goen-admin__sku" {
+							got.Headlines = append(got.Headlines, homeText(n))
+						}
+						if class == "ui-badge" || strings.HasPrefix(class, "ui-badge ") {
+							got.States = append(got.States, homeText(n))
+						}
+					}
+					for n := range form.Descendants() {
+						if n.Type != html.ElementNode {
+							continue
+						}
+						if n.Data == "button" {
+							got.Buttons = append(got.Buttons, homeText(n))
+							got.ButtonTypes = append(got.ButtonTypes, homeAttribute(n, "type"))
+						}
+						if n.Data == "input" && homeAttribute(n, "name") == "active" {
+							got.NextActive = append(got.NextActive, homeAttribute(n, "value"))
+							got.InputTypes = append(got.InputTypes, homeAttribute(n, "type"))
+						}
+					}
+					state, toggle := tt.zhState, tt.zhToggle
+					if locale == i18n.En {
+						state, toggle = tt.enState, tt.enToggle
+					}
+					want := controls{
+						Headlines: []string{"店家原文"}, States: []string{state}, Buttons: []string{toggle},
+						ButtonTypes: []string{"submit"}, NextActive: []string{tt.nextActive}, InputTypes: []string{"hidden"}, Method: "post",
+					}
+					if diff := cmp.Diff(want, got); diff != "" {
+						t.Errorf("scheduled hero controls (-want +got):\n%s", diff)
+					}
+				})
+			}
+		})
+	}
+}
 
 // TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros holds that the banner form's
 // errors are keyed apart from the hero form's: both sit on one page and share
@@ -23,10 +121,10 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 		"banner_days": "檔期天數必須介於 0（不限）到 365 天。",
 		"banner_cta":  "連結必須是本站路徑，例如 /deals。",
 	}}
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 
 	input := func(id string) string {
-		m := regexp.MustCompile(`<input[^>]*\bid="` + id + `"[^>]*>`).FindString(html)
+		m := regexp.MustCompile(`<input[^>]*\bid="` + id + `"[^>]*>`).FindString(page)
 		if m == "" {
 			t.Fatalf("no input %q on the page", id)
 		}
@@ -40,11 +138,11 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 		if !strings.Contains(in, `aria-invalid="true"`) || !strings.Contains(in, `aria-describedby="`+describedBy+`"`) {
 			t.Errorf("%s is not marked invalid and linked to %s: %s", id, describedBy, in)
 		}
-		if !strings.Contains(html, `id="`+describedBy+`"`) {
+		if !strings.Contains(page, `id="`+describedBy+`"`) {
 			t.Errorf("no message element %q", describedBy)
 		}
 	}
-	if strings.Contains(html, `id="h-days-error"`) {
+	if strings.Contains(page, `id="h-days-error"`) {
 		t.Error("the hero's days shows a message for the banner's refusal")
 	}
 }
@@ -56,16 +154,16 @@ func TestTheHomePageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(t 
 		{Source: pages.SlideCampaign, Title: "秋季精選", CTA: pages.CTA{Label: "看活動", Href: "/s/autumn-picks"}},
 		{Source: pages.SlideDepartment, Title: "家電"},
 	}}
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 	for _, want := range []string{
 		"秋季精選", "/s/autumn-picks", "家電",
 		i18n.T(ctx, i18n.KeyAdminHomeSourceCampaign), i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment),
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(page, want) {
 			t.Errorf("home page lacks %q", want)
 		}
 	}
-	if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminHomeNoSlides)) {
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyAdminHomeNoSlides)) {
 		t.Error("the page says there is no carousel while it lists slides")
 	}
 
@@ -152,9 +250,9 @@ func declaredSlideSources(t *testing.T) []pages.SlideSource {
 	return sources
 }
 
-func homeForm(t *testing.T, html, action string) string {
+func homeForm(t *testing.T, page, action string) string {
 	t.Helper()
-	m := regexp.MustCompile(`(?s)<form[^>]*action="` + action + `"[^>]*>.*?</form>`).FindString(html)
+	m := regexp.MustCompile(`(?s)<form[^>]*action="` + action + `"[^>]*>.*?</form>`).FindString(page)
 	if m == "" {
 		t.Fatalf("no form posting to %s", action)
 	}
@@ -164,7 +262,7 @@ func homeForm(t *testing.T, html, action string) string {
 func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{}))
+	page := renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{}))
 
 	for _, tc := range []struct {
 		action, switchName string
@@ -177,7 +275,7 @@ func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testi
 			[]string{"message", "short", "cta_label"},
 			[]string{"message_en", "short_en", "cta_label_en"}},
 	} {
-		form := homeForm(t, html, tc.action)
+		form := homeForm(t, page, tc.action)
 		for _, name := range append(tc.zh, tc.en...) {
 			if !regexp.MustCompile(`<(input|textarea)[^>]*\bname="` + name + `"`).MatchString(form) {
 				t.Errorf("%s: no field %q in the form", tc.action, name)
