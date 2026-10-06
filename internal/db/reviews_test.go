@@ -83,13 +83,13 @@ func queryFiles(t *testing.T) map[string]string {
 
 func readQueryFiles(root string) (map[string]string, error) {
 	out := map[string]string{}
-	if err := filepath.WalkDir(root, queryFileVisitor(root, out)); err != nil {
+	if err := filepath.WalkDir(root, queryFileVisitor(out)); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func queryFileVisitor(root string, out map[string]string) fs.WalkDirFunc {
+func queryFileVisitor(out map[string]string) fs.WalkDirFunc {
 	return func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err

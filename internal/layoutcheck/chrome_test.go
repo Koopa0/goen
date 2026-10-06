@@ -269,6 +269,7 @@ func assertCheckLayoutDryRunPropagatesChrome(t *testing.T, ctx context.Context, 
 	layoutDir := t.TempDir()
 	// Pin CHROME so a Darwin host whose resolver correctly names the app
 	// bundle is not treated as a macOS-only Makefile.
+	//nolint:gosec // G204: the arguments are test constants and t.TempDir()
 	cmd := exec.CommandContext(ctx, "make", "-n", "check-layout", "CHROME="+explicitLayoutChrome, "LAYOUT_DIR="+layoutDir)
 	cmd.Dir = root
 	cmd.Env = envWithoutChrome(os.Environ())
