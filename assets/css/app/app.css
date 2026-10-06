@@ -499,7 +499,7 @@ h3 {
    that do nothing. */
 .goen-stepper {
   align-items: stretch;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--control-boundary);
   border-radius: var(--r-sm);
   display: inline-flex;
   height: 3rem;
