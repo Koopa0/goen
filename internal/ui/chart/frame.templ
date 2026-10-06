@@ -1,6 +1,10 @@
 package chart
 
-import "github.com/koopa0/goen/internal/i18n"
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // frame is the figure every chart sits in: the sentence that says what it shows,
 // the drawing, the same data as a table, and where the figures come from. The
@@ -18,4 +22,36 @@ templ frame(caption, note string, table templ.Component) {
 			<p class="goen-chart__note">{ note }</p>
 		}
 	</figure>
+}
+
+// valueLabels is the value axis' own column: its labels, on the lines of
+// gridRules.
+templ valueLabels(a axes) {
+	<svg class="goen-chart__yaxis" width="100%" height={ strconv.Itoa(a.Height) } aria-hidden="true" focusable="false">
+		for _, g := range a.Grid {
+			<text class="goen-chart__label" x="100%" dx="-8" y={ px(g.Y) } dy="0.32em" text-anchor="end">{ g.Label }</text>
+		}
+	</svg>
+}
+
+// gridRules draws inside the plot's svg.
+templ gridRules(a axes) {
+	for _, g := range a.Grid {
+		<line class={ "goen-chart__grid", templ.KV("goen-chart__baseline", g.Baseline) } x1="0" x2="100%" y1={ px(g.Y) } y2={ px(g.Y) }></line>
+	}
+}
+
+// dayLabels draws the day axis inside the plot's svg, ending in today's mark.
+templ dayLabels(a axes) {
+	for _, t := range a.Ticks {
+		<text
+			class={ "goen-chart__label", templ.KV("goen-chart__tick--minor", t.Minor), templ.KV("goen-chart__today", t.Today) }
+			x={ t.X }
+			y={ px(a.LabelY) }
+			text-anchor={ t.Anchor }
+		>{ t.Label }</text>
+		if t.Today {
+			<line class="goen-chart__todaymark" x1="100%" x2="100%" y1={ px(a.Baseline) } y2={ px(a.Baseline + 6) }></line>
+		}
+	}
 }

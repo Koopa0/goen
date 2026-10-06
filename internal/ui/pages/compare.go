@@ -13,7 +13,7 @@ import (
 // these are the only place either number is written.
 const (
 	MinCompare = 2
-	MaxCompare = 4
+	MaxCompare = 5
 )
 
 type CompareCandidate struct {

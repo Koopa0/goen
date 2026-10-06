@@ -117,6 +117,10 @@ func (v ListingView) RootSlug() string {
 
 func (v ListingView) TotalText() string { return strconv.FormatInt(v.Total, 10) }
 
+// IsFront is the department's front page: the first page of results with no filter, which is where
+// its notice and editorial are read.
+func (v ListingView) IsFront() bool { return !v.Filtered && v.Page <= 1 }
+
 func (v ListingView) Empty() bool { return len(v.Products) == 0 }
 
 func (v ListingView) Grid() []ProductTile { return FirstRowEager(v.Products) }

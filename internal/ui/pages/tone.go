@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -74,6 +75,8 @@ type Theme struct {
 	Tone     Tone
 	Photo    Photo
 	Children []Crumb
+	// Comparable is the department's answer to whether its products are put side by side.
+	Comparable bool
 }
 
 func (t *Theme) ToneAttr() string {
@@ -81,6 +84,10 @@ func (t *Theme) ToneAttr() string {
 		return string(ToneStone)
 	}
 	return t.Tone.Attr()
+}
+
+func (t *Theme) ComparableAttr() string {
+	return strconv.FormatBool(t != nil && t.Comparable)
 }
 
 func (t *Theme) Image() Photo {
