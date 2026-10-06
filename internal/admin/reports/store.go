@@ -6,26 +6,24 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Store struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	q     *db.Queries
+	cover *stock.Store
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("reports: NewStore requires a pool")
 	}
-	return &Store{pool: pool, q: db.New(pool)}
+	return &Store{q: db.New(pool), cover: stock.NewStore(pool)}
 }
 
 var reportWindows = [...]int32{7, 30, 90}
@@ -73,7 +71,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
-	atRisk, moreSoldOut, err := s.stockAtRisk(ctx, int(days), now)
+	atRisk, moreSoldOut, err := s.cover.DaysCover(ctx, int(days), now)
 	if err != nil {
 		return admin.ReportView{}, err
 	}
@@ -123,51 +121,4 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 // validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
 	return slices.Contains(reportWindows[:], days)
-}
-
-// stockAtRisk ranks the SKUs that sold or are sold out over the last shop days,
-// at least admin.CoverWindowDays of them whichever period the report shows. The
-// stock and the ledger it is rolled back through are read in one snapshot, so
-// a movement between the two reads cannot shift the level.
-func (s *Store) stockAtRisk(ctx context.Context, days int, now time.Time) ([]admin.StockRisk, int, error) {
-	window, _ := periods(now, max(days, admin.CoverWindowDays))
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return nil, 0, fmt.Errorf("begin stock snapshot: %w", err)
-	}
-	defer pgtx.Rollback(ctx, tx)
-	q := s.q.WithTx(tx)
-
-	rows, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: window.from, ToAt: window.to})
-	if err != nil {
-		return nil, 0, fmt.Errorf("read stock at risk: %w", err)
-	}
-	ids := make([]uuid.UUID, len(rows))
-	for i := range rows {
-		ids[i] = rows[i].VariantID
-	}
-	moves := map[uuid.UUID][]movement{}
-	if len(ids) > 0 {
-		ledger, err := q.StockMovementsSince(ctx, db.StockMovementsSinceParams{VariantIds: ids, FromAt: window.from})
-		if err != nil {
-			return nil, 0, fmt.Errorf("read stock movements: %w", err)
-		}
-		for i := range ledger {
-			m := &ledger[i]
-			moves[m.VariantID] = append(moves[m.VariantID], movement{at: m.CreatedAt, delta: m.Delta})
-		}
-	}
-	risk := make([]admin.StockRisk, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		risk = append(risk, admin.StockRisk{
-			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
-			Sellable: max(r.StockQuantity-r.SafetyStock, 0),
-			Sold:     r.UnitsSold, Orders: r.OrdersSold,
-			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, window.from, window.to, moves[r.VariantID]),
-			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, window.to, moves[r.VariantID]),
-		})
-	}
-	listed, more := admin.RankStockRisk(risk)
-	return listed, more, nil
 }

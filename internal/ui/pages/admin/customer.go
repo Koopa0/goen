@@ -1,8 +1,13 @@
 package admin
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -54,6 +59,33 @@ type CustomerView struct {
 	CreditCents int64
 	Points      int64
 	Recent      []OrderRow
+
+	// WindowSpendCents is the spend over WindowDays that tiers are judged by;
+	// SpentCents is lifetime. NextTierName is empty at the top tier or with no tiers.
+	WindowDays       int32
+	WindowSpendCents int64
+	NextTierName     string
+	NextTierCents    int64
+}
+
+func (v CustomerView) HasNextTier() bool { return v.NextTierName != "" }
+
+func (v CustomerView) TierMeter() chart.MeterProps {
+	return chart.MeterProps{
+		Value: v.WindowSpendCents, Limit: v.NextTierCents, LimitLine: true,
+		Label: money.TWD(v.WindowSpendCents) + " / " + money.TWD(v.NextTierCents),
+	}
+}
+
+// TierSentence is the figure the meter draws, in words: the meter is hidden
+// from assistive technology.
+func (v CustomerView) TierSentence(ctx context.Context) string {
+	spend := money.TWD(v.WindowSpendCents)
+	if !v.HasNextTier() {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustTierSpend), v.WindowDays, spend)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustTierNext),
+		v.WindowDays, spend, money.TWD(v.NextTierCents-v.WindowSpendCents), v.NextTierName)
 }
 
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
