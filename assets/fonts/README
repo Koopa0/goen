@@ -1,7 +1,7 @@
 goen's fonts, and where they came from
 ======================================
 
-Two families, 110 woff2 files, 4.12 MiB. They are the files Google Fonts
+Three families, 218 woff2 files, 7.04 MiB. They are the files Google Fonts
 serves, fetched once and vendored here. Nothing subsets them at build time and
 nothing fetches them at run time: `go:embed` puts them in the binary and
 assets/assets.go serves them from /static with a digest in the URL and a year
@@ -10,7 +10,7 @@ of immutable caching.
 Licence
 -------
 
-Both are under the SIL Open Font License, Version 1.1, which requires the
+All three are under the SIL Open Font License, Version 1.1, which requires the
 licence and the copyright notice to travel with the font files wherever they
 are redistributed. Each family directory carries its own OFL.txt, copied
 verbatim from that family's directory in github.com/google/fonts, and those
@@ -23,9 +23,11 @@ the repository:
   assets/fonts/instrument-sans/OFL.txt
     Copyright 2022 The Instrument Sans Project Authors
     (https://github.com/Instrument/instrument-sans)
+  assets/fonts/noto-serif-tc/OFL.txt
+    Copyright 2012 Google Inc. All Rights Reserved.
 
-The two texts are the same licence; they differ only in the copyright line and
-in where the upstream wrapped it. Each is kept as its upstream ships it rather
+The three texts are the same licence; they differ only in the copyright line
+and in where the upstream wrapped it. Each is kept as its upstream ships it rather
 than merged into one, so a diff against upstream is a diff and not an argument
 about formatting. TestEveryFontFamilyCarriesItsLicence fails if a family is
 ever added without one.
@@ -40,17 +42,21 @@ What is here, and why only this
 
   Noto Sans TC     108 files   Han. Every subset Google splits the family into.
   Instrument Sans    2 files   latin and latin-ext.
+  Noto Serif TC    108 files   Han, at weight 500 only: the home department
+                               band's name and the colour story's title,
+                               Chinese only.
 
 Source and version, as fonts.gstatic.com paths record them:
 
   Noto Sans TC     /s/notosanstc/v40/
   Instrument Sans  /s/instrumentsans/v4/
+  Noto Serif TC    /s/notoseriftc/v37/
 
 Google revises a family under a new vN path, so a future fetch that lands on a
 different version is a deliberate upgrade with a new set of digests, not a
 silent drift.
 
-Both are VARIABLE fonts, so one file per subset covers every weight goen
+All three are VARIABLE fonts, so one file per subset covers every weight goen
 paints. That is why there are 108 Noto Sans TC files and not 324: the static
 build needs one file per subset per weight, and goen paints three.
 
@@ -61,6 +67,8 @@ themselves are wider, read with fontTools' fvar table on the files as vendored:
 
   Noto Sans TC     wght 100-900   every one of the 108 files
   Instrument Sans  wght 400-700   both files
+  Noto Serif TC    wght 200-900   every one of the 108 files; fonts.css
+                                  declares only 500, the one weight goen paints
 
 Figures come from Instrument Sans, whose lightest weight is 400, so text set at
 350 draws its digits and Latin at 400 while Noto Sans TC draws Han glyphs at
@@ -88,13 +96,15 @@ How to regenerate
 Google serves a different woff2 when the family is revised, and its CSS is the
 only place the unicode-ranges are published. To take a new revision:
 
-  1. Fetch the two stylesheets with a browser's User-Agent, which is what makes
+  1. Fetch the three stylesheets with a browser's User-Agent, which is what makes
      Google answer with woff2 rather than ttf:
 
        curl -A "$BROWSER_UA" \
          'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@350..600&display=swap'
        curl -A "$BROWSER_UA" \
          'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..600&display=swap'
+       curl -A "$BROWSER_UA" \
+         'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500&display=swap'
 
   2. For each @font-face, download the woff2 it names into the directory for
      its family, named after the subset comment above it (the unlabelled Noto
@@ -235,3 +245,111 @@ eea83dd7c3c670f708a432771691d81b223c78934ce12e5efdc4b6fc64f8be20     8980  noto-
 770ef1046c100dd483d8abb2147c557bef32b910a8f416367c605a1137f89c81    24936  noto-sans-tc/latin.woff2
 21fac8da552a915e7a9fb84c5afaeb85d35507b2616346d592e78128c1cfe3e0    11092  instrument-sans/latin-ext.woff2
 6219bc4bfdfc5d9b2201dcdf046218b122a758f932e25ed5f168f929b7ca2311    29904  instrument-sans/latin.woff2
+3ac9b5c9bc9d0addccebf1e7e8f143240e67d6291faa7cf794cf9c1c248347aa    17316  noto-serif-tc/cjk-000.woff2
+0d249dfd6171ec7f46486d5de7140b5c4c8f431f1bb5830dd03f77a2a6bc98cf    31144  noto-serif-tc/cjk-001.woff2
+3fd9d1407f4f9e8e3f9281e54be8f4eb656300ad57fe3ea27424de8f1165f38b    17872  noto-serif-tc/cjk-002.woff2
+f64ab18f5b6870f9f385b88c8067aa77a44f0641b7e2dc0d13be40f624ddf3b7     6464  noto-serif-tc/cjk-003.woff2
+61b71682329e4de63272c8a9439b35a1e701e9a4567aaae129883ede1544eb65    11600  noto-serif-tc/cjk-004.woff2
+5df062469bf1b166bbd4d831d2a1d6d3e6a075dcd4accc9968307ffe89427102    10844  noto-serif-tc/cjk-005.woff2
+b44f9475aecd2186c2af7940cf0fd4c6f9cb9d430363188d2a39625d4a03005a     7580  noto-serif-tc/cjk-006.woff2
+39b3ed2e78a79930a58111eb690fa8b196336b6c9144a66d14485fd96ff4641c    22960  noto-serif-tc/cjk-007.woff2
+f3217070074a87947a447b619ad1b8f4e72bd9302eedd33bd446a1cf4f2a4af1    36764  noto-serif-tc/cjk-008.woff2
+e36e1eb981f1d5010009801e44d15810093b3f228b0039737d4cdbc84cdba722    31920  noto-serif-tc/cjk-009.woff2
+172a2d4f2091c5fea8abd332f4aac5e448c36d5e2a517fdfef2e4feb67f34476    32404  noto-serif-tc/cjk-010.woff2
+086a73bd6a15694a3391cf36dbcc2c12137a8b0c84d1dc83b2d20b85b0d0bd5f    30144  noto-serif-tc/cjk-011.woff2
+d9921171cc95c34a4854797c194187c12066b5cd5318d7cff314494e283c3e5f    27872  noto-serif-tc/cjk-012.woff2
+ffb8166016f4378a3680e05422a5ad73321ed6bbc49d9177c3713a4087c79d44    33572  noto-serif-tc/cjk-013.woff2
+91b7a8c956884a80992d4e66298df06dc4e723244889e8bfcfffb34fccf951d8    17492  noto-serif-tc/cjk-014.woff2
+60ad331058053e392c16f3240fa1fb70fb5baa31d1e43490de7fbcb16f11722f    19500  noto-serif-tc/cjk-015.woff2
+404d26df69ec7193ecc20cc5f47c3a7a460f3928aed401e50a24859d0c67e914    39188  noto-serif-tc/cjk-016.woff2
+c3619f24093839b5d5ae1d8160afff9845020324661bd0013febbb3ae6c00bd3    31408  noto-serif-tc/cjk-017.woff2
+4c41954eb2ff9692770b7b99afea3b09ad8b0218c3aa42d556ae58bded2c2d8e    30724  noto-serif-tc/cjk-018.woff2
+ad0c88f60452ec9500d8f6dc333af17e0c7b6545a3ca871f76a778df7005bcda    23800  noto-serif-tc/cjk-019.woff2
+a7893b009dfc764ee94d4334ea302e5cb5eb5ef3742986f13ed206d732b1cb70    33380  noto-serif-tc/cjk-020.woff2
+baf58b2d9263a6d58288288224d000116d84ba30d3439da9601b2d7d484d36a3    22352  noto-serif-tc/cjk-021.woff2
+5c2d4d9a131a03586861d089d19f025729b5f36a65f8b31d1a5fe496263dcef4    14484  noto-serif-tc/cjk-022.woff2
+98f8a88a393fb2309a9cdb8e5f5dc5a04d902a853d2e1e3708eec375113efeec    31216  noto-serif-tc/cjk-023.woff2
+cf913b8b6536f8c30c7bede2337c4bfd9dc52588f92880ed80c51f6e8f3b05fb    33392  noto-serif-tc/cjk-024.woff2
+a4f39015e291de32055f00be178704a22e09fabaace63b651c18ffa5c33bacfd    37016  noto-serif-tc/cjk-025.woff2
+df1c073ca30ce2641224a1ca417987f082d586988ab15eb87dbc3c0923d8941e    30808  noto-serif-tc/cjk-026.woff2
+7355f463823b1b1951d32207f413ddf600f76c5eb384f789f3f05ded028f791a    36028  noto-serif-tc/cjk-027.woff2
+f7c9f43022edad4890cb9347ac8c5d1e049385cab5e92488ccd82873a3a17dc1    28052  noto-serif-tc/cjk-028.woff2
+e06e23173c71be72a7cf6e529e32211ec15c407fb397873585f1102ed7a5a80b    21072  noto-serif-tc/cjk-029.woff2
+4f81ba6f97fc19f5abdf3b433adbadd62995bf0acd82226bf836ee611efb57cf    31908  noto-serif-tc/cjk-030.woff2
+483cc7631ea3bcdbbbac748f0608ab6581077b13779241bea46378a02469734b    27244  noto-serif-tc/cjk-031.woff2
+982436157b86d9cc9ce07989bd33f3d68936a74963c379dce51988a52e3ba21f    15904  noto-serif-tc/cjk-032.woff2
+18a0b2a14a226804a142dd05286315d4871844fa02adbab3383eeeb58a90a090    40984  noto-serif-tc/cjk-033.woff2
+4f3262032e026c77f36708d60b93237d920f5e263bda2641a2bacb2b4768bf07    38572  noto-serif-tc/cjk-034.woff2
+00893122f444246ca7923f0619d0de8cec6112ac8d5c0554b35825f41f7a6355    30164  noto-serif-tc/cjk-035.woff2
+ef4d140e1e6403b9b0fc5af6206f6974ff7ac1ee74b302c23310e05a4afb9ba6    30384  noto-serif-tc/cjk-036.woff2
+4bf9589e27778412c46273213b9e9d7df95530ea466e1af1f99bdfe6f758ad50    30264  noto-serif-tc/cjk-037.woff2
+eb8ca7ae4e979ec698366c0cadf265552b43832760a241db9ed6aa01a2b5f6fd    26616  noto-serif-tc/cjk-038.woff2
+3cc6329dba96950e724c3df2881a08e51ac2043749a53499d52ad9b4338cd986    29944  noto-serif-tc/cjk-039.woff2
+9fe1ddbd581559ed63800c3b8bdd24859d88005326f5b5228795cd72d49f2765    29088  noto-serif-tc/cjk-040.woff2
+82830b916e66c003abeb20401337a36b7c9306c7f3cb628c3b57cdc78909d878    28816  noto-serif-tc/cjk-041.woff2
+ac4a281170fd2d18816c1590c10b8cada336a10777f1a225789d31ff31acc801    28696  noto-serif-tc/cjk-042.woff2
+4d685fa8f67082efc8d31e312a6580cdaca88fe3a2fa3556e646a772ebb25d45    34304  noto-serif-tc/cjk-043.woff2
+477e2c3ae729cde1b6329cbd2a09d7d6ef88aeb814d8dd97bff34376ee1ef5a8    36296  noto-serif-tc/cjk-044.woff2
+d8574f568a602c1c3d3be233c43dde1530972ebf3762c82a9ce64d62f2cf184b    38596  noto-serif-tc/cjk-045.woff2
+f66edec0edefdb7157540c2bf2224cd400f7822b1b51f01c4746fec1172f840b    32256  noto-serif-tc/cjk-046.woff2
+8640b3672c691bebb493b27114d61a47fb4ae94bb7831ac2418b6f9e3c80dcca    25532  noto-serif-tc/cjk-047.woff2
+08c8ce3c0e00d4c75ff3fcdbee2ac7b469b54d33b6b86e2e26b9f172257c02e6    26876  noto-serif-tc/cjk-048.woff2
+1a12ef9a6b6b606903556ae3af15f8fd198c1ff0c5dca052173566d0f36bad58    37536  noto-serif-tc/cjk-049.woff2
+749f6a017963e13d7bf0bd3cbb2f7858242b0da41a9b003acd718666354fcafa    31008  noto-serif-tc/cjk-050.woff2
+511290682258c3589a1f258a2bc3319e55102db90eb099304c18cbba636e79d9    24944  noto-serif-tc/cjk-051.woff2
+34c1fec5f1118afbfc3ce5af0b654f5587b2a11f07ca6395ea28613ee1b314d7    22968  noto-serif-tc/cjk-052.woff2
+d0b5324aa3594cbbd3d9361b1a3a62706450f65670979cdbcfe0d97cf5bc90e7    24900  noto-serif-tc/cjk-053.woff2
+7c1a5741dbb0032969ffa4c0f55556b783d7cb394f4eb05af89a0ea95af2e3f1    35272  noto-serif-tc/cjk-054.woff2
+a1dcf83482b5bead14fe6bb6719d0f637576ee236ea771bf7b4fe444c489b35d    24384  noto-serif-tc/cjk-055.woff2
+5407e44574bd4f49e164c0b78b053f5c7f544c93785448a8a2d4c737d0b2991b    24328  noto-serif-tc/cjk-056.woff2
+1340bb90c232579ad6744f8928e2732b8be1f842b20bd0f0fd8c4c3c1a9fda0b    30916  noto-serif-tc/cjk-057.woff2
+73b594fd007edaa42e74ea1ff8a4f8ef6c4a158621ae1627686f6da8c23f87e9    20660  noto-serif-tc/cjk-058.woff2
+5e518404916c3b133588603bac090c11b500eb30730f51d8cfe84cf10a375ba6    25568  noto-serif-tc/cjk-059.woff2
+c4d2af0a92e5e5eb27525d400106ffc7879774f46d14adb9b9011206ddb29e1f    28004  noto-serif-tc/cjk-060.woff2
+481387723b90ff7c03ff3ea4a469b04b461edaf241fce587c825f0465cfa83e3    20628  noto-serif-tc/cjk-061.woff2
+e32ca17f87a3c6f8b55e157ec97136acba55ca0002f982fef2d9b6153799f3de    36376  noto-serif-tc/cjk-062.woff2
+4bf07de4363b76a2e16178013bbd1b429275dd6beab686845209177da70502cb    25024  noto-serif-tc/cjk-063.woff2
+680157bdac9e183878b251916533a81f1c2ab80be0334a43055181296fbef5fb    29488  noto-serif-tc/cjk-064.woff2
+c1ca50b35cb0fe5151cdc281fd40094fed4fa3229d8ebcd91578767f074ee786    25400  noto-serif-tc/cjk-065.woff2
+b6311f976346ea43dc1659a15df83292b0cf4279738819e73836c1e1b4d12bc8    31080  noto-serif-tc/cjk-066.woff2
+cbb2b0cdc7b8682d0dbdb060002739e12d815d98c1e7b3b257d7502a3523ab25    20732  noto-serif-tc/cjk-067.woff2
+c4a19550186a001340fb6fd69b591b412de39fe57bc2ed807da09a111bd9f4e3    19056  noto-serif-tc/cjk-068.woff2
+1767ffcbbcc364253abf3dfac5098ff11210eefebecc853508aaa793fcfd4bec    22160  noto-serif-tc/cjk-069.woff2
+c447beadcf15be95a3b28e96bc8b24a93bff9b947d4f00797395c2375f998266    30752  noto-serif-tc/cjk-070.woff2
+cb5e6399d0ecb4a36cc7f0ba2b0f8e4560b36eb7ec42c1fb470a3b9da87db50c    20840  noto-serif-tc/cjk-071.woff2
+751ffa35d036b6122c17be01f8c1c125ebd12355e003e1a22a54a0a52410bbc4    12740  noto-serif-tc/cjk-072.woff2
+f65d4d9d3165ffec253782aa5a164636d9013ad53d6c53b75f50e15dc50baa49    27920  noto-serif-tc/cjk-073.woff2
+c2f0379512eba48db82bfbdd56b9e18bb58af61cd3fed590a133360e52dc474c     8272  noto-serif-tc/cjk-074.woff2
+8e6a657b824716751fe3db1b111d1c9d20b6c191294e5b7945c6c6edf9fe8ecd     4028  noto-serif-tc/cjk-075.woff2
+8102f0501b992b365c06c894f256d7b82622b9ecfa207a492ef6f8f4b4e464df     6252  noto-serif-tc/cjk-076.woff2
+29f41d98a40baf890c2bac8c47520585c3ff5c0435058221ed043d3e34f57be8     7812  noto-serif-tc/cjk-077.woff2
+e25a8b805dbd87cf7663e4b612317c1c8c77a0f90559957aad834149dea5b3b4     5608  noto-serif-tc/cjk-078.woff2
+c3f1299a762dd90a25cca73d56845e4b24ef1986dcb5eb60f461886d0dc64ad4     6008  noto-serif-tc/cjk-079.woff2
+ea4a7f47c1f9b3f3141d385d36e044b3a9d7f6b5ec01541c3ee917cfcbacb7ed     2576  noto-serif-tc/cjk-080.woff2
+0339efcd217dccd6dd94f5629aa781bb79355fe5c0f6f33b66559747988efa21     1156  noto-serif-tc/cjk-081.woff2
+5d116b9585389855c764b16895a007a0c61d955c8aff1f5aaf17f9cd3f57f4fe     1856  noto-serif-tc/cjk-082.woff2
+0387407b4d4b39a37b10253f618abc5adea293ab0be74c88b5755f9ec3f50fcd     5500  noto-serif-tc/cjk-083.woff2
+e3ef728ad884134ec4985ec3b0e8ecab80993b9e567ed3b7f222ef9bda0e8be6    45760  noto-serif-tc/cjk-084.woff2
+2cf066ea958fa9b0ed100e11cdd7033522d59929eccd81552ae48da7d480ff7d    44272  noto-serif-tc/cjk-085.woff2
+39eca7eceb5ef1a8510cbb68119803225f008c32c4b5bba2300e477449a67d94    45436  noto-serif-tc/cjk-086.woff2
+a0a4c662bef1dfd32de5276f0e100ae2efbb4bb5ce97bf07a730de9139228f94    49784  noto-serif-tc/cjk-087.woff2
+1368c2a5fd22f5071da8d5fba2845e77d91dd9df52cddca3e4a7bceb45ea9eee    48384  noto-serif-tc/cjk-088.woff2
+305da9febc254864be96087b17ece2e1733d3f0fb0dff374412d05136fa50d5f    47024  noto-serif-tc/cjk-089.woff2
+5980d713fed9d4b79a1101987a48ef897fef179d11151170b6023c6af4d9eef4    51144  noto-serif-tc/cjk-090.woff2
+402a8a514470f366b34b0f2b4b4b7905cc53510d71acf65a7315a9451c20f006    51152  noto-serif-tc/cjk-091.woff2
+fd91154a1ffab62d226810134a9c450a71067f7afa2c7a73209107c16a1a5b0d    50240  noto-serif-tc/cjk-092.woff2
+1a70a13463c38c9ceb2655f4ebe34e599838507e36a854d254280e4ddd562ba5    50396  noto-serif-tc/cjk-093.woff2
+2f50b3232b507b7e8e57b82a6fd18f4a4c2192815b95538be575e63641c5f4c6    55152  noto-serif-tc/cjk-094.woff2
+f29487009e74da4f2dd2da4929811fc765d0846478d61e3ff3af472fac6218af    52720  noto-serif-tc/cjk-095.woff2
+ac95c2e22c9f02f647732ca0bffb2e42e48b2117a3d04ba987d38324bde7c1aa    51556  noto-serif-tc/cjk-096.woff2
+6b0189e6f0c9d705e1da6452dc0f2ac3b510df59156f9a880a3b2811878f2afb    50552  noto-serif-tc/cjk-097.woff2
+7586b502fe7552ea1baf75f9034a1fc4581ac2e8d0f6f80feaf1de655a78e502    61060  noto-serif-tc/cjk-098.woff2
+c2811a9116f92a6e28b8aa7babbbc591aa64d458a2314804953a1fe86cfea475    51404  noto-serif-tc/cjk-099.woff2
+8a51b23a0edccb6044650060b836e78ac1d9ecf556a8df9b9a02055b32557f72    50440  noto-serif-tc/cjk-100.woff2
+a6768091150424613394595813e0c5d410a88eff478e7defbca6fefcb33051d8    45164  noto-serif-tc/cjk-101.woff2
+89a9ab9553618b8562c497b693b80707a5dbf2e64262fb5a643f7883f4a10e06    42772  noto-serif-tc/cjk-102.woff2
+22493a22c547ca3e4a1f34b3e2aae060f84aa9bafcc363111d472127fce1eb94    27088  noto-serif-tc/cjk-103.woff2
+78119cca6c451083827cbc3344fde1bcfad61c649838c382aa1e11cd4b248f16     8060  noto-serif-tc/cyrillic.woff2
+47c0a89daafc43c577e1bee3f0d1a838154147ed84811619c0258404a4e6c2d2     5824  noto-serif-tc/vietnamese.woff2
+7b6a49c07b86d3205c7887eae484458fa14413d3d8323ce324420e13e7a1fd60     5708  noto-serif-tc/latin-ext.woff2
+5de6a15e4d91d58e9057ac2db251ea8b178c42fe86a41c53bdf31bcd883082da    18676  noto-serif-tc/latin.woff2
