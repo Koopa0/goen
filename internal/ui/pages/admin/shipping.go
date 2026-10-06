@@ -207,23 +207,22 @@ type zonePrefixEntry struct {
 	Districts []string
 }
 
-func zonePrefixFields(raw string) []string {
-	return strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
-	})
-}
-
 func zonePrefixEntries(raw string) []zonePrefixEntry {
-	fields := zonePrefixFields(raw)
+	fields := postcode.Fields(raw)
 	entries := make([]zonePrefixEntry, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
 	for _, prefix := range fields {
+		if seen[prefix] {
+			continue
+		}
+		seen[prefix] = true
 		entries = append(entries, zonePrefixEntry{Prefix: prefix, Districts: postcode.Districts(prefix)})
 	}
 	return entries
 }
 
 func zonePrefixRows(raw string) string {
-	return strconv.Itoa(max(3, len(zonePrefixFields(raw)), strings.Count(raw, "\n")+1))
+	return strconv.Itoa(max(3, len(postcode.Fields(raw)), strings.Count(raw, "\n")+1))
 }
 
 // HTML discards the first newline after a textarea opens; supply it separately
