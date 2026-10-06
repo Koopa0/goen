@@ -1329,10 +1329,14 @@ FROM (
     WHERE e.order_id = $1
     UNION ALL
     -- awaiting_buyer is a sent online allowance, which waits on the buyer's
-    -- consent rather than on goen.
+    -- consent rather than on goen. not_sent is an operation nothing will send
+    -- while no 加值中心 is configured.
     SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
            CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
-                THEN 'awaiting_buyer' ELSE op.status END,
+                THEN 'awaiting_buyer'
+                WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT $2::boolean
+                THEN 'not_sent'
+                ELSE op.status END,
            op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
@@ -1349,7 +1353,7 @@ FROM (
            m.delivered_at, '', 'system', ''
     FROM outbox_messages m
     JOIN orders o ON o.id = $1
-    WHERE m.topic = ANY($2::text[])
+    WHERE m.topic = ANY($3::text[])
       AND (m.payload->>'order_number' = o.order_number
            OR m.payload->>'order_id' = o.id::text)
 ) timeline
@@ -1357,8 +1361,9 @@ ORDER BY at, precedence, tie
 `
 
 type AdminOrderTimelineParams struct {
-	OrderID    uuid.UUID
-	MailTopics []string
+	OrderID          uuid.UUID
+	InvoicingEnabled bool
+	MailTopics       []string
 }
 
 type AdminOrderTimelineRow struct {
@@ -1384,7 +1389,7 @@ type AdminOrderTimelineRow struct {
 // An invoice operation and a mail are placed at their creation; status is where
 // they stand now, and done_at when a succeeded operation or a delivered mail got there.
 func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
-	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.MailTopics)
+	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.InvoicingEnabled, arg.MailTopics)
 	if err != nil {
 		return nil, err
 	}
@@ -16809,7 +16814,8 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
-   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes'
+       AND ($1::boolean OR op.send_attempts > 0))
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
             OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
@@ -16839,9 +16845,10 @@ type StrandedInvoiceClaimsRow struct {
 // pending beyond several worker polls. Succeeded evidence and a staff claim's
 // rejection, which that person saw, are not an active health alarm. A system
 // issue's rejection was seen by nobody, so it stays while the order still owes
-// an invoice and no later issue exists.
-func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
-	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
+// an invoice and no later issue exists. With no 加值中心 configured an operation
+// never sent is waiting for one, not stranded; one already sent stays.
+func (q *Queries) StrandedInvoiceClaims(ctx context.Context, invoicingEnabled bool) ([]StrandedInvoiceClaimsRow, error) {
+	rows, err := q.db.Query(ctx, strandedInvoiceClaims, invoicingEnabled)
 	if err != nil {
 		return nil, err
 	}

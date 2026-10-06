@@ -374,6 +374,46 @@ var (
 		En:     "This order is paid and cannot be cancelled directly. Use Refund and cancel before shipment.",
 	})
 
+	KeyAdminNoticeRefundShipped = key("admin.notice.refundshipped", Message{
+		ZhHant: "這張訂單已經出貨，不能退款取消。請到退貨頁，用退貨處理。",
+		En:     "This order has already shipped, so it cannot be refunded and cancelled here. Handle it as a return on the Returns page.",
+	})
+
+	KeyAdminNoticeRefundHasReturn = key("admin.notice.refundhasreturn", Message{
+		ZhHant: "這張訂單已有退貨申請，不能再退款取消。請到退貨頁，處理那筆退貨。",
+		En:     "This order already has a return, so it cannot be refunded and cancelled here. Handle that return on the Returns page.",
+	})
+
+	KeyAdminNoticeRefundCancelled = key("admin.notice.refundcancelled", Message{
+		ZhHant: "這張訂單已經取消，這次沒有退款。請重新整理，在訂單紀錄確認款項有沒有退回顧客。",
+		En:     "This order is already cancelled, so nothing was refunded this time. Reload the page and check the order log to see whether the customer was paid back.",
+	})
+
+	KeyAdminNoticeRefundUnpaid = key("admin.notice.refundunpaid", Message{
+		ZhHant: "這張訂單還沒有付款，沒有款項可以退。要取消這張訂單，請用上方的狀態選單。",
+		En:     "This order has not been paid, so there is nothing to refund. To cancel it, use the status menu above.",
+	})
+
+	KeyAdminNoticeRefundChanged = key("admin.notice.refundchanged", Message{
+		ZhHant: "這張訂單剛被改過，這次沒有退款。請重新整理，看目前的狀態再決定。",
+		En:     "This order was just changed by someone else, so nothing was refunded. Reload the page and decide from its current state.",
+	})
+
+	KeyAdminNoticeRefundPicking = key("admin.notice.refundpicking", Message{
+		ZhHant: "這張訂單剛開始備貨，這次沒有取消。請重新整理，再按一次「出貨前退款並取消」。",
+		En:     "Packing has just started on this order, so it was not cancelled. Reload the page and press Refund and cancel before shipment again.",
+	})
+
+	KeyAdminNoticeRefundMismatch = key("admin.notice.refundmismatch", Message{
+		ZhHant: "這筆退款沒辦法照紀錄完成：金額和付款紀錄對不上，或顧客的帳號已刪除。請先到 Stripe 後台確認款項有沒有退出，再聯絡負責系統的人；先不要再按。",
+		En:     "This refund cannot be completed as recorded: its amounts do not match the payment records, or the customer's account was deleted. Check the Stripe dashboard to see whether any money went out, then contact whoever runs the system. Do not press it again yet.",
+	})
+
+	KeyAdminNoticeRefundUnsure = key("admin.notice.refundunsure", Message{
+		ZhHant: "退款沒有完成，目前不確定款項有沒有退出。請重新整理，到訂單紀錄和 Stripe 後台確認；仍然不行，請聯絡負責系統的人。",
+		En:     "The refund did not finish, and it is not certain whether any money went out. Reload the page and check the order log and the Stripe dashboard; if it still fails, contact whoever runs the system.",
+	})
+
 	KeyAdminNoticeInspected = key("admin.notice.inspected", Message{
 		ZhHant: "驗貨已記錄，可再販售的數量已經入庫。",
 		En:     "Inspection recorded. Whatever is sellable again is back on the shelf.",
