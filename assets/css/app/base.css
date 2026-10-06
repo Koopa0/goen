@@ -3,11 +3,11 @@
 
    The tokens a page reads, the element defaults every page starts from,
    and the shared primitives more than one surface still wears. app.css
-   composes pages on top of it and is linked after it, so a value set in
-   both places is settled by source order and app.css wins.
+   (the storefront) and admin.css (the back office) are each linked after
+   it, so a value set in both places is settled by source order and theirs
+   wins.
 
-   A custom property is declared here only when app.css does not declare
-   it: one name, one declaration, one place to change it.
+   A custom property both surfaces read is declared here, once.
    ============================================================ */
 
 :root {
@@ -276,3 +276,140 @@ body {
 /* ---------- Commerce ---------- */
 
 .ui-cart-line__meta { font-variant-numeric: tabular-nums; font-size: var(--fs-12); color: var(--fg-muted); }
+
+/* ---------- The ground ----------
+
+   Every value both surfaces are drawn from.
+
+   The neutrals carry no chroma, because the product photographs sit on a
+   chroma-free #f9f9f9 and any tint in the page would show as an edge around
+   them. Colour is spent in three places only: the accent, the functional
+   hues a status needs, and the one chart data colour, --chart-hue.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --n-0: #ffffff;
+  --n-50: #fafafa;
+  /* The ground baked into every product and category photograph. A container
+     that is not this exact value draws a visible edge around the picture. */
+  --photo: #f9f9f9;
+  --photo-ground: var(--photo);
+  --n-100: #f4f4f5;
+  --n-200: #e7e7e9;
+  --n-300: #d4d4d8;
+  /* Icons and placeholders. Below 3:1 on white as text, so never body copy. */
+  --n-400: #a1a1aa;
+  /* The lightest a text colour may be: 5.4:1 on white, 5.1:1 on --n-50. */
+  --n-500: #66666d;
+  --n-700: #3f3f46;
+  --n-900: #18181b;
+
+  /* The one hue. --accent is for rings, outlines and fills; --accent-text is
+     the same hue darkened until it reads as link text on every neutral ground. */
+  --accent: #2a75ba;
+  --accent-text: #1f5b92;
+  --accent-text-hover: #174a78;
+  --accent-faint: rgb(42 117 186 / 0.06);
+  --accent-muted: rgb(42 117 186 / 0.1);
+  --accent-strong: var(--accent-text);
+  --on-accent: #ffffff;
+  --ring: var(--accent);
+
+  /* The names the existing rules were written against, now on the ramp. */
+  --bg: var(--n-0);
+  --panel: var(--n-0);
+  --fg: var(--n-900);
+  --fg-muted: var(--n-500);
+  --border: var(--n-200);
+  --border-faint: var(--n-100);
+  --border-strong: var(--n-300);
+  /* Controls need 3:1 against their ground: 5.7:1 on white, 5.2:1 on n-100. */
+  --control-boundary: var(--n-500);
+  --elevated: var(--n-100);
+  --overlay: var(--n-100);
+
+  /* Functional colours: a status says what it is by its words and its icon,
+     the colour only agrees. Each ink clears 4.5:1 on its own tint. */
+  --star: #b07c00;
+  --error: #b91c1c;
+  --error-bg: #fef2f2;
+  --error-outline: #fca5a5;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --warn: #92400e;
+  --warn-bg: #fffbeb;
+  --info: #1f5b92;
+  --info-bg: #eff6ff;
+
+  --font-display: var(--font-sans);
+
+  /* One family for everything, headings included. Noto Sans TC follows
+     Instrument Sans so Han is covered by a face that sits beside it rather
+     than under a second personality. */
+  --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+
+  --fs-15: 0.9375rem;
+  --fs-ed-24: 1.5rem;
+  --fs-ed-30: 1.875rem;
+  --fs-ed-38: 2.25rem;
+
+  --r-sm: 0.25rem;
+  --r-md: 0.375rem;
+  --r-lg: 0.5rem;
+  --r-xl: 0.5rem;
+  --radius: var(--r-lg);
+
+  /* A button and the checkout summary carry the first; menus and popovers the
+     second; drawers and dialogs the third. Nothing else casts a shadow. */
+  --sh-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --sh-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --sh-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-1: var(--sh-xs);
+  --shadow-2: var(--sh-lg);
+
+  /* The hairline a swatch needs so a near-white colour is still a disc on a
+     white ground. */
+  --swatch-ring: rgb(0 0 0 / 0.1);
+
+  /* A select's arrow, in --n-500. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366666d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ---------- Charts ----------
+
+   One data colour. Its contrast against the page grounds is held by
+   assets/contrast_test.go, so it stays a six-digit hex. Position, length and
+   the row's own text carry the meaning, never the hue alone.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --chart-hue: #007f69;
+  --chart-hue-track: #c0ebe1;
+  --chart-previous: #8e8e96;
+  --chart-grid: var(--n-200);
+  --chart-annotation: var(--fg);
+}
+
+/* The one measurement every surface shares: a content column that stops at
+   1280px inside a gutter of 16 / 24 / 32px. `scripts/check-layout.mjs` compares
+   the header bar's, the home page's and the footer grid's content edges and
+   fails when they disagree, so each reads the column from this one pair. */
+:root {
+  --page-gutter: 16px;
+  --page-width: 1280px;
+  /* The content column plus its gutters, for the pages that size themselves
+     with border-box: their text then starts where the header's does. */
+  --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-gutter: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-gutter: 32px;
+  }
+}
