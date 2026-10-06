@@ -192,7 +192,13 @@ type UnreconciledEvent struct {
 	Ref     string
 	Reason  string
 	Since   string
+	// RefundOrderNumber and RefundCents are goen's own succeeded refund a
+	// refund.failed event names; "" and 0 for every other event.
+	RefundOrderNumber string
+	RefundCents       int64
 }
+
+func (u UnreconciledEvent) RefundAmount() string { return money.TWD(u.RefundCents) }
 
 type UnreconciledCompletePayment struct {
 	OrderNumber            string

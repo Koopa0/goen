@@ -28,9 +28,9 @@ templ Staff(p layouts.Page, v StaffView) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }
 			}
 		}
-		if !v.AllProtected() {
+		if !v.AllEnrolled() {
 			@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
-				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnenrolled), v.UnenrolledText()) }
 			}
 		}
 		<div class="goen-admin__tablewrap">

@@ -88,17 +88,9 @@ templ Home(p layouts.Page, v HomeView) {
 				</div>
 			</section>
 		}
-		<section class="goen-trust" aria-labelledby="trust-heading">
-			<h2 id="trust-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionTrust) }</h2>
-			<div class="goen-container goen-trust__grid">
-				@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
-				if v.FreeDelivery() != "" {
-					@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, v.ShippingBodyKey()), v.LowestFee()))
-				}
-				@incentive(icons.Return(), i18n.T(ctx, i18n.KeyGuaranteeReturns), i18n.T(ctx, i18n.KeyTrustReturnsBody))
-				@incentive(icons.Lock(), i18n.T(ctx, i18n.KeyTrustPayment), i18n.T(ctx, i18n.KeyTrustPaymentBody))
-			</div>
-		</section>
+		<div class="goen-home">
+			@shopRules(v.Rules)
+		</div>
 	}
 }
 
@@ -184,16 +176,4 @@ templ heroCarousel(slides []HeroSlide) {
 			</div>
 		}
 	</section>
-}
-
-templ incentive(icon templ.Component, title, desc string) {
-	<div class="goen-trust__item">
-		<div class="goen-trust__head">
-			<span class="goen-trust__icon">
-				@icon
-			</span>
-			<h3 class="goen-trust__title">{ title }</h3>
-		</div>
-		<p class="goen-trust__body">{ desc }</p>
-	</div>
 }
