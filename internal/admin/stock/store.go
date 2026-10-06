@@ -141,7 +141,7 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"received": quantity},
+		After:  map[string]any{"received": quantity, "preorder_release_on": ""},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
@@ -149,10 +149,14 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 				return lockErr
 			}
 			before["stock"] = replaced.StockQuantity
+			before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
 				return pgerr.WrapRefusal(moveErr, ErrRefused)
+			}
+			if clearErr := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID}); clearErr != nil {
+				return pgerr.WrapRefusal(clearErr, ErrRefused)
 			}
 			return nil
 		})
@@ -279,7 +283,8 @@ func (s *Store) LowStock(ctx context.Context, limit int32) ([]admin.Variant, err
 func variantRow(r *db.AdminVariantsRow) admin.Variant {
 	return admin.Variant{
 		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
-		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
+		ArrivalInput: arrivalInput(r.PreorderReleaseOn),
+		PriceCents:   r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
 		Options: r.OptionValues,
@@ -330,4 +335,29 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		})
 	}
 	return view, nil
+}
+
+func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) error {
+	v, err := s.q.AdminVariantBySKU(ctx, sku)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read variant: %w", err)
+	}
+	before := map[string]any{"sku": sku}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetVariantArrival, Table: "product_variants", ID: audit.EntityID(v.ID),
+		Before: before, After: map[string]any{"preorder_release_on": arrivalInput(day)},
+	}, func(ctx context.Context, q *db.Queries) error {
+		replaced, err := lockVariant(ctx, q, v.ID, sku)
+		if err != nil {
+			return err
+		}
+		before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
+		if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID, ArrivalOn: day}); err != nil {
+			return fmt.Errorf("set variant arrival: %w", err)
+		}
+		return nil
+	})
 }

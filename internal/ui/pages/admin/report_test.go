@@ -21,7 +21,7 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 		Windows: []int32{7, 30, 90},
 		AtRisk: []StockRisk{{
 			SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku",
-			Stock: 2, Safety: 4, Sold: 8, DaysCover: 7,
+			Sellable: 2, Sold: 8, DaysCover: 7,
 		}},
 	}))
 

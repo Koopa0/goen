@@ -11,6 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -2653,6 +2654,84 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// axe has no WCAG 1.4.11 rule, so measure the boundary or fill identifying each editable region.
+// Native Tab must add a shape as well as changing the colour of the border.
+const controlFocus = async (selector) => {
+  const prepared = await evalPage(`(() => {
+    const target = document.querySelector(${JSON.stringify(selector)});
+    // Closed disclosure contents can keep layout boxes without being Tab stops.
+    const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')]
+      .filter((el) => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]')
+        && el.checkVisibility({ visibilityProperty: true }));
+    const position = controls.indexOf(target);
+    if (position < 1) return { error: 'control or its preceding Tab stop is missing' };
+    if (controls.some((el) => el.tabIndex > 0)) return { error: 'positive tabindex needs an explicit focus-order check' };
+    controls[position - 1].focus();
+    return { ready: document.activeElement === controls[position - 1] };
+  })()`);
+  if (!prepared.ready) return { selector, error: prepared.error || prepared.why || 'preceding Tab stop could not focus' };
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  return evalPage(`new Promise((resolve) => setTimeout(() => resolve((${measureControlBoundary.toString()})(${JSON.stringify([selector])}, ${contrastRatio.toString()}, true)[0]), 350))`);
+};
+
+const { cookies: boundaryCookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+const boundarySession = boundaryCookies.find((c) => c.name === 'goen_session');
+try {
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    for (const { path, selectors, widths, session } of [
+      { path: '/contact', selectors: ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'], widths: [1440] },
+      { path: '/compare?p=' + encodeURIComponent(process.env.PRODUCT_SLUG || ''), selectors: ['#compare-q'], widths: [1440] },
+      { path: '/c/phones', selectors: ['#sort'], widths: [1440] },
+      { path: '/admin/credit', selectors: ['#credit-email'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/admin/orders/' + (process.env.RETURN_FORM_ORDER || ''), selectors: ['#staff-note', '#next-status'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/checkout', selectors: ['#address-book'], widths: [375, 1440], session: process.env.CUST_TOKEN },
+    ]) {
+      if ((path.startsWith('/admin/') || path === '/checkout') && !session) {
+        fail('control boundary', path + ': authenticated fixture missing');
+        continue;
+      }
+      if (session) await send(ws, 'Network.setCookie', { name: 'goen_session', value: session, domain: '127.0.0.1', path: '/' });
+      for (const width of widths) {
+        const label = 'control boundary ' + locale + ' ' + width + ' ' + path;
+        await openAt(label, path);
+        await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await evalPage('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+        await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
+        const boundaries = await evalPage(`(${measureControlBoundary.toString()})(${JSON.stringify(selectors)}, ${contrastRatio.toString()})`);
+        if (boundaries.threw || !Array.isArray(boundaries)) {
+          fail(label, boundaries.why || 'boundary probe returned no measurements');
+          continue;
+        }
+        for (const boundary of boundaries) {
+          console.log(label + ' rest ' + JSON.stringify(boundary));
+          if (boundary.error) {
+            fail(label, boundary.selector + ': ' + boundary.error);
+            continue;
+          }
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
+            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          }
+          const focused = await controlFocus(boundary.selector);
+          console.log(label + ' focus ' + JSON.stringify(focused));
+          if (focused.error || focused.threw || !focused.active || !focused.focusVisible || focused.outlineWidth < 2
+              || focused.outlineWidth <= boundary.outlineWidth || focused.outlineContrast < 3) {
+            fail(label, boundary.selector + ': native keyboard focus has no additional visible 2px ring');
+          }
+        }
+      }
+    }
+  }
+} finally {
+  if (boundarySession) {
+    await send(ws, 'Network.setCookie', { name: boundarySession.name, value: boundarySession.value, domain: boundarySession.domain, path: boundarySession.path });
+  } else {
+    await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  }
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+}
 
 // Selection must be visible after focus leaves the control; focus is a separate state.
 const forcedColoursMissing = ['CUST_TOKEN', 'PICKUP_SHIP', 'COLOUR_SLUG'].filter((name) => !process.env[name]);

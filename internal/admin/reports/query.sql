@@ -69,16 +69,16 @@ LEFT JOIN committed_orders c ON c.id = o.id
 WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz;
 
 -- days_cover is never NULL because the WHERE clause admits only variants that
--- sold something, so the divisor cannot be zero.
+-- sold something, so the divisor cannot be zero. It divides what a sale may
+-- still take: record_inventory_movement refuses to go below safety_stock.
 -- name: StockAtRisk :many
 SELECT
     pv.sku,
     p.name AS product_name,
     p.slug,
-    pv.stock_quantity,
-    pv.safety_stock,
+    greatest(pv.stock_quantity - pv.safety_stock, 0)::integer AS sellable_quantity,
     sold.units::bigint AS units_sold,
-    (pv.stock_quantity::numeric
+    (greatest(pv.stock_quantity - pv.safety_stock, 0)::numeric
      / (sold.units::numeric / @window_days::integer))::integer AS days_cover
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
@@ -91,5 +91,5 @@ JOIN LATERAL (
       AND o.placed_at >= now() - make_interval(days => @window_days::integer)
 ) sold ON true
 WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
-ORDER BY days_cover NULLS LAST, pv.stock_quantity
+ORDER BY days_cover NULLS LAST, sellable_quantity
 LIMIT @limit_to::integer;
