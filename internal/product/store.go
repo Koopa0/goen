@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/productlabel"
@@ -20,6 +21,7 @@ import (
 )
 
 type Store struct {
+	dbtx     db.DBTX
 	q        *db.Queries
 	log      *slog.Logger
 	noPickup bool
@@ -30,7 +32,7 @@ func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
 	if dbtx == nil || log == nil {
 		panic("product: NewStore requires a database handle and a logger")
 	}
-	return &Store{q: db.New(dbtx), log: log, now: time.Now}
+	return &Store{dbtx: dbtx, q: db.New(dbtx), log: log, now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -98,22 +100,22 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
 	// /compare set's ?p= outran it; derived from the variants because the next
 	// parameter somebody adds will not be added to a list.
-	sel = sel.OnlyOptionsOf(variants)
+	sel = sel.WithSingleChoices(groups).OnlyOptionsOf(variants)
 
 	chosen, exact := Resolve(variants, sel)
 
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
+		return pages.ProductView{}, err
 	}
 
 	view := pages.ProductView{
-		FreeDeliveryCents: freeOver,
-		Slug:              p.Slug,
-		Name:              p.Name,
-		Summary:           p.Summary,
-		Description:       p.Description,
-		WarrantyNote:      p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		Rules:        rules,
+		Slug:         p.Slug,
+		Name:         p.Name,
+		Summary:      p.Summary,
+		Description:  p.Description,
+		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
 		Brand:        p.Brand,
 		CategorySlug: p.CategorySlug,
 		CategoryName: p.CategoryName,
@@ -267,9 +269,12 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 		})
 	}
 
-	readCtx, cancel := recommendationContext(ctx)
-	defer cancel()
-	related, err := s.q.RelatedProducts(readCtx, db.RelatedProductsParams{
+	q, readCtx, release, err := s.recommendationQueries(ctx)
+	if err != nil {
+		return s.omitFailedRecommendation(ctx, readRelatedProducts, p.ID, err)
+	}
+	defer release()
+	related, err := q.RelatedProducts(readCtx, db.RelatedProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
 		CategoryID: p.CategoryID,
 		ExcludeID:  p.ID,
@@ -300,9 +305,12 @@ const MinCoPurchases = 2
 const MaxRecommendations = 4
 
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
-	readCtx, cancel := recommendationContext(ctx)
-	defer cancel()
-	rows, err := s.q.BoughtTogether(readCtx, db.BoughtTogetherParams{
+	q, readCtx, release, err := s.recommendationQueries(ctx)
+	if err != nil {
+		return nil, s.omitFailedRecommendation(ctx, readBoughtTogether, productID, err)
+	}
+	defer release()
+	rows, err := q.BoughtTogether(readCtx, db.BoughtTogetherParams{
 		Locale:    string(i18n.FromContext(ctx)),
 		ProductID: productID,
 		MinOrders: MinCoPurchases,

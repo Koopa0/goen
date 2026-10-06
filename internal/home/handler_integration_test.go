@@ -1103,3 +1103,85 @@ func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
 			got["navcount-big"], got["navcount-small"])
 	}
 }
+
+// The lead tile is the campaign's first product, so its first photograph's
+// width decides; a photograph whose width was never stored counts as too narrow.
+func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	emptyHeroSlides(t)
+	stopCampaigns(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
+		t.Fatalf("insert campaign: %v", err)
+	}
+	var campaignID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM sale_campaigns WHERE slug = 'lead-width'`).Scan(&campaignID); err != nil {
+		t.Fatalf("read campaign: %v", err)
+	}
+	productIDs := make([]uuid.UUID, 0, 4)
+	for range 4 {
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `
+			WITH p AS (
+			    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+			    SELECT (SELECT id FROM brands LIMIT 1),
+			           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+			           'lead-' || gen_random_uuid(), '主圖商品', 'active', now()
+			    RETURNING id
+			), v AS (
+			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+			    SELECT p.id, 'LEAD-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, 5, 0, 0 FROM p
+			)
+			SELECT id FROM p`).Scan(&id); err != nil {
+			t.Fatalf("create product: %v", err)
+		}
+		productIDs = append(productIDs, id)
+	}
+	for i, id := range productIDs {
+		if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
+			t.Fatalf("feature product: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		for _, q := range []string{
+			`DELETE FROM product_images WHERE product_id = ANY($1)`,
+			`DELETE FROM sale_campaign_products WHERE campaign_id = $2`,
+			`DELETE FROM products WHERE id = ANY($1)`,
+			`DELETE FROM sale_campaigns WHERE id = $2`,
+		} {
+			if _, err := pool.Exec(clean, q, productIDs, campaignID); err != nil {
+				t.Errorf("clean up %q: %v", q, err)
+			}
+		}
+	})
+
+	for _, tt := range []struct {
+		name  string
+		width any
+		lead  bool
+	}{
+		{"wide", 1600, true},
+		{"just under", 1199, false},
+		{"width never stored", nil, false},
+	} {
+		if _, err := pool.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1`, productIDs[0]); err != nil {
+			t.Fatalf("clear photograph: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO product_images (product_id, storage_key, alt_text, width, height, position)
+			VALUES ($1, 'lead.webp', '主圖', $2, 1200, 0)`, productIDs[0], tt.width); err != nil {
+			t.Fatalf("%s: insert photograph: %v", tt.name, err)
+		}
+		view, err := home.NewStore(pool).Load(ctx)
+		if err != nil {
+			t.Fatalf("%s: load: %v", tt.name, err)
+		}
+		if view.Row.Href != "/s/lead-width" {
+			t.Fatalf("%s: the row is %q, want the campaign's", tt.name, view.Row.Href)
+		}
+		if got := view.Row.HasLead(); got != tt.lead {
+			t.Errorf("%s: lead tile = %t, want %t (first photograph %v wide)", tt.name, got, tt.lead, tt.width)
+		}
+	}
+}
