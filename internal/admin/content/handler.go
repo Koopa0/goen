@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -262,13 +263,6 @@ func (h *Handler) rejectBanner(
 // checked before the image is decoded, so a refused slide stores nothing.
 func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	upload, err := h.images.OpenUpload(w, r, "image")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		//nolint:gosec // G710: UploadQuery returns one of five fixed parameters
-		http.Redirect(w, r, "/admin/home?"+media.UploadQuery(err), http.StatusSeeOther)
-		return
-	}
-	defer upload.Close()
 
 	f := &HeroForm{
 		Eyebrow:        r.PostFormValue("eyebrow"),
@@ -288,17 +282,23 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		ImageAltEn:     r.PostFormValue("alt_en"),
 		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
+	if err != nil {
+		h.log.WarnContext(r.Context(), "hero image", "error", err)
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(err), "=1")].Key)})
+		return
+	}
+	if upload != nil {
+		defer upload.Close()
+	}
 	if errs := f.Validate(r.Context()); len(errs) > 0 {
 		h.rejectHeroSlide(w, r, f, errs)
 		return
 	}
 	if upload != nil {
 		obj, storeErr := upload.Store(r.Context())
-		// A file no decoder accepts leaves the slide on the built-in artwork.
-		if storeErr != nil && !errors.Is(storeErr, media.ErrNotAnImage) {
+		if storeErr != nil {
 			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			//nolint:gosec // G710: UploadQuery returns one of five fixed parameters
-			http.Redirect(w, r, "/admin/home?"+media.UploadQuery(storeErr), http.StatusSeeOther)
+			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), notices[strings.TrimSuffix(media.UploadQuery(storeErr), "=1")].Key)})
 			return
 		}
 		f.ImageKey = obj.Digest
