@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -77,13 +78,14 @@ func reservedParam(k string) bool {
 }
 
 type Variant struct {
-	ID           string
-	SKU          string
-	PriceCents   int64
-	CompareCents int64 // 0 when not discounted
-	Sellable     bool
-	Available    int32
-	Options      map[string]string
+	ID              string
+	SKU             string
+	PriceCents      int64
+	CompareCents    int64 // 0 when not discounted
+	Sellable        bool
+	ExpectedArrival time.Time
+	Available       int32
+	Options         map[string]string
 }
 
 // Matches is true for a selection naming fewer options than the variant has.

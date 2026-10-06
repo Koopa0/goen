@@ -110,7 +110,7 @@ var (
 	})
 
 	KeyAdminReturnWindowGoodwill = key("admin.return.window.goodwill", Message{
-		ZhHant: "送達後第 8–14 日（店家優惠）",
+		ZhHant: "送達後第 8–14 天（店家優惠）",
 		En:     "Days 8–14 of the shop's voluntary offer",
 	})
 
@@ -172,7 +172,7 @@ var (
 	})
 
 	KeyAdminRetLateHint = key("admin.ret.latehint", Message{
-		ZhHant: "已逾 14 日。同意是人工例外，不是政策內權利。",
+		ZhHant: "已逾 14 天。同意是人工例外，不是政策內權利。",
 		En:     "Past 14 days. Approval is a staff exception, not a policy entitlement.",
 	})
 
@@ -239,7 +239,7 @@ var (
 	})
 
 	KeyAdminRetErrStatutoryReject = key("admin.ret.err.statutoryreject", Message{
-		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 日條件而拒絕。",
+		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 天條件而拒絕。",
 		En:     "A valid request inside seven days cannot be refused for a missing reason, for opening the parcel, or for the days 8–14 conditions.",
 	})
 
@@ -254,7 +254,7 @@ var (
 	})
 
 	KeyAdminRetErrUnmetApprove = key("admin.ret.err.unmetapprove", Message{
-		ZhHant: "已有不符合的觀察，不能記成第 8–14 日政策內權利。拒絕須引用該事實，或改選人工例外。",
+		ZhHant: "已有不符合的觀察，不能記成第 8–14 天政策內權利。拒絕須引用該事實，或改選人工例外。",
 		En:     "An unmet observation cannot be recorded as the days 8–14 policy entitlement. Decline by citing that fact, or approve as a staff exception.",
 	})
 
