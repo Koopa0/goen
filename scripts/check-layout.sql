@@ -143,7 +143,7 @@ FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN department d ON d.product_id = p.id
 WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock
-  AND d.root_id <> (SELECT dd.root_id FROM department dd
+  AND d.root_id = (SELECT dd.root_id FROM department dd
                     JOIN product_variants fv ON fv.product_id = dd.product_id
                     WHERE fv.id = :'variant_id')
 ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
