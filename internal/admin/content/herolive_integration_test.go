@@ -70,6 +70,7 @@ func featureSellableProduct(t *testing.T, ctx context.Context, campaignTitle str
 		defer cancel()
 		for _, stmt := range []string{
 			`DELETE FROM sale_campaign_products WHERE product_id = $1`,
+			`UPDATE products SET status = 'draft' WHERE id = $1`,
 			`DELETE FROM product_variants WHERE product_id = $1`,
 			`DELETE FROM products WHERE id = $1`,
 		} {

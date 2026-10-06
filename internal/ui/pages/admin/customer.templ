@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -115,6 +116,12 @@ templ Customer(p layouts.Page, v *CustomerView) {
 				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: components.StatMoney(v.CreditCents)},
 				{Label: i18n.T(ctx, i18n.KeyAdminCustStatPoints), Value: components.StatNumber(v.Points)},
 			}, components.StatLineWide)
+		</div>
+		<div class="goen-admin__tier">
+			<p>{ v.TierSentence(ctx) }</p>
+			if v.HasNextTier() {
+				@chart.Meter(v.TierMeter())
+			}
 		</div>
 		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">

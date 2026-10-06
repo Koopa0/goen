@@ -128,36 +128,50 @@ func (s *Store) FollowUpRegistration(
 }
 
 func (s *Store) Authenticate(ctx context.Context, email, password string) (user.User, error) {
+	row, err := s.verifiedCredentials(ctx, email, password)
+	if err != nil {
+		return user.User{}, err
+	}
+	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
+		return user.User{}, fmt.Errorf("touch last login: %w", err)
+	}
+	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
+}
+
+// ConfirmPassword checks the verified account's password without recording a sign-in.
+func (s *Store) ConfirmPassword(ctx context.Context, email, password string) error {
+	_, err := s.verifiedCredentials(ctx, email, password)
+	return err
+}
+
+func (s *Store) verifiedCredentials(ctx context.Context, email, password string) (db.UserByEmailRow, error) {
 	// Refuse this before reading the account, or the outcomes are
 	// distinguishable: burnHashTime returns immediately at this length while
 	// VerifyPassword does not. Every password_hash writer in account goes
 	// through HashPassword, which refuses an input over this same bound.
 	if len(password) > MaxPasswordBytes {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
 
 	row, err := s.q.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			burnHashTime(password)
-			return user.User{}, ErrBadCredentials
+			return db.UserByEmailRow{}, ErrBadCredentials
 		}
-		return user.User{}, fmt.Errorf("read user: %w", err)
+		return db.UserByEmailRow{}, fmt.Errorf("read user: %w", err)
 	}
 	if !passwordMatches(row.PasswordHash, password) {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
 	// After the hash, so an unproved account costs what a wrong password does.
 	// Its password was chosen by whoever registered the address, who has not
 	// yet shown they read the mailbox, and a different answer would say which
 	// registrations created an account.
 	if !row.Verified {
-		return user.User{}, ErrBadCredentials
+		return db.UserByEmailRow{}, ErrBadCredentials
 	}
-	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
-		return user.User{}, fmt.Errorf("touch last login: %w", err)
-	}
-	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
+	return row, nil
 }
 
 // passwordMatches costs an account with no password the hash a wrong password

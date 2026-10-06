@@ -141,7 +141,7 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 // periodOverride finds the colours a tone gives the day grid, and periodDecl
 // one of them: a tone token, or a token of the page's own.
 var (
-	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone="([a-z]+)"\] \.ui-period \{(.*?)\}`)
+	periodOverride = regexp.MustCompile(`(?s)\.goen-hero__slide\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
 )
 
@@ -150,7 +150,8 @@ var (
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground. A new tone is a new block, and one
+// shows to 4.5:1 on each tone's ground, and its edge and mark colours to 3:1
+// (WCAG 1.4.11). A new tone is a new block, and one
 // whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
 func TestEveryToneGroundHoldsItsText(t *testing.T) {
@@ -183,7 +184,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted"} {
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-edge", "--tone-mark"} {
 			if len(decl[prop]) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -199,7 +200,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		// graphical objects (WCAG 1.4.11) and its labels are text.
 		period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
 		for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
-			if m[1] != name {
+			if m[1] != "" && m[1] != name {
 				continue
 			}
 			for _, d := range periodDecl.FindAllStringSubmatch(m[2], -1) {
@@ -214,6 +215,12 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			if got := contrast(period[part], ground); got < min {
 				t.Errorf("the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
 					part, period[part], name, ground, got, min)
+			}
+		}
+		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
+			if got := contrast(decl[prop], ground); got < 3 {
+				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
+					prop, decl[prop], name, ground, got)
 			}
 		}
 		if name == "ink" {
@@ -314,6 +321,66 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 		if got := contrast(tokens[override[2]], bg); got < 3 {
 			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
 				override[2], tokens[override[2]], bg, got)
+		}
+	}
+}
+
+var (
+	customDecl = regexp.MustCompile(`(--[a-z0-9-]+)\s*:`)
+	customUse  = regexp.MustCompile(`var\((--[a-z0-9-]+)\s*\)`)
+)
+
+// A var() naming a property no served sheet declares is invalid at
+// computed-value time, and each property that reads it falls back to its
+// initial value, silently.
+func TestEveryCustomPropertyUsedIsDeclared(t *testing.T) {
+	t.Parallel()
+
+	declared := make(map[string]bool)
+	used := make(map[string][]string)
+	err := fs.WalkDir(files, "css", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(name, ".css") {
+			return err
+		}
+		body, readErr := fs.ReadFile(files, name)
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range customDecl.FindAllStringSubmatch(string(body), -1) {
+			declared[m[1]] = true
+		}
+		for _, m := range customUse.FindAllStringSubmatch(string(body), -1) {
+			used[m[1]] = append(used[m[1]], name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for prop, sheets := range used {
+		if !declared[prop] {
+			t.Errorf("%s is read in %s and declared in no stylesheet", prop, sheets[0])
+		}
+	}
+}
+
+// The band paints its tone behind text that the page styles in --n-500, which
+// no tone ground holds to 4.5:1; each of these classes must take the tone's own
+// muted colour.
+func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`(?s)((?:\.goen-band [.a-z_-]+,\s*)*\.goen-band [.a-z_-]+) \{\s*color: var\(--tone-muted\);`).FindStringSubmatch(string(sheet))
+	if rule == nil {
+		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
+	}
+	for _, class := range []string{"goen-home__aside", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
+		if !strings.Contains(rule[1], ".goen-band ."+class) {
+			t.Errorf("the band's muted-text rule does not name .%s", class)
 		}
 	}
 }
