@@ -9,45 +9,51 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// rules is nil where the page has no shop rules to state.
-templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
+// rules and head are nil where the page has none to state.
+templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
 	@layouts.Base(p) {
-		<div class="goen-listing">
+		{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
+		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
-				<div class="goen-pagehead__text">
-					@components.Breadcrumb(components.BreadcrumbProps{
-						Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
-						Crumbs: v.Trail(ctx),
-					})
-					<h1 class="goen-pagehead__title">{ v.Name }</h1>
-					if len(v.Children()) > 0 {
-						<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
-							for _, c := range v.Children() {
-								if c.Slug == v.Slug {
-									<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
-								} else {
-									<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
-								}
+				<div class="goen-band">
+					<div class="goen-band__grid">
+						if photo.Shown() {
+							// Low priority: the stylesheet drops the photograph below 1024, where an eager
+							// image is still fetched and must not compete with the tiles.
+							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false)
+						}
+						<div class="goen-band__body goen-pagehead__text">
+							@components.Breadcrumb(components.BreadcrumbProps{
+								Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+								Crumbs: v.Trail(ctx),
+							})
+							<h1 class={ "goen-pagehead__title", templ.KV("goen-band__name--long", bandNameLong(v.Name)) }>{ v.Name }</h1>
+							if head != nil {
+								@departmentFacts(head)
 							}
-						</nav>
-					}
+							if len(v.Children()) > 0 {
+								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
+									for _, c := range v.Children() {
+										if c.Slug == v.Slug {
+											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
+										} else {
+											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
+										}
+									}
+								</nav>
+							}
+						</div>
+					</div>
 				</div>
-				if v.Theme.Image().Shown() {
-					// Low priority: the stylesheet drops the photograph below 1024, where an eager
-					// image is still fetched and must not compete with the tiles.
-					<img
-						class="goen-pagehead__photo"
-						src={ v.Theme.Image().URL }
-						srcset={ v.Theme.Image().Srcset }
-						sizes="(min-width: 1344px) 36rem, 45vw"
-						alt={ v.Theme.Image().Alt }
-						width="800"
-						height="600"
-						fetchpriority="low"
-						decoding="async"
-					/>
-				}
 			</div>
+		</div>
+		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
+			if head != nil {
+				if head.Notice != nil {
+					@departmentNotice(head.Notice)
+				}
+				@departmentSlot(head)
+			}
 			<div class="goen-listing__layout">
 				@listingFilters(v)
 				<div class="goen-listing__main">

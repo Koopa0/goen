@@ -45,6 +45,17 @@ func Midnight(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, location())
 }
 
+// FirstDay is the start of the first of the last n shop days ending at now,
+// today included.
+func FirstDay(now time.Time, n int) time.Time { return Midnight(now).AddDate(0, 0, 1-n) }
+
+// QueryDate is t's shop day as the date a query takes: midnight UTC of the
+// calendar day t falls on in the shop.
+func QueryDate(t time.Time) time.Time {
+	y, m, d := In(t).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 // DayIf is Day for a timestamp that may be absent, as a nullable column is: the
 // empty string when it is.
 func DayIf(t time.Time, present bool) string {
@@ -82,6 +93,9 @@ func ParseInputMinute(s string) (time.Time, bool) {
 	t, err := time.ParseInLocation("2006-01-02T15:04", s, location())
 	return t, err == nil
 }
+
+// Clock is the shop's time of day, as 15:20.
+func Clock(t time.Time) string { return In(t).Format("15:04") }
 
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 

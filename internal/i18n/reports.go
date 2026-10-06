@@ -71,6 +71,17 @@ var (
 	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
 	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費；不是上方的營收。", En: "Product gross is the tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping. It is not the revenue above."})
 
+	KeyAdminRepDepartments     = key("admin.rep.departments", Message{ZhHant: "各館商品銷售額", En: "Product sales by department"})
+	KeyAdminRepDepartmentsNote = key("admin.rep.departments.note", Message{
+		ZhHant: "商品銷售額按含稅成交單價乘數量計算，商品依目前所在的館別歸類；折扣與運費按訂單計，不分館：各館加總減去訂單折扣、加上運費，就是上方的營收。出貨前全額退款的訂單不計入。",
+		En:     "Product sales are the tax-inclusive sale unit price multiplied by quantity, with each product counted in the department it is in now. Discounts and shipping belong to the order, not a department: the departments' total, less order discounts and plus shipping, is the revenue above. Orders fully refunded before shipment are left out.",
+	})
+	KeyAdminRepDepartmentOnly = key("admin.rep.departments.only", Message{
+		ZhHant: "這段期間的商品銷售額全部屬於%s：%s。",
+		En:     "All product sales in this period are in %s: %s.",
+	})
+	KeyAdminRepDepartmentSales = key("admin.rep.departments.sales", Message{ZhHant: "商品銷售額 %s", En: "Product sales %s"})
+
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
@@ -124,4 +135,41 @@ var (
 		ZhHant: "退貨資料暫時無法取得。",
 		En:     "Returns data is unavailable right now.",
 	})
+)
+
+var (
+	KeyAdminRepRunning = key("admin.rep.running", Message{ZhHant: "累計營收（NT$）", En: "Revenue so far (NT$)"})
+
+	// %[1]d is the number of days, %[2]s the revenue, %[3]s how it stands against
+	// the previous period.
+	KeyAdminRepRunningCaption = countKey("admin.rep.running.caption",
+		"%[1]d 天營收 %[2]s，%[3]s。",
+		"Revenue over %[1]d day: %[2]s. %[3]s.",
+		"Revenue over %[1]d days: %[2]s. %[3]s.")
+
+	// %[1]d is the number of days in the period, %[2]s the time of day both
+	// periods are counted up to.
+	KeyAdminRepRunningNote = countKey("admin.rep.running.note",
+		"只計入已付款的訂單，依下單時間。今天到 %[2]s 為止，前 %[1]d 天同樣算到 %[2]s。",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d day.",
+		"Paid orders only, by the time placed. Today is counted up to %[2]s, and so are the previous %[1]d days.")
+
+	KeyAdminRepRunningUnavailable = key("admin.rep.running.unavailable", Message{
+		ZhHant: "這張圖的資料暫時無法取得。",
+		En:     "This chart's data is unavailable right now.",
+	})
+
+	KeyAdminRepLastDays = countKey("admin.rep.lastdays", "近 %d 天", "Last %d day", "Last %d days")
+
+	KeyAdminRepPreviousDays = countKey("admin.rep.previousdays", "前 %d 天", "Previous %d day", "Previous %d days")
+
+	// The table column that names the previous period's day on each row.
+	KeyAdminRepPreviousDate = countKey("admin.rep.previousdate", "前 %d 天的日期", "Date in the previous %d day", "Date in the previous %d days")
+
+	KeyAdminRepDate = key("admin.rep.date", Message{ZhHant: "日期", En: "Date"})
+
+	KeyAdminRepTotal = key("admin.rep.total", Message{ZhHant: "合計", En: "Total"})
+
+	// The last day of the table, which is not over: %s is the time of day.
+	KeyAdminRepUntil = key("admin.rep.until", Message{ZhHant: "到 %s 為止", En: "up to %s"})
 )

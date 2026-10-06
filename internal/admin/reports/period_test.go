@@ -51,3 +51,43 @@ func TestSpansAreWholeShopDaysAndTheSameHoursBefore(t *testing.T) {
 		}
 	}
 }
+
+func TestBothPeriodsSpanAsManyShopDaysAsTheWindow(t *testing.T) {
+	t.Parallel()
+
+	for _, now := range []time.Time{
+		time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC),  // 15:20 in Taipei
+		time.Date(2026, 10, 4, 16, 30, 0, 0, time.UTC), // 00:30 on the next shop day
+		time.Date(2027, 1, 3, 2, 0, 0, 0, time.UTC),
+	} {
+		for _, days := range reportWindows {
+			cur, prev := periods(now, int(days))
+			for name, p := range map[string]period{"current": cur, "previous": prev} {
+				first, last := shoptime.QueryDate(p.from), shoptime.QueryDate(p.to.Add(-time.Nanosecond))
+				if got := int(last.Sub(first).Hours()/24) + 1; got != int(days) {
+					t.Errorf("%s period of %d days at %s covers %d shop days (%s to %s), want %d",
+						name, days, now, got, first.Format(time.DateOnly), last.Format(time.DateOnly), days)
+				}
+			}
+		}
+	}
+}
+
+func TestOnlyAPeriodCutMidDayEndsOnAPartialDay(t *testing.T) {
+	t.Parallel()
+
+	midnight := shoptime.Midnight(time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC))
+	for _, tt := range []struct {
+		name string
+		to   time.Time
+		want bool
+	}{
+		{"cut at 15:20", midnight.Add(15*time.Hour + 20*time.Minute), true},
+		{"cut one minute past midnight", midnight.Add(time.Minute), true},
+		{"cut at midnight, so the last day is whole", midnight, false},
+	} {
+		if got := endsMidDay(period{from: midnight.AddDate(0, 0, -7), to: tt.to}); got != tt.want {
+			t.Errorf("%s: endsMidDay = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
