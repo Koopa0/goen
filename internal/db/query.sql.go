@@ -10637,7 +10637,7 @@ func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (O
 
 const orderTracking = `-- name: OrderTracking :many
 SELECT carrier, tracking_number, shipped_at, delivered_at,
-       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
+       coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
@@ -10646,9 +10646,11 @@ type OrderTrackingRow struct {
 	TrackingNumber string
 	ShippedAt      time.Time
 	DeliveredAt    pgtype.Timestamptz
-	RescissionEnds string
+	RescissionEnds time.Time
 }
 
+// rescission_ends is shop_today() for a parcel not yet delivered: sqlc cannot type a
+// nullable date from an expression, so a reader checks delivered_at, never the date.
 func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]OrderTrackingRow, error) {
 	rows, err := q.db.Query(ctx, orderTracking, orderID)
 	if err != nil {
@@ -16017,8 +16019,10 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 
 const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
 SELECT o.order_number, o.locale, pd.email, pd.recipient_name,
-       coalesce((SELECT to_char(min(return_window_ends(s.delivered_at)), 'YYYY-MM-DD')
-                 FROM order_shipments s WHERE s.order_id = o.id), '')::text AS rescission_ends
+       coalesce((SELECT min(return_window_ends(s.delivered_at))
+                 FROM order_shipments s WHERE s.order_id = o.id), shop_today())::date AS rescission_ends,
+       EXISTS (SELECT 1 FROM order_shipments s
+               WHERE s.order_id = o.id AND s.delivered_at IS NOT NULL) AS delivered
 FROM orders o
 JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1 AND pd.erased_at IS NULL
@@ -16029,12 +16033,14 @@ type TerminalOrderRecipientRow struct {
 	Locale         string
 	Email          pgtype.Text
 	RecipientName  pgtype.Text
-	RescissionEnds string
+	RescissionEnds time.Time
+	Delivered      bool
 }
 
 // Delivery reads current private data so an erasure cannot be undone by a queued address.
-// rescission_ends is the earliest parcel's last day, or ” before any delivery,
-// so it is never later than the right of any parcel the notice may be about.
+// rescission_ends is the earliest parcel's last day. sqlc cannot type a nullable
+// date from an expression, so before any delivery it is shop_today() and
+// `delivered` is false; a reader must check that, never the date.
 func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
 	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
 	var i TerminalOrderRecipientRow
@@ -16044,6 +16050,7 @@ func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (Ter
 		&i.Email,
 		&i.RecipientName,
 		&i.RescissionEnds,
+		&i.Delivered,
 	)
 	return i, err
 }
