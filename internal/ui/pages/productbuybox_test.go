@@ -187,3 +187,23 @@ func TestRefusedRestockWithNoOptionMarksTheUnpickedGroup(t *testing.T) {
 		}
 	}
 }
+
+func TestWarrantyTermReadsInTheSingularForOneMonth(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale i18n.Locale
+		months int32
+		want   string
+	}{
+		{i18n.En, 1, "1&nbsp;<small>month</small>"},
+		{i18n.En, 24, "24&nbsp;<small>months</small>"},
+		{i18n.ZhHant, 24, "24&nbsp;<small>個月</small>"},
+	} {
+		v := ProductView{WarrantyMonths: 1, Rules: testRules}
+		v.WarrantyMonths = tc.months
+		got := renderIn(t, tc.locale, components.StatLine(v.BuyFacts(i18n.WithLocale(t.Context(), tc.locale)), components.StatLinePairs))
+		if !strings.Contains(got, tc.want) {
+			t.Errorf("%s, %d months: %s, want it to contain %q", tc.locale, tc.months, got, tc.want)
+		}
+	}
+}
