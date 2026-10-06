@@ -7,11 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	invoicepkg "github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ordernotice"
-	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ordercancel"
 	"github.com/koopa0/goen/internal/pgtx"
 )
 
@@ -39,10 +36,6 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if err != nil {
 		return nil, fmt.Errorf("lock %s: %w", number, err)
 	}
-	paidByCredit, err := q.PaidByCreditAlone(ctx, orderID)
-	if err != nil {
-		return nil, fmt.Errorf("read how %s was paid: %w", number, err)
-	}
 	cancelled, err := q.CancelOrderByCustomer(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("cancel %s: %w", number, err)
@@ -50,15 +43,10 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if cancelled == 0 {
 		return nil, ErrNotCancellable
 	}
-	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByCustomer); err != nil {
+	if _, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+		ID: orderID, Number: number, Kind: email.TerminalCancelledByCustomer, VoidTrigger: "cancel:" + number,
+	}); err != nil {
 		return nil, err
-	}
-	if paidByCredit {
-		if err := invoicepkg.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{
-			OrderNumber: number, Trigger: "cancel:" + number,
-		}); err != nil {
-			return nil, err
-		}
 	}
 
 	sessions, sessErr := q.OpenSessionsForOrder(ctx, number)
@@ -70,62 +58,4 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 		return nil, fmt.Errorf("commit cancel: %w", err)
 	}
 	return sessions, nil
-}
-
-// settleCancellation must run in the transaction whose status UPDATE holds the
-// order lock.
-func settleCancellation(ctx context.Context, q *db.Queries, number string, kind email.TerminalKind) error {
-	held, err := q.HeldReservationsForOrder(ctx, number)
-	if err != nil {
-		return fmt.Errorf("read holds of %s: %w", number, err)
-	}
-
-	// Stock and credit come back AFTER the status change: release_reservation and
-	// store_credit_guard both refuse while the order is still a live checkout.
-	for _, id := range held {
-		if relErr := q.ReleaseReservation(ctx, id); relErr != nil {
-			return fmt.Errorf("release hold %s of %s: %w", id, number, relErr)
-		}
-	}
-
-	order, err := q.OrderIDByNumber(ctx, number)
-	if err != nil {
-		return fmt.Errorf("read order %s: %w", number, err)
-	}
-	if _, err := q.ReverseOrderCredit(ctx, order.ID); err != nil {
-		return fmt.Errorf("return store credit spent on %s: %w", number, err)
-	}
-
-	if err := q.RecordCancellation(ctx, db.RecordCancellationParams{
-		OrderNumber: number, BySystem: kind == email.TerminalCancelledByPaymentDeadline,
-	}); err != nil {
-		return fmt.Errorf("record cancellation of %s: %w", number, err)
-	}
-
-	facts, factsErr := q.OrderPaymentFacts(ctx, order.ID)
-	if factsErr != nil {
-		return fmt.Errorf("read payments of %s: %w", number, factsErr)
-	}
-	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
-		OrderID: order.ID, Kind: kind, Refunded: mayHaveTakenMoney(facts.Statuses, facts.ProviderFlagged),
-	})
-}
-
-// paymentExpired is the one payments.status that proves a session took nothing:
-// Stripe confirmed it expired, or it ended with no money.
-const paymentExpired = "cancelled"
-
-// mayHaveTakenMoney reports whether the notice must not say nothing was
-// charged. Any status but an expired one may: a session still open can be
-// completed in another tab before the cancellation closes it.
-func mayHaveTakenMoney(statuses []string, providerFlagged bool) bool {
-	if providerFlagged {
-		return true
-	}
-	for _, s := range statuses {
-		if s != paymentExpired {
-			return true
-		}
-	}
-	return false
 }
