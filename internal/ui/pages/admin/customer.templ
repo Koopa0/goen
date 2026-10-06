@@ -109,22 +109,12 @@ templ Customer(p layouts.Page, v *CustomerView) {
 			</div>
 		</div>
 		<div class="goen-admin__stats">
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatOrders) }</span>
-				<span class="ui-stat__value">{ v.OrdersText() }</span>
-			</div>
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatSpent) }</span>
-				<span class="ui-stat__value">{ v.Spent() }</span>
-			</div>
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatCredit) }</span>
-				<span class="ui-stat__value">{ v.Credit() }</span>
-			</div>
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatPoints) }</span>
-				<span class="ui-stat__value">{ v.PointsText() }</span>
-			</div>
+			@components.StatLine([]components.Stat{
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatOrders), Value: components.StatNumber(v.Orders)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatSpent), Value: components.StatMoney(v.SpentCents)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: components.StatMoney(v.CreditCents)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatPoints), Value: components.StatNumber(v.Points)},
+			}, components.StatLineWide)
 		</div>
 		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">
