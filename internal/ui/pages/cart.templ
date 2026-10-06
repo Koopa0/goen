@@ -16,7 +16,12 @@ templ Cart(p layouts.Page, v CartView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
 				if !v.Empty() {
-					<p id="cart-count" class="goen-pagehead__sub" role="status">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
+					<div id="cart-count" class="goen-cart__facts" role="status">
+						if notice := v.StockNotice(ctx); notice != "" {
+							<p class="goen-cart__alert">{ notice }</p>
+						}
+						@components.StatLine(v.Facts(ctx), components.StatLinePlain)
+					</div>
 				}
 			</div>
 			// Always present, so an update that changes only the notice has somewhere to put it.
@@ -83,14 +88,6 @@ templ Cart(p layouts.Page, v CartView) {
 								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
 							</div>
 						</dl>
-						if v.FreeDelivery.Kind != FreeDeliveryUnstated {
-							<p class="goen-cart__freedelivery">{ v.FreeDelivery.Text(ctx) }</p>
-						}
-						if v.Blocked() {
-							@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
-								{ i18n.T(ctx, i18n.KeyCartStockShort) }
-							}
-						}
 						if v.MixedTaxTypes {
 							@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
@@ -119,6 +116,7 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyContinue) }
 							}
 						</div>
+						<p class="goen-cart__hold">{ i18n.Count(ctx, i18n.KeyCartHold, holdMinutes, HoldMinutesText()) }</p>
 					}
 				</div>
 			}
@@ -158,7 +156,7 @@ templ cartLine(l CartLine) {
 			<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
 			if l.Unavailable {
 				@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
-					{ i18n.T(ctx, i18n.KeyNoStock) }
+					{ i18n.T(ctx, i18n.KeySoldOut) }
 				}
 			} else if l.Short {
 				@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
@@ -167,7 +165,9 @@ templ cartLine(l CartLine) {
 			}
 		</div>
 		<div class="goen-line__money" id={ "line-money-" + l.VariantID }>
-			<span class="goen-line__total">{ l.LineTotal() }</span>
+			if !l.Unavailable {
+				<span class="goen-line__total">{ l.LineTotal() }</span>
+			}
 			if l.Short {
 				<span class="goen-line__meta">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), l.PricedQuantityText()) }
@@ -185,22 +185,25 @@ templ cartLine(l CartLine) {
 			hx-sync="closest .goen-cart__lines:queue all"
 		>
 			<input type="hidden" name="variant" value={ l.VariantID }/>
-			<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
-			@components.Stepper(components.StepperProps{
-				ID: "qty-" + l.VariantID, Name: "quantity",
-				Value: l.QuantityText(),
-				// Zero removes a line with no script, so the floor is zero here and one on the product page.
-				Min: "0", Max: l.MaxQuantity(),
-				DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
-				IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
-			})
-			// Shown only where scripting is off: with it on, changing the quantity submits the form.
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleOutline,
-				Size:        components.SizeSmall,
-				Class:       "goen-line__update",
-			}, "submit") {
-				{ i18n.T(ctx, i18n.KeyUpdate) }
+			// A sold-out line has nothing to adjust, so removing it is all it offers.
+			if !l.Unavailable {
+				<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
+				@components.Stepper(components.StepperProps{
+					ID: "qty-" + l.VariantID, Name: "quantity",
+					Value: l.QuantityText(),
+					// Zero removes a line with no script, so the floor is zero here and one on the product page.
+					Min: "0", Max: l.MaxQuantity(),
+					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
+				})
+				// Shown only where scripting is off: with it on, changing the quantity submits the form.
+				@components.Button(components.ButtonProps{
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
+					Class:       "goen-line__update",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyUpdate) }
+				}
 			}
 			@components.Button(components.ButtonProps{
 				ButtonStyle: components.ButtonStyleGhost,

@@ -1509,30 +1509,139 @@ func TestTheCartRecoveryPageGoesHome(t *testing.T) {
 	}
 }
 
-// TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary holds that the line lives
-// in #cart-summary, the one region a quantity update replaces, so it cannot go
-// stale after a change.
-func TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary(t *testing.T) {
+// cartFactsOf is the markup of the cart's fact line, the region a quantity
+// update replaces, so a figure in it cannot go stale after a change.
+func cartFactsOf(t *testing.T, v CartView) string {
+	t.Helper()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Cart(CartMeta(ctx), v))
+	at := strings.Index(html, `id="cart-count"`)
+	end := strings.Index(html, `id="cart-notices"`)
+	if at < 0 || end < at {
+		t.Fatalf("the cart has no fact line before its notices: %s", html)
+	}
+	return html[at:end]
+}
+
+func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
+	t.Parallel()
+	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
+	for _, tt := range []struct {
+		name string
+		v    CartView
+		want []string
+		not  []string
+	}{
+		{
+			"short of the threshold",
+			CartView{Lines: lines, ItemCount: 2, SubtotalCents: 80000,
+				FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 220000, ThresholdCents: 300000}},
+			[]string{"商品", "2\u00a0<small>件</small>", "小計", `<small class="ui-statline__pre">NT$</small>800`,
+				"免運還差", `<small class="ui-statline__pre">NT$</small>2,200`, "滿 NT$3,000 免運"},
+			nil,
+		},
+		{
+			"threshold reached",
+			CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
+				FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000}},
+			[]string{"運費", `<small class="ui-statline__pre">NT$</small>0`, "已滿 NT$3,000"},
+			[]string{"免運還差"},
+		},
+		{
+			"a method that never turns free",
+			CartView{Lines: lines, ItemCount: 2, SubtotalCents: 80000},
+			[]string{"商品", "小計"},
+			[]string{"免運", "運費"},
+		},
+	} {
+		got := cartFactsOf(t, tt.v)
+		for _, w := range tt.want {
+			if !strings.Contains(got, w) {
+				t.Errorf("%s: fact line lacks %q: %s", tt.name, w, got)
+			}
+		}
+		for _, w := range tt.not {
+			if strings.Contains(got, w) {
+				t.Errorf("%s: fact line holds %q: %s", tt.name, w, got)
+			}
+		}
+	}
+}
+
+func TestAnEmptyCartHasNoFactLine(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if html := renderToString(t, Cart(CartMeta(ctx), CartView{})); strings.Contains(html, "ui-statline") {
+		t.Error("an empty cart prints a fact line")
+	}
+}
+
+func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	v := CartView{
+		Lines: []CartLine{
+			{VariantID: "ok", Slug: "a", Name: "a", Quantity: 2, Available: 5, UnitCents: 40000},
+			{VariantID: "gone", Slug: "b", Name: "b", Quantity: 1, UnitCents: 99900, Unavailable: true},
+		},
+		ItemCount: 2, SubtotalCents: 80000,
+	}
+	html := renderToString(t, Cart(CartMeta(ctx), v))
+
+	if !strings.Contains(html, "2\u00a0<small>件</small>") || strings.Contains(html, "3\u00a0<small>件</small>") {
+		t.Error("the sold-out line is counted in 商品 n 件")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeySoldOut)) {
+		t.Error("the sold-out line does not say 已售完")
+	}
+	if strings.Contains(html, "已無庫存") {
+		t.Error("the sold-out line still says 已無庫存")
+	}
+	gone := html[strings.Index(html, `id="line-gone"`):]
+	gone = gone[:strings.Index(gone, "</li>")]
+	if strings.Contains(gone, "goen-stepper") || strings.Contains(gone, "goen-line__update") {
+		t.Errorf("the sold-out line offers more than removing it: %s", gone)
+	}
+	if !strings.Contains(gone, "goen-line__remove") {
+		t.Error("the sold-out line cannot be removed")
+	}
+	if !strings.Contains(html, `aria-disabled="true"`) || strings.Contains(html, `href="/checkout"`) {
+		t.Error("checkout is offered while a line is sold out")
+	}
+}
+
+func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	line := CartLine{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
+	soldOut, short := line, line
+	soldOut.Unavailable = true
+	short.Short = true
+
+	for _, tt := range []struct {
+		name  string
+		lines []CartLine
+		want  string
+	}{
+		{"sold out", []CartLine{soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"short", []CartLine{short}, "有商品的庫存不足，請先調整數量再結帳。"},
+		{"both: the sold-out line is the one to deal with first", []CartLine{short, soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"neither", []CartLine{line}, ""},
+	} {
+		got := CartView{Lines: tt.lines}.StockNotice(ctx)
+		if got != tt.want {
+			t.Errorf("%s: StockNotice = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
-
-	short := CartView{Lines: lines, SubtotalCents: 100,
-		FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 290000}}
-	html := renderToString(t, Cart(CartMeta(ctx), short))
-	at := strings.Index(html, `id="cart-summary"`)
-	line := strings.Index(html, "再 NT$2,900 即享免運")
-	if at < 0 || line < at {
-		t.Error("the free-delivery line is not inside #cart-summary")
-	}
-
-	reached := CartView{Lines: lines, FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached}}
-	if !strings.Contains(renderToString(t, Cart(CartMeta(ctx), reached)), "已享免運") {
-		t.Error("a cart that already has free delivery does not say so")
-	}
-	silent := CartView{Lines: lines}
-	if strings.Contains(renderToString(t, Cart(CartMeta(ctx), silent)), "免運") {
-		t.Error("a cart whose methods disagree says something about free delivery anyway")
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: lines}))
+	if !strings.Contains(html, "庫存保留 60 分鐘") {
+		t.Error("the cart does not say how long the stock is held")
 	}
 }
 

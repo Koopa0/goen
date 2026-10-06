@@ -1,7 +1,8 @@
 package i18n
 
 var (
-	KeyCartItemCount = countKey("cart.count", "%s 件商品", "%s item", "%s items")
+	KeyCartFactItems = key("cart.fact.items", Message{ZhHant: "商品", En: "Items"})
+	KeyCartUnitItems = key("cart.fact.items.unit", Message{ZhHant: "件", En: "pcs"})
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西？",
@@ -20,17 +21,13 @@ var (
 		En:     "Calculated at checkout",
 	})
 
-	// %s is how much more the cart needs. Said only where every delivery method
-	// the checkout offers turns free at one amount.
-	KeyCartFreeDeliveryShort = key("cart.freedelivery.short", Message{
-		ZhHant: "再 %s 即享免運",
-		En:     "Add %s more for free delivery",
-	})
+	// KeyCartFactToFree and KeyCartFactFreeOver are said only where every delivery
+	// method the checkout offers turns free at one amount; %s is that amount.
+	KeyCartFactToFree   = key("cart.fact.to_free", Message{ZhHant: "免運還差", En: "To free delivery"})
+	KeyCartFactFreeOver = key("cart.fact.free_over", Message{ZhHant: "滿 %s 免運", En: "Free over %s"})
+	KeyCartFactOver     = key("cart.fact.over", Message{ZhHant: "已滿 %s", En: "Over %s"})
 
-	KeyCartFreeDeliveryReached = key("cart.freedelivery.reached", Message{
-		ZhHant: "已享免運",
-		En:     "Free delivery applies",
-	})
+	KeyCartHold = countKey("cart.hold", "庫存保留 %s 分鐘", "Stock held for %s minute", "Stock held for %s minutes")
 
 	KeyCartMixedTaxTypes = key("cart.tax_types.mixed", Message{
 		ZhHant: "應稅與免稅商品須分開結帳，請先將其中一類商品移出購物車。",
@@ -42,14 +39,17 @@ var (
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
 	})
 
+	KeyCartSoldOut = key("cart.soldout", Message{
+		ZhHant: "有商品已售完，移除後才能結帳。",
+		En:     "An item has sold out. Remove it before checking out.",
+	})
+
 	KeyCartAdjustmentContinue = key("cart.adjustment.continue", Message{ZhHant: "繼續前往原頁面", En: "Continue to your destination"})
 
 	KeyCartQuantityAdjusted = key("cart.qty.adjusted", Message{
 		ZhHant: "部分商品數量已依庫存調整。",
 		En:     "Some item quantities were reduced to match available stock.",
 	})
-
-	KeyNoStock = key("cart.nostock", Message{ZhHant: "已無庫存", En: "None left"})
 
 	KeyOnlyLeft = key("cart.onlyleft", Message{ZhHant: "僅剩 %s 件", En: "Only %s left"})
 
