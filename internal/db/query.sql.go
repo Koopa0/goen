@@ -9571,6 +9571,7 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
@@ -9580,8 +9581,9 @@ WHERE sm.is_active
 // pickup there, so a floor or threshold that counted it would promise a price
 // nobody can choose.
 // MIN across methods: the strip states one floor, and the honest one is the
-// lowest fee any active method charges. coalesce AND cast, because min() over
-// an empty set is NULL and sqlc types the result as non-null.
+// lowest fee any active method charges; a method that is always free charges
+// none, so it is not the fee below the threshold. coalesce AND cast, because
+// min() over an empty set is NULL and sqlc types the result as non-null.
 func (q *Queries) LowestDeliveryFee(ctx context.Context, withPickup bool) (int64, error) {
 	row := q.db.QueryRow(ctx, lowestDeliveryFee, withPickup)
 	var fee_cents int64
