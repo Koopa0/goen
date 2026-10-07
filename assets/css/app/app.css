@@ -344,6 +344,13 @@ th {
   width: 2.75rem;
 }
 
+.goen-pdp__links .goen-btn svg,
+.goen-pdp__add svg,
+.goen-buybar__btn svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .goen-btn--block {
   display: flex;
   width: 100%;
@@ -1302,15 +1309,8 @@ th {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1.25rem;
-  width: 1.25rem;
-}
-
-@media (min-width: 1280px) {
-  .goen-header__actions .goen-langmenu svg {
-    height: 1rem;
-    width: 1rem;
-  }
+  height: 1rem;
+  width: 1rem;
 }
 
 .goen-header .goen-langmenu__current {
