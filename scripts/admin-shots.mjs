@@ -121,6 +121,7 @@ console.log('detail links', JSON.stringify({ order, product, customer }));
 const pages = [
   ['dashboard', '/admin'],
   ['reports', '/admin/reports'],
+  ['reports90', '/admin/reports?days=90'],
   ['orders', '/admin/orders'],
   ['order', order],
   ['products', '/admin/products'],
@@ -145,7 +146,7 @@ for (const width of [1440, 375]) {
 }
 
 await send('Network.setCookie', { name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/' });
-for (const [name, path] of only ? [] : [['dashboard', '/admin'], ['reports', '/admin/reports']]) {
+for (const [name, path] of only ? (only.includes('en-reports') ? [['reports', '/admin/reports']] : []) : [['dashboard', '/admin'], ['reports', '/admin/reports']]) {
   try { await shot(path, `en-admin-${name}-1440.png`, 1440); } catch (e) { failures.push(`en-admin-${name}: ${e.message}`); }
 }
 

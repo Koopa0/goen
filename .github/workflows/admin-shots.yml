@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           git log -1 --format='commit %H parents %P %s'
           make build
-          git worktree add ../before 5a980c448ca3fc67bb1481a606dc03b9e2f5d90e
+          git worktree add ../before 5005211c5ae41436bbf34c4a3ba471c821b3743c
           (cd ../before && go build -o "$OLDPWD/bin/goen-before" ./cmd/goen)
           GOEN_INSECURE_COOKIES=1 ./bin/goen > server.log 2>&1 &
           echo $! > goen.pid
@@ -118,7 +118,7 @@ jobs:
               sleep 1
             done
             echo "::group::back office, $which"
-            ONLY=dashboard,reports,campaign ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-shots.mjs admin-shots/$which || status=$?
+            ONLY=dashboard,reports,reports90,campaign,en-reports ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-shots.mjs admin-shots/$which || status=$?
             echo '::endgroup::'
             pid=$(cat goen.pid)
             kill "$pid"
