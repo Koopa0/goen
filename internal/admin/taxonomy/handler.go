@@ -205,7 +205,7 @@ func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case err == web.ErrFormText:
+	case errors.Is(err, web.ErrFormText):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 	case errors.Is(err, media.ErrTooLarge), errors.Is(err, media.ErrNotAnImage),
 		errors.Is(err, media.ErrLosslessWebP), errors.Is(err, media.ErrBusy):
