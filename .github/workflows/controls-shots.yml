@@ -13,7 +13,7 @@ concurrency:
 env:
   GOTOOLCHAIN: local
   # origin/main where the controls branch starts; "after" is this checkout.
-  BEFORE_SHA: 12436ab38402b81dd48e3555fe5a888cceae5935
+  BEFORE_SHA: 16eea4e7ed9919d5975d7799fc80afc4d0e3f5b9
 
 jobs:
   controls-shots:
