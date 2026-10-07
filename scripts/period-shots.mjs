@@ -1,7 +1,10 @@
 // Probe only: every place a period renders, shot and measured over CDP.
-// Usage: node scripts/period-shots.mjs periods|ink <outdir>
+// Usage: node scripts/period-shots.mjs periods|states|ink <outdir>
 //   periods reads PLACED_TOKEN, PLACED_ORDER, CUST_TOKEN and RETURN_FORM_ORDER
-//   (scripts/check-layout.sql); ink shoots the campaign the workflow set to ink.
+//   (scripts/check-layout.sql); states shoots the campaigns the workflow dated
+//   to a last day, a first day, one day and not started, and the delivered
+//   order moved into its goodwill days; ink shoots the campaign the workflow
+//   set to ink.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -70,6 +73,11 @@ const media = (forced) => send('Emulation.setEmulatedMedia', { features: [
 const MEASURE = `(() => {
   const r = (e) => { const b = e.getBoundingClientRect(); return [+b.left.toFixed(1), +b.top.toFixed(1), +b.width.toFixed(1), +b.height.toFixed(1)]; };
   const name = (e) => (e.className && typeof e.className === 'string' ? e.className.split(' ')[0] : e.tagName.toLowerCase());
+  const look = (c) => {
+    if (!c) return null;
+    const s = getComputedStyle(c);
+    return s.borderBottomWidth + ' ' + s.borderBottomStyle + ' ' + s.borderBottomColor + (s.backgroundImage === 'none' ? '' : ' over ' + s.backgroundImage);
+  };
   const periods = [...document.querySelectorAll('.ui-period')].map((p, n) => {
     p.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = p.getBoundingClientRect();
@@ -83,6 +91,14 @@ const MEASURE = `(() => {
       filled: cells.filter((c) => c.hasAttribute('data-cell')).length,
       cellWidth: widths.length ? [+Math.min(...widths).toFixed(2), +Math.max(...widths).toFixed(2)] : null,
       line: s ? s.borderBottomWidth + ' ' + s.borderBottomStyle + ' ' + s.borderBottomColor : null,
+      extras: cells.filter((c) => c.getAttribute('data-span') === 'extra').length,
+      looks: {
+        past: look(cells.find((c) => c.getAttribute('data-cell') === 'past' && !c.hasAttribute('data-span'))),
+        today: look(cells.find((c) => c.getAttribute('data-cell') === 'today')),
+        ahead: look(cells.find((c) => !c.hasAttribute('data-cell') && !c.hasAttribute('data-span'))),
+        goodwillPast: look(cells.find((c) => c.getAttribute('data-span') === 'extra' && c.hasAttribute('data-cell'))),
+        goodwillAhead: look(cells.find((c) => c.getAttribute('data-span') === 'extra' && !c.hasAttribute('data-cell'))),
+      },
       markGap: mark >= 0 && cells[mark + 1] ? +(cells[mark + 1].getBoundingClientRect().left - cells[mark].getBoundingClientRect().right).toFixed(1) : null,
       labels: [...p.querySelectorAll('b, small')].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent + '@' + r(e).join(',')),
       above: prev ? name(prev) + ' ' + r(prev).join(',') + ' gap ' + (box.top - prev.getBoundingClientRect().bottom).toFixed(1) : null,
@@ -163,7 +179,7 @@ async function at320(name, path) {
     await sleep(300);
     console.log(`MEASURE ${name} ${suffix} ${path} ` + JSON.stringify(await evaluate(MEASURE)));
     const got = await evaluate(GATE_PROBE);
-    console.log(`GATE ${name} ${suffix} periods=${got.periods} problems=${got.problems.length}` +
+    console.log(`GATE ${name} ${suffix} periods=${got.periods} extras=${got.extras} problems=${got.problems.length}` +
       (got.problems.length ? ' ' + JSON.stringify(got.problems.slice(0, 6)) : ' ok'));
     if (!text200) {
       const height = Math.min(CAP, Math.max(await evaluate('Math.ceil(document.documentElement.scrollHeight)'), 400));
@@ -178,9 +194,104 @@ async function at320(name, path) {
   await navigate(ORIGIN + path);
   await sleep(300);
   const got = await evaluate(GATE_PROBE);
-  console.log(`GATE ${name} 320-forced periods=${got.periods} forced=${got.forced} problems=${got.problems.length}` +
+  console.log(`GATE ${name} 320-forced periods=${got.periods} extras=${got.extras} forced=${got.forced} problems=${got.problems.length}` +
     (got.problems.length ? ' ' + JSON.stringify(got.problems.slice(0, 6)) : ' ok'));
   await media(false);
+}
+
+// The goodwill rules deleted from the live page's stylesheets, so the gate's
+// period probe can be seen to go red when the span after a mark draws like
+// the days before it.
+const DELETE_GOODWILL = `(() => {
+  const selector = '.ui-period > i[data-span="extra"]';
+  let removed = 0;
+  const walk = (owner, list) => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const rule = list[i];
+      if (rule instanceof CSSStyleRule) {
+        if (rule.selectorText === selector) { owner.deleteRule(i); removed++; }
+      } else if (rule.cssRules) {
+        walk(rule, rule.cssRules);
+      }
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    try { walk(sheet, sheet.cssRules); } catch { /* another origin */ }
+  }
+  return removed;
+})()`;
+
+async function plantedGoodwill(name, path) {
+  for (const forced of [false, true]) {
+    await media(forced);
+    await metrics(320, 800);
+    await navigate(ORIGIN + path);
+    await sleep(300);
+    const removed = await evaluate(DELETE_GOODWILL);
+    const got = await evaluate(GATE_PROBE);
+    console.log(`PLANTED ${name} 320${forced ? '-forced' : ''} goodwill rules deleted=${removed} periods=${got.periods} extras=${got.extras} problems=${got.problems.length}` +
+      (got.problems.length ? ' ' + JSON.stringify(got.problems.slice(0, 4)) : ''));
+  }
+  await media(false);
+}
+
+// Hero slide n brought into view through its tab, as a visitor does, and shot
+// as the hero's own rectangle with its period measured.
+async function heroSlide(n, { width, text200 = false, forced = false }) {
+  const suffix = `${width}${text200 ? '-text200' : ''}${forced ? '-forced' : ''}`;
+  await media(forced);
+  await metrics(width, text200 ? 2400 : 1600);
+  await navigate(ORIGIN + '/');
+  if (text200) await evaluate(`document.documentElement.style.fontSize = '200%'`);
+  await evaluate('document.fonts.ready.then(() => 1)', true);
+  await sleep(300);
+  const clicked = await evaluate(`(() => {
+    const tab = document.querySelector('.goen-hero__tabs a[href="#hero-${n}"]');
+    if (!tab) return false;
+    tab.click();
+    return true;
+  })()`);
+  if (!clicked) {
+    failures.push(`home-hero${n}-${suffix}: no tab for slide ${n}`);
+    await media(false);
+    return;
+  }
+  await sleep(1500);
+  const state = await evaluate(`(() => {
+    const r = (e) => { const b = e.getBoundingClientRect(); return [+b.left.toFixed(1), +b.top.toFixed(1), +b.width.toFixed(1), +b.height.toFixed(1)]; };
+    const slide = document.getElementById('hero-${n}');
+    const p = slide.querySelector('.ui-period');
+    const cells = p ? [...p.children] : [];
+    const hero = document.querySelector('.goen-hero').getBoundingClientRect();
+    return {
+      current: [...document.querySelectorAll('.goen-hero__tabs a')].findIndex((a) => a.getAttribute('aria-current') === 'true') + 1,
+      slide: r(slide), tone: slide.dataset.tone, title: slide.querySelector('h2')?.textContent,
+      period: p ? {
+        box: r(p), cells: cells.length, filled: cells.filter((c) => c.hasAttribute('data-cell')).length,
+        today: cells.findIndex((c) => c.getAttribute('data-cell') === 'today'),
+        above: p.previousElementSibling ? +(p.getBoundingClientRect().top - p.previousElementSibling.getBoundingClientRect().bottom).toFixed(1) : null,
+        below: p.nextElementSibling ? +(p.nextElementSibling.getBoundingClientRect().top - p.getBoundingClientRect().bottom).toFixed(1) : null,
+      } : null,
+      clip: { x: hero.left + scrollX, y: hero.top + scrollY, width: hero.width, height: hero.height },
+    };
+  })()`);
+  console.log(`HERO slide ${n} ${suffix} ` + JSON.stringify(state));
+  if (state.current !== n) failures.push(`home-hero${n}-${suffix}: tab ${state.current} is current after the click`);
+  const { data } = await send('Page.captureScreenshot', { format: 'png', clip: { ...state.clip, scale: width < 600 ? 2 : 1 } });
+  writeFileSync(`${outDir}/home-hero${n}-${suffix}.png`, Buffer.from(data, 'base64'));
+  await media(false);
+}
+
+async function heroSlides() {
+  for (const n of [2, 3]) {
+    for (const opts of [{ width: 1440 }, { width: 375 }, { width: 375, text200: true }, { width: 1440, forced: true }, { width: 320 }]) {
+      try {
+        await heroSlide(n, opts);
+      } catch (e) {
+        failures.push(`home-hero${n}: ${e.message}`);
+      }
+    }
+  }
 }
 
 async function capture(pages) {
@@ -238,6 +349,9 @@ if (mode === 'periods') {
   console.log('department', department, 'product', product);
   await capture([
     ['home', '/'],
+  ]);
+  await heroSlides();
+  await capture([
     ['campaign', '/s/layout-campaign'],
     ['campaign-long', '/s/autumn-picks'],
     ['department', department],
@@ -248,6 +362,20 @@ if (mode === 'periods') {
   // Signed in as the customer whose delivered order is still inside its window.
   await cookie('goen_session', process.env.CUST_TOKEN);
   await capture([['order', `/orders/${process.env.RETURN_FORM_ORDER}`]]);
+  await plantedGoodwill('order', `/orders/${process.env.RETURN_FORM_ORDER}`);
+  await plantedGoodwill('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+} else if (mode === 'states') {
+  if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOKEN);
+  await capture([
+    ['campaign-last-day', '/s/probe-last-day'],
+    ['campaign-first-day', '/s/probe-first-day'],
+    ['campaign-one-day', '/s/probe-one-day'],
+    ['campaign-not-started', '/s/probe-not-started'],
+    ['home-states', '/'],
+  ]);
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  await capture([['order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`]]);
+  await plantedGoodwill('order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
 } else if (mode === 'ink') {
   for (const [name, path] of [['ink-campaign', '/s/autumn-picks'], ['ink-home', '/']]) {
     try {

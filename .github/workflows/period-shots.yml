@@ -12,13 +12,14 @@ concurrency:
 
 env:
   GOTOOLCHAIN: local
-  # The colour branch's head, where the period branch starts; "after" is this checkout.
-  BEFORE_SHA: 1b7f519ee8c4de0c2fc734bb00d684088973cdca
+  # The track as first proposed (0349fa28) on the lines change (#1589); "after" is
+  # the revised track on the same lines change, this checkout.
+  BEFORE_SHA: a98c57b2c5ae3aedc6cbfde875e3424535ae1411
 
 jobs:
   period-shots:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
@@ -113,6 +114,43 @@ jobs:
             echo "::group::ink, $which"
             serve "$which"
             CDP_PORT=9333 node scripts/period-shots.mjs ink "shots/$which" || status=$?
+            stop
+            echo '::endgroup::'
+          done
+          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c 'SET ROLE admin' \
+            -c "UPDATE sale_campaigns SET tone = 'paper' WHERE slug = 'autumn-picks'" || echo 'could not reset the tone'
+
+          # Four campaigns dated around today in shop time, each featuring the
+          # layout campaign's products, and the delivered order moved ten days
+          # back so today falls in its goodwill days.
+          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v order="$RETURN_FORM_ORDER" -f - <<'SQL' || { echo 'could not seed the states'; status=1; }
+          SET ROLE admin;
+          INSERT INTO sale_campaigns (slug, title, title_en, tone, starts_at, ends_at) VALUES
+            ('probe-last-day', '最後一天', 'Last day', 'stone',
+             (shop_today() - 9)::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 1)::timestamp AT TIME ZONE 'Asia/Taipei'),
+            ('probe-first-day', '第一天', 'First day', 'mist',
+             shop_today()::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 6)::timestamp AT TIME ZONE 'Asia/Taipei'),
+            ('probe-one-day', '只有一天', 'One day', 'sage',
+             shop_today()::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 1)::timestamp AT TIME ZONE 'Asia/Taipei'),
+            ('probe-not-started', '還沒開始', 'Not started', 'blush',
+             (shop_today() + 3)::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 10)::timestamp AT TIME ZONE 'Asia/Taipei');
+          INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+          SELECT c.id, cp.product_id, cp.position
+          FROM sale_campaigns c
+          CROSS JOIN sale_campaign_products cp
+          JOIN sale_campaigns l ON l.id = cp.campaign_id AND l.slug = 'layout-campaign'
+          WHERE c.slug LIKE 'probe-%';
+          UPDATE order_shipments
+             SET shipped_at = now() - interval '11 days', delivered_at = now() - interval '10 days'
+           WHERE order_id = (SELECT id FROM orders WHERE order_number = :'order');
+          SELECT slug, starts_at, ends_at, shop_today() AS today FROM sale_campaigns WHERE slug LIKE 'probe-%' ORDER BY ends_at;
+          SELECT o.order_number, s.shipped_at, s.delivered_at
+          FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = :'order';
+          SQL
+          for which in before after; do
+            echo "::group::states, $which"
+            serve "$which"
+            CDP_PORT=9333 node scripts/period-shots.mjs states "shots/$which" || status=$?
             stop
             echo '::endgroup::'
           done
