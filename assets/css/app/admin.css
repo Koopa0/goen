@@ -1043,7 +1043,7 @@ input.goen-check {
    forced colours draws as its edge. */
 .goen-stat {
   background: var(--wash);
-  border-radius: 0.75rem;
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1445,6 +1445,12 @@ input.goen-check {
 
 .goen-admin .ui-dl__desc {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .goen-admin .ui-dl {
+    gap: 1rem;
+  }
 }
 
 .goen-admin__form .ui-textarea,
