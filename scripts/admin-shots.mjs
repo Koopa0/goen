@@ -83,7 +83,12 @@ async function shot(path, file, width) {
     if (t) {
       const wrap = t.closest('.goen-admin__tablewrap');
       out.table = { ...r(t), minWidth: getComputedStyle(t).minWidth, wrapClient: wrap.clientWidth, wrapScroll: wrap.scrollWidth };
-      out.heads = [...t.querySelectorAll('thead th')].map((e) => ({ t: e.textContent.trim(), ...r(e) }));
+      const wb = wrap.getBoundingClientRect();
+      const rel = (e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left - wb.left), right: Math.round(b.right - wb.left) }; };
+      out.frame = { w: Math.round(wb.width), viewport: innerWidth };
+      out.heads = [...t.querySelectorAll('thead th')].map((e) => ({ t: e.textContent.trim(), ...r(e), ...rel(e) }));
+      const adj = t.querySelector('tbody tr td:last-child button[type=submit]');
+      if (adj) out.adjust = { ...r(adj), ...rel(adj), insideFrame: rel(adj).right <= Math.round(wb.width) };
       out.firstRows = [...t.querySelectorAll('tbody tr')].slice(0, 3).map((tr) => [...tr.children].slice(0, 2).map((td) => {
         const a = td.querySelector('a');
         return { cell: r(td), whiteSpace: getComputedStyle(td).whiteSpace, a: a ? { text: a.textContent.trim(), ...r(a), display: getComputedStyle(a).display } : null };
@@ -114,6 +119,27 @@ async function firstLink(listPath, prefix, exclude = []) {
   })()`);
 }
 
+async function tabMeasure(width) {
+  await viewport(width);
+  await navigate(ORIGIN + '/admin/stock');
+  await sleep(800);
+  const found = [];
+  for (let i = 0; i < 80; i++) {
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    const hit = await evaluate(`(() => {
+      const a = document.activeElement;
+      const t = document.querySelector('.goen-admin__stock');
+      if (!a || !t || !a.closest('tbody td:last-child') || !t.contains(a)) return null;
+      const wb = t.closest('.goen-admin__tablewrap').getBoundingClientRect();
+      const f = a.getBoundingClientRect();
+      const pin = a.closest('tr').firstElementChild.getBoundingClientRect();
+      return { tag: a.tagName, name: a.name || a.textContent.trim(), left: Math.round(f.left - wb.left), right: Math.round(f.right - wb.left), frameW: Math.round(wb.width), pinnedRight: Math.round(pin.right - wb.left), clearOfPinned: f.left >= pin.right - 1 };
+    })()`);
+    if (hit) { console.log('MEASURE tab-adjust-' + width + ' ' + JSON.stringify(hit)); break; }
+  }
+}
+
 mkdirSync(outDir, { recursive: true });
 ws = new WebSocket(await pageSocket());
 await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
@@ -136,7 +162,8 @@ await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain:
 await viewport(1440);
 
 const pages = [
-  ['reports', '/admin/reports'],
+  ['reports-30', '/admin/reports?days=30'],
+  ['reports-90', '/admin/reports?days=90'],
   ['stock', '/admin/stock'],
 ];
 for (const width of [1440, 375]) {
@@ -145,6 +172,10 @@ for (const width of [1440, 375]) {
     try { await shot(path, `admin-${name}-${width}.png`, width); } catch (e) { failures.push(`admin-${name}-${width}: ${e.message}`); }
   }
 }
+
+await tabMeasure(375);
+await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'forced-colors', value: 'active' }] });
+try { await shot('/admin/stock', 'admin-stock-forced-1440.png', 1440); } catch (e) { failures.push(`forced: ${e.message}`); }
 
 ws.close();
 if (failures.length) {
