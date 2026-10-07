@@ -120,3 +120,12 @@ func (v *TaxonomyView) DraftFor(which, field string) string {
 		panic("pages: TaxonomyView.DraftFor: unknown field " + field)
 	}
 }
+
+// slugExample is a made-up address for the kind's slug field, never one of the
+// shop's own brands or categories.
+func slugExample(kind string) string {
+	if kind == "categories" {
+		return "cookware"
+	}
+	return "north-light"
+}

@@ -112,7 +112,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Options = append(view.Options, po)
 	}
 
-	view.Campaign, err = s.runningCampaign(ctx, p.ID, slug)
+	view.Campaign, err = s.listedCampaign(ctx, p.ID, slug)
 	if err != nil {
 		return pages.ProductView{}, err
 	}
@@ -181,15 +181,15 @@ func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, 
 	view.ExpectedArrivalText = s.arrivalText(ctx, view)
 }
 
-func (s *Store) runningCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
-	c, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
+func (s *Store) listedCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
+	c, err := s.q.ListedCampaignOfProduct(ctx, db.ListedCampaignOfProductParams{
 		ProductID: id, Locale: string(i18n.FromContext(ctx)),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pages.ProductCampaign{}, nil
 	}
 	if err != nil {
-		return pages.ProductCampaign{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
+		return pages.ProductCampaign{}, fmt.Errorf("read listed campaign of %q: %w", slug, err)
 	}
 	return pages.NewProductCampaign(ctx, c.Slug, c.Title, c.StartsAt, c.EndsAt, s.now()), nil
 }
