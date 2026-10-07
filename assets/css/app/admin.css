@@ -705,6 +705,14 @@ input.goen-check {
   gap: 8px;
 }
 
+.goen-adminbar__actions .goen-btn--ghost {
+  color: var(--fg-muted);
+}
+
+.goen-adminbar__actions .goen-btn--ghost:hover {
+  color: var(--fg);
+}
+
 /* The way out, and on a phone the rail's own last link is already it — so the
    bar drops this copy there and keeps its row to one line, which is what leaves
    room for the disclosure that opens the rail. */
