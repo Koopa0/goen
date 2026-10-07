@@ -5477,20 +5477,26 @@ input.goen-check {
 }
 
 /* The line list. No rule and no box: each line's photograph is its shape, and
-   the space between lines parts them. */
+   the space between lines parts them. The one column is the list's width, not
+   its widest line's: a long price at large text wraps inside the line instead
+   of widening the page. */
 .goen-cart__lines,
 .goen-order .goen-order__lines,
 .goen-pay__lines {
   display: grid;
   gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   min-width: 0;
   padding: 0;
 }
 
+/* Where the name and the price no longer fit side by side, the price goes
+   under the name. */
 .goen-line {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
 }
@@ -5609,7 +5615,7 @@ input.goen-check {
 .goen-line__body {
   align-items: flex-start;
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 10rem;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
@@ -5780,6 +5786,21 @@ input.goen-check {
   font-weight: var(--fw-display);
   letter-spacing: -0.01em;
   line-height: 1.1;
+}
+
+/* A panel narrower than the large figure (a phone at 200% text) sets it at the
+   row's earlier size, so the total stays inside its panel. Sized in rem, so the
+   query follows the text, which a viewport query cannot see. */
+.goen-checkout__summary,
+.goen-order__summary,
+.goen-pay__summary {
+  container: summary / inline-size;
+}
+
+@container summary (max-width: 10rem) {
+  .goen-summary__row--total .goen-summary__value {
+    font-size: var(--fs-18);
+  }
 }
 
 /* The browse screens join this rule rather than declare a second one. They
