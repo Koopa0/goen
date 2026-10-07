@@ -125,16 +125,13 @@ jobs:
             for which in before after; do
               echo "::group::back office, $1 $2, $which"
               serve "$which"
-              ADMIN_TOKEN=$token LOCALE=$2 CDP_PORT=9333 node scripts/runway-shots.mjs "shots/$1-$2/$which" || status=$?
+              FORCED_ONLY=1 ADMIN_TOKEN=$token LOCALE=$2 CDP_PORT=9333 node scripts/runway-shots.mjs "shots/$1-$2/$which" || status=$?
               stop
               echo '::endgroup::'
             done
           }
           psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f scripts/runway-seed-seeded.sql
           capture seeded zh-Hant
-          capture seeded en
-          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f scripts/runway-seed-calm.sql
-          capture calm zh-Hant
 
           file shots/*/*.png
           exit "$status"

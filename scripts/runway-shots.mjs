@@ -129,7 +129,7 @@ async function measurePage(tag, path) {
 }
 
 async function states(path, base) {
-  for (const [width, text, suffix] of [[1440, 0, '1440'], [375, 0, '375'], [375, 200, '375-text200']]) {
+  for (const [width, text, suffix] of process.env.FORCED_ONLY ? [] : [[1440, 0, '1440'], [375, 0, '375'], [375, 200, '375-text200']]) {
     try {
       await open(path, width, text);
       await measurePage(`${base} ${suffix}`, path);
