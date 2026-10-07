@@ -43,7 +43,7 @@ func (s *Store) WithoutPickup() *Store {
 
 const (
 	rowTiles  = 4
-	bandTiles = 3
+	bandTiles = 4
 )
 
 // carouselSources is what the carousel and the sections beside it are read
@@ -172,13 +172,13 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, true, nil
 }
 
-// departmentBand rotates by shop day through the departments that have a
-// photograph and enough products to fill the band; nil when none qualifies.
+// departmentBand rotates by shop day through the departments with enough
+// products to fill the shelf; nil when none qualifies.
 func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages.DepartmentBand, error) {
 	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
-		if departmentPhoto(&cats[i]).Shown() && held[cats[i].ID] >= bandTiles {
+		if held[cats[i].ID] >= bandTiles {
 			eligible = append(eligible, &cats[i])
 		}
 	}
@@ -197,7 +197,6 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages
 		Fact:  strings.Join(subs[c.ID], " · "),
 		Href:  "/c/" + c.Slug,
 		Tone:  pages.ResolveTone(c.Tone),
-		Photo: departmentPhoto(c),
 		Tiles: tiles,
 	}, nil
 }

@@ -75,9 +75,6 @@ var (
 
 	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
 
-	// What joins a section's name to its grey continuation on the same line.
-	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
-
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
 	// for a day outside the shop's current year.
