@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func renderChrome(t *testing.T, locale i18n.Locale, items []layouts.NavItem) (header, footer string) {
@@ -188,6 +189,87 @@ func TestTheHeaderOffersDealsOnlyWhenThereIsSomethingToBuy(t *testing.T) {
 		}
 		if got := strings.Count(header, `href="/deals"`); deals && got != 2 {
 			t.Errorf("deals=%v: /deals is linked %d times, want once in the row and once in the menu", deals, got)
+		}
+	}
+}
+
+func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		path        string
+		nav         string
+		deals       bool
+		wantCurrent string
+	}{
+		{name: "deals", path: "/deals", deals: true, wantCurrent: "/deals"},
+		{name: "deals pagination", path: "/deals?page=2", deals: true, wantCurrent: "/deals"},
+		{name: "home", path: "/", deals: true},
+		{name: "search query", path: "/search?q=/deals", deals: true},
+		{name: "department", path: "/c/phones", nav: "phones", deals: true, wantCurrent: "/c/phones"},
+		{name: "similar prefix", path: "/deals-extra", deals: true},
+		{name: "nested path", path: "/deals/offers", deals: true},
+		{name: "trailing slash", path: "/deals/", deals: true},
+		{name: "absent request path", deals: true},
+		{name: "no deals", path: "/deals", deals: false},
+		{name: "department without deals", path: "/c/phones", nav: "phones", deals: false, wantCurrent: "/c/phones"},
+	}
+	navs := regexp.MustCompile(`(?s)<nav class="(goen-header__drawer|goen-header__nav)"[^>]*>(.*?)</nav>`)
+	anchors := regexp.MustCompile(`<a\b[^>]*>`)
+	hrefs := regexp.MustCompile(`href="([^"]*)"`)
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, origin := range []string{"", "https://shop.example"} {
+			for _, tt := range tests {
+				t.Run(locale.Tag()+"/"+origin+"/"+tt.name, func(t *testing.T) {
+					ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), chromeNav), tt.deals)
+					ctx = web.WithRequestPath(ctx, tt.path)
+					if origin != "" {
+						ctx = layouts.WithRequestPath(layouts.WithSiteOrigin(ctx, origin), "/")
+					}
+					var b strings.Builder
+					if err := layouts.Header(layouts.Page{Nav: tt.nav}).Render(ctx, &b); err != nil {
+						t.Fatalf("render header: %v", err)
+					}
+					sets := navs.FindAllStringSubmatch(b.String(), -1)
+					if len(sets) != 2 {
+						t.Fatalf("navigation sets = %d, want drawer and desktop row", len(sets))
+					}
+					for _, set := range sets {
+						var current []string
+						dealLinks := 0
+						for _, anchor := range anchors.FindAllString(set[2], -1) {
+							href := hrefs.FindStringSubmatch(anchor)
+							if len(href) != 2 {
+								continue
+							}
+							if strings.Contains(anchor, `aria-current="page"`) {
+								current = append(current, href[1])
+							}
+							if href[1] == "/deals" {
+								dealLinks++
+								if !strings.Contains(set[2], anchor+i18n.T(ctx, i18n.KeyDeals)+"</a>") {
+									t.Errorf("%s: deals link lost its localized label", set[1])
+								}
+							}
+						}
+						wantLinks := 0
+						if tt.deals {
+							wantLinks = 1
+						}
+						if dealLinks != wantLinks {
+							t.Errorf("%s: deals links = %d, want %d", set[1], dealLinks, wantLinks)
+						}
+						if tt.wantCurrent == "" {
+							if len(current) != 0 {
+								t.Errorf("%s: current links = %v, want none", set[1], current)
+							}
+						} else if len(current) != 1 || current[0] != tt.wantCurrent {
+							t.Errorf("%s: current links = %v, want exactly [%s]", set[1], current, tt.wantCurrent)
+						}
+					}
+				})
+			}
 		}
 	}
 }
