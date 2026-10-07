@@ -83,6 +83,9 @@ func TestProductsReturnedMostDrawsBarsOnOneScale(t *testing.T) {
 	if !strings.Contains(section, `width="100.00%"`) || !strings.Contains(section, `width="25.00%"`) {
 		t.Error("section does not draw 2 returned at a quarter of 8")
 	}
+	if got := strings.Count(section, `<span class="goen-chartbar__label"></span>`); got != 2 {
+		t.Errorf("section keeps %d empty count columns, want 2: the count is already in each row's figure", got)
+	}
 }
 
 func TestProductsReturnedMostWithNoRowsSaysNothing(t *testing.T) {

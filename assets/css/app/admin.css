@@ -2277,7 +2277,11 @@ input.goen-check {
   margin: 0;
 }
 
-.goen-report__figure {
+.goen-report__facts {
+  text-wrap: pretty;
+}
+
+.goen-report__plot {
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -2307,8 +2311,8 @@ input.goen-check {
 .goen-report__tri {
   fill: var(--warn-mark);
   flex: none;
-  height: 10px;
-  width: 10px;
+  height: 0.7em;
+  width: 0.7em;
 }
 
 /* The money is the figure of a department row, so its column is as wide as an
@@ -2874,10 +2878,9 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
-/* A bar and its count. Thick over thin, like the day grid's filled and open
-   cells: 6px of hue for the value, a hairline for the rest of the scale. Every
-   row of a scale gets the same count column, so the tracks, and the bars drawn
-   on them, stay comparable. */
+/* A bar and its count: the value filled in hue on a pale track of the whole
+   scale. Every row of a scale gets the same count column, so the tracks, and
+   the bars drawn on them, stay comparable. */
 .goen-chartbar {
   align-items: center;
   display: grid;
@@ -2887,13 +2890,14 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chartbar svg {
+  border-radius: 4px;
   display: block;
+  outline: 1px solid transparent;
+  overflow: hidden;
 }
 
 .goen-chartbar__track {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-grid);
-  stroke-width: 1;
+  fill: var(--n-100);
 }
 
 .goen-chartbar__fill {
@@ -2967,9 +2971,9 @@ form[data-request-pending] [aria-disabled="true"] {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* A bullet graph: the track is one shade within the warning line and a lighter
-   one beyond it, the value is filled from the start and the pale stretch is as
-   far as it may reach. The row's text says the same in words. */
+/* A bullet graph: the value is filled from the start, the pale stretch is as
+   far as it may reach and the short line is the warning line. The row's text
+   says the same in words. */
 .goen-chartrangebar {
   border-radius: 4px;
   outline: 1px solid transparent;
@@ -2984,17 +2988,17 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--n-100);
 }
 
-.goen-chartrangebar__near {
-  fill: var(--n-200);
-}
-
 .goen-chartrangebar__fill {
-  fill: var(--accent);
+  fill: var(--chart-hue);
 }
 
 .goen-chartrangebar__reach {
-  fill: var(--accent);
+  fill: var(--chart-hue);
   fill-opacity: 0.3;
+}
+
+.goen-chartrangebar__mark {
+  fill: var(--ink-2);
 }
 
 .goen-chartrangebar--urgent .goen-chartrangebar__fill,
@@ -3023,7 +3027,7 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 
   .goen-chartbar__track {
-    stroke: transparent;
+    fill: Canvas;
   }
 
   .goen-chartmeter svg {
@@ -3048,9 +3052,12 @@ form[data-request-pending] [aria-disabled="true"] {
     forced-color-adjust: none;
   }
 
-  .goen-chartrangebar__track,
-  .goen-chartrangebar__near {
+  .goen-chartrangebar__track {
     fill: Canvas;
+  }
+
+  .goen-chartrangebar__mark {
+    fill: CanvasText;
   }
 
   .goen-chartrangebar__fill,

@@ -85,13 +85,23 @@ var (
 	})
 
 	KeyAdminQueueRunwayNone = countKey("admin.queue.runwaynone",
-		"%d 天內沒有會賣完的品項。",
-		"Nothing is expected to run out within %d day.",
-		"Nothing is expected to run out within %d days.")
+		"預計 %d 天內沒有品項會賣完。",
+		"Nothing is expected to sell out within %d day.",
+		"Nothing is expected to sell out within %d days.")
+
+	KeyAdminQueueRunwayUnknown = key("admin.queue.runwayunknown", Message{
+		ZhHant: "銷量還太少，估不出還能賣幾天。",
+		En:     "Too few sales yet to estimate how long stock will last.",
+	})
+
+	KeyAdminQueueRunwayAll = key("admin.queue.runwayall", Message{
+		ZhHant: "在報表看全部",
+		En:     "See all in the report",
+	})
 
 	KeyAdminQueueRunwayLegend = key("admin.queue.runwaylegend", Message{
-		ZhHant: "依近 %[1]d 天銷量估算。條是估計的天數，淡色是可能撐到的天數；深一階的底是 %[2]d 天內。",
-		En:     "Estimated from the last %[1]d days of sales. The bar is the estimated days; the pale stretch is how long it may last; the darker part of the track is within %[2]d days.",
+		ZhHant: "依近 %[1]d 天銷量估算。淡色是可能撐到的天數，短豎線是 %[2]d 天。",
+		En:     "Estimated from the last %[1]d days of sales. The pale stretch is how long it may last; the short line marks %[2]d days.",
 	})
 
 	KeyAdminQueueWeekUnavailable = key("admin.queue.week.unavailable", Message{

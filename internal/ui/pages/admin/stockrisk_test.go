@@ -335,6 +335,14 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 		if got := strings.Count(html, `<li class="goen-report__row">`); got != 5 {
 			t.Fatalf("%s: %d rows, want 5", loc, got)
 		}
+		for _, soldOut := range []string{"OUT-1", "OUT-2"} {
+			if want := `<p class="goen-report__facts">` + soldOut + `</p>`; !strings.Contains(html, want) {
+				t.Errorf("%s: a sold out row's fact line is not its SKU alone, want %s", loc, want)
+			}
+		}
+		if strings.Contains(html, `class="goen-report__figure"`) {
+			t.Errorf("%s: a row column wears the report headline tiles' class", loc)
+		}
 		if got := strings.Count(html, `<p class="goen-report__facts">`); got != 5 {
 			t.Errorf("%s: %d fact lines, want one under each name", loc, got)
 		}
@@ -345,8 +353,8 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 		if want := fmt.Sprintf(`aria-label=%q`, warning); !strings.Contains(html, want) {
 			t.Errorf("%s: the triangle lacks its text alternative %s in %s", loc, want, html)
 		}
-		if got := strings.Count(html, warning); got != 1 {
-			t.Errorf("%s: the warning %q is written %d times, want once, as the triangle's alternative", loc, warning, got)
+		if got := strings.Count(html, warning); got != 2 {
+			t.Errorf("%s: the warning %q is written %d times, want twice, as the triangle's label and its tooltip", loc, warning, got)
 		}
 		if got := strings.Count(html, "goen-chartrangebar--urgent"); got != 1 {
 			t.Errorf("%s: %d urgent bars, want 1", loc, got)
@@ -382,5 +390,60 @@ func TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne(t *testing.T) {
 				t.Errorf("%s, %s: SoldOutSince = %q, want %q", tc.name, loc, got, want)
 			}
 		}
+	}
+}
+
+func TestStockLeadDescribesTheDrawingAsDrawn(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		loc  i18n.Locale
+		want []string
+	}{
+		{i18n.ZhHant, []string{"淡色是可能撐到的天數，短豎線是 30 天", "▲ 只標估計少於 30 天的"}},
+		{i18n.En, []string{"The pale stretch is how long it may last and the short line marks 30 days", "▲ marks only an estimate under 30 days"}},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tc.loc)
+		html := renderComponent(t, ctx, StockRiskSection(nil, 0, 30))
+		for _, want := range tc.want {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: the stock lead lacks %q", tc.loc, want)
+			}
+		}
+	}
+}
+
+func TestListsShareOneRowSkeleton(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	stock := renderComponent(t, ctx, StockRiskRows([]StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}, 0, 30))
+	report := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
+		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
+	}))
+	for name, html := range map[string]string{"stock": stock, "best sellers": report} {
+		for _, want := range []string{
+			`<li class="goen-report__row"><div class="goen-report__what"><a class="goen-report__name" href="/admin/products/`,
+			`<p class="goen-report__facts">`,
+			`<div class="goen-report__plot">`,
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s list lacks the shared row markup %s", name, want)
+			}
+		}
+	}
+}
+
+func TestSellerFactsNameTheBrandThenWhatSold(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	got := Seller{Brand: "Aurora", Units: 4, RevenueCents: 120000}.Facts(ctx)
+	if want := "Aurora · 4 units sold · Product gross NT$1,200"; got != want {
+		t.Errorf("Seller.Facts = %q, want %q", got, want)
+	}
+	if got := (Seller{Units: 4, RevenueCents: 120000}).Facts(ctx); strings.HasPrefix(got, " ·") || strings.HasPrefix(got, "·") {
+		t.Errorf("Seller.Facts without a brand = %q, want no leading separator", got)
 	}
 }

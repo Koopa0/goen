@@ -117,7 +117,9 @@ func chiSquareQuantile(z, dof float64) float64 {
 	return dof * c * c * c
 }
 
-// Urgent reports whether the row is marked ▲.
+// Urgent reports whether the row is one to act on: sold out, or an estimate
+// under the warning line. A sold out row shows its badge and an estimated one
+// the ▲.
 func (c DaysCover) Urgent() bool {
 	return c.State == CoverSoldOut || c.State == CoverEstimated && c.Days < coverWarnDays
 }
@@ -175,8 +177,12 @@ func (c DaysCover) Warning(ctx context.Context) string {
 
 func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
 
-// Facts is the line under the name: the SKU, what can be sold and what was.
+// Facts is the line under the name: the SKU, what can be sold and what was. A
+// sold out SKU has only its code: the badge and the day say the rest.
 func (r StockRisk) Facts(ctx context.Context, days int) string {
+	if r.Sellable <= 0 {
+		return r.SKU
+	}
 	return strings.Join([]string{
 		r.SKU,
 		fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), r.SellableText()),
@@ -212,11 +218,11 @@ func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
 // many sold out SKUs it left off.
 func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 	var soldOut, rest []StockRisk
-	for _, r := range rows {
-		if r.Estimate().State == CoverSoldOut {
-			soldOut = append(soldOut, r)
+	for i := range rows {
+		if rows[i].Estimate().State == CoverSoldOut {
+			soldOut = append(soldOut, rows[i])
 		} else {
-			rest = append(rest, r)
+			rest = append(rest, rows[i])
 		}
 	}
 	slices.SortStableFunc(soldOut, func(a, b StockRisk) int {
@@ -245,17 +251,23 @@ const dashboardRunwayRows = 5
 // DashboardRunway keeps the first rows of a ranked days cover list that run out
 // within the warning line: the sold-out task row already counts the sold out
 // ones and links to them, and an estimate past the line is not what the
-// section's title promises. cut reports that rows were left off.
-func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool) {
-	for _, r := range listed {
-		cover := r.Estimate()
-		if cover.State != CoverEstimated || !cover.Urgent() {
+// section's title promises. cut reports that rows were left off; estimated
+// reports that some SKU could be estimated at all, so an empty list can say
+// whether nothing is running out or nothing can be told yet.
+func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut, estimated bool) {
+	for i := range listed {
+		cover := listed[i].Estimate()
+		if cover.State != CoverEstimated {
+			continue
+		}
+		estimated = true
+		if !cover.Urgent() {
 			continue
 		}
 		if len(kept) == dashboardRunwayRows {
-			return kept, true
+			return kept, true, true
 		}
-		kept = append(kept, r)
+		kept = append(kept, listed[i])
 	}
-	return kept, false
+	return kept, false, estimated
 }
