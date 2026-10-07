@@ -147,7 +147,9 @@ for (const width of [1440, 375]) {
 
 await send('Network.setCookie', { name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/' });
 for (const [name, path] of only ? (only.includes('en-reports') ? [['reports', '/admin/reports']] : []) : [['dashboard', '/admin'], ['reports', '/admin/reports']]) {
-  try { await shot(path, `en-admin-${name}-1440.png`, 1440); } catch (e) { failures.push(`en-admin-${name}: ${e.message}`); }
+  for (const width of only ? [1440, 375] : [1440]) {
+    try { await shot(path, `en-admin-${name}-${width}.png`, width); } catch (e) { failures.push(`en-admin-${name}-${width}: ${e.message}`); }
+  }
 }
 
 ws.close();
