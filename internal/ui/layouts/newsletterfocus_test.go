@@ -62,3 +62,20 @@ func TestTheNewsletterButtonSitsInsideTheField(t *testing.T) {
 		}
 	}
 }
+
+// The footer's subscribe is a text action in the field, not the page's filled
+// button, and its arrow is decoration only.
+func TestTheNewsletterActionIsBlueTextWithADecorativeArrow(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	if err := layouts.NewsletterForm(layouts.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
+		t.Fatal(err)
+	}
+	button := regexp.MustCompile(`<button[^>]*id="newsletter-submit"[^>]*>.*?</button>`).FindString(b.String())
+	if !strings.Contains(button, "goen-btn--ghost") || strings.Contains(button, "goen-btn--primary") {
+		t.Errorf("the subscribe button is not a ghost button: %s", button)
+	}
+	if !strings.Contains(button, `訂閱<span aria-hidden="true">→</span>`) && !strings.Contains(button, `訂閱 <span aria-hidden="true">→</span>`) {
+		t.Errorf("the subscribe button lacks its decorative arrow: %s", button)
+	}
+}
