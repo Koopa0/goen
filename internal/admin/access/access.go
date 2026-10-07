@@ -63,19 +63,23 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 		ctx := layouts.WithAdmin(r.Context(), u.IsAdmin())
-		ctx = layouts.WithHealthTaskCount(ctx, 0, false)
-		if c.healthTaskCount != nil {
-			count, err := c.readHealthTaskCount(ctx)
-			if err != nil {
-				if r.Context().Err() == nil {
-					c.log.ErrorContext(ctx, "read background task count", "error", err)
-				}
-			} else {
-				ctx = layouts.WithHealthTaskCount(ctx, count, true)
-			}
-		}
-		next(w, r.WithContext(ctx))
+		next(w, r.WithContext(c.healthTaskContext(ctx)))
 	}
+}
+
+func (c *Control) healthTaskContext(ctx context.Context) context.Context {
+	ctx = layouts.WithHealthTaskCount(ctx, 0, false)
+	if c.healthTaskCount == nil {
+		return ctx
+	}
+	count, err := c.readHealthTaskCount(ctx)
+	if err == nil {
+		return layouts.WithHealthTaskCount(ctx, count, true)
+	}
+	if ctx.Err() == nil {
+		c.log.ErrorContext(ctx, "read background task count", "error", err)
+	}
+	return ctx
 }
 
 func (c *Control) readHealthTaskCount(ctx context.Context) (int64, error) {
