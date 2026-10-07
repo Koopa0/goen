@@ -12495,6 +12495,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     localized_name(p.description, p.description_en, $2::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -12521,26 +12522,27 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID                   uuid.UUID
-	Slug                 string
-	Name                 string
-	Summary              string
-	Description          string
-	WarrantyNote         pgtype.Text
-	WarrantyMonths       int32
-	Brand                string
-	BrandSlug            string
-	CategoryID           uuid.UUID
-	CategorySlug         string
-	CategoryName         string
-	CategoryParentID     uuid.NullUUID
-	Origin               string
-	DomesticPartyName    string
-	DomesticPartyPhone   string
-	DomesticPartyAddress string
-	NetQuantity          string
-	NetUnit              string
-	MinAgeMonths         pgtype.Int2
+	ID                    uuid.UUID
+	Slug                  string
+	Name                  string
+	Summary               string
+	Description           string
+	DescriptionTranslated bool
+	WarrantyNote          pgtype.Text
+	WarrantyMonths        int32
+	Brand                 string
+	BrandSlug             string
+	CategoryID            uuid.UUID
+	CategorySlug          string
+	CategoryName          string
+	CategoryParentID      uuid.NullUUID
+	Origin                string
+	DomesticPartyName     string
+	DomesticPartyPhone    string
+	DomesticPartyAddress  string
+	NetQuantity           string
+	NetUnit               string
+	MinAgeMonths          pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -12552,6 +12554,7 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.Name,
 		&i.Summary,
 		&i.Description,
+		&i.DescriptionTranslated,
 		&i.WarrantyNote,
 		&i.WarrantyMonths,
 		&i.Brand,
