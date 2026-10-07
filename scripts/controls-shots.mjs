@@ -254,6 +254,14 @@ for (const width of [320, 768, 1024]) {
   await shot('header-search-focus', '/', width, { clip: 260, prepare: focusField('#site-search'), measures: ['#site-search', '.goen-header__search'] });
 }
 
+// The header at 200% text and at 100%: icons stay at the right edge.
+for (const width of [375, 640, 768]) {
+  await shot('header-row', '/', width, { text200: true, clip: 600, measures: ['.goen-header__brand', '.goen-header__search', '.goen-header__actions'] });
+}
+for (const width of [768, 1440]) {
+  await shot('header-row', '/', width, { clip: 260, measures: ['.goen-header__brand', '.goen-header__search', '.goen-header__actions'] });
+}
+
 // The tablet header: the search sits before the icons.
 for (const width of [640, 768, 1023]) {
   await shot('tablet-home', '/', width, { clip: 260, measures: ['.goen-header__search', '#site-search', '.goen-header__actions'] });
