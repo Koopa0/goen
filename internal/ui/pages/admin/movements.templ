@@ -99,9 +99,9 @@ templ receiveForm(v *MovementsView) {
 					name="quantity"
 					min="1"
 					step="1"
-					placeholder="10"
 					required
 				/>
+				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "10") }</p>
 			</div>
 			@components.Button(components.ButtonProps{
 				ButtonStyle: components.ButtonStylePrimary,

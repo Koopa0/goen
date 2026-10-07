@@ -133,10 +133,8 @@ var (
 		En:     "Currently %s, free delivery over %s.",
 	})
 
-	KeyAdminShipSince = key("admin.ship.since", Message{
-		ZhHant: "%s 起生效，共 %s 個版本。",
-		En:     "In force since %s, %s versions in all.",
-	})
+	KeyAdminShipSince = countKey("admin.ship.since", "%s 起生效，共 %d 個版本。",
+		"In force since %s, %d version in all.", "In force since %s, %d versions in all.")
 
 	KeyAdminShipCarrierOptional = key("admin.ship.carrier.optional", Message{
 		ZhHant: "物流商（選填）",
@@ -183,10 +181,8 @@ var (
 		En:     "Free delivery covers the base fee only; a zone surcharge still applies. Enter 0 to remove a surcharge.",
 	})
 
-	KeyAdminShipPrefixCount = key("admin.ship.prefixcount", Message{
-		ZhHant: "%s 個郵遞區號",
-		En:     "%s postal codes",
-	})
+	KeyAdminShipPrefixCount = countKey("admin.ship.prefixcount", "%d 個郵遞區號",
+		"%d postal code", "%d postal codes")
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 

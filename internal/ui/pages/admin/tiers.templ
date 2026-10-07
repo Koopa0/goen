@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -85,9 +87,10 @@ templ Tiers(p layouts.Page, v TiersView) {
 						@components.Label(components.LabelProps{For: "tier-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
-						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30" placeholder="Silver"/>
+						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30"/>
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Silver") }
 						</p>
 					</div>
 					<div class="goen-admin__field">

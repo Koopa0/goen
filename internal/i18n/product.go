@@ -189,6 +189,8 @@ var (
 
 	KeyAdminProdName = key("admin.prod.name", Message{ZhHant: "商品名稱", En: "Product name"})
 
+	KeyAdminProdBasics = key("admin.prod.basics", Message{ZhHant: "基本資料", En: "Basic details"})
+
 	KeyAdminProdSlugHint = key("admin.prod.slughint", Message{
 		ZhHant: "上架後不能更改，商品網址會是 /p/ 加上這串。",
 		En:     "It cannot be changed once the product is published; the product's address is /p/ followed by it.",
