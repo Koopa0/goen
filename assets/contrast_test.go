@@ -91,6 +91,25 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// The labels of the filled and the soft button, and text and links on a
+	// blue tint: a current item, a badge, an information notice.
+	for _, pair := range []struct{ ink, ground string }{
+		{ink: "--on-accent", ground: "--accent"},
+		{ink: "--on-accent", ground: "--accent-deep"},
+		{ink: "--accent-deep", ground: "--accent-faint"},
+		{ink: "--accent-deep", ground: "--accent-muted"},
+		{ink: "--accent", ground: "--accent-faint"},
+		{ink: "--n-900", ground: "--on-ink-accent"},
+	} {
+		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
+			t.Fatalf("no stylesheet declares a hex value for %s or %s", pair.ink, pair.ground)
+		}
+		if got := contrast(tokens[pair.ink], tokens[pair.ground]); got < 4.5 {
+			t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
+				pair.ink, tokens[pair.ink], pair.ground, tokens[pair.ground], got)
+		}
+	}
+
 	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
 	if tokens["--chart-hue"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
@@ -194,7 +213,8 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			}
 		}
 		ground := decl["--tone-ground"]
-		for _, prop := range []string{"--tone-text", "--tone-muted"} {
+		// The mark is also the colour of a link on the tone ("see all").
+		for _, prop := range []string{"--tone-text", "--tone-muted", "--tone-mark"} {
 			if got := contrast(decl[prop], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					prop, decl[prop], name, ground, got)
@@ -225,11 +245,9 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 				}
 			}
 		}
-		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
-			if got := contrast(decl[prop], ground); got < 3 {
-				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
-					prop, decl[prop], name, ground, got)
-			}
+		if got := contrast(decl["--tone-edge"], ground); got < 3 {
+			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
+				decl["--tone-edge"], name, ground, got)
 		}
 		if name == "ink" {
 			continue

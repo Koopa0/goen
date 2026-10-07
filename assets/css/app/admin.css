@@ -165,38 +165,29 @@ h3 {
 /* One filled control to a surface. Everything else is quieter on purpose: a
    row of equally weighted buttons makes the shopper choose before they act. */
 .goen-btn--primary {
-  background: var(--n-900);
-  border-color: var(--n-900);
+  background: var(--accent);
+  border-color: var(--accent);
   box-shadow: var(--sh-xs);
-  color: var(--n-0);
+  color: var(--on-accent);
 }
 
 .goen-btn--primary:hover {
-  background: #27272a;
-  border-color: #27272a;
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
 }
 
-/* The soft button: a grey ground, no outline. */
-.goen-btn--secondary {
-  background: var(--n-100);
-  border-color: transparent;
-  color: var(--n-900);
-}
-
-.goen-btn--secondary:hover {
-  background: var(--n-200);
-}
-
-/* The secondary button: white with a control border. */
+/* The secondary button, under either name: a blue tint and no outline. The
+   transparent border is what forced colours draws as its edge. */
+.goen-btn--secondary,
 .goen-btn--outline {
-  background: var(--n-0);
-  border-color: var(--n-300);
-  box-shadow: var(--sh-xs);
-  color: var(--n-700);
+  background: var(--accent-faint);
+  border-color: transparent;
+  color: var(--accent-deep);
 }
 
+.goen-btn--secondary:hover,
 .goen-btn--outline:hover {
-  background: var(--n-50);
+  background: var(--accent-muted);
 }
 
 .goen-btn--ghost {
@@ -249,7 +240,7 @@ h3 {
 
 .goen-badge--accent {
   background: var(--accent-muted);
-  color: var(--accent-text);
+  color: var(--accent-deep);
 }
 
 .goen-badge--warn {
@@ -716,7 +707,7 @@ input.goen-check {
   .goen-adminbar__tag {
     background: var(--accent-muted);
     border-radius: var(--r-sm);
-    color: var(--accent-text);
+    color: var(--accent-deep);
     display: inline-flex;
     font-size: var(--fs-12);
     font-weight: var(--fw-medium);
@@ -877,9 +868,9 @@ input.goen-check {
 /* The screen being read, stated by the ARIA attribute the markup already
    carries. A state class beside it would be a second place to disagree. */
 .goen-admin__nav [aria-current='page'] {
-  background: var(--accent-muted);
-  color: var(--accent-text);
-  font-weight: var(--fw-semibold);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
 }
 
 .goen-admin__navback {
@@ -1051,7 +1042,7 @@ input.goen-check {
   color: var(--fg);
   font-size: var(--fs-ed-30);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -1271,6 +1262,17 @@ input.goen-check {
 
 .goen-admin .ui-table tbody .goen-admin__cellkey {
   color: var(--fg);
+}
+
+/* A link to another record is that record's name, so it keeps the text colour;
+   blue in a row is an action. The underline still marks it as a link where the
+   cell holds other words. */
+.goen-admin .ui-table tbody a[href^="/admin/"] {
+  color: var(--fg);
+}
+
+.goen-admin .ui-table tbody a[href^="/admin/"]:hover {
+  color: var(--accent);
 }
 
 .goen-admin__row--low td {
@@ -1771,7 +1773,7 @@ input.goen-check {
 /* Money moved. The row is marked so a reader scanning for it does not read
    forty lines of catalogue edits first. */
 .goen-admin__auditrow.is-money {
-  border-left-color: var(--accent);
+  border-left-color: var(--accent-deep);
 }
 
 .goen-admin__audithead {
@@ -2036,8 +2038,19 @@ input.goen-check {
    the two disagree the first time one of them is forgotten. */
 .goen-admin__tabs [aria-current] {
   background: var(--accent-faint);
-  border-color: var(--accent);
-  color: var(--fg);
+  border-color: transparent;
+  color: var(--accent-deep);
+}
+
+/* Forced colours drop the tint, and the current item's weight is its
+   neighbours', so it draws its edge in Highlight; the focus ring still wins
+   while it is focused. */
+@media (forced-colors: active) {
+  .goen-admin__nav [aria-current='page']:not(:focus-visible),
+  .goen-admin__tabs [aria-current]:not(:focus-visible) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
 }
 
 /* A button in a column of full-width fields is not a banner: it shrinks to its
