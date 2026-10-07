@@ -433,32 +433,16 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				before := heroUploadSavedRows(t, owner)
 				diagnostics.Reset()
+				res := httptest.NewRecorder()
 				if tt.name == "storage" {
-					tx, err := owner.Begin(ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer pgtx.Rollback(ctx, tx)
-					if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
-						t.Fatal(err)
-					}
-					res := httptest.NewRecorder()
-					mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, tt.alt, false))
-					if err := tx.Rollback(ctx); err != nil {
-						t.Fatal(err)
-					}
-					if witness.seen != 1 || witness.code != "55P03" || !witness.live || ctx.Err() != nil {
-						t.Fatalf("PutMedia fault witness = %d/%q/live=%t parent=%v, want exactly one real 55P03 with live request", witness.seen, witness.code, witness.live, ctx.Err())
-					}
-					assertHeroUploadFailure(t, ctx, res, diagnostics.String(), tt.status, fields)
+					res = heroUploadWithStorageFault(t, ctx, owner, mux, fields, witness)
 				} else {
-					res := httptest.NewRecorder()
 					mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, tt.alt, tt.name == "corrupt"))
 					if witness.seen != 1 || ctx.Err() != nil {
 						t.Fatalf("refused input reached PutMedia or lost its request: writes=%d parent=%v", witness.seen, ctx.Err())
 					}
-					assertHeroUploadFailure(t, ctx, res, diagnostics.String(), tt.status, fields)
 				}
+				assertHeroUploadFailure(t, ctx, res, diagnostics.String(), tt.status, fields)
 				if diff := cmp.Diff(before, heroUploadSavedRows(t, owner)); diff != "" {
 					t.Errorf("refused hero upload changed saved hero/media/audit (-want +got):\n%s", diff)
 				}
@@ -491,6 +475,27 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 			t.Error("recovered hero refers to an image that was not stored")
 		}
 	}
+}
+
+func heroUploadWithStorageFault(t *testing.T, ctx context.Context, owner *pgxpool.Pool, mux *http.ServeMux, fields map[string]string, witness *heroUploadWriteTrace) *httptest.ResponseRecorder {
+	t.Helper()
+	tx, err := owner.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
+		t.Fatal(err)
+	}
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, fields["alt"], false))
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if witness.seen != 1 || witness.code != "55P03" || !witness.live || ctx.Err() != nil {
+		t.Fatalf("PutMedia fault witness = %d/%q/live=%t parent=%v, want exactly one real 55P03 with live request", witness.seen, witness.code, witness.live, ctx.Err())
+	}
+	return res
 }
 
 type heroUploadTraceKey struct{}
