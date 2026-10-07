@@ -463,7 +463,7 @@ body {
      with border-box: their text then starts where the header's does. */
   --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
   /* Where the content column starts on a full-bleed band. */
-  --page-edge: max(var(--page-gutter), calc((100vw - var(--page-width)) / 2 + var(--page-gutter)));
+  --page-edge: max(var(--page-gutter), calc((100vw - var(--page-width)) / 2));
 }
 
 @media (min-width: 768px) {
@@ -523,6 +523,7 @@ body {
   border-bottom: 1px solid var(--period-line);
   container: cell / inline-size;
   flex: 1 1 0;
+  font-style: normal;
   height: 4px;
   min-width: 0;
   position: relative;
