@@ -106,7 +106,7 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 					case RunwayEstimated:
 						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays) }</p>
 					case RunwayNothingInStock:
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayNoStock) }</p>
+						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, CoverWindowDays, CoverWindowDays) }</p>
 					default:
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown) }</p>
 				}

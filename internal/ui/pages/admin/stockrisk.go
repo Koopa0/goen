@@ -256,7 +256,7 @@ const (
 	RunwayTooFewSales RunwayBasis = iota
 	// RunwayEstimated: some SKU was estimated.
 	RunwayEstimated
-	// RunwayNothingInStock: every SKU listed is sold out.
+	// RunwayNothingInStock: every SKU that sold in the window is sold out.
 	RunwayNothingInStock
 )
 
@@ -265,7 +265,7 @@ const (
 // ones and links to them, and an estimate past the line is not what the
 // section's title promises. cut reports that rows were left off; basis tells an
 // empty list apart: nothing is running out, nothing can be estimated yet, or
-// nothing is left in stock.
+// nothing that sold in the window is left in stock.
 func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool, basis RunwayBasis) {
 	inStock := false
 	for i := range listed {

@@ -369,7 +369,7 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			t.Parallel()
 			none := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays)
 			unknown := i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown)
-			noStock := i18n.T(ctx, i18n.KeyAdminQueueRunwayNoStock)
+			noStock := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, CoverWindowDays, CoverWindowDays)
 			all := i18n.T(ctx, i18n.KeyAdminQueueRunwayAll)
 			going := []StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}
 
