@@ -133,7 +133,7 @@ func CampaignStateAt(startsAt, endsAt, now time.Time) CampaignState {
 }
 
 // CampaignSchedule is what a campaign page says about its window: the fact line
-// and, when the span fits one, the day grid.
+// and, when the span fits one, the period's track.
 type CampaignSchedule struct {
 	State CampaignState
 	Facts []components.Stat

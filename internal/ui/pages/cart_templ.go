@@ -5030,7 +5030,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if v.CanCancel() && v.PaymentRefreshURL == "" {
+				if v.ShowCancel() {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 403, "<form class=\"goen-order__cancel\" method=\"post\" action=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

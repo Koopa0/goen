@@ -157,7 +157,7 @@ var (
 	KeyAdminCampaignOutside = key("admin.campaign.outside", Message{ZhHant: "不在期間內", En: "Outside its window"})
 
 	KeyAdminCampaignHidden = key("admin.campaign.hidden", Message{
-		ZhHant: "商店上看不到：沒有可販售的商品",
+		ZhHant: "商店上看不到：沒有有庫存的優惠商品",
 		En:     "Not shown in the shop: no product on sale is in stock",
 	})
 

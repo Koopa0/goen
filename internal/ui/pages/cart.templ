@@ -1052,7 +1052,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() && v.PaymentRefreshURL == "" {
+						if v.ShowCancel() {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }

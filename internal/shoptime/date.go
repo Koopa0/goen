@@ -18,7 +18,7 @@ func DateText(ctx context.Context, d Date) string {
 	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
 }
 
-// DateLabel is d the short way a day grid labels its ends: 10/30 or Oct 30.
+// DateLabel is d written short: 10/30 or Oct 30.
 func DateLabel(ctx context.Context, d Date) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDateLabel), d.Month.String()[:3], int(d.Month), d.Day)
 }
