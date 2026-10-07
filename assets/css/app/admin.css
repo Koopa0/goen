@@ -736,6 +736,7 @@ input.goen-check {
 }
 
 .goen-adminfoot__copyright {
+  box-sizing: border-box;
   color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
@@ -1323,7 +1324,7 @@ input.goen-check {
 }
 
 .goen-admin__num {
-  width: 86px;
+  width: 9ch;
   min-height: 44px;
   box-sizing: border-box;
 }
@@ -1375,6 +1376,16 @@ input.goen-check {
   outline-offset: 2px;
 }
 
+@media (forced-colors: active) {
+  .goen-admin__langopt {
+    border: 2px solid Canvas;
+  }
+
+  .goen-admin__langopt:has(input:checked) {
+    border-color: Highlight;
+  }
+}
+
 .goen-admin__langgroup {
   display: flex;
   flex-direction: column;
@@ -1394,16 +1405,36 @@ input.goen-check {
 }
 
 .goen-admin__fields {
+  column-gap: 16px;
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
 }
 
 .goen-admin__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-content: start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 16px;
   min-width: 0;
+  row-gap: 6px;
+}
+
+.goen-admin__fields > .goen-admin__field {
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+}
+
+.goen-admin__fields > .goen-admin__field > label {
+  align-self: end;
+  line-height: 1.35;
+}
+
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint {
+  grid-row: 4;
+}
+
+.goen-admin__surcharge {
+  max-width: min(100%, 12rem);
 }
 
 /* The one checkbox in the back office that authorises a resend. It sits in a
@@ -2681,6 +2712,23 @@ input.goen-check {
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   word-break: break-all;
+}
+
+.goen-admin__districts {
+  columns: 11rem;
+  column-gap: 24px;
+  list-style: none;
+  padding: 0;
+}
+
+.goen-admin__districts li {
+  break-inside: avoid;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.goen-admin__districts span {
+  color: var(--fg-muted);
 }
 
 @view-transition {

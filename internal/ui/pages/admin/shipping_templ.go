@@ -1131,7 +1131,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div class=\"goen-admin__inline\"><input class=\"goen-input\" id=\"")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div class=\"goen-admin__inline\"><input class=\"goen-input goen-admin__surcharge\" id=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -3043,7 +3043,7 @@ func zonePrefixDistricts(raw string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if entries := zonePrefixEntries(raw); len(entries) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 225, "<ul class=\"goen-admin__hint\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 225, "<ul class=\"goen-admin__hint goen-admin__districts\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
