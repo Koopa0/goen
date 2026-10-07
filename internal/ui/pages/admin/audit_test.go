@@ -874,7 +874,13 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 			if (name == "record_audit_event" || name == "record_invoice_operation_audit") && index+1 < len(tokens) && tokens[index+1] == "(" && (index == 0 || !strings.EqualFold(tokens[index-1], "function")) {
 				args, _ := auditSQLArguments(t, tokens, index+1)
 				if strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
-					continue // The Go wrapper callers supply these dynamic JSON parameters.
+					// Parameter-only query wrappers are resolved at their Go callers.
+					if len(args) == 7 && len(args[4]) > 0 && len(args[5]) > 0 && args[4][0] == "@" && args[5][0] == "@" {
+						continue
+					}
+					if len(args) == 7 && len(args[5]) > 0 && args[5][0] == "@" && strings.EqualFold(args[4][0], "null") {
+						continue
+					}
 				}
 				if name == "record_audit_event" {
 					if (len(args) != 6 && len(args) != 7) || len(args[2]) != 1 || !strings.HasPrefix(args[2][0], "'") {
@@ -973,6 +979,28 @@ func auditSQLTokens(t *testing.T, source string) []string {
 			continue
 		}
 		character := source[index]
+		if character == '$' {
+			end := index + 1
+			for end < len(source) && (source[end] == '_' || unicode.IsLetter(rune(source[end])) || unicode.IsDigit(rune(source[end]))) {
+				end++
+			}
+			if end < len(source) && source[end] == '$' {
+				marker := source[index : end+1]
+				closeAt := strings.Index(source[end+1:], marker)
+				if closeAt < 0 {
+					t.Fatal("unterminated SQL dollar quote")
+				}
+				bodyEnd := end + 1 + closeAt
+				body := source[end+1 : bodyEnd]
+				if len(tokens) > 0 && (strings.EqualFold(tokens[len(tokens)-1], "as") || strings.EqualFold(tokens[len(tokens)-1], "do")) {
+					tokens = append(tokens, auditSQLTokens(t, body)...)
+				} else {
+					tokens = append(tokens, source[index:bodyEnd+len(marker)])
+				}
+				index = bodyEnd + len(marker)
+				continue
+			}
+		}
 		if character == '\'' {
 			start := index
 			index++
