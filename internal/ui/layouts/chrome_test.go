@@ -222,6 +222,7 @@ func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
 		for _, origin := range []string{"", "https://shop.example"} {
 			for _, tt := range tests {
 				t.Run(locale.Tag()+"/"+origin+"/"+tt.name, func(t *testing.T) {
+					t.Parallel()
 					ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), chromeNav), tt.deals)
 					ctx = web.WithRequestPath(ctx, tt.path)
 					if origin != "" {
