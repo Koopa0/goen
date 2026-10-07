@@ -53,14 +53,10 @@ jobs:
           make migrate-up
           make db-seed
 
-      - name: Build before and after
+      - name: Build
         run: |
           set -euo pipefail
           git log -1 --format='commit %H parents %P %s'
-          before=d825b5007aa8ad1a42b32c0922caa661d115f363
-          git worktree add "$RUNNER_TEMP/before" "$before"
-          make -C "$RUNNER_TEMP/before" build
-          cp "$RUNNER_TEMP/before/bin/goen" ./goen-before
           make build
           cp bin/goen ./goen-after
 
@@ -96,8 +92,13 @@ jobs:
           VALUES (sha256(convert_to(:'token', 'UTF8')), :'staff_id', now() + interval '1 hour');
           SQL
 
-          for which in before after; do
-            GOEN_INSECURE_COOKIES=1 ./goen-$which >> server-$which.log 2>&1 &
+          for mode in all cleared; do
+            if [ "$mode" = cleared ]; then
+              psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+                -c 'ALTER TABLE shipping_method_versions DISABLE TRIGGER USER' \
+                -c "UPDATE shipping_method_versions SET name_en = NULL WHERE method_id = (SELECT id FROM shipping_methods WHERE code = 'home_delivery')"
+            fi
+            GOEN_INSECURE_COOKIES=1 ./goen-after >> server-after.log 2>&1 &
             pid=$!
             for _ in $(seq 1 60); do
               if curl -sf -o /dev/null "$GOEN_URL/readyz"; then
@@ -105,8 +106,8 @@ jobs:
               fi
               sleep 1
             done
-            echo "::group::back office $which"
-            ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-copy-shots.mjs shots/$which || status=$?
+            echo "::group::back office $mode"
+            ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-copy-shots.mjs shots/after "$mode" || status=$?
             echo '::endgroup::'
             kill "$pid"
             while kill -0 "$pid" 2>/dev/null; do sleep 0.5; done
@@ -121,7 +122,6 @@ jobs:
           name: admin-copy-shots
           path: |
             shots/
-            server-before.log
             server-after.log
             chrome-shots.log
             history.log

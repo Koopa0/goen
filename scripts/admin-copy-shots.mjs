@@ -112,31 +112,39 @@ await send('Network.enable');
 await send('Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
 await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
 
-const pages = [
-  ['shipping', '/admin/shipping'],
-  ['taxonomy', '/admin/taxonomy'],
-  ['new-product', '/admin/products/new'],
-  ['credit', '/admin/credit'],
-  ['tiers', '/admin/tiers'],
-];
 async function measure(name) {
   const m = await evaluate(`({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
     placeholders: [...document.querySelectorAll('main input[placeholder], main textarea[placeholder]')].map((e) => e.getAttribute('placeholder')),
-    hints: document.querySelectorAll('main .goen-admin__hint').length,
-    h2: [...document.querySelectorAll('main h2')].map((e) => e.textContent.replace(/\\s+/g, ' ').trim()),
-    buttons: [...document.querySelectorAll('main button')].map((e) => e.textContent.trim()).filter((t, i, a) => a.indexOf(t) === i),
+    hints: [...document.querySelectorAll('main .goen-admin__hint')].map((e) => e.textContent.replace(/\\s+/g, ' ').trim()).filter((t) => t.startsWith('For example') || t.startsWith('例如')),
+    headings: [...document.querySelectorAll('main h2')].map((e) => e.textContent.replace(/\\s+/g, ' ').trim()).slice(0, 4),
   })`);
   console.log(`MEASURE ${name} ${JSON.stringify(m)}`);
 }
-await shot('/admin/shipping', 'admin-shipping-zh-1440.png', 1440);
-await measure('shipping-zh');
-for (const [name, path] of pages.slice(1)) {
-  try { await shot(path, `admin-${name}-zh-1440.png`, 1440); await measure(`${name}-zh`); } catch (e) { failures.push(`${name}: ${e.message}`); }
-}
+const mode = process.argv[3] || 'all';
 await send('Network.setCookie', { name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/' });
-for (const [name, path] of pages) {
-  if (name !== 'shipping') continue;
-  try { await shot(path, `en-admin-${name}-1440.png`, 1440); await measure(`${name}-en`); } catch (e) { failures.push(`en ${name}: ${e.message}`); }
+if (mode === 'cleared') {
+  await shot('/admin/shipping', 'en-admin-shipping-noenglish-1440.png', 1440);
+  await measure('shipping-noenglish-en');
+} else {
+  for (const [name, path] of [['shipping', '/admin/shipping'], ['taxonomy', '/admin/taxonomy'], ['new-product', '/admin/products/new'], ['credit', '/admin/credit'], ['tiers', '/admin/tiers']]) {
+    try { await shot(path, `en-admin-${name}-1440.png`, 1440); await measure(`${name}-en`); } catch (e) { failures.push(`en ${name}: ${e.message}`); }
+  }
+  try { await shot('/admin/shipping', 'en-admin-shipping-375.png', 375); await measure('shipping-en-375'); } catch (e) { failures.push(`375: ${e.message}`); }
+  await evaluate("document.documentElement.style.fontSize = '200%'");
+  await viewport(1440);
+  try {
+    await navigate(ORIGIN + '/admin/shipping');
+    await evaluate("document.documentElement.style.fontSize = '200%'");
+    await sleep(500);
+    await measure('shipping-en-200pct');
+    const h = await evaluate('Math.ceil(document.documentElement.scrollHeight)');
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: Math.min(CAP, h), deviceScaleFactor: 1, mobile: false });
+    await sleep(400);
+    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${outDir}/en-admin-shipping-200pct-1440.png`, Buffer.from(data, 'base64'));
+  } catch (e) { failures.push(`200%: ${e.message}`); }
 }
 
 ws.close();
