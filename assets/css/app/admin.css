@@ -3447,15 +3447,31 @@ form[data-request-pending] [aria-disabled="true"] {
   stroke-width: 1;
 }
 
-.goen-chart__spanlabel,
-.goen-chart__value {
+/* A span's name is placed on the server, fitted to a 12px label (columns.go,
+   textWidth and narrowPlot), so it keeps that size: a rem size outgrows the
+   room it was fitted to and runs off a phone at large text. Page zoom still
+   scales it, and the data table under the chart names every span. */
+.goen-chart__spanlabel {
   fill: var(--fg);
-  font-size: var(--fs-12);
+  font-size: 12px;
 }
 
 .goen-chart__value {
+  fill: var(--fg);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--fw-medium);
+}
+
+/* The names over the brackets are placed for a plot of narrowPlot, 244px, at
+   12px text (internal/ui/chart/columns.go): with the value axis, a figure of
+   18rem at any text size. A narrower figure, the campaign card at 320px or a
+   small screen with large text, would push a name off the screen (WCAG
+   1.4.10), so it drops them; the table names the stretch on each of its days. */
+@container (width < 18rem) {
+  .goen-chart__spanlabel {
+    display: none;
+  }
 }
 
 .goen-chart__table .goen-chart__spans,
