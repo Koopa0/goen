@@ -273,15 +273,16 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				if !tt.cancelRequest && requestCtx.Err() != nil {
 					t.Fatalf("query-local failure cancelled the parent request: %v", requestCtx.Err())
 				}
-				if tt.cancelRequest {
+				switch {
+				case tt.cancelRequest:
 					if diagnostics.Len() != 0 {
 						t.Errorf("cancelled item-count request logged an error: %s", diagnostics.String())
 					}
-				} else if tt.failCount {
+				case tt.failCount:
 					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"count cart items"`) {
 						t.Errorf("live request lost the item-count error diagnostic: %s", diagnostics.String())
 					}
-				} else if diagnostics.Len() != 0 {
+				case diagnostics.Len() != 0:
 					t.Errorf("successful item count logged a diagnostic: %s", diagnostics.String())
 				}
 				if continued != 1 || count != tt.wantCount || res.Code != http.StatusNoContent || errors.Is(nextErr, context.Canceled) != tt.cancelRequest {
@@ -299,7 +300,6 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			})
 		}
 	}
-
 }
 
 type failCartLookup struct {
@@ -329,9 +329,11 @@ func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data
 	for _, candidate := range []string{"CartByToken", "CartItemCount"} {
 		if strings.HasPrefix(data.SQL, "-- name: "+candidate+" :one") {
 			name = candidate
-			ctx = context.WithValue(ctx, cartCountQueryKey{}, name)
 			break
 		}
+	}
+	if name != "" {
+		ctx = context.WithValue(ctx, cartCountQueryKey{}, name)
 	}
 	tr.mu.Lock()
 	query, cancelRequest := tr.query, tr.cancel
