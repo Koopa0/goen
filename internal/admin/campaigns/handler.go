@@ -299,8 +299,7 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 	switch {
 	case errors.Is(err, web.ErrFormText):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-	case errors.Is(err, media.ErrTooLarge), errors.Is(err, media.ErrNotAnImage),
-		errors.Is(err, media.ErrLosslessWebP), errors.Is(err, media.ErrBusy):
+	case media.IsRefusal(err):
 		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
 		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:

@@ -97,7 +97,7 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
 				view := ShippingView{Methods: []ShippingMethod{{
 					MethodID: "method", VersionID: "version", Code: "internal_method_code",
-					Name: "Method name", Destination: tt.destination, Active: true,
+					Name: "Method name", NameEn: "Method name", Destination: tt.destination, Active: true,
 					PickupUnavailable: tt.unavailable,
 				}}}
 				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
@@ -309,5 +309,55 @@ func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
 	}
 	if want := []string{"100", "300", "600"}; !slices.Equal(got, want) {
 		t.Errorf("zonePrefixEntries prefixes = %q, want %q", got, want)
+	}
+}
+
+func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+	view := ShippingView{
+		Methods: []ShippingMethod{{
+			MethodID: "home", VersionID: "v1", Destination: destination.Address,
+			Name: "宅配到府", NameEn: "Home delivery", EffectiveAt: "2026-10-07", VersionCount: 1,
+		}},
+		Zones: []ShippingZone{
+			{ID: "islands", Code: "islands", Name: "離島", NameEn: "Outlying islands", PrefixCount: 1},
+			{ID: "plain", Code: "plain", Name: "本島", PrefixCount: 2},
+		},
+	}
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   []string
+		absent []string
+	}{
+		{i18n.En, []string{"Home delivery", "宅配到府", "Outlying islands", "離島", "1 version so far", "1 postal code<", "2 postal codes", "No English"}, []string{"1 versions", "1 postal codes"}},
+		{i18n.ZhHant, []string{"宅配到府", "Home delivery", "離島", "Outlying islands", "共 1 個版本", "1 個郵遞區號", "未翻譯"}, nil},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			var out bytes.Buffer
+			if err := Shipping(layouts.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
+				t.Fatal(err)
+			}
+			page := out.String()
+			for _, w := range tt.want {
+				if !strings.Contains(page, w) {
+					t.Errorf("%s page lacks %q", tt.locale.Tag(), w)
+				}
+			}
+			for _, a := range tt.absent {
+				if strings.Contains(page, a) {
+					t.Errorf("%s page still has %q", tt.locale.Tag(), a)
+				}
+			}
+			heading := strings.Index(page, `<h2 class="goen-admin__heading">`)
+			first, second := "宅配到府", "Home delivery"
+			if tt.locale == i18n.En {
+				first, second = second, first
+			}
+			if heading < 0 || strings.Index(page[heading:], first) > strings.Index(page[heading:], second) {
+				t.Errorf("%s method heading does not lead with %q", tt.locale.Tag(), first)
+			}
+		})
 	}
 }
