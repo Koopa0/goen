@@ -10,6 +10,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
+	htmlparse "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/carrier"
@@ -22,6 +23,85 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []struct {
+		locale  i18n.Locale
+		message string
+	}{
+		{locale: i18n.ZhHant, message: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
+		{locale: i18n.En, message: "No delivery method is available for this cart. Change the items or contact us."},
+	} {
+		t.Run(locale.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			for _, tt := range []struct {
+				name       string
+				noDelivery bool
+				blocked    bool
+				describes  string
+			}{
+				{name: "delivery offered"},
+				{name: "no delivery", noDelivery: true, describes: "cart-delivery-unavailable"},
+				{name: "stock short", blocked: true, describes: "cart-alert"},
+				{name: "stock short and no delivery", noDelivery: true, blocked: true, describes: "cart-alert cart-delivery-unavailable"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := i18n.WithLocale(t.Context(), locale.locale)
+					v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
+					if tt.blocked {
+						v.Lines[0].Quantity, v.Lines[0].Short = 3, true
+						v.SubtotalCents, v.ItemCount = 200, 2
+					}
+					if v.CanCheckout() != !tt.blocked {
+						t.Error("delivery availability changed checkout eligibility, which would lose a mid-checkout draft")
+					}
+					body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
+					doc, err := htmlparse.Parse(strings.NewReader(body))
+					if err != nil {
+						t.Fatal(err)
+					}
+					type controls struct {
+						CheckoutLink, DisabledCheckout, DeliveryNotice bool
+						DisabledRole, Describes                        string
+						DeliveryNoticeIDs                              int
+					}
+					got := controls{DeliveryNotice: strings.Contains(body, locale.message)}
+					for n := range doc.Descendants() {
+						if n.Type != htmlparse.ElementNode {
+							continue
+						}
+						attrs := map[string]string{}
+						for _, a := range n.Attr {
+							attrs[a.Key] = a.Val
+						}
+						if n.Data == "a" && attrs["href"] == "/checkout" {
+							got.CheckoutLink = true
+						}
+						if n.Data == "span" && attrs["aria-disabled"] == "true" && strings.Contains(attrs["class"], "goen-btn--primary") {
+							got.DisabledCheckout = true
+							got.DisabledRole, got.Describes = attrs["role"], attrs["aria-describedby"]
+						}
+						if attrs["id"] == "cart-delivery-unavailable" {
+							got.DeliveryNoticeIDs++
+						}
+					}
+					want := controls{CheckoutLink: !tt.noDelivery && !tt.blocked, DisabledCheckout: tt.noDelivery || tt.blocked, DeliveryNotice: tt.noDelivery, Describes: tt.describes}
+					if want.DisabledCheckout {
+						want.DisabledRole = "link"
+					}
+					if tt.noDelivery {
+						want.DeliveryNoticeIDs = 1
+					}
+					if diff := cmp.Diff(want, got); diff != "" {
+						t.Errorf("cart delivery controls (-want +got):\n%s", diff)
+					}
+				})
+			}
+		})
+	}
+}
 
 func TestPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
 	want := []PickupChainChoice{
@@ -1697,5 +1777,41 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 	html := b.String()
 	if !strings.Contains(html, "<dt>Items</dt><dd>2</dd>") || strings.Contains(html, "pcs") {
 		t.Errorf("English item count = %s, want the bare number under Items", html)
+	}
+}
+
+func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		can  bool
+		show bool
+	}{
+		{name: "unresolved return", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true},
+		{name: "plain", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "expired", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond)}, can: true, show: true},
+		{name: "equal deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now}, can: true, show: true},
+		{name: "unknown deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true}, can: true, show: true},
+		{name: "expired checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond), PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "no hold checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "equal deadline checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "checking without return marker", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "captured", view: OrderView{Status: order.FulfillmentPending, Committed: true, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "store credit funded", view: OrderView{Status: order.FulfillmentPending, OwedCents: 0, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "shipped", view: OrderView{Status: order.FulfillmentShipped, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.view.Now = now
+			if got := tt.view.CanCancel(); got != tt.can {
+				t.Errorf("CanCancel() = %v, want %v", got, tt.can)
+			}
+			if got := tt.view.ShowCancel(); got != tt.show {
+				t.Errorf("ShowCancel() = %v, want %v", got, tt.show)
+			}
+		})
 	}
 }

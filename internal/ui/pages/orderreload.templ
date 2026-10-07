@@ -1,0 +1,30 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+// Not layouts.Base, like PickupReturn: the page is on screen for an instant.
+// target is the request's own path and query, so it never leaves goen.
+templ OrderReload(target string) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta http-equiv="refresh" content={ "0; url=" + target }/>
+			<title>{ i18n.T(ctx, i18n.KeyOrderOpening) }</title>
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+		</head>
+		<body class="goen-shell">
+			<main class="goen-handoff" id="main">
+				<p class="goen-handoff__text">{ i18n.T(ctx, i18n.KeyOrderOpening) }</p>
+				<a class="goen-handoff__link" href={ templ.URL(target) }>{ i18n.T(ctx, i18n.KeyOrderOpenLink) }</a>
+			</main>
+		</body>
+	</html>
+}

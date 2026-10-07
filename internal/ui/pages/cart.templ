@@ -93,8 +93,13 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
 							}
 						}
+						if v.NoDelivery {
+							@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "cart-delivery-unavailable"}) {
+								{ i18n.T(ctx, i18n.KeyShippingUnavailable) }
+							}
+						}
 						<div class="goen-summary__actions">
-							if v.CanCheckout() {
+							if v.CanCheckout() && !v.NoDelivery {
 								@components.ButtonLink(components.ButtonProps{
 									ButtonStyle: components.ButtonStylePrimary,
 									Size:        components.SizeLarge,
@@ -109,6 +114,14 @@ templ Cart(p layouts.Page, v CartView) {
 									class="goen-btn goen-btn--primary goen-btn--lg goen-btn--block"
 									role="link"
 									aria-disabled="true"
+									if v.NoDelivery && v.StockNotice(ctx) != "" {
+										aria-describedby="cart-alert cart-delivery-unavailable"
+									}
+									else
+									if v.NoDelivery {
+										aria-describedby="cart-delivery-unavailable"
+									}
+									else
 									if v.StockNotice(ctx) != "" {
 										aria-describedby="cart-alert"
 									}
@@ -1039,7 +1052,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() && v.PaymentRefreshURL == "" {
+						if v.ShowCancel() {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }

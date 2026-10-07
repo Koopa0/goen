@@ -1,0 +1,62 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/fieldrule"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ EmailLinkPage(p layouts.Page, v EmailLinkView) {
+	@layouts.Base(p) {
+		<div class="notice">
+			if v.Recovery == EmailLinkNoRecovery {
+				<span class="goen-medallion" aria-hidden="true">
+					@icons.Mail()
+				</span>
+			}
+			<h1 class="notice__title">{ v.Heading }</h1>
+			<p class="notice__body">{ v.Body }</p>
+			if v.Recovery == EmailLinkNoRecovery && v.Token != "" {
+				<form class="notice__form" method="post" action={ templ.SafeURL(v.Action) }>
+					<input type="hidden" name="token" value={ v.Token }/>
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						{ v.Submit }
+					}
+				</form>
+			}
+			if v.Recovery == EmailLinkSubscribe {
+				<form class="notice__form goen-auth__form" method="post" action="/newsletter">
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "newsletter-recovery-email"}) {
+							{ i18n.T(ctx, i18n.KeyFieldEmail) }
+						}
+						@components.Input(components.FieldProps{
+							ID:   "newsletter-recovery-email",
+							Name: "email",
+							Type: "email",
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+								"autocomplete": "email",
+								"maxlength":    "254",
+								"required":     true,
+							}),
+						})
+					</div>
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
+					}
+				</form>
+			} else if v.Recovery != EmailLinkNoRecovery {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, templ.SafeURL(v.Recovery.URL())) {
+					{ v.Recovery.Label(ctx) }
+				}
+			}
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
+					{ i18n.T(ctx, i18n.KeyBackToShop) }
+				}
+			</div>
+		</div>
+	}
+}

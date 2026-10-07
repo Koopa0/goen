@@ -65,21 +65,14 @@ var (
 		En:     "You will not receive the goen newsletter again. Order notices are not affected.",
 	})
 
-	KeyNewsletterLinkDead = key("news.link.dead", Message{
-		ZhHant: "這個連結無法使用",
-		En:     "That link does not work",
-	})
-
 	KeyNewsletterConfirmDead = key("news.confirm.dead", Message{
-		ZhHant: "連結可能已經用過或超過兩天。請回到頁尾重新填一次 Email。",
-		En: "It may have been used already, or be more than two days old. " +
-			"Subscribe again from the footer of any page.",
+		ZhHant: "連結可能已經用過或超過兩天。",
+		En:     "It may have been used already, or be more than two days old.",
 	})
 
 	KeyNewsletterLeaveDead = key("news.leave.dead", Message{
-		ZhHant: "連結可能不完整。如果還在收到電子報，寫信到 %s，我們幫你處理。",
-		En: "The link may be incomplete. If the newsletter keeps arriving, write to " +
-			"%s and we will take care of it.",
+		ZhHant: "這個退訂連結不正確。如果還在收到電子報，請聯絡我們。",
+		En:     "This unsubscribe link is not valid. If the newsletter keeps arriving, contact us.",
 	})
 
 	KeyNewsletterFailed = key("news.failed", Message{ZhHant: "訂閱未完成", En: "Not subscribed"})
