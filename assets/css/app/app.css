@@ -411,14 +411,14 @@ th {
   align-items: center;
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-full);
   color: var(--fg);
   display: inline-flex;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 4px;
   line-height: 1.4;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.625rem;
   white-space: nowrap;
   width: fit-content;
 }
@@ -1077,9 +1077,10 @@ th {
   }
 }
 
-/* Deals is not a department, so a wider space sets it apart. */
+/* Deals is not a department, so a 2.5rem space, the row's gap and this padding
+   together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: 0.75rem;
+  padding-left: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {

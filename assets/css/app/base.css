@@ -193,7 +193,7 @@ body {
 /* the glance's stats carry a chart drawn at 100% of their width, so they share the row
    rather than take their content's width */
 .ui-statline--glance > div { flex: 1 1 var(--stat-min); }
-.ui-statline--s { --stat-min: 7rem; --stat-gap: 1.75rem; row-gap: 0.25rem; }
+.ui-statline--s { --stat-min: 7rem; --stat-gap: 1.75rem; row-gap: 0.25rem; margin-top: var(--s-2); }
 .ui-statline.ui-statline--s dd { font-size: var(--t-16); font-weight: 400; letter-spacing: 0; }
 .ui-statline--glance dt a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 0.2em; }
 .ui-statline--glance dt a:hover { text-decoration-color: currentcolor; }
