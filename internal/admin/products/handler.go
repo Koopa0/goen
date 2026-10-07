@@ -425,13 +425,21 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if err := h.store.SetImageOption(r.Context(), slug,
 		r.PostFormValue("digest"), r.PostFormValue("option_value")); err != nil {
-		h.log.WarnContext(r.Context(), "set image option", "error", err, "slug", slug)
-		reason := "refused=1"
-		if errors.Is(err, ErrNotThisProductsOption) {
-			reason = "badoption=1"
+		switch {
+		case errors.Is(err, ErrNotFound):
+			access.NotFound(w, r, h.log)
+		case errors.Is(err, ErrNotThisProductsOption):
+			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?badoption=1", http.StatusSeeOther)
+		case errors.Is(err, ErrRefused):
+			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
+		default:
+			h.log.ErrorContext(r.Context(), "set image option", "error", err, "slug", slug)
+			access.ServerError(w, r, h.log)
 		}
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+reason, http.StatusSeeOther)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -563,10 +571,15 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	}
 	errs, err := h.store.AddSpec(r.Context(), slug, draft)
 	switch {
-	case err != nil:
-		h.log.WarnContext(r.Context(), "add spec", "error", err, "slug", slug)
+	case errors.Is(err, ErrNotFound):
+		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "add spec refused", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
+	case err != nil:
+		h.log.ErrorContext(r.Context(), "add spec", "error", err, "slug", slug)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: admin.SpecDraft{Label: draft.Label, Value: draft.Value, LabelEn: draft.LabelEn, ValueEn: draft.ValueEn}})
 	default:
