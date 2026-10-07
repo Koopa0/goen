@@ -8389,7 +8389,7 @@ JOIN LATERAL (
     -- the cheapest overall so a sold-out product still shows what it costs. On a
     -- campaign's row a discounted variant leads, as on the campaign's own page.
     ORDER BY ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
+              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
              ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
               AND compare_at_price_cents > price_cents) DESC,
