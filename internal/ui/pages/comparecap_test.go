@@ -1,7 +1,7 @@
 package pages
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,14 +14,14 @@ import (
 func TestTheCompareCapIsSaidFromMaxCompareInBothLanguages(t *testing.T) {
 	t.Parallel()
 
-	cap := fmt.Sprint(MaxCompare)
+	most := strconv.Itoa(MaxCompare)
 	for _, tt := range []struct {
 		locale i18n.Locale
 		hint   string
 		limit  string
 	}{
-		{i18n.ZhHant, `<a href="/c/tech">商品列表</a>勾選商品上的「比較」，最多 ` + cap + ` 件。`, "最多比較 " + cap + " 件"},
-		{i18n.En, `Tick Compare on products in the <a href="/c/tech">product list</a>, up to ` + cap + `.`, "Up to " + cap + " at a time"},
+		{i18n.ZhHant, `<a href="/c/tech">商品列表</a>勾選商品上的「比較」，最多 ` + most + ` 件。`, "最多比較 " + most + " 件"},
+		{i18n.En, `Tick Compare on products in the <a href="/c/tech">product list</a>, up to ` + most + `.`, "Up to " + most + " at a time"},
 	} {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
