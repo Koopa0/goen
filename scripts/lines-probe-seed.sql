@@ -58,7 +58,7 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_c
 VALUES (:'two_id', 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號');
 
 SET ROLE admin;
-SELECT grant_store_credit(:'customer_id', 100000000, 'Probe fixture', :'staff_id', gen_random_uuid());
+SELECT grant_store_credit(:'customer_id', 5000000, 'Probe fixture', :'staff_id', gen_random_uuid());
 SELECT spend_store_credit(:'two_id', -order_amount_after_credit(:'two_id'));
 UPDATE orders SET fulfillment_status = 'picking' WHERE id = :'two_id';
 INSERT INTO order_events (order_id, kind) VALUES (:'two_id', 'paid');
