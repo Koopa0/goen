@@ -475,6 +475,7 @@ th {
 /* With payments off the pay page's notice is a plain sentence under the total, not a blue panel. */
 .goen-pay__summary .goen-notice--accent {
   background: none;
+  border: 0;
   color: var(--fg-muted);
   padding: 0;
 }
@@ -5798,6 +5799,10 @@ input.goen-check {
 
 .goen-summary__row dd {
   margin: 0 0 0 auto;
+}
+
+.goen-summary__row :is(dt, dd) {
+  word-break: keep-all;
 }
 
 .goen-summary__value {
