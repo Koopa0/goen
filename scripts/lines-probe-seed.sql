@@ -59,7 +59,9 @@ VALUES (:'two_id', 'layout-cust@goen.invalid', '版面顧客', '0912345678', '11
 
 SET ROLE admin;
 SELECT grant_store_credit(:'customer_id', 5000000, 'Probe fixture', :'staff_id', gen_random_uuid());
+SET ROLE store;
 SELECT spend_store_credit(:'two_id', -order_amount_after_credit(:'two_id'));
+SET ROLE admin;
 UPDATE orders SET fulfillment_status = 'picking' WHERE id = :'two_id';
 INSERT INTO order_events (order_id, kind) VALUES (:'two_id', 'paid');
 SELECT award_loyalty_points(:'two_id');
