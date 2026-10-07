@@ -137,7 +137,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	if tokens["--chart-hue"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
-	for _, ground := range []string{"--n-0", "--n-50"} {
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
 			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--chart-hue"], ground, tokens[ground], got)
@@ -152,6 +152,38 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
 		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
+	}
+
+	// The warning mark is a triangle and a bar, and the line at 30 days is drawn
+	// in --ink-2: each is held to 3:1 (WCAG 1.4.11) on the white and the grey a
+	// runway row's track is drawn on.
+	if tokens["--warn-mark"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --warn-mark")
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		for _, mark := range []string{"--warn-mark", "--ink-2"} {
+			if got := contrast(tokens[mark], tokens[ground]); got < 3 {
+				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+					mark, tokens[mark], ground, tokens[ground], got)
+			}
+		}
+	}
+
+	// The 30-day line is held by the token the rule draws it with, not by a
+	// token nothing uses.
+	adminSheet, err := fs.ReadFile(files, AdminCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AdminCSS, err)
+	}
+	line := regexp.MustCompile(`(?s)\.goen-chartrangebar__mark \{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(adminSheet))
+	if line == nil {
+		t.Fatalf("%s has no 30-day line rule with a token colour", AdminCSS)
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		if got := contrast(tokens[line[1]], tokens[ground]); got < 3 {
+			t.Errorf("the 30-day line %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				line[1], tokens[line[1]], ground, tokens[ground], got)
+		}
 	}
 
 	// WCAG 1.4.11: the boundary of a control has no text to carry it.
