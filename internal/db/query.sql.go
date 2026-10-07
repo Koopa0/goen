@@ -7463,37 +7463,6 @@ func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) 
 	return items, nil
 }
 
-const departmentFacts = `-- name: DepartmentFacts :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $1::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT
-    (SELECT count(*) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
-    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
-     WHERE r.slug = $1::text)::bigint AS categories,
-    (SELECT count(DISTINCT p.brand_id) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
-`
-
-type DepartmentFactsRow struct {
-	Products   int64
-	Categories int64
-	Brands     int64
-}
-
-// What a department says about itself under its head: the products it holds across
-// its whole subtree, the sub-categories directly under it, and the brands of those
-// products.
-func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
-	row := q.db.QueryRow(ctx, departmentFacts, slug)
-	var i DepartmentFactsRow
-	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
-	return i, err
-}
-
 const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL

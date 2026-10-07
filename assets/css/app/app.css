@@ -5558,10 +5558,24 @@ input.goen-check {
   padding: 0;
 }
 
-/* A phone's photograph is a 5:2 strip above the copy; the head's first row of
-   products still starts inside the first screen. A crumb whose only step is home
-   repeats the logo. */
+/* A phone's photograph is a 5:2 strip above the copy, goen's white between it and
+   the tone; the head's first row of products still starts inside the first
+   screen. A crumb whose only step is home repeats the logo. */
 @media (max-width: 47.99rem) {
+  .goen-pagehead .goen-band {
+    background: none;
+  }
+
+  .goen-pagehead .goen-band__media {
+    margin: 0;
+    padding: 0 0 var(--col-gap);
+  }
+
+  .goen-pagehead .goen-band__body,
+  .goen-pagehead .goen-band > .goen-deptnotice {
+    background: var(--tone-ground);
+  }
+
   .goen-pagehead .goen-band__media img {
     aspect-ratio: 5 / 2;
   }

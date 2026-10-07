@@ -113,7 +113,6 @@ var (
 	// A fact's label already names what is counted, so English writes the bare figure and only zh-Hant adds a counter.
 	KeyFactUnitItems      = zhOnly("fact.unit.items", "件")
 	KeyFactUnitCategories = zhOnly("fact.unit.categories", "類")
-	KeyFactUnitBrands     = zhOnly("fact.unit.brands", "個")
 	KeyFactUnitDays       = zhOnly("fact.unit.days", "天")
 
 	KeyEndsTomorrow = key("home.slide.ends_tomorrow", Message{ZhHant: "明天結束", En: "Ends tomorrow"})
