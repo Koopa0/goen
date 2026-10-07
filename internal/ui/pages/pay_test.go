@@ -118,8 +118,8 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		deadline, hold, placed   string
 		resumedLead, resumedNote string
 	}{
-		{i18n.ZhHant, "請在 14:31 前開始付款", "商品保留到 15:02，逾時未付款會自動取消訂單。時間以台灣時間為準。", "<dt>送出</dt>",
-			"商品保留到 15:02", "逾時未付款會自動取消訂單。時間以台灣時間為準。"},
+		{i18n.ZhHant, "請在 14:31 前開始付款", "商品保留到 15:02，逾時未付款，會自動取消訂單。時間以台灣時間為準。", "<dt>送出</dt>",
+			"商品保留到 15:02", "逾時未付款，會自動取消訂單。時間以台灣時間為準。"},
 		{i18n.En, "Start paying by 14:31", "Your items are reserved until 15:02 and the order is cancelled if it is still unpaid then. Times are Taiwan time.", "<dt>Placed</dt>",
 			"Your items are reserved until 15:02", "The order is cancelled if it is still unpaid then. Times are Taiwan time."},
 	} {

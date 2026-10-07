@@ -138,7 +138,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 		left   string
 		time   string
 	}{
-		{"nine days left", i18n.ZhHant, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "至 10\u00a0月 18\u00a0日", "剩 9\u00a0天", "2026-10-18"},
+		{"nine days left", i18n.ZhHant, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "至 10\u00a0月 18\u00a0日", "剩\u00a09\u00a0天", "2026-10-18"},
 		{"nine days left", i18n.En, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "until Oct\u00a018,", "9\u00a0days left", "2026-10-18"},
 		{"ends tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "明天結束", "2026-10-10"},
 		{"ends tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "ends tomorrow", "2026-10-10"},
@@ -146,7 +146,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 		{"ends today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "", "ends today", "2026-10-09"},
 		{"ends today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "今天 18:00 結束", "2026-10-09T18:00"},
 		{"ends today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "ends today at 18:00", "2026-10-09T18:00"},
-		{"three days left ending at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "至 10\u00a0月 12\u00a0日 18:00", "剩 3\u00a0天", "2026-10-12T18:00"},
+		{"three days left ending at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "至 10\u00a0月 12\u00a0日 18:00", "剩\u00a03\u00a0天", "2026-10-12T18:00"},
 		{"three days left ending at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "until Oct\u00a012 at 18:00,", "3\u00a0days left", "2026-10-12T18:00"},
 		{"tomorrow ending at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "明天 18:00 結束", "2026-10-10T18:00"},
 		{"tomorrow ending at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "ends tomorrow at 18:00", "2026-10-10T18:00"},
