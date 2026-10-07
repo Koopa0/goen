@@ -282,7 +282,8 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	if err != nil {
-		h.respondToUploadError(w, r, f, err)
+		h.log.WarnContext(r.Context(), "hero image", "error", err)
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 		return
 	}
 	if upload != nil {
@@ -295,7 +296,8 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	if upload != nil {
 		obj, storeErr := upload.Store(r.Context())
 		if storeErr != nil {
-			h.respondToUploadError(w, r, f, storeErr)
+			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
+			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(storeErr))})
 			return
 		}
 		f.ImageKey = obj.Digest
