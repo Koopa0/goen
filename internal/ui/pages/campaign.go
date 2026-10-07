@@ -67,6 +67,10 @@ func (e CampaignEnd) Day(ctx context.Context) string {
 	return shoptime.DateText(ctx, e.Last) + " " + e.Clock
 }
 
+// EndsAtClockToday reports that the campaign's last day is today and it ends at a time of day, which Left
+// then says whole.
+func (e CampaignEnd) EndsAtClockToday() bool { return e.DaysLeft < 1 && e.Clock != "" }
+
 // Datetime is Day as a time element's datetime reads it.
 func (e CampaignEnd) Datetime() string {
 	if e.Clock == "" {
