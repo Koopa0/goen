@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -66,7 +67,9 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 		if c.healthTaskCount != nil {
 			count, err := c.readHealthTaskCount(ctx)
 			if err != nil {
-				c.log.ErrorContext(ctx, "read background task count", "error", err)
+				if r.Context().Err() == nil {
+					c.log.ErrorContext(ctx, "read background task count", "error", err)
+				}
 			} else {
 				ctx = layouts.WithHealthTaskCount(ctx, count, true)
 			}
@@ -76,7 +79,7 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (c *Control) readHealthTaskCount(ctx context.Context) (int64, error) {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 	return c.healthTaskCount(ctx)
 }
