@@ -18,9 +18,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							// Low priority: the stylesheet drops the photograph below 1024, where an eager
-							// image is still fetched and must not compete with the tiles.
-							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false)
+							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@components.Breadcrumb(components.BreadcrumbProps{
@@ -31,7 +29,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 							if head != nil {
 								@departmentFacts(head)
 							}
-							if len(v.Children()) > 0 {
+							if len(v.Children()) > 1 {
 								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
 									for _, c := range v.Children() {
 										if c.Slug == v.Slug {
@@ -44,14 +42,14 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 							}
 						</div>
 					</div>
+					if head != nil && head.Notice != nil {
+						@departmentNotice(head.Notice)
+					}
 				</div>
 			</div>
 		</div>
 		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
 			if head != nil {
-				if head.Notice != nil {
-					@departmentNotice(head.Notice)
-				}
 				@departmentSlot(head)
 			}
 			<div class="goen-listing__layout">

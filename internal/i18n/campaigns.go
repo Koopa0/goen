@@ -5,6 +5,8 @@ var (
 
 	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
 
+	KeyDeptNoticeProducts = countKey("dept.notice.products", "本館 %d\u00a0件參加", "%d\u00a0item in this department", "%d\u00a0items in this department")
+
 	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})

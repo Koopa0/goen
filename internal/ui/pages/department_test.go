@@ -154,7 +154,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 		t.Run(tt.name+" "+string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(tt.ends, now)}
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Products: 2, End: NewCampaignEnd(tt.ends, now)}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
 			if err != nil {
 				t.Fatal(err)
@@ -164,7 +164,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 				t.Fatal("departmentNotice draws no goen-deptnotice__name")
 			}
 			eyebrow := i18n.T(ctx, i18n.KeyCampaignEyebrow)
-			want := eyebrow + " " + notice.Title + "\u00a0· "
+			want := eyebrow + " " + notice.Title + "\u00a0· " + i18n.Count(ctx, i18n.KeyDeptNoticeProducts, 2, 2) + "\u00a0· "
 			if tt.until != "" {
 				want += tt.until + "\u00a0· "
 			}
@@ -189,6 +189,35 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 				t.Errorf("the notice draws %s; it says its end in words", attrValue(drawn, "class"))
 			}
 		})
+	}
+}
+
+// The notice is the band's last row, on the department's tone, not a strip under it.
+func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Products: 2, End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	band := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-band") })
+	if band == nil {
+		t.Fatal("the department head draws no band")
+	}
+	var last *html.Node
+	for c := band.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode {
+			last = c
+		}
+	}
+	if last == nil || !hasClass(last, "goen-deptnotice") {
+		t.Error("the campaign notice is not the band's last row")
+	}
+	if got := nodeText(band); !strings.Contains(got, "本館 2\u00a0件參加") {
+		t.Errorf("the notice does not say how many of the department's products take part: %q", got)
 	}
 }
 
@@ -238,7 +267,7 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 func TestTheFactLineFollowsTheTitleAndPrecedesTheSubCategories(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Children: []Crumb{{Slug: "a", Name: "Novels"}}}}
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Children: []Crumb{{Slug: "a", Name: "Novels"}, {Slug: "b", Name: "Poems"}}}}
 	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4}))
 	title, facts, chips := strings.Index(got, "<h1"), strings.Index(got, "ui-statline"), strings.Index(got, "goen-pagehead__chips")
 	if title < 0 || facts < 0 || chips < 0 || title >= facts || facts >= chips {

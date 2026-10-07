@@ -7260,12 +7260,15 @@ WITH RECURSIVE d AS (
     SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
 )
 SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.starts_at, c.ends_at
+       c.starts_at, c.ends_at,
+       (SELECT count(DISTINCT cd.product_id) FROM campaign_deals cd
+        JOIN products p ON p.id = cd.product_id
+        WHERE cd.campaign_id = c.id AND p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products
 FROM sale_campaigns c
 WHERE EXISTS (
     SELECT 1 FROM campaign_deals cd
     JOIN products p ON p.id = cd.product_id
-    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
+    WHERE cd.campaign_id = c.id AND p.status = 'active' AND p.category_id IN (SELECT id FROM d))
 ORDER BY c.ends_at, c.id
 LIMIT 1
 `
@@ -7280,10 +7283,11 @@ type DepartmentCampaignRow struct {
 	Title    string
 	StartsAt time.Time
 	EndsAt   time.Time
+	Products int64
 }
 
 // Of the campaigns with a deal on a product of the department, the one that ends
-// first.
+// first, and how many of the department's products it takes in.
 func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
 	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
 	var i DepartmentCampaignRow
@@ -7292,6 +7296,7 @@ func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaign
 		&i.Title,
 		&i.StartsAt,
 		&i.EndsAt,
+		&i.Products,
 	)
 	return i, err
 }
