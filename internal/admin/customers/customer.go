@@ -141,9 +141,10 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 		view.Recent = append(view.Recent, admin.OrderRow{
 			Number: o.OrderNumber, Status: fulfillment,
-			StatusText: admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-			PlacedAt:   shoptime.Minute(o.PlacedAt),
-			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+			StatusText:   admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+			StatusIntent: admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+			PlacedAt:     shoptime.Minute(o.PlacedAt),
+			TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})
 	}
 	return view, nil

@@ -23,7 +23,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 			</div>
 			<div class="ui-page-head__actions">
 				if v.AllHealthy() {
-					@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 						{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 					}
 				} else {
@@ -437,7 +437,7 @@ templ healthItem(healthy bool, name, state, note string) {
 		<div class="goen-health__head">
 			<span class="goen-health__name">{ name }</span>
 			if healthy {
-				@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 					{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 				}
 			} else {

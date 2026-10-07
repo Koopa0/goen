@@ -92,7 +92,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	}
 
 	// The labels of the filled and the soft button, and text and links on a
-	// blue tint: a current item, a badge, an information notice.
+	// blue tint: a current item, a badge, an information notice; and the five badge groups.
 	for _, pair := range []struct{ ink, ground string }{
 		{ink: "--on-accent", ground: "--accent"},
 		{ink: "--on-accent", ground: "--accent-deep"},
@@ -100,6 +100,10 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
+		{ink: "--ink-2", ground: "--n-100"},
+		{ink: "--warn", ground: "--warn-bg"},
+		{ink: "--success", ground: "--success-bg"},
+		{ink: "--error", ground: "--error-bg"},
 	} {
 		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s or %s", pair.ink, pair.ground)

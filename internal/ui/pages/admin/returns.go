@@ -12,6 +12,19 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
+// StatusIntent is the colour group of a return's status: an open request needs the
+// staff, a finished one is done, and the others state a decision.
+func (r Return) StatusIntent() components.Intent {
+	switch r.Status {
+	case returns.StatusRequested:
+		return components.IntentWarn
+	case returns.StatusCompleted:
+		return components.IntentDone
+	default:
+		return components.IntentNeutral
+	}
+}
+
 type Return struct {
 	Lines       []ReturnLine
 	ID          string
