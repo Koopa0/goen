@@ -1878,26 +1878,25 @@ th {
 
 .goen-hero__slide[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
+/* On ink the fill is --on-ink-accent (#a9c0ea), so the track is a tint of that
+   blue, at 22% to show on the dark ground. */
 .goen-hero__slide[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-label: var(--tone-text);
-  --period-note: var(--tone-muted);
+  --period-track: rgb(169 192 234 / 0.22);
+}
+
+/* The track belongs to the facts above it, so it sits closer to them than to the button. */
+.goen-hero__inner > .ui-period {
+  margin-top: var(--s-1);
 }
 
 .goen-pagehead[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
 .goen-pagehead[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-label: var(--tone-text);
-  --period-note: var(--tone-muted);
+  --period-track: rgb(169 192 234 / 0.22);
 }
 
 .goen-hero__actions {
@@ -2873,14 +2872,14 @@ input.goen-check {
 
 .goen-tiles__grid--lead[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
 .goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-label: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-note: var(--tone-muted);
+  --period-track: rgb(169 192 234 / 0.22);
+}
+
+.goen-rowcard > .ui-period {
+  margin-top: var(--s-3);
 }
 
 .goen-rowcard .goen-home__more {
@@ -3682,6 +3681,7 @@ input.goen-check {
 
 .goen-deptnotice .ui-period {
   flex: 1 1 16rem;
+  margin-top: 0;
   max-width: 26rem;
 }
 
@@ -3817,15 +3817,6 @@ input.goen-check {
 @media (max-width: 900px) {
   .goen-deptcompare,
   .goen-story {
-    display: none;
-  }
-}
-
-/* For the same reason a phone's campaign notice drops its end line where the day grid
-   stands beside it, whose last label is the end date. A campaign too long for a grid
-   keeps the line. */
-@media (max-width: 767px) {
-  .goen-deptnotice__in:has(> .ui-period) > .ui-statline {
     display: none;
   }
 }
@@ -4407,8 +4398,9 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
+/* The buy box's 1.5rem gap would part the track from the sentence it draws. */
 .goen-pdp__source + .ui-period {
-  margin-top: 0.5rem;
+  margin-top: -0.75rem;
   max-width: 26rem;
 }
 
@@ -6251,16 +6243,18 @@ input.goen-check {
   margin-top: var(--s-2);
 }
 
-/* Beside a thumbnail, at large text, a grid can be narrower than its two end labels side by side: the last
-   label drops one label line, and its cell's margin grows the grid to hold it. */
-@container period (width < 8rem) {
-  .goen-line--order .ui-period > i:last-child {
-    margin-block-end: calc(1.3 * var(--t-12));
-  }
+.goen-line--order .ui-period {
+  margin-block: var(--s-3) var(--s-2);
+}
 
-  .goen-line--order .ui-period > i:last-child small {
-    top: calc(8px + 0.125rem + 1.3 * var(--t-12));
-  }
+/* The parcel's and the pay head's flex gap already parts the facts from the
+   track, so each adds only what sets the track 20px under them. */
+.goen-order__parcel > .ui-period {
+  margin-top: var(--s-1);
+}
+
+.goen-pay .goen-pagehead > .ui-period {
+  margin-top: var(--s-4);
 }
 
 .goen-line__act {

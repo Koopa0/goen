@@ -2858,10 +2858,9 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
-/* A bar and its count. Thick over thin, like the day grid's filled and open
-   cells: 6px of hue for the value, a hairline for the rest of the scale. Every
-   row of a scale gets the same count column, so the tracks, and the bars drawn
-   on them, stay comparable. */
+/* A bar and its count. Thick over thin: 6px of hue for the value, a hairline
+   for the rest of the scale. Every row of a scale gets the same count column,
+   so the tracks, and the bars drawn on them, stay comparable. */
 .goen-chartbar {
   align-items: center;
   display: grid;

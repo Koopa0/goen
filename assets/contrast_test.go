@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -132,16 +133,17 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
-	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
-	// text to carry them.
+	// WCAG 1.4.11: the boundary of a control has no text to carry it.
 	for _, ground := range []string{"--n-0", "--wash", "--well"} {
 		if got := contrast(tokens["--edge"], tokens[ground]); got < 3 {
 			t.Errorf("--edge (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--edge"], ground, tokens[ground], got)
 		}
 	}
-	if got := contrast(tokens["--mark"], tokens["--n-0"]); got < 3 {
-		t.Errorf("--mark (#%s) on --n-0 = %.2f:1, want at least 3:1", tokens["--mark"], got)
+	// Nor has a period's fill, on the page or on its own track.
+	track := periodTrack(t)
+	for _, ground := range grounds {
+		checkPeriod(t, "the page", tokens["--mark"], track, ground, tokens[ground])
 	}
 
 	// The photographs are encoded on #f9f9f9; any other container ground
@@ -158,14 +160,72 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
-// periodOverride finds the colours a head gives the day grid on its tone, and
-// periodDecl one of them: a tone token, or a token of the page's own.
+// periodOverride finds the colours a head gives the period on its tone, and
+// periodDecl one of them: a tone token, a token of the page's own, or a
+// translucent rgb().
 var (
 	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
-	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
+	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*(?:var\((--[a-z0-9-]+)\)|(rgb\([^)]*\)));`)
+	trackDecl      = regexp.MustCompile(`(?m)^\s*--period-track:\s*(rgb\([^)]*\));`)
+	translucent    = regexp.MustCompile(`^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) / (0?\.\d+)\)$`)
 )
 
-// toneHeads are the heads that lay the day grid on a tone's ground: the home
+// periodTrack is the track base.css declares for the part of a period still to come.
+func periodTrack(t *testing.T) string {
+	t.Helper()
+	sheet, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	m := trackDecl.FindStringSubmatch(string(sheet))
+	if m == nil {
+		t.Fatalf("%s declares no --period-track as rgb(r g b / alpha)", BaseCSS)
+	}
+	return m[1]
+}
+
+// over lays a translucent rgb(r g b / alpha) on a hex ground and returns the
+// colour a reader sees, blended in sRGB the way the browser paints it.
+func over(t *testing.T, colour, ground string) string {
+	t.Helper()
+	m := translucent.FindStringSubmatch(colour)
+	g, err := hex.DecodeString(ground)
+	if m == nil || err != nil || len(g) != 3 {
+		t.Fatalf("cannot lay %q on #%s: want rgb(r g b / alpha) on a six-digit hex", colour, ground)
+	}
+	alpha, err := strconv.ParseFloat(m[4], 64)
+	if err != nil {
+		t.Fatalf("alpha of %q: %v", colour, err)
+	}
+	seen := make([]byte, 3)
+	for i := range seen {
+		c, err := strconv.Atoi(m[i+1])
+		if err != nil || c > 255 {
+			t.Fatalf("channel %d of %q is not 0–255", i, colour)
+		}
+		seen[i] = uint8(math.Round(alpha*float64(c) + (1-alpha)*float64(g[i])))
+	}
+	return hex.EncodeToString(seen)
+}
+
+// checkPeriod holds a period's fill to 3:1 (WCAG 1.4.11) on its ground and on
+// its track laid over that ground: the edge between elapsed and to come is the
+// one the track exists to show. The track against the ground is not held to
+// 3:1, because the facts above the track state what it draws.
+func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
+	t.Helper()
+	if got := contrast(fill, ground); math.IsNaN(got) || got < 3 {
+		t.Errorf("%s: the period's fill (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+			where, fill, groundName, ground, got)
+	}
+	seen := over(t, track, ground)
+	if got := contrast(fill, seen); math.IsNaN(got) || got < 3 {
+		t.Errorf("%s: the period's fill (#%s) on its track %s over %s (#%s) = %.2f:1, want at least 3:1",
+			where, fill, track, groundName, seen, got)
+	}
+}
+
+// toneHeads are the heads that lay the period on a tone's ground: the home
 // hero, the department and campaign head, and the lead tile.
 var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
@@ -186,6 +246,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	tokens := hexTokens(t)
+	track := periodTrack(t)
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -221,30 +282,27 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 					prop, decl[prop], name, ground, got)
 			}
 		}
-		// The day grid sits on the tone's ground under each head: its fill and
-		// line are graphical objects (WCAG 1.4.11) and its labels are text.
-		// Each head starts from the page's tokens and takes only its own
+		// The period sits on the tone's ground under each head. Each head
+		// starts from the page's fill and track and takes only its own
 		// overrides, so one head's rules cannot stand in for another's.
 		for _, head := range toneHeads {
-			period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+			period := map[string]string{"fill": tokens["--mark"], "track": track}
 			for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
 				if m[1] != head || (m[2] != "" && m[2] != name) {
 					continue
 				}
 				for _, d := range periodDecl.FindAllStringSubmatch(m[3], -1) {
-					if strings.HasPrefix(d[2], "--tone-") {
+					switch {
+					case d[3] != "":
+						period[d[1]] = d[3]
+					case strings.HasPrefix(d[2], "--tone-"):
 						period[d[1]] = decl[d[2]]
-					} else {
+					default:
 						period[d[1]] = tokens[d[2]]
 					}
 				}
 			}
-			for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
-				if got := contrast(period[part], ground); got < min {
-					t.Errorf("%s: the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
-						head, part, period[part], name, ground, got, min)
-				}
-			}
+			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
 		}
 		if got := contrast(decl["--tone-edge"], ground); got < 3 {
 			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",

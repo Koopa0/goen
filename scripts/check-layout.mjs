@@ -895,51 +895,108 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
-// The day grid's labels (WCAG 1.4.4, 1.4.10): at 320px and at 200% text every
-// label lies inside its own period and inside the viewport, and no two labels
-// overlap. A route with no period fails, because a grid that is not drawn
-// cannot be measured and the check would pass on nothing.
+// The period track (WCAG 1.4.4, 1.4.10, 1.4.11). At 320px, at 200% text and in
+// forced colours every track lies inside the viewport and draws its cells as one
+// row of equal parts, joined but for the 4px after a mark, so its length still
+// reads as the share of the span. Elapsed stays apart from to come: by colour,
+// and in forced colours, where the colours are the system's, by thickness. A
+// label a track draws lies inside it and the viewport and overlaps no other. A
+// route with no period fails, because a track that is not drawn cannot be
+// measured and the check would pass on nothing.
 const PERIOD_PROBE = `(() => {
   const vw = document.documentElement.clientWidth;
+  const forced = matchMedia('(forced-colors: active)').matches;
   const periods = [...document.querySelectorAll('.ui-period')];
   const problems = [];
+  const tracks = [];
   periods.forEach((period, n) => {
     period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = period.getBoundingClientRect();
-    const labels = [...period.querySelectorAll('b, small')].map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
+    const at = 'period ' + n + ' [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + ']';
+    tracks.push(box.left.toFixed(1) + '+' + box.width.toFixed(1) + 'x' + box.height.toFixed(1));
+    if (box.left < -0.5 || box.right > vw + 0.5) problems.push(at + ' lies outside the viewport ' + vw);
+    const cells = [...period.children].map((e) => {
+      const s = getComputedStyle(e);
+      return {
+        r: e.getBoundingClientRect(), filled: e.hasAttribute('data-cell'), mark: e.hasAttribute('data-mark'),
+        width: parseFloat(s.borderBottomWidth) || 0, style: s.borderBottomStyle, colour: s.borderBottomColor,
+      };
+    });
+    if (cells.length === 0) problems.push(at + ' has no cells');
+    cells.forEach((c, i) => {
+      if (c.r.height <= 0 || c.width < 2 || c.style === 'none' || c.style === 'hidden'
+        || c.colour === 'transparent' || /, 0\\)$/.test(c.colour)) {
+        problems.push(at + ' cell ' + i + ' draws no line (' + c.width + 'px ' + c.style + ' ' + c.colour + ')');
+      }
+      if (c.r.left < box.left - 0.5 || c.r.right > box.right + 0.5) {
+        problems.push(at + ' cell ' + i + ' [' + c.r.left.toFixed(1) + ',' + c.r.right.toFixed(1) + '] lies outside its track');
+      }
+      const next = cells[i + 1];
+      if (!next) return;
+      const gap = next.r.left - c.r.right;
+      const want = c.mark ? 4 : 0;
+      if (Math.abs(gap - want) > 0.5) {
+        problems.push(at + ' cells ' + i + ' and ' + (i + 1) + ' are ' + gap.toFixed(1) + 'px apart, want ' + want);
+      }
+      if (Math.abs(next.r.top + next.r.bottom - c.r.top - c.r.bottom) > 2) {
+        problems.push(at + ' cell ' + (i + 1) + ' leaves the row');
+      }
+    });
+    const widths = cells.map((c) => c.r.width);
+    if (widths.length && Math.max(...widths) - Math.min(...widths) > 1) {
+      problems.push(at + ' cells range from ' + Math.min(...widths).toFixed(1) + ' to ' + Math.max(...widths).toFixed(1) +
+        'px wide, so the track no longer draws the span to scale');
+    }
+    const filled = cells.filter((c) => c.filled);
+    const ahead = cells.filter((c) => !c.filled);
+    if (filled.length && ahead.length
+      && (forced ? filled[0].width <= ahead[0].width : filled[0].colour === ahead[0].colour)) {
+      problems.push(at + ' draws elapsed and to come alike (' + filled[0].width + 'px ' + filled[0].colour +
+        ' against ' + ahead[0].width + 'px ' + ahead[0].colour + ')');
+    }
+    const labels = [...period.querySelectorAll('b, small')]
+      .filter((e) => e.getClientRects().length > 0)
+      .map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
     for (const { text, r } of labels) {
       if (r.left < Math.max(0, box.left) - 0.5 || r.right > Math.min(vw, box.right) + 0.5) {
-        problems.push('period ' + n + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + '] or the viewport ' + vw);
+        problems.push(at + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period or the viewport ' + vw);
       }
     }
     for (let i = 0; i < labels.length; i++) {
       for (let j = i + 1; j < labels.length; j++) {
         const a = labels[i].r, b = labels[j].r;
         if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) {
-          problems.push('period ' + n + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
+          problems.push(at + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
         }
       }
     }
   });
-  return { periods: periods.length, problems };
+  return { periods: periods.length, forced, tracks, problems };
 })()`;
 
 async function periodPass(route) {
-  for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
-    const at = 'period labels ' + route + ' ' + name;
+  for (const [name, fontSize, forced] of [['320', '', false], ['320 at 200% text', '200%', false], ['320 forced colours', '', true]]) {
+    const at = 'period track ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
-    const target = ORIGIN + route;
-    await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, at, target);
-    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
-    const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
-    if (!got) {
-      fail(at, 'the period probe did not run');
-      continue;
+    if (forced) await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+    try {
+      const target = ORIGIN + route;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, at, target);
+      await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+      const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
+      if (!got) {
+        fail(at, 'the period probe did not run');
+        continue;
+      }
+      if (forced && !got.forced) fail(at, 'forced colours did not activate');
+      if (got.periods === 0) fail(at, 'no .ui-period on the page: the period is not drawn');
+      for (const problem of got.problems) fail(at, problem);
+      console.log(at.padEnd(48) + ' periods=' + got.periods + ' ' + got.tracks.join(' ') +
+        (got.problems.length || got.periods === 0 ? '' : ' ok'));
+    } finally {
+      if (forced) await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
     }
-    if (got.periods === 0) fail(at, 'no .ui-period on the page: the day grid is not drawn');
-    for (const problem of got.problems) fail(at, problem);
-    console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
   }
 }
 
@@ -2456,7 +2513,7 @@ if (process.env.CUST_TOKEN) {
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
-  // A delivered order of the signed-in customer: one grid for the right to cancel, one for the warranty.
+  // A delivered order of the signed-in customer: one track for the right to cancel, one for the warranty.
   await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
 
   for (const want of ACCOUNT_PAGES) {
