@@ -205,13 +205,19 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []p
 		return &pages.DepartmentBand{
 			Name:  c.Name,
 			Items: held[c.ID],
-			Fact:  strings.Join(subs[c.ID], " · "),
+			Fact:  subCategoryLine(subs[c.ID]),
 			Href:  "/c/" + c.Slug,
 			Tone:  pages.ResolveTone(c.Tone),
 			Tiles: tiles[:bandTiles],
 		}, nil
 	}
 	return nil, nil
+}
+
+// subCategoryLine joins names with a no-break space before the dot, so a line
+// never starts with one.
+func subCategoryLine(names []string) string {
+	return strings.Join(names, "\u00a0· ")
 }
 
 // dayIndex counts days since the epoch, so every visitor on one shop day sees

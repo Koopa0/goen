@@ -2390,6 +2390,10 @@ th {
   overflow-wrap: break-word;
 }
 
+.goen-band--shelf .goen-band__fact:lang(zh) {
+  word-break: keep-all;
+}
+
 .goen-band--shelf .goen-home__more {
   align-self: flex-start;
   margin-top: var(--s-2);
