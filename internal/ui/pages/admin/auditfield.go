@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/carrier"
@@ -160,11 +159,7 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 	for _, c := range e.Changes {
 		f, ok := e.field(c.Field)
 		if !ok {
-			label := i18n.T(ctx, i18n.KeyAuditFieldDetails)
-			if c.Field != "" {
-				label = fmt.Sprintf(i18n.T(ctx, i18n.KeyAuditFieldUnknown), c.Field)
-			}
-			rows = append(rows, ReadableChange{Label: label, Text: c.Text()})
+			rows = append(rows, ReadableChange{Label: c.Field, Text: c.Text()})
 			continue
 		}
 		row := ReadableChange{Label: i18n.T(ctx, f.label)}
