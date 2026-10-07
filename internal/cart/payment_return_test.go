@@ -92,7 +92,8 @@ func TestPaymentReturnCancellationIsIndependentOfTheCheckCounter(t *testing.T) {
 			t.Parallel()
 			view := pages.OrderView{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 100, Now: now, HoldUntil: tt.until}
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/orders/ORD-1"+tt.query, http.NoBody)
-			if got := paymentReturnRefresh(r, &view); got != tt.refresh {
+			view.PaymentRefreshURL = paymentReturnRefresh(r, &view)
+			if got := view.PaymentRefreshURL; got != tt.refresh {
 				t.Errorf("paymentReturnRefresh(%q) = %q, want %q", tt.query, got, tt.refresh)
 			}
 			if got := view.ShowCancel(); got != tt.want {
