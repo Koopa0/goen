@@ -113,8 +113,8 @@ var (
 
 var (
 	KeyFormSlugFormatExample = key("form.slug.format.example", Message{
-		ZhHant: "網址代稱只能用小寫英數與連字號，例如 pixelight-9-pro。",
-		En:     "A slug takes lower-case letters, digits and hyphens only — pixelight-9-pro, for example.",
+		ZhHant: "網址代稱只能用小寫英數與連字號，例如 ceramic-mug。",
+		En:     "A slug takes lower-case letters, digits and hyphens only — ceramic-mug, for example.",
 	})
 
 	KeyFormSlugTakenProduct = key("form.slug.taken.product", Message{
