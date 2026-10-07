@@ -135,7 +135,7 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 				VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
-				"evt_priority_" + uuid.NewString(), ref); err != nil {
+				"evt_priority_"+uuid.NewString(), ref); err != nil {
 				t.Fatalf("record matching event: %v", err)
 			}
 		}
@@ -173,7 +173,7 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 			VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
-			"evt_priority_" + uuid.NewString(), firstRef); err != nil {
+			"evt_priority_"+uuid.NewString(), firstRef); err != nil {
 			t.Fatalf("fill diagnostic sample: %v", err)
 		}
 	}

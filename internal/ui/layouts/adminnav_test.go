@@ -192,7 +192,7 @@ func TestBackgroundNavigationDistinguishesKnownCountsFromFailedReads(t *testing.
 			{"many", 112, true, "112 件要處理", "112 tasks need attention"},
 			{"unknown", 0, false, "待辦數無法查詢", "Task count unavailable"},
 		} {
-			t.Run(locale.Tag() + "/" + tt.name, func(t *testing.T) {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := WithHealthTaskCount(i18n.WithLocale(t.Context(), locale), tt.count, tt.known)
 				var body bytes.Buffer

@@ -416,7 +416,7 @@ func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T
 		{"claim", WorkerHealthView{StrandedClaimCount: 1, StrandedClaims: []StrandedClaim{{Operation: "op_priority"}}}, "claims-heading"},
 	} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-			t.Run(tt.name + "/" + locale.Tag(), func(t *testing.T) {
+			t.Run(tt.name+"/"+locale.Tag(), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				html := renderComponent(t, ctx, Health(layouts.Page{}, &tt.view))
@@ -429,7 +429,7 @@ func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T
 				if strings.Count(html, anchor) != 1 {
 					t.Errorf("first task anchor %s is duplicated", tt.anchor)
 				}
-				if !strings.Contains(html, `<a href="#` + tt.anchor + `">`) || !strings.Contains(html, tt.view.StaffTaskText(ctx)) {
+				if !strings.Contains(html, `<a href="#`+tt.anchor+`">`) || !strings.Contains(html, tt.view.StaffTaskText(ctx)) {
 					t.Error("header count does not link to the first rendered staff table")
 				}
 				cards := strings.Index(html, `<ul class="goen-health"`)
@@ -458,7 +458,7 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(layouts.Page{}, &view))
 	previous := -1
 	for _, id := range []string{"events-heading", "uninvoiced-heading", "claims-heading", "cancelled-order-invoices-heading", "disputes-heading", "refunds-heading", "system-status", "pools-heading", "stuck-heading"} {
-		pos := strings.Index(html, `id="` + id + `"`)
+		pos := strings.Index(html, `id="`+id+`"`)
 		if pos < previous || pos < 0 {
 			t.Fatalf("section %s disappeared or is out of order", id)
 		}
@@ -511,11 +511,11 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) 
 			codes := []string{"checkout.session.completed", "cancelled_order_capture: detail", "allowance", "attention", "allowance_multiple_unknown_candidates", "new.event", "new_operation", "new_status", "new_reason", "new_error"}
 			labelIndexes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 8}
 			for index, code := range codes {
-				if !strings.Contains(html, `<small class="goen-admin__meta">` + code + `</small>`) {
+				if !strings.Contains(html, `<small class="goen-admin__meta">`+code+`</small>`) {
 					t.Errorf("code %s is not retained as a small diagnostic", code)
 				}
 				label := tt.labels[labelIndexes[index]]
-				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(code) + `</small>\s*</td>`)
+				cell := regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(label)+`\s*<small class="goen-admin__meta">`+regexp.QuoteMeta(code)+`</small>\s*</td>`)
 				if !cell.MatchString(html) {
 					t.Errorf("code %q lacks its localized explanation %q in the same cell", code, label)
 				}
@@ -568,7 +568,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{LastError: "allowance_provider_rejected_3100010"},
 		}}
 		html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
-		if !regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(tt.missing) + `\s*</td>`).MatchString(html) {
+		if !regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(tt.missing)+`\s*</td>`).MatchString(html) {
 			t.Errorf("missing reason lost its distinct wording %q", tt.missing)
 		}
 		for _, pair := range [][2]string{
@@ -576,7 +576,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{"issue_provider_rejected_2000006", tt.rejected},
 			{"allowance_provider_rejected_3100010", tt.rejected},
 		} {
-			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(pair[0]) + `</small>\s*</td>`)
+			cell := regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(pair[1])+`\s*<small class="goen-admin__meta">`+regexp.QuoteMeta(pair[0])+`</small>\s*</td>`)
 			if !cell.MatchString(html) {
 				t.Errorf("reason %s is not explained as %q in its diagnostic cell", pair[0], pair[1])
 			}

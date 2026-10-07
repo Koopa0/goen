@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
@@ -268,7 +270,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, method, path, http.NoBody)
 		if signedIn {
-			req.Header.Set("Cookie", "goen_session=" + token)
+			req.Header.Set("Cookie", "goen_session="+token)
 		}
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
@@ -459,6 +461,7 @@ type healthCountTracer struct {
 	reads       atomic.Int64
 	cancelQuery string
 	triggered   atomic.Bool
+	cancelled   atomic.Bool
 }
 
 func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
@@ -469,7 +472,7 @@ func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, da
 		return ctx
 	}
 	f.reads.Add(1)
-	if f.cancelQuery != "" && strings.HasPrefix(data.SQL, "-- name: " + f.cancelQuery + " ") {
+	if f.cancelQuery != "" && strings.HasPrefix(data.SQL, "-- name: "+f.cancelQuery+" ") {
 		f.triggered.Store(true)
 		cancelled, cancel := context.WithCancel(ctx)
 		cancel()
@@ -478,18 +481,31 @@ func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, da
 	return ctx
 }
 
-func (*healthCountTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+func (f *healthCountTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if errors.Is(ctx.Err(), context.Canceled) && errors.Is(data.Err, context.Canceled) {
+		f.cancelled.Store(true)
+	}
+}
 
 func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *testing.T) {
 	ctx := t.Context()
 	trace := &healthCountTracer{}
-	config := pool.Config()
+	adminPool := admintest.AdminRolePool(t, pool)
+	config := adminPool.Config().Copy()
 	config.ConnConfig.Tracer = trace
 	traced, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatalf("open traced pool: %v", err)
 	}
 	t.Cleanup(traced.Close)
+	var role string
+	var superuser bool
+	if queryErr := traced.QueryRow(ctx, `SELECT current_user, current_setting('is_superuser')::boolean`).Scan(&role, &superuser); queryErr != nil {
+		t.Fatalf("read traced admin role: %v", queryErr)
+	}
+	if role != "admin" || superuser {
+		t.Fatalf("traced pool role=%q superuser=%v, want admin/false", role, superuser)
+	}
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {
 		t.Fatalf("disabled payment gateway: %v", err)
@@ -503,7 +519,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 		t.Helper()
 		var id string
 		if err := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, $2) RETURNING id`,
-			"health-count-" + uuid.NewString() + "@example.com", role).Scan(&id); err != nil {
+			"health-count-"+uuid.NewString()+"@example.com", role).Scan(&id); err != nil {
 			t.Fatalf("create %s: %v", role, err)
 		}
 		token, err := account.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
@@ -521,10 +537,11 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 		t.Helper()
 		trace.reads.Store(0)
 		trace.triggered.Store(false)
+		trace.cancelled.Store(false)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products", http.NoBody)
 		req.Header.Set("Accept-Language", "en")
 		if token != "" {
-			req.Header.Set("Cookie", "goen_session=" + token)
+			req.Header.Set("Cookie", "goen_session="+token)
 		}
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
@@ -547,7 +564,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 		}
 	}
 	token := startSession("staff", true)
-	count, err := health.NewStore(pool).WithInvoicing(false).StaffTaskCount(ctx)
+	count, err := health.NewStore(adminPool).WithInvoicing(false).StaffTaskCount(ctx)
 	if err != nil {
 		t.Fatalf("read expected count: %v", err)
 	}
@@ -559,8 +576,8 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	for index, query := range []string{"WorkerHealth", "StrandedInvoiceClaims", "UninvoicedOrders"} {
 		trace.cancelQuery = query
 		res = serve(token)
-		if !trace.triggered.Load() || trace.reads.Load() != int64(index+1) {
-			t.Fatalf("%s failure not reached: triggered=%v reads=%d", query, trace.triggered.Load(), trace.reads.Load())
+		if !trace.triggered.Load() || !trace.cancelled.Load() || trace.reads.Load() != int64(index+1) {
+			t.Fatalf("%s cancellation not observed: triggered=%v cancelled=%v reads=%d", query, trace.triggered.Load(), trace.cancelled.Load(), trace.reads.Load())
 		}
 		if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Task count unavailable") {
 			t.Errorf("%s count failure: products status=%d, unknown count present=%v", query, res.Code, strings.Contains(res.Body.String(), "Task count unavailable"))
