@@ -132,6 +132,36 @@ jobs:
           done
           ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-shots.mjs admin-shots/before || status=$?
           echo '::endgroup::'
+
+          restart() {
+            kill "$(cat goen.pid)" 2>/dev/null || true
+            pkill -x goen || true
+            sleep 2
+            make build
+            GOEN_INSECURE_COOKIES=1 ./bin/goen >> server.log 2>&1 &
+            for _ in $(seq 1 60); do
+              if curl -sf -o /dev/null "$GOEN_URL/readyz"; then break; fi
+              sleep 1
+            done
+          }
+
+          echo '::group::long revenue, admin.css as on the branch'
+          git checkout HEAD -- assets/css/app/admin.css
+          pkill -x goen || true
+          sleep 2
+          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          SET session_replication_role = replica;
+          UPDATE order_lines SET unit_price_cents = unit_price_cents * 100;
+          SQL
+          restart
+          LONG=after ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-shots.mjs admin-shots/long || status=$?
+          echo '::endgroup::'
+
+          echo '::group::long revenue, admin.css as it was on main'
+          git show 5a980c44:assets/css/app/admin.css > assets/css/app/admin.css
+          restart
+          LONG=before ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/admin-shots.mjs admin-shots/long || status=$?
+          echo '::endgroup::'
           file admin-shots/*/*.png
           exit "$status"
 

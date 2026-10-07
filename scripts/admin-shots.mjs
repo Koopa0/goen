@@ -140,6 +140,39 @@ async function tabMeasure(width) {
   }
 }
 
+async function longRun(prefix) {
+  await viewport(320);
+  for (const days of [30, 90]) {
+    await navigate(ORIGIN + '/admin/reports?days=' + days);
+    await evaluate("document.documentElement.style.fontSize = '200%'");
+    await evaluate('document.fonts.ready.then(() => 1)', true);
+    await sleep(800);
+    const m = await evaluate(`(() => {
+      const rr = (e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), right: Math.round(b.right), w: Math.round(b.width * 10) / 10 }; };
+      const text = (e) => { const g = document.createRange(); g.selectNodeContents(e); return Math.round(g.getBoundingClientRect().width * 10) / 10; };
+      return {
+        days: ${days},
+        viewport: innerWidth,
+        docScrollWidth: document.documentElement.scrollWidth,
+        bodyScrollWidth: document.body.scrollWidth,
+        rootFont: getComputedStyle(document.documentElement).fontSize,
+        figures: [...document.querySelectorAll('.goen-report__figure')].map((f) => {
+          const v = f.querySelector('.goen-report__value');
+          const cs = getComputedStyle(v);
+          return { text: v.textContent.trim(), fontSize: cs.fontSize, overflowWrap: cs.overflowWrap, tile: rr(f), value: rr(v), textW: text(v), lines: Math.round(v.getBoundingClientRect().height / parseFloat(cs.lineHeight)), valueScrollW: v.scrollWidth, valueClientW: v.clientWidth, tileContentW: f.clientWidth - 32 };
+        }),
+      };
+    })()`);
+    console.log('MEASURE ' + prefix + '-reports-' + days + '-320-200pct ' + JSON.stringify(m));
+    const h = Math.min(CAP, Math.max(await evaluate('Math.ceil(document.documentElement.scrollHeight)'), 400));
+    await send('Emulation.setDeviceMetricsOverride', { width: 320, height: h, deviceScaleFactor: 1, mobile: true });
+    await sleep(300);
+    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${outDir}/${prefix}-reports-${days}-320-200pct.png`, Buffer.from(data, 'base64'));
+    await viewport(320);
+  }
+}
+
 mkdirSync(outDir, { recursive: true });
 ws = new WebSocket(await pageSocket());
 await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
@@ -158,6 +191,12 @@ await send('Emulation.setScrollbarsHidden', { hidden: true });
 await send('Network.enable');
 await send('Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
 await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+
+if (process.env.LONG) {
+  await longRun(process.env.LONG);
+  ws.close();
+  process.exit(0);
+}
 
 await viewport(1440);
 
