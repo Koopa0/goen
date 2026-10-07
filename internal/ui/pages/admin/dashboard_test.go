@@ -365,10 +365,44 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			}
 		})
 
-		t.Run(string(loc)+" nothing to show leaves the section out", func(t *testing.T) {
+		t.Run(string(loc)+" nothing running out says so", func(t *testing.T) {
 			t.Parallel()
+			none := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays)
+			unknown := i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown)
+			noStock := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, CoverWindowDays, CoverWindowDays)
+			all := i18n.T(ctx, i18n.KeyAdminQueueRunwayAll)
+			going := []StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}
+
+			for _, tc := range []struct {
+				name string
+				view DashboardView
+				want []string
+				not  []string
+			}{
+				{"estimated and none running out", DashboardView{SoldOut: 3, RunwayBasis: RunwayEstimated}, []string{none, all}, []string{unknown, noStock}},
+				{"nothing can be estimated", DashboardView{SoldOut: 3}, []string{unknown, all}, []string{none, noStock}},
+				{"everything is sold out", DashboardView{SoldOut: 3, RunwayBasis: RunwayNothingInStock}, []string{noStock, all}, []string{none, unknown}},
+				{"rows listed", DashboardView{Runway: going, RunwayBasis: RunwayEstimated}, []string{all}, []string{none, unknown, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}},
+				{"rows left off", DashboardView{Runway: going, RunwayCut: true, RunwayBasis: RunwayEstimated}, []string{i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}, []string{none, unknown, all}},
+			} {
+				html := render(tc.view)
+				for _, want := range tc.want {
+					if !strings.Contains(html, want) {
+						t.Errorf("%s: the dashboard lacks %q", tc.name, want)
+					}
+				}
+				for _, not := range tc.not {
+					if strings.Contains(html, not) {
+						t.Errorf("%s: the dashboard says %q", tc.name, not)
+					}
+				}
+				if !strings.Contains(html, `href="/admin/reports#stock"`) {
+					t.Errorf("%s: the runway section does not link to the report", tc.name)
+				}
+			}
+
 			html := render(DashboardView{SoldOut: 3})
-			for _, gone := range []string{`id="runway-heading"`, `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
+			for _, gone := range []string{"goen-report__rows", "goen-chartrangebar", `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
 				if strings.Contains(html, gone) {
 					t.Errorf("the dashboard with nothing to estimate renders %q", gone)
 				}
@@ -377,12 +411,19 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 	}
 }
 
-func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
+func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
 	t.Parallel()
 
-	estimated := func(n int) (rows []StockRisk) {
+	// 9 sellable at 30 units over 30 days is 9 days; 45 sellable is 45 days.
+	runningOut := func(n int) (rows []StockRisk) {
 		for i := range n {
-			rows = append(rows, StockRisk{SKU: fmt.Sprintf("EST-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("RUN-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+		}
+		return rows
+	}
+	later := func(n int) (rows []StockRisk) {
+		for i := range n {
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("LATER-%d", i), Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow})
 		}
 		return rows
 	}
@@ -392,6 +433,7 @@ func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
 		}
 		return rows
 	}
+	fewOrders := []StockRisk{{SKU: "FEW-0", Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}
 	skus := func(rows []StockRisk) (out []string) {
 		for _, r := range rows {
 			out = append(out, r.SKU)
@@ -404,16 +446,23 @@ func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
 		listed  []StockRisk
 		want    []string
 		wantCut bool
+		// wantBasis is what an empty list can say.
+		wantBasis RunwayBasis
 	}{
-		{"four sold out and three estimated", append(soldOut(4), estimated(3)...), []string{"EST-0", "EST-1", "EST-2"}, false},
-		{"only sold out", soldOut(6), nil, false},
-		{"seven estimated", estimated(7), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
-		{"five estimated", estimated(5), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, false},
-		{"sold out first and six estimated", append(soldOut(5), estimated(6)...), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
+		{"sold out and running out", append(soldOut(4), runningOut(3)...), []string{"RUN-0", "RUN-1", "RUN-2"}, false, RunwayEstimated},
+		{"only sold out", soldOut(6), nil, false, RunwayNothingInStock},
+		{"sold out and rows too few to estimate", append(soldOut(2), fewOrders...), nil, false, RunwayTooFewSales},
+		{"nothing listed", nil, nil, false, RunwayTooFewSales},
+		{"estimates past the line are left out", append(runningOut(2), append(later(3), fewOrders...)...), []string{"RUN-0", "RUN-1"}, false, RunwayEstimated},
+		{"only estimates past the line", later(4), nil, false, RunwayEstimated},
+		{"rows that cannot be estimated are left out", fewOrders, nil, false, RunwayTooFewSales},
+		{"seven running out", runningOut(7), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, true, RunwayEstimated},
+		{"five running out", runningOut(5), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, RunwayEstimated},
+		{"a later row does not count as one left off", append(runningOut(5), later(2)...), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, RunwayEstimated},
 	} {
-		kept, cut := DashboardRunway(tc.listed)
-		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut {
-			t.Errorf("%s: DashboardRunway kept %v, cut %t, want %v, cut %t", tc.name, got, cut, tc.want, tc.wantCut)
+		kept, cut, basis := DashboardRunway(tc.listed)
+		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut || basis != tc.wantBasis {
+			t.Errorf("%s: DashboardRunway kept %v, cut %t, basis %d, want %v, cut %t, basis %d", tc.name, got, cut, basis, tc.want, tc.wantCut, tc.wantBasis)
 		}
 	}
 }
