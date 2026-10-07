@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -171,9 +172,13 @@ func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
 			res := httptest.NewRecorder()
 			h.Unsubscribe(res, req)
 			body := res.Body.String()
-			if strings.Count(body, "contact@koopa0.dev") != 3 {
-				t.Error("invalid unsubscribe must name the owned mailbox in its recovery message and footer")
+			heading := "This link is no longer valid"
+			reason := "This unsubscribe link is not valid. If the newsletter keeps arriving, contact us."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9019\u500b\u9000\u8a02\u9023\u7d50\u4e0d\u6b63\u78ba\u3002\u5982\u679c\u9084\u5728\u6536\u5230\u96fb\u5b50\u5831\uff0c\u8acb\u806f\u7d61\u6211\u5011\u3002"
 			}
+			pagestest.AssertEmailLink(t, body, heading, reason, "mailto:contact@koopa0.dev")
 			if strings.Contains(body, "support@goen.tw") || strings.Contains(body, "%s") {
 				t.Error("invalid unsubscribe exposes an unowned or unformatted contact")
 			}
@@ -470,6 +475,78 @@ func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
 					t.Errorf("unconfirmed GET done=%q claims completion", marker)
 				}
 			}
+		})
+	}
+}
+
+func TestMissingEmailedNewsletterLinksOfferRecovery(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name        string
+			path        string
+			destination string
+			zhHeading   string
+			enHeading   string
+			handler     http.HandlerFunc
+		}{
+			{name: "confirm", zhHeading: "\u78ba\u8a8d\u8a02\u95b1 goen \u96fb\u5b50\u5831", enHeading: "Confirm your goen newsletter subscription", path: "/newsletter/confirm", destination: "/newsletter", handler: h.ConfirmPage},
+			{name: "unsubscribe", zhHeading: "\u9000\u8a02 goen \u96fb\u5b50\u5831", enHeading: "Unsubscribe from the goen newsletter", path: "/newsletter/unsubscribe", destination: "mailto:contact@koopa0.dev", handler: h.UnsubscribePage},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				res := httptest.NewRecorder()
+				tt.handler(res, httptest.NewRequestWithContext(ctx, http.MethodGet, tt.path, http.NoBody))
+				if res.Code != http.StatusOK {
+					t.Fatalf("missing link = %d, want 200", res.Code)
+				}
+				heading := tt.enHeading
+				reason := "This link is incomplete; open it again from the button in the email."
+				if locale == i18n.ZhHant {
+					heading = tt.zhHeading
+					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
+				}
+				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, tt.destination)
+			})
+		}
+	}
+}
+
+func TestNewsletterInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.linkFailed(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/newsletter/confirm", http.NoBody),
+				i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+			body := res.Body.String()
+			if res.Code != http.StatusUnprocessableEntity || strings.Count(body, `class="goen-medallion"`) != 1 {
+				t.Error("infrastructure failure lost its existing notice state")
+			}
+			if strings.Contains(body, "newsletter-recovery-email") || strings.Contains(body, i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)) {
+				t.Error("infrastructure failure claims that the emailed link is dead")
+			}
+		})
+	}
+}
+
+func TestInvalidNewsletterConfirmationOffersSignup(t *testing.T) {
+	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.Confirm(res, httptest.NewRequestWithContext(ctx, http.MethodPost, "/newsletter/confirm", http.NoBody))
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("invalid confirmation = %d, want 422", res.Code)
+			}
+			heading, reason := "This link is no longer valid", "It may have been used already, or be more than two days old."
+			if locale == i18n.ZhHant {
+				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
+			}
+			pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, "/newsletter")
 		})
 	}
 }

@@ -25,7 +25,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	return map[string][]string{
 		"pages/admin/product_label.templ:templ.URL(v.LabelAction())":              {product.LabelAction()},
 		"layouts/banner.templ:templ.SafeURL(b.DismissAction())":                   {(layouts.Banner{}).DismissAction()},
-		"pages/newsletter.templ:templ.SafeURL(v.Action)":                          newsletterFormActions(t),
+		"pages/email_link.templ:templ.SafeURL(v.Action)":                          newsletterFormActions(t),
 		"pages/admin/product.templ:templ.SafeURL(v.Action())":                     {product.Action(), newProduct.Action()},
 		"pages/admin/campaign.templ:templ.SafeURL(v.ToneAction())":                {(&admin.CampaignView{Slug: "campaign"}).ToneAction()},
 		"pages/admin/campaign.templ:templ.SafeURL(v.WindowAction())":              {(&admin.CampaignView{Slug: "campaign"}).WindowAction()},
@@ -84,7 +84,7 @@ func newsletterFormActions(t *testing.T) []string {
 			return true
 		}
 		typ, ok := lit.Type.(*ast.SelectorExpr)
-		if !ok || typ.Sel.Name != "NewsletterActionView" {
+		if !ok || typ.Sel.Name != "EmailLinkView" {
 			return true
 		}
 		for _, element := range lit.Elts {
