@@ -51,7 +51,10 @@ export function measureControlBoundary(selectors, contrast, focused = false) {
         if (style['border' + side + 'Style'] === 'none' || parseFloat(style['border' + side + 'Width']) === 0) return 1;
         return contrast(over(rgba(style['border' + side + 'Color']), surrounding), surrounding);
       });
-      const none = (side) => style['border' + side + 'Style'] === 'none' || parseFloat(style['border' + side + 'Width']) === 0;
+      // A transparent border draws nothing in normal colours (it is there so forced
+      // colours show an edge), so it identifies nothing.
+      const none = (side) => style['border' + side + 'Style'] === 'none' || parseFloat(style['border' + side + 'Width']) === 0
+        || rgba(style['border' + side + 'Color'])[3] === 0;
       const bordersNone = ['Top', 'Right', 'Bottom', 'Left'].every(none);
       // A field drawn as a line is identified by that line (1.4.11).
       const underlineContrast = none('Top') && none('Left') && none('Right') && !none('Bottom')

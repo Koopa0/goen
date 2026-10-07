@@ -1117,8 +1117,8 @@ th {
 }
 
 .goen-header__searchicon svg {
-  height: 16px;
-  width: 16px;
+  height: 1rem;
+  width: 1rem;
 }
 
 /* Page chrome, not a form: the field is its line. The line is the control's
@@ -1129,6 +1129,14 @@ th {
   border-radius: 0;
   border-width: 0 0 1px;
   padding-left: 1.75rem;
+}
+
+.goen-header .goen-header__field:hover {
+  border-bottom-color: var(--ink-2);
+}
+
+.goen-header .goen-header__field:focus-visible {
+  outline-offset: 4px;
 }
 
 .goen-header__actions {
@@ -1657,7 +1665,7 @@ th {
   border-radius: var(--r-lg);
   grid-area: 1 / 1 / 2 / 3;
   height: 3.25rem;
-  padding-right: 7rem;
+  padding-right: 8.5rem;
 }
 
 .goen-footer__field > .goen-btn {
@@ -1666,6 +1674,33 @@ th {
   margin: 4px;
   min-height: 2.75rem;
   z-index: 1;
+}
+
+.goen-footer__field > .goen-btn:focus-visible {
+  outline-offset: -2px;
+}
+
+/* A column too narrow for the field and the action side by side puts the
+   action under the field. */
+.goen-footer__signup {
+  container-type: inline-size;
+}
+
+@container (max-width: 17rem) {
+  .goen-footer__field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-footer__field > .goen-input {
+    grid-area: auto;
+    padding-right: 0.75rem;
+  }
+
+  .goen-footer__field > .goen-btn {
+    grid-area: auto;
+    justify-self: start;
+    margin: 0.25rem 0 0;
+  }
 }
 
 .goen-footer__field > .goen-btn--ghost {
@@ -2014,6 +2049,7 @@ th {
   display: flex;
   gap: var(--s-1);
   margin-inline-start: calc(var(--s-4) * -1);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -2029,6 +2065,7 @@ th {
 
 .goen-hero__tabs a {
   border-radius: var(--r-full);
+  text-decoration: none;
   color: var(--fg-muted);
   flex: none;
   font-size: var(--t-14);
@@ -2042,6 +2079,12 @@ th {
 
 .goen-hero__tabs a:hover {
   color: var(--fg);
+}
+
+@media (max-width: 47.99rem) {
+  .goen-hero__tabs {
+    margin-inline-start: 0;
+  }
 }
 
 /* The current tab is told apart by its weight and its fill, so colour is not
@@ -3083,18 +3126,19 @@ input.goen-check {
   display: none;
 }
 
-.goen-filters__shell-summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
+.goen-filters__shell-summary::after,
+.goen-filters__summary::after {
+  background: var(--chevron) center / 1.15em no-repeat;
   content: '';
-  height: 8px;
-  transform: rotate(45deg);
+  flex: none;
+  height: 1.15em;
   transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
+  width: 1.15em;
 }
 
-.goen-filters__shell[open] > .goen-filters__shell-summary::after {
-  transform: rotate(-135deg);
+.goen-filters__shell[open] > .goen-filters__shell-summary::after,
+.goen-filters__group[open] > .goen-filters__summary::after {
+  transform: rotate(180deg);
 }
 
 /* A closed disclosure hides its form outright. Chrome keeps the layout of the
@@ -3160,18 +3204,7 @@ input.goen-check {
 }
 
 .goen-filters__summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
-  content: '';
-  height: 8px;
   margin-inline-start: auto;
-  transform: rotate(45deg);
-  transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
-}
-
-.goen-filters__group[open] > .goen-filters__summary::after {
-  transform: rotate(-135deg);
 }
 
 .goen-filters__options {
@@ -3278,18 +3311,19 @@ input.goen-check {
 .goen-filters .ui-select,
 .goen-search-sort .ui-select {
   appearance: none;
-  background: transparent var(--chevron) no-repeat right 0.25rem center;
-  border: 0;
+  background: transparent var(--chevron) no-repeat right 0.25rem center / 1.15em;
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   color: var(--fg);
   cursor: pointer;
+  field-sizing: content;
   font-family: inherit;
   font-size: var(--fs-16);
   font-weight: var(--fw-medium);
   min-height: 44px;
   min-width: 0;
   outline: 0;
-  padding: 0 1.75rem 0 0.25rem;
+  padding: 0 1.75em 0 0.25rem;
   width: auto;
 }
 
@@ -3571,15 +3605,15 @@ input.goen-check {
    target on hover; only the current one is filled. They do not scroll as a
    boxed button row: the empty search's shortcuts above keep the box. */
 .goen-listing__head .goen-pagehead__chips {
-  gap: var(--s-1);
+  gap: 0;
   margin-top: var(--s-2);
-  padding-inline-start: calc(var(--page-gutter) - var(--s-3));
+  padding-inline-start: var(--page-gutter);
 }
 
 @media (min-width: 48rem) {
   .goen-listing__head .goen-pagehead__chips {
     flex-wrap: wrap;
-    margin-inline: calc(var(--s-3) * -1) 0;
+    margin-inline: calc(var(--s-4) * -1) 0;
     overflow: visible;
     padding-inline: 0;
   }
@@ -3593,7 +3627,7 @@ input.goen-check {
   font-size: var(--fs-15);
   font-weight: var(--fw-regular);
   min-height: 2.75rem;
-  padding: 0 var(--s-3);
+  padding: 0 var(--s-4);
 }
 
 .goen-listing__head .goen-pagehead__chip:hover {
@@ -4241,7 +4275,7 @@ input.goen-check {
 
   .goen-filters__summary {
     gap: 6px;
-    padding: 0 4px;
+    padding: 0 4px 0 0;
   }
 
   .goen-filters__summary::after {
@@ -4259,7 +4293,7 @@ input.goen-check {
     min-width: 15rem;
     padding: 12px;
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 0.75rem);
     z-index: 4;
   }
 
