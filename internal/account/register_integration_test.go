@@ -235,6 +235,9 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	request.AddCookie(guestCookie)
 	page := httptest.NewRecorder()
 	h.Authenticate(http.HandlerFunc(h.CartRecoveryPage)).ServeHTTP(page, request)
+	if !strings.Contains(page.Body.String(), `name="next" value="`+html.EscapeString(welcome)+`"`) {
+		t.Error("registration recovery form lost the welcome continuation")
+	}
 	for _, key := range []i18n.Key{i18n.KeyAccountWelcome, i18n.KeyCartMergeFailed, i18n.KeyCartMergeRetry} {
 		if !strings.Contains(page.Body.String(), html.EscapeString(i18n.T(ctx, key))) {
 			t.Errorf("registration cart recovery omits %s", key)
@@ -386,7 +389,7 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 		welcome := httptest.NewRecorder()
 		h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(welcome, request)
 		if welcome.Code != http.StatusOK || !strings.Contains(welcome.Body.String(), html.EscapeString(i18n.T(lctx, i18n.KeyAccountWelcome))) ||
-			!strings.Contains(welcome.Body.String(), `href="/cart"`) {
+			!strings.Contains(welcome.Body.String(), `href="/cart"`) || !strings.Contains(welcome.Body.String(), html.EscapeString(i18n.T(lctx, i18n.KeyWelcomeReturn))) {
 			t.Errorf("registration welcome = %d without welcome copy or original cart action", welcome.Code)
 		}
 	}
