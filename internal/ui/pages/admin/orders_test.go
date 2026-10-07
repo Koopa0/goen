@@ -62,7 +62,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 // order.Delivery.Validate refuses one of the two and accepts neither.
 func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
+	body := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
 		Number:            "GO-PICKUP",
 		Correctable:       true,
 		PickupDestination: true,
@@ -72,38 +72,38 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	}))
 
 	for _, id := range []string{"d-store-code", "d-store-name"} {
-		tag := tagWithID(t, html, id)
+		tag := tagWithID(t, body, id)
 		if strings.Contains(tag, "required") {
 			t.Errorf("the correction form still demands #%s: %s", id, tag)
 		}
 	}
-	if tag := tagWithID(t, html, "d-chain"); !strings.Contains(tag, "required") {
+	if tag := tagWithID(t, body, "d-chain"); !strings.Contains(tag, "required") {
 		t.Errorf("the chain stopped being required: %s", tag)
 	}
 
 	chain := pages.Delivery{PickupChain: pickup.FamilyMart}.Line()
-	if !strings.Contains(html, chain) {
+	if !strings.Contains(body, chain) {
 		t.Errorf("the order detail does not name the chain %q", chain)
 	}
-	if strings.Contains(html, chain+" ") || strings.Contains(html, chain+"(") {
+	if strings.Contains(body, chain+" ") || strings.Contains(body, chain+"(") {
 		t.Errorf("the order detail invents a store beside the chain %q", chain)
 	}
 }
 
 // tagWithID returns the opening tag carrying id, so a test can ask what
 // attributes it holds without parsing the whole document.
-func tagWithID(t *testing.T, html, id string) string {
+func tagWithID(t *testing.T, body, id string) string {
 	t.Helper()
-	at := strings.Index(html, `id="`+id+`"`)
+	at := strings.Index(body, `id="`+id+`"`)
 	if at < 0 {
 		t.Fatalf("no element carries id %q", id)
 	}
-	start := strings.LastIndex(html[:at], "<")
-	end := strings.Index(html[at:], ">")
+	start := strings.LastIndex(body[:at], "<")
+	end := strings.Index(body[at:], ">")
 	if start < 0 || end < 0 {
 		t.Fatalf("element with id %q is not a tag", id)
 	}
-	return html[start : at+end+1]
+	return body[start : at+end+1]
 }
 
 // TestTheTimelineNamesWhoActed: a staff member by name, an erased one as such
@@ -127,10 +127,10 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 		{i18n.En, []string{"Customer", "Payment provider", "王店長", "Erased account", "System"}, "Mail is kept for 30 days; older mail is not listed here."},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.locale)
-		html := renderComponent(t, ctx, Order(layouts.Page{}, &OrderView{
+		body := renderComponent(t, ctx, Order(layouts.Page{}, &OrderView{
 			Number: "GO-261004-000001", Timeline: entries, MailKept: 30 * 24 * time.Hour,
 		}))
-		items := strings.Split(html, `class="goen-admin__event"`)[1:]
+		items := strings.Split(body, `class="goen-admin__event"`)[1:]
 		if len(items) != len(entries) {
 			t.Fatalf("%s: Order renders %d timeline entries, want %d", tc.locale, len(items), len(entries))
 		}
@@ -145,7 +145,7 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 				t.Errorf("%s: timeline entry %d (%s) lacks its status %q", tc.locale, i, e.Label, i18n.T(ctx, e.Status))
 			}
 		}
-		if !strings.Contains(html, tc.caption) {
+		if !strings.Contains(body, tc.caption) {
 			t.Errorf("%s: the timeline does not say %q", tc.locale, tc.caption)
 		}
 	}
@@ -182,7 +182,7 @@ func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		html := renderOrder(t, locale, &OrderView{
+		body := renderOrder(t, locale, &OrderView{
 			Number: "GO-261005-000001",
 			Timeline: []TimelineEntry{{
 				At: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineUnrecognized,
@@ -192,11 +192,11 @@ func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 		for _, want := range []string{
 			i18n.T(ctx, i18n.KeyAdminTimelineUnrecognized), "invoice / issue / voided", "2026-10-05 10:20",
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(body, want) {
 				t.Errorf("%s: the order page does not carry %q", locale, want)
 			}
 		}
-		if got := strings.Count(html, "invoice / issue / voided"); got != 1 {
+		if got := strings.Count(body, "invoice / issue / voided"); got != 1 {
 			t.Errorf("%s: the order page carries the unrecognized details %d times, want 1", locale, got)
 		}
 	}
@@ -230,8 +230,8 @@ func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.
 			{"2026-10-05 10:30 · 王店長"},
 		}, []string{"Now: Not sent yet ("}},
 	} {
-		html := renderOrder(t, tc.locale, &OrderView{Number: "GO-261005-000002", Timeline: entries})
-		items := strings.Split(html, `class="goen-admin__event"`)[1:]
+		body := renderOrder(t, tc.locale, &OrderView{Number: "GO-261005-000002", Timeline: entries})
+		items := strings.Split(body, `class="goen-admin__event"`)[1:]
 		if len(items) != len(entries) {
 			t.Fatalf("%s: renders %d timeline entries, want %d", tc.locale, len(items), len(entries))
 		}
@@ -244,7 +244,7 @@ func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.
 			}
 		}
 		for _, bad := range tc.absent {
-			if strings.Contains(html, bad) {
+			if strings.Contains(body, bad) {
 				t.Errorf("%s: a state with no completion time shows one: %q", tc.locale, bad)
 			}
 		}
