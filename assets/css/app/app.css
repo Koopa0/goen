@@ -2063,14 +2063,6 @@ th {
     --cols: 6;
     column-gap: 1.5rem;
   }
-
-  .goen-cats__grid:not(:has(> li:nth-child(5))) {
-    --cols: 4;
-  }
-
-  .goen-cats__grid:has(> li:nth-child(5):last-child) {
-    --cols: 5;
-  }
 }
 
 .goen-cat {
@@ -2145,7 +2137,7 @@ th {
   }
 
   .goen-cat__name {
-    font-size: var(--fs-16);
+    font-size: var(--fs-15);
   }
 }
 
