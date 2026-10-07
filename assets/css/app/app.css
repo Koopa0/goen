@@ -3729,18 +3729,20 @@ input.goen-check {
   margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice__count,
-.goen-deptnotice__until,
-.goen-deptnotice__left {
+.goen-deptnotice__until {
+  color: var(--tone-muted);
   white-space: nowrap;
 }
 
-.goen-deptnotice__until {
+.goen-deptnotice__name > [aria-hidden="true"],
+.goen-deptnotice__until > [aria-hidden="true"] {
   color: var(--tone-muted);
+  margin-inline: 0.25em;
 }
 
 .goen-deptnotice__left {
   font-weight: var(--fw-medium);
+  word-break: keep-all;
 }
 
 .goen-deptnotice__left > [aria-hidden] {
@@ -4452,6 +4454,7 @@ input.goen-check {
 .goen-pdp__left {
   color: var(--accent-deep);
   font-weight: var(--fw-medium);
+  word-break: keep-all;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -5438,6 +5441,7 @@ input.goen-check {
   font-size: var(--fs-18);
   font-weight: var(--fw-medium);
   margin: 0;
+  text-wrap: balance;
 }
 
 .goen-pay__window--closed .goen-pay__deadline {
@@ -5448,6 +5452,7 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0.125rem 0 0;
+  text-wrap: pretty;
 }
 
 .goen-pagehead > .goen-pay__window + .ui-statline {
@@ -5559,7 +5564,6 @@ input.goen-check {
 @media (max-width: 47.99rem) {
   .goen-pagehead .goen-band__media img {
     aspect-ratio: 5 / 2;
-    max-height: 12rem;
   }
 
   .goen-pagehead .goen-band__body {
@@ -5580,6 +5584,7 @@ input.goen-check {
   font-size: clamp(2.75rem, 1.7rem + 3.4vw, 5.5rem);
   letter-spacing: -0.02em;
   line-height: 1.05;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 

@@ -51,7 +51,7 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.Depar
 	if err != nil {
 		return nil, fmt.Errorf("read campaign of %q: %w", slug, err)
 	}
-	return &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, Products: c.Products, End: pages.NewCampaignEnd(c.EndsAt, s.now())}, nil
+	return &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: pages.NewCampaignEnd(c.EndsAt, s.now())}, nil
 }
 
 // comparePreview tries the categories holding the most comparable products, each with its

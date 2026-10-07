@@ -5,8 +5,6 @@ var (
 
 	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
 
-	KeyDeptNoticeProducts = countKey("dept.notice.products", "本館 %d\u00a0件參加", "%d\u00a0item in this department", "%d\u00a0items in this department")
-
 	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
@@ -16,9 +14,14 @@ var (
 
 	KeyCampaignEndsTomorrow = key("campaign.endstomorrow", Message{ZhHant: "明天結束", En: "ends tomorrow"})
 
+	KeyCampaignEndsTomorrowAt = key("campaign.endstomorrowat", Message{ZhHant: "明天 %s 結束", En: "ends tomorrow at %s"})
+
 	KeyCampaignEndsToday = key("campaign.endstoday", Message{ZhHant: "今天結束", En: "ends today"})
 
 	KeyCampaignEndsTodayAt = key("campaign.endstodayat", Message{ZhHant: "今天 %s 結束", En: "ends today at %s"})
+
+	// A day and the time of day on it, as one unit.
+	KeyCampaignDayAt = key("campaign.dayat", Message{ZhHant: "%s %s", En: "%s at %s"})
 
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",

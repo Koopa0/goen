@@ -63,10 +63,9 @@ func (h *DepartmentHead) Slot() EditorialSlot {
 
 // DepartmentNotice is the running campaign that features products of the department.
 type DepartmentNotice struct {
-	Title    string
-	Href     string
-	Products int64
-	End      CampaignEnd
+	Title string
+	Href  string
+	End   CampaignEnd
 }
 
 // ComparePreview is the comparison a comparable department offers: the same table as /compare,

@@ -140,21 +140,21 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 	}{
 		{"nine days left", i18n.ZhHant, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "至 10\u00a0月 18\u00a0日", "剩 9\u00a0天", "2026-10-18"},
 		{"nine days left", i18n.En, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "until Oct\u00a018,", "9\u00a0days left", "2026-10-18"},
-		{"ends tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "至 10\u00a0月 10\u00a0日", "明天結束", "2026-10-10"},
-		{"ends tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "until Oct\u00a010,", "ends tomorrow", "2026-10-10"},
-		{"ends today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "至 10\u00a0月 9\u00a0日", "今天結束", "2026-10-09"},
-		{"ends today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "until Oct\u00a09,", "ends today", "2026-10-09"},
+		{"ends tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "明天結束", "2026-10-10"},
+		{"ends tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "ends tomorrow", "2026-10-10"},
+		{"ends today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "", "今天結束", "2026-10-09"},
+		{"ends today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "", "ends today", "2026-10-09"},
 		{"ends today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "今天 18:00 結束", "2026-10-09T18:00"},
 		{"ends today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "ends today at 18:00", "2026-10-09T18:00"},
 		{"three days left ending at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "至 10\u00a0月 12\u00a0日 18:00", "剩 3\u00a0天", "2026-10-12T18:00"},
-		{"three days left ending at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "until Oct\u00a012 18:00,", "3\u00a0days left", "2026-10-12T18:00"},
-		{"tomorrow ending at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "至 10\u00a0月 10\u00a0日 18:00", "明天結束", "2026-10-10T18:00"},
-		{"tomorrow ending at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "until Oct\u00a010 18:00,", "ends tomorrow", "2026-10-10T18:00"},
+		{"three days left ending at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "until Oct\u00a012 at 18:00,", "3\u00a0days left", "2026-10-12T18:00"},
+		{"tomorrow ending at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "明天 18:00 結束", "2026-10-10T18:00"},
+		{"tomorrow ending at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "ends tomorrow at 18:00", "2026-10-10T18:00"},
 	} {
 		t.Run(tt.name+" "+string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Products: 2, End: NewCampaignEnd(tt.ends, now)}
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(tt.ends, now)}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
 			if err != nil {
 				t.Fatal(err)
@@ -164,7 +164,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 				t.Fatal("departmentNotice draws no goen-deptnotice__name")
 			}
 			eyebrow := i18n.T(ctx, i18n.KeyCampaignEyebrow)
-			want := eyebrow + " " + notice.Title + "\u00a0· " + i18n.Count(ctx, i18n.KeyDeptNoticeProducts, 2, 2) + "\u00a0· "
+			want := eyebrow + " " + notice.Title + "\u00a0· "
 			if tt.until != "" {
 				want += tt.until + "\u00a0· "
 			}
@@ -198,7 +198,7 @@ func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Products: 2, End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
 	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))
 	if err != nil {
 		t.Fatal(err)
@@ -216,8 +216,8 @@ func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
 	if last == nil || !hasClass(last, "goen-deptnotice") {
 		t.Error("the campaign notice is not the band's last row")
 	}
-	if got := nodeText(band); !strings.Contains(got, "本館 2\u00a0件參加") {
-		t.Errorf("the notice does not say how many of the department's products take part: %q", got)
+	if got := nodeText(last); !strings.Contains(got, notice.Title) {
+		t.Errorf("the notice does not name the campaign %q: %q", notice.Title, got)
 	}
 }
 

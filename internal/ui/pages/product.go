@@ -625,10 +625,7 @@ func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
 func (c ProductCampaign) Source(ctx context.Context) (before, middle, after string) {
 	const title, left = "\x00", "\x01"
 	key := i18n.KeyCampaignPriceDaysLeft
-	switch {
-	case c.End.DaysLeft == 1:
-		key = i18n.KeyCampaignPriceTomorrow
-	case c.End.DaysLeft < 1:
+	if c.End.EndsByTomorrow() {
 		key = i18n.KeyCampaignPriceToday
 	}
 	before, rest, _ := strings.Cut(fmt.Sprintf(i18n.T(ctx, key), title, left, c.End.Day(ctx)), title)

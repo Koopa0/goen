@@ -118,8 +118,8 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		deadline, hold, placed   string
 		resumedLead, resumedNote string
 	}{
-		{i18n.ZhHant, "請在 14:31 前開始付款", "商品保留到 15:02，逾時自動取消。台灣時間。", "<dt>送出</dt>",
-			"商品保留到 15:02", "逾時未付款，訂單自動取消。台灣時間。"},
+		{i18n.ZhHant, "請在 14:31 前開始付款", "商品保留到 15:02，逾時未付款會自動取消訂單。時間以台灣時間為準。", "<dt>送出</dt>",
+			"商品保留到 15:02", "逾時未付款會自動取消訂單。時間以台灣時間為準。"},
 		{i18n.En, "Start paying by 14:31", "Your items are reserved until 15:02 and the order is cancelled if it is still unpaid then. Times are Taiwan time.", "<dt>Placed</dt>",
 			"Your items are reserved until 15:02", "The order is cancelled if it is still unpaid then. Times are Taiwan time."},
 	} {
@@ -143,6 +143,9 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		}
 		if strings.Contains(html, "ui-period") {
 			t.Errorf("%s: the pay page draws the hold; it says it in words", tt.locale)
+		}
+		if !strings.Contains(html, `<dl class="ui-statline ui-statline--s">`) {
+			t.Errorf("%s: the facts under the hold's panel are not the small line", tt.locale)
 		}
 
 		view.Hold.StartBy = time.Time{}
@@ -208,6 +211,9 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 		if strings.Contains(html, unwanted) {
 			t.Errorf("the lapsed pay page still shows %q", unwanted)
 		}
+	}
+	if !strings.Contains(html, `<dl class="ui-statline">`) {
+		t.Error("the lapsed pay page, with no panel above them, does not lead with the plain facts line")
 	}
 }
 
