@@ -1496,7 +1496,8 @@ const (
 // A browser return is not payment evidence. Keep that hint when bounded checks
 // end so a delayed webhook cannot turn it into an invitation to pay again.
 func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
-	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
+	view.PaymentReturnHint = r.URL.Query().Get("paid") == "1"
+	if !view.AwaitingPayment() || !view.PaymentReturnHint {
 		return ""
 	}
 	attempt := 0
@@ -1914,7 +1915,9 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 		}
 		n, err := h.store.ItemCount(r.Context(), id)
 		if err != nil {
-			h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			if !errors.Is(r.Context().Err(), context.Canceled) {
+				h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			}
 			next.ServeHTTP(w, r)
 			return
 		}

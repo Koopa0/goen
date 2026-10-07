@@ -19,19 +19,23 @@ templ Columns(p ColumnsProps) {
 				}
 				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(c.Height) } aria-hidden="true" focusable="false">
 					for _, s := range c.Strips {
-						if s.Window {
-							<rect class="goen-chart__window" x={ s.X } y={ px(s.Y + 3) } width={ s.Width } height="1"></rect>
-						} else {
-							<rect class="goen-chart__span" x={ s.GroundX } y={ px(c.Baseline - columnsPlot) } width={ s.GroundWidth } height={ strconv.Itoa(columnsPlot) }></rect>
-							<rect class="goen-chart__strip" x={ s.X } y={ px(s.Y) } width={ s.Width } height="4"></rect>
+						if !s.Window {
+							<rect class="goen-chart__span" x={ s.X } y={ px(c.Baseline - columnsPlot) } width={ s.Width } height={ strconv.Itoa(columnsPlot) }></rect>
 						}
-						for _, x := range s.Gaps {
-							<line class={ "goen-chart__gap", templ.KV("goen-chart__gap--thin", s.Thin) } x1={ x } x2={ x } y1={ px(s.Y - 1) } y2={ px(s.Y + 5) }></line>
+						if !s.Hidden {
+							if s.Window {
+								<rect class="goen-chart__window" x={ s.X } y={ px(s.Y - 0.5) } width={ s.Width } height="1"></rect>
+							} else {
+								<line class="goen-chart__strip" x1={ s.X } x2={ s.RightX } y1={ px(s.Y) } y2={ px(s.Y) }></line>
+								if !s.OpenLeft {
+									<line class="goen-chart__strip-end" x1={ s.X } x2={ s.X } y1={ px(s.Y) } y2={ px(s.Y + 5) } transform="translate(0.75 0)"></line>
+								}
+								if !s.OpenRight {
+									<line class="goen-chart__strip-end" x1={ s.RightX } x2={ s.RightX } y1={ px(s.Y) } y2={ px(s.Y + 5) } transform="translate(-0.75 0)"></line>
+								}
+							}
+							<text class={ "goen-chart__spanlabel", templ.KV("goen-chart__spanlabel--window", s.Window) } x={ s.NameX } y={ px(s.NameY) } text-anchor={ s.Anchor }>{ s.Name }</text>
 						}
-						if s.TodayX != "" {
-							<line class="goen-chart__todaymark" x1={ s.TodayX } x2={ s.TodayX } y1={ px(s.Y - 3) } y2={ px(s.Y + 9) }></line>
-						}
-						<text class="goen-chart__spanlabel" x={ s.NameX } y={ px(s.NameY) } text-anchor={ s.Anchor }>{ s.Name }</text>
 					}
 					for _, g := range c.Grid {
 						if !g.Baseline {

@@ -253,7 +253,7 @@ const ADMIN = [
   // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
-  // and the warning; without it the rows measured say only that sales are too few.
+  // and the triangle with its text alternative; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
@@ -902,7 +902,10 @@ for (const want of EXPECTED) {
 // and in forced colours, where the colours are the system's, by thickness. The
 // span after a mark (the return window's goodwill days) is drawn apart from the
 // days before it: dashes under a transparent border, in forced colours too,
-// where a dashed border paints solid on a short cell. A dashed cell and today's
+// where a dashed border paints solid on a short cell. A dash is a gradient
+// whose first stop is under 100%, repeated on a tile a few px wide or narrower
+// than the cell, so a solid gradient does not pass; today among the dashes is
+// cut by a mask of the same kind. A dashed cell and today's
 // half-filled one draw their line as a gradient. A label a track draws lies
 // inside it and the viewport and overlaps no other. A route with no period drawn fails, because a track that
 // is not drawn cannot be measured and the check would pass on nothing.
@@ -914,7 +917,14 @@ const PERIOD_PROBE = `(() => {
   const tracks = [];
   let extras = 0;
   const clear = (colour) => colour === 'transparent' || /^rgba\\(.*,\\s*0\\)$/.test(colour);
-  const drawn = (c) => c.width + 'px ' + c.style + ' ' + c.colour + (c.image === 'none' ? '' : ' over ' + c.image);
+  const drawn = (c) => c.width + 'px ' + c.style + ' ' + c.colour + (c.image === 'none' ? '' : ' over ' + c.image + ' at ' + c.size)
+    + (c.mask === 'none' ? '' : ' masked by ' + c.mask + ' at ' + c.maskSize);
+  const tiled = (image, size, cellWidth) => {
+    const stop = /\\)\\s+(\\d+(?:\\.\\d+)?)%/.exec(image);
+    const across = (size || '').split(' ')[0];
+    return /gradient/.test(image) && !!stop && Number(stop[1]) < 100
+      && /px$/.test(across) && parseFloat(across) > 0 && (parseFloat(across) <= 16 || parseFloat(across) < cellWidth);
+  };
   periods.forEach((period, n) => {
     period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = period.getBoundingClientRect();
@@ -927,7 +937,8 @@ const PERIOD_PROBE = `(() => {
         r: e.getBoundingClientRect(), filled: e.hasAttribute('data-cell'), mark: e.hasAttribute('data-mark'),
         today: e.getAttribute('data-cell') === 'today', extra: e.getAttribute('data-span') === 'extra',
         width: parseFloat(s.borderBottomWidth) || 0, style: s.borderBottomStyle, colour: s.borderBottomColor,
-        image: s.backgroundImage,
+        image: s.backgroundImage, size: s.backgroundSize,
+        mask: s.maskImage || s.webkitMaskImage || 'none', maskSize: s.maskSize || s.webkitMaskSize || '',
       };
     });
     if (cells.length === 0) problems.push(at + ' has no cells');
@@ -967,7 +978,8 @@ const PERIOD_PROBE = `(() => {
       if (!c.extra) return;
       extras++;
       const before = cells.find((d) => !d.extra && !d.today && d.filled === c.filled);
-      const dashed = clear(c.colour) && /gradient/.test(c.image);
+      const dashed = clear(c.colour) && (c.mask === 'none'
+        ? tiled(c.image, c.size, c.r.width) : /gradient/.test(c.image) && tiled(c.mask, c.maskSize, c.r.width));
       if (!dashed || (before && drawn(before) === drawn(c))) {
         problems.push(at + ' cell ' + i + ' after the mark is drawn like the days before it (' + drawn(c) + ')');
       }

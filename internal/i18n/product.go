@@ -5,9 +5,7 @@ var (
 
 	// The source of a campaign price takes the campaign, what is left of it and the date of its last day, and
 	// names the campaign first: the page links the one and sets the other apart.
-	KeyCampaignPriceDaysLeft = key("pdp.campaignprice.daysleft", Message{ZhHant: "%[1]s活動價，%[2]s，%[3]s結束", En: "%[1]s price, %[2]s, ends %[3]s"})
-
-	KeyCampaignPriceTomorrow = key("pdp.campaignprice.tomorrow", Message{ZhHant: "%[1]s活動價，%[2]s（%[3]s）", En: "%[1]s price, %[2]s (%[3]s)"})
+	KeyCampaignPriceDaysLeft = key("pdp.campaignprice.daysleft", Message{ZhHant: "%[1]s活動價，%[2]s，至 %[3]s", En: "%[1]s price, %[2]s, until %[3]s"})
 
 	KeyCampaignPriceToday = key("pdp.campaignprice.today", Message{ZhHant: "%[1]s活動價，%[2]s", En: "%[1]s price, %[2]s"})
 
@@ -118,8 +116,8 @@ var (
 
 var (
 	KeyFormSlugFormatExample = key("form.slug.format.example", Message{
-		ZhHant: "網址代稱只能用小寫英數與連字號，例如 pixelight-9-pro。",
-		En:     "A slug takes lower-case letters, digits and hyphens only — pixelight-9-pro, for example.",
+		ZhHant: "網址代稱只能用小寫英數與連字號，例如 ceramic-mug。",
+		En:     "A slug takes lower-case letters, digits and hyphens only — ceramic-mug, for example.",
 	})
 
 	KeyFormSlugTakenProduct = key("form.slug.taken.product", Message{
@@ -193,6 +191,8 @@ var (
 	})
 
 	KeyAdminProdName = key("admin.prod.name", Message{ZhHant: "商品名稱", En: "Product name"})
+
+	KeyAdminProdBasics = key("admin.prod.basics", Message{ZhHant: "基本資料", En: "Basic details"})
 
 	KeyAdminProdSlugHint = key("admin.prod.slughint", Message{
 		ZhHant: "上架後不能更改，商品網址會是 /p/ 加上這串。",

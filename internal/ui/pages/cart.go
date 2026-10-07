@@ -125,7 +125,7 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 // Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
 func (v CartView) Facts(ctx context.Context) []components.Stat {
 	return []components.Stat{
-		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyCartUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
 		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
 		v.FreeDelivery.Stat(ctx),
 	}
@@ -718,6 +718,8 @@ type OrderView struct {
 	PlacedAt     time.Time
 	// Now is the moment the page is read; the days left and the grids count from it.
 	Now time.Time
+	// HoldUntil is the earliest stored reservation expiry, zero without rows; Checkout Session expiry is bound to it.
+	HoldUntil time.Time
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
 	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
@@ -743,6 +745,8 @@ type OrderView struct {
 	PaymentRefreshURL string
 	// PaymentConfirmationPending preserves the return hint after checks stop; it never changes payment facts.
 	PaymentConfirmationPending bool
+	// PaymentReturnHint is untrusted; it only hides cancellation until the stored stock hold ends.
+	PaymentReturnHint bool
 	// The bounds behind that URL, quoted in the notice so the copy cannot drift from the handler.
 	PaymentRefreshSeconds, PaymentRefreshChecks int
 	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
@@ -815,6 +819,15 @@ func (v *OrderView) Owed() string { return twd(v.OwedCents) }
 
 func (v *OrderView) CanCancel() bool {
 	return v.Status == order.FulfillmentPending && !v.Committed
+}
+
+// ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
+func (v *OrderView) ShowCancel() bool {
+	return v.CanCancel() && v.PaymentRefreshURL == "" && !v.paymentReturnHoldsCancel()
+}
+
+func (v *OrderView) paymentReturnHoldsCancel() bool {
+	return v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now)
 }
 
 // CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:

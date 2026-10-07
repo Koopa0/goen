@@ -79,13 +79,13 @@ templ Cart(p layouts.Page, v CartView) {
 					}) {
 						<h2 id="summary-heading" class="goen-summary__title">{ i18n.T(ctx, i18n.KeyOrderSummary) }</h2>
 						<dl class="goen-summary">
-							<div class="goen-summary__row goen-summary__row--total">
-								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
-								<dd class="goen-summary__value">{ v.Subtotal() }</dd>
-							</div>
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
 								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
+							</div>
+							<div class="goen-summary__row goen-summary__row--total">
+								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+								<dd class="goen-summary__value">{ v.Subtotal() }</dd>
 							</div>
 						</dl>
 						if v.MixedTaxTypes {
@@ -1052,7 +1052,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() && v.PaymentRefreshURL == "" {
+						if v.ShowCancel() {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }

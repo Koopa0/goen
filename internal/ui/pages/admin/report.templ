@@ -102,17 +102,13 @@ templ Report(p layouts.Page, v *ReportView) {
 				<ul class="goen-report__rows" role="list">
 					{{ top := v.TopUnits() }}
 					for _, item := range v.Sellers {
-						<li class="goen-report__row">
-							<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
-							<span class="goen-admin__meta">{ item.Brand }</span>
-							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUnits), item.UnitsText()) }</span>
-							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepGross), item.Revenue()) }</span>
+						@ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
 							if len(v.Sellers) > 1 {
-								<div class="goen-report__bar">
+								<div class="goen-report__plot">
 									@chart.Bar(chart.BarProps{Value: item.Units, Max: top, Label: item.UnitsText()})
 								</div>
 							}
-						</li>
+						}
 					}
 				</ul>
 			}
@@ -125,13 +121,12 @@ templ Report(p layouts.Page, v *ReportView) {
 					<ul class="goen-report__rows goen-report__departments" role="list">
 						{{ top := v.TopDepartment() }}
 						for _, d := range v.Departments {
-							<li class="goen-report__row">
-								<span class="goen-report__name">{ d.Name }</span>
-								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()) }</span>
-								<div class="goen-report__bar">
-									@chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top})
+							@ReportRow(d.Name, "", "") {
+								<div class="goen-report__plot">
+									<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()) }</span>
+									@chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top, Label: d.Sales()})
 								</div>
-							</li>
+							}
 						}
 					</ul>
 				}

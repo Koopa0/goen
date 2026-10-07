@@ -28,7 +28,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 		</div>
 		@Announce(v.Notice)
 		@receiveForm(v)
-		if v.HasStockDays() {
+		if v.HasStockDays() && !v.Empty() {
 			if v.DrawsStockLine() {
 				@chart.StepLine(v.StockLine(ctx))
 			} else {
@@ -99,7 +99,6 @@ templ receiveForm(v *MovementsView) {
 					name="quantity"
 					min="1"
 					step="1"
-					placeholder="10"
 					required
 				/>
 			</div>

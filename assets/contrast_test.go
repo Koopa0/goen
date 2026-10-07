@@ -123,6 +123,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		{ink: "--accent", ground: "--accent-faint"},
 		{ink: "--muted", ground: "--accent-faint"},
 		{ink: "--error", ground: "--error-bg"},
+		{ink: "--error", ground: "--error-bg-hover"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
 	} {
 		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
@@ -138,7 +139,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	if tokens["--chart-hue"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
-	for _, ground := range []string{"--n-0", "--n-50"} {
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
 			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--chart-hue"], ground, tokens[ground], got)
@@ -153,6 +154,38 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
 		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
+	}
+
+	// The warning mark is a triangle and a bar, and the line at 30 days is drawn
+	// in --ink-2: each is held to 3:1 (WCAG 1.4.11) on the white and the grey a
+	// runway row's track is drawn on.
+	if tokens["--warn-mark"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --warn-mark")
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		for _, mark := range []string{"--warn-mark", "--ink-2"} {
+			if got := contrast(tokens[mark], tokens[ground]); got < 3 {
+				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+					mark, tokens[mark], ground, tokens[ground], got)
+			}
+		}
+	}
+
+	// The 30-day line is held by the token the rule draws it with, not by a
+	// token nothing uses.
+	adminSheet, err := fs.ReadFile(files, AdminCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AdminCSS, err)
+	}
+	line := regexp.MustCompile(`(?s)\.goen-chartrangebar__mark \{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(adminSheet))
+	if line == nil {
+		t.Fatalf("%s has no 30-day line rule with a token colour", AdminCSS)
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		if got := contrast(tokens[line[1]], tokens[ground]); got < 3 {
+			t.Errorf("the 30-day line %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				line[1], tokens[line[1]], ground, tokens[ground], got)
+		}
 	}
 
 	// WCAG 1.4.11: the boundary of a control has no text to carry it.
@@ -203,10 +236,7 @@ func over(t *testing.T, colour, ground string) string {
 	if m == nil || err != nil || len(g) != 3 {
 		t.Fatalf("cannot lay %q on #%s: want rgb(r g b / alpha) on a six-digit hex", colour, ground)
 	}
-	alpha, err := strconv.ParseFloat(m[4], 64)
-	if err != nil {
-		t.Fatalf("alpha of %q: %v", colour, err)
-	}
+	alpha := alphaOf(t, colour)
 	seen := make([]byte, 3)
 	for i := range seen {
 		c, err := strconv.Atoi(m[i+1])
@@ -216,6 +246,20 @@ func over(t *testing.T, colour, ground string) string {
 		seen[i] = uint8(math.Round(alpha*float64(c) + (1-alpha)*float64(g[i])))
 	}
 	return hex.EncodeToString(seen)
+}
+
+// alphaOf is the alpha of a translucent rgb(r g b / alpha).
+func alphaOf(t *testing.T, colour string) float64 {
+	t.Helper()
+	m := translucent.FindStringSubmatch(colour)
+	if m == nil {
+		t.Fatalf("%q is not rgb(r g b / alpha)", colour)
+	}
+	alpha, err := strconv.ParseFloat(m[4], 64)
+	if err != nil {
+		t.Fatalf("alpha of %q: %v", colour, err)
+	}
+	return alpha
 }
 
 // checkPeriod holds a period's fill to 3:1 (WCAG 1.4.11) on its ground and on
@@ -265,6 +309,14 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	track := rgba["--period-track"]
 	if track == "" {
 		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
+	// A tone's own track is its blue at no less alpha than the page's: on the
+	// ink ground the 1.5:1 floor alone would pass the 22% the owner ruled too
+	// faint (1.63:1).
+	for name, colour := range rgba {
+		if strings.HasPrefix(name, "--period-track-") && alphaOf(t, colour) < alphaOf(t, track) {
+			t.Errorf("%s is %s, under the alpha of --period-track %s", name, colour, track)
+		}
 	}
 
 	blocks := make(map[string]map[string]string)
@@ -434,21 +486,24 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 // A focus outline that names its own colour skips the re-pointed --ring and
 // can land on a ground it does not read on. Only "none" (the ring is drawn on
 // another element), "transparent" (the field draws its own border) and the
-// error colour on an invalid field are allowed.
+// error colour on an invalid field are allowed. A rule for
+// :not(:focus-visible) is not a focus rule.
 func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	rule := regexp.MustCompile(`([^{}]*[^(]:focus-visible[^{}]*)\{([^{}]*)\}`)
 	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
 	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
-	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
-		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
-			if !allowed.MatchString(strings.TrimSpace(o[1])) {
-				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+	for _, name := range []string{AppCSS, AdminCSS} {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+			for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+				if !allowed.MatchString(strings.TrimSpace(o[1])) {
+					t.Errorf("%s: %s draws its focus outline as %q, want var(--ring)", name, strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+				}
 			}
 		}
 	}
