@@ -94,6 +94,11 @@ jobs:
           psql "$GOEN_DATABASE_URL" -X -A -t -c "SELECT count(*) || ' orders, ' || count(*) FILTER (WHERE placed_at >= now() - interval '7 days') || ' in the last 7 days' FROM orders"
           echo '::endgroup::'
 
+          echo '::group::probe seed'
+          psql "$GOEN_DATABASE_URL" -X -f scripts/admin-shots-seed.sql > seed.log 2>&1 || true
+          cat seed.log
+          echo '::endgroup::'
+
           token=$(openssl rand -hex 32)
           psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v token="$token" <<'SQL'
           SELECT id AS staff_id FROM users
@@ -127,4 +132,5 @@ jobs:
             server.log
             chrome-shots.log
             history.log
+            seed.log
           if-no-files-found: warn
