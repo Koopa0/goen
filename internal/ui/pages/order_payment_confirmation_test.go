@@ -71,7 +71,9 @@ func TestOrderPaymentReturnCancellationUsesTheStoredDeadline(t *testing.T) {
 				{name: "live ended", until: now.Add(time.Minute)},
 				{name: "live checking", until: now.Add(time.Minute), refresh: true},
 				{name: "expired ended", until: now.Add(-time.Nanosecond), want: true},
-				{name: "expired checking", until: now.Add(-time.Nanosecond), refresh: true, want: true},
+				{name: "expired checking", until: now.Add(-time.Nanosecond), refresh: true},
+				{name: "no hold checking", refresh: true},
+				{name: "equal deadline checking", until: now, refresh: true},
 				{name: "equal deadline", until: now, want: true},
 				{name: "no hold", want: true},
 			} {

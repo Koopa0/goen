@@ -81,7 +81,10 @@ func TestPaymentReturnCancellationIsIndependentOfTheCheckCounter(t *testing.T) {
 		{name: "no return marker", query: "?confirmation=done", until: now.Add(time.Minute), want: true},
 		{name: "invalid marker", query: "?paid=0", until: now.Add(time.Minute), want: true},
 		{name: "noncanonical marker", query: "?paid=true", until: now.Add(time.Minute), want: true},
-		{name: "expired while checking", query: "?paid=1", until: now.Add(-time.Nanosecond), want: true, refresh: "/orders/ORD-1?paid=1&confirmation=1"},
+		{name: "expired while checking", query: "?paid=1", until: now.Add(-time.Nanosecond), refresh: "/orders/ORD-1?paid=1&confirmation=1"},
+		{name: "no hold while checking", query: "?paid=1", refresh: "/orders/ORD-1?paid=1&confirmation=1"},
+		{name: "expiry boundary while checking", query: "?paid=1", until: now, refresh: "/orders/ORD-1?paid=1&confirmation=1"},
+		{name: "expired ended", query: "?paid=1&confirmation=done", until: now.Add(-time.Nanosecond), want: true},
 		{name: "expiry boundary", query: "?paid=1&confirmation=done", until: now, want: true},
 		{name: "no hold", query: "?paid=1&confirmation=done", want: true},
 	} {

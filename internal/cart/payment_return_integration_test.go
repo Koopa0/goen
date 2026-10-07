@@ -150,8 +150,8 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			if _, openErr := pool.Exec(ctx, `SELECT open_payment(id, $2, $3) FROM orders WHERE order_number = $1`, number, session, view.OwedCents); openErr != nil {
 				t.Fatalf("open payment: %v", openErr)
 			}
-			if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, view.OwedCents); err != nil {
-				t.Fatalf("capture payment: %v", err)
+			if _, captureErr := pool.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, view.OwedCents); captureErr != nil {
+				t.Fatalf("capture payment: %v", captureErr)
 			}
 			for _, suffix := range []string{"?paid=1&confirmation=1", "?paid=1&confirmation=done"} {
 				paid := get(path+suffix, true)
@@ -173,10 +173,20 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			if err != nil || !expired.AwaitingPayment() || !expired.CanCancel() || !expired.HoldUntil.Before(expired.Now) {
 				t.Fatalf("expired but unswept order lost its factual cancellation eligibility: %+v, %v", expired, err)
 			}
-			for _, suffix := range []string{"?paid=1", "?paid=1&confirmation=done"} {
-				w := get(path+suffix, true)
-				if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `action="`+path+`/cancel"`) {
-					t.Errorf("expired return %q does not restore eligible cancellation", suffix)
+			for _, tt := range []struct {
+				suffix  string
+				cancel  bool
+				refresh string
+			}{
+				{suffix: "?paid=1", refresh: "5; url=" + path + "?paid=1&confirmation=1"},
+				{suffix: "?paid=1&confirmation=done", cancel: true},
+			} {
+				w := get(path+tt.suffix, true)
+				if w.Code != http.StatusOK || w.Header().Get("Refresh") != tt.refresh {
+					t.Errorf("expired return %q: status=%d refresh=%q, want 200 and %q", tt.suffix, w.Code, w.Header().Get("Refresh"), tt.refresh)
+				}
+				if got := strings.Contains(w.Body.String(), `action="`+path+`/cancel"`); got != tt.cancel {
+					t.Errorf("expired return %q cancel form present = %v, want %v", tt.suffix, got, tt.cancel)
 				}
 			}
 
@@ -191,14 +201,26 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			if err != nil || !withoutHold.HoldUntil.IsZero() || !withoutHold.CanCancel() {
 				t.Fatalf("order with no hold rows = %+v, %v", withoutHold, err)
 			}
-			noHold := get(path+"?paid=1&confirmation=done", true)
-			if noHold.Code != http.StatusOK || !strings.Contains(noHold.Body.String(), `action="`+path+`/cancel"`) {
-				t.Error("no-row deadline manufactures a cancellation restriction")
+			for _, tt := range []struct {
+				suffix  string
+				cancel  bool
+				refresh string
+			}{
+				{suffix: "?paid=1", refresh: "5; url=" + path + "?paid=1&confirmation=1"},
+				{suffix: "?paid=1&confirmation=done", cancel: true},
+			} {
+				w := get(path+tt.suffix, true)
+				if w.Code != http.StatusOK || w.Header().Get("Refresh") != tt.refresh {
+					t.Errorf("no-hold return %q: status=%d refresh=%q, want 200 and %q", tt.suffix, w.Code, w.Header().Get("Refresh"), tt.refresh)
+				}
+				if got := strings.Contains(w.Body.String(), `action="`+path+`/cancel"`); got != tt.cancel {
+					t.Errorf("no-hold return %q cancel form present = %v, want %v", tt.suffix, got, tt.cancel)
+				}
 			}
 
 			fundedID := creditFundedHeldOrder(t, freshVariant(t, "return-funded"), -time.Hour)
-			if err := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, fundedID).Scan(&number); err != nil {
-				t.Fatalf("read funded order number: %v", err)
+			if numberErr := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, fundedID).Scan(&number); numberErr != nil {
+				t.Fatalf("read funded order number: %v", numberErr)
 			}
 			cookie = placedCookie(t, number)
 			path = "/orders/" + number

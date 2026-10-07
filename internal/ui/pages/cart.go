@@ -717,7 +717,8 @@ type OrderView struct {
 	DeliveryTo   string
 	PlacedAt     time.Time
 	// Now is the moment the page is read; the days left and the grids count from it.
-	Now       time.Time
+	Now time.Time
+	// HoldUntil is the earliest stored reservation expiry, zero without rows; Checkout Session expiry is bound to it.
 	HoldUntil time.Time
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
@@ -822,7 +823,11 @@ func (v *OrderView) CanCancel() bool {
 
 // ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
 func (v *OrderView) ShowCancel() bool {
-	return v.CanCancel() && !(v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now))
+	return v.CanCancel() && v.PaymentRefreshURL == "" && !v.paymentReturnHoldsCancel()
+}
+
+func (v *OrderView) paymentReturnHoldsCancel() bool {
+	return v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now)
 }
 
 // CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
