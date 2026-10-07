@@ -2281,7 +2281,7 @@ input.goen-check {
   font-weight: var(--fw-display);
   letter-spacing: -0.01em;
   line-height: 1.25;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 420px) {
