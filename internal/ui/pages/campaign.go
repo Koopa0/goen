@@ -59,12 +59,30 @@ func NewCampaignEnd(endsAt, now time.Time) CampaignEnd {
 	return CampaignEnd{Last: shoptime.LastDay(endsAt, now), Clock: endClock(endsAt), DaysLeft: shoptime.DaysLeft(now, endsAt)}
 }
 
-func (e CampaignEnd) Day(ctx context.Context) string { return shoptime.DateText(ctx, e.Last) }
+// Day is the last day, with the time of day after it when the campaign does not end at midnight.
+func (e CampaignEnd) Day(ctx context.Context) string {
+	if e.Clock == "" {
+		return shoptime.DateText(ctx, e.Last)
+	}
+	return shoptime.DateText(ctx, e.Last) + " " + e.Clock
+}
+
+// EndsAtClockToday reports that the campaign's last day is today and it ends at a time of day, which Left
+// then says whole.
+func (e CampaignEnd) EndsAtClockToday() bool { return e.DaysLeft < 1 && e.Clock != "" }
+
+// Datetime is Day as a time element's datetime reads it.
+func (e CampaignEnd) Datetime() string {
+	if e.Clock == "" {
+		return e.Last.ISO()
+	}
+	return e.Last.ISO() + "T" + e.Clock
+}
 
 // Until splits the phrase naming the last day around the date, which the page marks as a time.
 func (e CampaignEnd) Until(ctx context.Context) (before, after string) {
 	const mark = "\x00"
-	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignUntil), mark), mark)
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignNoticeUntil), mark), mark)
 	return before, after
 }
 
