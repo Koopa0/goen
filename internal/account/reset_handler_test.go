@@ -11,6 +11,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 )
 
 func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
@@ -70,5 +71,58 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name        string
+			path        string
+			destination string
+			zhHeading   string
+			enHeading   string
+			handler     http.HandlerFunc
+		}{
+			{name: "verify", zhHeading: "\u78ba\u8a8d\u96fb\u5b50\u90f5\u4ef6", enHeading: "Confirm your email address", path: "/verify", destination: "/account#email-heading", handler: h.VerifyPage},
+			{name: "reset", zhHeading: "\u8a2d\u5b9a\u65b0\u5bc6\u78bc", enHeading: "Set a new password", path: "/reset", destination: "/forgot", handler: h.ResetPage},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				res := httptest.NewRecorder()
+				tt.handler(res, httptest.NewRequestWithContext(ctx, http.MethodGet, tt.path, http.NoBody))
+				if res.Code != http.StatusOK {
+					t.Fatalf("missing link = %d, want 200", res.Code)
+				}
+				heading := tt.enHeading
+				reason := "This link is incomplete; open it again from the button in the email."
+				if locale == i18n.ZhHant {
+					heading = tt.zhHeading
+					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
+				}
+				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, tt.destination)
+			})
+		}
+	}
+}
+
+func TestResetGetKeepsAnUncheckedTokenForm(t *testing.T) {
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			res := httptest.NewRecorder()
+			h.ResetPage(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/reset?token=unchecked-token", http.NoBody))
+			body := res.Body.String()
+			for _, want := range []string{`method="post" action="/reset"`, `name="token" value="unchecked-token"`, `name="password"`, `name="confirm"`} {
+				if !strings.Contains(body, want) {
+					t.Errorf("live reset form omits %q", want)
+				}
+			}
+			if res.Code != http.StatusOK || strings.Contains(body, i18n.T(ctx, i18n.KeyEmailLinkIncomplete)) || strings.Contains(body, i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)) {
+				t.Error("GET validated or refused an unchecked reset token")
+			}
+		})
 	}
 }

@@ -96,7 +96,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 			pages.ResetView{Token: token, Error: errs["password"]}))
 	case errors.Is(err, ErrResetInvalid):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)},
 			pages.ResetView{Expired: true}))
 	default:
 		h.log.ErrorContext(r.Context(), "complete password reset", "error", err)

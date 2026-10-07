@@ -54,11 +54,11 @@ templ Forgot(p layouts.Page, v ForgotView) {
 }
 
 templ Reset(p layouts.Page, v ResetView) {
-	@layouts.Base(p) {
-		<div class="goen-auth">
-			<div class="goen-auth__panel">
-				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyResetTitle) }</h1>
-				if v.Usable() {
+	if v.Usable() {
+		@layouts.Base(p) {
+			<div class="goen-auth">
+				<div class="goen-auth__panel">
+					<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyResetTitle) }</h1>
 					<form class="goen-auth__form" method="post" action="/reset">
 						<input type="hidden" name="token" value={ v.Token }/>
 						<div class="goen-field">
@@ -104,17 +104,10 @@ templ Reset(p layouts.Page, v ResetView) {
 							{ i18n.T(ctx, i18n.KeyResetTitle) }
 						}
 					</form>
-				} else {
-					@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "reset-refused"}) {
-						{ v.Refusal(ctx) }
-					}
-					<form class="goen-auth__form" method="get" action="/forgot">
-						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
-							{ i18n.T(ctx, i18n.KeyResetAgain) }
-						}
-					</form>
-				}
+				</div>
 			</div>
-		</div>
+		}
+	} else {
+		@EmailLinkPage(p, v.RecoveryView(ctx))
 	}
 }
