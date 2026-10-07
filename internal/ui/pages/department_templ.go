@@ -123,7 +123,7 @@ func departmentNotice(n *DepartmentNotice) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if n.End.EndsAtClockToday() {
+		if n.End.EndsByTomorrow() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"goen-deptnotice__left\"><time datetime=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

@@ -64,12 +64,12 @@ func (e CampaignEnd) Day(ctx context.Context) string {
 	if e.Clock == "" {
 		return shoptime.DateText(ctx, e.Last)
 	}
-	return shoptime.DateText(ctx, e.Last) + " " + e.Clock
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDayAt), shoptime.DateText(ctx, e.Last), e.Clock)
 }
 
-// EndsAtClockToday reports that the campaign's last day is today and it ends at a time of day, which Left
-// then says whole.
-func (e CampaignEnd) EndsAtClockToday() bool { return e.DaysLeft < 1 && e.Clock != "" }
+// EndsByTomorrow reports that the campaign ends today or tomorrow, which Left then says whole, with the time
+// of day where it is not midnight.
+func (e CampaignEnd) EndsByTomorrow() bool { return e.DaysLeft <= 1 }
 
 // Datetime is Day as a time element's datetime reads it.
 func (e CampaignEnd) Datetime() string {
@@ -87,11 +87,13 @@ func (e CampaignEnd) Until(ctx context.Context) (before, after string) {
 }
 
 // Left is what remains of the campaign: the days while two or more are left, then that it ends tomorrow or
-// today, with the time on its last day when that is not midnight.
+// today, with the time of day when that is not midnight.
 func (e CampaignEnd) Left(ctx context.Context) string {
 	switch {
 	case e.DaysLeft > 1:
 		return i18n.Count(ctx, i18n.KeyCampaignDaysLeft, int64(e.DaysLeft), e.DaysLeft)
+	case e.DaysLeft == 1 && e.Clock != "":
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsTomorrowAt), e.Clock)
 	case e.DaysLeft == 1:
 		return i18n.T(ctx, i18n.KeyCampaignEndsTomorrow)
 	case e.Clock != "":

@@ -19,7 +19,7 @@ templ departmentNotice(n *DepartmentNotice) {
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
 				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
 				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>
-				if n.End.EndsAtClockToday() {
+				if n.End.EndsByTomorrow() {
 					<span class="goen-deptnotice__left"><time datetime={ n.End.Datetime() }>{ n.End.Left(ctx) }</time>&nbsp;<span aria-hidden="true">&rarr;</span></span>
 				} else {
 					<span class="goen-deptnotice__until">{ before }<time datetime={ n.End.Datetime() }>{ n.End.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span aria-hidden="true">·</span></span>

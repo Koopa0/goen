@@ -27,8 +27,10 @@ templ Pay(p layouts.Page, v PayView) {
 						<p class="goen-pay__deadline">{ lead }</p>
 						<p class="goen-pay__hold">{ note }</p>
 					</div>
+					@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLineSmall)
+				} else {
+					@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain)
 				}
-				@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain)
 			</div>
 			if v.Cancelled && !v.Closed() {
 				@components.Notice(components.NoticeProps{

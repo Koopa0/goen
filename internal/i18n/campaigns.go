@@ -14,9 +14,14 @@ var (
 
 	KeyCampaignEndsTomorrow = key("campaign.endstomorrow", Message{ZhHant: "明天結束", En: "ends tomorrow"})
 
+	KeyCampaignEndsTomorrowAt = key("campaign.endstomorrowat", Message{ZhHant: "明天 %s 結束", En: "ends tomorrow at %s"})
+
 	KeyCampaignEndsToday = key("campaign.endstoday", Message{ZhHant: "今天結束", En: "ends today"})
 
 	KeyCampaignEndsTodayAt = key("campaign.endstodayat", Message{ZhHant: "今天 %s 結束", En: "ends today at %s"})
+
+	// A day and the time of day on it, as one unit.
+	KeyCampaignDayAt = key("campaign.dayat", Message{ZhHant: "%s %s", En: "%s at %s"})
 
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",
