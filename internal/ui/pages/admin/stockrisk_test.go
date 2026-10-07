@@ -324,7 +324,7 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		rows := []StockRisk{
-			{SKU: "OUT-1", Name: "Gone", Slug: "gone", SoldOutAt: time.Date(2026, time.October, 2, 4, 0, 0, 0, time.UTC)},
+			{SKU: "OUT-1", Name: "Gone", Slug: "gone", SoldOutAt: time.Date(2026, time.October, 2, 4, 0, 0, 0, time.UTC), ReadAt: time.Date(2026, time.October, 7, 4, 0, 0, 0, time.UTC)},
 			{SKU: "OUT-2", Name: "Long gone", Slug: "long-gone"},
 			{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow},
 			{SKU: "EST-2", Name: "Later", Slug: "later", Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow},
@@ -360,6 +360,27 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 		}
 		if got := strings.Count(html, i18n.T(ctx, i18n.KeySoldOut)); got != 2 {
 			t.Errorf("%s: sold out is said %d times, want once for each of two rows", loc, got)
+		}
+	}
+}
+
+func TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne(t *testing.T) {
+	t.Parallel()
+
+	readAt := time.Date(2026, time.January, 3, 4, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name      string
+		soldOutAt time.Time
+		want      map[i18n.Locale]string
+	}{
+		{"this year", time.Date(2026, time.January, 1, 4, 0, 0, 0, time.UTC), map[i18n.Locale]string{i18n.ZhHant: "1/1 起", i18n.En: "since Jan\u00a01"}},
+		{"last year", time.Date(2025, time.December, 20, 4, 0, 0, 0, time.UTC), map[i18n.Locale]string{i18n.ZhHant: "2025\u00a0年 12\u00a0月 20\u00a0日 起", i18n.En: "since Dec\u00a020, 2025"}},
+	} {
+		for loc, want := range tc.want {
+			ctx := i18n.WithLocale(t.Context(), loc)
+			if got := (StockRisk{SoldOutAt: tc.soldOutAt, ReadAt: readAt}).SoldOutSince(ctx); got != want {
+				t.Errorf("%s, %s: SoldOutSince = %q, want %q", tc.name, loc, got, want)
+			}
 		}
 	}
 }

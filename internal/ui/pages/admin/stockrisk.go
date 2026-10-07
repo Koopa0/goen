@@ -55,6 +55,9 @@ type StockRisk struct {
 	// SoldOutAt is when the SKU last ran out within the window; zero when it
 	// was already out at its start.
 	SoldOutAt time.Time
+	// ReadAt is when the row was read: it decides whether a day is told with
+	// its year.
+	ReadAt time.Time
 }
 
 // CoverState says what can be said of a SKU's days cover.
@@ -186,7 +189,12 @@ func (r StockRisk) SoldOutSince(ctx context.Context) string {
 	if r.SoldOutAt.IsZero() {
 		return ""
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSoldOutSince), shoptime.DateLabel(ctx, shoptime.DateOf(r.SoldOutAt, r.SoldOutAt)))
+	day := shoptime.DateOf(r.SoldOutAt, r.ReadAt)
+	text := shoptime.DateLabel(ctx, day)
+	if day.OtherYear {
+		text = shoptime.DateText(ctx, day)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSoldOutSince), text)
 }
 
 // SoldText says what was sold over the window, in units and in orders.
