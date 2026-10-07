@@ -5,8 +5,8 @@ var (
 
 	// %s is the root categories as one list, as in home.description.
 	KeyAboutDescription = key("about.description", Message{
-		ZhHant: "goen 的商品分類：%s。",
-		En:     "Categories at goen: %s.",
+		ZhHant: "goen 的館別：%s。",
+		En:     "Departments at goen: %s.",
 	})
 
 	KeyAboutName = key("about.name", Message{
