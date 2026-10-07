@@ -88,7 +88,7 @@ async function firstLink(listPath, prefix, exclude = []) {
     const ex = ${JSON.stringify(exclude)};
     const a = [...document.querySelectorAll('main a[href^="${prefix}"]')]
       .map((e) => e.getAttribute('href'))
-      .find((h) => h !== '${prefix}' && !ex.some((x) => h.startsWith(x)));
+      .find((h) => h !== '${prefix}' && !h.startsWith('${prefix}?') && !ex.some((x) => h.startsWith(x)));
     return a || null;
   })()`);
 }
@@ -115,7 +115,7 @@ await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain:
 await viewport(1440);
 const order = await firstLink('/admin/orders', '/admin/orders/', ['/admin/orders/picking']);
 const product = await firstLink('/admin/products', '/admin/products/', ['/admin/products/new']);
-const customer = await firstLink('/admin/customers', '/admin/customers/');
+const customer = await firstLink('/admin/customers?q=%40', '/admin/customers/');
 console.log('detail links', JSON.stringify({ order, product, customer }));
 
 const pages = [
@@ -128,7 +128,7 @@ const pages = [
   ['stock', '/admin/stock'],
   ['campaigns', '/admin/campaigns'],
   ['campaign', '/admin/campaigns/tea-coffee-week'],
-  ['customers', '/admin/customers'],
+  ['customers', '/admin/customers?q=%40'],
   ['customer', customer],
   ['coupons', '/admin/coupons'],
   ['returns', '/admin/returns'],
