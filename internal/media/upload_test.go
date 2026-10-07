@@ -15,6 +15,7 @@ import (
 	"testing/synctest"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // TestUploadsBeyondTheSlotsAreRefused holds the bound on decodes at once. Each
@@ -117,26 +118,41 @@ func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
 	}
 }
 
-func TestUploadNoticeNamesEachUploadRefusal(t *testing.T) {
+func TestUploadRefusalsKeepTheirNotice(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name string
-		err  error
-		want i18n.Key
+		name    string
+		err     error
+		want    i18n.Key
+		refusal bool
 	}{
-		{name: "too large", err: ErrTooLarge, want: i18n.KeyAdminNoticeTooBig},
-		{name: "not an image", err: ErrNotAnImage, want: i18n.KeyAdminNoticeNotImage},
-		{name: "lossless WebP", err: ErrLosslessWebP, want: i18n.KeyAdminNoticeLosslessWebP},
-		{name: "decoder busy", err: ErrBusy, want: i18n.KeyAdminNoticeUploadBusy},
+		{name: "too large", err: ErrTooLarge, want: i18n.KeyAdminNoticeTooBig, refusal: true},
+		{name: "not an image", err: ErrNotAnImage, want: i18n.KeyAdminNoticeNotImage, refusal: true},
+		{name: "lossless WebP", err: ErrLosslessWebP, want: i18n.KeyAdminNoticeLosslessWebP, refusal: true},
+		{name: "decoder busy", err: ErrBusy, want: i18n.KeyAdminNoticeUploadBusy, refusal: true},
+		{name: "bad form", err: web.ErrFormText, want: i18n.KeyAdminNoticeUploadFailed},
 		{name: "storage failure", err: errors.New("storage unavailable"), want: i18n.KeyAdminNoticeUploadFailed},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, err := range []error{tt.err, fmt.Errorf("upload: %w", tt.err)} {
+				if got := IsRefusal(err); got != tt.refusal {
+					t.Errorf("IsRefusal(%v) = %t, want %t", err, got, tt.refusal)
+				}
 				if got := UploadNotice(err); got != tt.want {
 					t.Errorf("UploadNotice(%v) = %q, want %q", err, got, tt.want)
 				}
 			}
 		})
+	}
+}
+
+func TestNilUploadErrorIsNotARefusal(t *testing.T) {
+	t.Parallel()
+	if IsRefusal(nil) {
+		t.Error("nil upload error is a refusal")
+	}
+	if got := UploadNotice(nil); got != i18n.KeyAdminNoticeUploadFailed {
+		t.Errorf("nil upload notice = %q, want existing fallback", got)
 	}
 }
