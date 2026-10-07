@@ -99,11 +99,12 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		{ink: "--accent-deep", ground: "--accent-faint"},
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
-		{ink: "--n-900", ground: "--on-ink-accent"},
-		{ink: "--ink-2", ground: "--n-100"},
-		{ink: "--warn", ground: "--warn-bg"},
-		{ink: "--success", ground: "--success-bg"},
 		{ink: "--error", ground: "--error-bg"},
+		{ink: "--n-900", ground: "--on-ink-accent"},
+		{ink: "--muted", ground: "--n-100"},
+		{ink: "--warn", ground: "--warn-tint"},
+		{ink: "--success", ground: "--success-tint"},
+		{ink: "--error", ground: "--error-tint"},
 	} {
 		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s or %s", pair.ink, pair.ground)

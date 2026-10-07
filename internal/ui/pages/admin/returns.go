@@ -12,19 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// StatusIntent is the colour group of a return's status: an open request needs the
-// staff, a finished one is done, and the others state a decision.
-func (r Return) StatusIntent() components.Intent {
-	switch r.Status {
-	case returns.StatusRequested:
-		return components.IntentWarn
-	case returns.StatusCompleted:
-		return components.IntentDone
-	default:
-		return components.IntentNeutral
-	}
-}
-
 type Return struct {
 	Lines       []ReturnLine
 	ID          string
@@ -84,6 +71,33 @@ func (r *Return) AwaitingGoods() bool {
 		}
 	}
 	return false
+}
+
+// StatusIntent is the colour group of a return's status. An open request, an
+// approval the staff can complete or whose money is owed, needs the staff; a
+// payout that must be repaired is an error; an approval still moving is in
+// progress; a refund before shipment is a cancellation, grey like a cancelled order.
+func (r *Return) StatusIntent() components.Intent {
+	switch r.Status {
+	case returns.StatusRequested:
+		return components.IntentWarn
+	case returns.StatusApproved:
+		switch {
+		case r.PayoutStranded():
+			return components.IntentDanger
+		case r.CanComplete(), r.CanRetryPayout():
+			return components.IntentWarn
+		default:
+			return components.IntentProgress
+		}
+	case returns.StatusCompleted:
+		if r.BeforeShipment {
+			return components.IntentNeutral
+		}
+		return components.IntentDone
+	default:
+		return components.IntentNeutral
+	}
 }
 
 func (r *Return) CanComplete() bool {

@@ -6,7 +6,7 @@ package components
 import "github.com/a-h/templ"
 
 // ButtonStyle is a button's weight: one surface shows one primary; the rest are outline or ghost, which
-// stops a page reading as a row of equals.
+// stops a page reading as a row of equals. Danger marks an action that moves money or removes access.
 type ButtonStyle string
 
 const (
@@ -14,6 +14,7 @@ const (
 	ButtonStyleSecondary ButtonStyle = "secondary"
 	ButtonStyleOutline   ButtonStyle = "outline"
 	ButtonStyleGhost     ButtonStyle = "ghost"
+	ButtonStyleDanger    ButtonStyle = "danger"
 )
 
 func (v ButtonStyle) class() string {
@@ -24,6 +25,8 @@ func (v ButtonStyle) class() string {
 		return "goen-btn--outline"
 	case ButtonStyleGhost:
 		return "goen-btn--ghost"
+	case ButtonStyleDanger:
+		return "goen-btn--danger"
 	default:
 		return "goen-btn--primary"
 	}

@@ -23,10 +23,10 @@ templ Messages(p layouts.Page, v MessagesView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminMessagesLead) }
 				</p>
+				if !v.Empty() {
+					<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }</p>
+				}
 			</div>
-			if !v.Empty() {
-				<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }</p>
-			}
 		</div>
 		@Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
