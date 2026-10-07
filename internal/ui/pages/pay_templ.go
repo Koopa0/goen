@@ -105,7 +105,7 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if lead, note, ok := v.Hold.Window(ctx); ok {
+			if lead, note, ok := v.HoldWindow(ctx); ok {
 				var templ_7745c5c3_Var7 = []any{"goen-pay__window", templ.KV("goen-pay__window--closed", !v.Payable())}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 				if templ_7745c5c3_Err != nil {

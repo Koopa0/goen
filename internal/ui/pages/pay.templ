@@ -22,7 +22,7 @@ templ Pay(p layouts.Page, v PayView) {
 						{ i18n.T(ctx, i18n.KeyPayBody) }
 					}
 				</p>
-				if lead, note, ok := v.Hold.Window(ctx); ok {
+				if lead, note, ok := v.HoldWindow(ctx); ok {
 					<div class={ "goen-pay__window", templ.KV("goen-pay__window--closed", !v.Payable()) }>
 						<p class="goen-pay__deadline">{ lead }</p>
 						<p class="goen-pay__hold">{ note }</p>

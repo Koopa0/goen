@@ -153,11 +153,14 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		if strings.Contains(html, "14:31") {
 			t.Errorf("%s: a resumed session still names a deadline to start paying", tt.locale)
 		}
+		if !strings.Contains(html, tt.placed) {
+			t.Errorf("%s: a resumed session no longer says when the order was placed", tt.locale)
+		}
 	}
 }
 
 // Blue means a payment can still start; once none can, the hold's words sit on
-// the neutral ground.
+// the neutral ground and name no deadline to start paying.
 func TestThePayWindowIsBlueOnlyWhileAPaymentCanStart(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +182,9 @@ func TestThePayWindowIsBlueOnlyWhileAPaymentCanStart(t *testing.T) {
 		}
 		if got := strings.Contains(html, "goen-pay__window--closed"); got != tt.closed {
 			t.Errorf("%s: the hold on the neutral ground = %v, want %v", tt.name, got, tt.closed)
+		}
+		if got := strings.Contains(html, "請在"); got != !tt.closed {
+			t.Errorf("%s: a deadline to start paying is named = %v, want %v", tt.name, got, !tt.closed)
 		}
 	}
 }

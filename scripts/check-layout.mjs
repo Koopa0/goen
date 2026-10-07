@@ -899,16 +899,22 @@ for (const want of EXPECTED) {
 // forced colours every track lies inside the viewport and draws its cells as one
 // row of equal parts, joined but for the 4px after a mark, so its length still
 // reads as the share of the span. Elapsed stays apart from to come: by colour,
-// and in forced colours, where the colours are the system's, by thickness. A
-// label a track draws lies inside it and the viewport and overlaps no other. A
-// route with no period drawn fails, because a track that is not drawn cannot be
-// measured and the check would pass on nothing.
+// and in forced colours, where the colours are the system's, by thickness. The
+// span after a mark (the return window's goodwill days) is drawn apart from the
+// days before it: dashes under a transparent border, or a dashed border in
+// forced colours. A dashed cell and today's half-filled one draw their line as
+// a gradient. A label a track draws lies inside it and the viewport and
+// overlaps no other. A route with no period drawn fails, because a track that
+// is not drawn cannot be measured and the check would pass on nothing.
 const PERIOD_PROBE = `(() => {
   const vw = document.documentElement.clientWidth;
   const forced = matchMedia('(forced-colors: active)').matches;
   const periods = [...document.querySelectorAll('.ui-period')].filter((e) => e.getClientRects().length > 0);
   const problems = [];
   const tracks = [];
+  let extras = 0;
+  const clear = (colour) => colour === 'transparent' || /^rgba\\(.*,\\s*0\\)$/.test(colour);
+  const drawn = (c) => c.width + 'px ' + c.style + ' ' + c.colour + (c.image === 'none' ? '' : ' over ' + c.image);
   periods.forEach((period, n) => {
     period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = period.getBoundingClientRect();
@@ -919,14 +925,16 @@ const PERIOD_PROBE = `(() => {
       const s = getComputedStyle(e);
       return {
         r: e.getBoundingClientRect(), filled: e.hasAttribute('data-cell'), mark: e.hasAttribute('data-mark'),
+        today: e.getAttribute('data-cell') === 'today', extra: e.getAttribute('data-span') === 'extra',
         width: parseFloat(s.borderBottomWidth) || 0, style: s.borderBottomStyle, colour: s.borderBottomColor,
+        image: s.backgroundImage,
       };
     });
     if (cells.length === 0) problems.push(at + ' has no cells');
     cells.forEach((c, i) => {
       if (c.r.height <= 0 || c.width < 2 || c.style === 'none' || c.style === 'hidden'
-        || c.colour === 'transparent' || /^rgba\\(.*,\\s*0\\)$/.test(c.colour)) {
-        problems.push(at + ' cell ' + i + ' draws no line (' + c.width + 'px ' + c.style + ' ' + c.colour + ')');
+        || (clear(c.colour) && !/gradient/.test(c.image))) {
+        problems.push(at + ' cell ' + i + ' draws no line (' + drawn(c) + ')');
       }
       if (c.r.left < box.left - 0.5 || c.r.right > box.right + 0.5) {
         problems.push(at + ' cell ' + i + ' [' + c.r.left.toFixed(1) + ',' + c.r.right.toFixed(1) + '] lies outside its track');
@@ -947,13 +955,23 @@ const PERIOD_PROBE = `(() => {
       problems.push(at + ' cells range from ' + Math.min(...widths).toFixed(1) + ' to ' + Math.max(...widths).toFixed(1) +
         'px wide, so the track no longer draws the span to scale');
     }
-    const filled = cells.filter((c) => c.filled);
-    const ahead = cells.filter((c) => !c.filled);
-    if (filled.length && ahead.length
-      && (forced ? filled[0].width <= ahead[0].width : filled[0].colour === ahead[0].colour)) {
-      problems.push(at + ' draws elapsed and to come alike (' + filled[0].width + 'px ' + filled[0].colour +
-        ' against ' + ahead[0].width + 'px ' + ahead[0].colour + ')');
+    for (const [part, span] of [['', cells.filter((c) => !c.extra)], [' after its mark', cells.filter((c) => c.extra)]]) {
+      const filled = span.filter((c) => c.filled && !c.today);
+      const ahead = span.filter((c) => !c.filled);
+      if (filled.length && ahead.length && (forced ? filled[0].width <= ahead[0].width
+        : filled[0].colour + filled[0].image === ahead[0].colour + ahead[0].image)) {
+        problems.push(at + part + ' draws elapsed and to come alike (' + drawn(filled[0]) + ' against ' + drawn(ahead[0]) + ')');
+      }
     }
+    cells.forEach((c, i) => {
+      if (!c.extra) return;
+      extras++;
+      const before = cells.find((d) => !d.extra && !d.today && d.filled === c.filled);
+      const dashed = forced ? c.style === 'dashed' : clear(c.colour) && /gradient/.test(c.image);
+      if (!dashed || (before && drawn(before) === drawn(c))) {
+        problems.push(at + ' cell ' + i + ' after the mark is drawn like the days before it (' + drawn(c) + ')');
+      }
+    });
     const labels = [...period.querySelectorAll('b, small')]
       .filter((e) => e.getClientRects().length > 0)
       .map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
@@ -971,10 +989,11 @@ const PERIOD_PROBE = `(() => {
       }
     }
   });
-  return { periods: periods.length, forced, tracks, problems };
+  return { periods: periods.length, forced, tracks, extras, problems };
 })()`;
 
-async function periodPass(route) {
+// extra says the route draws a span after a mark, so a pass with none fails.
+async function periodPass(route, extra = false) {
   for (const [name, fontSize, forced] of [['320', '', false], ['320 at 200% text', '200%', false], ['320 forced colours', '', true]]) {
     const at = 'period track ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
@@ -991,9 +1010,10 @@ async function periodPass(route) {
       }
       if (forced && !got.forced) fail(at, 'forced colours did not activate');
       if (got.periods === 0) fail(at, 'no .ui-period on the page: the period is not drawn');
+      if (extra && got.extras === 0) fail(at, 'no cell after a mark: the goodwill days are not drawn');
       for (const problem of got.problems) fail(at, problem);
-      console.log(at.padEnd(48) + ' periods=' + got.periods + ' ' + got.tracks.join(' ') +
-        (got.problems.length || got.periods === 0 ? '' : ' ok'));
+      console.log(at.padEnd(48) + ' periods=' + got.periods + ' extra=' + got.extras + ' ' + got.tracks.join(' ') +
+        (got.problems.length || got.periods === 0 || (extra && got.extras === 0) ? '' : ' ok'));
     } finally {
       if (forced) await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
     }
@@ -2514,7 +2534,7 @@ if (process.env.CUST_TOKEN) {
   }
 
   // A delivered order of the signed-in customer: the track of its right to cancel.
-  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
+  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''), true);
 
   for (const want of ACCOUNT_PAGES) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {

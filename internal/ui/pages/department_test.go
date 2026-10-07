@@ -158,15 +158,18 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 			if link == nil {
 				t.Fatal("departmentNotice draws no goen-deptnotice__name")
 			}
-			if text, want := nodeText(link), notice.Title+" "+tt.until; !strings.Contains(text, want) {
-				t.Errorf("the notice reads %q, want it to say %q", text, want)
+			eyebrow := i18n.T(ctx, i18n.KeyCampaignEyebrow)
+			if got, want := nodeText(link), eyebrow+" "+notice.Title+"\u00a0· "+tt.until+"\u00a0· "+tt.left+"\u00a0\u2192"; got != want {
+				t.Errorf("the notice reads %q, want %q", got, want)
 			}
 			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__left") })
-			if left == nil {
-				t.Fatal("the notice sets nothing apart as what is left")
+			if left == nil || nodeText(left) != tt.left+"\u00a0\u2192" {
+				t.Error("the notice does not set apart what is left, with the arrow kept to it")
 			}
-			if got, want := nodeText(left), tt.left+"\u00a0\u2192"; got != want {
-				t.Errorf("what is left reads %q, want %q", got, want)
+			for n := range link.Descendants() {
+				if n.Type == html.TextNode && strings.TrimSpace(n.Data) == "·" && attrValue(n.Parent, "aria-hidden") != "true" {
+					t.Error("a dot between the notice's parts is read aloud")
+				}
 			}
 			if drawn := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "ui-period") || hasClass(n, "ui-statline") }); drawn != nil {
 				t.Errorf("the notice draws %s; it says its end in words", attrValue(drawn, "class"))
