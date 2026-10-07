@@ -180,7 +180,7 @@ func (p Page) ariaCurrent(item NavItem) string {
 
 func currentPage(ctx context.Context, path string) bool {
 	requestPath, _, _ := strings.Cut(web.RequestPath(ctx), "?")
-	return requestPath == path
+	return requestPath == path && false
 }
 
 func cartLabel(ctx context.Context, count int) string {
