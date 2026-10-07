@@ -551,8 +551,8 @@ body {
 }
 
 /* A dashed border would break each cell into its own uneven dashes, so the
-   dashes and the half-filled day are a gradient under a transparent border.
-   Forced colours drop a gradient, so there the border draws them instead. */
+   dashes and the half-filled day are gradients under a transparent border, and
+   today among the dashes is the half-filled day cut by a mask. */
 @media (forced-colors: none) {
   .ui-period > i[data-span="extra"] {
     background: linear-gradient(90deg, var(--period-track) 60%, transparent 0) 0 0 / 8px 100% round border-box;
@@ -563,13 +563,21 @@ body {
     background-image: linear-gradient(90deg, var(--period-fill) 60%, transparent 0);
   }
 
+  .ui-period > i[data-span="extra"][data-cell="today"] {
+    background: linear-gradient(90deg, var(--period-fill) 50%, var(--period-track) 0) border-box;
+    mask: linear-gradient(90deg, #000 60%, transparent 0) 0 0 / 8px 100% round border-box;
+  }
+
   .ui-period > i[data-cell="today"]:not([data-span]) {
     background: linear-gradient(90deg, var(--period-fill) 50%, var(--period-track) 0) border-box;
     border-bottom-color: transparent;
   }
 }
 
-/* Thickness carries elapsed from to come where the colours are the system's. */
+/* Thickness carries elapsed from to come where the colours are the system's.
+   A dashed border paints solid on a short cell and runs together on a long
+   one, so the dashes and today's half are system-colour gradients here too,
+   which forced-color-adjust: none keeps from being dropped. */
 @media (forced-colors: active) {
   .ui-period > i {
     border-bottom: 2px solid GrayText;
@@ -579,7 +587,28 @@ body {
     border-bottom: 4px solid CanvasText;
   }
 
+  .ui-period > i[data-span="extra"],
+  .ui-period > i[data-cell="today"] {
+    border-bottom-color: transparent;
+    forced-color-adjust: none;
+  }
+
   .ui-period > i[data-span="extra"] {
-    border-bottom-style: dashed;
+    background: linear-gradient(90deg, GrayText 60%, transparent 0) 0 0 / 8px 100% round border-box;
+  }
+
+  .ui-period > i[data-span="extra"][data-cell] {
+    background-image: linear-gradient(90deg, CanvasText 60%, transparent 0);
+  }
+
+  .ui-period > i[data-span="extra"][data-cell="today"],
+  .ui-period > i[data-cell="today"]:not([data-span]) {
+    background:
+      linear-gradient(CanvasText, CanvasText) 0 0 / 50% 100% no-repeat border-box,
+      linear-gradient(GrayText, GrayText) 100% 50% / 50% 2px no-repeat border-box;
+  }
+
+  .ui-period > i[data-span="extra"][data-cell="today"] {
+    mask: linear-gradient(90deg, #000 60%, transparent 0) 0 0 / 8px 100% round border-box;
   }
 }
