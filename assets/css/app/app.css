@@ -799,7 +799,7 @@ h3 {
   column-gap: clamp(1.25rem, 2vw, 1.75rem);
   display: flex;
   flex-wrap: wrap;
-  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
+  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
 }
 
 .goen-header__nav .ui-navitem {
@@ -2210,6 +2210,7 @@ h3 {
 .goen-band__media img {
   aspect-ratio: 4 / 3;
   display: block;
+  height: auto;
   object-fit: cover;
   width: 100%;
 }
@@ -2353,7 +2354,7 @@ h3 {
   .goen-hero__body {
     align-items: center;
     display: flex;
-    padding: var(--s-7) 2rem var(--s-7) max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
+    padding: var(--s-7) 2rem var(--s-7) max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
   }
 
   .goen-hero__slide--text .goen-hero__body {
@@ -2510,7 +2511,7 @@ h3 {
 }
 
 .goen-band:not(:has(.goen-band__media)) {
-  --lift: 0;
+  --lift: 0px;
 }
 
 /* The head is a listing's first screen, not a section: its photograph keeps a
@@ -2659,7 +2660,6 @@ h3 {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
   gap: 8px;
-  margin-top: auto;
   padding-top: 4px;
 }
 
@@ -2879,6 +2879,10 @@ input.goen-check {
     aspect-ratio: auto;
     flex: 1;
     min-height: 16rem;
+  }
+
+  .goen-tile__cell--lead .goen-tile__body {
+    flex: none;
   }
 }
 
@@ -3144,6 +3148,10 @@ input.goen-check {
   margin-bottom: 16px;
 }
 
+.goen-search-sort .ui-select {
+  width: auto;
+}
+
 .goen-search-sort .goen-listing__count {
   align-items: center;
   display: flex;
@@ -3152,6 +3160,11 @@ input.goen-check {
 
 .goen-search-sort .goen-filters__field {
   min-width: min(100%, 16rem);
+}
+
+.goen-search-sort .goen-filters__field > label {
+  flex: none;
+  white-space: nowrap;
 }
 
 .goen-search-sort .goen-filters__apply {
@@ -3943,27 +3956,6 @@ input.goen-check {
     padding: 32px var(--page-gutter) 56px;
   }
 
-  .goen-pagehead__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-30);
-  font-weight: var(--fw-semibold);
-  margin: 0;
-}
-
-.goen-cart .goen-pagehead__title,
-.goen-checkout .goen-pagehead__title,
-.goen-order .goen-pagehead__title,
-.goen-pay .goen-pagehead__title {
-  font-size: 1.875rem;
-  line-height: 1.3;
-}
-
-.goen-order .goen-pagehead__eyebrow,
-.goen-pay .goen-pagehead__eyebrow {
-  color: var(--accent-text);
-  font-size: var(--fs-14);
-}
-
   .goen-pagehead .goen-band__media {
     display: block;
   }
@@ -4487,6 +4479,7 @@ input.goen-check {
   background: transparent;
   border: 0;
   border-radius: 50%;
+  min-width: 2.75rem;
   padding: 0;
   width: 2.75rem;
 }
@@ -4890,7 +4883,7 @@ input.goen-check {
 }
 
 .goen-band--text .goen-band__body {
-  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
+  padding-inline: max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
 }
 
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
@@ -5324,6 +5317,12 @@ input.goen-check {
   margin: 0;
 }
 
+.goen-order .goen-pagehead__eyebrow,
+.goen-pay .goen-pagehead__eyebrow {
+  color: var(--accent-text);
+  font-size: var(--fs-14);
+}
+
 .goen-pagehead__sub,
 .goen-order__meta {
   color: var(--fg-muted);
@@ -5427,7 +5426,7 @@ input.goen-check {
 
 @media (max-width: 63.99rem) {
   .goen-pagehead .goen-band {
-    --lift: 0;
+    --lift: 0px;
   }
 
   .goen-pagehead .goen-band__body {
@@ -5606,6 +5605,7 @@ input.goen-check {
   color: var(--n-900);
   font-size: 0.9375rem;
   font-weight: var(--fw-medium);
+  margin: 0;
   text-decoration: none;
 }
 
@@ -5648,6 +5648,10 @@ input.goen-check {
   color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+}
+
+.goen-order__steplabel {
+  margin: 0;
 }
 
 .goen-line__total {
@@ -6068,6 +6072,10 @@ input.goen-check {
   min-width: 0;
 }
 
+.goen-checkout__couponrow .goen-btn {
+  flex: none;
+}
+
 /* The small print under a control: what pressing it will do, and who takes the
    card. Quiet, and deliberately present — a customer about to leave the site for
    a card form is being asked to trust the handover. */
@@ -6166,7 +6174,7 @@ input.goen-check {
   margin: 0;
 }
 
-.goen-order .goen-pagehead .ui-statline {
+.goen-pagehead > .ui-statline {
   margin-top: var(--s-6);
 }
 
