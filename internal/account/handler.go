@@ -241,7 +241,7 @@ func (h *Handler) writeSignInContext(w http.ResponseWriter, purpose signInPurpos
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: development-only secure opt-out follows the session cookie.
 		Name: h.signInContextCookie(), Value: string(purpose) + ":" + base64.RawURLEncoding.EncodeToString([]byte(address)),
-		Path: "/", MaxAge: 0, HttpOnly: true, Secure: h.secure, SameSite: http.SameSiteLaxMode,
+		Path: "/", MaxAge: 120, HttpOnly: true, Secure: h.secure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
@@ -623,7 +623,20 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 }
 
 func registrationLanding(next string, outcome cartAdoption) string {
-	return cartAdoptionLanding(web.SitePathOr(next, "/account"), outcome)
+	next = web.SitePathOr(next, "/account")
+	query := url.Values{"welcome": {"1"}}
+	if outcome == cartAdoptionAdjusted {
+		next = appendCartAdjustNotice(next)
+		query.Set("adjusted", "1")
+	}
+	if next != "/account" {
+		query.Set("next", next)
+	}
+	welcome := "/account?" + query.Encode()
+	if outcome == cartAdoptionFailed {
+		return cartRecoveryLanding(welcome) + "&welcome=1"
+	}
+	return welcome
 }
 
 func cartAdoptionLanding(next string, outcome cartAdoption) string {
