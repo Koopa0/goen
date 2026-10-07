@@ -1250,3 +1250,26 @@ func TestTheDepartmentBandHoldsFourProductsOfAFullDepartment(t *testing.T) {
 		t.Errorf("the band's department holds %d products, want at least 4", view.Band.Items)
 	}
 }
+
+// The shelf never repeats a product of the row above it, whichever department
+// the day selects.
+func TestTheDepartmentBandNeverRepeatsTheRowsProducts(t *testing.T) {
+	store := home.NewStore(pool)
+	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	for day := range 14 {
+		view, err := store.AtTime(start.AddDate(0, 0, day)).Load(t.Context())
+		if err != nil {
+			t.Fatalf("load on day %d: %v", day, err)
+		}
+		if view.Band == nil {
+			continue
+		}
+		for _, b := range view.Band.Tiles {
+			for _, r := range view.Row.Tiles {
+				if b.Slug == r.Slug {
+					t.Errorf("day %d: %q is on the row and on the %s shelf", day, b.Slug, view.Band.Name)
+				}
+			}
+		}
+	}
+}

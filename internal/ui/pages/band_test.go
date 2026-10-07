@@ -67,7 +67,11 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 			t.Errorf("home band lacks %q", want)
 		}
 	}
-	band := page[strings.Index(page, `class="goen-band goen-band--shelf"`):]
+	start := strings.Index(page, `class="goen-band goen-band--shelf"`)
+	if start < 0 {
+		t.Fatal("home band is not drawn as a shelf")
+	}
+	band := page[start:]
 	for _, not := range []string{"goen-band__media", "goen-band__photo", "<img class=\"goen-band"} {
 		if strings.Contains(band, not) {
 			t.Errorf("home band draws %s, which belongs to the department page's head", not)

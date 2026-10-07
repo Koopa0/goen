@@ -5,6 +5,7 @@ package home
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -107,7 +108,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	if err != nil {
 		return pages.HomeView{}, err
 	}
-	band, err := s.departmentBand(ctx, src)
+	band, err := s.departmentBand(ctx, src, row.Tiles)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
@@ -173,8 +174,10 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 }
 
 // departmentBand rotates by shop day through the departments with enough
-// products to fill the shelf; nil when none qualifies.
-func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages.DepartmentBand, error) {
+// products to fill the shelf, skipping any whose shelf would be left short
+// once the products already in the row above are taken out; nil when none
+// qualifies.
+func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []pages.ProductTile) (*pages.DepartmentBand, error) {
 	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
@@ -186,19 +189,29 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages
 		return nil, nil
 	}
 
-	c := eligible[dayIndex(s.now(), len(eligible))]
-	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{UUID: c.ID, Valid: true}, bandTiles)
-	if err != nil {
-		return nil, err
+	start := dayIndex(s.now(), len(eligible))
+	for k := range eligible {
+		c := eligible[(start+k)%len(eligible)]
+		tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{UUID: c.ID, Valid: true}, bandTiles+rowTiles)
+		if err != nil {
+			return nil, err
+		}
+		tiles = slices.DeleteFunc(tiles, func(t pages.ProductTile) bool {
+			return slices.ContainsFunc(row, func(r pages.ProductTile) bool { return r.Slug == t.Slug })
+		})
+		if len(tiles) < bandTiles {
+			continue
+		}
+		return &pages.DepartmentBand{
+			Name:  c.Name,
+			Items: held[c.ID],
+			Fact:  strings.Join(subs[c.ID], " · "),
+			Href:  "/c/" + c.Slug,
+			Tone:  pages.ResolveTone(c.Tone),
+			Tiles: tiles[:bandTiles],
+		}, nil
 	}
-	return &pages.DepartmentBand{
-		Name:  c.Name,
-		Items: held[c.ID],
-		Fact:  strings.Join(subs[c.ID], " · "),
-		Href:  "/c/" + c.Slug,
-		Tone:  pages.ResolveTone(c.Tone),
-		Tiles: tiles,
-	}, nil
+	return nil, nil
 }
 
 // dayIndex counts days since the epoch, so every visitor on one shop day sees
