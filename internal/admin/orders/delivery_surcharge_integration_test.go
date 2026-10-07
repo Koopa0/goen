@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,11 +15,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type deliveryPriceOrder struct {
@@ -228,11 +237,23 @@ func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal string) *httptest.ResponseRecorder {
 	t.Helper()
 	values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {postal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
+	return postDeliveryValues(ctx, t, number, values)
+}
+
+func postDeliveryValues(ctx context.Context, t *testing.T, number string, values url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+	return postDeliveryWithStore(ctx, t, s, number, values)
+}
+
+func postDeliveryWithStore(ctx context.Context, t *testing.T, s *orders.Store, number string, values url.Values) *httptest.ResponseRecorder {
+	t.Helper()
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/delivery", strings.NewReader(values.Encode()))
-	r.SetPathValue("number", number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
+	mux := http.NewServeMux()
+	admintest.OrderDesk(s).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	mux.ServeHTTP(w, r)
 	return w
 }
 
@@ -362,4 +383,222 @@ func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
 	if got := streetOf(t, f.number); got != "Saved street" {
 		t.Fatal("malformed postcode changed saved address")
 	}
+}
+
+func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tc := range []struct {
+			name    string
+			pickup  bool
+			errorID string
+			key     i18n.Key
+		}{
+			{name: "short phone", errorID: "d-phone", key: i18n.KeyPhoneMalformed},
+			{name: "blank recipient", errorID: "d-recipient", key: i18n.KeyNameRequired},
+			{name: "pickup code without name", pickup: true, errorID: "d-store-name", key: i18n.KeyAddressIncomplete},
+			{name: "pickup name without code", pickup: true, errorID: "d-store-code", key: i18n.KeyStoreCodeMalformed},
+		} {
+			t.Run(string(locale)+"/"+tc.name, func(t *testing.T) {
+				f := pricedDeliveryOrder(t, 0, 0, 0)
+				ctx, _ := admintest.StaffContext(t, pool)
+				ctx = i18n.WithLocale(ctx, locale)
+				values := url.Values{
+					"email": {" proposed@example.com "}, "recipient": {" Proposed recipient "}, "phone": {"0922333444"},
+					"postal_code": {f.oldPostal}, "city": {"New city"}, "district": {"New district"}, "street": {" Proposed <street> "},
+				}
+				switch tc.errorID {
+				case "d-phone":
+					values.Set("phone", " 123 ")
+				case "d-recipient":
+					values.Set("recipient", " ")
+				}
+				controls := map[string]string{"d-email": values.Get("email"), "d-recipient": values.Get("recipient")}
+				if tc.pickup {
+					setPickupDeliveryDraft(t, ctx, f, tc.errorID == "d-store-name", values)
+					controls["d-store-code"], controls["d-store-name"] = values.Get("pickup_store_code"), values.Get("pickup_store_name")
+				} else {
+					for id, field := range map[string]string{"d-postal": "postal_code", "d-city": "city", "d-district": "district", "d-street": "street"} {
+						controls[id] = values.Get(field)
+					}
+				}
+				controls["d-phone"] = values.Get("phone")
+				store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+				saved, err := store.Order(ctx, f.number)
+				if err != nil {
+					t.Fatal(err)
+				}
+				before := deliveryPrivateSnapshot(t, f.id)
+				w := postDeliveryWithStore(ctx, t, store, f.number, values)
+				if w.Code != http.StatusUnprocessableEntity || w.Header().Get("Location") != "" {
+					t.Fatalf("refused correction status=%d location=%q, want 422 without redirect", w.Code, w.Header().Get("Location"))
+				}
+				body := w.Body.String()
+				for id, value := range controls {
+					tag := deliveryControlTag(t, body, id)
+					if !strings.Contains(tag, `value="`+html.EscapeString(value)+`"`) {
+						t.Errorf("%s lost draft %q: %s", id, value, tag)
+					}
+					if id == tc.errorID {
+						if !strings.Contains(tag, `aria-invalid="true"`) || !strings.Contains(tag, `aria-describedby="`+id+`-error"`) {
+							t.Errorf("refused %s has no own error association: %s", id, tag)
+						}
+					} else if strings.Contains(tag, "aria-invalid") || strings.Contains(tag, "aria-describedby") {
+						t.Errorf("valid %s is marked refused: %s", id, tag)
+					}
+				}
+				if !strings.Contains(body, `<p id="`+tc.errorID+`-error" class="ui-error-text" role="alert">`+html.EscapeString(i18n.T(ctx, tc.key))+`</p>`) {
+					t.Error("refused control lost its localized reason")
+				}
+				if tc.pickup && !strings.Contains(body, `<option value="seven_eleven" selected`) {
+					t.Error("refusal lost submitted pickup chain")
+				}
+				for _, value := range []string{saved.Recipient, saved.Phone, saved.Email, saved.Address} {
+					if !strings.Contains(body, `<dd class="ui-dl__desc">`+html.EscapeString(value)+`</dd>`) {
+						t.Errorf("refused correction changed saved summary %q", value)
+					}
+				}
+				if after := deliveryPrivateSnapshot(t, f.id); after != before {
+					t.Fatalf("refused correction changed saved private data: before=%s after=%s", before, after)
+				}
+				values.Set("phone", "0922333444")
+				values.Set("recipient", " Proposed recipient ")
+				if tc.pickup {
+					values.Set("pickup_store_code", "a123")
+					values.Set("pickup_store_name", " Proposed store ")
+				}
+				w = postDeliveryWithStore(ctx, t, store, f.number, values)
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" {
+					t.Fatalf("corrected delivery status=%d location=%q", w.Code, w.Header().Get("Location"))
+				}
+				updated, err := store.Order(ctx, f.number)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := admin.Delivery{Recipient: "Proposed recipient", Email: "proposed@example.com", Phone: "0922333444"}
+				if tc.pickup {
+					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = pickup.SevenEleven, "A123", "Proposed store"
+				} else {
+					want.PostalCode, want.City, want.District, want.Street = f.oldPostal, "New city", "New district", "Proposed <street>"
+				}
+				if diff := cmp.Diff(want, updated.Delivery); diff != "" {
+					t.Fatalf("successful normalized delivery mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+func setPickupDeliveryDraft(t *testing.T, ctx context.Context, f deliveryPriceOrder, codeWithoutName bool, values url.Values) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET destination_kind='pickup_point' WHERE id=$1`, f.method); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart',pickup_store_code='SAVED1',pickup_store_name='Saved store' WHERE order_id=$1`, f.id); err != nil {
+		t.Fatal(err)
+	}
+	values.Set("pickup_chain", string(pickup.SevenEleven))
+	if codeWithoutName {
+		values.Set("pickup_store_code", " a123 ")
+	} else {
+		values.Set("pickup_store_name", " Proposed store ")
+	}
+}
+
+func deliveryPrivateSnapshot(t *testing.T, id uuid.UUID) string {
+	t.Helper()
+	var snapshot string
+	if err := pool.QueryRow(t.Context(), `SELECT to_jsonb(pd)::text FROM order_private_data pd WHERE order_id=$1`, id).Scan(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
+func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		t.Run(string(locale), func(t *testing.T) {
+			f := pricedDeliveryOrder(t, 0, 0, 0)
+			ctx, _ := admintest.StaffContext(t, pool)
+			ctx = i18n.WithLocale(ctx, locale)
+			adminPool := admintest.AdminRolePool(t, pool)
+			cfg := adminPool.Config().Copy()
+			cfg.ConnConfig.RuntimeParams["lock_timeout"] = "100ms"
+			lockedPool, err := pgxpool.NewWithConfig(ctx, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(lockedPool.Close)
+			var role, timeout string
+			if err = lockedPool.QueryRow(ctx, `SELECT current_user, current_setting('lock_timeout')`).Scan(&role, &timeout); err != nil || role != "admin" || timeout != "100ms" {
+				t.Fatalf("lock-fault pool role=%q timeout=%q, want admin/100ms: %v", role, timeout, err)
+			}
+			store := admintest.OrderStore(lockedPool, admintest.Refunder{}, nil, nil)
+			before := deliveryPrivateSnapshot(t, f.id)
+			countAudits := func() int {
+				t.Helper()
+				var count int
+				if queryErr := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE after->>'order_number'=$1 AND action=$2`, f.number, string(audit.ActionCorrectDelivery)).Scan(&count); queryErr != nil {
+					t.Fatal(queryErr)
+				}
+				return count
+			}
+			auditsBefore := countAudits()
+			lock, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer pgtx.Rollback(ctx, lock)
+			if _, err = lock.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, f.id); err != nil {
+				t.Fatal(err)
+			}
+			values := url.Values{
+				"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"},
+				"postal_code": {f.oldPostal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"},
+			}
+			err = store.CorrectDelivery(ctx, f.number, &orders.DeliveryCorrection{
+				Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444",
+				PostalCode: f.oldPostal, City: "New city", District: "New district", Street: "Proposed street",
+			})
+			fault, ok := errors.AsType[*pgconn.PgError](err)
+			if !ok || fault.Code != "55P03" || ctx.Err() != nil {
+				t.Fatalf("locked delivery error=%v context=%v, want PostgreSQL 55P03 with live request context", err, ctx.Err())
+			}
+			w := postDeliveryWithStore(ctx, t, store, f.number, values)
+			if ctx.Err() != nil {
+				t.Fatalf("lock-fault POST canceled request context: %v", ctx.Err())
+			}
+			if w.Code != http.StatusInternalServerError || w.Header().Get("Location") != "" {
+				t.Fatalf("store failure status=%d location=%q, want 500 without redirect", w.Code, w.Header().Get("Location"))
+			}
+			if strings.Contains(w.Body.String(), `aria-invalid="true"`) || strings.Contains(w.Body.String(), `id="d-phone-error"`) {
+				t.Fatal("store failure was presented as a field refusal")
+			}
+			if after := deliveryPrivateSnapshot(t, f.id); after != before || countAudits() != auditsBefore {
+				t.Fatalf("store failure changed private data or correction audit: before=%s after=%s", before, after)
+			}
+			if err := lock.Rollback(ctx); err != nil {
+				t.Fatal(err)
+			}
+			w = postDeliveryWithStore(ctx, t, store, f.number, values)
+			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" {
+				t.Fatalf("recovery status=%d location=%q, want successful correction", w.Code, w.Header().Get("Location"))
+			}
+			if deliveryPrivateSnapshot(t, f.id) == before || countAudits() != auditsBefore+1 {
+				t.Fatal("recovery did not persist exactly one audited correction")
+			}
+		})
+	}
+}
+
+func deliveryControlTag(t *testing.T, body, id string) string {
+	t.Helper()
+	at := strings.Index(body, `id="`+id+`"`)
+	if at < 0 {
+		t.Fatalf("no delivery control %q", id)
+	}
+	start := strings.LastIndex(body[:at], "<")
+	end := strings.Index(body[at:], ">")
+	if start < 0 || end < 0 {
+		t.Fatalf("delivery control %q has no complete opening tag", id)
+	}
+	return body[start : at+end+1]
 }

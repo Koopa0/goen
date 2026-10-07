@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var ErrTooLateToCorrect = errors.New("orders: this order has already shipped")
@@ -42,6 +42,14 @@ type DeliveryPostalError struct{ Key i18n.Key }
 func (e *DeliveryPostalError) Error() string {
 	return "admin: delivery postcode refused: " + string(e.Key)
 }
+
+type DeliveryValidationError struct{ Fields []web.FieldRefusal }
+
+func (e *DeliveryValidationError) Error() string {
+	return fmt.Sprintf("admin: delivery refused on %d fields", len(e.Fields))
+}
+
+func (e *DeliveryValidationError) Unwrap() error { return ErrInvalid }
 
 // CorrectDelivery changes private delivery data only when the order's surcharge
 // zone stands. The order lock serializes this decision with shipment and
@@ -105,12 +113,7 @@ func validatedDelivery(d *DeliveryCorrection, to destination.Kind) (*order.Deliv
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		for _, refusal := range errs {
-			if refusal.Field == "postal_code" {
-				return nil, &DeliveryPostalError{Key: refusal.MessageKey}
-			}
-		}
-		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
+		return nil, &DeliveryValidationError{Fields: errs}
 	}
 	addr.DropOtherDestination()
 	return addr, nil
@@ -144,12 +147,11 @@ func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, ad
 }
 
 func deliveryFormOf(values func(string) string) *DeliveryCorrection {
-	get := func(k string) string { return strings.TrimSpace(values(k)) }
 	return &DeliveryCorrection{
-		Email: get("email"), Recipient: get("recipient"), Phone: get("phone"),
-		PostalCode: get("postal_code"), City: get("city"),
-		District: get("district"), Street: get("street"),
-		PickupChain: pickup.Chain(get("pickup_chain")), PickupStoreCode: get("pickup_store_code"),
-		PickupStoreName: get("pickup_store_name"),
+		Email: values("email"), Recipient: values("recipient"), Phone: values("phone"),
+		PostalCode: values("postal_code"), City: values("city"),
+		District: values("district"), Street: values("street"),
+		PickupChain: pickup.Chain(values("pickup_chain")), PickupStoreCode: values("pickup_store_code"),
+		PickupStoreName: values("pickup_store_name"),
 	}
 }
