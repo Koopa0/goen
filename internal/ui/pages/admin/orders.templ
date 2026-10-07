@@ -259,26 +259,89 @@ templ Order(p layouts.Page, v *OrderView) {
 							<div class="goen-admin__row">
 								<div class="ui-field">
 									<label class="ui-label" for="d-recipient">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
-									<input class="ui-input" id="d-recipient" name="recipient" value={ v.Delivery.Recipient } required maxlength="60"/>
+									<input
+										class="ui-input"
+										id="d-recipient"
+										name="recipient"
+										value={ v.Delivery.Recipient }
+										required
+										maxlength="60"
+										if v.DeliveryErrors["recipient"] != "" {
+											aria-invalid="true"
+											aria-describedby="d-recipient-error"
+										}
+									/>
+									if v.DeliveryErrors["recipient"] != "" {
+										<p id="d-recipient-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["recipient"] }</p>
+									}
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="d-phone">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</label>
-									<input class="ui-input" id="d-phone" name="phone" type="tel" value={ v.Delivery.Phone } required maxlength="30"/>
+									<input
+										class="ui-input"
+										id="d-phone"
+										name="phone"
+										type="tel"
+										value={ v.Delivery.Phone }
+										required
+										maxlength="30"
+										if v.DeliveryErrors["phone"] != "" {
+											aria-invalid="true"
+											aria-describedby="d-phone-error"
+										}
+									/>
+									if v.DeliveryErrors["phone"] != "" {
+										<p id="d-phone-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["phone"] }</p>
+									}
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="d-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
-									<input class="ui-input" id="d-email" name="email" type="email" value={ v.Delivery.Email } required maxlength="254"/>
+									<input
+										class="ui-input"
+										id="d-email"
+										name="email"
+										type="email"
+										value={ v.Delivery.Email }
+										required
+										maxlength="254"
+										if v.DeliveryErrors["email"] != "" {
+											aria-invalid="true"
+											aria-describedby="d-email-error"
+										}
+									/>
+									if v.DeliveryErrors["email"] != "" {
+										<p id="d-email-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["email"] }</p>
+									}
 								</div>
 							</div>
 							if v.PickupDestination {
 								<div class="goen-admin__row">
 									<div class="ui-field">
 										<label class="ui-label" for="d-chain">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</label>
-										<select class="ui-select" id="d-chain" name="pickup_chain" required>
+										<select
+											class="ui-select"
+											id="d-chain"
+											name="pickup_chain"
+											required
+											if v.DeliveryErrors["pickup_chain"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-chain-error"
+											}
+										>
+											if !v.Delivery.PickupChain.Known() {
+												if v.Delivery.PickupChain == "" {
+													<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyPickupChainRequired) }</option>
+												} else {
+													<option value={ string(v.Delivery.PickupChain) } selected>{ string(v.Delivery.PickupChain) }</option>
+												}
+											}
 											for _, b := range v.PickupChains {
 												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupChain }>{ b.Label }</option>
 											}
 										</select>
+										if v.DeliveryErrors["pickup_chain"] != "" {
+											<p id="d-chain-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["pickup_chain"] }</p>
+										}
 									</div>
 									// The chain is the destination. The store behind it is
 									// filled in by the carrier's picker and is absent on an
@@ -287,11 +350,37 @@ templ Order(p layouts.Page, v *OrderView) {
 									// without the other and accepts both empty.
 									<div class="ui-field">
 										<label class="ui-label" for="d-store-code">{ i18n.T(ctx, i18n.KeyFieldStoreCode) }</label>
-										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } maxlength="10"/>
+										<input
+											class="ui-input"
+											id="d-store-code"
+											name="pickup_store_code"
+											value={ v.Delivery.PickupStoreCode }
+											maxlength="10"
+											if v.DeliveryErrors["pickup_store_code"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-store-code-error"
+											}
+										/>
+										if v.DeliveryErrors["pickup_store_code"] != "" {
+											<p id="d-store-code-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["pickup_store_code"] }</p>
+										}
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-store-name">{ i18n.T(ctx, i18n.KeyFieldStoreName) }</label>
-										<input class="ui-input" id="d-store-name" name="pickup_store_name" value={ v.Delivery.PickupStoreName } maxlength="40"/>
+										<input
+											class="ui-input"
+											id="d-store-name"
+											name="pickup_store_name"
+											value={ v.Delivery.PickupStoreName }
+											maxlength="40"
+											if v.DeliveryErrors["pickup_store_name"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-store-name-error"
+											}
+										/>
+										if v.DeliveryErrors["pickup_store_name"] != "" {
+											<p id="d-store-name-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["pickup_store_name"] }</p>
+										}
 									</div>
 								</div>
 							} else {
@@ -305,28 +394,70 @@ templ Order(p layouts.Page, v *OrderView) {
 											value={ v.Delivery.PostalCode }
 											required
 											maxlength="6"
-											if v.DeliveryError != "" {
+											if v.DeliveryErrors["postal_code"] != "" {
 												aria-invalid="true"
 												aria-describedby="d-postal-error"
 											}
 										/>
+										if v.DeliveryErrors["postal_code"] != "" {
+											<p id="d-postal-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["postal_code"] }</p>
+										}
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
-										<input class="ui-input" id="d-city" name="city" value={ v.Delivery.City } required maxlength="20"/>
+										<input
+											class="ui-input"
+											id="d-city"
+											name="city"
+											value={ v.Delivery.City }
+											required
+											maxlength="20"
+											if v.DeliveryErrors["city"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-city-error"
+											}
+										/>
+										if v.DeliveryErrors["city"] != "" {
+											<p id="d-city-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["city"] }</p>
+										}
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
-										<input class="ui-input" id="d-district" name="district" value={ v.Delivery.District } required maxlength="20"/>
+										<input
+											class="ui-input"
+											id="d-district"
+											name="district"
+											value={ v.Delivery.District }
+											required
+											maxlength="20"
+											if v.DeliveryErrors["district"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-district-error"
+											}
+										/>
+										if v.DeliveryErrors["district"] != "" {
+											<p id="d-district-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["district"] }</p>
+										}
 									</div>
 									<div class="ui-field goen-admin__wide">
 										<label class="ui-label" for="d-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
-										<input class="ui-input" id="d-street" name="street" value={ v.Delivery.Street } required maxlength="200"/>
+										<input
+											class="ui-input"
+											id="d-street"
+											name="street"
+											value={ v.Delivery.Street }
+											required
+											maxlength="200"
+											if v.DeliveryErrors["street"] != "" {
+												aria-invalid="true"
+												aria-describedby="d-street-error"
+											}
+										/>
+										if v.DeliveryErrors["street"] != "" {
+											<p id="d-street-error" class="ui-error-text" role="alert">{ v.DeliveryErrors["street"] }</p>
+										}
 									</div>
 								</div>
-							}
-							if v.DeliveryError != "" {
-								<p id="d-postal-error" class="ui-error-text" role="alert">{ v.DeliveryError }</p>
 							}
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }
@@ -542,7 +673,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
 								if v.RefundCreditPaid {
@@ -643,7 +774,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 									<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }
 								}
 								<p class="goen-admin__hint">

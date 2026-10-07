@@ -262,7 +262,7 @@ type OrderView struct {
 	Timeline                  []TimelineEntry
 	MailKept                  time.Duration
 	Shipments                 []Shipment
-	DeliveryError             string
+	DeliveryErrors            map[string]string
 	ShipCarrier, ShipTracking string
 	// ShipCarriers are the carriers the dispatch form lists, which is the ones
 	// that can carry this order's parcel. ShipCarrier holds the one the order

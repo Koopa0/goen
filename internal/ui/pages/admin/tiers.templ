@@ -52,7 +52,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 									<form method="post" action="/admin/tiers/delete">
 										<input type="hidden" name="tier" value={ t.ID }/>
 										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
+											ButtonStyle: components.ButtonStyleDanger,
 											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
