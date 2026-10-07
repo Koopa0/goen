@@ -102,7 +102,7 @@ jobs:
             echo '::endgroup::'
           done
 
-          file shots/*/*.png | head -5
+          ls shots/*/ | wc -l
           echo '::group::MEASURE'
           /usr/bin/grep -h -E '^(MEASURE|OVERFLOW)' measure-before.txt measure-after.txt || true
           echo '::endgroup::'

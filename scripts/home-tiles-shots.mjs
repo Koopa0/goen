@@ -175,12 +175,14 @@ async function capture(s) {
   }
   if (m.drawn) {
     const pad = 24;
-    const y = Math.max(0, Math.floor(m.section.y - pad));
     await grow(m.section.y + m.section.h + pad * 2);
+    m.section = (await evaluate(measure)).section;
+    const y = Math.max(0, Math.floor(m.section.y - pad));
     await save(id, { x: 0, y, width: s.width, height: Math.ceil(m.section.h + pad * 2) });
     if (s.focus) {
       await evaluate(`(() => { const e = document.querySelector('#cats-heading').closest('section').querySelectorAll('.goen-cat')[1]; e.focus({ focusVisible: true }); })()`);
       await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 });
+      await sleep(400);
       const ring = await evaluate(`(() => { const t = document.activeElement; const w = t.querySelector('.goen-cat__well') || t.querySelector('.goen-cat__photo') || t; const a = getComputedStyle(t), b = getComputedStyle(w); return JSON.stringify({ focusVisible: t.matches(':focus-visible'), tileOutline: a.outlineStyle, wellOutline: b.outlineStyle + ' ' + b.outlineWidth + ' ' + b.outlineOffset + ' ' + b.outlineColor }); })()`);
       console.log(`MEASURE ${label} ${id} focus ${ring}`);
       await sleep(200);
