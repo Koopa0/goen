@@ -1508,6 +1508,12 @@ th {
   }
 }
 
+@media (min-width: 40rem) and (max-width: 63.99rem) {
+  .goen-header__search {
+    max-width: 24rem;
+  }
+}
+
 @media (min-width: 1024px) and (max-width: 1279px) {
   .goen-header__bar {
     column-gap: 0.75rem;
@@ -3411,10 +3417,9 @@ input.goen-check {
 
 .goen-filters__applied {
   align-items: center;
-  column-gap: 4px;
   display: flex;
   flex-wrap: wrap;
-  row-gap: 8px;
+  gap: 8px;
 }
 
 .goen-filters__applied-label {
