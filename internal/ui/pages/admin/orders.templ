@@ -673,7 +673,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
 								if v.RefundCreditPaid {
@@ -774,7 +774,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 									<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }
 								}
 								<p class="goen-admin__hint">
