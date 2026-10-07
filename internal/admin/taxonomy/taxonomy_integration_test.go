@@ -649,7 +649,7 @@ func holdUploadWrite(t *testing.T, owner *pgxpool.Pool) func() {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { pgtx.Rollback(ctx, tx) })
-	if _, err := tx.Exec(ctx, `LOCK categories media_objects IN SHARE MODE`); err != nil {
+	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
 		t.Fatal(err)
 	}
 	return func() {
