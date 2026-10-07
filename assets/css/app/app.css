@@ -449,7 +449,7 @@ th {
 
 .goen-notice {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -803,7 +803,6 @@ th {
    underlined as text, not boxed: a border would show on every link in forced
    colours. */
 .goen-header__nav {
-  border-top: 1px solid var(--n-200);
   column-gap: clamp(1.25rem, 2vw, 1.75rem);
   display: flex;
   flex-wrap: wrap;
@@ -1078,9 +1077,9 @@ th {
   }
 }
 
+/* Deals is not a department, so a wider space sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  border-left: 1px solid var(--n-200);
-  padding-left: clamp(1.25rem, 2vw, 1.75rem);
+  padding-left: 0.75rem;
 }
 
 .goen-header__search {
@@ -1633,10 +1632,6 @@ th {
   margin: 0;
 }
 
-.goen-footer__bottom {
-  border-top: 1px solid var(--n-200);
-}
-
 .goen-footer__bottominner {
   display: flex;
   flex-direction: column;
@@ -1860,14 +1855,10 @@ th {
   word-break: keep-all;
 }
 
-/* The slide's ink and rules come from its tone, so a statline and a period read
-   on every ground, the dark one included. */
+/* The slide's ink comes from its tone, so a statline and a period read on every
+   ground, the dark one included. */
 .goen-hero__slide {
   color: var(--tone-text);
-}
-
-.goen-hero .ui-statline > div {
-  border-top-color: var(--tone-text);
 }
 
 .goen-hero .ui-statline dt,
@@ -2861,10 +2852,6 @@ input.goen-check {
   padding: var(--s-4) var(--s-5);
 }
 
-.goen-rowcard .ui-statline > div {
-  border-top-color: var(--tone-text);
-}
-
 .goen-rowcard .ui-statline dt,
 .goen-rowcard .ui-statline dd small,
 .goen-rowcard .ui-statline__note {
@@ -2887,8 +2874,6 @@ input.goen-check {
   align-self: flex-start;
   color: var(--tone-mark);
   margin-top: auto;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
   white-space: normal;
 }
 
@@ -3622,10 +3607,6 @@ input.goen-check {
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
   color: var(--tone-text);
-}
-
-.goen-pagehead[data-tone] .ui-statline > div {
-  border-top-color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-statline dd {
@@ -5494,13 +5475,13 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The line list. Hairlines between rows and no box around them: a cart is one
-   list of one thing. */
+/* The line list. No rule and no box: each line's photograph is its shape, and
+   the space between lines parts them. */
 .goen-cart__lines,
 .goen-order .goen-order__lines,
 .goen-pay__lines {
-  border-top: 1px solid var(--n-200);
-  display: block;
+  display: grid;
+  gap: 1.5rem;
   list-style: none;
   margin: 0;
   min-width: 0;
@@ -5508,15 +5489,9 @@ input.goen-check {
 }
 
 .goen-line {
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1.25rem 0;
-}
-
-.goen-line:last-child {
-  border-bottom: 0;
 }
 
 /* A line the catalogue can no longer honour: its photograph dimmed, the line not
@@ -5545,7 +5520,7 @@ input.goen-check {
 }
 
 /* The cart's totals sit under the title as a fact line; the sentence that says
-   what blocks checkout comes first, set apart by a rule so it is not read as a figure. */
+   what blocks checkout comes first, on its own ground so it is not read as a figure. */
 .goen-cart__facts {
   display: flex;
   flex-direction: column;
@@ -5554,11 +5529,13 @@ input.goen-check {
 }
 
 .goen-cart__alert {
-  background: var(--wash);
-  border-left: 2px solid var(--fg);
+  background: var(--warn-bg);
+  border-radius: var(--r-md);
+  color: var(--warn);
   font-size: var(--fs-14);
   margin: 0;
   max-width: 44rem;
+  outline: 1px solid transparent;
   padding: 0.75rem 1rem;
 }
 
@@ -5603,17 +5580,19 @@ input.goen-check {
    things a line offers. The box stays 44px tall, which is the target. */
 .goen-line__remove {
   background: transparent;
-  color: var(--n-700);
-  font-size: var(--fs-14);
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
   min-width: 2.75rem;
   padding: 0 0.5rem;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 3px;
 }
 
 .goen-line__remove:hover {
   background: transparent;
   color: var(--n-900);
+  text-decoration: underline;
 }
 
 /* The 更新 button is the way to apply a quantity with scripting off. With it
@@ -5713,12 +5692,11 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The checkout's summary is the one white card on its grey page: a hairline and
-   the single shadow the system allows, on a box that carries no tint. */
+/* The checkout's summary is a white face on the grey page, as the form beside
+   it is. The transparent border is what forced colours draws as its edge. */
 .goen-checkout__summary {
   background: var(--n-0);
-  border: 1px solid var(--n-200);
-  box-shadow: var(--sh-xs);
+  border: 1px solid transparent;
 }
 
 /* With scripting off the 更新 button answers with the whole form again and its
@@ -5751,29 +5729,22 @@ input.goen-check {
   gap: 0.75rem;
 }
 
-/* The money rows are a description list, one hairline between rows. */
+/* The money rows are a description list. The two columns part the rows; the
+   one rule sits over the total and says the rows above add up to it. */
 .goen-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   margin: 0;
 }
 
 .goen-summary__row {
   align-items: baseline;
-  border-top: 1px solid var(--n-200);
   color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
   gap: 1rem;
   justify-content: space-between;
-  padding: 0.75rem 0;
-}
-
-.goen-summary__row:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.goen-summary__row:last-child {
-  padding-bottom: 0;
 }
 
 .goen-summary__row dt,
@@ -5787,9 +5758,27 @@ input.goen-check {
 }
 
 .goen-summary__row--total {
+  border-top: 1px solid var(--line-2);
   color: var(--fg);
-  font-size: var(--fs-18);
+  flex-wrap: wrap;
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
+  margin-top: 0.375rem;
+  padding-top: 1rem;
+}
+
+/* With nothing above it there is nothing for it to total. */
+.goen-summary__row--total:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.goen-summary__row--total .goen-summary__value {
+  font-size: 1.625rem;
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
 }
 
 /* The browse screens join this rule rather than declare a second one. They
@@ -5855,7 +5844,7 @@ input.goen-check {
 .goen-order__panels {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 3rem;
   min-width: 0;
 }
 
@@ -5868,8 +5857,8 @@ input.goen-check {
   clip-path: inset(0 -100vmax);
 }
 
-/* The sections are one white block, divided by hairlines rather than boxed
-   one by one. */
+/* The sections are one white block, parted by the space between them rather
+   than boxed or ruled one by one. */
 .goen-checkout__main {
   background: var(--n-0);
   border-radius: var(--r-lg);
@@ -5884,10 +5873,6 @@ input.goen-check {
   background: transparent;
   border-radius: 0;
   padding: 1.5rem 1.25rem;
-}
-
-.goen-checkout__section + .goen-checkout__section {
-  border-top: 1px solid var(--n-200);
 }
 
 /* One option in a chooser. The card is the tap target — the radio inside it is
@@ -5991,10 +5976,11 @@ input.goen-check {
    to choose one. The store's name and address are what the shopper reads
    before paying, and that reading is the only check goen has that the store
    reported back is the store they picked — so they are ordinary page text at
-   the body size, not a quiet caption. */
+   the body size, not a quiet caption. The ground is its shape; the transparent
+   border is what forced colours draws. */
 .goen-pickup {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
@@ -6196,7 +6182,7 @@ input.goen-check {
 .goen-order__shipments {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 1rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -6204,11 +6190,9 @@ input.goen-check {
 
 .goen-order__shipment {
   align-items: flex-start;
-  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.75rem 0 0;
 }
 
 .goen-order__cancel {
@@ -6223,10 +6207,10 @@ input.goen-check {
   margin-top: var(--s-6);
 }
 
-/* Each parcel is counted on its own, so each is set apart from the one before. */
+/* Each parcel is counted on its own, so its heading starts after a wider space
+   than the one between sections. */
 .goen-order__parcel + .goen-order__parcel {
-  border-top: 1px solid var(--border);
-  padding-top: var(--s-6);
+  padding-top: 1rem;
 }
 
 .goen-line--order {
@@ -6266,7 +6250,13 @@ input.goen-check {
 .goen-line__act {
   color: var(--accent);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
   text-underline-offset: 3px;
+}
+
+.goen-line__act:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 30rem) {
@@ -6309,7 +6299,6 @@ input.goen-check {
 
 .goen-returns__line {
   align-items: center;
-  border-top: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -6319,15 +6308,10 @@ input.goen-check {
 
 .goen-returns__record {
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 12px;
   justify-content: space-between;
   padding: 12px 0;
-}
-
-.goen-returns__record:last-child {
-  border-bottom: 0;
 }
 
 .goen-returns__recordbody {
@@ -6460,8 +6444,10 @@ input.goen-check {
 
   .goen-cart__summary .goen-summary__row--total {
     align-items: flex-start;
+    border-top: 0;
     flex-direction: column;
     gap: 0;
+    margin-top: 0;
     padding: 0;
   }
 
@@ -6719,7 +6705,6 @@ input.goen-check {
    handle and the appearance is decided in this file. */
 .goen-account__head {
   align-items: flex-end;
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -6813,30 +6798,28 @@ input.goen-check {
   min-width: 0;
 }
 
-/* A section is parted from the one above by a hairline and 2rem, not boxed.
-   The .goen-card on the markup is a panel recipe this page does not want, so
-   the pair of classes cancels it. */
+/* A section is parted from the one above by 3rem, not boxed or ruled. The
+   .goen-card on the markup is a panel recipe this page does not want, so the
+   pair of classes cancels it. */
 .goen-account__section.goen-card {
   background: none;
   border-radius: 0;
-  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
-  padding: 2rem 0;
+  padding: 1.5rem 0;
   scroll-margin-top: 1.5rem;
 }
 
 .goen-account__section.goen-card:first-child {
-  border-top: 0;
   padding-top: 0;
 }
 
 /* Deleting an account is irreversible, so its section reads as the exception it
-   is: the rule above it takes the error outline. */
-.goen-account__section--danger.goen-card {
-  border-top-color: var(--error-outline);
+   is: its heading takes the error colour. */
+.goen-account__section--danger .goen-account__heading {
+  color: var(--error);
 }
 
 /* The nav's anchors aim at these headings, so the margin that keeps a jumped-to
@@ -6911,7 +6894,7 @@ input.goen-check {
 }
 
 .goen-account__orders th {
-  border-bottom: 1px solid var(--n-200);
+  border-bottom: 1px solid var(--line);
   color: var(--n-500);
   font-size: 0.8125rem;
   font-weight: var(--fw-medium);
@@ -6920,7 +6903,7 @@ input.goen-check {
 }
 
 .goen-account__orders td {
-  border-bottom: 1px solid var(--n-200);
+  border-bottom: 1px solid var(--line);
   padding: 0.75rem 0.5rem 0.75rem 0;
   vertical-align: top;
 }
@@ -6945,6 +6928,11 @@ input.goen-check {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   margin-inline-start: 0.5rem;
+  text-decoration: none;
+}
+
+.goen-account__orderpay:hover {
+  text-decoration: underline;
 }
 
 .goen-account__ordermeta {
@@ -6988,7 +6976,7 @@ input.goen-check {
   margin: 0;
 }
 
-/* Saved addresses are rows parted by hairlines. */
+/* Saved addresses are rows parted by space. */
 .goen-account__addresses {
   display: flex;
   flex-direction: column;
@@ -6998,7 +6986,6 @@ input.goen-check {
 }
 
 .goen-account__address {
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -7490,15 +7477,10 @@ input.goen-check {
 
 .goen-doc__method {
   align-items: baseline;
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
   padding: 0.75rem 0;
-}
-
-.goen-doc__method:last-child {
-  border-bottom: 0;
 }
 
 .goen-doc__methodname {
@@ -7841,9 +7823,7 @@ input.goen-check {
 }
 
 .notice__departments {
-  border-top: 1px solid var(--n-200);
-  margin-top: 2.5rem;
-  padding-top: 2rem;
+  margin-top: 3.5rem;
   width: 100%;
 }
 
