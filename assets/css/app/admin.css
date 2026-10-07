@@ -3015,8 +3015,10 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 /* The SVG names its own system colours rather than relying on which
-   properties a browser forces. A forced palette has one grey, so the
-   hairline steps aside; the count is HTML and is forced like any text. */
+   properties a browser forces. A track is Canvas, so what is drawn on it is
+   what shows; a reach is GrayText, the one grey a forced palette has, so the
+   fill and the line across it stay apart. The count is HTML and is forced like
+   any text. */
 @media (forced-colors: active) {
   .goen-chartbar svg {
     forced-color-adjust: none;

@@ -128,7 +128,7 @@ func (c DaysCover) Urgent() bool {
 func (c DaysCover) Beyond() bool { return c.Days > coverMaxDays }
 
 // Bar is the estimate and how far it may reach, drawn on the one scale of every
-// row, whose track changes shade at the days that mark ▲.
+// row, with a line at the days under which an estimate is marked ▲.
 func (c DaysCover) Bar() chart.RangeBarProps {
 	return chart.RangeBarProps{Value: int64(c.Days), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays, Urgent: c.Urgent()}
 }
@@ -248,26 +248,45 @@ func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.
 const dashboardRunwayRows = 5
 
+// RunwayBasis says what an empty dashboard runway can truthfully say.
+type RunwayBasis uint8
+
+const (
+	// RunwayTooFewSales: no SKU in stock could be estimated yet.
+	RunwayTooFewSales RunwayBasis = iota
+	// RunwayEstimated: some SKU was estimated.
+	RunwayEstimated
+	// RunwayNothingInStock: every SKU listed is sold out.
+	RunwayNothingInStock
+)
+
 // DashboardRunway keeps the first rows of a ranked days cover list that run out
 // within the warning line: the sold-out task row already counts the sold out
 // ones and links to them, and an estimate past the line is not what the
-// section's title promises. cut reports that rows were left off; estimated
-// reports that some SKU could be estimated at all, so an empty list can say
-// whether nothing is running out or nothing can be told yet.
-func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut, estimated bool) {
+// section's title promises. cut reports that rows were left off; basis tells an
+// empty list apart: nothing is running out, nothing can be estimated yet, or
+// nothing is left in stock.
+func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool, basis RunwayBasis) {
+	inStock := false
 	for i := range listed {
 		cover := listed[i].Estimate()
+		if cover.State != CoverSoldOut {
+			inStock = true
+		}
 		if cover.State != CoverEstimated {
 			continue
 		}
-		estimated = true
+		basis = RunwayEstimated
 		if !cover.Urgent() {
 			continue
 		}
 		if len(kept) == dashboardRunwayRows {
-			return kept, true, true
+			return kept, true, basis
 		}
 		kept = append(kept, listed[i])
 	}
-	return kept, false, estimated
+	if basis == RunwayTooFewSales && len(listed) > 0 && !inStock {
+		basis = RunwayNothingInStock
+	}
+	return kept, false, basis
 }

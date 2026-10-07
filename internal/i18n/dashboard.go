@@ -94,6 +94,11 @@ var (
 		En:     "Too few sales yet to estimate how long stock will last.",
 	})
 
+	KeyAdminQueueRunwayNoStock = key("admin.queue.runwaynostock", Message{
+		ZhHant: "所有品項都已售完，沒有庫存可估。",
+		En:     "Everything is sold out, so there is no stock to estimate.",
+	})
+
 	KeyAdminQueueRunwayAll = key("admin.queue.runwayall", Message{
 		ZhHant: "在報表看全部",
 		En:     "See all in the report",

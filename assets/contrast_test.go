@@ -127,6 +127,23 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// The 30-day line is held by the token the rule draws it with, not by a
+	// token nothing uses.
+	adminSheet, err := fs.ReadFile(files, AdminCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AdminCSS, err)
+	}
+	line := regexp.MustCompile(`(?s)\.goen-chartrangebar__mark \{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(adminSheet))
+	if line == nil {
+		t.Fatalf("%s has no 30-day line rule with a token colour", AdminCSS)
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		if got := contrast(tokens[line[1]], tokens[ground]); got < 3 {
+			t.Errorf("the 30-day line %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				line[1], tokens[line[1]], ground, tokens[ground], got)
+		}
+	}
+
 	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
 	// text to carry them.
 	for _, ground := range []string{"--n-0", "--wash", "--well"} {
