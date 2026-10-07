@@ -1,10 +1,12 @@
 // Probe only: every place a period renders, shot and measured over CDP.
-// Usage: node scripts/period-shots.mjs periods|states|ink <outdir>
+// Usage: node scripts/period-shots.mjs periods|states|ink|reshoot|lastgoodwill <outdir>
 //   periods reads PLACED_TOKEN, PLACED_ORDER, CUST_TOKEN and RETURN_FORM_ORDER
 //   (scripts/check-layout.sql); states shoots the campaigns the workflow dated
 //   to a last day, a first day, one day and not started, and the delivered
 //   order moved into its goodwill days; ink shoots the campaign the workflow
-//   set to ink.
+//   set to ink. reshoot and lastgoodwill shoot the forced-colours fixes: the
+//   goodwill order, the last-day campaign and the pay page, then the goodwill
+//   order on its last goodwill day.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -235,6 +237,54 @@ async function plantedGoodwill(name, path) {
   await media(false);
 }
 
+// The forced-colours rules for the dashes and today's half replaced by the old
+// dashed border, so the gate's period probe can be seen to go red when a
+// dashed border stands in for the gradient again.
+const DASHED_BACK = `(() => {
+  let removed = 0, added = 0;
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const media of [...rules].filter((r) => r instanceof CSSMediaRule && r.conditionText.includes('forced-colors: active'))) {
+      let period = false;
+      for (let i = media.cssRules.length - 1; i >= 0; i--) {
+        const selector = media.cssRules[i].selectorText || '';
+        if (!selector.startsWith('.ui-period')) continue;
+        period = true;
+        if (selector.includes('data-span="extra"') || selector.includes('data-cell="today"')) { media.deleteRule(i); removed++; }
+      }
+      if (period) { media.insertRule('.ui-period > i[data-span="extra"] { border-bottom-style: dashed; }', media.cssRules.length); added++; }
+    }
+  }
+  return removed + ' removed, ' + added + ' added';
+})()`;
+
+async function plantedDashed(name, path) {
+  await media(true);
+  await metrics(320, 800);
+  await navigate(ORIGIN + path);
+  await sleep(300);
+  const changed = await evaluate(DASHED_BACK);
+  const got = await evaluate(GATE_PROBE);
+  console.log(`PLANTED-DASHED ${name} 320-forced rules ${changed} forced=${got.forced} periods=${got.periods} extras=${got.extras} problems=${got.problems.length}` +
+    (got.problems.length ? ' ' + JSON.stringify(got.problems.slice(0, 4)) : ''));
+  await media(false);
+}
+
+// A page at both widths, then in forced colours at 1440, 375 and 320, each
+// with close-ups, and the gate's probe at 320, 200% text and forced colours.
+async function reshoot(name, path) {
+  if (!path) { failures.push(`${name}: no link found`); return; }
+  try {
+    for (const opts of [{ width: 1440 }, { width: 375 }, { width: 375, text200: true }, { width: 1440, forced: true }, { width: 375, forced: true }, { width: 320, forced: true }]) {
+      await shot(name, path, { ...opts, closeups: true });
+    }
+    await at320(name, path);
+  } catch (e) {
+    failures.push(`${name}: ${e.message}`);
+  }
+}
+
 // Hero slide n brought into view through its tab, as a visitor does, and shot
 // as the hero's own rectangle with its period measured.
 async function heroSlide(n, { width, text200 = false, forced = false }) {
@@ -376,6 +426,18 @@ if (mode === 'periods') {
   await cookie('goen_session', process.env.CUST_TOKEN);
   await capture([['order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`]]);
   await plantedGoodwill('order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
+} else if (mode === 'reshoot') {
+  if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOKEN);
+  await reshoot('campaign-last-day', '/s/probe-last-day');
+  await reshoot('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+  await plantedDashed('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  await reshoot('order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
+  await plantedDashed('order-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
+} else if (mode === 'lastgoodwill') {
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  await reshoot('order-last-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
+  await plantedDashed('order-last-goodwill', `/orders/${process.env.RETURN_FORM_ORDER}`);
 } else if (mode === 'ink') {
   for (const [name, path] of [['ink-campaign', '/s/autumn-picks'], ['ink-home', '/']]) {
     try {

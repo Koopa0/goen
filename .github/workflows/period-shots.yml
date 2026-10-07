@@ -12,9 +12,9 @@ concurrency:
 
 env:
   GOTOOLCHAIN: local
-  # The track as first proposed (0349fa28) on the lines change (#1589); "after" is
-  # the revised track on the same lines change, this checkout.
-  BEFORE_SHA: a98c57b2c5ae3aedc6cbfde875e3424535ae1411
+  # The previous revision (9f37db66) on the lines change (#1589), with this
+  # probe's scripts; "after" is the current revision on the same lines change.
+  BEFORE_SHA: be482a8f7ae22d2b1637fce9844edd97acc80ddf
 
 jobs:
   period-shots:
@@ -98,28 +98,6 @@ jobs:
             while kill -0 "$server_pid" 2>/dev/null; do sleep 0.5; done
           }
 
-          for which in before after; do
-            echo "::group::periods, $which"
-            serve "$which"
-            CDP_PORT=9333 node scripts/period-shots.mjs periods "shots/$which" || status=$?
-            stop
-            echo '::endgroup::'
-          done
-
-          # No seeded campaign or department is on the ink tone; one campaign is
-          # set to it here so the ink track is seen at all.
-          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c 'SET ROLE admin' \
-            -c "UPDATE sale_campaigns SET tone = 'ink' WHERE slug = 'autumn-picks'" || echo 'could not set the ink tone'
-          for which in before after; do
-            echo "::group::ink, $which"
-            serve "$which"
-            CDP_PORT=9333 node scripts/period-shots.mjs ink "shots/$which" || status=$?
-            stop
-            echo '::endgroup::'
-          done
-          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c 'SET ROLE admin' \
-            -c "UPDATE sale_campaigns SET tone = 'paper' WHERE slug = 'autumn-picks'" || echo 'could not reset the tone'
-
           # Four campaigns dated around today in shop time, each featuring the
           # layout campaign's products, and the delivered order moved ten days
           # back so today falls in its goodwill days.
@@ -148,9 +126,26 @@ jobs:
           FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = :'order';
           SQL
           for which in before after; do
-            echo "::group::states, $which"
+            echo "::group::reshoot, $which"
             serve "$which"
-            CDP_PORT=9333 node scripts/period-shots.mjs states "shots/$which" || status=$?
+            CDP_PORT=9333 node scripts/period-shots.mjs reshoot "shots/$which" || status=$?
+            stop
+            echo '::endgroup::'
+          done
+
+          # The same order delivered fourteen days back: today is its last goodwill day.
+          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v order="$RETURN_FORM_ORDER" -f - <<'SQL' || { echo 'could not move the delivery'; status=1; }
+          SET ROLE admin;
+          UPDATE order_shipments
+             SET shipped_at = now() - interval '15 days', delivered_at = now() - interval '14 days'
+           WHERE order_id = (SELECT id FROM orders WHERE order_number = :'order');
+          SELECT o.order_number, s.shipped_at, s.delivered_at, shop_today() AS today
+          FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = :'order';
+          SQL
+          for which in before after; do
+            echo "::group::last goodwill day, $which"
+            serve "$which"
+            CDP_PORT=9333 node scripts/period-shots.mjs lastgoodwill "shots/$which" || status=$?
             stop
             echo '::endgroup::'
           done
