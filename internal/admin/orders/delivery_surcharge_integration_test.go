@@ -394,6 +394,7 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 			key     i18n.Key
 		}{
 			{name: "short phone", errorID: "d-phone", key: i18n.KeyPhoneMalformed},
+			{name: "blank recipient", errorID: "d-recipient", key: i18n.KeyNameRequired},
 			{name: "pickup code without name", pickup: true, errorID: "d-store-name", key: i18n.KeyAddressIncomplete},
 			{name: "pickup name without code", pickup: true, errorID: "d-store-code", key: i18n.KeyStoreCodeMalformed},
 		} {
@@ -405,23 +406,17 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 					"email": {" proposed@example.com "}, "recipient": {" Proposed recipient "}, "phone": {"0922333444"},
 					"postal_code": {f.oldPostal}, "city": {"New city"}, "district": {"New district"}, "street": {" Proposed <street> "},
 				}
+				switch tc.errorID {
+				case "d-phone":
+					values.Set("phone", " 123 ")
+				case "d-recipient":
+					values.Set("recipient", " ")
+				}
 				controls := map[string]string{"d-email": values.Get("email"), "d-recipient": values.Get("recipient")}
 				if tc.pickup {
-					if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET destination_kind='pickup_point' WHERE id=$1`, f.method); err != nil {
-						t.Fatal(err)
-					}
-					if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart',pickup_store_code='SAVED1',pickup_store_name='Saved store' WHERE order_id=$1`, f.id); err != nil {
-						t.Fatal(err)
-					}
-					values.Set("pickup_chain", string(pickup.SevenEleven))
-					if tc.errorID == "d-store-name" {
-						values.Set("pickup_store_code", " a123 ")
-					} else {
-						values.Set("pickup_store_name", " Proposed store ")
-					}
+					setPickupDeliveryDraft(t, ctx, f, tc.errorID == "d-store-name", values)
 					controls["d-store-code"], controls["d-store-name"] = values.Get("pickup_store_code"), values.Get("pickup_store_name")
 				} else {
-					values.Set("phone", " 123 ")
 					for id, field := range map[string]string{"d-postal": "postal_code", "d-city": "city", "d-district": "district", "d-street": "street"} {
 						controls[id] = values.Get(field)
 					}
@@ -466,6 +461,7 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 					t.Fatalf("refused correction changed saved private data: before=%s after=%s", before, after)
 				}
 				values.Set("phone", "0922333444")
+				values.Set("recipient", " Proposed recipient ")
 				if tc.pickup {
 					values.Set("pickup_store_code", "a123")
 					values.Set("pickup_store_name", " Proposed store ")
@@ -489,6 +485,22 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 				}
 			})
 		}
+	}
+}
+
+func setPickupDeliveryDraft(t *testing.T, ctx context.Context, f deliveryPriceOrder, codeWithoutName bool, values url.Values) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET destination_kind='pickup_point' WHERE id=$1`, f.method); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart',pickup_store_code='SAVED1',pickup_store_name='Saved store' WHERE order_id=$1`, f.id); err != nil {
+		t.Fatal(err)
+	}
+	values.Set("pickup_chain", string(pickup.SevenEleven))
+	if codeWithoutName {
+		values.Set("pickup_store_code", " a123 ")
+	} else {
+		values.Set("pickup_store_name", " Proposed store ")
 	}
 }
 
@@ -516,7 +528,7 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 			}
 			t.Cleanup(lockedPool.Close)
 			var role, timeout string
-			if err := lockedPool.QueryRow(ctx, `SELECT current_user, current_setting('lock_timeout')`).Scan(&role, &timeout); err != nil || role != "admin" || timeout != "100ms" {
+			if err = lockedPool.QueryRow(ctx, `SELECT current_user, current_setting('lock_timeout')`).Scan(&role, &timeout); err != nil || role != "admin" || timeout != "100ms" {
 				t.Fatalf("lock-fault pool role=%q timeout=%q, want admin/100ms: %v", role, timeout, err)
 			}
 			store := admintest.OrderStore(lockedPool, admintest.Refunder{}, nil, nil)
@@ -524,8 +536,8 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 			countAudits := func() int {
 				t.Helper()
 				var count int
-				if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE after->>'order_number'=$1 AND action=$2`, f.number, string(audit.ActionCorrectDelivery)).Scan(&count); err != nil {
-					t.Fatal(err)
+				if queryErr := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE after->>'order_number'=$1 AND action=$2`, f.number, string(audit.ActionCorrectDelivery)).Scan(&count); queryErr != nil {
+					t.Fatal(queryErr)
 				}
 				return count
 			}
@@ -535,7 +547,7 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer pgtx.Rollback(ctx, lock)
-			if _, err := lock.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, f.id); err != nil {
+			if _, err = lock.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, f.id); err != nil {
 				t.Fatal(err)
 			}
 			values := url.Values{
