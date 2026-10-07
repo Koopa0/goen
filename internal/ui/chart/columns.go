@@ -117,7 +117,7 @@ type valueLabel struct {
 
 // strip is a campaign over the columns: the ground behind them and, in a lane,
 // a bracket under its name. The bracket is open at an end that is not on the
-// chart: a campaign that began before the first day or has not ended.
+// chart: a campaign that began before the first day, or ends after the last.
 type strip struct {
 	X, Width, RightX    string
 	Y                   float64 // the bracket's line

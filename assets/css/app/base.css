@@ -336,7 +336,8 @@ body {
   --edge: #85858c;
 
   /* The one hue, 藍墨 (ink blue): 11.6:1 on white, so it is the link text
-     as well as the ring and the fill. --mark is goen's mark for time. */
+     as well as the ring and the fill. --mark marks a stretch of time on the
+     storefront; a chart's dates are drawn in --ink-2. */
   --accent: #26395a;
   --mark: #26395a;
   --accent-text: var(--accent);
