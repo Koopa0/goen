@@ -13,7 +13,7 @@ concurrency:
 env:
   GOTOOLCHAIN: local
   # The period track branch's head, where this branch starts; "after" is this checkout.
-  BEFORE_SHA: 9f37db66b48bec40e55e1b3619def02c8231e65c
+  BEFORE_SHA: c0eeae3f3ebcdfb4c625d7fc75d60571e14fbd76
 
 jobs:
   period-text-shots:
@@ -97,16 +97,37 @@ jobs:
             while kill -0 "$server_pid" 2>/dev/null; do sleep 0.5; done
           }
 
-          # The other places were shot in run 37591645270, with no payment key. A
-          # test key lets a payment start, so the pay page shows its running state.
-          export GOEN_STRIPE_API_KEY=sk_test_probe GOEN_STRIPE_WEBHOOK_SECRET=whsec_probe ONLY=pay
+          shoot() { # which, locale, outdir
+            echo "::group::$1, $2, $3"
+            serve "$1"
+            CDP_PORT=9333 node scripts/period-text-shots.mjs "$2" "shots/$3" || status=$?
+            stop
+            echo '::endgroup::'
+          }
+
+          # Every place, payments off (no payment key), the campaign as seeded.
           for which in before after; do
-            for locale in zh-Hant en; do
-              echo "::group::$which, $locale"
-              serve "$which"
-              CDP_PORT=9333 node scripts/period-text-shots.mjs "$locale" "shots/$which" || status=$?
-              stop
-              echo '::endgroup::'
+            for locale in zh-Hant en; do shoot "$which" "$locale" "$which/$locale"; done
+          done
+
+          # The pay page with a test key, where a payment can start.
+          (
+            export GOEN_STRIPE_API_KEY=sk_test_probe GOEN_STRIPE_WEBHOOK_SECRET=whsec_probe ONLY=pay
+            for which in before after; do
+              for locale in zh-Hant en; do shoot "$which" "$locale" "$which-paymenton/$locale"; done
+            done
+          )
+
+          # The campaign ending at a set time, three days out, tomorrow and today, in the shop's zone. A
+          # clock that has already passed today ends the campaign, so today's is 18:00 only before 17:30.
+          export ONLY=endtime
+          today_hours=$(psql "$GOEN_DATABASE_URL" -X -A -t -c "select case when (now() at time zone 'Asia/Taipei')::time < '17:30' then '18 hours' else '23 hours 30 minutes' end")
+          for state in "three:3 days 18 hours" "tomorrow:1 day 18 hours" "today:$today_hours"; do
+            name=${state%%:*}; offset=${state#*:}
+            psql "$GOEN_DATABASE_URL" -X -q -c "update sale_campaigns set starts_at = now() - interval '1 day', ends_at = (date_trunc('day', now() at time zone 'Asia/Taipei') + interval '$offset') at time zone 'Asia/Taipei' where slug = 'autumn-picks'"
+            psql "$GOEN_DATABASE_URL" -X -A -t -c "select 'seeded $name', ends_at at time zone 'Asia/Taipei' from sale_campaigns where slug = 'autumn-picks'"
+            for which in before after; do
+              for locale in zh-Hant en; do shoot "$which" "$locale" "$which-end-$name/$locale"; done
             done
           done
 

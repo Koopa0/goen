@@ -180,8 +180,15 @@ if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOK
 await metrics(1440, 900);
 
 // ONLY=pay shoots the pay page alone, for a run with a test payment key, where a payment can start.
+// ONLY=endtime shoots the two places that say a campaign's end, for a campaign seeded to end at a set time.
 if (process.env.ONLY === 'pay') {
   await capture('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+} else if (process.env.ONLY === 'endtime') {
+  const department = await firstPageWhere('/', '/c/', `!!document.querySelector('.goen-deptnotice')`);
+  const product = await firstPageWhere('/s/autumn-picks', '/p/', `!!document.querySelector('.goen-pdp__source')`);
+  console.log('department', department, 'product', product);
+  await capture('department', department);
+  await capture('product', product);
 } else {
   const department = await firstPageWhere('/', '/c/', `!!document.querySelector('.goen-deptnotice')`);
   const product = await firstPageWhere('/s/autumn-picks', '/p/', `!!document.querySelector('.goen-pdp__source')`);
