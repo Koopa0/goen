@@ -23,6 +23,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string

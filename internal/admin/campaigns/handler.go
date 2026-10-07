@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
@@ -137,12 +138,19 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
-	web.Render(w, r, h.log, status, admin.CampaignForm(
-		layouts.Page{Title: detail.Title}, admin.CampaignView{
-			Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
-			Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
-			ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
-		}))
+	view := admin.CampaignView{
+		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
+		Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
+	}
+	// The results are one figure of the page: failing to read them must not
+	// take the editor with them.
+	view.Results, err = h.store.Results(r.Context(), slug, detail, len(products), time.Now())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
+		view.ResultsUnavailable = true
+	}
+	web.Render(w, r, h.log, status, admin.CampaignForm(layouts.Page{Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
@@ -191,9 +199,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
-		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
-		reason := media.UploadNotice(err)
-		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), reason)})
+		h.respondToUploadError(w, r, err)
 		return
 	}
 	err = h.store.SetImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
@@ -285,6 +291,19 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
+		access.ServerError(w, r, h.log)
+	}
+}
+
+func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, web.ErrFormText):
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case media.IsRefusal(err):
+		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+	default:
+		h.log.ErrorContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
 		access.ServerError(w, r, h.log)
 	}
 }

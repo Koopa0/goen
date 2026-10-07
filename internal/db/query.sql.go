@@ -350,19 +350,21 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 }
 
 const adminCampaign = `-- name: AdminCampaign :one
-SELECT c.title, c.starts_at, c.ends_at, c.is_active,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
-       EXISTS (
-           SELECT 1 FROM sale_campaign_products cp
-           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-           JOIN product_variants v ON v.product_id = p.id AND v.is_active
-           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
+SELECT c.title, localized_name(c.title, c.title_en, $1::text) AS label, c.starts_at, c.ends_at, c.is_active,
+       EXISTS (SELECT 1 FROM running_campaigns r WHERE r.id = c.id) AS is_running,
+       EXISTS (SELECT 1 FROM campaign_deals d WHERE d.campaign_id = c.id) AS is_sellable
 FROM sale_campaigns c
-WHERE c.slug = $1::text
+WHERE c.slug = $2::text
 `
+
+type AdminCampaignParams struct {
+	Locale string
+	Slug   string
+}
 
 type AdminCampaignRow struct {
 	Title      string
+	Label      string
 	StartsAt   time.Time
 	EndsAt     time.Time
 	IsActive   bool
@@ -370,11 +372,12 @@ type AdminCampaignRow struct {
 	IsSellable bool
 }
 
-func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaignRow, error) {
-	row := q.db.QueryRow(ctx, adminCampaign, slug)
+func (q *Queries) AdminCampaign(ctx context.Context, arg AdminCampaignParams) (AdminCampaignRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaign, arg.Locale, arg.Slug)
 	var i AdminCampaignRow
 	err := row.Scan(
 		&i.Title,
+		&i.Label,
 		&i.StartsAt,
 		&i.EndsAt,
 		&i.IsActive,
@@ -526,12 +529,8 @@ func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string)
 const adminCampaigns = `-- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
-       EXISTS (
-           SELECT 1 FROM sale_campaign_products cp
-           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-           JOIN product_variants v ON v.product_id = p.id AND v.is_active
-           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
+       EXISTS (SELECT 1 FROM running_campaigns r WHERE r.id = c.id) AS is_running,
+       EXISTS (SELECT 1 FROM campaign_deals d WHERE d.campaign_id = c.id) AS is_sellable
 FROM sale_campaigns c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
        OR (c.is_active = $2::boolean AND c.ends_at < $3::timestamptz)
@@ -3227,7 +3226,7 @@ SELECT
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN products p ON p.id = ol.product_id
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 GROUP BY p.slug, p.name, b.name
@@ -3289,6 +3288,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -3373,6 +3377,7 @@ type BoughtTogetherRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -3406,6 +3411,7 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -3474,6 +3480,68 @@ func (q *Queries) CampaignBySlug(ctx context.Context, arg CampaignBySlugParams) 
 	return i, err
 }
 
+const campaignDailyUnits = `-- name: CampaignDailyUnits :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series($1::date, $2::date, interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, sum(ol.quantity) AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN sold_orders s ON s.id = o.id
+    WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
+      AND ol.product_id IN (SELECT cp.product_id
+                            FROM sale_campaign_products cp
+                            JOIN sale_campaigns sc ON sc.id = cp.campaign_id
+                            WHERE sc.slug = $5::text)
+    GROUP BY shop_day(o.placed_at)
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day
+`
+
+type CampaignDailyUnitsParams struct {
+	FirstDay time.Time
+	LastDay  time.Time
+	FromAt   time.Time
+	ToAt     time.Time
+	Slug     string
+}
+
+type CampaignDailyUnitsRow struct {
+	Day   time.Time
+	Units int64
+}
+
+// The units of the products on the campaign's list that each shop day from
+// first_day to last_day sold, a day without any included. The orders are
+// PaidByShopDay's. order_lines records no campaign, so it is the list as it is
+// now. The bounds are cut on the shop's clock by the caller.
+func (q *Queries) CampaignDailyUnits(ctx context.Context, arg CampaignDailyUnitsParams) ([]CampaignDailyUnitsRow, error) {
+	rows, err := q.db.Query(ctx, campaignDailyUnits,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Slug,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignDailyUnitsRow{}
+	for rows.Next() {
+		var i CampaignDailyUnitsRow
+		if err := rows.Scan(&i.Day, &i.Units); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const campaignProducts = `-- name: CampaignProducts :many
 SELECT
     p.slug,
@@ -3491,6 +3559,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -3540,12 +3613,13 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A campaign may feature a product only while an active discounted variant
-    -- exists. Price the fact that admitted it, as /deals does, rather than a
-    -- cheaper regular variant that would erase the markdown from the campaign.
-    ORDER BY (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
+    -- A discounted variant that can be bought, else any variant that can be
+    -- bought, so the price shown is never one a shopper cannot pay; a missing
+    -- compare price is not a discount.
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
@@ -3574,6 +3648,7 @@ type CampaignProductsRow struct {
 	TilePriceCents      int64
 	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -3603,6 +3678,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -4418,6 +4494,11 @@ SELECT
           AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -4568,6 +4649,7 @@ type CategoryListingRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -4612,6 +4694,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -5251,6 +5334,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -5301,6 +5389,7 @@ type CompareProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -5332,6 +5421,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -6706,6 +6796,11 @@ SELECT
         WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
     ))::boolean AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -6751,13 +6846,13 @@ SELECT
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents,
-           (stock_quantity > safety_stock) AS buyable
+    SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
@@ -6770,16 +6865,8 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
-        AND dv.compare_at_price_cents > dv.price_cents
-  )
+  AND EXISTS (SELECT 1 FROM campaign_deals d WHERE d.product_id = p.id)
 ORDER BY
-    -- A discount that can be bought comes before a deeper one that cannot: the
-    -- variant the tile shows, not any variant of the product.
-    mv.buyable DESC,
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
@@ -6801,6 +6888,7 @@ type DealProductsRow struct {
 	TilePriceCents      int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -6811,15 +6899,10 @@ type DealProductsRow struct {
 	ImageHeight         int32
 }
 
-// "On sale" is a variant fact, and a product qualifies when any active variant
-// carries one.
-// A DISCOUNTED variant first, which is what puts the product on this page at
-// all. The listing's LATERAL takes the cheapest buyable one, and a product
-// qualifies here when ANY variant carries a discount — two different variants
-// whenever the discounted one is dearer or out of stock, so the sale page could
-// quote a price with no discount on it and no badge beside it. They agree on
-// every product in the dev seed, which is what a fixture where two rules agree
-// is worth.
+// A DISCOUNTED variant that can be bought first, so the price the tile strikes
+// is one the shopper can add to the cart. The listing's LATERAL takes the
+// cheapest buyable one, which is a different variant whenever the discounted
+// one is dearer.
 func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]DealProductsRow, error) {
 	rows, err := q.db.Query(ctx, dealProducts, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -6837,6 +6920,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -6860,12 +6944,7 @@ const dealProductsCount = `-- name: DealProductsCount :one
 SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
-        AND dv.compare_at_price_cents > dv.price_cents
-  )
+  AND EXISTS (SELECT 1 FROM campaign_deals d WHERE d.product_id = p.id)
 `
 
 func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
@@ -6876,27 +6955,11 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 }
 
 const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
-SELECT (EXISTS (
-    SELECT 1 FROM products p
-    JOIN product_variants v ON v.product_id = p.id AND v.is_active
-    WHERE p.status = 'active'
-      AND v.compare_at_price_cents IS NOT NULL
-      AND v.compare_at_price_cents > v.price_cents
-      AND v.stock_quantity > v.safety_stock
-) OR EXISTS (
-    SELECT 1 FROM sale_campaigns c
-    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-      AND EXISTS (
-          SELECT 1 FROM sale_campaign_products cp
-          JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-          JOIN product_variants v ON v.product_id = p.id AND v.is_active
-          WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
-))::boolean AS offered
+SELECT EXISTS (SELECT 1 FROM campaign_deals)::boolean AS offered
 `
 
-// Whether /deals has anything to buy: a discounted product that can be bought,
-// or a campaign ListedCampaigns lists. The header asks on every page; each half
-// stops at its first row. Its plan has not been measured.
+// Whether /deals has anything to buy: a product DealProducts lists. The header
+// asks on every page; it stops at the first row. Its plan has not been measured.
 func (q *Queries) DealsHaveSomethingToBuy(ctx context.Context) (bool, error) {
 	row := q.db.QueryRow(ctx, dealsHaveSomethingToBuy)
 	var offered bool
@@ -7199,13 +7262,10 @@ WITH RECURSIVE d AS (
 SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at
 FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
-        AND v.stock_quantity > v.safety_stock)
+WHERE EXISTS (
+    SELECT 1 FROM campaign_deals cd
+    JOIN products p ON p.id = cd.product_id
+    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
 ORDER BY c.ends_at, c.id
 LIMIT 1
 `
@@ -7222,8 +7282,8 @@ type DepartmentCampaignRow struct {
 	EndsAt   time.Time
 }
 
-// The first running campaign that features a product of the department which can be
-// bought: ListedCampaigns' test, narrowed to the department's own products.
+// Of the campaigns with a deal on a product of the department, the one that ends
+// first.
 func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
 	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
 	var i DepartmentCampaignRow
@@ -7267,6 +7327,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     localized_name(v.value, v.value_en, $1::text) AS colour,
     v.swatch_hex::text AS swatch,
     img.storage_key AS image_key,
@@ -7303,6 +7368,7 @@ type DepartmentColourStoryRow struct {
 	PriceCents          int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Colour              string
 	Swatch              string
 	ImageKey            string
@@ -7331,6 +7397,7 @@ func (q *Queries) DepartmentColourStory(ctx context.Context, arg DepartmentColou
 			&i.PriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Colour,
 			&i.Swatch,
 			&i.ImageKey,
@@ -7438,13 +7505,11 @@ SELECT
     sum(ol.unit_price_cents * ol.quantity)::bigint AS sales_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 JOIN products p ON p.id = ol.product_id
 JOIN tree t ON t.id = p.category_id
 JOIN categories d ON d.id = t.root_id
 WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 GROUP BY d.id, d.name, d.name_en, d.position
 ORDER BY sales_cents DESC, d.position, d.id
 `
@@ -8256,6 +8321,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
@@ -8352,6 +8422,7 @@ type HomeTilesRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	ImageKey            string
@@ -8389,6 +8460,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.ImageKey,
@@ -8980,10 +9052,8 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 const latestPaidDay = `-- name: LatestPaidDay :one
 SELECT shop_day(o.placed_at) AS day
 FROM orders o
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 WHERE o.placed_at < $1::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY o.placed_at DESC
 LIMIT 1
 `
@@ -9001,7 +9071,7 @@ const latestPaidOrder = `-- name: LatestPaidOrder :one
 SELECT o.order_number, f.total_cents,
        coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
 FROM orders o
-JOIN committed_orders c ON c.id = o.id
+JOIN sold_orders s ON s.id = o.id
 CROSS JOIN LATERAL (
     SELECT coalesce(
                (SELECT min(e.occurred_at) FROM order_events e
@@ -9014,8 +9084,6 @@ CROSS JOIN LATERAL (
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= $1::timestamptz
-  AND NOT EXISTS (SELECT 1 FROM return_requests b
-                  WHERE b.order_id = o.id AND b.before_shipment)
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 1
 `
@@ -9026,9 +9094,8 @@ type LatestPaidOrderRow struct {
 	ElapsedSeconds int64
 }
 
-// The newest committed order by when its money came in, which is read as
-// admin/health reads funded_at (UninvoicedOrders). Orders refunded before
-// shipment are left out, as RevenueBetween leaves them out; the total is
+// The newest sold order by when its money came in, which is read as
+// admin/health reads funded_at (UninvoicedOrders); the total is
 // RevenueBetween's. Elapsed is on the database's clock, as every dashboard age is.
 // Only orders placed since @since are looked at, so the dashboard does not read
 // the whole history; the caller asks again with no bound when none qualifies.
@@ -9080,6 +9147,42 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 	return result.RowsAffected(), nil
 }
 
+const listedCampaignOfProduct = `-- name: ListedCampaignOfProduct :one
+SELECT fc.slug, localized_name(fc.title, fc.title_en, $1::text) AS title,
+       fc.starts_at, fc.ends_at
+FROM sale_campaign_products fp
+JOIN listed_campaigns l ON l.id = fp.campaign_id
+JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+WHERE fp.product_id = $2::uuid
+ORDER BY fc.ends_at, fc.id
+LIMIT 1
+`
+
+type ListedCampaignOfProductParams struct {
+	Locale    string
+	ProductID uuid.UUID
+}
+
+type ListedCampaignOfProductRow struct {
+	Slug     string
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// Of the listed campaigns featuring a product, the one that ends first.
+func (q *Queries) ListedCampaignOfProduct(ctx context.Context, arg ListedCampaignOfProductParams) (ListedCampaignOfProductRow, error) {
+	row := q.db.QueryRow(ctx, listedCampaignOfProduct, arg.Locale, arg.ProductID)
+	var i ListedCampaignOfProductRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+	)
+	return i, err
+}
+
 const listedCampaigns = `-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at, c.tone,
@@ -9090,13 +9193,8 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
         JOIN products p ON p.id = cp.product_id
         WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
+JOIN listed_campaigns l ON l.id = c.id
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ORDER BY c.ends_at, c.id
 LIMIT $3::integer OFFSET $2::integer
 `
@@ -9120,8 +9218,8 @@ type ListedCampaignsRow struct {
 	Products   int64
 }
 
-// A campaign is listed only while a published featured product can be bought,
-// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
+// A campaign left out keeps its page at /s/{slug} (CampaignBySlug), reachable by
+// a direct link.
 func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -9154,16 +9252,9 @@ func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams
 }
 
 const listedCampaignsCount = `-- name: ListedCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+SELECT count(*)::bigint FROM listed_campaigns
 `
 
-// The same listing as ListedCampaigns, counted.
 func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, listedCampaignsCount)
 	var column_1 int64
@@ -10312,6 +10403,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -10390,6 +10486,7 @@ type NewestProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -10419,6 +10516,7 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -11854,10 +11952,8 @@ LEFT JOIN (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
@@ -12386,6 +12482,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     localized_name(p.description, p.description_en, $2::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -12412,26 +12509,27 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID                   uuid.UUID
-	Slug                 string
-	Name                 string
-	Summary              string
-	Description          string
-	WarrantyNote         pgtype.Text
-	WarrantyMonths       int32
-	Brand                string
-	BrandSlug            string
-	CategoryID           uuid.UUID
-	CategorySlug         string
-	CategoryName         string
-	CategoryParentID     uuid.NullUUID
-	Origin               string
-	DomesticPartyName    string
-	DomesticPartyPhone   string
-	DomesticPartyAddress string
-	NetQuantity          string
-	NetUnit              string
-	MinAgeMonths         pgtype.Int2
+	ID                    uuid.UUID
+	Slug                  string
+	Name                  string
+	Summary               string
+	Description           string
+	DescriptionTranslated bool
+	WarrantyNote          pgtype.Text
+	WarrantyMonths        int32
+	Brand                 string
+	BrandSlug             string
+	CategoryID            uuid.UUID
+	CategorySlug          string
+	CategoryName          string
+	CategoryParentID      uuid.NullUUID
+	Origin                string
+	DomesticPartyName     string
+	DomesticPartyPhone    string
+	DomesticPartyAddress  string
+	NetQuantity           string
+	NetUnit               string
+	MinAgeMonths          pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -12443,6 +12541,7 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.Name,
 		&i.Summary,
 		&i.Description,
+		&i.DescriptionTranslated,
 		&i.WarrantyNote,
 		&i.WarrantyMonths,
 		&i.Brand,
@@ -12811,11 +12910,9 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day, ol.quantity AS units
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE ol.product_id = $3::uuid
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t ON t.day = d.day::date
 GROUP BY d.day
 ORDER BY d.day
@@ -12833,8 +12930,7 @@ type ProductUnitsByShopDayRow struct {
 }
 
 // One row per shop day of [from_at, to_at), a day without sales included. The
-// units are those of the orders PaidByShopDay counts: committed, and not refunded
-// in full before they shipped.
+// units are those of the orders PaidByShopDay counts.
 func (q *Queries) ProductUnitsByShopDay(ctx context.Context, arg ProductUnitsByShopDayParams) ([]ProductUnitsByShopDayRow, error) {
 	rows, err := q.db.Query(ctx, productUnitsByShopDay, arg.FromAt, arg.ToAt, arg.ProductID)
 	if err != nil {
@@ -14056,6 +14152,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -14134,6 +14235,7 @@ type RelatedProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -14168,6 +14270,7 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -15103,10 +15206,8 @@ WITH period_lines AS (
     SELECT ol.id, ol.product_id, ol.quantity
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $2::timestamptz AND o.placed_at < $3::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ), sold AS (
     SELECT product_id, sum(quantity)::bigint AS units
     FROM period_lines GROUP BY product_id
@@ -15147,10 +15248,9 @@ type ReturnedProductsBetweenRow struct {
 }
 
 // Units on decided-yes returns (approved or completed) against units sold, both
-// counted over the orders placed in the period, so a product's returned never
-// exceeds its sold. Orders refunded before shipment are left out of both, as in
-// RevenueBetween: no goods came back. Ties on the count fall to the larger sale,
-// then the name, so the list does not reshuffle between reads.
+// counted over the sold orders placed in the period, so a product's returned
+// never exceeds its sold. Ties on the count fall to the larger sale, then the
+// name, so the list does not reshuffle between reads.
 func (q *Queries) ReturnedProductsBetween(ctx context.Context, arg ReturnedProductsBetweenParams) ([]ReturnedProductsBetweenRow, error) {
 	rows, err := q.db.Query(ctx, returnedProductsBetween, arg.LimitTo, arg.FromAt, arg.ToAt)
 	if err != nil {
@@ -15235,9 +15335,10 @@ SELECT
     -- created_at for the synchronous credit post.
     -- The positive-credit predicate matches order_refunds, where a change of that
     -- definition belongs, so the 折讓 form and the invoice bound move with it. An
-    -- order refunded before shipment is left out of both figures: its refund
-    -- already cancels it out of committed revenue, and counting it again would
-    -- take it off the net twice.
+    -- order refunded before shipment is left out of both figures: it is no sale,
+    -- and counting its refund would take it off the net a second time. Not
+    -- through sold_orders, which would also drop money that went back on an
+    -- order no longer committed.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
@@ -15255,10 +15356,8 @@ FROM (
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
             - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
     FROM orders o
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM return_requests b
-                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
@@ -15276,7 +15375,7 @@ type RevenueBetweenRow struct {
 }
 
 // A period is [from_at, to_at), cut by the caller on the shop's clock.
-// COMMITTED orders only, and the total is recomputed from the lines because
+// SOLD orders only, and the total is recomputed from the lines because
 // orders carries no total column. Integer division on the average, so no float
 // touches money, and greatest(count, 1) because an empty window divides by zero.
 func (q *Queries) RevenueBetween(ctx context.Context, arg RevenueBetweenParams) (RevenueBetweenRow, error) {
@@ -15511,6 +15610,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -15666,6 +15770,7 @@ type SearchProductsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -15708,6 +15813,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
@@ -18060,8 +18166,22 @@ SELECT
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
-    order_amount_after_credit(o.id)::bigint AS owed_cents
+    order_amount_after_credit(o.id)::bigint AS owed_cents,
+    -- one_last_day: every ordered unit is in a parcel, every parcel has arrived, and all share one last day to
+    -- cancel. Anything else has no single day, as return_line_policy_window judges each line by its own parcel.
+    -- rescission_ends is shop_today() while no parcel has arrived, so a reader checks one_last_day, never the date.
+    (p.parcels > 0 AND p.arrived = p.parcels AND p.last_days = 1
+     AND NOT EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
+                     AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                                 WHERE sl.order_line_id = ol.id), 0)))::boolean AS one_last_day,
+    coalesce(p.last_day, shop_today())::date AS rescission_ends
 FROM orders o
+LEFT JOIN LATERAL (
+    SELECT count(*) AS parcels, count(s.delivered_at) AS arrived,
+           count(DISTINCT return_window_ends(s.delivered_at)) AS last_days,
+           min(return_window_ends(s.delivered_at)) AS last_day
+    FROM order_shipments s WHERE s.order_id = o.id
+) p ON true
 WHERE o.user_id = $1
   AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -18088,6 +18208,8 @@ type UserOrdersRow struct {
 	LineCount         int64
 	Committed         bool
 	OwedCents         int64
+	OneLastDay        bool
+	RescissionEnds    time.Time
 }
 
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
@@ -18117,6 +18239,8 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 			&i.LineCount,
 			&i.Committed,
 			&i.OwedCents,
+			&i.OneLastDay,
+			&i.RescissionEnds,
 		); err != nil {
 			return nil, err
 		}
@@ -18409,6 +18533,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -18495,6 +18624,7 @@ type WishlistItemsRow struct {
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
+	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
@@ -18525,6 +18655,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
+			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,

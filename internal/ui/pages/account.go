@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
@@ -17,14 +18,28 @@ import (
 type AccountOrder struct {
 	Number     string
 	Status     order.FulfillmentStatus
-	PlacedAt   string
+	PlacedAt   shoptime.Date
 	TotalCents int64
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
+	// OneLastDay is true when the whole order has a single last day to cancel; LastDay means nothing otherwise.
+	OneLastDay bool
+	LastDay    shoptime.Date
 }
 
-func (o AccountOrder) Total() string { return twd(o.TotalCents) }
+// Facts are what a row of the history says about its order. The last day to cancel is counted from each parcel's
+// delivery, so the row names one only when the whole order has the same.
+func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
+	facts := []components.Stat{
+		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
+		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(o.TotalCents)},
+	}
+	if o.OneLastDay {
+		facts = append(facts, dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
+	}
+	return facts
+}
 
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 

@@ -108,7 +108,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*pages.ColourStor
 		Slug: first.Slug, Name: first.Name, Summary: first.Summary, Brand: first.Brand,
 		Price: pages.ProductTile{
 			PriceCents: first.PriceCents, PriceVaries: first.PriceVaries,
-			CompareCents: first.CompareAtPriceCents.Int64, InStock: true,
+			CompareCents: first.CompareAtPriceCents.Int64, InCampaign: first.InCampaign, InStock: true,
 		},
 	}
 	for i := range rows {

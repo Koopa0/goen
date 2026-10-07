@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -88,7 +87,7 @@ type CampaignSchedule struct {
 // to endsAt, which is exclusive.
 func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
 	state := CampaignStateAt(startsAt, endsAt, now)
-	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: StatCountOf(ctx, i18n.KeyUnitItems, items)}
+	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
 	ends := CampaignEndStat(ctx, endsAt, now)
 	schedule := CampaignSchedule{State: state, Ends: ends}
 
@@ -107,7 +106,7 @@ func NewCampaignSchedule(ctx context.Context, title string, items int64, startsA
 	default:
 		// The last two days say so in the end's note instead.
 		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
-			schedule.DaysLeft = components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: StatCountOf(ctx, i18n.KeyUnitDays, int64(left))}
+			schedule.DaysLeft = components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: components.StatCount(int64(left), i18n.T(ctx, i18n.KeyFactUnitDays))}
 		}
 		schedule.Facts = []components.Stat{count, schedule.Ends}
 		if schedule.DaysLeft.Label != "" {
@@ -134,19 +133,6 @@ type CampaignView struct {
 	Products []ProductTile
 	Image    Photo
 	Tone     Tone
-}
-
-// Tiles are the campaign's products; outside its window a price is not struck,
-// because no campaign is running to have lowered it.
-func (v *CampaignView) Tiles() []ProductTile {
-	if v.Schedule.State == CampaignRunning {
-		return v.Products
-	}
-	out := slices.Clone(v.Products)
-	for i := range out {
-		out[i].CompareCents = 0
-	}
-	return out
 }
 
 func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }

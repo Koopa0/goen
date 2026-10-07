@@ -27,9 +27,8 @@ var (
 	})
 
 	KeyVerifyDeadBody = key("verify.dead.body", Message{
-		ZhHant: "連結可能已經用過或超過兩天。請到會員中心重新寄一次。",
-		En: "It may have been used already, or be more than two days old. Ask for another " +
-			"from your account page.",
+		ZhHant: "連結可能已經用過或超過兩天。",
+		En:     "It may have been used already, or be more than two days old.",
 	})
 
 	KeyVerifyTakenTitle = key("verify.taken", Message{

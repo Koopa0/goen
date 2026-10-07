@@ -145,13 +145,16 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
-	LabelFacts   *productlabel.Facts
-	Saved        bool
-	Slug         string
-	Name         string
-	Summary      string
-	Description  string
-	WarrantyNote string
+	LabelFacts  *productlabel.Facts
+	Saved       bool
+	Slug        string
+	Name        string
+	Summary     string
+	Description string
+	// DescriptionUntranslated is true when the page is not Chinese and the shop wrote no
+	// description in its language, so Description is the Chinese one.
+	DescriptionUntranslated bool
+	WarrantyNote            string
 	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
 	WarrantyMonths int32
 	Rules          ShopRules
@@ -163,6 +166,9 @@ type ProductView struct {
 	Images  []ProductImage
 	Options []ProductOption
 	Specs   []ProductSpec
+
+	// Campaign is the running campaign featuring the product; CompareCents is struck only while it runs.
+	Campaign ProductCampaign
 
 	SelectionOK bool
 	Exact       bool
@@ -281,7 +287,9 @@ func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 
-func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.PriceCents }
+func (v *ProductView) OnSale() bool {
+	return v.Campaign.Running() && v.Sellable && v.CompareCents > v.PriceCents
+}
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
@@ -595,4 +603,33 @@ func (v *ProductView) ArrivalText() string {
 
 func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
 	return v.LabelFacts.Rows(ctx)
+}
+
+// ProductCampaign is the running campaign that features a product, or the zero value.
+type ProductCampaign struct {
+	Slug      string
+	Title     string
+	EndsOn    string
+	Period    components.PeriodSpec
+	HasPeriod bool
+}
+
+func NewProductCampaign(ctx context.Context, slug, title string, startsAt, endsAt, now time.Time) ProductCampaign {
+	period, ok := components.DayPeriod(ctx, title, startsAt, endsAt, now)
+	return ProductCampaign{
+		Slug: slug, Title: title,
+		EndsOn: shoptime.DateText(ctx, shoptime.LastDay(endsAt, now)),
+		Period: period, HasPeriod: ok,
+	}
+}
+
+func (c ProductCampaign) Running() bool { return c.Slug != "" }
+
+func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
+
+// Source splits the sentence naming the campaign around its title, which the page links.
+func (c ProductCampaign) Source(ctx context.Context) (before, after string) {
+	const mark = "\x00"
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignPrice), mark, c.EndsOn), mark)
+	return before, after
 }

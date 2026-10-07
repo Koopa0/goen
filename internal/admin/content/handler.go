@@ -1,6 +1,7 @@
 package content
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -160,22 +161,28 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	case bannerQueue:
 		bannerAfter = r.URL.Query().Get(web.KeysetParam)
 	}
-	view, err := h.store.HeroSlides(r.Context(), heroAfter)
+	view, err := h.homeView(r.Context(), heroAfter, bannerAfter)
 	if err != nil {
-		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
+		h.log.ErrorContext(r.Context(), "read home editor", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	banners, err := h.store.Banners(r.Context(), bannerAfter)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+}
+
+func (h *Handler) homeView(ctx context.Context, heroAfter, bannerAfter string) (admin.HeroView, error) {
+	view, err := h.store.HeroSlides(ctx, heroAfter)
+	if err != nil {
+		return admin.HeroView{}, err
+	}
+	banners, err := h.store.Banners(ctx, bannerAfter)
+	if err != nil {
+		return admin.HeroView{}, err
+	}
+	view.Banners, view.BannerBound = banners.Rows, banners.Bound
+	return view, nil
 }
 
 func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
@@ -234,13 +241,11 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 func (h *Handler) rejectBanner(
 	w http.ResponseWriter, r *http.Request, f *BannerForm, errs map[string]string,
 ) {
-	view, err := h.store.HeroSlides(r.Context())
+	view, err := h.homeView(r.Context(), "", "")
 	if err != nil {
+		h.log.ErrorContext(r.Context(), "read home editor", "error", err)
 		access.ServerError(w, r, h.log)
 		return
-	}
-	if banners, bannerErr := h.store.Banners(r.Context()); bannerErr == nil {
-		view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	}
 	view.Errors = errs
 	view.BannerDraft = admin.BannerDraft{
@@ -277,8 +282,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	if err != nil {
-		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		h.respondToUploadError(w, r, f, err)
 		return
 	}
 	if upload != nil {
@@ -291,8 +295,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	if upload != nil {
 		obj, storeErr := upload.Store(r.Context())
 		if storeErr != nil {
-			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(storeErr))})
+			h.respondToUploadError(w, r, f, storeErr)
 			return
 		}
 		f.ImageKey = obj.Digest
@@ -310,11 +313,25 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, f *HeroForm, err error) {
+	switch {
+	case errors.Is(err, web.ErrFormText):
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case media.IsRefusal(err):
+		h.log.WarnContext(r.Context(), "hero image", "error", err)
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+	default:
+		h.log.ErrorContext(r.Context(), "hero image", "error", err)
+		access.ServerError(w, r, h.log)
+	}
+}
+
 func (h *Handler) rejectHeroSlide(
 	w http.ResponseWriter, r *http.Request, f *HeroForm, errs map[string]string,
 ) {
-	view, err := h.store.HeroSlides(r.Context())
+	view, err := h.homeView(r.Context(), "", "")
 	if err != nil {
+		h.log.ErrorContext(r.Context(), "read home editor", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}

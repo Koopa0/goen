@@ -166,6 +166,42 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	assertSeller("after retirement")
 }
 
+// A refund before shipment cancels the sale, so the product leaves the best
+// sellers while the order is still committed, as the order leaves the revenue.
+func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
+	ctx := t.Context()
+	// A week of its own, so no other test's sale outranks this one.
+	now := shopMoment(t, "2021-06-20 15:20:00")
+	placed := shopMoment(t, "2021-06-17 10:00:00")
+	variantID, sku := newVariant(t, 20, 0)
+	orderOnVariant(t, variantID, sku, 3, &placed)
+	slug := productSlug(t, sku)
+
+	_, staff := admintest.StaffContext(t, pool)
+	backOffice := admintest.AdminRolePool(t, pool)
+	s := reports.NewStore(backOffice)
+	listed := func() bool {
+		t.Helper()
+		view, err := s.ReportAt(ctx, 7, now)
+		if err != nil {
+			t.Fatalf("ReportAt: %v", err)
+		}
+		return slices.ContainsFunc(view.Sellers, func(r admin.Seller) bool { return r.Slug == slug })
+	}
+	if !listed() {
+		t.Fatal("the paid order's product is not a best seller before any refund")
+	}
+
+	if _, err := backOffice.Exec(ctx, `
+		SELECT open_refund_before_shipment(o.order_number, 'best sellers', $2, 'best-sellers-' || $3)
+		FROM orders o WHERE o.id = $1`, orderOf(t, sku, false), staff, sku); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	if listed() {
+		t.Errorf("%s is still a best seller after its only order was refunded before shipment", slug)
+	}
+}
+
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)

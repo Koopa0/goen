@@ -229,6 +229,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			PriceCents:   t.MinPriceCents,
 			PriceVaries:  t.PriceVaries,
 			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
+			InCampaign:   t.InCampaign,
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,

@@ -144,6 +144,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read shipping for the cart", "error", err)
 	} else {
 		view.FreeDelivery = freeDeliveryFor(choices, view.SubtotalCents)
+		view.NoDelivery = len(choices) == 0
 	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
@@ -1452,8 +1453,11 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 
 	// Anything but the browser that placed the order or the account that owns
-	// it gets the same 404 as an order that does not exist.
+	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
+		if orderaccess.ReloadSameSite(w, r, h.log) {
+			return
+		}
 		// Its own page rather than a bare Notice: this is the one 404 with a
 		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
@@ -1492,7 +1496,8 @@ const (
 // A browser return is not payment evidence. Keep that hint when bounded checks
 // end so a delayed webhook cannot turn it into an invitation to pay again.
 func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
-	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
+	view.PaymentReturnHint = r.URL.Query().Get("paid") == "1"
+	if !view.AwaitingPayment() || !view.PaymentReturnHint {
 		return ""
 	}
 	attempt := 0

@@ -5,6 +5,7 @@ SELECT
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     localized_name(p.description, p.description_en, @locale::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -155,6 +156,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -283,6 +289,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -378,6 +389,17 @@ INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, @user_id, @body::text, true
 FROM product_questions q
 WHERE q.id = @question_id AND q.hidden_at IS NULL;
+
+-- Of the listed campaigns featuring a product, the one that ends first.
+-- name: ListedCampaignOfProduct :one
+SELECT fc.slug, localized_name(fc.title, fc.title_en, @locale::text) AS title,
+       fc.starts_at, fc.ends_at
+FROM sale_campaign_products fp
+JOIN listed_campaigns l ON l.id = fp.campaign_id
+JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+WHERE fp.product_id = @product_id::uuid
+ORDER BY fc.ends_at, fc.id
+LIMIT 1;
 
 -- The tone is the nearest one up the category's trail, the rule of
 -- CategoryBySlug.

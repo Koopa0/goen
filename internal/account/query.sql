@@ -205,8 +205,22 @@ SELECT
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
     EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
-    order_amount_after_credit(o.id)::bigint AS owed_cents
+    order_amount_after_credit(o.id)::bigint AS owed_cents,
+    -- one_last_day: every ordered unit is in a parcel, every parcel has arrived, and all share one last day to
+    -- cancel. Anything else has no single day, as return_line_policy_window judges each line by its own parcel.
+    -- rescission_ends is shop_today() while no parcel has arrived, so a reader checks one_last_day, never the date.
+    (p.parcels > 0 AND p.arrived = p.parcels AND p.last_days = 1
+     AND NOT EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
+                     AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                                 WHERE sl.order_line_id = ol.id), 0)))::boolean AS one_last_day,
+    coalesce(p.last_day, shop_today())::date AS rescission_ends
 FROM orders o
+LEFT JOIN LATERAL (
+    SELECT count(*) AS parcels, count(s.delivered_at) AS arrived,
+           count(DISTINCT return_window_ends(s.delivered_at)) AS last_days,
+           min(return_window_ends(s.delivered_at)) AS last_day
+    FROM order_shipments s WHERE s.order_id = o.id
+) p ON true
 WHERE o.user_id = @user_id
   AND (NOT @has_cursor::boolean OR (o.placed_at, o.id) < (@after_at::timestamptz, @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -272,6 +286,11 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (

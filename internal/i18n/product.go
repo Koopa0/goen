@@ -3,6 +3,9 @@ package i18n
 var (
 	KeySectionDescription = key("pdp.description", Message{ZhHant: "商品說明", En: "Description"})
 
+	// KeyCampaignPrice is the source of a campaign price: the campaign, then the date its last day falls on.
+	KeyCampaignPrice = key("pdp.campaignprice", Message{ZhHant: "%s活動價，至 %s", En: "%s price, until %s"})
+
 	KeySectionSpecs = key("pdp.specs", Message{ZhHant: "規格", En: "Specifications"})
 
 	KeySectionWarranty = key("pdp.warranty", Message{ZhHant: "保固", En: "Warranty"})
@@ -110,8 +113,8 @@ var (
 
 var (
 	KeyFormSlugFormatExample = key("form.slug.format.example", Message{
-		ZhHant: "網址代稱只能用小寫英數與連字號，例如 pixelight-9-pro。",
-		En:     "A slug takes lower-case letters, digits and hyphens only — pixelight-9-pro, for example.",
+		ZhHant: "網址代稱只能用小寫英數與連字號，例如 ceramic-mug。",
+		En:     "A slug takes lower-case letters, digits and hyphens only — ceramic-mug, for example.",
 	})
 
 	KeyFormSlugTakenProduct = key("form.slug.taken.product", Message{
@@ -185,6 +188,8 @@ var (
 	})
 
 	KeyAdminProdName = key("admin.prod.name", Message{ZhHant: "商品名稱", En: "Product name"})
+
+	KeyAdminProdBasics = key("admin.prod.basics", Message{ZhHant: "基本資料", En: "Basic details"})
 
 	KeyAdminProdSlugHint = key("admin.prod.slughint", Message{
 		ZhHant: "上架後不能更改，商品網址會是 /p/ 加上這串。",

@@ -122,7 +122,7 @@ var (
 	KeyAdminLangSwitch = key("admin.lang.switch", Message{ZhHant: "編輯語言", En: "Language being edited"})
 
 	KeyAdminHomeAltEn = key("admin.home.alt.en", Message{
-		ZhHant: "圖片替代文字（英文）",
+		ZhHant: "替代文字（英文）",
 		En:     "Alt text (English)",
 	})
 
@@ -149,6 +149,8 @@ var (
 	})
 
 	KeyAdminHomeShowing = key("admin.home.showing", Message{ZhHant: "顯示中", En: "Showing"})
+
+	KeyAdminHomeEligible = key("admin.home.eligible", Message{ZhHant: "可顯示", En: "Eligible to show"})
 
 	KeyAdminHomeEndsAt = key("admin.home.endsat", Message{ZhHant: "至 %s", En: "until %s"})
 
