@@ -3424,8 +3424,9 @@ input.goen-check {
 }
 
 .goen-pagehead__chip[aria-current='page'] {
-  background: var(--accent-faint);
-  border-color: transparent;
+  background: var(--n-0);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--accent-deep);
 }
 
@@ -3437,6 +3438,7 @@ input.goen-check {
 
 [data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
   background: var(--tone-text);
+  box-shadow: none;
   color: var(--n-900);
 }
 
@@ -4488,6 +4490,11 @@ input.goen-check {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
   outline: none;
+}
+
+.goen-swatch--on:not(.goen-swatch--dot):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .goen-swatch__note {
