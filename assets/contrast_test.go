@@ -10,8 +10,12 @@ import (
 	"testing"
 )
 
-// tokenHex finds a custom property declared as a six-digit hex colour.
-var tokenHex = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*#([0-9a-fA-F]{6});`)
+// tokenHex finds a custom property declared as a six-digit hex colour, and
+// tokenTranslucent one declared as rgb(r g b / alpha).
+var (
+	tokenHex         = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*#([0-9a-fA-F]{6});`)
+	tokenTranslucent = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*(rgb\([^)]*\));`)
+)
 
 // linear is one sRGB channel as relative luminance counts it.
 func linear(c uint8) float64 {
@@ -38,10 +42,26 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
-// hexTokens reads the colour tokens from base.css, where both layouts get them.
-// A token base.css declares and app.css or admin.css declares again with another
-// value would be read by neither test below, so it fails here.
+// hexTokens reads the opaque colour tokens from base.css, where both layouts
+// get them, as six hex digits.
 func hexTokens(t *testing.T) map[string]string {
+	t.Helper()
+	return baseTokens(t, tokenHex, "#")
+}
+
+// translucentTokens reads the rgb(r g b / alpha) tokens from base.css. They are
+// kept apart from the hex ones because contrast reads only hex, and the NaN it
+// returns for anything else passes every "less than" check.
+func translucentTokens(t *testing.T) map[string]string {
+	t.Helper()
+	return baseTokens(t, tokenTranslucent, "")
+}
+
+// baseTokens reads the tokens decl finds in base.css. A token base.css declares
+// and app.css or admin.css declares again with another value would be read by
+// none of the tests below, so it fails here; a head that needs another colour
+// points at a token of its own.
+func baseTokens(t *testing.T, decl *regexp.Regexp, prefix string) map[string]string {
 	t.Helper()
 
 	read := func(name string) [][]string {
@@ -49,7 +69,7 @@ func hexTokens(t *testing.T) map[string]string {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
+		return decl.FindAllStringSubmatch(string(sheet), -1)
 	}
 	tokens := make(map[string]string)
 	for _, m := range read(BaseCSS) {
@@ -60,7 +80,7 @@ func hexTokens(t *testing.T) map[string]string {
 	for _, name := range []string{AppCSS, AdminCSS} {
 		for _, m := range read(name) {
 			if base, ok := tokens[m[1]]; ok && base != m[2] {
-				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
+				t.Errorf("%s redeclares %s as %s%s, base.css has %s%s", name, m[1], prefix, m[2], prefix, base)
 			}
 		}
 	}
@@ -143,7 +163,10 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 	// Nor has a period's fill, on the page or on its own track.
-	track := periodTrack(t)
+	track := translucentTokens(t)["--period-track"]
+	if track == "" {
+		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
 	for _, ground := range grounds {
 		checkPeriod(t, "the page", tokens["--mark"], track, ground, tokens[ground])
 	}
@@ -168,23 +191,8 @@ var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[
 var (
 	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
 	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*(?:var\((--[a-z0-9-]+)\)|(rgb\([^)]*\)));`)
-	trackDecl      = regexp.MustCompile(`(?m)^\s*--period-track:\s*(rgb\([^)]*\));`)
 	translucent    = regexp.MustCompile(`^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) / (0?\.\d+)\)$`)
 )
-
-// periodTrack is the track base.css declares for the part of a period still to come.
-func periodTrack(t *testing.T) string {
-	t.Helper()
-	sheet, err := fs.ReadFile(files, BaseCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", BaseCSS, err)
-	}
-	m := trackDecl.FindStringSubmatch(string(sheet))
-	if m == nil {
-		t.Fatalf("%s declares no --period-track as rgb(r g b / alpha)", BaseCSS)
-	}
-	return m[1]
-}
 
 // over lays a translucent rgb(r g b / alpha) on a hex ground and returns the
 // colour a reader sees, blended in sRGB the way the browser paints it.
@@ -212,8 +220,9 @@ func over(t *testing.T, colour, ground string) string {
 
 // checkPeriod holds a period's fill to 3:1 (WCAG 1.4.11) on its ground and on
 // its track laid over that ground: the edge between elapsed and to come is the
-// one the track exists to show. The track against the ground is not held to
-// 3:1, because the facts above the track state what it draws.
+// one the track exists to show. The track against the ground is held only to
+// 1.5:1, because the facts above the track state what it draws; below that a
+// 4px track fades on most screens and reads as a stub.
 func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 	t.Helper()
 	if got := contrast(fill, ground); math.IsNaN(got) || got < 3 {
@@ -224,6 +233,10 @@ func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 	if got := contrast(fill, seen); math.IsNaN(got) || got < 3 {
 		t.Errorf("%s: the period's fill (#%s) on its track %s over %s (#%s) = %.2f:1, want at least 3:1",
 			where, fill, track, groundName, seen, got)
+	}
+	if got := contrast(seen, ground); math.IsNaN(got) || got < 1.5 {
+		t.Errorf("%s: the period's track %s over %s (#%s) is #%s, %.2f:1 against the ground, want at least 1.5:1",
+			where, track, groundName, ground, seen, got)
 	}
 }
 
@@ -248,7 +261,11 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	tokens := hexTokens(t)
-	track := periodTrack(t)
+	rgba := translucentTokens(t)
+	track := rgba["--period-track"]
+	if track == "" {
+		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -299,6 +316,8 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 						period[d[1]] = d[3]
 					case strings.HasPrefix(d[2], "--tone-"):
 						period[d[1]] = decl[d[2]]
+					case rgba[d[2]] != "":
+						period[d[1]] = rgba[d[2]]
 					default:
 						period[d[1]] = tokens[d[2]]
 					}

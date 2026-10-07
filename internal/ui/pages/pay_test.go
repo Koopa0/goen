@@ -153,6 +153,9 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		if strings.Contains(html, "14:31") {
 			t.Errorf("%s: a resumed session still names a deadline to start paying", tt.locale)
 		}
+		if !strings.Contains(html, tt.placed) {
+			t.Errorf("%s: a resumed session no longer says when the order was placed", tt.locale)
+		}
 	}
 }
 
