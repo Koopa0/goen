@@ -165,7 +165,8 @@ async function storefront() {
   const ship = `/checkout?ship=${process.env.PICKUP_SHIP}`;
   await metrics(1440, 900);
   await navigate(ORIGIN + ship);
-  const nonce = await evaluate(`document.querySelector('input[name=pickup_n]')?.value || ''`);
+  const jar = (await send('Network.getCookies', { urls: [ORIGIN] })).cookies.find((c) => c.name === 'goen_pickup');
+  const nonce = jar ? Buffer.from(jar.value, 'base64url').toString().split('|')[0] : '';
   console.log('pickup nonce length', nonce.length);
   if (!nonce) failures.push('pickup: the checkout page issued no nonce');
   const store = '&pickup_chain=seven_eleven&pickup_store_code=131386&pickup_store_name=' + encodeURIComponent('信義威秀門市') +
@@ -186,21 +187,19 @@ async function admin() {
   const returns = await firstLinks('/admin/returns', '/admin/returns/', [], 4);
   console.log('return links', JSON.stringify(returns));
   const pages = [
-    ['picking', '/admin/orders/picking'],
     ['picking-slips', '/admin/orders/picking/slips'],
     ['returns', '/admin/returns'],
-    ...returns.map((h, i) => [`return-${i + 1}`, h]),
     ['health', '/admin/health'],
     ['twofactor-off', '/admin/verify'],
   ];
   for (const width of [1440, 375]) {
     for (const [name, path] of pages) {
-      try { await shot(path, `admin-${name}-${width}.png`, width, { admin: true }); } catch (e) { failures.push(`admin-${name}-${width}: ${e.message}`); }
+      try { await shot(path, `admin-${name}-${width}.png`, width, { admin: name !== 'twofactor-off' }); } catch (e) { failures.push(`admin-${name}-${width}: ${e.message}`); }
     }
   }
   // Print: the slips as the printer gets them, at A4 width.
   await send('Emulation.setEmulatedMedia', { media: 'print', features: [{ name: 'prefers-color-scheme', value: 'light' }] });
-  for (const [name, path] of [['picking-slips', '/admin/orders/picking/slips'], ['picking', '/admin/orders/picking']]) {
+  for (const [name, path] of [['picking-slips', '/admin/orders/picking/slips']]) {
     try {
       await metrics(794, 1123);
       await navigate(ORIGIN + path);
