@@ -86,7 +86,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	address, err := h.store.CompleteReset(r.Context(), token, password)
 	switch {
 	case err == nil:
-		h.writeSignInContext(w, signInBeforeErasure, address)
+		h.writeSignInContext(w, signInAfterReset, address)
 		http.Redirect(w, r, "/signin?reset=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidPassword):
 		errs := FieldMessages(r.Context(), []web.FieldRefusal{
