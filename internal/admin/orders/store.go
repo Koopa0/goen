@@ -120,7 +120,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
+	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }

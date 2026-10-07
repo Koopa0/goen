@@ -116,10 +116,12 @@ type DashboardView struct {
 	UnansweredQuestions              int64
 	UnansweredQuestionsOldestSeconds int64
 	Recent                           []OrderRow
-	// Runway is the first days cover rows of SKUs that are not sold out, and
-	// RunwayCut says more were left off.
-	Runway    []StockRisk
-	RunwayCut bool
+	// Runway is the first days cover rows of SKUs expected to run out within
+	// the warning line, RunwayCut says more were left off and RunwayBasis what
+	// an empty list can say.
+	Runway      []StockRisk
+	RunwayCut   bool
+	RunwayBasis RunwayBasis
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
 	// HealthUnavailable is set when the health desk could not be read, so an
