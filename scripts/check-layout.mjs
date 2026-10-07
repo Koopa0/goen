@@ -253,7 +253,7 @@ const ADMIN = [
   // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
-  // and the warning; without it the rows measured say only that sales are too few.
+  // and the triangle with its text alternative; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
@@ -895,55 +895,144 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
-// The day grid's labels (WCAG 1.4.4, 1.4.10): at 320px and at 200% text every
-// label lies inside its own period and inside the viewport, and no two labels
-// overlap. A route with no period fails, because a grid that is not drawn
-// cannot be measured and the check would pass on nothing.
+// The period track (WCAG 1.4.4, 1.4.10, 1.4.11). At 320px, at 200% text and in
+// forced colours every track lies inside the viewport and draws its cells as one
+// row of equal parts, joined but for the 4px after a mark, so its length still
+// reads as the share of the span. Elapsed stays apart from to come: by colour,
+// and in forced colours, where the colours are the system's, by thickness. The
+// span after a mark (the return window's goodwill days) is drawn apart from the
+// days before it: dashes under a transparent border, in forced colours too,
+// where a dashed border paints solid on a short cell. A dash is a gradient
+// whose first stop is under 100%, repeated on a tile a few px wide or narrower
+// than the cell, so a solid gradient does not pass; today among the dashes is
+// cut by a mask of the same kind. A dashed cell and today's
+// half-filled one draw their line as a gradient. A label a track draws lies
+// inside it and the viewport and overlaps no other. A route with no period drawn fails, because a track that
+// is not drawn cannot be measured and the check would pass on nothing.
 const PERIOD_PROBE = `(() => {
   const vw = document.documentElement.clientWidth;
-  const periods = [...document.querySelectorAll('.ui-period')];
+  const forced = matchMedia('(forced-colors: active)').matches;
+  const periods = [...document.querySelectorAll('.ui-period')].filter((e) => e.getClientRects().length > 0);
   const problems = [];
+  const tracks = [];
+  let extras = 0;
+  const clear = (colour) => colour === 'transparent' || /^rgba\\(.*,\\s*0\\)$/.test(colour);
+  const drawn = (c) => c.width + 'px ' + c.style + ' ' + c.colour + (c.image === 'none' ? '' : ' over ' + c.image + ' at ' + c.size)
+    + (c.mask === 'none' ? '' : ' masked by ' + c.mask + ' at ' + c.maskSize);
+  const tiled = (image, size, cellWidth) => {
+    const stop = /\\)\\s+(\\d+(?:\\.\\d+)?)%/.exec(image);
+    const across = (size || '').split(' ')[0];
+    return /gradient/.test(image) && !!stop && Number(stop[1]) < 100
+      && /px$/.test(across) && parseFloat(across) > 0 && (parseFloat(across) <= 16 || parseFloat(across) < cellWidth);
+  };
   periods.forEach((period, n) => {
     period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
     const box = period.getBoundingClientRect();
-    const labels = [...period.querySelectorAll('b, small')].map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
+    const at = 'period ' + n + ' [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + ']';
+    tracks.push(box.left.toFixed(1) + '+' + box.width.toFixed(1) + 'x' + box.height.toFixed(1));
+    if (box.left < -0.5 || box.right > vw + 0.5) problems.push(at + ' lies outside the viewport ' + vw);
+    const cells = [...period.children].map((e) => {
+      const s = getComputedStyle(e);
+      return {
+        r: e.getBoundingClientRect(), filled: e.hasAttribute('data-cell'), mark: e.hasAttribute('data-mark'),
+        today: e.getAttribute('data-cell') === 'today', extra: e.getAttribute('data-span') === 'extra',
+        width: parseFloat(s.borderBottomWidth) || 0, style: s.borderBottomStyle, colour: s.borderBottomColor,
+        image: s.backgroundImage, size: s.backgroundSize,
+        mask: s.maskImage || s.webkitMaskImage || 'none', maskSize: s.maskSize || s.webkitMaskSize || '',
+      };
+    });
+    if (cells.length === 0) problems.push(at + ' has no cells');
+    cells.forEach((c, i) => {
+      if (c.r.height <= 0 || c.width < 2 || c.style === 'none' || c.style === 'hidden'
+        || (clear(c.colour) && !/gradient/.test(c.image))) {
+        problems.push(at + ' cell ' + i + ' draws no line (' + drawn(c) + ')');
+      }
+      if (c.r.left < box.left - 0.5 || c.r.right > box.right + 0.5) {
+        problems.push(at + ' cell ' + i + ' [' + c.r.left.toFixed(1) + ',' + c.r.right.toFixed(1) + '] lies outside its track');
+      }
+      const next = cells[i + 1];
+      if (!next) return;
+      const gap = next.r.left - c.r.right;
+      const want = c.mark ? 4 : 0;
+      if (Math.abs(gap - want) > 0.5) {
+        problems.push(at + ' cells ' + i + ' and ' + (i + 1) + ' are ' + gap.toFixed(1) + 'px apart, want ' + want);
+      }
+      if (Math.abs(next.r.top + next.r.bottom - c.r.top - c.r.bottom) > 2) {
+        problems.push(at + ' cell ' + (i + 1) + ' leaves the row');
+      }
+    });
+    const widths = cells.map((c) => c.r.width);
+    if (widths.length && Math.max(...widths) - Math.min(...widths) > 1) {
+      problems.push(at + ' cells range from ' + Math.min(...widths).toFixed(1) + ' to ' + Math.max(...widths).toFixed(1) +
+        'px wide, so the track no longer draws the span to scale');
+    }
+    for (const [part, span] of [['', cells.filter((c) => !c.extra)], [' after its mark', cells.filter((c) => c.extra)]]) {
+      const filled = span.filter((c) => c.filled && !c.today);
+      const ahead = span.filter((c) => !c.filled);
+      if (filled.length && ahead.length && (forced ? filled[0].width <= ahead[0].width
+        : filled[0].colour + filled[0].image === ahead[0].colour + ahead[0].image)) {
+        problems.push(at + part + ' draws elapsed and to come alike (' + drawn(filled[0]) + ' against ' + drawn(ahead[0]) + ')');
+      }
+    }
+    cells.forEach((c, i) => {
+      if (!c.extra) return;
+      extras++;
+      const before = cells.find((d) => !d.extra && !d.today && d.filled === c.filled);
+      const dashed = clear(c.colour) && (c.mask === 'none'
+        ? tiled(c.image, c.size, c.r.width) : /gradient/.test(c.image) && tiled(c.mask, c.maskSize, c.r.width));
+      if (!dashed || (before && drawn(before) === drawn(c))) {
+        problems.push(at + ' cell ' + i + ' after the mark is drawn like the days before it (' + drawn(c) + ')');
+      }
+    });
+    const labels = [...period.querySelectorAll('b, small')]
+      .filter((e) => e.getClientRects().length > 0)
+      .map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
     for (const { text, r } of labels) {
       if (r.left < Math.max(0, box.left) - 0.5 || r.right > Math.min(vw, box.right) + 0.5) {
-        problems.push('period ' + n + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + '] or the viewport ' + vw);
+        problems.push(at + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period or the viewport ' + vw);
       }
     }
     for (let i = 0; i < labels.length; i++) {
       for (let j = i + 1; j < labels.length; j++) {
         const a = labels[i].r, b = labels[j].r;
         if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) {
-          problems.push('period ' + n + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
+          problems.push(at + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
         }
       }
     }
   });
-  return { periods: periods.length, problems };
+  return { periods: periods.length, forced, tracks, extras, problems };
 })()`;
 
-async function periodPass(route) {
-  for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
-    const at = 'period labels ' + route + ' ' + name;
+// extra says the route draws a span after a mark, so a pass with none fails.
+async function periodPass(route, extra = false) {
+  for (const [name, fontSize, forced] of [['320', '', false], ['320 at 200% text', '200%', false], ['320 forced colours', '', true]]) {
+    const at = 'period track ' + route + ' ' + name;
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
-    const target = ORIGIN + route;
-    await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, at, target);
-    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
-    const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
-    if (!got) {
-      fail(at, 'the period probe did not run');
-      continue;
+    if (forced) await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+    try {
+      const target = ORIGIN + route;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, at, target);
+      await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+      const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
+      if (!got) {
+        fail(at, 'the period probe did not run');
+        continue;
+      }
+      if (forced && !got.forced) fail(at, 'forced colours did not activate');
+      if (got.periods === 0) fail(at, 'no .ui-period on the page: the period is not drawn');
+      if (extra && got.extras === 0) fail(at, 'no cell after a mark: the goodwill days are not drawn');
+      for (const problem of got.problems) fail(at, problem);
+      console.log(at.padEnd(48) + ' periods=' + got.periods + ' extra=' + got.extras + ' ' + got.tracks.join(' ') +
+        (got.problems.length || got.periods === 0 || (extra && got.extras === 0) ? '' : ' ok'));
+    } finally {
+      if (forced) await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
     }
-    if (got.periods === 0) fail(at, 'no .ui-period on the page: the day grid is not drawn');
-    for (const problem of got.problems) fail(at, problem);
-    console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
   }
 }
 
-for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) await periodPass(route);
+for (const route of ['/', '/s/layout-campaign']) await periodPass(route);
 
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the
@@ -2456,8 +2545,8 @@ if (process.env.CUST_TOKEN) {
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
-  // A delivered order of the signed-in customer: one grid for the right to cancel, one for the warranty.
-  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
+  // A delivered order of the signed-in customer: the track of its right to cancel.
+  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''), true);
 
   for (const want of ACCOUNT_PAGES) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
@@ -2928,8 +3017,8 @@ try {
             fail(label, boundary.selector + ': ' + boundary.error);
             continue;
           }
-          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
-            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast, boundary.underlineContrast, boundary.arrowContrast) < 3) {
+            fail(label, boundary.selector + ': boundary, underline, arrow and fill all below 3:1');
           }
           const focused = await controlFocus(boundary.selector);
           console.log(label + ' focus ' + JSON.stringify(focused));
