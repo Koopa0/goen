@@ -3068,7 +3068,7 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-chartrangebar__reach,
   .goen-chartrangebar--urgent .goen-chartrangebar__reach {
     fill: GrayText;
-    fill-opacity: 1;
+    fill-opacity: 0.5;
   }
 
   .goen-report__tri {
