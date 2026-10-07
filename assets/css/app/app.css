@@ -4589,9 +4589,10 @@ input.goen-check {
     border-top: 1px solid var(--n-200);
     bottom: 0;
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
     left: 0;
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    padding: 0.75rem var(--page-gutter) calc(0.75rem + env(safe-area-inset-bottom));
     position: fixed;
     right: 0;
     transform: translateY(100%);
@@ -4625,8 +4626,10 @@ input.goen-check {
   }
 
   .goen-buybar__btn {
-    flex: 1 1 auto;
-    height: 3rem;
+    flex: 1 1 9rem;
+    height: auto;
+    min-height: 3rem;
+    text-wrap: balance;
   }
 
   /* The menu drawer belongs to the header, which this later fixed block would
@@ -4636,8 +4639,8 @@ input.goen-check {
     visibility: hidden;
   }
 
-  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) .goen-footer {
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -5466,6 +5469,10 @@ input.goen-check {
   padding: 0;
 }
 
+.goen-cart__lines {
+  container: cartlines / inline-size;
+}
+
 .goen-line {
   border-bottom: 1px solid var(--n-200);
   display: flex;
@@ -5564,8 +5571,9 @@ input.goen-check {
   background: transparent;
   color: var(--n-700);
   font-size: var(--fs-14);
+  justify-content: flex-start;
   min-width: 2.75rem;
-  padding: 0 0.5rem;
+  padding: 0;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -5720,8 +5728,9 @@ input.goen-check {
   border-top: 1px solid var(--n-200);
   color: var(--fg-muted);
   display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 1rem;
+  gap: 0.25rem 1rem;
   justify-content: space-between;
   padding: 0.75rem 0;
 }
@@ -5735,14 +5744,18 @@ input.goen-check {
   padding-bottom: 0;
 }
 
-.goen-summary__row dt,
-.goen-summary__row dd {
+.goen-summary__row dt {
   margin: 0;
+}
+
+.goen-summary__row dd {
+  margin: 0 0 0 auto;
 }
 
 .goen-summary__value {
   color: var(--fg);
   font-variant-numeric: tabular-nums;
+  margin-left: auto;
 }
 
 .goen-summary__row--total {
@@ -6056,8 +6069,14 @@ input.goen-check {
   color: var(--n-700);
   display: flex;
   font-size: var(--fs-14);
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
   justify-content: space-between;
+}
+
+.goen-checkout__lines li > :first-child {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 /* The coupon sits under the totals, not above them: a shopper reads the total
@@ -6065,10 +6084,12 @@ input.goen-check {
    ordinary .goen-field; only the row holding the input and its button is new. */
 .goen-checkout__couponrow {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .goen-checkout__couponrow .goen-input {
+  flex: 1 1 10rem;
   min-width: 0;
 }
 
@@ -6342,6 +6363,34 @@ input.goen-check {
   }
 }
 
+/* Sized in rem so it follows the text: at 200% the line is narrow in the
+   same way a small screen is, and the viewport cannot say so. */
+@container cartlines (max-width: 28rem) {
+  .goen-line--cart {
+    grid-template-areas:
+      'thumb body'
+      'thumb controls'
+      'thumb money';
+    grid-template-columns: min(4.5rem, 24%) minmax(0, 1fr);
+  }
+
+  .goen-line--cart .goen-line__money {
+    align-items: flex-start;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* Below this the stepper and the remove button no longer fit beside the photo. */
+@container cartlines (max-width: 17.5rem) {
+  .goen-line--cart {
+    grid-template-areas:
+      'thumb body'
+      'controls controls'
+      'money money';
+  }
+}
+
 @media (min-width: 768px) {
   .goen-cart,
   .goen-checkout,
@@ -6420,6 +6469,10 @@ input.goen-check {
     padding: 0;
   }
 
+  .goen-cart__summary .goen-summary__row--total .goen-summary__value {
+    margin-left: 0;
+  }
+
   .goen-cart__summary .goen-summary__row--total dt {
     color: var(--fg-muted);
     font-size: var(--fs-13);
@@ -6433,6 +6486,20 @@ input.goen-check {
   .goen-cart__summary .goen-btn--block {
     display: inline-flex;
     width: auto;
+  }
+}
+
+/* The fixed cart bar and buy bar must not hide a focused control (WCAG 2.4.11):
+   the browser scrolls a focused element clear of this much of the bottom edge. */
+@media (max-width: 1023.98px) {
+  :root:has(.goen-cart__summary) {
+    scroll-padding-block-end: 9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root[data-buybar='out'] {
+    scroll-padding-block-end: 8rem;
   }
 }
 
