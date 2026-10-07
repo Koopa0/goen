@@ -63,6 +63,8 @@ jobs:
           make db-seed
           psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
           sed -E 's/(TOKEN)=.*/\1=<hidden>/' fixtures.env
+          psql "$GOEN_DATABASE_URL" -X -q -v env=text200.env -f scripts/text200-seed.sql
+          sed -E 's/(TOKEN)=.*/\1=<hidden>/' text200.env
 
       - name: Capture
         run: |
@@ -75,7 +77,7 @@ jobs:
           chrome_pid=$!
           trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
           sleep 3
-          set -a; . ./fixtures.env; set +a
+          set -a; . ./fixtures.env; . ./text200.env; set +a
           status=0
           mkdir -p shots
 

@@ -75,6 +75,9 @@ const FACTS = `(() => {
     cartBar: box('.goen-cart__summary'),
     buyBarBox: box('.goen-buybar'),
     buyBtn: box('.goen-buybar__btn'),
+    buyBarOverflow: (() => { const e = document.querySelector('.goen-buybar'); return e ? e.scrollWidth - e.clientWidth : null; })(),
+    footerBottom: box('.goen-footer__legal') || box('.goen-footer'),
+    lastFooterLink: (() => { const l = [...document.querySelectorAll('.goen-footer a')].pop(); if (!l) return null; const r = l.getBoundingClientRect(); return Math.round(r.bottom); })(),
     couponInput: box('.goen-checkout__couponrow .goen-input'),
     summaryTotal: box('.goen-summary__row--total'),
   });
@@ -216,28 +219,86 @@ async function buyableProduct() {
 const PRODUCT = await buyableProduct();
 const PAST_CTA = `(() => { const b = document.getElementById('add-to-cart'); window.scrollTo(0, b ? b.getBoundingClientRect().bottom + scrollY + 40 : 700); return 1; })()`;
 
-const steps = [
-  // 200% text, 375 wide: full page.
+async function setLocale(locale) {
+  await navigate(ORIGIN + '/');
+  await evaluate(`fetch('/locale', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'locale=${locale}&return=/' }).then(() => 1)`, true);
+}
+const SOLD = process.env.SOLD_SLUG ? `/p/${process.env.SOLD_SLUG}` : null;
+const NORM = process.env.NORM_SLUG ? `/p/${process.env.NORM_SLUG}` : PRODUCT;
+const PAST_RESTOCK = `(() => { const b = document.getElementById('restock'); window.scrollTo(0, b ? b.getBoundingClientRect().bottom + scrollY + 40 : 700); return 1; })()`;
+const TO_BOTTOM = `(() => { window.scrollTo(0, document.documentElement.scrollHeight); return 1; })()`;
+const ADD = `(() => { document.getElementById('add-to-cart').click(); return 1; })()`;
+
+// A product page after pressing add: the bar then carries the outcome and 查看購物車.
+async function justAdded(name, width, height, big) {
+  await metrics(width, height);
+  await navigate(ORIGIN + NORM);
+  await setText(big);
+  await evaluate(ADD);
+  await sleep(2500);
+  await setText(big);
+  await evaluate(PAST_CTA);
+  await sleep(900);
+  await measure(name);
+  await save(`${name}.png`);
+}
+
+const mixedCart = async (fn) => {
+  if (!process.env.MIXED_CART_TOKEN) throw new Error('no mixed cart');
+  await cookie('goen_cart', process.env.MIXED_CART_TOKEN);
+  try { await fn(); } finally { await cookie('goen_cart', process.env.CART_TOKEN || ''); }
+};
+
+const base = [
   () => shot(PRODUCT, 'text200-product-375', 375, true),
   () => shot('/cart', 'text200-cart-375', 375, true),
   () => shot('/checkout', 'text200-checkout-375', 375, true),
-  // Normal text.
   () => shot(PRODUCT, 'normal-product-375', 375, false),
   () => shot('/cart', 'normal-cart-375', 375, false),
-  () => shot('/checkout', 'normal-checkout-375', 375, false),
   () => shot('/cart', 'normal-cart-320', 320, false),
+  () => shot('/checkout', 'normal-checkout-375', 375, false),
   () => shot(PRODUCT, 'normal-product-1440', 1440, false),
   () => shot('/cart', 'normal-cart-1440', 1440, false),
   () => shot('/checkout', 'normal-checkout-1440', 1440, false),
-  // Fixed bars as a reader sees them.
   () => viewport('/cart', 'view200-cart-375', 375, 667, true),
   () => viewport(PRODUCT, 'view200-product-375', 375, 667, true, PAST_CTA),
   () => viewport(PRODUCT, 'viewnormal-product-375', 375, 667, false, PAST_CTA),
-  // Tab walks.
+  // The page bottom with the bar showing.
+  () => viewport(PRODUCT, 'bottom200-product-375', 375, 667, true, TO_BOTTOM),
+  () => viewport(PRODUCT, 'bottomnormal-product-375', 375, 667, false, TO_BOTTOM),
   () => tabWalk('/cart', 'tab200-cart-375', 375, 667, true, 25),
   () => tabWalk('/cart', 'tabnormal-cart-375', 375, 667, false, 25),
   () => tabWalk(PRODUCT, 'tab200-product-375', 375, 667, true, 60),
   () => tabWalk(PRODUCT, 'tabnormal-product-375', 375, 667, false, 60),
+];
+
+const states = (lang) => [
+  // Sold out: the restock bar.
+  ...(SOLD ? [
+    () => viewport(SOLD, `${lang}-soldout-normal-375`, 375, 667, false, PAST_RESTOCK),
+    () => viewport(SOLD, `${lang}-soldout-200-375`, 375, 667, true, PAST_RESTOCK),
+    () => viewport(SOLD, `${lang}-soldout-200-375-bottom`, 375, 667, true, TO_BOTTOM),
+    () => tabWalk(SOLD, `${lang}-tab200-soldout-375`, 375, 667, true, 40),
+  ] : []),
+  // A cart with a sold-out line, a low-stock line and a third.
+  () => mixedCart(() => shot('/cart', `${lang}-mixedcart-normal-375`, 375, false)),
+  () => mixedCart(() => shot('/cart', `${lang}-mixedcart-normal-320`, 320, false)),
+  () => mixedCart(() => shot('/cart', `${lang}-mixedcart-200-375`, 375, true)),
+  () => mixedCart(() => viewport('/cart', `${lang}-mixedcart-view200-375`, 375, 667, true)),
+  () => mixedCart(() => tabWalk('/cart', `${lang}-tab200-mixedcart-375`, 375, 667, true, 40)),
+  () => shot('/checkout', `${lang}-checkout-200-375`, 375, true),
+  () => shot(PRODUCT, `${lang}-product-200-375`, 375, true),
+  () => shot(PRODUCT, `${lang}-product-normal-375`, 375, false),
+  () => justAdded(`${lang}-justadded-normal-375`, 375, 667, false),
+  () => justAdded(`${lang}-justadded-200-375`, 375, 667, true),
+];
+
+const steps = [
+  ...base,
+  ...states('zh'),
+  () => setLocale('en'),
+  ...states('en'),
+  () => setLocale('zh-Hant'),
 ];
 for (const [i, step] of steps.entries()) {
   try { await step(); } catch (e) { failures.push(`step ${i}: ${e.message}`); console.log(`FAIL step ${i}: ${e.message}`); }
