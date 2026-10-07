@@ -1478,7 +1478,7 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "fabricated-shipping-version"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &order.Delivery{
