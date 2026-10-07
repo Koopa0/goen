@@ -1779,3 +1779,35 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 		t.Errorf("English item count = %s, want the bare number under Items", html)
 	}
 }
+
+func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		can  bool
+		show bool
+	}{
+		{name: "unresolved return", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true},
+		{name: "plain", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "expired", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond)}, can: true, show: true},
+		{name: "equal deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now}, can: true, show: true},
+		{name: "unknown deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true}, can: true, show: true},
+		{name: "captured", view: OrderView{Status: order.FulfillmentPending, Committed: true, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "store credit funded", view: OrderView{Status: order.FulfillmentPending, OwedCents: 0, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "shipped", view: OrderView{Status: order.FulfillmentShipped, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.view.Now = now
+			if got := tt.view.CanCancel(); got != tt.can {
+				t.Errorf("CanCancel() = %v, want %v", got, tt.can)
+			}
+			if got := tt.view.ShowCancel(); got != tt.show {
+				t.Errorf("ShowCancel() = %v, want %v", got, tt.show)
+			}
+		})
+	}
+}

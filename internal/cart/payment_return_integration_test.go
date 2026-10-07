@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
@@ -25,8 +26,13 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			s := cart.NewStore(pool)
-			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
+			asStore := storeRolePool(t)
+			var role string
+			if err := asStore.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "store" {
+				t.Fatalf("return handler role = %q, want store: %v", role, err)
+			}
+			s := cart.NewStore(asStore)
+			h := cart.NewHandler(s, orderaccess.NewStore(asStore, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
 			number := placeUnpaidOrderFor(t, s, "return@example.com")
 			cookie := placedCookie(t, number)
 			path := "/orders/" + number
@@ -88,14 +94,18 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 					t.Errorf("ended confirmation renders %q", text)
 				}
 			}
-			if !strings.Contains(ended.Body.String(), `action="`+path+`/cancel"`) {
-				t.Error("ended confirmation removed the existing cancellation control")
+			if strings.Contains(ended.Body.String(), `action="`+path+`/cancel"`) {
+				t.Error("ended confirmation offers cancellation before the stock hold ends")
+			}
+			reloaded := get(target, true)
+			if reloaded.Code != http.StatusOK || strings.Contains(reloaded.Body.String(), `action="`+path+`/cancel"`) {
+				t.Error("reloading ended confirmation restores cancellation before the stock hold ends")
 			}
 			stranger = get(target, false)
 			if stranger.Code != http.StatusNotFound || stranger.Header().Get("Refresh") != "" || strings.Contains(stranger.Body.String(), notice) {
 				t.Errorf("unauthorized ended confirmation: status=%d refresh=%q", stranger.Code, stranger.Header().Get("Refresh"))
 			}
-			for _, suffix := range []string{"", "?confirmation=done", "?paid=0", "?paid=1&confirmation=3", "?paid=1&confirmation=-1", "?paid=1&confirmation=wrong", "?paid=1&confirmation=999999999999999999999"} {
+			for _, suffix := range []string{"", "?confirmation=done", "?paid=0", "?paid=true"} {
 				w := get(path+suffix, true)
 				if w.Header().Get("Refresh") != "" {
 					t.Errorf("%q keeps refreshing", suffix)
@@ -106,9 +116,30 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 					}
 				}
 			}
+			for _, suffix := range []string{"?paid=1&confirmation=3", "?paid=1&confirmation=-1", "?paid=1&confirmation=wrong", "?paid=1&confirmation=999999999999999999999"} {
+				w := get(path+suffix, true)
+				if w.Header().Get("Refresh") != "" || w.Code != http.StatusOK {
+					t.Errorf("malformed counter %q: status=%d refresh=%q", suffix, w.Code, w.Header().Get("Refresh"))
+				}
+				if strings.Contains(w.Body.String(), `action="`+path+`/cancel"`) {
+					t.Errorf("malformed counter %q restores cancellation despite the live return hint", suffix)
+				}
+				for _, text := range []string{`id="order-unpaid"`, `href="` + path + `/pay"`} {
+					if !strings.Contains(w.Body.String(), text) {
+						t.Errorf("malformed counter %q changed existing bare presentation %q", suffix, text)
+					}
+				}
+			}
 			view, err := s.Order(ctx, number)
 			if err != nil || !view.AwaitingPayment() || !view.CanCancel() {
 				t.Fatalf("return hint changed order: %+v, %v", view, err)
+			}
+			var heldUntil time.Time
+			if err := pool.QueryRow(ctx, `SELECT min(expires_at) FROM inventory_reservations WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&heldUntil); err != nil {
+				t.Fatalf("read canonical hold deadline: %v", err)
+			}
+			if !view.HoldUntil.Equal(heldUntil) || !view.HoldUntil.After(view.Now) {
+				t.Fatalf("stored deadline = %v, want actual future reservation deadline %v", view.HoldUntil, heldUntil)
 			}
 			var payments int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM payments WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&payments); err != nil || payments != 0 {
@@ -132,6 +163,52 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 						t.Errorf("confirmed order still renders %q", text)
 					}
 				}
+			}
+
+			number = placeUnpaidOrderFor(t, s, "return-expiry@example.com")
+			cookie = placedCookie(t, number)
+			path = "/orders/" + number
+			expireHolds(t, number)
+			expired, err := s.Order(ctx, number)
+			if err != nil || !expired.AwaitingPayment() || !expired.CanCancel() || !expired.HoldUntil.Before(expired.Now) {
+				t.Fatalf("expired but unswept order lost its factual cancellation eligibility: %+v, %v", expired, err)
+			}
+			for _, suffix := range []string{"?paid=1", "?paid=1&confirmation=done"} {
+				w := get(path+suffix, true)
+				if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `action="`+path+`/cancel"`) {
+					t.Errorf("expired return %q does not restore eligible cancellation", suffix)
+				}
+			}
+
+			number = placeUnpaidOrderFor(t, s, "return-no-hold@example.com")
+			cookie = placedCookie(t, number)
+			path = "/orders/" + number
+			deleted, err := pool.Exec(ctx, `DELETE FROM inventory_reservations WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number)
+			if err != nil || deleted.RowsAffected() == 0 {
+				t.Fatalf("remove fixture hold rows: %v, rows=%d", err, deleted.RowsAffected())
+			}
+			withoutHold, err := s.Order(ctx, number)
+			if err != nil || !withoutHold.HoldUntil.IsZero() || !withoutHold.CanCancel() {
+				t.Fatalf("order with no hold rows = %+v, %v", withoutHold, err)
+			}
+			noHold := get(path+"?paid=1&confirmation=done", true)
+			if noHold.Code != http.StatusOK || !strings.Contains(noHold.Body.String(), `action="`+path+`/cancel"`) {
+				t.Error("no-row deadline manufactures a cancellation restriction")
+			}
+
+			fundedID := creditFundedHeldOrder(t, freshVariant(t, "return-funded"), -time.Hour)
+			if err := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, fundedID).Scan(&number); err != nil {
+				t.Fatalf("read funded order number: %v", err)
+			}
+			cookie = placedCookie(t, number)
+			path = "/orders/" + number
+			funded, err := s.Order(ctx, number)
+			if err != nil || funded.OwedCents != 0 || funded.AwaitingPayment() || !funded.HoldUntil.After(funded.Now) {
+				t.Fatalf("fully credited order funding/hold facts = %+v, %v", funded, err)
+			}
+			w := get(path+"?paid=1&confirmation=done", true)
+			if w.Code != http.StatusOK || w.Header().Get("Refresh") != "" || !strings.Contains(w.Body.String(), `action="`+path+`/cancel"`) || strings.Contains(w.Body.String(), `id="order-payment-confirmation-pending"`) {
+				t.Error("return hint changed the fully credited order's existing cancellation or payment presentation")
 			}
 		})
 	}
