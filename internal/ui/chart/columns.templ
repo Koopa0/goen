@@ -34,7 +34,7 @@ templ Columns(p ColumnsProps) {
 									<line class="goen-chart__strip-end" x1={ s.RightX } x2={ s.RightX } y1={ px(s.Y) } y2={ px(s.Y + 5) } transform="translate(-0.75 0)"></line>
 								}
 							}
-							<text class="goen-chart__spanlabel" x={ s.NameX } y={ px(s.NameY) } text-anchor={ s.Anchor }>{ s.Name }</text>
+							<text class={ "goen-chart__spanlabel", templ.KV("goen-chart__spanlabel--window", s.Window) } x={ s.NameX } y={ px(s.NameY) } text-anchor={ s.Anchor }>{ s.Name }</text>
 						}
 					}
 					for _, g := range c.Grid {

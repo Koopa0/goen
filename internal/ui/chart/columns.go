@@ -18,10 +18,11 @@ const (
 	columnsPlot     = 150 // the value area of the columns, in pixels
 	laneHeight      = 26  // a campaign's lane: its name, then its bracket under it, in pixels
 	laneTop         = 4   // the room above the first lane
-	laneNameBase    = 11  // a lane's name baseline, from the top of the lane
-	laneBracketAt   = 19  // a lane's bracket line, from the top of the lane
+	laneNameBase    = 12  // a lane's name baseline, from the top of the lane
+	laneBracketAt   = 18  // a lane's bracket line, from the top of the lane
+	minValueRoom    = 8   // the least of it, when the highest bar stops short of the top
 	valueRoom       = 22  // between the last lane and the columns, for the value over the highest
-	maxLanes        = 3   // a fourth campaign at once is named under the chart, not bracketed
+	maxLanes        = 3   // a campaign that finds no free lane among them is shaded without a bracket or a name
 	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
 	desktopPlot     = 888 // the width of a plot at its widest, in pixels
 	minorTickFrom   = 85  // a day tick this far along, in percent, gives way to "Today" beside it
@@ -221,9 +222,8 @@ func textWidth(s string) float64 {
 }
 
 // nameAt is where a strip's name goes so that it stays inside the plot at its
-// narrowest, and what it says. A name that is running ends at its strip's end;
-// any other starts at its strip, or ends at the strip's end when it would start
-// past 55% of the plot or cross the right edge, or, if that does not fit
+// narrowest, and what it says. A name starts at its strip, or ends at the
+// strip's end when it would cross the right edge, or, if that does not fit
 // either, starts at the plot's left edge. A name wider than the plot drops the
 // day it ends on, then is cut. It returns the text, the column it is placed at,
 // its anchor, and the left and right it takes, in pixels.
@@ -239,7 +239,7 @@ func nameAt(p plan, n int) (text string, at float64, anchor string, left, right 
 	w, col := textWidth(text), float64(narrowPlot)/float64(n)
 	a, e := p.a*col, p.b*col
 	switch {
-	case !p.runs && p.a/float64(n) <= 0.55 && a+w <= narrowPlot:
+	case a+w <= narrowPlot:
 		return text, p.a, "start", a, a + w
 	case w <= e:
 		return text, p.b, "end", e - w, e
@@ -266,16 +266,16 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 	lanes, used := assignLanes(pl, n)
 
 	r := columns{Plain: !full, HasSpans: len(pl) > 0}
+	scale := columnsScale(cols, full)
 	top := float64(valueRoom)
 	if used > 0 {
-		top += float64(laneTop + laneHeight*used)
+		top = valueGap(cols, scale) + float64(laneTop+laneHeight*used)
 	}
 	r.Baseline = top + columnsPlot
 	r.Height = int(r.Baseline) + axisBand
 	r.LabelY = r.Baseline + axisBand - 8
 
-	var scale int64
-	r.Grid, scale = columnsAxis(ctx, cols, full, r.Baseline)
+	r.Grid = columnsAxis(ctx, scale, full, r.Baseline)
 	previous := p.Previous
 	if grouped {
 		previous = 0
@@ -335,6 +335,9 @@ func assignLanes(pl []plan, n int) (lanes []int, used int) {
 	for _, k := range order {
 		_, _, _, nameLeft, nameRight := nameAt(pl[k], n)
 		left, right := min(pl[k].a*col, nameLeft), max(pl[k].b*col, nameRight)
+		if pl[k].window {
+			left, right = nameLeft, nameRight // its line has no ends, so a bracket may begin where it stops
+		}
 		lanes[k] = -1
 		for l := range ends {
 			if ends[l]+8 < left {
@@ -347,20 +350,44 @@ func assignLanes(pl []plan, n int) (lanes []int, used int) {
 	return lanes, used
 }
 
-// columnsAxis is the lines of the value axis and the value its top stands for.
-// Fewer than seven days with values have the baseline alone, and the highest
-// bar fills the area.
-func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64) (grid []gridLine, scale int64) {
+// columnsScale is the value the top of the value axis stands for. Fewer than
+// seven days with values have the highest bar fill the area.
+func columnsScale(cols []Column, full bool) int64 {
+	var scale int64
 	for _, c := range cols {
 		scale = max(scale, c.Value)
 	}
 	if !full {
-		return []gridLine{{Y: baseline, Baseline: true}}, scale
+		return scale
+	}
+	step := axisStep(scale, MeasureCount)
+	return step * gridLines(scale, step)
+}
+
+// valueGap is the room between the last lane and the columns: enough for the
+// value over the highest bar, less what that bar already leaves under the top of
+// the area.
+func valueGap(cols []Column, scale int64) float64 {
+	if scale <= 0 {
+		return valueRoom
+	}
+	var highest int64
+	for _, c := range cols {
+		highest = max(highest, c.Value)
+	}
+	return max(minValueRoom, valueRoom-columnsPlot*(1-float64(highest)/float64(scale)))
+}
+
+// columnsAxis is the lines of the value axis, which tops out at scale. Fewer
+// than seven days with values have the baseline alone.
+func columnsAxis(ctx context.Context, scale int64, full bool, baseline float64) []gridLine {
+	if !full {
+		return []gridLine{{Y: baseline, Baseline: true}}
 	}
 	step := axisStep(scale, MeasureCount)
 	lines := gridLines(scale, step)
-	scale = step * lines
 	divisor, suffix := i18n.AxisUnit(ctx, scale)
+	grid := make([]gridLine, 0, lines+1)
 	for k := range lines + 1 {
 		v := k * step
 		grid = append(grid, gridLine{
@@ -368,7 +395,7 @@ func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64
 			Label: MeasureCount.axisText(v, divisor, suffix), Baseline: k == 0,
 		})
 	}
-	return grid, scale
+	return grid
 }
 
 // barsOf is a bar for each column with a value, and the value over it: over

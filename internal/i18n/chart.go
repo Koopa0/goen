@@ -27,12 +27,12 @@ var (
 		"The earliest stretch has %d day.",
 		"The earliest stretch has %d days.")
 
-	// Under a chart that brackets only the first campaigns of those running at
-	// once: %d is how many it leaves out.
+	// Under a chart that brackets only the campaigns that find a free lane:
+	// %d is how many are shaded without a name.
 	KeyChartSpansUnbracketed = countKey("chart.spans.unbracketed",
-		"另有 %d 檔活動同時進行，名稱列在表格裡。",
-		"%d more campaign runs at the same time; its name is in the table.",
-		"%d more campaigns run at the same time; their names are in the table.")
+		"另有 %d 檔活動在圖上只有底色，名稱列在表格裡。",
+		"%d more campaign is shaded without a name; the table names it.",
+		"%d more campaigns are shaded without names; the table names them.")
 
 	// Names run together in a table cell or a sentence.
 	KeyChartListSeparator = key("chart.list.separator", Message{ZhHant: "、", En: ", "})
