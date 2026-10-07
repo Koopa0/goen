@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -4347,4 +4348,69 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 	if exists(fresh) {
 		t.Error("a fresh session did not erase the account")
 	}
+}
+
+func TestDeadResetLinksOfferRecovery(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, state := range []string{"expired", "spent"} {
+			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				s := account.NewStore(pool)
+				u := registerProved(t, s, "reset-recovery-"+uuid.NewString()+"@goen.invalid")
+				token := beginReset(t, s, u.Email)
+				if state == "expired" {
+					if _, err := pool.Exec(ctx, `UPDATE password_reset_tokens
+					    SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 second'
+					    WHERE token_hash = $1`, account.HashToken(token)); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
+					t.Fatal(err)
+				}
+				h := account.NewHandler(account.NewStore(accountStorePool(t, "reset-recovery")), nil, slog.New(slog.DiscardHandler), false, nil)
+				before := accountRecoveryState(t, u.ID)
+				page := httptest.NewRecorder()
+				h.ResetPage(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/reset?token="+token, http.NoBody))
+				if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `name="token" value="`+token+`"`) {
+					t.Fatal("GET validated a dead token instead of presenting the reset form")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Fatal("scanner GET changed account state")
+				}
+				res := httptest.NewRecorder()
+				h.Reset(res, cartForm(ctx, "/reset", url.Values{
+					"token": {token}, "password": {"the refused recovery password"}, "confirm": {"the refused recovery password"},
+				}))
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("dead reset POST = %d, want 422", res.Code)
+				}
+				heading, reason := "This link is no longer valid", "That link has been used, has expired, or is not right."
+				if locale == i18n.ZhHant {
+					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
+					reason = "\u9019\u500b\u9023\u7d50\u5df2\u7d93\u7528\u904e\u3001\u904e\u671f\u6216\u4e0d\u6b63\u78ba\u3002"
+				}
+				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, "/forgot")
+				if strings.Contains(res.Body.String(), token) {
+					t.Error("dead reset recovery leaks the token")
+				}
+				if after := accountRecoveryState(t, u.ID); after != before {
+					t.Error("refused reset changed account state or password")
+				}
+			})
+		}
+	}
+}
+
+func accountRecoveryState(t *testing.T, userID string) string {
+	t.Helper()
+	var state string
+	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
+	    'account', (SELECT to_jsonb(u) FROM users u WHERE id = $1),
+	    'verification', (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.digest) FROM email_verifications v WHERE user_id = $1),
+	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.token_hash) FROM password_reset_tokens r WHERE user_id = $1),
+	    'mail', (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM outbox_messages m WHERE payload->>'user_id' = $1::text OR lower(payload->>'email') = (SELECT lower(email) FROM users WHERE id = $1)))::text`,
+		userID).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
 }

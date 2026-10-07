@@ -889,22 +889,33 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			pages.NewsletterActionView{
+		web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
+			pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
+			pages.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
 				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
 			}))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
-		pages.NewsletterActionView{
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
+			pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+			pages.EmailLinkView{
+				Heading:  i18n.T(ctx, i18n.KeyVerifyTitle),
+				Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
+				Recovery: pages.EmailLinkVerify,
+			}))
+		return
+	}
+	web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
+		pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+		pages.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyVerifyTitle),
 			Body:    i18n.T(ctx, i18n.KeyVerifyBody),
 			Action:  "/verify",
 			Submit:  i18n.T(ctx, i18n.KeyVerifySubmit),
-			Token:   r.URL.Query().Get("token"),
+			Token:   token,
 		}))
 }
 
@@ -938,7 +949,14 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrStaffAddress):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyEmailStaffFixed))
 	case errors.Is(err, ErrVerifyInvalid):
-		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		heading := i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.EmailLinkPage(
+			pages.EmailLinkMeta(heading),
+			pages.EmailLinkView{
+				Heading:  heading,
+				Body:     i18n.T(ctx, i18n.KeyVerifyDeadBody),
+				Recovery: pages.EmailLinkVerify,
+			}))
 	default:
 		h.log.ErrorContext(ctx, "confirm email verification", "error", err)
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
@@ -1019,9 +1037,9 @@ func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next 
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
-		pages.NewsletterMeta(heading),
-		pages.NewsletterActionView{Heading: heading, Body: body}))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.EmailLinkPage(
+		pages.EmailLinkMeta(heading),
+		pages.EmailLinkView{Heading: heading, Body: body}))
 }
 
 func oauthOutcome(ctx context.Context, outcome string) map[string]string {
