@@ -6,8 +6,6 @@ var (
 		En:     "This is a Stripe test payment; no real money is charged. Do not enter a real card. Use test card 4242 4242 4242 4242, any future expiry date and any three-digit CVC.",
 	})
 
-	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
-
 	KeyPayBody = key("pay.body", Message{
 		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會立即安排出貨。",
 		En: "The order is placed and the stock is held for you. We pack it as soon as the " +
