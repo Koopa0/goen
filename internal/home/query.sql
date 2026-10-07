@@ -17,13 +17,12 @@ SELECT
     coalesce(b.name, '') AS brand,
     mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's; only variants that
-    -- can be bought count. On a campaign's row the price can be a discounted
-    -- variant's with a cheaper one beside it.
+    -- rather than state one variant's price as the product's. On a campaign's row
+    -- the price can be a discounted variant's with a cheaper one that can be
+    -- bought beside it.
     (EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-          AND dv.stock_quantity > dv.safety_stock
     ) AND (sqlc.narg(campaign_id)::uuid IS NULL OR NOT EXISTS (
         SELECT 1 FROM product_variants cv
         WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents

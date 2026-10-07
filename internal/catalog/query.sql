@@ -785,7 +785,6 @@ SELECT
     ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-          AND dv.stock_quantity > dv.safety_stock
     ) AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (

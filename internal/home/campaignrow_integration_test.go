@@ -32,12 +32,13 @@ func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
 		stock, safetyStock int
 	}
 	tests := []struct {
-		name        string
-		variants    []variant
-		wantPrice   int64
-		wantCompare int64
-		wantFrom    bool
-		wantNewest  int64
+		name              string
+		variants          []variant
+		wantPrice         int64
+		wantCompare       int64
+		wantFrom          bool
+		wantNewest        int64
+		wantNewestCompare int64
 	}{
 		{
 			name:      "the discount is the dearer variant",
@@ -61,13 +62,13 @@ func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
 			name:      "a cheaper variant that cannot be bought does not hold back from",
 			variants:  []variant{{1000, nil, 0, 0}, {1500, 2000, 5, 0}, {3000, nil, 5, 0}},
 			wantPrice: 1500, wantCompare: 2000, wantFrom: true,
-			wantNewest: 1500,
+			wantNewest: 1500, wantNewestCompare: 2000,
 		},
 		{
-			name:      "a dearer variant that cannot be bought does not make from",
+			name:      "a dearer variant that cannot be bought still makes from",
 			variants:  []variant{{1500, 2000, 5, 0}, {3000, nil, 0, 0}},
-			wantPrice: 1500, wantCompare: 2000, wantFrom: false,
-			wantNewest: 1500,
+			wantPrice: 1500, wantCompare: 2000, wantFrom: true,
+			wantNewest: 1500, wantNewestCompare: 2000,
 		},
 	}
 
@@ -96,7 +97,7 @@ func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
 				t.Fatalf("%s: create variant: %v", tt.name, err)
 			}
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id) VALUES ($1, $2)`, campaign, product); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaign, product, i); err != nil {
 			t.Fatalf("%s: feature product: %v", tt.name, err)
 		}
 	}
@@ -131,9 +132,9 @@ func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
 			if !ok {
 				t.Fatalf("the newest row does not show the product published last")
 			}
-			if n.TilePriceCents != tt.wantNewest || n.CompareAtPriceCents.Valid {
-				t.Errorf("newest row tile = %d against %v; want %d with no compare price",
-					n.TilePriceCents, n.CompareAtPriceCents, tt.wantNewest)
+			if n.TilePriceCents != tt.wantNewest || n.CompareAtPriceCents.Int64 != tt.wantNewestCompare {
+				t.Errorf("newest row tile = %d against %d; want %d against %d",
+					n.TilePriceCents, n.CompareAtPriceCents.Int64, tt.wantNewest, tt.wantNewestCompare)
 			}
 		})
 	}
