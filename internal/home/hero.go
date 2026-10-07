@@ -98,8 +98,8 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
 			Stats: []components.Stat{
-				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, src.held[c.ID])},
-				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: pages.StatCountOf(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
+				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(src.held[c.ID], i18n.T(ctx, i18n.KeyFactUnitItems))},
+				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: components.StatCount(int64(len(src.subs[c.ID])), i18n.T(ctx, i18n.KeyFactUnitCategories))},
 			},
 			CTA: pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})

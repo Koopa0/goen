@@ -138,7 +138,7 @@ func Movements(p layouts.Page, v *MovementsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.HasStockDays() {
+			if v.HasStockDays() && !v.Empty() {
 				if v.DrawsStockLine() {
 					templ_7745c5c3_Err = chart.StepLine(v.StockLine(ctx)).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
