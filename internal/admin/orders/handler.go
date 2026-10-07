@@ -379,9 +379,6 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	view.DeliveryErrors = make(map[string]string, len(refusals))
 	for _, refusal := range refusals {
 		field := refusal.Field
-		if field == "name" {
-			field = "recipient"
-		}
 		if _, seen := view.DeliveryErrors[field]; !seen {
 			view.DeliveryErrors[field] = i18n.T(r.Context(), refusal.MessageKey)
 		}
