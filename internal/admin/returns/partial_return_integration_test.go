@@ -277,7 +277,7 @@ func approvedReturn(
 		`SELECT return_refundable_amount($1)`, requestID).Scan(&offered); err != nil {
 		t.Fatalf("read the requested amount: %v", err)
 	}
-	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `

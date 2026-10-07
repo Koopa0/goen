@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -24,15 +25,12 @@ templ Product(p layouts.Page, v *ProductView) {
 					@productBuy(v)
 				</div>
 			</div>
+		</div>
+		@productBand(v)
+		<div class="goen-pdp goen-pdp--after">
 			<div class="goen-pdp__more">
-				if v.Description != "" || v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
+				if v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 					<div class="goen-pdp__detail">
-						if v.Description != "" {
-							<section class="goen-pdp__desc" aria-labelledby="desc-heading">
-								<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
-								<p class="goen-pdp__prose">{ v.Description }</p>
-							</section>
-						}
 						if v.HasSpecs() {
 							<details class="goen-pdp__acc goen-pdp__specs" open>
 								<summary class="goen-pdp__accsummary">
@@ -129,7 +127,7 @@ templ Product(p layouts.Page, v *ProductView) {
 // Every shot sits in the same cell and the unchosen ones are only hidden with
 // visibility, none lazy: choosing a thumbnail must show its photograph at once.
 templ productGallery(v *ProductView) {
-	<div class="goen-pdp__gallery" id="gallery">
+	<div class="goen-pdp__gallery" id="gallery" data-tone={ v.Tone.Attr() }>
 		if v.HasImages() {
 			for i, img := range v.Images {
 				<div class="goen-pdp__item">
@@ -185,6 +183,26 @@ templ productGallery(v *ProductView) {
 	</div>
 }
 
+templ productBand(v *ProductView) {
+	if v.Description != "" {
+		{{ photo, hasPhoto := v.BandPhoto() }}
+		<section class={ "goen-band goen-band--product", templ.KV("goen-band--text", !hasPhoto) } data-tone={ v.Tone.Attr() } aria-labelledby="desc-heading">
+			<div class="goen-band__grid">
+				if hasPhoto {
+					@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
+				}
+				<div class="goen-band__body goen-pdp__desc">
+					if v.Brand != "" {
+						<p class="goen-pdp__brand">{ v.Brand }</p>
+					}
+					<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
+					<p class="goen-pdp__prose">{ v.Description }</p>
+				</div>
+			</div>
+		</section>
+	}
+}
+
 templ ratingStars(halves int) {
 	<span class="goen-pdp__rate" aria-hidden="true">
 		for i := 1; i <= 5; i++ {
@@ -224,6 +242,13 @@ templ productBuy(v *ProductView) {
 					}
 				}
 			</div>
+			if highlights := v.Highlights(); len(highlights) > 0 {
+				<p class="goen-pdp__keyspecs">
+					for _, h := range highlights {
+						<span>{ h }</span>
+					}
+				</p>
+			}
 			if v.HasRating() {
 				<a class="goen-pdp__rating" href="#reviews">
 					@ratingStars(v.StarHalves())
@@ -249,79 +274,98 @@ templ productBuy(v *ProductView) {
 					}
 				}
 			</div>
+			if v.OnSale() {
+				{{ before, after := v.Campaign.Source(ctx) }}
+				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }</p>
+				if v.Campaign.HasPeriod {
+					@components.Period(v.Campaign.Period)
+				}
+			}
 		}
 		if v.Summary != "" {
 			<p class="goen-pdp__lede">{ v.Summary }</p>
 		}
 		for oi, o := range v.Options {
-			<fieldset class="goen-pdp__option">
-				<legend class="goen-pdp__optname">
-					if o.SelectedLabel() != "" {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
-					} else {
-						{ o.Label }
+			if o.Fixed() {
+				<p class="goen-pdp__fact">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.Values[0].Label }</span>
+				</p>
+			} else {
+				<fieldset
+					class="goen-pdp__option"
+					if v.OptionInvalid(o) {
+						aria-invalid="true"
+						aria-describedby="notify-option-error"
 					}
-				</legend>
-				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
-					for vi, val := range o.Values {
-						// Still a link and the whole answer with scripting off. The hx- attributes ask for
-						// the same URL and keep only the part that changes: no second server path.
-						//
-						// The gallery comes along only when a photograph shows one option value, because
-						// only then can the choice reorder it; otherwise a test holds that the server sends
-						// the same gallery byte for byte, and swapping it would rebuild an identical <img>.
-						// The id lets htmx restore focus to the activated control after a swap.
-						<a
-							id={ "swatch-" + strconv.Itoa(oi) + "-" + strconv.Itoa(vi) }
-							class={ "goen-swatch",
+				>
+					<legend class="goen-pdp__optname">
+						if o.SelectedLabel() != "" {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+						} else {
+							{ o.Label }
+						}
+					</legend>
+					<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
+						for vi, val := range o.Values {
+							// Still a link and the whole answer with scripting off. The hx- attributes ask for
+							// the same URL and keep only the part that changes: no second server path.
+							//
+							// The gallery comes along only when a photograph shows one option value, because
+							// only then can the choice reorder it; otherwise a test holds that the server sends
+							// the same gallery byte for byte, and swapping it would rebuild an identical <img>.
+							// The id lets htmx restore focus to the activated control after a swap.
+							<a
+								id={ "swatch-" + strconv.Itoa(oi) + "-" + strconv.Itoa(vi) }
+								class={ "goen-swatch",
 								templ.KV("goen-swatch--dot", o.HasSwatches()),
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
-							href={ templ.URL(val.Href) }
-							if o.HasSwatches() {
-								title={ val.Label }
-							}
-							hx-get={ val.Href }
-							hx-select="#buybox"
-							hx-target="#buybox"
-							hx-select-oob={ v.ChoiceSwap() }
-							hx-swap="outerHTML"
-							hx-push-url="true"
-							if val.Selected {
-								aria-current="true"
-							}
-						>
-							if o.HasSwatches() {
-								// A presentation attribute, not a style, so the CSP has nothing to refuse. The
-								// colour is the control; the name is what a screen reader is given.
-								<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
-									<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
-									if !val.Available {
-										// Struck through, not dimmed: a line says sold out where lower opacity says
-										// nothing. Two strokes, the ground under the ink, so the mark reads on a colour of any darkness.
-										<line class="goen-swatch__barground" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
-										<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
+								href={ templ.URL(val.Href) }
+								if o.HasSwatches() {
+									title={ val.Label }
+								}
+								hx-get={ val.Href }
+								hx-select="#buybox"
+								hx-target="#buybox"
+								hx-select-oob={ v.ChoiceSwap() }
+								hx-swap="outerHTML"
+								hx-push-url="true"
+								if val.Selected {
+									aria-current="true"
+								}
+							>
+								if o.HasSwatches() {
+									// A presentation attribute, not a style, so the CSP has nothing to refuse. The
+									// colour is the control; the name is what a screen reader is given.
+									<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
+										<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
+										if !val.Available {
+											// Struck through, not dimmed: a line says sold out where lower opacity says
+											// nothing. Two strokes, the ground under the ink, so the mark reads on a colour of any darkness.
+											<line class="goen-swatch__barground" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
+											<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
+										}
+									</svg>
+									<span class="goen-sr-only">{ val.Label }</span>
+								} else {
+									{ val.Label }
+								}
+								if !val.Available {
+									if v.AllSoldOut() && !o.HasSwatches() {
+										<small class="goen-swatch__note">{ v.ValueSoldOut(ctx) }</small>
+									} else {
+										<span class="goen-sr-only">{ v.ValueSoldOut(ctx) }</span>
 									}
-								</svg>
-								<span class="goen-sr-only">{ val.Label }</span>
-							} else {
-								{ val.Label }
-							}
-							if !val.Available {
-								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyVariantUnavailable) }</span>
-							}
-						</a>
-					}
-				</div>
-			</fieldset>
+								}
+							</a>
+						}
+					</div>
+				</fieldset>
+			}
 		}
 		if !v.SelectionOK {
 			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyVariantNotFound) }
-			}
-		} else if v.AllSoldOut() && len(v.Options) > 0 {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
-				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
 			}
 		}
 		if v.NotifyUnavailable() {
@@ -330,33 +374,16 @@ templ productBuy(v *ProductView) {
 			}
 		}
 		@productAddForm(v)
-		if v.SoldOut() {
-			if v.ArrivalText() != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
-					<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
-				}
+		if v.SoldOut() && v.ArrivalText() != "" {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
+				<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
 			}
+		}
+		if v.NotifyOffered() {
 			@productNotifyForm(v)
 		}
 		@productLinks(v)
-		<ul class="goen-pdp__assurances" role="list">
-			if v.HasWarranty() {
-				<li class="goen-pdp__assurance">
-					@icons.Shield()
-					<span>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</span>
-				</li>
-			}
-			if v.FreeDelivery() != "" {
-				<li class="goen-pdp__assurance">
-					@icons.Truck()
-					<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()) }</span>
-				</li>
-			}
-			<li class="goen-pdp__assurance">
-				@icons.Return()
-				<span>{ i18n.T(ctx, i18n.KeyGuaranteeReturns) }</span>
-			</li>
-		</ul>
+		@components.StatLine(v.BuyFacts(ctx), components.StatLinePairs)
 	</div>
 }
 
@@ -503,7 +530,7 @@ templ productBuyBar(v *ProductView) {
 				@icons.Cart()
 				<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
 			}
-		} else if v.SoldOut() {
+		} else if v.NotifyOffered() {
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
 				{ i18n.T(ctx, i18n.KeyRestockHeading) }
 			}
@@ -536,9 +563,8 @@ templ productCompare(v *ProductView) {
 
 templ productNotifyForm(v *ProductView) {
 	<form id="restock" class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
-		<input type="hidden" name="variant" value={ v.VariantID }/>
-		// h2 and not h3: the nearest heading above is the product's own h1.
-		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
+		<input type="hidden" name="variant" value={ v.NotifyVariant() }/>
+		<p class="goen-pdp__notifyhead">{ v.RestockNote(ctx) }</p>
 		if v.NotifyTaken() {
 			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.NotifyConfirmation(ctx) }
@@ -560,6 +586,9 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>
+			if v.NotifyNeedsOption() {
+				<p class="ui-error-text" id="notify-option-error">{ i18n.T(ctx, i18n.KeyRestockNoOption) }</p>
+			}
 			if v.NotifyRefused() {
 				<p class="ui-error-text" id="notify-email-error">{ i18n.T(ctx, i18n.KeyRestockBadEmail) }</p>
 			} else {
@@ -608,7 +637,7 @@ templ productReviews(v *ProductView) {
 										{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }
 									}
 								}
-								<span class="goen-pdp__reviewdate">{ r.Date }</span>
+								<time class="goen-pdp__reviewdate" datetime={ r.Date.ISO() }>{ shoptime.DateText(ctx, r.Date) }</time>
 							</div>
 							<p class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingScore), r.RatingText()) }</p>
 							if r.Title != "" {

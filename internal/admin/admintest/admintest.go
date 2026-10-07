@@ -25,11 +25,11 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -276,6 +276,18 @@ func InputElementByID(t *testing.T, body, id string) string {
 		t.Fatalf("no input with id %q in rendered page", id)
 	}
 	return match
+}
+
+// TextareaByID returns the opening tag and the text of the textarea with the
+// id, without the newline a browser drops after the opening tag.
+func TextareaByID(t *testing.T, body, id string) (tag, text string) {
+	t.Helper()
+	match := regexp.MustCompile(`(<textarea\b[^>]*\bid="` + regexp.QuoteMeta(id) + `"[^>]*>)\n?([^<]*)</textarea>`).
+		FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no textarea with id %q in rendered page", id)
+	}
+	return match[1], html.UnescapeString(match[2])
 }
 
 func WaitForBlockedApplication(

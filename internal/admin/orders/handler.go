@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -61,7 +62,11 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
 		view.HealthUnavailable = true
 	} else {
-		view.Tasks = append(health, view.Tasks...)
+		view.Tasks = append(view.Tasks, health...)
+	}
+	if err := h.store.FillWeek(r.Context(), &view, time.Now()); err != nil {
+		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
+		view.WeekUnavailable = !errors.Is(err, admin.ErrLatestPaid)
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
@@ -285,33 +290,42 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":             web.Done(i18n.KeyAdminNoticeOK),
-	"refused":        web.Refused(i18n.KeyAdminNoticeRefused),
-	"shipped":        web.Done(i18n.KeyAdminNoticeShipped),
-	"toolate":        web.Refused(i18n.KeyAdminNoticeTooLate),
-	"deliveryneeds":  web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
-	"paidcancel":     web.Refused(i18n.KeyAdminNoticePaidCancel),
-	"refunded":       web.Done(i18n.KeyAdminNoticeRefunded),
-	"refundpending":  web.Failed(i18n.KeyAdminNoticeRefundPending),
-	"cancelinvoice":  web.Failed(i18n.KeyAdminNoticeCancelInvoice),
-	"refundretry":    web.Failed(i18n.KeyAdminNoticeRefundRetry),
-	"cancelretry":    web.Failed(i18n.KeyAdminNoticeCancelRetry),
-	"unfunded":       web.Refused(i18n.KeyAdminNoticeUnfunded),
-	"owesparcel":     web.Refused(i18n.KeyAdminNoticeOwesParcel),
-	"invoiced":       web.Done(i18n.KeyAdminNoticeInvoiced),
-	"voided":         web.Done(i18n.KeyAdminNoticeVoided),
-	"hasinvoice":     web.Refused(i18n.KeyAdminNoticeHasInvoice),
-	"noinvoice":      web.Refused(i18n.KeyAdminNoticeNoInvoice),
-	"invoicefailed":  web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
-	"invoicingoff":   web.Refused(i18n.KeyAdminNoticeInvoicingOff),
-	"invoicepending": web.Failed(i18n.KeyAdminNoticeInvoicePending),
-	"allowed":        web.Done(i18n.KeyAdminNoticeAllowed),
-	"allowsent":      web.Done(i18n.KeyAdminNoticeAllowSent),
-	"allowtoomuch":   web.Refused(i18n.KeyAdminNoticeAllowTooMuch),
-	"allowclaimed":   web.Refused(i18n.KeyAdminNoticeAllowClaimed),
-	"voidreason":     web.Refused(i18n.KeyAdminNoticeVoidReason),
-	"voidfailed":     web.Failed(i18n.KeyAdminNoticeVoidFailed),
-	"allowfailed":    web.Failed(i18n.KeyAdminNoticeAllowFailed),
+	"ok":              web.Done(i18n.KeyAdminNoticeOK),
+	"refused":         web.Refused(i18n.KeyAdminNoticeRefused),
+	"shipped":         web.Done(i18n.KeyAdminNoticeShipped),
+	"toolate":         web.Refused(i18n.KeyAdminNoticeTooLate),
+	"deliveryneeds":   web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
+	"paidcancel":      web.Refused(i18n.KeyAdminNoticePaidCancel),
+	"refunded":        web.Done(i18n.KeyAdminNoticeRefunded),
+	"refundpending":   web.Failed(i18n.KeyAdminNoticeRefundPending),
+	"cancelinvoice":   web.Failed(i18n.KeyAdminNoticeCancelInvoice),
+	"refundretry":     web.Failed(i18n.KeyAdminNoticeRefundRetry),
+	"cancelretry":     web.Failed(i18n.KeyAdminNoticeCancelRetry),
+	"refundshipped":   web.Refused(i18n.KeyAdminNoticeRefundShipped),
+	"refundhasreturn": web.Refused(i18n.KeyAdminNoticeRefundHasReturn),
+	"refundcancelled": web.Refused(i18n.KeyAdminNoticeRefundCancelled),
+	"refundunpaid":    web.Refused(i18n.KeyAdminNoticeRefundUnpaid),
+	"refundchanged":   web.Refused(i18n.KeyAdminNoticeRefundChanged),
+	"refundpicking":   web.Refused(i18n.KeyAdminNoticeRefundPicking),
+	"refundreason":    web.Refused(i18n.KeyAdminRefundErrReason),
+	"refundmismatch":  web.Failed(i18n.KeyAdminNoticeRefundMismatch),
+	"refundunsure":    web.Failed(i18n.KeyAdminNoticeRefundUnsure),
+	"unfunded":        web.Refused(i18n.KeyAdminNoticeUnfunded),
+	"owesparcel":      web.Refused(i18n.KeyAdminNoticeOwesParcel),
+	"invoiced":        web.Done(i18n.KeyAdminNoticeInvoiced),
+	"voided":          web.Done(i18n.KeyAdminNoticeVoided),
+	"hasinvoice":      web.Refused(i18n.KeyAdminNoticeHasInvoice),
+	"noinvoice":       web.Refused(i18n.KeyAdminNoticeNoInvoice),
+	"invoicefailed":   web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
+	"invoicingoff":    web.Refused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending":  web.Failed(i18n.KeyAdminNoticeInvoicePending),
+	"allowed":         web.Done(i18n.KeyAdminNoticeAllowed),
+	"allowsent":       web.Done(i18n.KeyAdminNoticeAllowSent),
+	"allowtoomuch":    web.Refused(i18n.KeyAdminNoticeAllowTooMuch),
+	"allowclaimed":    web.Refused(i18n.KeyAdminNoticeAllowClaimed),
+	"voidreason":      web.Refused(i18n.KeyAdminNoticeVoidReason),
+	"voidfailed":      web.Failed(i18n.KeyAdminNoticeVoidFailed),
+	"allowfailed":     web.Failed(i18n.KeyAdminNoticeAllowFailed),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {

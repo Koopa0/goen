@@ -228,6 +228,8 @@ func TestOnlyARowThatRecordsAnAmountSaysMoney(t *testing.T) {
 		want  bool
 	}{
 		{"refund before shipment", AuditEntry{Action: "return.refund_before_shipment", Changes: []AuditChange{{Field: "card_refund_cents", After: "100"}}}, true},
+		{"amount coupon value", AuditEntry{Entity: "coupons", Action: "coupon.create", Changes: []AuditChange{{Field: "kind", After: "amount"}, {Field: "value", After: "50"}}}, true},
+		{"percent coupon value", AuditEntry{Entity: "coupons", Action: "coupon.create", Changes: []AuditChange{{Field: "kind", After: "percent"}, {Field: "value", After: "20"}}}, false},
 		{"stock quantity", AuditEntry{Action: "stock.adjust", Changes: []AuditChange{{Field: "delta", After: "3"}}}, false},
 		{"declined return", AuditEntry{Action: "return.decide", Changes: []AuditChange{{Field: "decision", After: "rejected"}}}, false},
 	} {

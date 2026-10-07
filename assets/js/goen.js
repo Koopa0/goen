@@ -15,10 +15,10 @@
    */
 
   /*
-   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard),
-   * and prefers-reduced-motion is answered in CSS, where scroll-behavior is set.
-   * This wires the arrows and dots, keeps aria-current on the slide in view and
-   * runs the autoplay.
+   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard)
+   * and the named tabs are links that work without this script. This draws the
+   * arrows and the count and keeps aria-current on the slide in view. Nothing
+   * here moves a slide except the visitor's own input.
    */
   function carousel() {
     const root = document.querySelector(".goen-hero");
@@ -26,7 +26,8 @@
     if (!track || track.children.length < 2) return;
 
     const slides = [...track.children];
-    const dots = [...root.querySelectorAll(".goen-hero__dot")];
+    const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
+    const count = root.querySelector("[data-count]");
     let current = 0;
     const go = (index) => {
       const next = (index + slides.length) % slides.length;
@@ -35,70 +36,28 @@
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        current = slides.indexOf(entry.target);
-        dots.forEach((dot, index) => dot.setAttribute("aria-current", String(index === current)));
+        // The first report is the slide already shown; the live region speaks
+        // only once the visitor has moved the carousel.
+        const index = slides.indexOf(entry.target);
+        if (index === current) continue;
+        current = index;
+        tabs.forEach((tab, index) => {
+          if (index === current) tab.setAttribute("aria-current", "true");
+          else tab.removeAttribute("aria-current");
+        });
+        if (count) count.textContent = `${current + 1} / ${slides.length}`;
       }
     }, { root: track, threshold: 0.6 });
     slides.forEach((slide) => seen.observe(slide));
 
-    /*
-     * Autoplay. The current line indicator's fill is a CSS animation over the
-     * interval and its end advances the slide, so the motion is drawn as it
-     * happens. It holds while the pointer is over the carousel or focus is in
-     * it, and never starts under prefers-reduced-motion. Steering by arrow,
-     * indicator, swipe, wheel or key stops it for good: that is the visitor's
-     * way to stop the movement (WCAG 2.2.2).
-     */
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let running = root.hasAttribute("data-autoplay") && !reduced.matches;
-    let hovered = false;
-    let focused = false;
-
-    const render = () => {
-      root.classList.toggle("is-playing", running);
-      root.classList.toggle("is-held", hovered || focused);
-    };
-    // Steering by hand ends autoplay for good: the visitor has taken over.
-    const stop = () => {
-      if (!running) return;
-      running = false;
-      render();
-    };
-
-    root.querySelectorAll("[data-step]").forEach((button) => {
-      button.addEventListener("click", () => {
-        stop();
-        go(current + Number(button.dataset.step));
-      });
-    });
-    dots.forEach((dot, index) => dot.addEventListener("click", () => {
-      stop();
+    tabs.forEach((tab, index) => tab.addEventListener("click", (event) => {
+      event.preventDefault();
       go(index);
     }));
-    for (const type of ["touchstart", "wheel"]) {
-      track.addEventListener(type, stop, { passive: true });
-    }
-    // Tab moves focus and is not steering; the keys that scroll the track are.
-    track.addEventListener("keydown", (event) => {
-      if (/^(Arrow|Page|Home$|End$)/.test(event.key)) stop();
+    root.querySelectorAll("[data-step]").forEach((button) => {
+      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
     });
-
-    if (!running) return;
-    root.addEventListener("animationend", (event) => {
-      if (event.animationName === "goen-hero-progress" && running) go(current + 1);
-    });
-    root.addEventListener("pointerenter", () => { hovered = true; render(); });
-    root.addEventListener("pointerleave", () => { hovered = false; render(); });
-    // Only focus a keyboard put there holds the carousel; a click leaves focus behind.
-    root.addEventListener("focusin", (event) => {
-      focused = event.target.matches(":focus-visible");
-      render();
-    });
-    root.addEventListener("focusout", (event) => {
-      if (!root.contains(event.relatedTarget)) { focused = false; render(); }
-    });
-    reduced.addEventListener("change", () => { if (reduced.matches) stop(); });
-    render();
+    root.querySelectorAll("[data-js]").forEach((el) => el.removeAttribute("hidden"));
   }
 
   /*
@@ -117,7 +76,7 @@
     });
 
     document.addEventListener("click", (event) => {
-      if (menu.open && !menu.contains(event.target)) menu.open = false;
+      if (menu.open && (event.target === menu || !menu.contains(event.target))) menu.open = false;
     });
 
     menu.querySelector("[data-menu-close]")?.addEventListener("click", () => {
@@ -126,13 +85,13 @@
     });
 
     // What sits above the drawer varies (a notice row, the header's height), so
-    // its room is measured from the header it hangs from. The drawer itself
+    // its room is measured from the bar it hangs from. The drawer itself
     // cannot be measured on open: its box is skipped while it fades in.
     const drawer = menu.querySelector(".goen-header__drawer");
     const fit = () => {
       if (!drawer || !menu.open) return;
-      const bottom = menu.closest("header")?.getBoundingClientRect().bottom ?? 0;
-      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
+      const bottom = menu.closest(".goen-header__bar")?.getBoundingClientRect().bottom ?? 0;
+      menu.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
     };
     menu.addEventListener("toggle", fit);
     window.addEventListener("resize", fit);
@@ -145,6 +104,32 @@
         lang.scrollIntoView({ block: "nearest" });
       }
     }, true);
+  }
+
+  /*
+   * On a phone the department row scrolls sideways; the current department is
+   * brought to its middle so the visitor sees where they are. The row's width
+   * settles when the fonts arrive, so it is set again then.
+   */
+  function departmentRow() {
+    const row = document.querySelector(".goen-header__nav");
+    const current = row?.querySelector('[aria-current="page"]');
+    if (!row || !current) return;
+    const centre = () => {
+      if (row.scrollWidth <= row.clientWidth) return;
+      const at = current.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+      row.scrollLeft = at - (row.clientWidth - current.offsetWidth) / 2;
+    };
+    centre();
+    document.fonts?.ready.then(centre);
+    // A phone's toolbar collapsing fires resize without changing the width, and
+    // would snap back a row the shopper has scrolled.
+    let width = window.innerWidth;
+    window.addEventListener("resize", () => {
+      if (window.innerWidth === width) return;
+      width = window.innerWidth;
+      centre();
+    });
   }
 
   /*
@@ -760,13 +745,105 @@
     });
   }
 
+  /*
+   * The charts' readout: pointing at a day writes that day's row of the chart's
+   * own table into one line under the plot, values first, then the series
+   * names, then the date and any note. It repeats the table and nothing more;
+   * without this the table is the way to read a chart. Escape puts it away, and
+   * it stays while the pointer is over it.
+   */
+  function chartReadout() {
+    const NS = "http://www.w3.org/2000/svg";
+    const readouts = new Map();
+
+    for (const fig of document.querySelectorAll(".goen-chart")) {
+      const frame = fig.querySelector(".goen-chart__frame");
+      const table = fig.querySelector(".goen-chart__table");
+      const hits = [...fig.querySelectorAll(".goen-chart__hit")];
+      const body = table?.tBodies[0];
+      if (!frame || !body || !hits.length) continue;
+      const heads = [...table.tHead.rows[0].cells];
+      const line = fig.querySelector(".goen-chart__readout");
+      if (!line) continue;
+
+      const plot = hits[0].ownerSVGElement;
+      const crosshair = hits[0].dataset.x === undefined ? null : document.createElementNS(NS, "line");
+      if (crosshair) {
+        crosshair.setAttribute("class", "goen-chart__crosshair");
+        crosshair.setAttribute("y1", hits[0].getAttribute("y"));
+        crosshair.setAttribute("y2", String(+hits[0].getAttribute("y") + +hits[0].getAttribute("height")));
+        crosshair.setAttribute("visibility", "hidden");
+        plot.insertBefore(crosshair, hits[0]);
+      }
+
+      let on = null;
+      const hide = () => {
+        on?.classList.remove("goen-chart__hit--on");
+        on = null;
+        line.textContent = "";
+        crosshair?.setAttribute("visibility", "hidden");
+      };
+      const show = (hit) => {
+        const row = body.rows[Number(hit.dataset.row)];
+        if (!row) return;
+        on?.classList.remove("goen-chart__hit--on");
+        on = hit;
+        const series = [];
+        const notes = [];
+        for (const [i, head] of heads.entries()) {
+          const text = row.cells[i]?.textContent.trim();
+          if (!text) continue;
+          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
+          else if (head.dataset.readout === "note") notes.push(text);
+        }
+        line.textContent = [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+        if (crosshair) {
+          crosshair.setAttribute("x1", hit.dataset.x);
+          crosshair.setAttribute("x2", hit.dataset.x);
+          crosshair.setAttribute("visibility", "visible");
+        } else {
+          hit.classList.add("goen-chart__hit--on");
+        }
+        readouts.set(fig, hide);
+      };
+
+      for (const hit of hits) {
+        hit.addEventListener("pointerenter", () => show(hit));
+        hit.addEventListener("pointerdown", () => show(hit));
+      }
+      const leave = (e) => {
+        if (e.pointerType === "mouse" && !frame.contains(e.relatedTarget) && !line.contains(e.relatedTarget)) {
+          hide();
+          readouts.delete(fig);
+        }
+      };
+      frame.addEventListener("pointerleave", leave);
+      line.addEventListener("pointerleave", leave);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      for (const hide of readouts.values()) hide();
+      readouts.clear();
+    });
+    document.addEventListener("pointerdown", (e) => {
+      for (const [fig, hide] of [...readouts]) {
+        if (fig.contains(e.target)) continue;
+        hide();
+        readouts.delete(fig);
+      }
+    });
+  }
+
   recipientBox();
   demoAccount();
   handoff();
   buyBar();
   headerMenu();
+  departmentRow();
   departmentPanels();
   popovers();
   stepper();
   carousel();
+  chartReadout();
 })();

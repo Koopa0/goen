@@ -12,8 +12,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/refundstate"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -81,7 +81,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
 		r.PostFormValue("decision"), r.PostFormValue("resolution"),
-		r.PostFormValue("assessment_version"), audit.ActorID(r.Context()))
+		r.PostFormValue("assessment_version"))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
@@ -104,7 +104,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		// recovery land here.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
-		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -372,7 +372,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.Complete(r.Context(), r.PathValue("id"),
-		r.PostFormValue("resolution"), audit.ActorID(r.Context()))
+		r.PostFormValue("resolution"))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)

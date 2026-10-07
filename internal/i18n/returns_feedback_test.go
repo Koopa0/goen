@@ -9,7 +9,8 @@ func TestReturnRefusalsExplainTheRefusedControl(t *testing.T) {
 		zh, en string
 	}{
 		{KeyReturnQuantityInvalid, "請填寫零或以上的整數。", "Enter a whole number of zero or more."},
-		{KeyReturnReasonInvalid, "退貨原因最多 500 字，請移除無法顯示的字元。", "Keep the optional reason within 500 characters and remove unsupported characters."},
+		{KeyReturnReasonTooLong, "退貨原因最多 500 字。", "Keep the optional reason within 500 characters."},
+		{KeyReturnReasonUnsupportedControls, "請移除退貨原因中不支援的控制字元。", "Remove unsupported control characters from the optional reason."},
 	}
 	for _, tt := range tests {
 		for _, locale := range []Locale{ZhHant, En} {

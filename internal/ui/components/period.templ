@@ -1,0 +1,39 @@
+package components
+
+// The cells are ahead, past or today; the first and last carry their labels, the
+// current one the word for today, and a minute grid's mark the deadline. The
+// grid is one image with one sentence.
+templ Period(p PeriodSpec) {
+	<div
+		class="ui-period"
+		role="img"
+		aria-label={ p.Description }
+		if p.unitAttr() != "" {
+			data-unit={ p.unitAttr() }
+		}
+		if p.TodayAtStart {
+			data-today="start"
+		}
+	>
+		for i, c := range p.Cells {
+			<i
+				if c.State != CellAhead {
+					data-cell={ string(c.State) }
+				}
+				if c.Mark {
+					data-mark
+				}
+				if c.Extra {
+					data-span="extra"
+				}
+			>
+				if c.State == CellToday || p.TodayAtStart && i == 0 {
+					<b>{ p.TodayLabel }</b>
+				}
+				if c.Label != "" {
+					<small>{ c.Label }</small>
+				}
+			</i>
+		}
+	</div>
+}

@@ -21,7 +21,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
-WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+WHERE (@sold_out_only::boolean = false OR (pv.is_active AND p.status = 'active' AND pv.stock_quantity <= pv.safety_stock))
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'
        OR p.name ILIKE '%' || @escaped_term::text || '%'
@@ -98,6 +98,36 @@ AND (NOT @has_cursor::boolean OR (m.id < @after_id::uuid))
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
 
+-- The stock at the end of each shop day from first_day to last_day, worked back
+-- from stock_quantity through the movements after that day. The column and the
+-- ledger are read in this one statement, so a movement committed meanwhile is in
+-- both or in neither; the movements are bounded below only, because the column
+-- already holds every one of them. record_inventory_movement writes both, so the
+-- two agree. A day without movements is included.
+-- name: VariantStockByDay :many
+WITH v AS (
+    SELECT id, stock_quantity FROM product_variants WHERE sku = @sku::text
+), moved AS (
+    SELECT shop_day(m.created_at) AS day,
+           sum(m.delta) AS delta,
+           coalesce(sum(m.delta) FILTER (WHERE m.reason = 'receipt'), 0) AS received,
+           count(*) FILTER (WHERE m.reason = 'receipt') AS receipts,
+           count(*) AS moves
+    FROM inventory_movements m
+    JOIN v ON v.id = m.variant_id
+    WHERE m.created_at >= @from_at::timestamptz
+    GROUP BY 1
+)
+SELECT d.day::date AS day,
+       (v.stock_quantity - coalesce((SELECT sum(l.delta) FROM moved l WHERE l.day > d.day::date), 0))::integer AS stock,
+       coalesce(t.received, 0)::integer AS received,
+       coalesce(t.receipts, 0)::integer AS receipts,
+       coalesce(t.moves, 0)::integer AS moves
+FROM v
+CROSS JOIN generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
+LEFT JOIN moved t ON t.day = d.day::date
+ORDER BY d.day;
+
 -- reason 'receipt' and not 'adjustment', which is the whole of it: goods a shop
 -- bought must be distinguishable in its own ledger from a corrected miscount.
 -- There is no source_id, because goen has no purchasing table to point at.
@@ -110,3 +140,39 @@ SELECT record_inventory_movement(
 -- name: SetVariantArrival :exec
 UPDATE product_variants SET preorder_release_on = sqlc.narg('arrival_on')::date
 WHERE id = $1;
+
+-- Every active variant that sold in [from_at, to_at) or has nothing a sale may
+-- take. Sales are counted in orders as well as units: the estimate's sample size
+-- is the orders, since one order of ten units is one event. Ranking and the
+-- estimate are the page's.
+-- name: StockAtRisk :many
+SELECT
+    pv.id AS variant_id,
+    pv.sku,
+    p.name AS product_name,
+    p.slug,
+    pv.stock_quantity,
+    pv.safety_stock,
+    sold.units::bigint AS units_sold,
+    sold.orders::bigint AS orders_sold
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+JOIN LATERAL (
+    SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN committed_orders c ON c.id = o.id
+    WHERE ol.variant_id = pv.id
+      AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+) sold ON true
+WHERE pv.is_active AND p.status = 'active'
+  AND (sold.orders > 0 OR pv.stock_quantity <= pv.safety_stock)
+ORDER BY pv.sku;
+
+-- The ledger since from_at, from which a variant's stock at from_at is rolled
+-- back and the days it had anything to sell are counted.
+-- name: StockMovementsSince :many
+SELECT m.variant_id, m.created_at, m.delta
+FROM inventory_movements m
+WHERE m.variant_id = ANY(@variant_ids::uuid[]) AND m.created_at >= @from_at::timestamptz
+ORDER BY m.variant_id, m.created_at, m.id;

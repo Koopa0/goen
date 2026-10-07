@@ -94,7 +94,7 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 		Slug: "tech", Name: "Tech", Products: tiledShelf(16), Total: 30, Page: 1, PageSize: 24,
 		Theme: &Theme{Photo: Photo{URL: "/img/tech.webp", Alt: "tech"}},
 	}
-	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	assertEveryImageReservesItsBox(t, page)
 	for _, tag := range imageTags(page) {

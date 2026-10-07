@@ -11,13 +11,13 @@ import (
 
 func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
 	t.Parallel()
-	got, dropped := normaliseSlugs([]string{"a", "", "a", "b", "c", "d"})
-	if len(got) != 4 || dropped {
-		t.Errorf("four distinct slugs: got %v dropped=%v", got, dropped)
+	got, dropped := normaliseSlugs([]string{"a", "", "a", "b", "c", "d", "e"})
+	if len(got) != 5 || dropped {
+		t.Errorf("five distinct slugs: got %v dropped=%v", got, dropped)
 	}
-	got, dropped = normaliseSlugs([]string{"a", "b", "c", "d", "e"})
+	got, dropped = normaliseSlugs([]string{"a", "b", "c", "d", "e", "f"})
 	if len(got) != pages.MaxCompare || !dropped {
-		t.Errorf("five slugs: got %v dropped=%v, want %d and true", got, dropped, pages.MaxCompare)
+		t.Errorf("six slugs: got %v dropped=%v, want %d and true", got, dropped, pages.MaxCompare)
 	}
 }
 

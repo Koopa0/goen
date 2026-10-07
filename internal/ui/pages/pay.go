@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -32,17 +35,30 @@ const (
 	PayOrderCancelled
 )
 
+// PayHold is the stored span of the order's stock hold, which the page reads and
+// never computes. StartBy is zero where the page names no payment deadline,
+// because a session is already open or the window has closed. A zero PlacedAt
+// means no hold is drawn.
+type PayHold struct {
+	PlacedAt, StartBy, Until time.Time
+	// CancelledAt is when the hold sweeper cancelled the order unpaid; it is
+	// zero otherwise.
+	CancelledAt time.Time
+}
+
+// Lapsed means the hold ended with the order unpaid and the shop cancelled it.
+func (h PayHold) Lapsed() bool { return !h.CancelledAt.IsZero() }
+
 type PayView struct {
-	Number     string
-	TotalCents int64
-	Email      string
-	Lines      []PayLine
-	Enabled    bool
-	Sandbox    bool
-	Cancelled  bool
-	Closure    PayClosure
-	// StartBy is empty when the page resumes a session already open.
-	StartBy        string
+	Number         string
+	TotalCents     int64
+	Email          string
+	Lines          []PayLine
+	Enabled        bool
+	Sandbox        bool
+	Cancelled      bool
+	Closure        PayClosure
+	Hold           PayHold
 	ShippingName   string
 	ShippingCents  int64
 	DiscountCents  int64
@@ -50,8 +66,42 @@ type PayView struct {
 	CreditCents    int64
 }
 
+// Facts is the deadline, the stock hold and the amount, or for a lapsed hold what
+// became of the order.
+func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat {
+	switch {
+	case h.PlacedAt.IsZero():
+		return nil
+	case h.Lapsed():
+		return []components.Stat{
+			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.CancelledAt), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
+		}
+	}
+	var facts []components.Stat
+	if !h.StartBy.IsZero() {
+		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: payClock(h.StartBy), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
+	}
+	return append(facts,
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
+		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(totalCents)},
+	)
+}
+
+// Period is the minute grid of the hold; ok is false when no hold is drawn.
+func (h PayHold) Period(ctx context.Context) (components.PeriodSpec, bool) {
+	if h.PlacedAt.IsZero() {
+		return components.PeriodSpec{}, false
+	}
+	return components.MinutePeriod(ctx, h.PlacedAt, h.StartBy, h.Until, h.Lapsed())
+}
+
+// StartByText is the clock time payment must start by.
+func (h PayHold) StartByText() string { return shoptime.ClockText(h.StartBy) }
+
 // EyebrowKey says 完成付款 only while a payment can start or resume.
-func (v PayView) EyebrowKey() i18n.Key {
+func (v *PayView) EyebrowKey() i18n.Key {
 	switch {
 	case v.Closure == PayOrderCancelled:
 		return i18n.KeyStatusCancelled
@@ -62,23 +112,23 @@ func (v PayView) EyebrowKey() i18n.Key {
 	}
 }
 
-func (v PayView) Closed() bool { return v.Closure != PayOpen }
+func (v *PayView) Closed() bool { return v.Closure != PayOpen }
 
-func (v PayView) ClosedTitle() i18n.Key {
+func (v *PayView) ClosedTitle() i18n.Key {
 	if v.Closure == PayOrderCancelled {
 		return i18n.KeyPayRefusedTitle
 	}
 	return i18n.KeyPayWindowClosedTitle
 }
 
-func (v PayView) ClosedBody() i18n.Key {
+func (v *PayView) ClosedBody() i18n.Key {
 	if v.Closure == PayOrderCancelled {
 		return i18n.KeyOrderCancelled
 	}
 	return i18n.KeyPayWindowClosedBody
 }
 
-func (v PayView) Subtotal() string {
+func (v *PayView) Subtotal() string {
 	var n int64
 	for _, l := range v.Lines {
 		n += l.UnitCents * int64(l.Quantity)
@@ -86,26 +136,30 @@ func (v PayView) Subtotal() string {
 	return twd(n)
 }
 
-func (v PayView) Shipping(ctx context.Context) string {
+func (v *PayView) Shipping(ctx context.Context) string {
 	if v.ShippingCents == 0 {
 		return i18n.T(ctx, i18n.KeyFreeShipping)
 	}
 	return twd(v.ShippingCents)
 }
 
-func (v PayView) Discounted() bool { return v.DiscountCents > 0 }
+func (v *PayView) Discounted() bool { return v.DiscountCents > 0 }
 
-func (v PayView) Discount() string { return "-" + twd(v.DiscountCents) }
+func (v *PayView) Discount() string { return "-" + twd(v.DiscountCents) }
 
-func (v PayView) UsedCredit() bool { return v.CreditCents > 0 }
+func (v *PayView) UsedCredit() bool { return v.CreditCents > 0 }
 
-func (v PayView) Credit() string { return "-" + twd(v.CreditCents) }
+func (v *PayView) Credit() string { return "-" + twd(v.CreditCents) }
 
-func (v PayView) Total() string { return twd(v.TotalCents) }
+func (v *PayView) Total() string { return twd(v.TotalCents) }
 
 // Action posts to the order's pay route; the amount is recomputed server-side.
-func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
+func (v *PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
 func PayMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
+}
+
+func payClock(t time.Time) components.StatValue {
+	return components.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.InputMinute(t))
 }

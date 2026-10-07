@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/carrier"
@@ -54,18 +56,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":            web.Done(i18n.KeyAdminNoticeOK),
-	"refused":       web.Refused(i18n.KeyAdminNoticeRefused),
-	"imageneeds":    web.Refused(i18n.KeyAdminNoticeImageNeeds),
-	"toobig":        web.Refused(i18n.KeyAdminNoticeTooBig),
-	"notimage":      web.Refused(i18n.KeyAdminNoticeNotImage),
-	"losslesswebp":  web.Refused(i18n.KeyAdminNoticeLosslessWebP),
-	"uploadfailed":  web.Failed(i18n.KeyAdminNoticeUploadFailed),
-	"uploadbusy":    web.Failed(i18n.KeyAdminNoticeUploadBusy),
-	"attachrefused": web.Refused(i18n.KeyAdminNoticeAttachRefused),
-	"noalt":         web.Refused(i18n.KeyAdminNoticeNoAlt),
-	"badoption":     web.Refused(i18n.KeyAdminNoticeBadOption),
-	"specfailed":    web.Failed(i18n.KeyAdminNoticeSpecFailed),
+	"ok":         web.Done(i18n.KeyAdminNoticeOK),
+	"refused":    web.Refused(i18n.KeyAdminNoticeRefused),
+	"imageneeds": web.Refused(i18n.KeyAdminNoticeImageNeeds),
+	"badoption":  web.Refused(i18n.KeyAdminNoticeBadOption),
+	"specfailed": web.Failed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -119,8 +114,19 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	h.renderProduct(w, r, http.StatusOK, web.Notice(r, notices))
 }
 
-func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+// product reads the editor's product; a failure to read its sales or reviews is
+// logged, and the view says what is missing.
+func (h *Handler) product(ctx context.Context, slug string) (admin.ProductView, error) {
 	view, err := h.store.Product(ctx, slug)
+	if errors.Is(err, ErrStanding) {
+		h.log.ErrorContext(ctx, "read product sales and reviews", "error", err)
+		err = nil
+	}
+	return view, err
+}
+
+func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+	view, err := h.product(ctx, slug)
 	if err != nil {
 		return view, err
 	}
@@ -344,8 +350,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+media.UploadQuery(err), http.StatusSeeOther)
+		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
 		return
 	}
 
@@ -353,9 +358,14 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest, alt,
 		r.PostFormValue("alt_en"), r.PostFormValue("option_value"),
 		obj.Width, obj.Height); err != nil {
+		field, key := attachImageRefusal(err, alt)
+		if field == "" {
+			h.log.ErrorContext(r.Context(), "attach image", "error", err, "slug", slug)
+			access.ServerError(w, r, h.log)
+			return
+		}
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
+		h.rejectImageUpload(w, r, field, key)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -381,13 +391,30 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,
 		r.PostFormValue("alt"), r.PostFormValue("alt_en"), "",
 		obj.Width, obj.Height); err != nil {
+		field, key := attachImageRefusal(err, r.PostFormValue("alt"))
+		if field == "" {
+			h.log.ErrorContext(r.Context(), "attach reused image", "error", err, "slug", slug)
+			access.ServerError(w, r, h.log)
+			return
+		}
 		h.log.WarnContext(r.Context(), "attach reused image", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
+		h.rejectImageReuse(w, r, field, key)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+}
+
+func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{field: i18n.T(r.Context(), key)}, &productDrafts{
+		upload: admin.ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
+	})
+}
+
+func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
+	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_" + field: i18n.T(r.Context(), key)}, &productDrafts{
+		reuse: admin.ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
+	})
 }
 
 func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
@@ -576,6 +603,8 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 type productDrafts struct {
 	variant admin.VariantDraft
 	spec    admin.SpecDraft
+	upload  admin.ProductImageUploadDraft
+	reuse   admin.ProductImageReuseDraft
 }
 
 func (h *Handler) editProductWithErrors(
@@ -593,19 +622,24 @@ func (h *Handler) editProductWithErrors(
 	}
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
+	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
-func attachReason(err error) string {
+func attachImageRefusal(err error, alt string) (string, i18n.Key) {
 	switch {
 	case errors.Is(err, ErrInvalid):
-		return "noalt=1"
+		alt = strings.TrimSpace(alt)
+		if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
+			return "alt", i18n.KeyFormHeroAlt
+		}
+		return "alt_en", i18n.KeyFormCampaignAltEnLong
 	case errors.Is(err, ErrNotThisProductsOption):
-		return "badoption=1"
+		return "image_option", i18n.KeyAdminNoticeBadOption
 	case errors.Is(err, ErrRefused):
-		return "attachrefused=1"
+		return "image", i18n.KeyAdminNoticeAttachRefused
 	default:
-		return "uploadfailed=1"
+		return "", ""
 	}
 }

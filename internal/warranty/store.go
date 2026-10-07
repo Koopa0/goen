@@ -90,6 +90,8 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 				return ErrSerialTaken
 			case "warranty_registrations_unit_key":
 				return ErrNotRegistrable
+			case "warranty_registrations_serial_length":
+				return ErrSerialTooLong
 			case "warranty_unit_within_purchase":
 				return ErrNotRegistrable
 			}
@@ -120,7 +122,7 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
 			RegisteredAt: shoptime.DateText(ctx, shoptime.DateOf(r.RegisteredAt, now)),
-			ExpiresOn:    shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now)),
+			ExpiresOn:    shoptime.DateOf(r.ExpiresOn, now),
 			InForce:      r.InForce,
 		})
 	}

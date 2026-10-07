@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -37,14 +38,14 @@ templ tileCard(t ProductTile) {
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
 		</label>
 	}
-	<a class="goen-tile" href={ templ.URL("/p/" + t.Slug) }>
+	<a class={ "goen-tile", templ.KV("goen-tile--out", t.SoldOut()) } href={ templ.URL("/p/" + t.Slug) }>
 		<div class="goen-tile__media">
 			if t.HasImage() {
 				<img
 					class="goen-tile__img"
 					src={ t.ImageURL }
 					srcset={ t.ImageSrcset }
-					sizes="(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
+					sizes={ t.Sizes() }
 					alt={ t.ImageAlt }
 					if t.HasImageDimensions() {
 						width={ t.ImageWidthText() }
@@ -61,12 +62,7 @@ templ tileCard(t ProductTile) {
 					}
 				/>
 			} else {
-				<span class="goen-tile__ph" aria-hidden="true"></span>
-			}
-			if t.SoldOut() {
-				@components.Badge(components.BadgeProps{Intent: components.IntentDanger, Class: "goen-tile__flag"}) {
-					{ i18n.T(ctx, i18n.KeySoldOut) }
-				}
+				<span class="goen-tile__ph">{ i18n.T(ctx, i18n.KeyNoPhoto) }</span>
 			}
 		</div>
 		<div class="goen-tile__body">
@@ -74,14 +70,24 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__brand">{ t.Brand }</span>
 			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
-			@tilePrice(t)
+			if len(t.Highlights) > 0 {
+				<span class="goen-tile__specs">{ strings.Join(t.Highlights, " · ") }</span>
+			}
+			@tilePrice(t) {
+				if t.SoldOut() {
+					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+				}
+			}
+			if t.HasChoiceOfColour() {
+				@tileColours(t)
+			}
 		</div>
 	</a>
 }
 
 templ tilePrice(t ProductTile) {
 	<span class="goen-tile__price">
-		<span>
+		<span class="goen-tile__amount">
 			if t.PriceVaries {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
 			} else {
@@ -92,6 +98,22 @@ templ tilePrice(t ProductTile) {
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 			<s class="goen-tile__was">{ t.Compare() }</s>
 		}
+		{ children... }
+	</span>
+}
+
+// The colour is a presentation attribute, not a style, so the CSP has nothing to refuse.
+templ tileColours(t ProductTile) {
+	<span class="goen-tile__colours">
+		for _, hex := range t.Dots() {
+			<svg class="goen-tile__dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+				<circle cx="6" cy="6" r="5.5" fill={ hex }></circle>
+			</svg>
+		}
+		if t.MoreColours() > 0 {
+			<span class="goen-tile__more" aria-hidden="true">{ fmt.Sprintf("+%d", t.MoreColours()) }</span>
+		}
+		<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyColourCount), len(t.Colours)) }</span>
 	</span>
 }
 

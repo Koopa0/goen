@@ -1,0 +1,66 @@
+package admin
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+// StockRiskSection is the report's list of SKUs by days cover and the stock
+// desk's: one component, so the two pages cannot say different things.
+templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
+	<h2 class="goen-admin__subhead" id="stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
+	<p class="goen-admin__hint">
+		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, coverMinOrders, coverWarnDays, coverMaxRows) }
+	</p>
+	@StockRiskRows(rows, moreSoldOut, days)
+}
+
+// StockRiskRows is the rows without the report's lead.
+templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
+	if len(rows) == 0 {
+		<div class="goen-admin__empty">
+			<p class="goen-admin__emptytitle">{ i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(days), days) }</p>
+		</div>
+	} else {
+		<ul class="goen-report__rows" role="list">
+			for _, item := range rows {
+				{{ cover := item.Estimate() }}
+				<li class="goen-report__row">
+					<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
+					<span class="goen-admin__meta">{ item.SKU }</span>
+					<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.SellableText()) }</span>
+					<span class="goen-report__num">{ item.SoldText(ctx, days) }</span>
+					if cover.Urgent() {
+						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							<span aria-hidden="true">▲ </span>
+							{ cover.Figure(ctx) }
+						}
+					} else {
+						@components.Badge(components.BadgeProps{}) {
+							{ cover.Figure(ctx) }
+						}
+					}
+					if rng := cover.Range(ctx); rng != "" {
+						<span class="goen-report__num">{ rng }</span>
+					}
+					if warning := cover.Warning(ctx); warning != "" {
+						<span class="goen-report__warn">{ warning }</span>
+					}
+					if cover.State == CoverEstimated {
+						<div class="goen-report__bar">
+							@chart.RangeBar(cover.Bar())
+						</div>
+					}
+				</li>
+			}
+		</ul>
+		if moreSoldOut > 0 {
+			<p class="goen-admin__hint">
+				<a href="/admin/stock?soldout=1">{ i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut) }</a>
+			</p>
+		}
+	}
+}

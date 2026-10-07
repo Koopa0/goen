@@ -36,7 +36,9 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupCode) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupValue) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupCurrent) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupConditions) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupUsage) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCoupExpiry) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
 							<th class="goen-admin__cellactions" scope="col">
 								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
@@ -56,12 +58,16 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								</td>
 								<td>
 									<span class="goen-admin__meta">{ c.Conditions(ctx) }</span>
+								</td>
+								<td>
 									<span class="goen-admin__meta">
 										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupUsed), c.Used(ctx)) }
 									</span>
 									if c.MaxRedeem > 0 {
 										@chart.Meter(c.UsesMeter())
 									}
+								</td>
+								<td>
 									if c.EndsAt != "" {
 										<span class="goen-admin__meta">
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCoupEndsAt), c.EndsAt) }
@@ -205,21 +211,69 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						@components.Label(components.LabelProps{For: "c-min"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMinSpend) }
 						}
-						<input class="goen-input" id="c-min" name="min" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MinSpend }/>
+						<input
+							class="goen-input"
+							id="c-min"
+							name="min"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.MinSpend }
+							if v.HasErr("min") {
+								aria-invalid="true"
+								aria-describedby="c-min-error"
+							}
+						/>
+						if v.HasErr("min") {
+							<p class="ui-error-text" id="c-min-error">{ v.Err("min") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-days"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupDays) }
 						}
-						<input class="goen-input" id="c-days" name="days" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Days }/>
+						<input
+							class="goen-input"
+							id="c-days"
+							name="days"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.Days }
+							if v.HasErr("days") {
+								aria-invalid="true"
+								aria-describedby="c-days-error"
+							}
+						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupDaysHint) }</p>
+						if v.HasErr("days") {
+							<p class="ui-error-text" id="c-days-error">{ v.Err("days") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-max"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem) }
 						}
-						<input class="goen-input" id="c-max" name="max" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MaxRedeem }/>
+						<input
+							class="goen-input"
+							id="c-max"
+							name="max"
+							type="number"
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.MaxRedeem }
+							if v.HasErr("max") {
+								aria-invalid="true"
+								aria-describedby="c-max-error"
+							}
+						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupMaxHint) }</p>
+						if v.HasErr("max") {
+							<p class="ui-error-text" id="c-max-error">{ v.Err("max") }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "c-percustomer"}) {

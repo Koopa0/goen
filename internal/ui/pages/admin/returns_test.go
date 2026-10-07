@@ -4,10 +4,99 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			rendered := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(layouts.Page{}, ReturnsView{
+				Rows: []Return{
+					{ID: "return-a", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
+						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+					{ID: "return-b", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
+						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
+				},
+			}))
+			document, err := html.Parse(strings.NewReader(rendered))
+			if err != nil {
+				t.Fatalf("parse returns page: %v", err)
+			}
+			attribute := func(n *html.Node, name string) string {
+				for _, a := range n.Attr {
+					if a.Key == name {
+						return a.Val
+					}
+				}
+				return ""
+			}
+			ids := make(map[string]int)
+			forms := make(map[string]*html.Node)
+			var visit func(*html.Node)
+			visit = func(n *html.Node) {
+				if id := attribute(n, "id"); id != "" {
+					ids[id]++
+				}
+				if n.Type == html.ElementNode && n.Data == "form" {
+					forms[attribute(n, "action")] = n
+				}
+				for child := n.FirstChild; child != nil; child = child.NextSibling {
+					visit(child)
+				}
+			}
+			visit(document)
+			for id, count := range ids {
+				if count != 1 {
+					t.Errorf("document id %q appears %d times, want once", id, count)
+				}
+			}
+			for _, returnID := range []string{"return-a", "return-b"} {
+				action := "/admin/returns/" + returnID + "/inspect"
+				form := forms[action]
+				if form == nil {
+					t.Fatalf("inspection form %q is missing", action)
+				}
+				controls := make(map[string]string)
+				labels := make(map[string]int)
+				var inspect func(*html.Node)
+				inspect = func(n *html.Node) {
+					if n.Type == html.ElementNode {
+						switch n.Data {
+						case "input":
+							controls[attribute(n, "id")] = attribute(n, "name")
+						case "label":
+							labels[attribute(n, "for")]++
+						}
+					}
+					for child := n.FirstChild; child != nil; child = child.NextSibling {
+						inspect(child)
+					}
+				}
+				inspect(form)
+				for _, field := range []struct{ prefix, name string }{
+					{"recv", "received_shared-line"}, {"stock", "restocked_shared-line"}, {"note", "note_shared-line"},
+				} {
+					id := field.prefix + "-" + returnID + "-shared-line"
+					if got := controls[id]; got != field.name {
+						t.Errorf("%s control %q name = %q, want %q", action, id, got, field.name)
+					}
+					if got := labels[id]; got != 1 {
+						t.Errorf("%s labels targeting %q = %d, want 1", action, id, got)
+					}
+					if got := ids[id]; got != 1 {
+						t.Errorf("document id %q appears %d times, want once", id, got)
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 	t.Parallel()
@@ -23,7 +112,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name: "card-only Traditional Chinese",
 			card: 140000, locale: i18n.ZhHant,
-			want: "卡款 NT$1,400 走 Stripe", not: "額度",
+			want: "卡款 NT$1,400 走 Stripe", not: "購物金",
 		},
 		{
 			name: "card-only English",
@@ -33,7 +122,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name:   "credit-only Traditional Chinese",
 			credit: 200000, locale: i18n.ZhHant,
-			want: "店儲 NT$2,000 退回額度", not: "Stripe",
+			want: "購物金 NT$2,000 退回餘額", not: "Stripe",
 		},
 		{
 			name:   "credit-only English",
@@ -43,7 +132,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name: "split Traditional Chinese",
 			card: 140000, credit: 60000, locale: i18n.ZhHant,
-			want: "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
+			want: "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額",
 		},
 		{
 			name: "split English",
@@ -87,51 +176,51 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 
 	t.Run("credit-only English names the ledger, not Stripe", func(t *testing.T) {
 		t.Parallel()
-		html := render(t, i18n.En, Return{
+		page := render(t, i18n.En, Return{
 			ID: "credit-row", OrderNumber: "GO-CREDIT", Status: "approved",
 			StatusText: "Approved", Window: "within", Decided: true,
 			CreditRefundCents: 200000,
 		})
 		want := i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAdminRetPayoutCredit)
 		want = strings.ReplaceAll(want, "%s", "NT$2,000")
-		if !strings.Contains(html, want) {
+		if !strings.Contains(page, want) {
 			t.Errorf("credit-only HTML lacks %q", want)
 		}
-		if strings.Contains(html, "refunds through Stripe") {
+		if strings.Contains(page, "refunds through Stripe") {
 			t.Error("a credit-only return is described as a Stripe refund")
 		}
 	})
 
 	t.Run("split Traditional Chinese names both sources", func(t *testing.T) {
 		t.Parallel()
-		html := render(t, i18n.ZhHant, Return{
+		page := render(t, i18n.ZhHant, Return{
 			ID: "split-row", OrderNumber: "GO-SPLIT", Status: "approved",
 			StatusText: "已同意", Window: "within", Decided: true,
 			CardRefundCents: 140000, CreditRefundCents: 60000,
 		})
-		want := "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度"
-		if !strings.Contains(html, want) {
+		want := "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額"
+		if !strings.Contains(page, want) {
 			t.Errorf("split HTML lacks %q", want)
 		}
 	})
 
 	t.Run("an open request does not invent a channel", func(t *testing.T) {
 		t.Parallel()
-		html := render(t, i18n.ZhHant, Return{
+		page := render(t, i18n.ZhHant, Return{
 			ID: "open-row", OrderNumber: "GO-OPEN", Status: "requested",
 			StatusText: "待處理", Window: "within",
 		})
 		for _, frozen := range []string{
-			"卡款 NT$", "店儲 NT$",
+			"卡款 NT$", "購物金 NT$",
 			i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetPayoutCard),
 			i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetPayoutCredit),
 		} {
-			if strings.Contains(html, frozen) {
+			if strings.Contains(page, frozen) {
 				t.Errorf("an open request shows a frozen payout channel %q", frozen)
 			}
 		}
 		lead := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetLead)
-		if !strings.Contains(html, lead) {
+		if !strings.Contains(page, lead) {
 			t.Error("the page lead is absent")
 		}
 	})
@@ -205,14 +294,14 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 				row.Status = "requested"
 				row.Decided = false
 				row.Window = returns.PolicyWindow(tt.window)
-				html := render(t, row)
+				page := render(t, row)
 				for _, want := range tt.want {
-					if !strings.Contains(html, want) {
+					if !strings.Contains(page, want) {
 						t.Errorf("window %s HTML lacks %q", tt.window, want)
 					}
 				}
 				for _, hide := range tt.hide {
-					if strings.Contains(html, hide) {
+					if strings.Contains(page, hide) {
 						t.Errorf("window %s HTML still claims %q", tt.window, hide)
 					}
 				}
@@ -224,12 +313,12 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		row := base("open-row")
 		row.Status = "requested"
 		row.Decided = false
-		html := render(t, row)
+		page := render(t, row)
 		for _, want := range []string{
 			`action="/admin/returns/open-row/decide"`, `value="approved"`,
 			`name="assessment_version"`, `name="resolution"`, `maxlength="300"`,
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(page, want) {
 				t.Errorf("open request HTML lacks %s", want)
 			}
 		}
@@ -237,7 +326,7 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 			`name="rejection_ground"`, `value="missing_reason"`, `value="ineligible"`,
 			`value="rejected"`,
 		} {
-			if strings.Contains(html, hide) {
+			if strings.Contains(page, hide) {
 				t.Errorf("statutory form still offers %s", hide)
 			}
 		}
@@ -251,14 +340,14 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		row.Lines = []ReturnLine{{
 			OrderLineID: "line-1", Name: "測試", Quantity: 1, SKU: "SKU-1",
 		}}
-		html := render(t, row)
+		page := render(t, row)
 		for _, want := range []string{
 			`action="/admin/returns/goodwill-row/assess"`,
 			`name="unused_line-1"`, `name="packaging_line-1"`, `name="accessories_line-1"`,
 			`value="unknown"`, `value="met"`, `value="unmet"`,
 			`name="basis"`, `value="approved"`, `value="rejected"`, `value="exception"`,
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(page, want) {
 				t.Errorf("goodwill HTML lacks %s", want)
 			}
 		}
@@ -268,19 +357,19 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		row := base("retry-row")
 		row.Decided = true
 		row.PayoutOutstanding = true
-		html := render(t, row)
+		page := render(t, row)
 		for _, want := range []string{
 			`method="post"`, `action="/admin/returns/retry-row/decide"`,
 			`name="decision"`, `value="approved"`, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetRetryPayout),
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(page, want) {
 				t.Errorf("retry HTML lacks %s", want)
 			}
 		}
-		if strings.Contains(html, `value="rejected"`) {
+		if strings.Contains(page, `value="rejected"`) {
 			t.Error("a payout retry offers to retake the rejection decision")
 		}
-		if strings.Contains(html, `name="resolution"`) {
+		if strings.Contains(page, `name="resolution"`) {
 			t.Error("a payout retry asks for a new decision note which cannot change the approved claim")
 		}
 	})
@@ -291,17 +380,17 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		row.Decided = false
 		row.Window = "after"
 		row.Resolution = "   "
-		html := renderToString(t, Returns(layouts.Page{Title: "退貨"}, ReturnsView{
+		page := renderToString(t, Returns(layouts.Page{Title: "退貨"}, ReturnsView{
 			Rows:   []Return{row},
 			Errors: map[string]string{"except-row.resolution": "need a reason"},
 		}))
-		if !strings.Contains(html, `value="   "`) {
+		if !strings.Contains(page, `value="   "`) {
 			t.Error("422 dropped the typed whitespace reason")
 		}
-		if !strings.Contains(html, `id="res-except-row"`) || !strings.Contains(html, `aria-invalid="true"`) {
+		if !strings.Contains(page, `id="res-except-row"`) || !strings.Contains(page, `aria-invalid="true"`) {
 			t.Error("422 did not mark the resolution field")
 		}
-		if !strings.Contains(html, "need a reason") {
+		if !strings.Contains(page, "need a reason") {
 			t.Error("422 hid the field-specific refusal")
 		}
 	})
@@ -309,8 +398,8 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 	t.Run("a settled payout has no decision action", func(t *testing.T) {
 		row := base("settled-row")
 		row.Decided = true
-		html := render(t, row)
-		if strings.Contains(html, `/admin/returns/settled-row/decide`) {
+		page := render(t, row)
+		if strings.Contains(page, `/admin/returns/settled-row/decide`) {
 			t.Error("a settled return still offers a decision or payout action")
 		}
 	})
@@ -320,12 +409,12 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		row.Decided = true
 		row.PayoutOutstanding = true
 		row.PayoutBlocked = true
-		html := render(t, row)
+		page := render(t, row)
 		stranded := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminRetPayoutStranded)
-		if !strings.Contains(html, stranded) {
+		if !strings.Contains(page, stranded) {
 			t.Error("the inconsistent-payout explanation is absent")
 		}
-		if strings.Contains(html, `/admin/returns/stranded-row/decide`) {
+		if strings.Contains(page, `/admin/returns/stranded-row/decide`) {
 			t.Error("an inconsistent payout offers a retry that cannot be proven safe")
 		}
 	})
@@ -337,7 +426,7 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 // as the same one.
 func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, Returns(layouts.Page{Title: "退貨"}, ReturnsView{
+	page := renderToString(t, Returns(layouts.Page{Title: "退貨"}, ReturnsView{
 		Rows: []Return{{
 			ID: "open-row", OrderNumber: "GO-OPEN", Status: "requested",
 			StatusText: "待處理", Window: "goodwill", Reason: "不合用",
@@ -350,7 +439,7 @@ func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 		`name="decision" value="rejected"`,
 		`name="assessment_version"`,
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(page, want) {
 			t.Errorf("the decision form no longer carries %s", want)
 		}
 	}
@@ -364,14 +453,14 @@ func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) 
 		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []ReturnLine{line}},
 		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []ReturnLine{line}},
 	}}
-	html := renderComponent(t, ctx, Returns(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Returns(layouts.Page{}, view))
 
 	for _, number := range []string{"GO-260930-000012", "GO-260930-000011"} {
-		if !strings.Contains(html, `<a href="/admin/orders/`+number+`">`+number+`</a>`) {
+		if !strings.Contains(page, `<a href="/admin/orders/`+number+`">`+number+`</a>`) {
 			t.Errorf("the row for %s does not link to its order", number)
 		}
 	}
-	if got := strings.Count(html, i18n.T(ctx, i18n.KeyAdminRetShortfall)); got != 1 {
+	if got := strings.Count(page, i18n.T(ctx, i18n.KeyAdminRetShortfall)); got != 1 {
 		t.Errorf("%q appears %d times, want once: shipped goods can be short, a refund before shipment cannot", i18n.T(ctx, i18n.KeyAdminRetShortfall), got)
 	}
 }

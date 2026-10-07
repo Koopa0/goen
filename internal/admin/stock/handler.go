@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
@@ -48,14 +49,23 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("soldout") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
+	if r.URL.Query().Get(web.KeysetParam) == "" && view.Term == "" && !view.SoldOutOnly {
+		view.ShowCover = true
+		view.AtRisk, view.MoreSoldOut, err = h.store.DaysCover(r.Context(), admin.CoverWindowDays, time.Now())
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "read days cover", "error", err)
+			access.ServerError(w, r, h.log)
+			return
+		}
+	}
 	view.Notice = web.Notice(r, notices)
-	view.Return = stockReturn(r.URL.Query().Get("low"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")
+	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")
 	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
@@ -104,17 +114,17 @@ func (h *Handler) rejectArrival(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i18n.Key, fill func(*admin.Variant)) {
-	var low, term, after string
+	var soldOut, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, term, after = u.Query().Get("low"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
+		soldOut, term, after = u.Query().Get("soldout"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
 	}
-	view, err := h.store.Variants(r.Context(), low == "1", term, after)
+	view, err := h.store.Variants(r.Context(), soldOut == "1", term, after)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants after refused stock form", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Return = stockReturn(low, view.Term, after, "", "")
+	view.Return = stockReturn(soldOut, view.Term, after, "", "")
 	sku := r.PostFormValue("sku")
 	shown := false
 	for i := range view.Variants {
@@ -209,10 +219,10 @@ func (h *Handler) SetPrice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func stockReturn(low, term, after, notice, sku string) string {
+func stockReturn(soldOut, term, after, notice, sku string) string {
 	q := url.Values{}
-	if low == "1" {
-		q.Set("low", "1")
+	if soldOut == "1" {
+		q.Set("soldout", "1")
 	}
 	if term != "" {
 		q.Set("q", term)
@@ -238,11 +248,11 @@ func stockReturn(low, term, after, notice, sku string) string {
 // value is only ever read for those two parameters, so it cannot name another
 // address.
 func stockBack(r *http.Request, notice string) string {
-	var low, term, after string
+	var soldOut, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, term, after = u.Query().Get("low"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
+		soldOut, term, after = u.Query().Get("soldout"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
 	}
-	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
+	return stockReturn(soldOut, term, after, notice, r.PostFormValue("sku"))
 }
 
 func newKey() string {
@@ -254,7 +264,7 @@ func newKey() string {
 }
 
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(web.KeysetParam))
 	switch {
 	case err == nil:
 		view.Notice = web.Notice(r, notices)

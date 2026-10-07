@@ -3,8 +3,10 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -94,17 +97,53 @@ const (
 type FreeDelivery struct {
 	Kind           FreeDeliveryKind
 	ShortfallCents int64
+	// ThresholdCents is zero where no method names an amount it turns free at.
+	ThresholdCents int64
 }
 
-func (f FreeDelivery) Text(ctx context.Context) string {
+// Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
+func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 	switch f.Kind {
 	case FreeDeliveryShort:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFreeDeliveryShort), twd(f.ShortfallCents))
+		return components.Stat{
+			Label: i18n.T(ctx, i18n.KeyCartFactToFree),
+			Value: components.StatMoney(f.ShortfallCents),
+			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
+		}
 	case FreeDeliveryReached:
-		return i18n.T(ctx, i18n.KeyCartFreeDeliveryReached)
+		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(i18n.T(ctx, i18n.KeyFreeShipping))}
+		if f.ThresholdCents > 0 {
+			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
+		}
+		return s
+	default:
+		return components.Stat{}
+	}
+}
+
+// Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
+func (v CartView) Facts(ctx context.Context) []components.Stat {
+	return []components.Stat{
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyCartUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
+		v.FreeDelivery.Stat(ctx),
+	}
+}
+
+// StockNotice says what stands between the shopper and checkout; a sold-out line outranks a short one.
+func (v CartView) StockNotice(ctx context.Context) string {
+	switch {
+	case v.HasSoldOut():
+		return i18n.T(ctx, i18n.KeyCartSoldOut)
+	case v.Blocked():
+		return i18n.T(ctx, i18n.KeyCartStockShort)
 	default:
 		return ""
 	}
+}
+
+func (v CartView) HasSoldOut() bool {
+	return slices.ContainsFunc(v.Lines, func(l CartLine) bool { return l.Unavailable })
 }
 
 func (v CartView) HasNotice() bool { return v.Notice != "" }
@@ -134,8 +173,6 @@ func (v CartView) Empty() bool { return len(v.Lines) == 0 }
 
 func (v CartView) Subtotal() string { return twd(v.SubtotalCents) }
 
-func (v CartView) ItemCountText() string { return strconv.FormatInt(v.ItemCount, 10) }
-
 func (v CartView) Blocked() bool {
 	for i := range v.Lines {
 		if v.Lines[i].Unavailable || v.Lines[i].Short {
@@ -155,7 +192,7 @@ type ShippingChoice struct {
 	Carrier         string
 	FeeCents        int64
 	Free            bool
-	// FreeOverCents is zero for a method that is never free.
+	// FreeOverCents is zero for a method that is never free and for one that costs nothing at any subtotal.
 	FreeOverCents int64
 }
 
@@ -546,12 +583,22 @@ func (v *CheckoutView) Credit() string { return "-" + twd(v.CreditCents()) }
 func (v *CheckoutView) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
 type OrderLine struct {
-	SKU       string
-	Name      string
-	Label     string
-	UnitCents int64
-	Quantity  int32
+	SKU         string
+	Name        string
+	Label       string
+	UnitCents   int64
+	Quantity    int32
+	ImageURL    string
+	ImageSrcset string
+	ImageAlt    string
+	// WarrantyMonths is the promise the line copied at checkout; zero when it carried none.
+	WarrantyMonths int
+	// Registered counts the units this line's share has registered, and WarrantyUntil is the day their cover ends.
+	Registered    int
+	WarrantyUntil time.Time
 }
+
+func (l OrderLine) HasImage() bool { return l.ImageURL != "" }
 
 func (l OrderLine) UnitPrice() string { return twd(l.UnitCents) }
 
@@ -563,15 +610,33 @@ func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quan
 type OrderEvent struct {
 	Kind order.EventKind
 	Note string
-	At   string
+	At   time.Time
 }
 
+// LabelKey is the short word the order's own history uses for the event.
 func (e OrderEvent) LabelKey() i18n.Key {
-	key, ok := e.LookupLabelKey()
-	if !ok {
+	switch e.Kind {
+	case order.EventPlaced:
+		return i18n.KeyEventPlaced
+	case order.EventPaid:
+		return i18n.KeyStatusPaid
+	case order.EventPicking:
+		return i18n.KeyEventPicking
+	case order.EventShipped:
+		return i18n.KeyEventShipped
+	case order.EventInTransit:
+		return i18n.KeyStatusInTransit
+	case order.EventDelivered:
+		return i18n.KeyEventDelivered
+	case order.EventCompleted:
+		return i18n.KeyStatusCompleted
+	case order.EventCancelled:
+		return i18n.KeyEventCancelled
+	case order.EventRefunded:
+		return i18n.KeyStatusRefunded
+	default:
 		panic("pages: no label for order event kind " + string(e.Kind))
 	}
-	return key
 }
 
 // LookupLabelKey is LabelKey for a reader that must survive a kind it does not
@@ -601,18 +666,24 @@ func (e OrderEvent) LookupLabelKey() (i18n.Key, bool) {
 	}
 }
 
+// OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
 type OrderShipment struct {
-	Carrier     carrier.Carrier
-	Tracking    string
-	ShippedAt   string
-	DeliveredAt string
-	// RescissionEnds is computed by the database; empty until delivered.
-	RescissionEnds string
+	Carrier   carrier.Carrier
+	Tracking  string
+	ShippedAt time.Time
+	// DeliveredAt is zero until the parcel arrives, or is collected from a store.
+	DeliveredAt time.Time
+	// RescissionEnds and GoodwillEnds are the last day of the right to cancel and the last day of unused
+	// returns, as the database reads them; zero until the parcel is delivered.
+	RescissionEnds time.Time
+	GoodwillEnds   time.Time
+	// Lines are the units of each line that went in this parcel.
+	Lines []OrderLine
 }
 
 func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
-func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
+func (s OrderShipment) Delivered() bool { return !s.DeliveredAt.IsZero() }
 
 type CheckoutInvoice struct {
 	Type          invoice.Preference
@@ -638,13 +709,20 @@ func (i CheckoutInvoice) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobi
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
 type OrderView struct {
-	Number         string
-	Status         order.FulfillmentStatus
-	Email          string
-	ShippingName   string
-	DeliveryTo     string
-	PlacedAt       string
+	Number       string
+	Status       order.FulfillmentStatus
+	Email        string
+	ShippingName string
+	DeliveryTo   string
+	PlacedAt     time.Time
+	// Now is the moment the page is read; the days left and the grids count from it.
+	Now time.Time
+	// Pickup is set for an order collected from a store, where delivery reads as collection.
+	Pickup bool
+	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
 	Lines          []OrderLine
+	Unshipped      []OrderLine
+	Returned       *OrderReturned
 	SubtotalCents  int64
 	ShippingCents  int64
 	DiscountCents  int64
@@ -668,6 +746,12 @@ type OrderView struct {
 	PaymentRefreshSeconds, PaymentRefreshChecks int
 	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
 	PaymentsEnabled bool
+}
+
+// OrderReturned is an order whose every unit is in a completed return. At is the day the last of them was paid out.
+type OrderReturned struct {
+	At          time.Time
+	RefundCents int64
 }
 
 type PaymentState string
@@ -760,8 +844,10 @@ func DiscountLabel(ctx context.Context, reason string) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), reason)
 }
 
-func (v *OrderView) Total() string {
-	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
+func (v *OrderView) Total() string { return twd(v.TotalCents()) }
+
+func (v *OrderView) TotalCents() int64 {
+	return v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents
 }
 
 // UsedCredit gates the credit row: without it the summary and the payment page
@@ -771,17 +857,11 @@ func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
 func (v *OrderView) CanRequestReturn() bool {
-	switch v.Status {
-	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
-		return true
-	default:
+	if v.Returned != nil {
 		return false
 	}
-}
-
-func (v *OrderView) CanRegisterWarranty() bool {
 	switch v.Status {
-	case order.FulfillmentDelivered, order.FulfillmentCompleted:
+	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
 		return true
 	default:
 		return false

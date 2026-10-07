@@ -21,11 +21,11 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
@@ -119,8 +119,8 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
 
 	terminal := postRefundCompletion(ctx, handler, number, true)
-	if terminal.Code != http.StatusSeeOther || terminal.Header().Get("Location") != "/admin/orders/"+number+"?refused=1" {
-		t.Errorf("terminal press = %d %q, want the existing unavailable-refund refusal",
+	if terminal.Code != http.StatusSeeOther || terminal.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {
+		t.Errorf("terminal press = %d %q, want the cancelled-order refusal",
 			terminal.Code, terminal.Header().Get("Location"))
 	}
 	if diff := cmp.Diff(wantFinished, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {

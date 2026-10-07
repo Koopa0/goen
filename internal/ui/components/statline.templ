@@ -7,18 +7,58 @@ templ StatLine(stats []Stat, variant StatLineVariant) {
 			for _, s := range items {
 				<div>
 					<dt>{ s.Label }</dt>
-					<dd>
-						if s.Value.pre != "" {
-							<small class="ui-statline__pre">{ s.Value.pre }</small>{ s.Value.figure }
-						} else {
-							{ s.Value.figure + "\u00a0" }<small>{ s.Value.unit }</small>
-						}
-						if s.Note != "" {
-							<span class="ui-statline__note">{ s.Note }</span>
-						}
-					</dd>
+					@statValue(s)
 				</div>
 			}
 		</dl>
+	}
+}
+
+// GlanceStatLine is a stat line whose labels link; the figure stays outside the link.
+templ GlanceStatLine(stats []LinkedStat) {
+	if items := shownLinked(stats); len(items) > 0 {
+		<dl class="ui-statline ui-statline--glance">
+			for _, s := range items {
+				<div>
+					<dt><a href={ templ.SafeURL(s.Href) }>{ s.Label }</a></dt>
+					@statValue(s.Stat)
+				</div>
+			}
+		</dl>
+	}
+}
+
+templ statValue(s Stat) {
+	<dd>
+		@figure(s.Value)
+		if s.Note != "" {
+			<span class="ui-statline__note">{ s.Note }</span>
+		}
+		if s.Trend != nil {
+			@s.Trend
+		}
+	</dd>
+}
+
+// A figure that is a point in time is read by machines too, so it is a time element.
+templ figure(v StatValue) {
+	if v.datetime != "" {
+		<time datetime={ v.datetime }>
+			@plainFigure(v)
+		</time>
+	} else {
+		@plainFigure(v)
+	}
+}
+
+templ plainFigure(v StatValue) {
+	if len(v.date) > 0 || v.clock != "" {
+		@templ.Raw(v.dateHTML())
+	} else if v.pre != "" {
+		<small class="ui-statline__pre">{ v.pre }</small>{ v.figure }
+	} else if v.unit != "" {
+		{ v.figure + "\u00a0" }<small>{ v.unit }</small>
+	} else {
+		{ v.figure }
 	}
 }

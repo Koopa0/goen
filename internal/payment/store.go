@@ -15,13 +15,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 // Store holds the pool rather than a DBTX because processing a webhook spans
@@ -83,6 +83,11 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		hold.ExpiresAt = time.Time{}
 	}
 
+	span, err := s.q.OrderHoldSpan(ctx, row.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("read stock hold span of order %s: %w", number, err)
+	}
+
 	o := &Order{
 		Number:            row.OrderNumber,
 		TotalCents:        row.TotalCents,
@@ -90,6 +95,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		Paid:              paid,
 		Fulfillment:       row.FulfillmentStatus,
 		HoldExpiresAt:     hold.ExpiresAt,
+		Hold:              HoldSpan{From: span.HeldFrom, Until: span.HeldUntil, SweptAt: span.SweptAt.Time},
 		holdCoversSession: hold.CoversSession,
 		Lines:             make([]Line, 0, len(lines)),
 	}

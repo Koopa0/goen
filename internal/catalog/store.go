@@ -57,19 +57,44 @@ func ShopRules(ctx context.Context, q *db.Queries, withPickup bool) (pages.ShopR
 // Listing uses one set of descendant ids for the listing, the count and the
 // brand facet, which otherwise disagree about scope.
 func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.ListingView, error) {
+	view, _, err := s.listing(ctx, slug, f)
+	return view, err
+}
+
+// ListingPage is Listing with the shopper's filters on the view and, when withHead is set, the
+// department head, which reuses the comparable categories the listing has just read.
+func (s *Store) ListingPage(ctx context.Context, slug string, f Filters, withHead bool) (pages.ListingView, *pages.DepartmentHead, error) {
+	view, offers, err := s.listing(ctx, slug, f)
+	if err != nil {
+		return pages.ListingView{}, nil, err
+	}
+	view.Query = canonicalQuery(f)
+	view.Filtered = f.Active()
+	view.InStockOnly = f.InStockOnly
+	view.MinPrice = f.MinPrice
+	view.MaxPrice = f.MaxPrice
+	view.Sort = f.Sort.Param()
+	if !withHead {
+		return view, nil, nil
+	}
+	head, err := s.DepartmentHead(ctx, slug, view.Theme.Comparable, view.IsFront(), offers)
+	return view, head, err
+}
+
+func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.ListingView, map[uuid.UUID]bool, error) {
 	cat, err := s.q.CategoryBySlug(ctx, db.CategoryBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.ListingView{}, ErrNotFound
+			return pages.ListingView{}, nil, ErrNotFound
 		}
-		return pages.ListingView{}, fmt.Errorf("read category %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read category %q: %w", slug, err)
 	}
 
 	ids, err := s.q.CategoryDescendants(ctx, cat.ID)
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("read descendants of %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
 	names, values := optionFilterColumns(f.OptionValues)
@@ -82,7 +107,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		MaxPrice:       f.MaxPrice,
 	})
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
 
 	brandIDs, selected := selectedListingBrands(brands, f.BrandSlugs)
@@ -101,7 +126,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		PageOffset:     f.Offset(),
 	})
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("read listing for %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read listing for %q: %w", slug, err)
 	}
 
 	total, err := s.q.CategoryListingCount(ctx, db.CategoryListingCountParams{
@@ -114,7 +139,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		MaxPrice:       f.MaxPrice,
 	})
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("count listing for %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("count listing for %q: %w", slug, err)
 	}
 
 	trail := crumbs(cat.AncestorSlugs, cat.AncestorNames)
@@ -126,12 +151,12 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Slug: department, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("read children of %q: %w", department, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read children of %q: %w", department, err)
 	}
 
 	offers, err := s.comparableCategories(ctx)
 	if err != nil {
-		return pages.ListingView{}, err
+		return pages.ListingView{}, nil, err
 	}
 
 	view := pages.ListingView{
@@ -139,8 +164,9 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Name:   cat.Name,
 		Crumbs: trail,
 		Theme: &pages.Theme{
-			Children: childCrumbs(children),
-			Tone:     pages.ResolveTone(cat.Tone),
+			Children:   childCrumbs(children),
+			Tone:       pages.ResolveTone(cat.Tone),
+			Comparable: offers[cat.ID],
 			Photo: pages.Photo{
 				URL:    assets.ProductImageURL(cat.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
@@ -153,6 +179,11 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		PageSize: PageSize,
 	}
 
+	err = s.withHighlights(ctx, view.Products)
+	if err != nil {
+		return pages.ListingView{}, nil, err
+	}
+
 	if len(brands) > 0 {
 		view.Facets = append(view.Facets, pages.FacetGroup{Kind: pages.FacetBrand, Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: brandFacets(brands, selected)})
 	}
@@ -162,10 +193,10 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		OptionNames: names, OptionValues: values,
 	})
 	if err != nil {
-		return pages.ListingView{}, fmt.Errorf("read option facets for %q: %w", slug, err)
+		return pages.ListingView{}, nil, fmt.Errorf("read option facets for %q: %w", slug, err)
 	}
 	view.Facets = append(view.Facets, optionFacets(optionRows, f.OptionValues)...)
-	return view, nil
+	return view, offers, nil
 }
 
 func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
@@ -278,9 +309,11 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
@@ -304,9 +337,11 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
@@ -354,9 +389,11 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 			PriceCents:   r.TilePriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,

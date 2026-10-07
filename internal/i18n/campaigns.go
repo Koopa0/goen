@@ -1,9 +1,13 @@
 package i18n
 
 var (
-	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "限時活動", En: "Limited-time offer"})
+	KeyCampaignsRunning = key("campaign.running", Message{ZhHant: "進行中的活動", En: "Running campaigns"})
 
-	KeyCampaignEndsAt = key("campaign.endsat", Message{ZhHant: "活動至 %s", En: "Until %s"})
+	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
+
+	KeyCampaignStarts = key("campaign.starts", Message{ZhHant: "開始", En: "Starts"})
+
+	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
 
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",
@@ -21,8 +25,8 @@ var (
 	})
 
 	KeyCampaignDescription = key("campaign.description", Message{
-		ZhHant: "%s — goen 限時優惠",
-		En:     "%s — a limited-time offer from goen",
+		ZhHant: "%s — goen 優惠",
+		En:     "%s — deals at goen",
 	})
 
 	KeyCampaignProducts = countKey("campaign.products", "%s 件商品", "%s product", "%s products")
@@ -35,16 +39,14 @@ var (
 	// %s is the last day, after the product count on the offers page.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
-	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
+	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})
 
 	KeyCampaignNotFoundBody = key("campaign.notfound.body", Message{
-		ZhHant: "這個活動可能已經結束了。看看目前的優惠。",
-		En:     "That promotion has probably ended. Have a look at what is running now.",
+		ZhHant: "找不到這個活動。看看目前的優惠。",
+		En:     "We could not find that campaign. See the deals running now.",
 	})
 
-	KeyDeals2 = key("deals.eyebrow", Message{ZhHant: "優惠", En: "Offers"})
-
-	KeyDealsTitle = key("deals.title", Message{ZhHant: "現正優惠", En: "On sale now"})
+	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
 )
@@ -135,7 +137,7 @@ var (
 		En:     "A campaign runs 1 to 90 days.",
 	})
 
-	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "限時活動", En: "Campaigns"})
+	KeyAdminPageCampaigns = key("admin.page.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
 	KeyAdminCampaignOff = key("admin.campaign.off", Message{ZhHant: "已停用", En: "Switched off"})
 
@@ -163,4 +165,34 @@ var (
 	KeyAdminCampaignTitleEnLength = key("admin.campaign.title_en_length", Message{ZhHant: "英文活動標題不得超過 60 字。", En: "Use at most 60 characters for the English campaign title."})
 	KeyAdminCampaignTitleEn       = key("admin.campaign.title_en", Message{ZhHant: "英文活動標題（選填）", En: "English campaign title (optional)"})
 	KeyAdminCampaignTitleEnHint   = key("admin.campaign.title_en_hint", Message{ZhHant: "留白時，英文頁面會顯示原活動標題。", En: "Leave blank to show the original campaign title on English pages."})
+
+	KeyAdminCampResults = key("admin.camp.results", Message{ZhHant: "成效", En: "Results"})
+
+	// %[1]s is a number of days, %[2]s the units sold in the first of them since
+	// the campaign began, %[3]s the units sold in as many days before it.
+	KeyAdminCampFacts = key("admin.camp.facts", Message{
+		ZhHant: "活動開始後的 %[1]s 售出 %[2]s；開始前的 %[1]s 售出 %[3]s。",
+		En:     "%[2]s sold in the campaign's first %[1]s; %[3]s in the %[1]s before.",
+	})
+
+	// What the columns wait for: %[1]s is a number of days, %[2]s a number of units.
+	KeyAdminCampFactsHint = key("admin.camp.facts.hint", Message{
+		ZhHant: "活動滿 %[1]s、前後合計售出 %[2]s 後，這裡會畫出每日直條。",
+		En:     "The daily columns appear once the campaign has run %[1]s and %[2]s have sold, before and during.",
+	})
+
+	KeyAdminCampResultsNote = countKey("admin.camp.results.note",
+		"只計活動目前的 %d 件商品；改了商品清單，這些數字也跟著變。",
+		"Counts the campaign's current %d product; change the list and these figures change with it.",
+		"Counts the campaign's current %d products; change the list and these figures change with it.")
+
+	// What the units are, once today is no longer counted.
+	KeyAdminCampBasis = key("admin.camp.basis", Message{ZhHant: "只計入已付款的訂單，依下單時間。", En: "Paid orders only, by the time placed."})
+
+	KeyAdminCampUnits = key("admin.camp.units", Message{ZhHant: "件數", En: "Units"})
+
+	KeyAdminCampPeriod = key("admin.camp.period", Message{ZhHant: "時段", En: "Period"})
+
+	// The days before a campaign began, which it is compared with.
+	KeyAdminCampBefore = key("admin.camp.before", Message{ZhHant: "活動前", En: "Before"})
 )

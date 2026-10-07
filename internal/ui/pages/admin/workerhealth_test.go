@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -19,8 +20,8 @@ func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{name: "Traditional Chinese", locale: i18n.ZhHant, want: "金流端取消了這筆退款，錢沒有退出去，請從退貨清單重新退款"},
-		{name: "English", locale: i18n.En, want: "The provider cancelled it: no money moved; retry it from the returns queue"},
+		{name: "Traditional Chinese", locale: i18n.ZhHant, want: "金流端取消了這筆退款，錢沒有退出去"},
+		{name: "English", locale: i18n.En, want: "The provider cancelled this refund attempt: no money moved"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -30,6 +31,86 @@ func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 				t.Errorf("cancelled refund status = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestOpenRefundRowsLinkTheOrderAndExplainManualRecovery(t *testing.T) {
+	t.Parallel()
+	states := []struct {
+		name   string
+		state  refundstate.State
+		status [2]string
+		next   [2]string
+	}{
+		{
+			name:   "pending",
+			state:  refundstate.Pending,
+			status: [2]string{"已送出，還沒收到金流端的結果", "Sent, no answer from the provider yet"},
+			next:   [2]string{"請在 Stripe 查詢退款結果。", "Check the refund status in Stripe."},
+		},
+		{
+			name:   "requires action",
+			state:  refundstate.RequiresAction,
+			status: [2]string{"金流端說還需要處理才會退出去", "The provider says something more is needed before the money moves"},
+			next:   [2]string{"請先查看 Stripe 顯示的退款處理指示。", "Read the refund action instructions shown in Stripe first."},
+		},
+		{
+			name:   "failed",
+			state:  refundstate.Failed,
+			status: [2]string{"金流端拒絕了這筆退款，錢沒有退出去", "The provider refused this refund: no money moved"},
+			next:   [2]string{"請在 Stripe 查明退款失敗原因。", "Check why the refund failed in Stripe."},
+		},
+		{
+			name:   "cancelled attempt",
+			state:  refundstate.Cancelled,
+			status: [2]string{"金流端取消了這筆退款，錢沒有退出去", "The provider cancelled this refund attempt: no money moved"},
+			next:   [2]string{"請在 Stripe 查明這筆退款被取消的原因。", "Check why this refund attempt was cancelled in Stripe."},
+		},
+	}
+	origins := []struct {
+		name     string
+		key      string
+		recovery [2]string
+	}{
+		{
+			name: "return",
+			key:  "return:0199aaaa-0000-7000-8000-000000000001",
+			recovery: [2]string{
+				"goen 不會自動接續這筆退款；訂單或退貨頁若提供「繼續退款」或「重新退款」，才可使用該操作核對並繼續退款。",
+				"goen does not automatically resume this refund; use “Resume the refund” or “Send the refund again” on the order or returns page only if offered to check and continue it.",
+			},
+		},
+		{
+			name: "non-return",
+			key:  "cancel:0199aaaa-0000-7000-8000-000000000002",
+			recovery: [2]string{
+				"goen 不會自動接續這筆退款；請依 Stripe 顯示的狀態與指示處理，此頁不提供重試操作。",
+				"goen does not automatically resume this refund; follow the status and instructions shown in Stripe. This page offers no retry action.",
+			},
+		},
+	}
+	for _, tt := range states {
+		for _, origin := range origins {
+			for index, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+				t.Run(tt.name+"/"+origin.name+"/"+string(locale), func(t *testing.T) {
+					t.Parallel()
+					ctx := i18n.WithLocale(t.Context(), locale)
+					view := WorkerHealthView{OpenRefunds: []OpenRefund{{
+						OrderNumber: "GO-261006-000004", Key: origin.key, Status: tt.state,
+					}}}
+					html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
+					for _, want := range []string{
+						`<a href="/admin/orders/GO-261006-000004">GO-261006-000004</a>`,
+						tt.status[index],
+						`<p class="goen-admin__hint">` + tt.next[index] + " " + origin.recovery[index] + `</p>`,
+					} {
+						if !strings.Contains(html, want) {
+							t.Errorf("refund row lacks %q", want)
+						}
+					}
+				})
+			}
+		}
 	}
 }
 
@@ -142,7 +223,7 @@ func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
 	view := &WorkerHealthView{UnreconciledEvents: []UnreconciledEvent{
 		{
 			EventID: "evt_refund_failed", Type: "refund.failed", Ref: "re_3Q1abc",
-			Reason:            "refund_failed: a refund goen recorded as succeeded failed at Stripe (lost_or_stolen_card)",
+			Reason:            "refund_failed: lost_or_stolen_card",
 			RefundOrderNumber: "GO-261006-000003", RefundCents: 120000,
 		},
 		{
@@ -231,12 +312,62 @@ func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
 	}
 }
 
-func TestOpenDisputeAmountIsNTOnlyForTWD(t *testing.T) {
+func TestOpenDisputeAmount(t *testing.T) {
 	t.Parallel()
-	if got := (OpenDispute{AmountCents: 129000, Currency: "twd"}).Amount(); got != money.TWD(129000) {
-		t.Errorf("twd Amount() = %q, want %q", got, money.TWD(129000))
+	tests := []struct {
+		name     string
+		currency string
+		amount   int64
+		want     string
+	}{
+		{name: "shop currency", currency: "twd", amount: 129000, want: "NT$1,290"},
+		{name: "US dollars", currency: "usd", amount: 5000, want: "USD"},
+		{name: "Japanese yen", currency: "jpy", amount: 5000, want: "JPY"},
+		{name: "Bahraini dinars", currency: "bhd", amount: 5000, want: "BHD"},
 	}
-	if got := (OpenDispute{AmountCents: 5000, Currency: "usd"}).Amount(); got != "USD 5000" {
-		t.Errorf("usd Amount() = %q, want the code and Stripe's minor units", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := (OpenDispute{AmountCents: tt.amount, Currency: tt.currency}).Amount(); got != tt.want {
+				t.Errorf("Amount(%q, %d) = %q, want %q", tt.currency, tt.amount, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+	}{
+		{name: "Traditional Chinese", locale: i18n.ZhHant},
+		{name: "English", locale: i18n.En},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			view := &WorkerHealthView{
+				Disputes: DisputeState{Configured: true, Items: []OpenDispute{
+					{URL: "https://dashboard.stripe.com/disputes/dp_usd", AmountCents: 5000, Currency: "usd"},
+					{URL: "https://dashboard.stripe.com/disputes/dp_twd", AmountCents: 129000, Currency: "twd"},
+				}},
+			}
+			html := renderComponent(t, ctx, Health(layouts.Page{Title: "health"}, view))
+			for _, want := range []string{
+				`<td class="goen-admin__cellnum">USD</td>`,
+				`<td class="goen-admin__cellnum">NT$1,290</td>`,
+				`href="https://dashboard.stripe.com/disputes/dp_usd"`,
+				`href="https://dashboard.stripe.com/disputes/dp_twd"`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Errorf("Health() does not contain %q", want)
+				}
+			}
+			if strings.Contains(html, "5000") {
+				t.Error("Health() exposes the foreign dispute's minor-unit figure 5000")
+			}
+		})
 	}
 }

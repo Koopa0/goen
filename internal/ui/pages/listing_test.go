@@ -74,7 +74,7 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	if !strings.Contains(html, `<div class="goen-listing__filters">`) {
 		t.Error("the filter rail is not grouped into one layout column")
@@ -93,6 +93,109 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	}
 }
 
+// TestTheListingControlsWorkWithoutScript holds the three controls the shopper
+// reaches for: each facet a closed disclosure, the sort a native select inside
+// the GET form beside a submit button, and the next page a link.
+func TestTheListingControlsWorkWithoutScript(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{
+		Slug: "audio", Name: "耳機與音響", Total: 45, Page: 1, PageSize: 20, Query: "in_stock=1",
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
+	}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
+
+	_, form, ok := strings.Cut(html, `<form class="goen-filters"`)
+	if !ok {
+		t.Fatal("the listing has no filter form")
+	}
+	form, _, _ = strings.Cut(form, `</form>`)
+	for _, want := range []string{`method="get"`, `<select class="ui-select" id="sort" name="sort">`, `type="submit"`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("the filter form lacks %q; the sort would need script", want)
+		}
+	}
+	if strings.Contains(form, `class="goen-filters__group" open`) || strings.Contains(form, `data-popover open`) {
+		t.Error("a facet menu is open before the shopper opens it")
+	}
+	if !strings.Contains(form, `<details class="goen-filters__group" name="filters" data-popover>`) {
+		t.Error("a facet is not a disclosure menu")
+	}
+
+	if count := strings.Index(html, `class="goen-listing__count"`); count < 0 || count > strings.Index(html, `id="listing-results"`) {
+		t.Error("the count is not in the toolbar above the results")
+	}
+
+	more := `<a class="goen-btn goen-btn--outline" href="/c/audio?in_stock=1&amp;page=2" rel="next">` + i18n.T(ctx, i18n.KeyShowMore) + `</a>`
+	if !strings.Contains(html, more) {
+		t.Errorf("the next page is not a link to ?page=2:\n%s", html)
+	}
+	if !strings.Contains(html, `<progress class="goen-pager__progress" value="1" max="3"`) {
+		t.Error("the pager draws no progress line")
+	}
+
+	last := view
+	last.Page = 3
+	if got := renderToString(t, Listing(ListingMeta(ctx, last), last, nil, nil)); strings.Contains(got, `rel="next"`) {
+		t.Error("the last page offers a next page")
+	}
+}
+
+// TestAnEmptyListingHasNoCountAndNoSort: the empty state carries the message, and
+// the toolbar keeps only what can still change the result.
+func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	empty := ListingView{Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true}
+	html := renderToString(t, Listing(ListingMeta(ctx, empty), empty, nil, nil))
+
+	if strings.Contains(html, `id="sort"`) {
+		t.Error("an empty listing offers a sort")
+	}
+	if !strings.Contains(html, `<p class="goen-listing__count" id="listing-count" aria-hidden="true"></p>`) {
+		t.Error("an empty listing prints a count in the toolbar, or its box is gone so a swap has nothing to fill")
+	}
+	if !strings.Contains(html, `<div id="listing-sort" class="goen-filters__sort"></div>`) {
+		t.Error("the sort box is not empty, or is gone so a swap has nothing to fill")
+	}
+	if !strings.Contains(html, `goen-filters__apply`) {
+		t.Error("the apply button is gone with the sort")
+	}
+
+	full := ListingView{
+		Slug: "audio", Name: "耳機與音響", Total: 1,
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+	}
+	got := renderToString(t, Listing(ListingMeta(ctx, full), full, nil, nil))
+	if !strings.Contains(got, `id="listing-count" aria-hidden="true">共 1 件商品</p>`) || !strings.Contains(got, `id="sort"`) {
+		t.Error("a listing with products lacks its count or sort")
+	}
+}
+
+// TestTheSearchCountSitsBesideTheSort: the head carries the query only.
+func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := SearchView{
+		Query: "nimbus", Total: 3, Page: 1, PageSize: 20,
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+	}
+	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
+
+	_, form, ok := strings.Cut(html, `<form class="goen-search-sort"`)
+	if !ok {
+		t.Fatal("the search has no sort form")
+	}
+	form, _, _ = strings.Cut(form, `</form>`)
+	if !strings.Contains(form, `<p class="goen-listing__count">找到 3 件商品</p>`) {
+		t.Errorf("the count is not in the sort toolbar:\n%s", form)
+	}
+	if strings.Contains(html, "goen-pagehead__sub") {
+		t.Error("the page head still carries a count line")
+	}
+}
+
 // TestFilteredListingFocusesResults holds where a filter submission should
 // leave keyboard focus: on the results region, not back at the page top.
 func TestFilteredListingFocusesResults(t *testing.T) {
@@ -102,7 +205,7 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 		Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true,
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	if !strings.Contains(html, `id="listing-results"`) {
 		t.Error("the results region has no fragment target")
@@ -148,7 +251,7 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
 		},
 	}
-	html := renderToString(t, Listing(ListingMeta(i18n.WithLocale(t.Context(), i18n.ZhHant), view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(i18n.WithLocale(t.Context(), i18n.ZhHant), view), view, nil, nil))
 
 	// The form's action and method, not merely a checkbox: a checkbox that
 	// submits to the listing filters the listing.
@@ -190,14 +293,14 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	one := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
 		{Slug: "solo", Name: "Solo", PriceCents: 2590000},
 	}}
-	if got := renderToString(t, Listing(ListingMeta(ctx, one), one, nil)); strings.Contains(got, marked) {
+	if got := renderToString(t, Listing(ListingMeta(ctx, one), one, nil, nil)); strings.Contains(got, marked) {
 		t.Errorf("a single-priced product renders %q", marked)
 	}
 
 	many := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
 		{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true},
 	}}
-	if got := renderToString(t, Listing(ListingMeta(ctx, many), many, nil)); !strings.Contains(got, marked) {
+	if got := renderToString(t, Listing(ListingMeta(ctx, many), many, nil, nil)); !strings.Contains(got, marked) {
 		t.Errorf("a product spanning prices states NT$25,900 as its price, unmarked")
 	}
 
@@ -364,7 +467,7 @@ func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
 	view := ListingView{Slug: "audio", Name: "Audio", Products: tiles}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	if got := strings.Count(html, `loading="lazy"`); got != 2 {
 		t.Errorf("%d lazy photographs, want 2 (the tiles after the first eight)", got)
@@ -396,7 +499,7 @@ func TestALongShelfIsOneGridOfEveryProduct(t *testing.T) {
 		"filtered":         {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, Filtered: true},
 		"the second page":  {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 2},
 	} {
-		html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+		html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 		if strings.Contains(html, "goen-featured") || strings.Contains(html, "精選商品") {
 			t.Errorf("%s: has a lead row", name)
 		}
@@ -422,7 +525,7 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
 		},
 	}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/chargers">Chargers</a>`) {
 		t.Error("a sibling sub-category is not a chip")
 	}
@@ -434,43 +537,8 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	}
 
 	bare := ListingView{Slug: "audio", Name: "Audio"}
-	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
+	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
 		t.Error("a head with no photograph or children draws them anyway")
-	}
-}
-
-// A run of pages stays one row: both ends, the neighbours of the current page,
-// and a gap wherever pages are left out.
-func TestThePagerKeepsBothEndsAndTheNeighboursOfTheCurrentPage(t *testing.T) {
-	t.Parallel()
-	href := func(n int) string { return fmt.Sprintf("?page=%d", n) }
-	label := func(links []PageLink) string {
-		var parts []string
-		for _, l := range links {
-			switch {
-			case l.Gap:
-				parts = append(parts, "…")
-			case l.Current:
-				parts = append(parts, "["+l.Label+"]")
-			default:
-				parts = append(parts, l.Label)
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-	for _, c := range []struct {
-		current, pages int
-		want           string
-	}{
-		{1, 1, "[1]"},
-		{2, 3, "1 [2] 3"},
-		{1, 9, "[1] 2 … 9"},
-		{5, 9, "1 … 4 [5] 6 … 9"},
-		{9, 9, "1 … 8 [9]"},
-	} {
-		if got := label(pageWindow(c.current, c.pages, href)); got != c.want {
-			t.Errorf("page %d of %d: %q, want %q", c.current, c.pages, got, c.want)
-		}
 	}
 }
 
@@ -496,11 +564,11 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
-	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	for _, want := range []string{
 		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
-		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML"`,
+		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"`,
 		`id="listing-status" class="goen-sr-only" role="status" aria-live="polite"`,
 		`class="goen-btn goen-btn--primary goen-btn--block goen-filters__apply"`,
 	} {
@@ -511,7 +579,7 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 	if !strings.Contains(html, `<div id="filters-applied">`) {
 		t.Error("the active-filter chips have no stable region to be swapped into")
 	}
-	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}, nil))
+	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}, nil, nil))
 	if !strings.Contains(unfiltered, `<div id="filters-applied">`) {
 		t.Error("an unfiltered page has no chips region, so removing the last filter could not clear it")
 	}
@@ -525,16 +593,16 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
 
-	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view, nil))
+	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view, nil, nil))
 	if !strings.Contains(whole, `id="listing-results" tabindex="-1" autofocus`) {
 		t.Error("a whole filtered page no longer focuses its results")
 	}
-	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view, nil))
+	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view, nil, nil))
 	if strings.Contains(partial, "autofocus") {
 		t.Errorf("a partial render carries autofocus:\n%s", partial)
 	}
 	for _, want := range []string{`hx-sync="this:replace"`, `hx-status:5xx="swap:none"`, `class="goen-filters__error" role="alert" hidden`, `<div id="filters-applied"></div>`} {
-		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"}, nil)), want) {
+		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"}, nil, nil)), want) {
 			t.Errorf("missing %q", want)
 		}
 	}
@@ -601,7 +669,7 @@ func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
 			t.Errorf("%q links to %q, want %q", c.RemoveLabel, c.Remove, want[c.RemoveLabel])
 		}
 	}
-	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil))
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil))
 	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
 		t.Error("the chip's remove link has no accessible name in the markup")
 	}
@@ -614,10 +682,10 @@ func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}}}
 	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
-	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view, nil)); !strings.Contains(html, oob) {
+	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view, nil, nil)); !strings.Contains(html, oob) {
 		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
 	}
-	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil)); strings.Contains(html, "hx-swap-oob") {
+	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil)); strings.Contains(html, "hx-swap-oob") {
 		t.Error("a whole-page listing carries out-of-band counts")
 	}
 }

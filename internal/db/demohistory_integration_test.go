@@ -132,9 +132,6 @@ var demoHistoryInvariants = []struct {
 		WHERE r.state = 'held'
 		  AND NOT (o.fulfillment_status IN ('pending', 'picking')
 		           AND (order_is_committed(o.id) OR order_amount_after_credit(o.id) = 0))`},
-	{"the history ends the day before it was generated", `
-		SELECT order_number FROM orders
-		WHERE shop_day(placed_at) >= shop_today() OR shop_day(placed_at) < shop_today() - 90`},
 	{"every payment is a demo payment", `
 		SELECT provider_ref FROM payments WHERE provider_ref NOT LIKE 'cs\_demo\_%'`},
 }
@@ -146,10 +143,22 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	ctx := t.Context()
 	seedCatalogue(t, shop)
 	addAdmin(t, shop)
+	// The seed and the history are separate runs, with the second factor
+	// enrolled in between, so they need not fall on the same day.
+	ageSnapshot(t, shop, 1)
 	windows := saleWindows(t, shop)
 
+	// The history can end after the shop's midnight; every day below is the
+	// one it started on.
+	ran := shoptime.In(time.Now())
 	if out, err := runSeed(t, "demo_history.sql", shop.Config().ConnString(), namingItself(shop)...); err != nil {
 		t.Fatalf("seed/demo_history.sql: %v\n%s", err, out)
+	}
+	if off := textRows(t, shop, `
+		SELECT order_number FROM orders
+		WHERE shop_day(placed_at) >= $1::date OR shop_day(placed_at) < $1::date - 90`, shoptime.Day(ran)); len(off) > 0 {
+		t.Errorf("the history ends the day before it was generated (%s): broken by %d, e.g. %s",
+			shoptime.Day(ran), len(off), strings.Join(off[:min(len(off), 5)], ", "))
 	}
 
 	for _, inv := range demoHistoryInvariants {
@@ -190,7 +199,7 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	assertRefused(t, shop, "demo_history.sql", shop.Config().ConnString(), namingItself(shop),
 		"this database already has a demo history (complete or partial); restore the snapshot to run again")
 
-	t.Run("restored a week later", func(t *testing.T) { assertShiftedToToday(t, shop, 7) })
+	t.Run("restored a week later", func(t *testing.T) { assertShiftedToToday(t, shop, ran, ran, 7) })
 }
 
 // The demo holds a few checkouts from before the history; it numbers its own
@@ -517,9 +526,9 @@ func saleWindows(t *testing.T, shop *pgxpool.Pool) string {
 	return windows
 }
 
-func textRows(t *testing.T, shop *pgxpool.Pool, query string) []string {
+func textRows(t *testing.T, shop *pgxpool.Pool, query string, args ...any) []string {
 	t.Helper()
-	rows, err := shop.Query(t.Context(), query)
+	rows, err := shop.Query(t.Context(), query, args...)
 	if err != nil {
 		t.Fatalf("query %s: %v", query, err)
 	}
@@ -584,7 +593,7 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("UnreconciledCompletePayments: %v", err)
 	}
-	stranded, err := q.StrandedInvoiceClaims(ctx)
+	stranded, err := q.StrandedInvoiceClaims(ctx, true)
 	if err != nil {
 		t.Fatalf("StrandedInvoiceClaims: %v", err)
 	}
@@ -623,7 +632,7 @@ func assertReportsHaveData(t *testing.T, shop *pgxpool.Pool) {
 		if err != nil {
 			t.Fatalf("CheckoutCompletionBetween(%d days): %v", days, err)
 		}
-		risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{WindowDays: days, LimitTo: 10})
+		risk, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: from, ToAt: now})
 		if err != nil {
 			t.Fatalf("StockAtRisk(%d): %v", days, err)
 		}

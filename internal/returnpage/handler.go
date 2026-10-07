@@ -100,13 +100,26 @@ func (d *returnDraft) request(o *Order) (*Request, []web.FieldRefusal) {
 			refusals = append(refusals, web.FieldRefusal{Field: "qty_" + line.ID, MessageKey: key})
 		}
 	}
-	if !validReturnReason(d.Reason) {
-		refusals = append(refusals, web.FieldRefusal{Field: "reason", MessageKey: i18n.KeyReturnReasonInvalid})
+	if key := returnReasonMessage(d.Reason); key != "" {
+		refusals = append(refusals, web.FieldRefusal{Field: "reason", MessageKey: key})
 	}
 	if !chosen && !quantityRefused {
 		refusals = append(refusals, web.FieldRefusal{MessageKey: i18n.KeyReturnInvalid})
 	}
 	return req, refusals
+}
+
+func returnReasonMessage(reason string) i18n.Key {
+	switch result := validateReturnReason(reason); result {
+	case reasonValid:
+		return ""
+	case reasonTooLong:
+		return i18n.KeyReturnReasonTooLong
+	case reasonUnsupportedControls:
+		return i18n.KeyReturnReasonUnsupportedControls
+	default:
+		panic("returnpage: unknown reason validation: " + string(result))
+	}
 }
 
 func returnRequester(ctx context.Context) uuid.NullUUID {

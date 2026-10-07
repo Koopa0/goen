@@ -208,6 +208,12 @@ CREATE TRIGGER categories_acyclic
     BEFORE INSERT OR UPDATE OF parent_id ON categories
     FOR EACH ROW EXECUTE FUNCTION categories_reject_cycle();
 
+-- The unit an invoice line prints: not blank, at most six characters, no control characters.
+-- squawk warns about changing a domain's constraint on tables in use; this file creates it before any row exists.
+CREATE DOMAIN invoice_unit AS text
+    -- squawk-ignore ban-create-domain-with-constraint
+    CONSTRAINT invoice_unit_valid CHECK (VALUE ~ '[^[:space:]]' AND char_length(VALUE) <= 6 AND VALUE !~ '[[:cntrl:]]');
+
 CREATE TABLE products (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
     brand_id      uuid REFERENCES brands (id) ON DELETE RESTRICT,
@@ -247,9 +253,8 @@ CREATE TABLE products (
     CONSTRAINT products_label_net_unit_known CHECK (net_unit IS NULL OR net_unit IN ('g','kg','ml','l','piece')),
     CONSTRAINT products_label_age_sane CHECK (min_age_months IS NULL OR min_age_months BETWEEN 0 AND 216),
     tax_type text NOT NULL DEFAULT 'taxable',
-    invoice_unit text NOT NULL DEFAULT '個',
+    invoice_unit invoice_unit NOT NULL DEFAULT '個',
     CONSTRAINT products_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
-    CONSTRAINT products_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT products_warranty_months_sane
         CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
     CONSTRAINT products_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
@@ -2067,9 +2072,8 @@ CREATE TABLE order_lines (
     quantity         integer NOT NULL,
     position         integer NOT NULL DEFAULT 0,
     tax_type text NOT NULL DEFAULT 'taxable',
-    invoice_unit text NOT NULL DEFAULT '個',
+    invoice_unit invoice_unit NOT NULL DEFAULT '個',
     CONSTRAINT order_lines_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
-    CONSTRAINT order_lines_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT order_lines_sku_present CHECK (sku ~ '[^[:space:]]'),
     CONSTRAINT order_lines_product_name_present CHECK (product_name ~ '[^[:space:]]'),
     CONSTRAINT order_lines_unit_price_in_range
@@ -3261,7 +3265,8 @@ CREATE TABLE warranty_registrations (
     serial_number text,
     registered_at timestamptz NOT NULL DEFAULT now(),
     expires_on    date NOT NULL,
-    CONSTRAINT warranty_registrations_unit_positive CHECK (unit_no > 0)
+    CONSTRAINT warranty_registrations_unit_positive CHECK (unit_no > 0),
+    CONSTRAINT warranty_registrations_serial_length CHECK (char_length(serial_number) <= 60)
 );
 
 CREATE UNIQUE INDEX warranty_registrations_unit_key
@@ -3678,7 +3683,7 @@ CREATE TABLE invoice_document_lines (
     unit_price_cents bigint NOT NULL,
     amount_cents  bigint NOT NULL,
     tax_type      text NOT NULL,
-    unit          text NOT NULL DEFAULT '個',
+    unit          invoice_unit NOT NULL DEFAULT '個',
     position      integer NOT NULL DEFAULT 0,
     CONSTRAINT invoice_document_lines_description_present CHECK (description ~ '[^[:space:]]'),
 	CONSTRAINT invoice_document_lines_description_bounded CHECK (char_length(description) <= 100),
@@ -3692,8 +3697,6 @@ CREATE TABLE invoice_document_lines (
     CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_tax_type_known
         CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt')),
-    CONSTRAINT invoice_document_lines_unit_valid
-        CHECK (unit ~ '[^[:space:]]' AND char_length(unit) <= 6 AND unit !~ '[[:cntrl:]]'),
     CONSTRAINT invoice_document_lines_position_in_range
         CHECK (position BETWEEN 0 AND 998)
 );
@@ -4191,10 +4194,14 @@ CREATE TABLE payment_webhook_events (
     -- distinguish a known event whose object this binary could not read
     -- (unreadable_event), paid money with no local payment row to attribute it
     -- to (unattributed_capture), paid money for an order already cancelled
-    -- (cancelled_order_capture), and verified money a stable local invariant
-    -- refused to post (refused_capture). Each is still marked processed because
-    -- Stripe would retry the same unresolvable facts; this durable reason is
-    -- what makes the required human action visible on /admin/health.
+    -- (cancelled_order_capture), verified money a stable local invariant
+    -- refused to post (refused_capture), a checkout completed by a delayed
+    -- payment method goen's stock hold cannot outlive (unsettled_session), and a
+    -- refund goen recorded as succeeded that Stripe reported failed
+    -- (refund_failed, followed by Stripe's failure code). Each is still marked
+    -- processed because Stripe would retry the same unresolvable facts; this
+    -- durable reason is what makes the required human action visible on
+    -- /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
@@ -5256,6 +5263,19 @@ COMMENT ON VIEW settled_orders IS
 -- SECURITY INVOKER, so every checkout would die on it.
 GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 
+-- A refund before shipment is a cancellation, yet the order stays committed
+-- until the card refund succeeds and the order is cancelled; a sales figure
+-- that read committed_orders would count it in between. security_invoker, so a
+-- role reads through it only what its own grants allow.
+CREATE VIEW sold_orders WITH (security_invoker = true) AS
+    SELECT c.id
+    FROM committed_orders c
+    WHERE NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = c.id AND b.before_shipment);
+
+COMMENT ON VIEW sold_orders IS
+    'The single definition of a sold order: committed, and not refunded before shipment.';
+
 -- An order's total less the store credit spent on it, NET OF
 -- REVERSALS — summing only `amount_cents < 0` counts the ghost of a reversed
 -- spend and lets an unfunded order ship.
@@ -5805,10 +5825,10 @@ BEGIN
         RETURN false;
     END IF;
     FOR i IN 1..v_count LOOP
+        IF NOT pg_input_is_valid(coalesce(v_lines -> (i - 1) ->> 'unit', ''), 'invoice_unit') THEN
+            RETURN false;
+        END IF;
         IF coalesce(v_lines -> (i - 1) ->> 'tax_type', '') NOT IN ('taxable', 'exempt')
-           OR coalesce(v_lines -> (i - 1) ->> 'unit', '') !~ '[^[:space:]]'
-           OR char_length(v_lines -> (i - 1) ->> 'unit') > 6
-           OR (v_lines -> (i - 1) ->> 'unit') ~ '[[:cntrl:]]'
            OR p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
            OR p_quantities[i] IS DISTINCT FROM
               ((v_lines -> (i - 1) ->> 'quantity')::integer)
@@ -5942,6 +5962,14 @@ BEGIN
 END;
 $$;
 
+-- An allowance prints one line, taxed as the first line of the invoice it reduces.
+CREATE FUNCTION first_invoice_line_tax_type(p_document_id uuid) RETURNS text
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT l.tax_type FROM invoice_document_lines l
+    WHERE l.document_id = p_document_id
+    ORDER BY l.position LIMIT 1
+$$;
+
 CREATE FUNCTION claim_invoice_allowance(
     p_original_id uuid,
     p_operation_id uuid,
@@ -6030,9 +6058,7 @@ BEGIN
         'lines', jsonb_build_array(jsonb_build_object(
             'description', '退貨折讓', 'quantity', 1,
             'unit_price_cents', v_amount, 'amount_cents', v_amount,
-                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
-                             WHERE l.document_id = v_original.id
-                             ORDER BY l.position LIMIT 1),
+                'tax_type', first_invoice_line_tax_type(v_original.id),
                 'unit', '個')))
     INTO v_payload
     FROM orders o JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -6410,9 +6436,7 @@ BEGIN
             '{lines}', jsonb_build_array(jsonb_build_object(
                 'description', '退貨折讓', 'quantity', 1,
                 'unit_price_cents', v_amount, 'amount_cents', v_amount,
-                'tax_type', (SELECT l.tax_type FROM invoice_document_lines l
-                             WHERE l.document_id = v_original.id
-                             ORDER BY l.position LIMIT 1),
+                'tax_type', first_invoice_line_tax_type(v_original.id),
                 'unit', '個'))),
         last_error = 'allowance_provider_invalid_refrozen',
         available_at = now(), lease_owner = NULL, lease_until = NULL,
@@ -7112,41 +7136,6 @@ BEGIN
 END;
 $$;
 
--- An account can sign in concurrently from two browser tabs, each carrying a
--- different guest cart. The partial unique index on carts.user_id detects two
--- first adopters only after both have already decided that no account cart
--- exists; serialize that decision on the stable account row instead.
-CREATE FUNCTION lock_user_for_cart_adoption(p_user_id uuid) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-BEGIN
-    -- NO KEY UPDATE conflicts with another adoption's identical row lock but is
-    -- compatible with the KEY SHARE that a checkout's user_id foreign keys take.
-    -- Checkout owns the cart before it writes its order; UPDATE here would make
-    -- adoption own user -> wait cart while checkout owns cart -> wait user.
-    PERFORM 1 FROM users WHERE id = p_user_id FOR NO KEY UPDATE;
-    RETURN FOUND;
-END;
-$$;
-
-COMMENT ON FUNCTION lock_user_for_cart_adoption(uuid) IS
-    'Serialize the choice and merge of the one cart an account may own.';
-
--- A logged-in checkout will later write orders.user_id and related foreign
--- keys. Take their natural KEY SHARE lock before the cart, not halfway through
--- the order write, so erasure/adoption and checkout all use user -> cart order.
--- KEY SHARE is compatible with adoption's NO KEY UPDATE but conflicts with the
--- UPDATE/DELETE that erasure holds across its complete PII snapshot.
-CREATE FUNCTION lock_user_for_checkout(p_user_id uuid) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-BEGIN
-    PERFORM 1 FROM users WHERE id = p_user_id FOR KEY SHARE;
-    RETURN FOUND;
-END;
-$$;
-
-COMMENT ON FUNCTION lock_user_for_checkout(uuid) IS
-    'Keep a checkout account alive before locking its cart and writing user foreign keys.';
-
 -- Releasing a provider event is the operator's explicit statement that every
 -- provider-side cent was fully refunded, or that a succeeded local payment
 -- already accounts for it. End a still-active linked attempt in the same
@@ -7608,8 +7597,6 @@ GRANT EXECUTE ON FUNCTION cancel_payment(text) TO store;
 GRANT EXECUTE ON FUNCTION mark_payment_event_unreconciled(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_payment_provider_ref(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_cart_catalogue(uuid) TO store;
-GRANT EXECUTE ON FUNCTION lock_user_for_cart_adoption(uuid) TO store;
-GRANT EXECUTE ON FUNCTION lock_user_for_checkout(uuid) TO store;
 GRANT EXECUTE ON FUNCTION release_payment_event(text) TO admin;
 GRANT EXECUTE ON FUNCTION attribute_complete_payment_paid(text) TO admin;
 GRANT EXECUTE ON FUNCTION release_complete_payment(text) TO admin;

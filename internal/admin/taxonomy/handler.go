@@ -153,6 +153,9 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 		return
 	}
 	view.Notice, view.Errors = notice, errs
+	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
+		view.ImageAltDraft, view.ImageAltEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
+	}
 	web.Render(w, r, h.log, status, admin.CategoryForm(layouts.Page{Title: view.Name}, view))
 }
 

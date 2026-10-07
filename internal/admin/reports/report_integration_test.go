@@ -9,23 +9,28 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.Report(ctx, 30)
+	before, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
 	unpaid := reportOrder(t, 100000, false)
 	_ = unpaid
-	mid, err := s.Report(ctx, 30)
+	mid, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -38,7 +43,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 
 	reportOrder(t, 100000, true)
-	after, err := s.Report(ctx, 30)
+	after, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -119,7 +124,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 
 	assertSeller := func(stage string) {
 		t.Helper()
-		view, err := s.Report(ctx, 30)
+		view, err := s.ReportAt(ctx, 30, time.Now())
 		if err != nil {
 			t.Fatalf("%s report: %v", stage, err)
 		}
@@ -161,12 +166,48 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	assertSeller("after retirement")
 }
 
+// A refund before shipment cancels the sale, so the product leaves the best
+// sellers while the order is still committed, as the order leaves the revenue.
+func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
+	ctx := t.Context()
+	// A week of its own, so no other test's sale outranks this one.
+	now := shopMoment(t, "2021-06-20 15:20:00")
+	placed := shopMoment(t, "2021-06-17 10:00:00")
+	variantID, sku := newVariant(t, 20, 0)
+	orderOnVariant(t, variantID, sku, 3, &placed)
+	slug := productSlug(t, sku)
+
+	_, staff := admintest.StaffContext(t, pool)
+	backOffice := admintest.AdminRolePool(t, pool)
+	s := reports.NewStore(backOffice)
+	listed := func() bool {
+		t.Helper()
+		view, err := s.ReportAt(ctx, 7, now)
+		if err != nil {
+			t.Fatalf("ReportAt: %v", err)
+		}
+		return slices.ContainsFunc(view.Sellers, func(r admin.Seller) bool { return r.Slug == slug })
+	}
+	if !listed() {
+		t.Fatal("the paid order's product is not a best seller before any refund")
+	}
+
+	if _, err := backOffice.Exec(ctx, `
+		SELECT open_refund_before_shipment(o.order_number, 'best sellers', $2, 'best-sellers-' || $3)
+		FROM orders o WHERE o.id = $1`, orderOf(t, sku, false), staff, sku); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	if listed() {
+		t.Errorf("%s is still a best seller after its only order was refunded before shipment", slug)
+	}
+}
+
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("report(%d): %v", days, err)
 		}
@@ -175,7 +216,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 		}
 	}
 	for _, days := range []int32{0, 1, 31, 3650, -1} {
-		view, err := s.Report(ctx, days)
+		view, err := s.ReportAt(ctx, days, time.Now())
 		if err != nil {
 			t.Fatalf("report(%d): %v", days, err)
 		}
@@ -185,7 +226,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 		}
 	}
 
-	view, err := s.Report(ctx, reports.DefaultWindow)
+	view, err := s.ReportAt(ctx, reports.DefaultWindow, time.Now())
 	if err != nil {
 		t.Fatalf("report for window snapshot: %v", err)
 	}
@@ -195,7 +236,7 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 	}
 	view.Windows[0] = 3650
 
-	fresh, err := s.Report(ctx, 7)
+	fresh, err := s.ReportAt(ctx, 7, time.Now())
 	if err != nil {
 		t.Fatalf("report after mutating prior view: %v", err)
 	}
@@ -267,7 +308,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.Report(ctx, 30)
+	before, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -287,7 +328,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 		t.Fatalf("the fixture wrote %d payments; this case is about an order with none", payments)
 	}
 
-	after, err := s.Report(ctx, 30)
+	after, err := s.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -301,50 +342,185 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-func TestRunwayDividesWhatASaleMayTake(t *testing.T) {
+func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	roomy := soldVariant(t, 9, 5, 10)
-	atSafety := soldVariant(t, 5, 5, 10)
+	// One more sold out SKU than the list holds, so the count is at least 1
+	// whatever the seed leaves, and a SKU of ten orders that must still show.
+	idle := make([]string, 0, 11)
+	for range 11 {
+		_, sku := newVariant(t, 2, 2)
+		idle = append(idle, sku)
+	}
+	estimatedID, estimated := newVariant(t, 10, 5)
+	for range 10 {
+		orderOnVariant(t, estimatedID, estimated, 1, nil)
+	}
 
-	view, err := s.Report(ctx, 30)
+	now := time.Now()
+	raw, err := db.New(pool).StockAtRisk(ctx, db.StockAtRiskParams{
+		FromAt: now.AddDate(0, 0, -30), ToAt: now.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("read stock at risk: %v", err)
+	}
+	for _, sku := range idle {
+		if !slices.ContainsFunc(raw, func(r db.StockAtRiskRow) bool { return r.SKU == sku }) {
+			t.Errorf("StockAtRisk lacks %s: sold out with no orders, it must still be a candidate", sku)
+		}
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
-	rowOf := func(sku string) (int, bool) {
-		for i, r := range view.AtRisk {
-			if r.SKU == sku {
-				return i, true
-			}
+	if view.StockDays != 30 {
+		t.Errorf("a 7 day report reads stock over %d days, want 30", view.StockDays)
+	}
+	var soldOut int
+	afterSoldOut := true
+	for i, r := range view.AtRisk {
+		if r.Estimate().State != admin.CoverSoldOut {
+			continue
 		}
-		return 0, false
+		soldOut++
+		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+			afterSoldOut = false
+		}
 	}
-	roomyAt, ok := rowOf(roomy)
-	if !ok {
-		t.Fatalf("report lacks %s", roomy)
+	if soldOut != 10 || view.MoreSoldOut < 1 {
+		t.Errorf("%d sold out rows listed with %d left off, want 10 and the rest counted", soldOut, view.MoreSoldOut)
 	}
-	atSafetyAt, ok := rowOf(atSafety)
-	if !ok {
-		t.Fatalf("report lacks %s", atSafety)
+	if !afterSoldOut {
+		t.Error("a sold out row follows a row that is not sold out")
 	}
-	if got := view.AtRisk[roomyAt]; got.DaysCover != 12 || got.Sellable != 4 {
-		t.Errorf("stock 9, safety 5, 10 sold in 30 days: days %d sellable %d, want 12 and 4",
-			got.DaysCover, got.Sellable)
-	}
-	if got := view.AtRisk[atSafetyAt]; got.DaysCover != 0 || got.Sellable != 0 {
-		t.Errorf("stock at its safety level: days %d sellable %d, want 0 and 0",
-			got.DaysCover, got.Sellable)
-	}
-	if atSafetyAt > roomyAt {
-		t.Errorf("a SKU at its safety level is row %d, after the SKU with days to spare at row %d",
-			atSafetyAt, roomyAt)
+	row, ok := stockRow(&view, estimated)
+	switch {
+	case !ok:
+		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
+	case row.Estimate().State != admin.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
+		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
+			row.Sellable, row.Sold, row.Orders)
 	}
 }
 
-// soldVariant makes an active variant holding stock with the given safety level
-// and one paid order of sold units, and returns its SKU.
-func soldVariant(t *testing.T, stock, safety, sold int) string {
+func TestStockWindowIsWholeShopDays(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	variantID, sku := newVariant(t, 20, 2)
+	for _, placed := range []string{
+		"2024-02-09 23:59:00", // before the first of 30 shop days
+		"2024-02-10 00:01:00", // inside
+		"2024-03-10 15:21:00", // after now
+	} {
+		moment := shopMoment(t, placed)
+		orderOnVariant(t, variantID, sku, 1, &moment)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	row, ok := stockRow(&view, sku)
+	if !ok {
+		t.Fatalf("report lacks %s", sku)
+	}
+	if row.Orders != 1 || row.Sold != 1 {
+		t.Errorf("orders at 02-09 23:59, 02-10 00:01 and 03-10 15:21 over 30 shop days to 03-10 15:20: %d orders, %d units, want 1 and 1",
+			row.Orders, row.Sold)
+	}
+}
+
+func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	now := shopMoment(t, "2024-03-10 15:20:00")
+
+	// Stock 10 over safety 2, received on 02-25: nothing to sell before, so the
+	// 30 shop days from 02-10 hold 14 days 15 hours 20 minutes of stock.
+	inStockID, inStock := newVariant(t, 10, 2)
+	receipt := shopMoment(t, "2024-02-25 00:00:00")
+	ledger(t, inStockID, 10, "receipt", receipt)
+	sold := shopMoment(t, "2024-03-09 10:00:00")
+	orderOnVariant(t, inStockID, inStock, 1, &sold)
+
+	// Two sold out variants that ran out on different days: the later is first.
+	earlierID, earlier := newVariant(t, 2, 2)
+	ledger(t, earlierID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, earlierID, -5, "adjustment", shopMoment(t, "2024-03-05 12:00:00"))
+	laterID, later := newVariant(t, 2, 2)
+	ledger(t, laterID, 5, "receipt", shopMoment(t, "2024-03-01 00:00:00"))
+	ledger(t, laterID, -5, "adjustment", shopMoment(t, "2024-03-08 12:00:00"))
+
+	view, err := s.ReportAt(ctx, 30, now)
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	row, ok := stockRow(&view, inStock)
+	if !ok {
+		t.Fatalf("report lacks %s", inStock)
+	}
+	if want := 14*24*time.Hour + 15*time.Hour + 20*time.Minute; row.InStock != want {
+		t.Errorf("received on 02-25 into a window from 02-10 to 03-10 15:20: in stock %v, want %v", row.InStock, want)
+	}
+	laterAt, laterOK := indexOf(&view, later)
+	earlierAt, earlierOK := indexOf(&view, earlier)
+	if !laterOK || !earlierOK {
+		t.Fatalf("report lacks a sold out variant: %s listed %v, %s listed %v", later, laterOK, earlier, earlierOK)
+	}
+	if laterAt > earlierAt {
+		t.Errorf("the SKU that ran out on 03-08 is row %d, after the one that ran out on 03-05 at row %d", laterAt, earlierAt)
+	}
+	if got := view.AtRisk[laterAt].SoldOutAt; !got.Equal(shopMoment(t, "2024-03-08 12:00:00")) {
+		t.Errorf("ran out at %v, want 2024-03-08 12:00", got)
+	}
+}
+
+func indexOf(view *admin.ReportView, sku string) (int, bool) {
+	for i, r := range view.AtRisk {
+		if r.SKU == sku {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func stockRow(view *admin.ReportView, sku string) (admin.StockRisk, bool) {
+	i, ok := indexOf(view, sku)
+	if !ok {
+		return admin.StockRisk{}, false
+	}
+	return view.AtRisk[i], true
+}
+
+func shopMoment(t *testing.T, wallClock string) time.Time {
+	t.Helper()
+	moment, err := shoptime.ParseSecond(wallClock)
+	if err != nil {
+		t.Fatalf("parse %q: %v", wallClock, err)
+	}
+	return moment
+}
+
+// ledger writes a movement as the ledger would have it at the time, without
+// touching the stock the variant already holds.
+func ledger(t *testing.T, variantID uuid.UUID, delta int, reason string, at time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key, created_at)
+		VALUES ($1, $2, $3, 'admin', 'report-' || gen_random_uuid(), $4)`,
+		variantID, delta, reason, at); err != nil {
+		t.Fatalf("write movement: %v", err)
+	}
+}
+
+// newVariant makes an active variant holding stock with the given safety level.
+func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -354,7 +530,7 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 	}
 	defer pgtx.Rollback(ctx, tx)
 
-	var productID, variantID uuid.UUID
+	var productID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		SELECT b.id, c.id, 'runway-' || gen_random_uuid(), '庫存天數商品', 'draft', now()
@@ -363,28 +539,45 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 		RETURNING id`).Scan(&productID); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	var sku string
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
 		VALUES ($1, 'RUNWAY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, $2, $3)
-		RETURNING id, sku`, productID, stock, safety).Scan(&variantID, &sku); err != nil {
+		RETURNING id, sku`, productID, stock, safety).Scan(&id, &sku); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return id, sku
+}
+
+// orderOnVariant places one paid order of units on the variant at placedAt, or
+// now when it is nil.
+func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, placedAt *time.Time) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
-		                    shipping_method_name, shipping_cents)
-		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		                    shipping_method_name, shipping_cents, placed_at)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0, coalesce($1::timestamptz, now())
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`, placedAt).Scan(&orderID); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, sold); err != nil {
+		VALUES ($1, $2, $3, '庫存天數商品', 1, $4)`, orderID, variantID, sku, units); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -398,18 +591,14 @@ func soldVariant(t *testing.T, stock, safety, sold int) string {
 		t.Fatalf("commit: %v", err)
 	}
 	ref := "runway_" + orderID.String()
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(units)); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(sold)); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, int64(units)); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
-	return sku
 }
 
-// Seven shop days up to Sunday 2024-03-10 15:20 are 03-04 00:00 to now; the
-// seven before them are 02-26 00:00 to 03-03 15:20, the same hour of day. The
-// date is long past, so only these orders fall in either period.
 func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
@@ -503,4 +692,534 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	if got, want := after.Previous.Placed-before.Previous.Placed, int64(2); got != want {
 		t.Errorf("the previous period gained %d placed orders, want %d", got, want)
 	}
+}
+
+// Seven shop days up to Sunday 2023-11-12 15:20 start on 11-06, the seven
+// before them on 10-30 and stop at 11-05 15:20. The orders that are left out
+// are each of a different kind, so that a day count that took them in would add
+// to more than the tile.
+func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-11-12 15:20:00")
+
+	for _, order := range []struct {
+		placed string
+		cents  int64
+		paid   bool
+	}{
+		{"2023-11-12 15:19:00", 1_00, true},
+		{"2023-11-12 15:21:00", 2_00, true},    // after now
+		{"2023-11-10 23:59:00", 4_00, true},    // the last minute of its shop day
+		{"2023-11-11 00:01:00", 8_00, true},    // the first minute of the next
+		{"2023-11-08 12:00:00", 16_00, false},  // never paid
+		{"2023-11-06 00:01:00", 32_00, true},   // this period's first day
+		{"2023-11-05 15:19:00", 64_00, true},   // previous period, before its cut
+		{"2023-11-05 15:21:00", 128_00, true},  // after the cut
+		{"2023-10-30 00:01:00", 256_00, true},  // previous period's first day
+		{"2023-10-29 23:59:00", 512_00, true},  // before it
+		{"2023-09-15 10:00:00", 1024_00, true}, // only the 90 days reach it
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, order.cents, order.paid, &moment)
+	}
+	// Refunded in full before it shipped: no revenue, so on no day.
+	moment := at("2023-11-09 10:00:00")
+	refunded := reportOrderAt(t, 2048_00, true, &moment)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+
+	for _, days := range []int32{7, 30, 90} {
+		view, err := s.ReportAt(ctx, days, now)
+		if err != nil {
+			t.Fatalf("report of %d days: %v", days, err)
+		}
+		daily := view.Daily
+		for _, c := range []struct {
+			name   string
+			series chart.Series
+			want   int64
+		}{
+			{"this period", daily.Current, view.RevenueCents},
+			{"previous period", daily.Previous, view.Previous.RevenueCents},
+		} {
+			var sum int64
+			zeroDays := 0
+			for _, b := range c.series.Buckets {
+				sum += b.Value
+				if b.Value == 0 {
+					zeroDays++
+				}
+			}
+			if sum != c.want {
+				t.Errorf("%d days, %s: the days add up to %d cents, want the tile's %d", days, c.name, sum, c.want)
+			}
+			if len(c.series.Buckets) != int(days) {
+				t.Errorf("%d days, %s: %d days drawn, want %d", days, c.name, len(c.series.Buckets), days)
+			}
+			if zeroDays == 0 {
+				t.Errorf("%d days, %s: no day without orders, want the empty days present as zeros", days, c.name)
+			}
+			if !c.series.Partial {
+				t.Errorf("%d days, %s: not marked as ending mid-day", days, c.name)
+			}
+		}
+		if daily.Cut != "15:20" {
+			t.Errorf("%d days: cut at %q, want 15:20", days, daily.Cut)
+		}
+	}
+
+	week, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("report of 7 days: %v", err)
+	}
+	daily := week.Daily
+	if got, want := daily.Current.Buckets[0].Value, int64(32_00); got != want {
+		t.Errorf("the first shop day (11-06) holds %d cents, want %d", got, want)
+	}
+	if got, want := daily.Current.Buckets[4].Value, int64(4_00); got != want {
+		t.Errorf("11-10 holds %d cents, want %d: 23:59 is still that day", got, want)
+	}
+	if got, want := daily.Current.Buckets[5].Value, int64(8_00); got != want {
+		t.Errorf("11-11 holds %d cents, want %d", got, want)
+	}
+}
+
+func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	countedID, counted := newVariant(t, 20, 0)
+	orderOnVariant(t, countedID, counted, 12, nil)
+	returnUnits(t, orderOf(t, counted, false), 3, "approved")
+	// The same product, sold before the window and returned: it is neither in
+	// the units sold nor in the units returned.
+	before := time.Now().AddDate(0, 0, -60)
+	orderOnVariant(t, countedID, counted, 8, &before)
+	returnUnits(t, orderOf(t, counted, true), 4, "approved")
+	undecidedID, undecided := newVariant(t, 20, 0)
+	orderOnVariant(t, undecidedID, undecided, 5, nil)
+	returnUnits(t, orderOf(t, undecided, false), 2, "requested")
+	declinedID, declined := newVariant(t, 20, 0)
+	orderOnVariant(t, declinedID, declined, 6, nil)
+	returnUnits(t, orderOf(t, declined, false), 2, "rejected")
+
+	view, err := s.ReportAt(ctx, 30, time.Now())
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if view.ReturnedErr != nil {
+		t.Fatalf("returned products: %v", view.ReturnedErr)
+	}
+	var got *admin.ReturnedProduct
+	for i, p := range view.Returned {
+		switch p.Slug {
+		case productSlug(t, undecided):
+			t.Errorf("an open return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, declined):
+			t.Errorf("a declined return listed %q with %d returned", p.Slug, p.Returned)
+		case productSlug(t, counted):
+			got = &view.Returned[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("an approved return is missing from the products returned most")
+	}
+	if got.Returned != 3 || got.Sold != 12 {
+		t.Errorf("returned/sold = %d/%d, want 3/12", got.Returned, got.Sold)
+	}
+}
+
+// orderOf is the newest order of sku, or the oldest.
+func orderOf(t *testing.T, sku string, oldest bool) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		SELECT ol.order_id FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+		WHERE ol.sku = $1
+		ORDER BY CASE WHEN $2 THEN o.placed_at END, o.placed_at DESC LIMIT 1`, sku, oldest).Scan(&id); err != nil {
+		t.Fatalf("read the order of %s: %v", sku, err)
+	}
+	return id
+}
+
+func productSlug(t *testing.T, sku string) string {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT p.slug FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.sku = $1`, sku).Scan(&slug); err != nil {
+		t.Fatalf("read slug of %s: %v", sku, err)
+	}
+	return slug
+}
+
+// returnUnits ships the paid order and asks for qty of its one line's units
+// back, then moves the request to status.
+func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	var lineID uuid.UUID
+	var sold int
+	if err := tx.QueryRow(ctx, `
+		SELECT id, quantity FROM order_lines WHERE order_id = $1`, orderID).
+		Scan(&lineID, &sold); err != nil {
+		t.Fatalf("read the sale on order %s: %v", orderID, err)
+	}
+	admintest.MoveOrderToShipped(t, tx, orderID)
+	var shipmentID, requestID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1::uuid, 'black_cat', 'T-' || $1::uuid::text) RETURNING id`, orderID).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, sold); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason) VALUES ($1, '不合用') RETURNING id`,
+		orderID).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, requestID, lineID, qty); err != nil {
+		t.Fatalf("create return line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if status == "requested" {
+		return
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = $2, decided_at = now(), resolution = '核准'
+		WHERE id = $1`, requestID, status); err != nil {
+		t.Fatalf("move the return to %s: %v", status, err)
+	}
+}
+
+// The same orders as the tile counts, a day at a time: the unpaid order, the
+// one refunded before shipment and the ones outside the period are on no day.
+func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-03-12 15:20:00")
+
+	for _, order := range []struct {
+		placed string
+		paid   bool
+	}{
+		{"2023-03-12 15:19:00", true},
+		{"2023-03-12 10:00:00", true},
+		{"2023-03-12 15:21:00", true}, // after now
+		{"2023-03-10 23:59:00", true},
+		{"2023-03-11 00:01:00", true},
+		{"2023-03-08 12:00:00", false}, // never paid
+		{"2023-03-06 00:01:00", true},
+		{"2023-03-05 23:59:00", true}, // the day before the period
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, 100_00, order.paid, &moment)
+	}
+	moment := at("2023-03-09 10:00:00")
+	refunded := reportOrderAt(t, 100_00, true, &moment)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	var sum int64
+	perDay := map[string]int64{}
+	for _, b := range view.Paid.Days.Buckets {
+		sum += b.Value
+		perDay[b.Day.Format("01-02")] = b.Value
+	}
+	if sum != view.Orders {
+		t.Errorf("the days hold %d paid orders, the tile %d", sum, view.Orders)
+	}
+	if len(view.Paid.Days.Buckets) != 7 {
+		t.Errorf("%d days, want the 7 shop days with the empty ones present", len(view.Paid.Days.Buckets))
+	}
+	for day, want := range map[string]int64{"03-06": 1, "03-07": 0, "03-08": 0, "03-09": 0, "03-10": 1, "03-11": 1, "03-12": 2} {
+		if got := perDay[day]; got != want {
+			t.Errorf("%s holds %d paid orders, want %d", day, got, want)
+		}
+	}
+	if !view.Paid.Days.Partial {
+		t.Error("the days are not marked as ending mid-day")
+	}
+}
+
+func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2023-11-12 15:20:00") // seven shop days from 11-06
+
+	for _, c := range []struct {
+		slug, title      string
+		starts, ends     string
+		active           bool
+		titleEnglish     string
+		wantFrom, wantTo string
+	}{
+		{"rep-ended-before", "早已結束", "2023-10-01 00:00:00", "2023-11-05 23:59:00", true, "", "", ""},
+		{"rep-ends-at-the-start", "剛好結束", "2023-10-01 00:00:00", "2023-11-06 00:00:00", true, "", "", ""},
+		{"rep-ends-after-midnight", "隔日零點結束", "2023-11-01 00:00:00", "2023-11-07 00:00:00", true, "", "2023-11-01", "2023-11-06"},
+		{"rep-overlaps-the-start", "跨過期初", "2023-11-04 10:00:00", "2023-11-07 23:59:00", true, "Crosses the start", "2023-11-04", "2023-11-07"},
+		{"rep-running", "進行中", "2023-11-10 00:00:00", "2023-11-20 23:59:00", true, "", "2023-11-10", "2023-11-20"},
+		{"rep-switched-off", "已停用", "2023-11-08 00:00:00", "2023-11-09 23:59:00", false, "", "", ""},
+		{"rep-not-yet", "尚未開始", "2023-11-12 16:00:00", "2023-11-14 23:59:00", true, "", "", ""},
+	} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at, is_active)
+			VALUES ($1, $2, nullif($3, ''), $4, $5, $6)`,
+			c.slug, c.title, c.titleEnglish, at(c.starts), at(c.ends), c.active); err != nil {
+			t.Fatalf("campaign %s: %v", c.slug, err)
+		}
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	var got []string
+	for _, c := range view.Paid.Campaigns {
+		got = append(got, c.Label+" "+c.From.Format("2006-01-02")+" "+c.To.Format("2006-01-02"))
+	}
+	want := []string{
+		"隔日零點結束 2023-11-01 2023-11-06",
+		"跨過期初 2023-11-04 2023-11-07",
+		"進行中 2023-11-10 2023-11-20",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("campaigns = %q, want %q", got, want)
+	}
+
+	english, err := s.ReportAt(i18n.WithLocale(ctx, i18n.En), 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt in English: %v", err)
+	}
+	if got := english.Paid.Campaigns[1].Label; got != "Crosses the start" {
+		t.Errorf("an English reader gets the title %q, want the English one", got)
+	}
+}
+
+func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+	at := func(wallClock string) time.Time {
+		t.Helper()
+		moment, err := shoptime.ParseSecond(wallClock)
+		if err != nil {
+			t.Fatalf("parse %q: %v", wallClock, err)
+		}
+		return moment
+	}
+	now := at("2022-05-20 15:20:00") // seven shop days from 05-14
+
+	for _, order := range []struct {
+		placed string
+		paid   bool
+	}{
+		{"2022-05-01 23:59:00", true},
+		{"2022-05-03 09:00:00", true},
+		{"2022-05-09 09:00:00", false}, // unpaid, so not the latest
+	} {
+		moment := at(order.placed)
+		reportOrderAt(t, 100_00, order.paid, &moment)
+	}
+	// Paid, then refunded in full before it shipped: it is no revenue, so it is
+	// not the latest paid order either.
+	latest := at("2022-05-12 09:00:00")
+	refunded := reportOrderAt(t, 100_00, true, &latest)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO return_requests (order_id, reason, before_shipment) VALUES ($1, '', true)`, refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+
+	view, err := s.ReportAt(ctx, 7, now)
+	if err != nil {
+		t.Fatalf("ReportAt: %v", err)
+	}
+	if got := view.Paid.Days.Density(); got != chart.DensityNone {
+		t.Fatalf("the period has density %d, want none", got)
+	}
+	if view.Paid.Latest == nil {
+		t.Fatal("no latest paid order's day, want 2022-05-03")
+	}
+	if got := *view.Paid.Latest; got.Month != time.May || got.Day != 3 {
+		t.Errorf("the latest paid order was on %d-%d, want 5-3", got.Month, got.Day)
+	}
+}
+
+// A deeper category counts toward its root. An unpaid order and one refunded
+// before shipment count toward none. Together the departments are the revenue
+// figure, since the orders carry no discount, shipping or tax.
+func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	suffix := uuid.NewString()
+	rootA := departmentName("A", suffix)
+	rootB := departmentName("B", suffix)
+	idA := newCategory(t, rootA, nil)
+	idB := newCategory(t, rootB, nil)
+	idChild := newCategory(t, departmentName("child", suffix), &idA)
+
+	before, err := s.ReportAt(ctx, 30, time.Now())
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	categoryOrder(t, idA, 30000, true)
+	categoryOrder(t, idChild, 20000, true)
+	categoryOrder(t, idB, 5000, true)
+	categoryOrder(t, idB, 99999, false)
+	refunded := categoryOrder(t, idB, 77777, true)
+	var staff uuid.UUID
+	if err = pool.QueryRow(ctx, `
+		INSERT INTO users (email, role) VALUES ('dept-staff-' || gen_random_uuid() || '@goen.invalid', 'staff')
+		RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `SELECT open_refund_before_shipment($1, 'department', $2, $3)`,
+		refunded, staff, "dept-"+refunded); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	after, err := s.ReportAt(ctx, 30, time.Now())
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	byName := func(v admin.ReportView) (map[string]int64, int64) {
+		got := map[string]int64{}
+		var sum int64
+		for _, d := range v.Departments {
+			got[d.Name] = d.SalesCents
+			sum += d.SalesCents
+		}
+		return got, sum
+	}
+	was, wasSum := byName(before)
+	now, nowSum := byName(after)
+	if got := now[rootA] - was[rootA]; got != 50000 {
+		t.Errorf("department %q moved by %d, want 50000 (its own line and its child's)", rootA, got)
+	}
+	if got := now[rootB] - was[rootB]; got != 5000 {
+		t.Errorf("department %q moved by %d, want 5000 (neither the unpaid order nor the one refunded before shipment is revenue)", rootB, got)
+	}
+	if _, child := now[departmentName("child", suffix)]; child {
+		t.Error("a child category is listed as a department")
+	}
+	if got, want := nowSum-wasSum, after.RevenueCents-before.RevenueCents; got != want {
+		t.Errorf("departments moved by %d, the revenue figure by %d", got, want)
+	}
+}
+
+func departmentName(part, suffix string) string { return "部門" + part + " " + suffix }
+
+func newCategory(t *testing.T, name string, parent *uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO categories (parent_id, slug, name, position)
+		SELECT $1::uuid, 'dept-' || gen_random_uuid(), $2,
+		       coalesce(max(position), 0) + 1 FROM categories WHERE parent_id IS NOT DISTINCT FROM $1::uuid
+		RETURNING id`, parent, name).Scan(&id); err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	return id
+}
+
+// categoryOrder places an order of one line of a new product in the category.
+func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) (number string) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	var productID, orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, $1, 'dept-' || gen_random_uuid(), '館別商品', 'draft', now()
+		FROM brands b ORDER BY b.id LIMIT 1
+		RETURNING id`, categoryID).Scan(&productID); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1 RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, product_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'DEPT-SKU', '館別商品', $3, 1)`, orderID, productID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'r@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("delivery details: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if paid {
+		ref := "dept_" + orderID.String()
+		if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, cents); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, cents); err != nil {
+			t.Fatalf("capture: %v", err)
+		}
+	}
+	return number
 }
