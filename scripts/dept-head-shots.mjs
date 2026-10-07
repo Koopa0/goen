@@ -204,6 +204,23 @@ for (const path of ['/c/phones', '/c/tea-coffee', '/c/accessories', '/c/chargers
   await measure(`sub ${slug} 1440`, path, 1440, 900, { file: `sub-${slug}-1440.png` });
 }
 
+// The widths between a phone and a desktop, for the departments whose heads differ most.
+for (const slug of ['tech', 'beauty', 'food-drink']) {
+  for (const width of [600, 744, 768, 1024]) {
+    await measure(`mid ${slug} ${width}`, `/c/${slug}`, width, 900, { file: `mid-${slug}-${width}.png` });
+  }
+}
+
+// A long English name at phone widths with 200% text, and the desktop wrap as a regression check.
+await cookie('goen_locale', 'en');
+for (const slug of ['books-stationery', 'accessories']) {
+  for (const width of [375, 320]) {
+    await measure(`en ${slug} ${width} text200`, `/c/${slug}`, width, 812, { file: `en-${slug}-${width}-text200.png`, text200: true });
+  }
+  await measure(`en ${slug} 1440 regress`, `/c/${slug}`, 1440, 900, { file: `en-${slug}-1440-regress.png` });
+}
+await cookie('goen_locale', 'zh-Hant');
+
 ws.close();
 if (failures.length) {
   console.log(`\n${failures.length} failure(s):\n  ${failures.join('\n  ')}`);
