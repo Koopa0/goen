@@ -25,8 +25,9 @@ import (
 
 // statementLog is every statement a pool sends, in order.
 type statementLog struct {
-	mu  sync.Mutex
-	sql []string
+	mu          sync.Mutex
+	sql         []string
+	queryErrors []error
 }
 
 func (l *statementLog) TraceQueryStart(
@@ -38,7 +39,21 @@ func (l *statementLog) TraceQueryStart(
 	return ctx
 }
 
-func (*statementLog) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+func (l *statementLog) TraceQueryEnd(_ context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if data.Err != nil {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		l.queryErrors = append(l.queryErrors, data.Err)
+	}
+}
+
+func (l *statementLog) takeErrors() []error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := l.queryErrors
+	l.queryErrors = nil
+	return out
+}
 
 // take returns what was recorded since the last call and starts again.
 func (l *statementLog) take() []string {

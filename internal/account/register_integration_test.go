@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -158,7 +159,16 @@ func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
 
 func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	ctx := t.Context()
-	s := account.NewStore(pool)
+	statements := &statementLog{}
+	appPool := tracedStorePool(t, statements)
+	if _, err := appPool.Exec(ctx, `SET lock_timeout = '100ms'`); err != nil {
+		t.Fatal(err)
+	}
+	var role string
+	if err := appPool.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "store" {
+		t.Fatalf("registration composition role=%q error=%v, want store", role, err)
+	}
+	s := account.NewStore(appPool)
 	addr := "register-cart-recovery-" + uuid.NewString() + "@example.com"
 	guestToken := "registration-guest-" + uuid.NewString()
 	variant := sellableVariant(t, ctx)
@@ -177,18 +187,22 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
 		t.Fatal(err)
 	}
-	carts := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
+	carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 	h := account.NewHandler(s, carts, slog.New(slog.DiscardHandler), false, nil)
 	h.Register(httptest.NewRecorder(), registrationForm(ctx, addr, cartOwnerPassword, "/checkout"))
-	finishCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+	statements.takeErrors()
 	guestCookie := &http.Cookie{Name: "goen_cart", Value: guestToken} //nolint:gosec // G124: the browser's guest-cart request cookie.
 	completed := followRegistrationLink(t, s, addr, func(request *http.Request) *httptest.ResponseRecorder {
 		response := httptest.NewRecorder()
-		h.CompleteRegistration(response, request.WithContext(finishCtx))
+		h.CompleteRegistration(response, request.WithContext(ctx))
 		return response
 	}, guestCookie)
+	faults := statements.takeErrors()
+	var lockFault *pgconn.PgError
+	if len(faults) != 1 || !errors.As(faults[0], &lockFault) || lockFault.Code != "55P03" || ctx.Err() != nil {
+		t.Fatalf("adoption fault=%v parent=%v, want one SQLSTATE 55P03 with live request", faults, ctx.Err())
+	}
 	const welcome = "/account?next=%2Fcheckout&welcome=1"
 	wantRecovery := "/account/cart-recovery?next=" + url.QueryEscape(welcome) + "&welcome=1"
 	if got := completed.Header().Get("Location"); got != wantRecovery {
@@ -200,6 +214,14 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	var stillGuest bool
 	if err := pool.QueryRow(ctx, `SELECT user_id IS NULL FROM carts WHERE id = $1`, guestCart).Scan(&stillGuest); err != nil || !stillGuest {
 		t.Fatalf("failed registration adoption changed guest ownership: guest=%t error=%v", stillGuest, err)
+	}
+	if _, err := s.Authenticate(ctx, addr, cartOwnerPassword); err != nil {
+		t.Errorf("registration did not commit before the adoption fault: %v", err)
+	}
+	var liveRegistrationTokens int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM email_verifications t JOIN users u ON u.id = t.user_id
+	    WHERE u.email = $1`, addr).Scan(&liveRegistrationTokens); err != nil || liveRegistrationTokens != 0 {
+		t.Errorf("completed registration left live token count=%d error=%v", liveRegistrationTokens, err)
 	}
 	if err := blocker.Commit(ctx); err != nil {
 		t.Fatal(err)

@@ -4395,7 +4395,7 @@ func assertSignInPrefill(t *testing.T, body, address string, erasure bool) {
 
 func TestSuccessfulResetReturnsToThePrivatePrefilledSignIn(t *testing.T) {
 	ctx := t.Context()
-	s := account.NewStore(pool)
+	s := account.NewStore(accountStorePool(t, "reset-prefill-"+uuid.NewString()))
 	u := registerProved(t, s, "reset-prefill-"+uuid.NewString()+"@example.com")
 	token := beginReset(t, s, u.Email)
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
