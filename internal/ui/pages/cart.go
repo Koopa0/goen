@@ -822,7 +822,7 @@ func (v *OrderView) CanCancel() bool {
 
 // ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
 func (v *OrderView) ShowCancel() bool {
-	return v.CanCancel()
+	return v.CanCancel() && !(v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now))
 }
 
 // CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
