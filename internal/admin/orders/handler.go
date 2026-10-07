@@ -336,8 +336,9 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	submitted := deliveryFormOf(r.PostFormValue)
 	err := h.store.CorrectDelivery(r.Context(), number, submitted)
-	if refused, ok := errors.AsType[*DeliveryValidationError](err); ok {
-		h.rejectDelivery(w, r, submitted, refused.Fields)
+	if _, ok := errors.AsType[*DeliveryValidationError](err); ok {
+		//nolint:gosec // G710: number is the route's own path value
+		http.Redirect(w, r, "/admin/orders/"+number+"?note=deliveryneeds", http.StatusSeeOther)
 		return
 	}
 	if refused, ok := errors.AsType[*DeliveryPostalError](err); ok {
