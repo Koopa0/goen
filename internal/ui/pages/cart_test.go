@@ -10,6 +10,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
+	htmlparse "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/carrier"
@@ -22,6 +23,85 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []struct {
+		locale  i18n.Locale
+		message string
+	}{
+		{locale: i18n.ZhHant, message: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。"},
+		{locale: i18n.En, message: "No delivery method is available for this cart. Change the items or contact us."},
+	} {
+		t.Run(locale.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			for _, tt := range []struct {
+				name       string
+				noDelivery bool
+				blocked    bool
+				describes  string
+			}{
+				{name: "delivery offered"},
+				{name: "no delivery", noDelivery: true, describes: "cart-delivery-unavailable"},
+				{name: "stock short", blocked: true, describes: "cart-alert"},
+				{name: "stock short and no delivery", noDelivery: true, blocked: true, describes: "cart-alert cart-delivery-unavailable"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := i18n.WithLocale(t.Context(), locale.locale)
+					v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
+					if tt.blocked {
+						v.Lines[0].Quantity, v.Lines[0].Short = 3, true
+						v.SubtotalCents, v.ItemCount = 200, 2
+					}
+					if v.CanCheckout() != !tt.blocked {
+						t.Error("delivery availability changed checkout eligibility, which would lose a mid-checkout draft")
+					}
+					body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
+					doc, err := htmlparse.Parse(strings.NewReader(body))
+					if err != nil {
+						t.Fatal(err)
+					}
+					type controls struct {
+						CheckoutLink, DisabledCheckout, DeliveryNotice bool
+						DisabledRole, Describes                        string
+						DeliveryNoticeIDs                              int
+					}
+					got := controls{DeliveryNotice: strings.Contains(body, locale.message)}
+					for n := range doc.Descendants() {
+						if n.Type != htmlparse.ElementNode {
+							continue
+						}
+						attrs := map[string]string{}
+						for _, a := range n.Attr {
+							attrs[a.Key] = a.Val
+						}
+						if n.Data == "a" && attrs["href"] == "/checkout" {
+							got.CheckoutLink = true
+						}
+						if n.Data == "span" && attrs["aria-disabled"] == "true" && strings.Contains(attrs["class"], "goen-btn--primary") {
+							got.DisabledCheckout = true
+							got.DisabledRole, got.Describes = attrs["role"], attrs["aria-describedby"]
+						}
+						if attrs["id"] == "cart-delivery-unavailable" {
+							got.DeliveryNoticeIDs++
+						}
+					}
+					want := controls{CheckoutLink: !tt.noDelivery && !tt.blocked, DisabledCheckout: tt.noDelivery || tt.blocked, DeliveryNotice: tt.noDelivery, Describes: tt.describes}
+					if want.DisabledCheckout {
+						want.DisabledRole = "link"
+					}
+					if tt.noDelivery {
+						want.DeliveryNoticeIDs = 1
+					}
+					if diff := cmp.Diff(want, got); diff != "" {
+						t.Errorf("cart delivery controls (-want +got):\n%s", diff)
+					}
+				})
+			}
+		})
+	}
+}
 
 func TestPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
 	want := []PickupChainChoice{
