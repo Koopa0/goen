@@ -115,7 +115,7 @@ await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain:
 await viewport(1440);
 const order = await firstLink('/admin/orders', '/admin/orders/', ['/admin/orders/picking']);
 const product = await firstLink('/admin/products', '/admin/products/', ['/admin/products/new']);
-const customer = await firstLink('/admin/customers?q=goen.invalid', '/admin/customers/');
+const customer = await firstLink('/admin/customers?q=ya', '/admin/customers/');
 console.log('detail links', JSON.stringify({ order, product, customer }));
 
 const pages = [
@@ -128,7 +128,7 @@ const pages = [
   ['stock', '/admin/stock'],
   ['campaigns', '/admin/campaigns'],
   ['campaign', '/admin/campaigns/tea-coffee-week'],
-  ['customers', '/admin/customers?q=goen.invalid'],
+  ['customers', '/admin/customers?q=ya'],
   ['customer', customer],
   ['coupons', '/admin/coupons'],
   ['returns', '/admin/returns'],
