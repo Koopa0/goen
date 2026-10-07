@@ -247,6 +247,8 @@ func uploadRefusalNotice(err error) (i18n.Key, bool) {
 		return i18n.KeyAdminNoticeNotImage, true
 	case errors.Is(err, ErrLosslessWebP):
 		return i18n.KeyAdminNoticeLosslessWebP, true
+	case errors.Is(err, ErrBusy):
+		return i18n.KeyAdminNoticeUploadBusy, true
 	default:
 		return "", false
 	}
