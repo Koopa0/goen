@@ -230,46 +230,68 @@ for (const locale of ['zh-Hant', 'en']) {
   } catch (e) { failures.push(`drawer ${locale}: ${e.message}`); }
 }
 
+// An in-stock product the shopper can add straight away.
+async function buyableProduct() {
+  await navigate(ORIGIN + '/');
+  const hrefs = await evaluate(`[...new Set([...document.querySelectorAll('a[href^="/p/"]')].map((a) => a.getAttribute('href')))]`);
+  for (const href of hrefs.slice(0, 25)) {
+    await navigate(ORIGIN + href);
+    if (await evaluate(`(() => { const b = document.querySelector('#add-to-cart'); return !!b && !b.disabled && !!document.querySelector('form[action="/account/wishlist"]'); })()`)) return href;
+  }
+  return null;
+}
+
 // The heart on the product page and the wishlist, unsaved then saved, signed in as a customer.
+await cookie('goen_locale', 'zh-Hant');
+await cookie('goen_session', process.env.CUST_TOKEN);
+await metrics(1440, 900);
+const product = await buyableProduct();
+console.log('MEASURE buyable product ' + product);
+if (!product) failures.push('no in-stock product with a wishlist form');
 for (const width of [1440, 375]) {
+  if (!product) break;
   try {
-    await cookie('goen_locale', 'zh-Hant');
-    await cookie('goen_session', process.env.CUST_TOKEN);
-    await metrics(width, 900);
-    await navigate(ORIGIN + '/p/meridian-watch-c1');
     const wish = `document.querySelector('form[action="/account/wishlist"]')`;
+    const pressed = () => evaluate(`${wish}.querySelector('button').getAttribute('aria-pressed')`);
     for (const phase of ['unsaved', 'saved']) {
-      if (phase === 'saved') {
+      await metrics(width, 900);
+      await navigate(ORIGIN + product);
+      if ((await pressed()) !== (phase === 'saved' ? 'true' : 'false')) {
         await evaluate(`${wish}.requestSubmit()`);
         await sleep(1500);
-        await navigate(ORIGIN + '/p/meridian-watch-c1');
+        await navigate(ORIGIN + product);
       }
       await evaluate(`${wish}.scrollIntoView({ block: 'center' })`);
       await sleep(300);
       const box = await evaluate(`(() => { const r = ${wish}.getBoundingClientRect(); return { x: Math.max(0, r.x - 20), y: scrollY + r.y - 20, width: Math.min(innerWidth, r.width + 40), height: r.height + 40 }; })()`);
-      console.log(`MEASURE heart-${width}-${phase} ${JSON.stringify(box)} pressed=${await evaluate(`${wish}.querySelector('button').getAttribute('aria-pressed')`)}`);
+      const got = await pressed();
+      console.log(`MEASURE heart-${width}-${phase} ${JSON.stringify(box)} pressed=${got} icon=${await evaluate(`JSON.stringify(${wish}.querySelector('svg').getBoundingClientRect().width)`)}`);
+      if (got !== (phase === 'saved' ? 'true' : 'false')) failures.push(`heart ${width}: wanted ${phase}, aria-pressed=${got}`);
       await crop(`pdp-heart-${width}-${phase}.png`, { ...box, scale: 1 });
     }
-    await metrics(width, 900);
+    // Back to unsaved: the wishlist is empty again for its own shot.
+    await navigate(ORIGIN + product);
+    if ((await pressed()) === 'true') { await evaluate(`${wish}.requestSubmit()`); await sleep(1500); }
     await navigate(ORIGIN + '/account/wishlist');
     await sleep(400);
-    await crop(`wishlist-${width}.png`, { x: 0, y: 0, width, height: 700, scale: 1 });
-    await send('Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+    await crop(`wishlist-empty-${width}.png`, { x: 0, y: 0, width, height: 700, scale: 1 });
   } catch (e) { failures.push(`heart ${width}: ${e.message}`); }
 }
+await send('Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
 
 // The buy button and the buy bar with the bag.
 for (const [width, name] of [[1440, 'pdp-1440'], [375, 'pdp-375']]) {
   try {
     await cookie('goen_locale', 'zh-Hant');
     await metrics(width, 900);
-    await navigate(ORIGIN + '/p/meridian-watch-c1');
+    await navigate(ORIGIN + (product || '/p/meridian-watch-c1'));
     await evaluate(`document.querySelector('#add-to-cart')?.scrollIntoView({ block: 'center' })`);
     await sleep(400);
     const box = await evaluate(rect('#add-to-cart'));
     console.log(`MEASURE ${name} buy button ${JSON.stringify(box)} icon ${await evaluate(rect('#add-to-cart svg'))}`);
     await crop(`${name}-buybox.png`, { x: 0, y: Math.max(0, await evaluate('scrollY') + box.y - 120), width, height: 260, scale: 1 });
     const bar = await evaluate(rect('.goen-buybar__btn'));
+    console.log(`MEASURE ${name} buy button disabled=${await evaluate(`!!document.querySelector('#add-to-cart')?.disabled`)}`);
     if (bar && width === 375) {
       console.log(`MEASURE ${name} buybar button ${JSON.stringify(bar)} icon ${await evaluate(rect('.goen-buybar__btn svg'))}`);
       const vh = await evaluate('innerHeight');

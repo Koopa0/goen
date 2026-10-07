@@ -13,7 +13,7 @@ concurrency:
 env:
   GOTOOLCHAIN: local
   # The head of #1609, where this change starts; "after" is this checkout.
-  BEFORE_SHA: 7abbc833e32a4dd54619764d210bc95b968f1540
+  BEFORE_SHA: 51b7135148f82c118d6c764c291f1b4a7041d07f
 
 jobs:
   header-shots:
