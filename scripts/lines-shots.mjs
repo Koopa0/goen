@@ -87,6 +87,47 @@ const MEASURE = `(() => {
   return out;
 })()`;
 
+// The pay page at 320 and 375 with the root at 200%, as the reflow gate sets it: the box of
+// each part of a line and of the total, and the outermost elements that pass the viewport.
+const DIAG = `(() => {
+  const info = (el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return { el: el.tagName.toLowerCase() + '.' + [...el.classList].join('.'), left: Math.round(r.left), right: Math.round(r.right),
+      width: Math.round(r.width), scrollW: el.scrollWidth, display: cs.display, flex: cs.flex, wrap: cs.flexWrap,
+      minWidth: cs.minWidth, whiteSpace: cs.whiteSpace, fontSize: cs.fontSize, cols: cs.gridTemplateColumns,
+      text: (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 24) };
+  };
+  const sels = ['.goen-pay', '.goen-pay__lines', '.goen-pay__lines > li', '.goen-pay__lines .goen-line__body',
+    '.goen-pay__lines .goen-line__meta', '.goen-pay__lines .goen-line__money', '.goen-pay__lines .goen-line__total',
+    '.goen-pay__summary', '.goen-pay__summary .goen-summary', '.goen-summary__row--total',
+    '.goen-summary__row--total > dt', '.goen-summary__row--total > dd'];
+  const rows = sels.flatMap((q) => [...document.querySelectorAll(q)].slice(0, 2).map((el) => ({ q, ...info(el) })));
+  const over = (el) => el && el.getBoundingClientRect().right > innerWidth + 0.5;
+  const past = [...document.querySelectorAll('body *')].filter((el) => over(el) && !over(el.parentElement)).slice(0, 10).map(info);
+  return { innerWidth, scrollWidth: document.documentElement.scrollWidth, rootFont: getComputedStyle(document.documentElement).fontSize, rows, past };
+})()`;
+
+async function pay200() {
+  for (const width of [320, 375]) {
+    await media(false);
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: true });
+    await navigate(ORIGIN + `/orders/${process.env.PLACED_ORDER}/pay`);
+    await evaluate('document.fonts.ready.then(() => 1)', true);
+    await evaluate(`document.documentElement.style.fontSize = '200%'`);
+    await evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300))))', true);
+    const d = await evaluate(DIAG);
+    console.log(`DIAG ${label} pay-${width}-text200 innerWidth=${d.innerWidth} scrollWidth=${d.scrollWidth} root=${d.rootFont}`);
+    for (const r of d.rows) console.log(`DIAG ${label} pay-${width}-text200 box ${JSON.stringify(r)}`);
+    for (const r of d.past) console.log(`DIAG ${label} pay-${width}-text200 past ${JSON.stringify(r)}`);
+    const height = Math.min(CAP, Math.max(await evaluate('Math.ceil(document.documentElement.scrollHeight)'), 400));
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
+    await sleep(400);
+    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${outDir}/pay-${width}-text200.png`, Buffer.from(data, 'base64'));
+  }
+}
+
 // The viewport grows to the page before the images are awaited, so a lazy image
 // below the fold loads instead of being waited on until the timeout.
 async function shot(path, name, width, { forced = false, notFound = false } = {}) {
@@ -190,6 +231,10 @@ if (mode === 'storefront') {
     ['order', `/orders/${process.env.RETURN_FORM_ORDER}`],
     ['account', '/account'],
   ]);
+} else if (mode === 'pay200') {
+  if (process.env.CART_TOKEN) await cookie('goen_cart', process.env.CART_TOKEN);
+  if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOKEN);
+  await pay200();
 } else if (mode === 'admin') {
   await cookie('goen_session', process.env.ADMIN_TOKEN);
   await metrics(1440, 900);

@@ -101,37 +101,9 @@ jobs:
           }
 
           for which in before after; do
-            echo "::group::storefront, $which"
+            echo "::group::pay page at 200% text, $which"
             serve "$which"
-            CDP_PORT=9333 node scripts/lines-shots.mjs storefront "shots/$which" "$which" || status=$?
-            stop
-            echo '::endgroup::'
-          done
-
-          # The back office reads ninety days of orders, which the history script
-          # writes only on a freshly seeded database and only while goen is stopped.
-          echo '::group::back-office data'
-          make db-reset
-          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c 'SET ROLE admin' \
-            -c "SELECT upsert_staff('layout-check@goen.invalid', '', 'admin')"
-          started=$(date +%s)
-          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=goen -f seed/demo_history.sql > history.log 2>&1 \
-            || { tail -50 history.log; exit 1; }
-          echo "demo history took $(( $(date +%s) - started )) s"
-          token=$(openssl rand -hex 32)
-          psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v token="$token" <<'SQL'
-          SELECT id AS staff_id FROM users
-          WHERE lower(email) = 'layout-check@goen.invalid' AND role = 'admin' \gset
-          SET ROLE store;
-          INSERT INTO sessions (token_hash, user_id, expires_at)
-          VALUES (sha256(convert_to(:'token', 'UTF8')), :'staff_id', now() + interval '1 hour');
-          SQL
-          echo '::endgroup::'
-
-          for which in before after; do
-            echo "::group::back office, $which"
-            serve "$which"
-            ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/lines-shots.mjs admin "shots/$which" "$which" || status=$?
+            CDP_PORT=9333 node scripts/lines-shots.mjs pay200 "shots/$which" "$which" || status=$?
             stop
             echo '::endgroup::'
           done
