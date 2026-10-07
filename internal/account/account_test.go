@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -857,8 +858,7 @@ func TestInvalidVerificationOffersEmailResend(t *testing.T) {
 				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
 			}
-			assertEmailLinkRecovery(t, res.Body.String(), heading, reason, "/account#email-heading")
-			assertVerificationRecoveryLabel(t, res.Body.String(), locale)
+			pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, "/account#email-heading")
 		})
 	}
 }

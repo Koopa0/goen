@@ -21,13 +21,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	htmlnode "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 )
 
 var pool *pgxpool.Pool
@@ -1061,114 +1061,6 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 	}
 }
 
-func assertEmailLinkRecovery(t *testing.T, body, heading, reason, destination string) {
-	t.Helper()
-	doc, err := htmlnode.Parse(strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var panel *htmlnode.Node
-	var headings, duplicates []string
-	ids := map[string]bool{}
-	for n := range doc.Descendants() {
-		id := emailLinkAttr(n, "id")
-		if id != "" && ids[id] {
-			duplicates = append(duplicates, id)
-		}
-		ids[id] = true
-		if n.Type == htmlnode.ElementNode && n.Data == "h1" {
-			headings = append(headings, emailLinkText(n))
-			panel = n.Parent
-		}
-	}
-	if panel == nil {
-		t.Fatal("recovery has no heading")
-	}
-	type recoveryField struct {
-		ID, Name, Type, Autocomplete, MaxLength string
-		Required                                bool
-	}
-	type recoveryFacts struct {
-		Headings, Reasons, Destinations, DuplicateIDs []string
-		EmailFields                                   []recoveryField
-		LabelTargets                                  []string
-		Envelopes, Tokens                             int
-		ObsoleteProse                                 bool
-	}
-	got := recoveryFacts{Headings: headings, DuplicateIDs: duplicates}
-	for n := range panel.Descendants() {
-		class := emailLinkAttr(n, "class")
-		if n.Data == "input" && emailLinkAttr(n, "type") == "email" {
-			got.EmailFields = append(got.EmailFields, recoveryField{
-				ID: emailLinkAttr(n, "id"), Name: emailLinkAttr(n, "name"), Type: emailLinkAttr(n, "type"),
-				Autocomplete: emailLinkAttr(n, "autocomplete"), MaxLength: emailLinkAttr(n, "maxlength"),
-				Required: emailLinkHasAttr(n, "required"),
-			})
-		}
-		if n.Data == "label" {
-			got.LabelTargets = append(got.LabelTargets, emailLinkAttr(n, "for"))
-		}
-		if n.Data == "p" && strings.Contains(class, "notice__body") {
-			got.Reasons = append(got.Reasons, emailLinkText(n))
-		}
-		if strings.Contains(class, "goen-medallion") {
-			got.Envelopes++
-		}
-		if emailLinkAttr(n, "name") == "token" {
-			got.Tokens++
-		}
-		if strings.Contains(class, "goen-btn--primary") {
-			got.Destinations = append(got.Destinations, emailLinkDestination(t, n, destination))
-		}
-	}
-	text := emailLinkText(panel)
-	got.ObsoleteProse = strings.Contains(text, "One button") || strings.Contains(text, "\u6309\u4e0b\u6309\u9215")
-	want := recoveryFacts{Headings: []string{heading}, Reasons: []string{reason}, Destinations: []string{destination}}
-	if destination == "/newsletter" {
-		want.EmailFields = []recoveryField{{ID: "newsletter-recovery-email", Name: "email", Type: "email", Autocomplete: "email", MaxLength: "254", Required: true}}
-		want.LabelTargets = []string{"newsletter-recovery-email"}
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("email link recovery (-want +got):\n%s", diff)
-	}
-}
-
-func emailLinkAttr(n *htmlnode.Node, key string) string {
-	for _, a := range n.Attr {
-		if a.Key == key {
-			return a.Val
-		}
-	}
-	return ""
-}
-
-func emailLinkText(n *htmlnode.Node) string {
-	var text strings.Builder
-	for part := range n.Descendants() {
-		if part.Type == htmlnode.TextNode {
-			text.WriteString(part.Data)
-		}
-	}
-	return text.String()
-}
-
-func emailLinkDestination(t *testing.T, n *htmlnode.Node, want string) string {
-	t.Helper()
-	if n.Data == "a" {
-		return emailLinkAttr(n, "href")
-	}
-	for p := n.Parent; p != nil; p = p.Parent {
-		if p.Data != "form" {
-			continue
-		}
-		if want == "/newsletter" && emailLinkAttr(p, "method") != "post" {
-			t.Error("newsletter recovery is not a plain POST form")
-		}
-		return emailLinkAttr(p, "action")
-	}
-	return ""
-}
-
 func TestDeadNewsletterLinksOfferRecovery(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, state := range []string{"expired-confirm", "spent-confirm", "unknown-unsubscribe"} {
@@ -1227,7 +1119,7 @@ func TestDeadNewsletterLinksOfferRecovery(t *testing.T) {
 				if locale == i18n.ZhHant {
 					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 				}
-				assertEmailLinkRecovery(t, res.Body.String(), heading, reason, destination)
+				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, destination)
 				if strings.Contains(res.Body.String(), token) {
 					t.Error("dead-link recovery leaks the token")
 				}
@@ -1268,13 +1160,4 @@ func newsletterRecoveryState(t *testing.T, address string) string {
 		t.Fatal(err)
 	}
 	return state
-}
-
-func emailLinkHasAttr(n *htmlnode.Node, key string) bool {
-	for _, a := range n.Attr {
-		if a.Key == key {
-			return true
-		}
-	}
-	return false
 }

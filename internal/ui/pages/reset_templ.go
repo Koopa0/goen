@@ -479,7 +479,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = NewsletterAction(p, v.RecoveryView(ctx)).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmailLinkPage(p, v.RecoveryView(ctx)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

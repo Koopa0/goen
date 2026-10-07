@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
+func EmailLinkPage(p layouts.Page, v EmailLinkView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -74,7 +74,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Heading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 19, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 19, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -87,7 +87,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Body)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 20, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 20, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -105,7 +105,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var5 templ.SafeURL
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.Action))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 22, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 22, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -118,7 +118,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Token)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 23, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 23, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -143,7 +143,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.Submit)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 25, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 25, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -180,7 +180,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 33, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 33, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -224,7 +224,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNewsletterSubmit))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 47, Col: 45}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 47, Col: 45}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -256,7 +256,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(v.Recovery.Label(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 52, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 52, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -288,7 +288,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToShop))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 57, Col: 38}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/email_link.templ`, Line: 57, Col: 38}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {

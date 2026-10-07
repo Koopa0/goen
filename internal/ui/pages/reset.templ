@@ -108,6 +108,6 @@ templ Reset(p layouts.Page, v ResetView) {
 			</div>
 		}
 	} else {
-		@NewsletterAction(p, v.RecoveryView(ctx))
+		@EmailLinkPage(p, v.RecoveryView(ctx))
 	}
 }

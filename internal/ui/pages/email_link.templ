@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
+templ EmailLinkPage(p layouts.Page, v EmailLinkView) {
 	@layouts.Base(p) {
 		<div class="notice">
 			if v.Recovery == EmailLinkNoRecovery {

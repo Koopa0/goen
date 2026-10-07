@@ -43,7 +43,7 @@ func (r EmailLinkRecovery) Label(ctx context.Context) string {
 	}
 }
 
-type NewsletterActionView struct {
+type EmailLinkView struct {
 	Heading  string
 	Body     string
 	Action   string
@@ -52,6 +52,6 @@ type NewsletterActionView struct {
 	Recovery EmailLinkRecovery
 }
 
-func NewsletterMeta(title string) layouts.Page {
+func EmailLinkMeta(title string) layouts.Page {
 	return layouts.Page{Title: title}
 }

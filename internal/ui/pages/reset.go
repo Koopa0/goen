@@ -22,8 +22,8 @@ func (v ResetView) Usable() bool { return !v.Expired && v.Token != "" }
 
 func (v ResetView) HasError() bool { return v.Error != "" }
 
-func (v ResetView) RecoveryView(ctx context.Context) NewsletterActionView {
-	view := NewsletterActionView{
+func (v ResetView) RecoveryView(ctx context.Context) EmailLinkView {
+	view := EmailLinkView{
 		Heading:  i18n.T(ctx, i18n.KeyResetTitle),
 		Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
 		Recovery: EmailLinkReset,
