@@ -121,6 +121,10 @@ jobs:
           # The campaign ending at a set time, three days out, tomorrow and today, in the shop's zone. A
           # clock that has already passed today ends the campaign, so today's is 18:00 only before 17:30.
           export ONLY=endtime
+          # The layout fixture campaign ends tomorrow and outranks autumn-picks wherever one campaign shows,
+          # so it is ended here and autumn-picks is the one the pages name.
+          psql "$GOEN_DATABASE_URL" -X -q -c "update sale_campaigns set ends_at = now() - interval '1 hour' where slug = 'layout-campaign'"
+          psql "$GOEN_DATABASE_URL" -X -A -t -c "select 'layout-campaign now ends', ends_at from sale_campaigns where slug = 'layout-campaign'"
           today_hours=$(psql "$GOEN_DATABASE_URL" -X -A -t -c "select case when (now() at time zone 'Asia/Taipei')::time < '17:30' then '18 hours' else '23 hours 30 minutes' end")
           for state in "three:3 days 18 hours" "tomorrow:1 day 18 hours" "today:$today_hours"; do
             name=${state%%:*}; offset=${state#*:}
