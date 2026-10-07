@@ -7,7 +7,8 @@
 
 BEGIN;
 
-SELECT encode(uuid_send(gen_random_uuid()) || uuid_send(gen_random_uuid()), 'hex') AS cart2_token \gset
+SELECT encode(uuid_send(gen_random_uuid()) || uuid_send(gen_random_uuid()), 'hex') AS cart2_token,
+       encode(uuid_send(gen_random_uuid()) || uuid_send(gen_random_uuid()), 'hex') AS cart3_token \gset
 
 SET ROLE admin;
 SELECT id AS staff_id FROM users
@@ -32,6 +33,13 @@ RETURNING id AS cart2_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 SELECT :'cart2_id', (:'pick_ids'::uuid[])[n], q
 FROM (VALUES (1, 1), (2, 2), (3, 1), (4, 1)) AS t (n, q);
+
+-- The same three lines without the sold-out one: checkout stays reachable.
+INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart3_token', 'UTF8')))
+RETURNING id AS cart3_id \gset
+INSERT INTO cart_items (cart_id, variant_id, quantity)
+SELECT :'cart3_id', (:'pick_ids'::uuid[])[n], q
+FROM (VALUES (1, 1), (2, 2), (3, 1)) AS t (n, q);
 
 -- An order of two lines that leaves in two parcels, delivered.
 SELECT v.id AS ship_version, sm.code AS ship_code, v.name AS ship_name, v.fee_cents AS ship_cents
@@ -91,5 +99,6 @@ COMMIT;
 
 \o :env
 \qecho CART2_TOKEN=:cart2_token
+\qecho CART3_TOKEN=:cart3_token
 \qecho TWO_PARCEL_ORDER=:two_order
 \o

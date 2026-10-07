@@ -141,6 +141,8 @@ async function text200(path, name) {
     const d = await evaluate(DIAG.replace(/const sels = \[[^\]]*\];/, 'const sels = [];'));
     const h1 = await evaluate(`(document.querySelector('h1') || {}).textContent || ''`);
     console.log(`MEASURE ${label} text200 ${name}-${width} h1=${JSON.stringify(h1.trim())} innerWidth=${d.innerWidth} scrollWidth=${d.scrollWidth} root=${d.rootFont} over=${d.scrollWidth > d.innerWidth}`);
+    const boxes = await evaluate(`[...document.querySelectorAll('.goen-line--cart, .goen-line--cart .goen-line__body, .goen-line--cart .goen-line__money, .goen-line--cart .goen-stepper, .goen-line--cart .goen-line__remove, .goen-cart__summary')].slice(0, 20).map((el) => { const r = el.getBoundingClientRect(); return el.tagName.toLowerCase() + '.' + [...el.classList].join('.') + ' left=' + Math.round(r.left) + ' right=' + Math.round(r.right) + ' top=' + Math.round(r.top) + ' bottom=' + Math.round(r.bottom) + ' scrollW=' + el.scrollWidth + ' clientW=' + el.clientWidth; })`);
+    for (const b of boxes) console.log(`MEASURE ${label} text200 ${name}-${width} box ${b}`);
     for (const r of d.past) console.log(`MEASURE ${label} text200 ${name}-${width} past ${JSON.stringify(r)}`);
     if (/404|找不到/.test(h1)) failures.push(`${name}-${width}-text200: landed on a not-found page`);
     const height = Math.min(CAP, Math.max(await evaluate('Math.ceil(document.documentElement.scrollHeight)'), 400));
@@ -266,8 +268,9 @@ if (mode === 'storefront') {
   await cookie('goen_placed', process.env.PLACED_TOKEN);
   await metrics(1440, 900);
   await capture([['cart-four', '/cart'], ['checkout-four', '/checkout']], [1440, 375]);
-  await text200('/cart', 'cart-four');
-  await text200('/checkout', 'checkout-four');
+  await cookie('goen_cart', process.env.CART3_TOKEN);
+  await text200('/cart', 'cart-stock');
+  await text200('/checkout', 'checkout-stock');
   await text200(`/orders/${process.env.PLACED_ORDER}/pay`, 'pay');
   await capture([['pay', `/orders/${process.env.PLACED_ORDER}/pay`]], [1440], { forced: true });
   await cookie('goen_session', process.env.CUST_TOKEN);
