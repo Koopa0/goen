@@ -143,10 +143,7 @@ if (mode === 'storefront') {
   console.log('deal product', dealProduct);
   await navigate(ORIGIN + '/c/home-living');
   const subcategory = await evaluate(`document.querySelector('.goen-pagehead__chips a')?.getAttribute('href') || null`);
-  // Option links come from the page's own swatches, so the URLs are the shop's Href output.
-  await navigate(ORIGIN + '/p/pixelight-9-pro');
-  const optionProduct = await evaluate(`document.querySelector('a.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--dot)')?.getAttribute('href') || null`);
-  const colourProduct = await evaluate(`document.querySelector('a.goen-swatch--dot:not(.goen-swatch--on)')?.getAttribute('href') || null`);
+  const optionProduct = '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D';
   console.log('subcategory', subcategory, 'option product', optionProduct);
   // Signed out: the shop as a guest with a cart and an unpaid order.
   await capture([
@@ -156,7 +153,6 @@ if (mode === 'storefront') {
     ['product-deal', dealProduct],
     ['subcategory', subcategory],
     ['product-option', optionProduct],
-    ['product-colour', colourProduct],
     ['search', '/search?q=%E8%8C%B6'],
     ['deals', '/deals'],
     ['cart', '/cart'],
