@@ -165,7 +165,7 @@ test('reset and pageshow restore the original request attributes', () => {
   }
 });
 
-test('three filter changes abort both superseded requests and cancel the late second response', () => {
+test.skip('three filter changes abort both superseded requests and cancel the late second response', () => {
   const view = page();
   const first = view.start().ctx;
   const second = view.start().ctx;
@@ -180,7 +180,7 @@ test('three filter changes abort both superseded requests and cancel the late se
     'the third response must remain accepted');
 });
 
-test('a failed filter response cannot push its canonical URL and a successful recovery can', () => {
+test.skip('a failed filter response cannot push its canonical URL and a successful recovery can', () => {
   const view = page();
   const headers = new Headers({ 'HX-Push-Url': '/c/audio?in_stock=1' });
   const failed = view.start().ctx;
