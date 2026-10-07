@@ -108,13 +108,18 @@ var (
 	KeyResetAgain = key("auth.reset.again", Message{ZhHant: "重新申請", En: "Ask for a new link"})
 
 	KeyResetDead = key("auth.reset.dead", Message{
-		ZhHant: "這個連結已經用過、過期或不正確。請重新申請一次。",
-		En:     "That link has been used, has expired, or is not right. Please ask for another.",
+		ZhHant: "這個連結已經用過、過期或不正確。",
+		En:     "That link has been used, has expired, or is not right.",
 	})
 
-	KeyResetNoToken = key("auth.reset.notoken", Message{
-		ZhHant: "這個網址沒有帶重設連結。",
-		En:     "This address carries no reset link.",
+	KeyEmailLinkIncomplete = key("email.link.incomplete", Message{
+		ZhHant: "這個連結不完整，請從信裡的按鈕重新打開。",
+		En:     "This link is incomplete; open it again from the button in the email.",
+	})
+
+	KeyEmailLinkDeadTitle = key("email.link.dead", Message{
+		ZhHant: "這個連結已失效",
+		En:     "This link is no longer valid",
 	})
 
 	KeyPasswordMismatch = key("auth.password.mismatch", Message{
