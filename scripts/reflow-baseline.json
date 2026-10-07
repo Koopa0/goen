@@ -44,14 +44,6 @@
     "/admin/taxonomy": [
       "scroll-200"
     ],
-    "/checkout": [
-      "scroll-200",
-      "text-200:span.goen-summary__value"
-    ],
-    "/checkout?ship={id}": [
-      "scroll-200",
-      "text-200:span.goen-summary__value"
-    ],
     "/contact": [
       "scroll-200",
       "text-200:span.contact-method__value"
