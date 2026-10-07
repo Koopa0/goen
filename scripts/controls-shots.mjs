@@ -116,8 +116,8 @@ async function save(file, clip) {
 
 // A full-page shot. `prepare` runs after load, before the shot (open a menu,
 // grow the text, focus a field).
-async function shot(name, path, width, { text200 = false, forced = false, prepare, measures = [], clip } = {}) {
-  const file = `${name}-${width}${text200 ? '-text200' : ''}${forced ? '-forced' : ''}.png`;
+async function shot(name, path, width, { text200 = false, forced = false, prepare, measures = [], clip, clipSel, tag = '' } = {}) {
+  const file = `${name}${tag}-${width}${text200 ? '-text200' : ''}${forced ? '-forced' : ''}.png`;
   try {
     await media(forced);
     await metrics(width, 900);
@@ -132,7 +132,12 @@ async function shot(name, path, width, { text200 = false, forced = false, prepar
     })`);
     await measure(file, measures);
     if (text200 || width === 375) await overflow(file);
-    await save(file, clip && { x: 0, y: 0, width, height: Math.min(clip, height) });
+    let region = clip && { x: 0, y: 0, width, height: Math.min(clip, height) };
+    if (clipSel) {
+      const r = await evaluate(`(() => { const e = document.querySelector(${JSON.stringify(clipSel)}); if (!e) return null; const b = e.getBoundingClientRect(); return { x: Math.max(0, b.x - 24), y: Math.max(0, b.y + scrollY - 24), width: Math.min(innerWidth, b.width + 48), height: b.height + 48 }; })()`);
+      if (r) region = r; else failures.push(`${file}: ${clipSel} not found`);
+    }
+    await save(file, region);
     console.log(`${file} ${facts.path} h1=${JSON.stringify(facts.h1.trim())} lang=${facts.lang} shotHeight=${height}`);
     if (/404|找不到/.test(facts.h1)) failures.push(`${file}: landed on a not-found page`);
   } catch (e) {
@@ -213,6 +218,40 @@ for (const width of [1440, 375]) {
   // The header search: unfocused and focused, the header strip only.
   await shot('header-search', '/', width, { clip: 260, measures: ['#site-search', '.goen-header__search'] });
   await shot('header-search-focus', '/', width, { clip: 260, prepare: focusField('#site-search'), measures: ['#site-search'] });
+}
+
+// Additions: filters on, footer field, focus, phone menu, more widths.
+await navigate(ORIGIN + '/c/phones');
+const pairs = await evaluate(`[...document.querySelectorAll('.goen-filters input[type=checkbox]')].map((i) => encodeURIComponent(i.name) + '=' + encodeURIComponent(i.value))`);
+console.log('filter checkboxes', pairs.length);
+const picks = { 1: pairs.slice(0, 1), 2: pairs.slice(0, 2), many: pairs.slice(0, 12) };
+for (const [label, list] of Object.entries(picks)) {
+  if (!list.length) { failures.push(`no filter options for ${label}`); continue; }
+  const path = '/c/phones?' + list.join('&');
+  for (const width of [1440, 375]) await shot('department-on-' + label, path, width, { measures: DEPARTMENT, prepare: openFilters });
+  await shot('department-on-' + label, path, 375, { text200: true, measures: DEPARTMENT, prepare: openFilters });
+  await shot('department-on-' + label, path, 1440, { forced: true, measures: DEPARTMENT });
+}
+const longAddress = 'a-rather-long-typed-address-for-the-footer@example-company-name.example.com';
+const typeAddress = async () => evaluate(`(() => { const i = document.querySelector('#newsletter-email'); i.value = ${JSON.stringify(longAddress)}; return true; })()`);
+for (const [locale, tag] of [['zh-Hant', ''], ['en', '-en']]) {
+  await cookie('goen_locale', locale);
+  await shot('footer-field' + tag, '/', 375, { text200: true, prepare: typeAddress, clipSel: '.goen-footer__news', measures: ['#newsletter-email', '#newsletter-submit'] });
+  await shot('footer-field-long' + tag, '/', 1440, { prepare: typeAddress, clipSel: '.goen-footer__news', measures: ['#newsletter-email', '#newsletter-submit'] });
+  await shot('footer-field-long' + tag, '/', 320, { prepare: typeAddress, clipSel: '.goen-footer__news', measures: ['#newsletter-email', '#newsletter-submit'] });
+  await shot('footer-subscribe-focus' + tag, '/', 1440, { prepare: focusField('#newsletter-submit'), clipSel: '.goen-footer__news' });
+}
+await cookie('goen_locale', 'zh-Hant');
+await shot('sort-focus', '/c/home-living', 1440, { prepare: focusField('#sort'), clipSel: '.goen-listing__filters' });
+await shot('sort-focus', '/c/home-living', 375, { prepare: async () => { await openFilters(); await focusField('#sort')(); }, clipSel: '.goen-listing__filters' });
+const openMenu = async () => { await evaluate(`(() => { const m = document.querySelector('[data-menu]'); if (m) m.open = true; })()`); };
+await shot('phone-menu', '/c/home-living', 375, { prepare: openMenu, clip: 900 });
+await shot('phone-menu', '/c/home-living', 375, { forced: true, prepare: openMenu, clip: 900 });
+for (const width of [320, 768, 1024]) {
+  await shot('home', '/', width, { measures: HOME });
+  await shot('department', '/c/home-living', width, { measures: DEPARTMENT });
+  await shot('search', search, width, { measures: SEARCH });
+  await shot('header-search-focus', '/', width, { clip: 260, prepare: focusField('#site-search'), measures: ['#site-search', '.goen-header__search'] });
 }
 
 // The phone at 200% text: nothing may scroll sideways.
