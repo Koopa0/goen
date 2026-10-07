@@ -132,6 +132,9 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, ErrNotFound):
 			access.NotFound(w, r, h.log)
+		case errors.Is(err, ErrRefused):
+			h.log.WarnContext(r.Context(), "set coupon active refused", "error", err)
+			http.Redirect(w, r, "/admin/coupons?refused=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "set coupon active", "error", err)
 			access.ServerError(w, r, h.log)
