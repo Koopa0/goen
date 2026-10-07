@@ -558,14 +558,20 @@ func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band f
 			}
 		}
 		if i == n-1 {
-			if !grouped && today {
-				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
-			}
-			if n > 7 {
-				t.X, t.Anchor = "100%", "end"
-			}
+			endTick(ctx, &t, n, !grouped && today)
 		}
 		ticks = append(ticks, t)
 	}
 	return ticks
+}
+
+// endTick makes t the last tick of an axis of n ticks: "Today" when the last
+// day is still going, and flush with the right edge when there are many.
+func endTick(ctx context.Context, t *dayTick, n int, today bool) {
+	if today {
+		t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
+	}
+	if n > 7 {
+		t.X, t.Anchor = "100%", "end"
+	}
 }
