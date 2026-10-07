@@ -1367,9 +1367,12 @@ input.goen-check {
 }
 
 @media (forced-colors: active) {
+  .goen-admin__langopt {
+    border: 2px solid Canvas;
+  }
+
   .goen-admin__langopt:has(input:checked) {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
+    border-color: Highlight;
   }
 }
 
@@ -1400,14 +1403,23 @@ input.goen-check {
 .goen-admin__field {
   align-content: start;
   display: grid;
-  grid-row: span 4;
-  grid-template-rows: subgrid;
+  grid-template-columns: minmax(0, 1fr);
   margin-bottom: 16px;
   min-width: 0;
   row-gap: 6px;
 }
 
-.goen-admin__amount {
+.goen-admin__fields > .goen-admin__field {
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+}
+
+.goen-admin__fields > .goen-admin__field > label {
+  align-self: end;
+  line-height: 1.35;
+}
+
+.goen-admin__surcharge {
   max-width: min(100%, 12rem);
 }
 
