@@ -222,7 +222,7 @@ func zonePrefixEntries(raw string) []zonePrefixEntry {
 }
 
 func zonePrefixRows(raw string) string {
-	return strconv.Itoa(max(3, len(postcode.Fields(raw)), strings.Count(raw, "\n")+1))
+	return strconv.Itoa(max(3, strings.Count(raw, "\n")+2))
 }
 
 // HTML discards the first newline after a textarea opens; supply it separately

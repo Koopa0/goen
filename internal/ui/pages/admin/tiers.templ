@@ -31,7 +31,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColTier) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColThreshold) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColMembers) }</th>
 							<th class="goen-admin__cellactions" scope="col">
 								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
@@ -46,7 +46,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 									<span class="goen-admin__meta">{ t.Code }</span>
 								</td>
 								<td class="goen-admin__cellnum">{ t.Threshold() }</td>
-								<td>{ t.Multiplier(ctx) }</td>
+								<td class="goen-admin__cellnum">{ t.Multiplier(ctx) }</td>
 								<td class="goen-admin__cellnum">{ t.MembersText() }</td>
 								<td class="goen-admin__cellactions">
 									<form method="post" action="/admin/tiers/delete">

@@ -1060,7 +1060,7 @@ templ Picking(p layouts.Page, v *PickingView) {
 			}
 		</div>
 		if len(v.Totals) == 0 {
-			<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
+			<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminPickingNone) }</p>
 		} else {
 			<section class="goen-admin__picklist" aria-labelledby="pick-list-title">
 				<h2 class="goen-admin__optitle" id="pick-list-title">{ i18n.T(ctx, i18n.KeyAdminPickingTotals) }</h2>
@@ -1070,7 +1070,7 @@ templ Picking(p layouts.Page, v *PickingView) {
 							<tr>
 								<th scope="col">SKU</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
 							</tr>
 						</thead>
 						<tbody>

@@ -196,7 +196,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								}
 								<div class="goen-admin__inline">
 									<input
-										class="goen-input"
+										class="goen-input goen-admin__amount"
 										id={ "sur-" + m.VersionID + "-" + z.ID }
 										name="amount"
 										type={ dollarInputType(v.SurchargeValue(&m, z.ID)) }
@@ -581,7 +581,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 
 templ zonePrefixDistricts(raw string) {
 	if entries := zonePrefixEntries(raw); len(entries) > 0 {
-		<ul class="goen-admin__hint">
+		<ul class="goen-admin__hint goen-admin__districts">
 			for _, entry := range entries {
 				<li>
 					{ entry.Prefix }
