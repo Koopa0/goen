@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -110,9 +111,13 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 }
 
 func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing.T) {
-	ctx, actor := admintest.StaffContext(t, pool)
-	store := health.NewStore(pool)
-	messages := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	fixturePool := dbtest.Pool(t)
+	if err := admintest.LoadCatalogue(t.Context(), fixturePool); err != nil {
+		t.Fatalf("load isolated catalogue: %v", err)
+	}
+	ctx, actor := admintest.StaffContext(t, fixturePool)
+	store := health.NewStore(fixturePool)
+	messages := outbox.NewStore(fixturePool, slog.New(slog.DiscardHandler))
 	before, err := store.WorkerHealth(ctx, messages)
 	if err != nil {
 		t.Fatalf("health before fixtures: %v", err)
@@ -123,16 +128,16 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 	}
 	var firstRef string
 	for i := range 2 {
-		number := admintest.PlaceUnpaidOrder(t, pool)
+		number := admintest.PlaceUnpaidOrder(t, fixturePool)
 		ref := "cs_priority_" + uuid.NewString()
-		if _, err := pool.Exec(ctx, `
+		if _, err := fixturePool.Exec(ctx, `
 			INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
 			SELECT id, $2, 'requires_reconciliation', 500000 FROM orders WHERE order_number = $1`, number, ref); err != nil {
 			t.Fatalf("record payment: %v", err)
 		}
 		if i == 0 {
 			firstRef = ref
-			if _, err := pool.Exec(ctx, `
+			if _, err := fixturePool.Exec(ctx, `
 				INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 				VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
 				"evt_priority_"+uuid.NewString(), ref); err != nil {
@@ -140,14 +145,14 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 			}
 		}
 	}
-	_, uninvoicedID := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
-	if _, err := pool.Exec(ctx, `
+	_, uninvoicedID := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
+	if _, err := fixturePool.Exec(ctx, `
 		INSERT INTO order_events (order_id, kind, occurred_at)
 		VALUES ($1, 'paid', now() - interval '30 minutes')`, uninvoicedID); err != nil {
 		t.Fatalf("age the paid order: %v", err)
 	}
-	_, claimOrder := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
-	if _, err := pool.Exec(ctx, `
+	_, claimOrder := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
+	if _, err := fixturePool.Exec(ctx, `
 		INSERT INTO invoice_operations (order_id, kind, provider_key, amount_cents, request_payload,
 		    actor_user_id, actor_id_snapshot, actor_kind, request_id, status, last_error)
 		VALUES ($1, 'issue', $2, 100000, '{}', $3, $3, 'staff', $2, 'attention', 'issue_lookup_mismatch')`,
@@ -170,7 +175,7 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 		t.Fatalf("three-family count delta=%d error=%v, want 4", count-baseline, err)
 	}
 	for range 50 {
-		if _, err := pool.Exec(ctx, `
+		if _, err := fixturePool.Exec(ctx, `
 			INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 			VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
 			"evt_priority_"+uuid.NewString(), firstRef); err != nil {
@@ -191,7 +196,7 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 	if count != bounded.StaffTaskCount() {
 		t.Errorf("navigation count=%d page count=%d", count, bounded.StaffTaskCount())
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := fixturePool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
 		VALUES ('test.priority', $1, '{}', 99, now())`, uuid.NewString()); err != nil {
 		t.Fatalf("add engineering alarm: %v", err)
