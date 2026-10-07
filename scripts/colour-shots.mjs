@@ -94,6 +94,17 @@ async function firstLink(listPath, prefix, exclude = []) {
   })()`);
 }
 
+// The first link under prefix, from listPath, whose own page satisfies the test.
+async function firstPageWhere(listPath, prefix, test, limit = 20) {
+  await navigate(ORIGIN + listPath);
+  const hrefs = await evaluate(`[...new Set([...document.querySelectorAll('main a[href^="${prefix}"]')].map((e) => e.getAttribute('href')).filter((h) => h !== '${prefix}' && !h.startsWith('${prefix}?')))]`);
+  for (const href of hrefs.slice(0, limit)) {
+    await navigate(ORIGIN + href);
+    if (await evaluate(test)) return href;
+  }
+  return null;
+}
+
 const cookie = (name, value) => send('Network.setCookie', { name, value, domain: '127.0.0.1', path: '/' });
 
 async function capture(pages) {
@@ -130,12 +141,21 @@ if (mode === 'storefront') {
   await metrics(1440, 900);
   const dealProduct = await firstLink('/deals', '/p/');
   console.log('deal product', dealProduct);
+  await navigate(ORIGIN + '/c/home-living');
+  const subcategory = await evaluate(`document.querySelector('.goen-pagehead__chips a')?.getAttribute('href') || null`);
+  let optionProduct = null;
+  for (const list of ['/deals', '/c/home-living', '/search?q=%E8%8C%B6', '/']) {
+    optionProduct ||= await firstPageWhere(list, '/p/', `!!document.querySelector('.goen-swatch--on:not(.goen-swatch--dot)')`);
+  }
+  console.log('subcategory', subcategory, 'option product', optionProduct);
   // Signed out: the shop as a guest with a cart and an unpaid order.
   await capture([
     ['home', '/'],
     ['department', '/c/home-living'],
     ['product', '/p/meridian-watch-c1'],
     ['product-deal', dealProduct],
+    ['subcategory', subcategory],
+    ['product-option', optionProduct],
     ['search', '/search?q=%E8%8C%B6'],
     ['deals', '/deals'],
     ['cart', '/cart'],
@@ -151,10 +171,14 @@ if (mode === 'storefront') {
   await metrics(1440, 900);
   const order = await firstLink('/admin/orders', '/admin/orders/', ['/admin/orders/picking']);
   console.log('order', order);
+  const refundOrder = await firstPageWhere('/admin/orders', '/admin/orders/', `document.body.textContent.includes('出貨前退款並取消')`);
+  console.log('refund order', refundOrder);
   await capture([
     ['admin-overview', '/admin'],
     ['admin-orders', '/admin/orders'],
     ['admin-order', order],
+    ['admin-order-refund', refundOrder],
+    ['admin-newsletter', '/admin/newsletter'],
     ['admin-report', '/admin/reports'],
     ['admin-campaigns', '/admin/campaigns'],
     ['admin-products', '/admin/products'],
