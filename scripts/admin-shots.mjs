@@ -113,23 +113,53 @@ await send('Network.setCookie', { name: 'goen_session', value: process.env.ADMIN
 await send('Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
 
 await viewport(1440);
-const order = await firstLink('/admin/orders', '/admin/orders/', ['/admin/orders/picking']);
-console.log('detail links', JSON.stringify({ order }));
+const orderBy = async (status) => firstLink('/admin/orders?status=' + status, '/admin/orders/', ['/admin/orders/picking']);
+const orders = {
+  pending: await orderBy('pending'),
+  picking: await orderBy('picking'),
+  shipped: await orderBy('shipped'),
+  completed: await orderBy('completed'),
+};
+const product = await firstLink('/admin/products', '/admin/products/', ['/admin/products/new']);
+const customer = await firstLink('/admin/customers?q=ya', '/admin/customers/');
+console.log('detail links', JSON.stringify({ orders, product, customer }));
 
 const pages = [
+  ['overview', '/admin'],
   ['orders', '/admin/orders'],
-  ['order', order],
+  ['order-pending', orders.pending],
+  ['order-picking', orders.picking],
+  ['order-shipped', orders.shipped],
+  ['order-completed', orders.completed],
   ['health', '/admin/health'],
   ['staff', '/admin/staff'],
   ['questions', '/admin/questions'],
   ['messages', '/admin/messages'],
   ['returns', '/admin/returns'],
+  ['products', '/admin/products'],
+  ['campaigns', '/admin/campaigns'],
+  ['coupons', '/admin/coupons'],
+  ['customer', customer],
 ];
 for (const width of [1440, 375]) {
   for (const [name, path] of pages) {
     if (!path) { failures.push(`admin-${name}-${width}: no link found`); continue; }
     try { await shot(path, `admin-${name}-${width}.png`, width); } catch (e) { failures.push(`admin-${name}-${width}: ${e.message}`); }
   }
+}
+
+await send('Emulation.setEmulatedMedia', { features: [
+  { name: 'prefers-color-scheme', value: 'light' },
+  { name: 'forced-colors', value: 'active' },
+] });
+for (const [name, path] of [['orders', '/admin/orders'], ['returns', '/admin/returns']]) {
+  try { await shot(path, `forced-admin-${name}-1440.png`, 1440); } catch (e) { failures.push(`forced-admin-${name}: ${e.message}`); }
+}
+await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+
+await send('Network.setCookie', { name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/' });
+for (const [name, path] of [['questions', '/admin/questions'], ['messages', '/admin/messages'], ['returns', '/admin/returns']]) {
+  try { await shot(path, `en-admin-${name}-1440.png`, 1440); } catch (e) { failures.push(`en-admin-${name}: ${e.message}`); }
 }
 
 ws.close();
