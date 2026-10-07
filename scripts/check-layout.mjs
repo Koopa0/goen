@@ -1513,6 +1513,9 @@ const proveListingDesktopResize = async (label, locale) => {
     const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
+    // An open filter panel overlays the applied row by design; close it so the
+    // link's own target is what is measured.
+    document.querySelectorAll('.goen-filters__group[open]').forEach((group) => group.removeAttribute('open'));
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
     const missed = [];
     if (remove) {
