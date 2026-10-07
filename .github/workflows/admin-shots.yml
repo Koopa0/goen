@@ -219,6 +219,7 @@ jobs:
 
           echo '::group::back office'
           ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/reflow-probe.mjs reflow-shots || status=$?
+          ADMIN_TOKEN=$token CDP_PORT=9333 node scripts/refused-probe.mjs reflow-shots || status=$?
           echo '::endgroup::'
           file reflow-shots/*.png
           exit "$status"
