@@ -77,7 +77,7 @@ async function shot(path, file, width) {
     out.values = [...document.querySelectorAll('.goen-report__value')].map((e) => {
       const cs = getComputedStyle(e);
       const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
-      return { text: e.textContent.trim(), ...r(e), lines: Math.round(e.getBoundingClientRect().height / lh), fontSize: cs.fontSize, overflowWrap: cs.overflowWrap, scrollW: e.scrollWidth, clientW: e.clientWidth };
+      return { text: e.textContent.trim(), ...r(e), lines: Math.round(e.getBoundingClientRect().height / lh), fontSize: cs.fontSize, overflowWrap: cs.overflowWrap, scrollW: e.scrollWidth, clientW: e.clientWidth, textW: (() => { const g = document.createRange(); g.selectNodeContents(e); return Math.round(g.getBoundingClientRect().width * 10) / 10; })(), tileW: Math.round(e.closest('.goen-report__figure').getBoundingClientRect().width * 10) / 10, viewport: innerWidth };
     });
     const t = document.querySelector('.goen-admin__stock');
     if (t) {
@@ -166,8 +166,9 @@ const pages = [
   ['reports-90', '/admin/reports?days=90'],
   ['stock', '/admin/stock'],
 ];
-for (const width of [1440, 375]) {
+for (const width of [1440, 768, 375, 320]) {
   for (const [name, path] of pages) {
+    if (name === 'stock' && (width === 768 || width === 320)) continue;
     if (!path) { failures.push(`admin-${name}-${width}: no link found`); continue; }
     try { await shot(path, `admin-${name}-${width}.png`, width); } catch (e) { failures.push(`admin-${name}-${width}: ${e.message}`); }
   }
