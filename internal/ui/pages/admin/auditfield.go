@@ -13,8 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 )
 
-// Unknown fields retain their keys and values so later or historical payloads
-// remain inspectable without a matching label.
+// auditField describes a recorded field's staff-facing label and value format.
 type auditField struct {
 	label i18n.Key
 	// text renders one recorded value; nil prints it as stored.
@@ -160,6 +159,7 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 	for _, c := range e.Changes {
 		f, ok := e.field(c.Field)
 		if !ok {
+			// Staff need the exact unknown key to find its producer.
 			label := i18n.T(ctx, i18n.KeyAuditFieldDetails)
 			if c.Field != "" {
 				label = fmt.Sprintf(i18n.T(ctx, i18n.KeyAuditFieldUnknown), c.Field)

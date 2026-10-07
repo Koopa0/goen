@@ -1,9 +1,18 @@
 package admin
 
 import (
-	"html"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	stdhtml "html"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -394,7 +403,7 @@ func TestAuditRecordedFieldLabels(t *testing.T) {
 		{entity: "categories", field: "category", zh: "分類", en: "Category"},
 		{entity: "categories", field: "digest", zh: "圖片識別碼", en: "Image fingerprint"},
 		{entity: "categories", field: "alt", zh: "圖片替代文字", en: "Image alternative text"},
-		{entity: "invoice_operations", field: "resend_authorizations", zh: "重送授權次數", en: "Resend authorisation count"},
+		{entity: "invoice_operations", field: "resend_authorizations", zh: "重送授權次數", en: "Resend authorization count"},
 		{entity: "invoice_documents", field: "order", zh: "訂單編號", en: "Order number"},
 		{entity: "invoice_documents", field: "invoice", zh: "統一發票", en: "Tax invoice"},
 		{entity: "invoice_documents", field: "allowance", zh: "折讓", en: "Credit note"},
@@ -427,7 +436,7 @@ func TestAuditRecordedFieldLabels(t *testing.T) {
 				}
 				entry := AuditEntry{Entity: field.entity, Changes: []AuditChange{{Field: field.field, Before: "before-recorded", After: "after-recorded"}}}
 				rendered := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{entry}}))
-				for _, want := range []string{"<dt>" + html.EscapeString(label) + "</dt>", "<dd>before-recorded → after-recorded</dd>"} {
+				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>before-recorded → after-recorded</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("recorded %s.%s is missing %q", field.entity, field.field, want)
 					}
@@ -450,7 +459,7 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 	}{
 		{name: "future field", field: "future_key", before: "old", after: "new", zh: "這筆記錄包含「future_key」欄位。", en: "This record includes the field “future_key”.", text: "old → new"},
 		{name: "hostile field and value", field: "<script>alert(1)</script>", before: "<b>old</b>", after: "<img src=x onerror=alert(1)>", zh: "這筆記錄包含「<script>alert(1)</script>」欄位。", en: "This record includes the field “<script>alert(1)</script>”.", text: "<b>old</b> → <img src=x onerror=alert(1)>"},
-		{name: "historical non-object", after: `["old",null]`, zh: "記錄內容。", en: "Recorded details.", text: `["old",null]`},
+		{name: "historical non-object", after: `["old",null]`, zh: "記錄內容", en: "Recorded details", text: `["old",null]`},
 		{name: "null value", field: "future_null", after: "—", zh: "這筆記錄包含「future_null」欄位。", en: "This record includes the field “future_null”.", text: "—"},
 		{name: "removed value", field: "future_removed", before: "original", zh: "這筆記錄包含「future_removed」欄位。", en: "This record includes the field “future_removed”.", text: "original"},
 	} {
@@ -471,7 +480,7 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 					t.Errorf("unknown field = %#v, want label %q and text %q without a link", changes[0], label, tt.text)
 				}
 				rendered := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{entry}}))
-				for _, want := range []string{"<dt>" + html.EscapeString(label) + "</dt>", "<dd>" + html.EscapeString(tt.text) + "</dd>"} {
+				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>" + stdhtml.EscapeString(tt.text) + "</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("unknown field is missing %q", want)
 					}
@@ -479,4 +488,583 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestAuditProducerFieldsHaveLabels(t *testing.T) {
+	t.Parallel()
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(root, "go.mod")); statErr == nil {
+			break
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			t.Fatal("cannot find the repository's go.mod")
+		}
+		root = parent
+	}
+	fields := make(map[string]map[string]string)
+	add := func(entity string, keys []string, source string) {
+		if fields[entity] == nil {
+			fields[entity] = make(map[string]string)
+		}
+		for _, key := range keys {
+			fields[entity][key] = source
+		}
+	}
+	wrappers := auditSQLProducerFields(t, root, add)
+	files := make(map[string][]*ast.File)
+	paths := make(map[*ast.File]string)
+	fset := token.NewFileSet()
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if parseErr != nil {
+			return parseErr
+		}
+		if !ast.IsGenerated(file) {
+			files[filepath.Dir(path)] = append(files[filepath.Dir(path)], file)
+			paths[file] = path
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dir, packageFiles := range files {
+		for _, file := range packageFiles {
+			imports := make(map[string]string)
+			for _, imp := range file.Imports {
+				path, unquoteErr := strconv.Unquote(imp.Path.Value)
+				if unquoteErr != nil {
+					t.Fatal(unquoteErr)
+				}
+				name := filepath.Base(path)
+				if imp.Name != nil {
+					name = imp.Name.Name
+				}
+				imports[name] = path
+			}
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil {
+					continue
+				}
+				selectedEntity, tableVariable := "", ""
+				var resolve func(ast.Expr, bool, *ast.FuncDecl, map[string]bool) []string
+				resolve = func(expr ast.Expr, payload bool, scope *ast.FuncDecl, visiting map[string]bool) []string {
+					var result []string
+					switch value := expr.(type) {
+					case *ast.BasicLit:
+						if !payload && value.Kind == token.STRING {
+							text, unquoteErr := strconv.Unquote(value.Value)
+							if unquoteErr != nil {
+								t.Fatal(unquoteErr)
+							}
+							return []string{text}
+						}
+					case *ast.Ident:
+						if value.Name == "nil" {
+							return nil
+						}
+						if visiting[value.Name] {
+							t.Fatalf("%s: cyclic audit payload %s", paths[file], value.Name)
+						}
+						next := make(map[string]bool)
+						for name, seen := range visiting {
+							next[name] = seen
+						}
+						next[value.Name] = true
+						found := false
+						ast.Inspect(scope.Body, func(node ast.Node) bool {
+							if branch, isBranch := node.(*ast.IfStmt); payload && isBranch && tableVariable != "" {
+								if entity := auditBranchTable(t, branch, tableVariable); entity != "" && entity != selectedEntity {
+									return false
+								}
+							}
+							assignment, isAssignment := node.(*ast.AssignStmt)
+							if !isAssignment {
+								return true
+							}
+							for index, lhs := range assignment.Lhs {
+								if id, isID := lhs.(*ast.Ident); isID && id.Name == value.Name && index < len(assignment.Rhs) {
+									found = true
+									result = append(result, resolve(assignment.Rhs[index], payload, scope, next)...)
+								}
+								if slot, isSlot := lhs.(*ast.IndexExpr); payload && isSlot {
+									if id, isID := slot.X.(*ast.Ident); isID && id.Name == value.Name {
+										result = append(result, resolve(slot.Index, false, scope, next)...)
+									}
+								}
+							}
+							return true
+						})
+						if !found && payload && file.Name.Name == "staff" && scope.Name.Name == "write" && value.Name == "after" {
+							return auditStaffCallbackFields(t, packageFiles, scope, func(expr ast.Expr, callback *ast.FuncDecl) []string {
+								return resolve(expr, true, callback, make(map[string]bool))
+							})
+						}
+						if !found && payload {
+							for _, param := range scope.Type.Params.List {
+								for _, name := range param.Names {
+									if name.Name == value.Name {
+										return auditStructJSONFields(t, root, dir, param.Type, imports, files)
+									}
+								}
+							}
+						}
+						if found {
+							return result
+						}
+					case *ast.CompositeLit:
+						if _, isMap := value.Type.(*ast.MapType); payload && isMap {
+							for _, element := range value.Elts {
+								pair, isPair := element.(*ast.KeyValueExpr)
+								if !isPair {
+									t.Fatalf("%s: unsupported audit map element", paths[file])
+								}
+								result = append(result, resolve(pair.Key, false, scope, visiting)...)
+							}
+							return result
+						}
+						if payload {
+							return auditStructJSONFields(t, root, dir, value.Type, imports, files)
+						}
+					case *ast.CallExpr:
+						if name, isName := value.Fun.(*ast.SelectorExpr); isName && name.Sel.Name == "Marshal" && len(value.Args) == 1 {
+							if pkg, isPackage := name.X.(*ast.Ident); isPackage && imports[pkg.Name] == "encoding/json" {
+								return resolve(value.Args[0], payload, scope, visiting)
+							}
+						}
+						if name, isName := value.Fun.(*ast.Ident); isName {
+							if name.Name == "make" && payload && len(value.Args) > 0 {
+								if _, isMap := value.Args[0].(*ast.MapType); isMap {
+									return nil
+								}
+							}
+							for _, source := range packageFiles {
+								for _, candidate := range source.Decls {
+									helper, isHelper := candidate.(*ast.FuncDecl)
+									if !isHelper || helper.Name.Name != name.Name || helper.Body == nil {
+										continue
+									}
+									ast.Inspect(helper.Body, func(node ast.Node) bool {
+										if returned, isReturn := node.(*ast.ReturnStmt); isReturn && len(returned.Results) > 0 {
+											result = append(result, resolve(returned.Results[0], payload, helper, make(map[string]bool))...)
+										}
+										return true
+									})
+									return result
+								}
+							}
+						}
+					}
+					t.Fatalf("%s:%d: unsupported audit expression %T; extend producer discovery", paths[file], fset.Position(expr.Pos()).Line, expr)
+					return nil
+				}
+				ast.Inspect(fn.Body, func(node ast.Node) bool {
+					literal, isLiteral := node.(*ast.CompositeLit)
+					if !isLiteral {
+						return true
+					}
+					typ, isType := literal.Type.(*ast.SelectorExpr)
+					if !isType {
+						return true
+					}
+					pkg, isPackage := typ.X.(*ast.Ident)
+					if !isPackage {
+						return true
+					}
+					members := make(map[string]ast.Expr)
+					for _, element := range literal.Elts {
+						if pair, isPair := element.(*ast.KeyValueExpr); isPair {
+							if key, isKey := pair.Key.(*ast.Ident); isKey {
+								members[key.Name] = pair.Value
+							}
+						}
+					}
+					var entities []string
+					switch {
+					case imports[pkg.Name] == "github.com/koopa0/goen/internal/admin/audit" && typ.Sel.Name == "Event":
+						selectedEntity, tableVariable = "", ""
+						entities = resolve(members["Table"], false, fn, make(map[string]bool))
+						if variable, isVariable := members["Table"].(*ast.Ident); isVariable {
+							tableVariable = variable.Name
+						}
+					case imports[pkg.Name] == "github.com/koopa0/goen/internal/db" && strings.HasSuffix(typ.Sel.Name, "Params"):
+						entity, isWrapper := wrappers[strings.TrimSuffix(typ.Sel.Name, "Params")]
+						if !isWrapper {
+							return true
+						}
+						if entity != "" {
+							entities = []string{entity}
+							break
+						}
+						if file.Name.Name == "audit" {
+							return true
+						}
+						entities = resolve(members["EntityTable"], false, fn, make(map[string]bool))
+					default:
+						return true
+					}
+					for _, member := range []string{"Before", "After"} {
+						if expr := members[member]; expr != nil {
+							for _, entity := range entities {
+								selectedEntity = entity
+								keys := resolve(expr, true, fn, make(map[string]bool))
+								add(entity, keys, paths[file]+":"+strconv.Itoa(fset.Position(expr.Pos()).Line))
+							}
+						}
+					}
+					return true
+				})
+			}
+		}
+	}
+	if len(fields) == 0 {
+		t.Fatal("producer discovery found no audit fields")
+	}
+	unique := make(map[string]bool)
+	pairs := 0
+	for entity, keys := range fields {
+		for key, source := range keys {
+			unique[key] = true
+			pairs++
+			if _, ok := (AuditEntry{Entity: entity}).field(key); !ok {
+				t.Errorf("recorded producer field %s.%s from %s has no audit label", entity, key, source)
+			}
+		}
+	}
+	t.Logf("derived %d entity/key pairs, %d keys across %d entities", pairs, len(unique), len(fields))
+}
+
+func auditStructJSONFields(t *testing.T, root, dir string, expr ast.Expr, imports map[string]string, files map[string][]*ast.File) []string {
+	t.Helper()
+	name := ""
+	switch typ := expr.(type) {
+	case *ast.Ident:
+		name = typ.Name
+	case *ast.SelectorExpr:
+		pkg, ok := typ.X.(*ast.Ident)
+		if !ok {
+			t.Fatal("unsupported audit struct package")
+		}
+		path := strings.TrimPrefix(imports[pkg.Name], "github.com/koopa0/goen/")
+		dir = filepath.Join(root, path)
+		name = typ.Sel.Name
+	default:
+		t.Fatalf("unsupported audit struct type %T", expr)
+	}
+	for _, file := range files[dir] {
+		for _, decl := range file.Decls {
+			general, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range general.Specs {
+				typ, isType := spec.(*ast.TypeSpec)
+				if !isType || typ.Name.Name != name {
+					continue
+				}
+				structure, isStruct := typ.Type.(*ast.StructType)
+				if !isStruct {
+					t.Fatalf("audit payload %s is not a struct", name)
+				}
+				var keys []string
+				for _, field := range structure.Fields.List {
+					if len(field.Names) == 0 {
+						t.Fatal("embedded audit payload fields need explicit discovery")
+					}
+					for _, fieldName := range field.Names {
+						if !ast.IsExported(fieldName.Name) {
+							continue
+						}
+						key := fieldName.Name
+						if field.Tag != nil {
+							tag, err := strconv.Unquote(field.Tag.Value)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if jsonName := strings.Split(reflect.StructTag(tag).Get("json"), ",")[0]; jsonName != "" {
+								key = jsonName
+							}
+						}
+						if key != "-" {
+							keys = append(keys, key)
+						}
+					}
+				}
+				return keys
+			}
+		}
+	}
+	t.Fatalf("cannot resolve audited struct %s", name)
+	return nil
+}
+
+func auditSQLProducerFields(t *testing.T, root string, add func(string, []string, string)) map[string]string {
+	t.Helper()
+	wrappers := make(map[string]string)
+	readPayload := func(tokens []string) []string {
+		if len(tokens) == 1 && strings.EqualFold(tokens[0], "null") {
+			return nil
+		}
+		if len(tokens) > 1 && strings.EqualFold(tokens[0], "jsonb_build_object") {
+			args, _ := auditSQLArguments(t, tokens, 1)
+			if len(args)%2 != 0 {
+				t.Fatal("odd audit JSON object arguments")
+			}
+			var keys []string
+			for index := 0; index < len(args); index += 2 {
+				if len(args[index]) != 1 || !strings.HasPrefix(args[index][0], "'") {
+					t.Fatal("dynamic SQL audit key needs explicit discovery")
+				}
+				keys = append(keys, strings.ReplaceAll(strings.Trim(args[index][0], "'"), "''", "'"))
+			}
+			return keys
+		}
+		t.Fatalf("unsupported SQL audit payload %v; extend producer discovery", tokens)
+		return nil
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "migrations", "*.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && strings.HasSuffix(path, ".sql") {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		tokens := auditSQLTokens(t, string(data))
+		query := ""
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "-- name: ") {
+				query = strings.Fields(line)[2]
+			}
+			if strings.Contains(line, "SELECT record_audit_event(") && query != "" {
+				start := strings.Index(string(data), line)
+				args, _ := auditSQLArguments(t, auditSQLTokens(t, string(data)[start:]), 2)
+				wrappers[query] = strings.Trim(args[2][0], "'")
+				if !strings.HasPrefix(args[2][0], "'") {
+					wrappers[query] = ""
+				}
+			}
+		}
+		for index, word := range tokens {
+			name := strings.ToLower(word)
+			if (name == "record_audit_event" || name == "record_invoice_operation_audit") && index+1 < len(tokens) && tokens[index+1] == "(" && (index == 0 || !strings.EqualFold(tokens[index-1], "function")) {
+				args, _ := auditSQLArguments(t, tokens, index+1)
+				if strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
+					continue // The Go wrapper callers supply these dynamic JSON parameters.
+				}
+				if name == "record_audit_event" {
+					if (len(args) != 6 && len(args) != 7) || len(args[2]) != 1 || !strings.HasPrefix(args[2][0], "'") {
+						t.Fatalf("unsupported audit SQL call in %s", path)
+					}
+					entity := strings.Trim(args[2][0], "'")
+					add(entity, readPayload(args[4]), path)
+					add(entity, readPayload(args[5]), path)
+				} else {
+					if len(args) != 3 {
+						t.Fatalf("unsupported invoice audit SQL call in %s", path)
+					}
+					add("invoice_documents", readPayload(args[2]), path)
+				}
+			}
+			if name == "insert" && index+3 < len(tokens) && strings.EqualFold(tokens[index+1], "into") && strings.EqualFold(tokens[index+2], "audit_events") {
+				columns, end := auditSQLArguments(t, tokens, index+3)
+				if end+1 >= len(tokens) || !strings.EqualFold(tokens[end], "values") {
+					t.Fatal("audit INSERT is not an explicit VALUES row")
+				}
+				values, _ := auditSQLArguments(t, tokens, end+1)
+				if len(columns) != len(values) {
+					t.Fatal("audit INSERT columns and values differ")
+				}
+				entity := ""
+				for column, names := range columns {
+					if names[0] == "entity_table" && len(values[column]) == 1 && strings.HasPrefix(values[column][0], "'") {
+						entity = strings.Trim(values[column][0], "'")
+					}
+				}
+				if entity == "" {
+					continue // record_audit_event forwards the entity and payload of its callers.
+				}
+				for column, names := range columns {
+					if names[0] == "before" || names[0] == "after" {
+						if len(values[column]) == 1 && values[column][0] == "p_after" {
+							continue // record_invoice_operation_audit forwards the JSON above.
+						}
+						add(entity, readPayload(values[column]), path)
+					}
+				}
+			}
+		}
+	}
+	return wrappers
+}
+
+func auditSQLArguments(t *testing.T, tokens []string, start int) ([][]string, int) {
+	t.Helper()
+	if start >= len(tokens) || tokens[start] != "(" {
+		t.Fatal("expected SQL argument list")
+	}
+	var args [][]string
+	var current []string
+	depth := 1
+	for index := start + 1; index < len(tokens); index++ {
+		word := tokens[index]
+		switch word {
+		case "(", "[":
+			depth++
+		case ")", "]":
+			depth--
+		}
+		if depth == 0 {
+			return append(args, current), index + 1
+		}
+		if word == "," && depth == 1 {
+			args = append(args, current)
+			current = nil
+		} else {
+			current = append(current, word)
+		}
+	}
+	t.Fatal("unterminated SQL argument list")
+	return nil, 0
+}
+
+func auditSQLTokens(t *testing.T, source string) []string {
+	t.Helper()
+	var tokens []string
+	for index := 0; index < len(source); {
+		if strings.HasPrefix(source[index:], "--") {
+			end := strings.IndexByte(source[index:], '\n')
+			if end < 0 {
+				break
+			}
+			index += end + 1
+			continue
+		}
+		if strings.HasPrefix(source[index:], "/*") {
+			end := strings.Index(source[index+2:], "*/")
+			if end < 0 {
+				t.Fatal("unterminated SQL comment")
+			}
+			index += end + 4
+			continue
+		}
+		character := source[index]
+		if character == '\'' {
+			start := index
+			index++
+			for index < len(source) {
+				if source[index] == '\'' {
+					index++
+					if index < len(source) && source[index] == '\'' {
+						index++
+						continue
+					}
+					break
+				}
+				index++
+			}
+			tokens = append(tokens, source[start:index])
+		} else if unicode.IsSpace(rune(character)) {
+			index++
+		} else if character == '_' || unicode.IsLetter(rune(character)) {
+			start := index
+			for index < len(source) && (source[index] == '_' || unicode.IsLetter(rune(source[index])) || unicode.IsDigit(rune(source[index]))) {
+				index++
+			}
+			tokens = append(tokens, source[start:index])
+		} else {
+			tokens = append(tokens, string(character))
+			index++
+		}
+	}
+	return tokens
+}
+
+func auditStaffCallbackFields(t *testing.T, packageFiles []*ast.File, scope *ast.FuncDecl, resolve func(ast.Expr, *ast.FuncDecl) []string) []string {
+	t.Helper()
+	var result []string
+
+	for _, source := range packageFiles {
+		ast.Inspect(source, func(node ast.Node) bool {
+			call, isCall := node.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			method, isMethod := call.Fun.(*ast.SelectorExpr)
+			if !isMethod || method.Sel.Name != "write" {
+				return true
+			}
+			if len(call.Args) != 3 {
+				t.Fatal("unsupported staff audit wrapper arguments")
+			}
+			callback, isCallback := call.Args[2].(*ast.FuncLit)
+			if !isCallback {
+				t.Fatal("staff audit wrapper needs callback source discovery")
+			}
+			callbackScope := &ast.FuncDecl{Name: scope.Name, Type: callback.Type, Body: callback.Body}
+			ast.Inspect(callback.Body, func(child ast.Node) bool {
+				if returned, isReturn := child.(*ast.ReturnStmt); isReturn && len(returned.Results) == 3 {
+					result = append(result, resolve(returned.Results[1], callbackScope)...)
+				}
+				return true
+			})
+			return true
+		})
+	}
+	if len(result) == 0 {
+		t.Fatal("staff audit wrapper has no discoverable callback payloads")
+	}
+	return result
+}
+
+func auditBranchTable(t *testing.T, branch *ast.IfStmt, name string) string {
+	t.Helper()
+	entity := ""
+	ast.Inspect(branch.Body, func(node ast.Node) bool {
+		assignment, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for index, lhs := range assignment.Lhs {
+			id, isID := lhs.(*ast.Ident)
+			if !isID || id.Name != name || index >= len(assignment.Rhs) {
+				continue
+			}
+			text, isText := assignment.Rhs[index].(*ast.BasicLit)
+			if !isText || text.Kind != token.STRING {
+				t.Fatal("conditional audit table needs explicit source discovery")
+			}
+			var err error
+			entity, err = strconv.Unquote(text.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return true
+	})
+	return entity
 }
