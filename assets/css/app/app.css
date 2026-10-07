@@ -2344,9 +2344,9 @@ th {
 }
 
 /* The home page's band is the department's shelf: no photograph, because the
-   tile above shows it. From 72rem it shares the tiles' six columns, the name
-   in two and the four products under tiles 3 to 6. The department page's head
-   is built from .goen-band too and takes none of this. */
+   tile above shows it. From 60rem it shares the tiles' six columns and their
+   1.5rem gap, the name in two and the four products under tiles 3 to 6. The
+   department page's head is built from .goen-band too and takes none of this. */
 .goen-band--shelf {
   background: var(--tone-ground);
   container: band / inline-size;
@@ -2395,6 +2395,10 @@ th {
   margin-top: var(--s-2);
 }
 
+.goen-band--shelf .goen-band__tiles {
+  grid-auto-columns: max(42%, 8rem);
+}
+
 @container band (width >= 48rem) {
   .goen-band--shelf .goen-band__tiles {
     gap: var(--col-gap);
@@ -2406,8 +2410,9 @@ th {
   }
 }
 
-@container band (width >= 72rem) {
+@container band (width >= 60rem) {
   .goen-band--shelf .goen-band__body {
+    column-gap: 1.5rem;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     padding-block: var(--s-7);
   }
@@ -2417,12 +2422,15 @@ th {
     padding-right: var(--s-5);
   }
 
-  .goen-band--shelf .goen-band__head .goen-home__more {
-    margin-top: auto;
-  }
-
   .goen-band--shelf .goen-band__tiles {
+    gap: 1.5rem;
     grid-column: 3 / -1;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band--shelf {
+    border-block: 1px solid CanvasText;
   }
 }
 
