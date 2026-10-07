@@ -93,13 +93,8 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
 							}
 						}
-						if v.NoDelivery {
-							@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "cart-delivery-unavailable"}) {
-								{ i18n.T(ctx, i18n.KeyShippingUnavailable) }
-							}
-						}
 						<div class="goen-summary__actions">
-							if v.CanCheckout() && !v.NoDelivery {
+							if v.CanCheckout() {
 								@components.ButtonLink(components.ButtonProps{
 									ButtonStyle: components.ButtonStylePrimary,
 									Size:        components.SizeLarge,
