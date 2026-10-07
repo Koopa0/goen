@@ -17,6 +17,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -505,7 +507,19 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 			f := pricedDeliveryOrder(t, 0, 0, 0)
 			ctx, _ := admintest.StaffContext(t, pool)
 			ctx = i18n.WithLocale(ctx, locale)
-			store := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
+			adminPool := admintest.AdminRolePool(t, pool)
+			cfg := adminPool.Config().Copy()
+			cfg.ConnConfig.RuntimeParams["lock_timeout"] = "100ms"
+			lockedPool, err := pgxpool.NewWithConfig(ctx, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(lockedPool.Close)
+			var role, timeout string
+			if err := lockedPool.QueryRow(ctx, `SELECT current_user, current_setting('lock_timeout')`).Scan(&role, &timeout); err != nil || role != "admin" || timeout != "100ms" {
+				t.Fatalf("lock-fault pool role=%q timeout=%q, want admin/100ms: %v", role, timeout, err)
+			}
+			store := admintest.OrderStore(lockedPool, admintest.Refunder{}, nil, nil)
 			before := deliveryPrivateSnapshot(t, f.id)
 			countAudits := func() int {
 				t.Helper()
@@ -528,9 +542,18 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 				"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"},
 				"postal_code": {f.oldPostal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"},
 			}
-			blocked, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
-			w := postDeliveryWithStore(blocked, t, store, f.number, values)
-			cancel()
+			err = store.CorrectDelivery(ctx, f.number, &orders.DeliveryCorrection{
+				Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444",
+				PostalCode: f.oldPostal, City: "New city", District: "New district", Street: "Proposed street",
+			})
+			fault, ok := errors.AsType[*pgconn.PgError](err)
+			if !ok || fault.Code != "55P03" || ctx.Err() != nil {
+				t.Fatalf("locked delivery error=%v context=%v, want PostgreSQL 55P03 with live request context", err, ctx.Err())
+			}
+			w := postDeliveryWithStore(ctx, t, store, f.number, values)
+			if ctx.Err() != nil {
+				t.Fatalf("lock-fault POST canceled request context: %v", ctx.Err())
+			}
 			if w.Code != http.StatusInternalServerError || w.Header().Get("Location") != "" {
 				t.Fatalf("store failure status=%d location=%q, want 500 without redirect", w.Code, w.Header().Get("Location"))
 			}
