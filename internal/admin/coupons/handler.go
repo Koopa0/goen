@@ -1,6 +1,7 @@
 package coupons
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -128,8 +129,16 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.SetCouponActive(r.Context(), r.PathValue("code"),
 		r.PostFormValue("active") == "true"); err != nil {
-		h.log.WarnContext(r.Context(), "set coupon active", "error", err)
-		http.Redirect(w, r, "/admin/coupons?refused=1", http.StatusSeeOther)
+		switch {
+		case errors.Is(err, ErrNotFound):
+			access.NotFound(w, r, h.log)
+		case errors.Is(err, ErrRefused):
+			h.log.WarnContext(r.Context(), "set coupon active refused", "error", err)
+			http.Redirect(w, r, "/admin/coupons?refused=1", http.StatusSeeOther)
+		default:
+			h.log.ErrorContext(r.Context(), "set coupon active", "error", err)
+			access.ServerError(w, r, h.log)
+		}
 		return
 	}
 	http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
