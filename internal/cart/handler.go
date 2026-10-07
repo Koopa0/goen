@@ -1915,7 +1915,9 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 		}
 		n, err := h.store.ItemCount(r.Context(), id)
 		if err != nil {
-			h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			if !errors.Is(r.Context().Err(), context.Canceled) {
+				h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
