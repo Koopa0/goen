@@ -1189,6 +1189,23 @@ input.goen-check {
   width: 100%;
 }
 
+/* Eight controls a row take the table's spare width, so without a floor the
+   SKU and the product name shrink to their shortest unbreakable piece. The
+   table keeps its width and scrolls inside its own frame instead. */
+.goen-admin__stock {
+  min-width: 64rem;
+}
+
+.goen-admin__stock th:first-child,
+.goen-admin__stock td:first-child {
+  white-space: nowrap;
+}
+
+.goen-admin__stock th:nth-child(2),
+.goen-admin__stock td:nth-child(2) {
+  min-width: 12rem;
+}
+
 /* Stock links are too close for the WCAG 2.5.8 spacing exception; each target
    therefore needs its own 24px box. */
 .goen-admin__stock td a {
@@ -2212,7 +2229,13 @@ input.goen-check {
   font-size: var(--fs-ed-24);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+}
+
+@media (max-width: 420px) {
+  .goen-report__value {
+    font-size: var(--fs-ed-20);
+  }
 }
 
 /* The two lists under the figures. Not tables: every cell already carries its
