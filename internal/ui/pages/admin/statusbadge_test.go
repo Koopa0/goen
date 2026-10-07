@@ -106,18 +106,28 @@ func TestEveryFulfillmentStateHasAGroup(t *testing.T) {
 
 func TestReturnIntentGroupsEachReturnState(t *testing.T) {
 	t.Parallel()
+	inspected := []ReturnLine{{Inspected: true}}
+	waiting := []ReturnLine{{Inspected: false}}
 	for _, tt := range []struct {
-		status returns.Status
-		want   components.Intent
+		name string
+		row  Return
+		want components.Intent
 	}{
-		{returns.StatusRequested, components.IntentWarn},
-		{returns.StatusApproved, components.IntentNeutral},
-		{returns.StatusRejected, components.IntentNeutral},
-		{returns.StatusCompleted, components.IntentDone},
+		{"requested", Return{Status: returns.StatusRequested}, components.IntentWarn},
+		{"approved, goods not back", Return{Status: returns.StatusApproved, Lines: waiting}, components.IntentProgress},
+		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, components.IntentWarn},
+		{"approved, payout outstanding", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, components.IntentWarn},
+		{"approved, payout stranded", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, components.IntentDanger},
+		{"declined", Return{Status: returns.StatusRejected}, components.IntentNeutral},
+		{"completed", Return{Status: returns.StatusCompleted}, components.IntentDone},
+		{"cancelled and refunded", Return{Status: returns.StatusCompleted, BeforeShipment: true}, components.IntentNeutral},
 	} {
-		if got := (Return{Status: tt.status}).StatusIntent(); got != tt.want {
-			t.Errorf("Return{%q}.StatusIntent() = %q, want %q", tt.status, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.row.StatusIntent(); got != tt.want {
+				t.Errorf("StatusIntent() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -147,9 +157,7 @@ func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
 	view := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: components.IntentProgress, Committed: true}
 	page := renderComponent(t, ctx, Order(layouts.Page{}, view))
 	wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
-	if got := badgeClasses(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted)); len(got) == 0 {
-		t.Error("the order page lost its committed pill")
-	}
+	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")
 }
 
 func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {

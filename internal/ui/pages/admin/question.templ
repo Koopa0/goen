@@ -24,12 +24,12 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminQuestionsLead) }
 				</p>
+				if v.Waiting() > 0 {
+					<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }</p>
+				}
 			</div>
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL(v.OtherQueueHref())) {
 				{ v.OtherQueueLabel(ctx) }
-			}
-			if v.Waiting() > 0 {
-				<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }</p>
 			}
 		</div>
 		@Announce(v.Notice)

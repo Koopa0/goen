@@ -232,7 +232,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					{ v.StatusText }
 				}
 				if v.Committed {
-					@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 						{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 					}
 				}

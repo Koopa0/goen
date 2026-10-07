@@ -62,7 +62,7 @@ templ Products(p layouts.Page, v ProductsView) {
 									// stop lining up.
 									<div class="goen-admin__cellbadges">
 										if row.Sellable() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 												{ row.StatusText }
 											}
 										} else {

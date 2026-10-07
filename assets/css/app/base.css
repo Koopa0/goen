@@ -381,6 +381,9 @@ body {
   --success-bg: #f0fdf4;
   --warn: #92400e;
   --warn-bg: #fffbeb;
+  --error-tint: #fee2e2;
+  --success-tint: #dcfce7;
+  --warn-tint: #fef3c7;
   --info: var(--accent-deep);
   --info-bg: var(--accent-faint);
 
