@@ -685,7 +685,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
 								if v.RefundCreditPaid {
@@ -786,7 +786,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 									<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }
 								}
 								<p class="goen-admin__hint">
@@ -1072,7 +1072,9 @@ templ Picking(p layouts.Page, v *PickingView) {
 			}
 		</div>
 		if len(v.Totals) == 0 {
-			<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminPickingNone) }</p>
+			</div>
 		} else {
 			<section class="goen-admin__picklist" aria-labelledby="pick-list-title">
 				<h2 class="goen-admin__optitle" id="pick-list-title">{ i18n.T(ctx, i18n.KeyAdminPickingTotals) }</h2>
@@ -1082,7 +1084,7 @@ templ Picking(p layouts.Page, v *PickingView) {
 							<tr>
 								<th scope="col">SKU</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
 							</tr>
 						</thead>
 						<tbody>
