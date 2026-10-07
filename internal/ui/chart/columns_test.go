@@ -340,7 +340,7 @@ func TestColumnTicksMakeTheDayNearestTodayMinorSoItNeverPrintsOverIt(t *testing.
 		{"14 days ending today", 14, false, true, []tick{{"Sep 14", false}, {"Today", false}}},
 	} {
 		cols := Series{Buckets: days(tc.n + 1)[1:]}.Columns()
-		var got []tick
+		got := make([]tick, 0, len(cols))
 		for _, tk := range columnTicks(i18n.WithLocale(t.Context(), i18n.En), cols, tc.grouped, tc.today, 100/float64(len(cols))) {
 			got = append(got, tick{tk.Label, tk.Minor})
 		}
@@ -409,9 +409,9 @@ func TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo(t *testing.
 
 // lanesOf is the lane each strip is drawn in, counted from the top, or -1 for
 // one that has none.
-func lanesOf(c columns) []int {
-	lanes := make([]int, len(c.Strips))
-	for k, s := range c.Strips {
+func lanesOf(strips []strip) []int {
+	lanes := make([]int, len(strips))
+	for k, s := range strips {
 		lanes[k] = -1
 		if !s.Hidden {
 			lanes[k] = int((s.Y - laneBracketAt - laneTop) / laneHeight)
@@ -445,7 +445,7 @@ func TestColumnsPutCampaignsInLanesByTheDayTheyBegin(t *testing.T) {
 		p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
 		p.Spans = tc.spans
 		c := newColumns(t.Context(), p)
-		if got := lanesOf(c); !slices.Equal(got, tc.want) {
+		if got := lanesOf(c.Strips); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: lanes = %v, want %v", tc.name, got, tc.want)
 		}
 	}
@@ -496,6 +496,11 @@ func TestColumnsOfSevenDaysKeepBothSentencesUnderTheChart(t *testing.T) {
 	want := `<p class="goen-chart__note">The earliest stretch has 6 days. Counted up to 15:20. 1 more campaign runs at the same time; its name is in the table.</p>`
 	if got := renderColumns(t, i18n.En, p); !strings.Contains(got, want) {
 		t.Errorf("the note under a chart of runs of seven days is not %s\n%s", want, got)
+	}
+
+	p.Note = ""
+	if got, want := newColumns(i18n.WithLocale(t.Context(), i18n.En), p).Note, "The earliest stretch has 6 days. 1 more campaign runs at the same time; its name is in the table."; got != want {
+		t.Errorf("a chart with no note of its own says %q, want %q", got, want)
 	}
 }
 

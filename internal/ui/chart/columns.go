@@ -293,11 +293,13 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		r.Hits[i] = hit{X: percent(float64(i) * band), Width: percent(band)}
 	}
 
-	var sentences []string
+	sentences := make([]string, 0, 3)
 	if grouped && cols[0].Days != daysPerColumn {
 		sentences = append(sentences, i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days))
 	}
-	sentences = append(sentences, p.Note)
+	if p.Note != "" {
+		sentences = append(sentences, p.Note)
+	}
 	hidden := 0
 	for _, l := range lanes {
 		if l < 0 {
@@ -476,10 +478,25 @@ func coveredDays(ctx context.Context, c Column, first, last time.Time) string {
 	return days
 }
 
+// minorTick is whether the tick of column i of n gives way on a narrow chart:
+// every third of a chart in runs, every other of a week, and, when "Today" ends
+// the axis, a day tick in its last 15%, so that it is dropped rather than
+// printed over "Today".
+func minorTick(i, n int, band float64, grouped, today bool) bool {
+	switch {
+	case grouped:
+		return (n-1-i)%3 != 0
+	case n <= 7:
+		return (n-1-i)%2 == 1
+	case today && i != n-1:
+		return (float64(i)+0.5)*band > minorTickFrom
+	}
+	return false
+}
+
 // columnTicks labels the axis: a long chart, drawn in runs, labels the day each
 // starts on; otherwise the days tickDays picks, and every day of a week, and
-// today at the end when the last day is still going. A day tick in the last
-// 15% is minor, so a narrow chart drops it rather than print it over "Today".
+// today at the end when the last day is still going.
 func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
 	picked := map[int]bool{}
@@ -499,14 +516,7 @@ func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band f
 			continue
 		}
 		t := dayTick{X: percent((float64(i) + 0.5) * band), Anchor: "middle", Label: axisDay(ctx, c.Day)}
-		switch {
-		case grouped:
-			t.Minor = (n-1-i)%3 != 0
-		case n <= 7:
-			t.Minor = (n-1-i)%2 == 1
-		case today && i != n-1:
-			t.Minor = (float64(i)+0.5)*band > minorTickFrom
-		}
+		t.Minor = minorTick(i, n, band, grouped, today)
 		if i == n-1 {
 			if !grouped && today {
 				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
