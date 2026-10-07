@@ -82,6 +82,7 @@ var auditFields = map[string]auditField{
 	"length":                           {i18n.KeyAuditFieldAnswerLength, nil, nil},
 	"lines":                            {i18n.KeyAuditFieldInspectedLines, nil, nil},
 	"message":                          {i18n.KeyFieldMessage, nil, nil},
+	"message_id":                       {i18n.KeyAuditFieldMessageID, nil, nil},
 	"method_id":                        {i18n.KeyAuditFieldDeliveryMethodID, nil, nil},
 	"min_age_months":                   {i18n.KeyProductLabelMinAge, nil, nil},
 	"move":                             {i18n.KeyAuditFieldImageMove, nil, nil},
