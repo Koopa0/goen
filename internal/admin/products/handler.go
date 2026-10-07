@@ -432,10 +432,6 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
 			http.Redirect(w, r, "/admin/products/"+slug+"?badoption=1", http.StatusSeeOther)
-		case errors.Is(err, ErrRefused):
-			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
-			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "set image option", "error", err, "slug", slug)
 			access.ServerError(w, r, h.log)
@@ -573,10 +569,6 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "add spec refused", "error", err, "slug", slug)
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add spec", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
