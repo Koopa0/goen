@@ -13,7 +13,7 @@ concurrency:
 env:
   GOTOOLCHAIN: local
   # The period track branch's head, where this branch starts; "after" is this checkout.
-  BEFORE_SHA: 0349fa2865fcc9ab2061170c374866a7301d94e2
+  BEFORE_SHA: 9f37db66b48bec40e55e1b3619def02c8231e65c
 
 jobs:
   period-text-shots:
