@@ -78,6 +78,19 @@ SELECT c.order_id, r.id, c.line_id, 1,
 FROM return_requests r JOIN cand c ON c.order_id = r.order_id
 WHERE r.reason IN ('尺寸不合', '顏色不喜歡', '商品有瑕疵', '收到時外盒破損', '重複下單', '超過鑑賞期', '功能與描述不同');
 
+-- Orders waiting for payment, and orders being picked.
+UPDATE orders SET fulfillment_status = 'pending'
+WHERE id IN (SELECT o.id FROM orders o
+             WHERE o.fulfillment_status = 'cancelled'
+               AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id AND p.status = 'succeeded')
+             ORDER BY o.placed_at DESC LIMIT 2);
+UPDATE orders SET fulfillment_status = 'picking'
+WHERE id IN (SELECT o.id FROM orders o
+             WHERE o.fulfillment_status = 'shipped'
+               AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id)
+             ORDER BY o.placed_at DESC LIMIT 2);
+SELECT fulfillment_status, count(*) FROM orders GROUP BY 1 ORDER BY 1;
+
 SELECT status, before_shipment, count(*) FROM return_requests GROUP BY 1, 2 ORDER BY 1, 2;
 SELECT count(*) AS questions FROM product_questions;
 SELECT count(*) AS messages FROM contact_messages;
