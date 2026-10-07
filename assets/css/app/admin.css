@@ -136,7 +136,7 @@ h3 {
 
 .goen-btn:focus-visible,
 .goen-swatch:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -415,7 +415,7 @@ h3 {
 .goen-filters .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 
@@ -1384,7 +1384,7 @@ input.goen-check {
 }
 
 .goen-admin__langopt:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
