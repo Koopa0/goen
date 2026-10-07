@@ -11,11 +11,10 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
-	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -37,6 +36,9 @@ const (
 )
 
 func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
+	if detail == "" {
+		return string(cause)
+	}
 	return string(cause) + ": " + detail
 }
 
@@ -123,14 +125,20 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		DiscountReason: b.DiscountReason,
 		CreditCents:    b.CreditCents,
 	}
+	hold := pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	switch {
 	case order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled:
 		view.Closure = pages.PayOrderCancelled
+		hold = pages.PayHold{}
+		if !o.Hold.SweptAt.IsZero() {
+			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.Hold.Until), CancelledAt: o.Hold.SweptAt}
+		}
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
 	case !hasSession:
-		view.StartBy = shoptime.Minute(o.HoldExpiresAt.Add(-minSessionLifetime - sessionStartMargin))
+		hold.StartBy = startBy(o.Hold.Until)
 	}
+	view.Hold = hold
 	for i := range o.Lines {
 		l := &o.Lines[i]
 		view.Lines = append(view.Lines, pages.PayLine{
@@ -574,11 +582,8 @@ func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) 
 	if status != refundstate.Succeeded {
 		return nil
 	}
-	detail := "a refund goen recorded as succeeded failed at Stripe"
-	if o.refundFailure.reason != "" {
-		detail += " (" + o.refundFailure.reason + ")"
-	}
-	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, detail))
+	// The sentence a person reads is on /admin/health, in the viewer's language.
+	return tx.Unreconciled(ctx, webhookUnreconciled(webhookRefundFailed, o.refundFailure.reason))
 }
 
 func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {

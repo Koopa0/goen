@@ -255,9 +255,9 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, tc := range []struct {
-			name string
+			name   string
 			pickup bool
-			chain pickup.Chain
+			chain  pickup.Chain
 			errors map[string]i18n.Key
 		}{
 			{name: "phone", errors: map[string]i18n.Key{"phone": i18n.KeyPhoneMalformed}},
@@ -290,25 +290,27 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 						PickupChain: tc.chain, PickupStoreCode: "a123", PickupStoreName: ""},
 				}
 				body := renderComponent(t, ctx, Order(layouts.Page{}, &v))
-				controls := map[string]struct{id, value string}{
+				controls := map[string]struct{ id, value string }{
 					"recipient": {"d-recipient", v.Delivery.Recipient}, "phone": {"d-phone", v.Delivery.Phone}, "email": {"d-email", v.Delivery.Email},
 				}
 				if tc.pickup {
-					controls["pickup_store_code"] = struct{id, value string}{"d-store-code", v.Delivery.PickupStoreCode}
-					controls["pickup_store_name"] = struct{id, value string}{"d-store-name", v.Delivery.PickupStoreName}
+					controls["pickup_store_code"] = struct{ id, value string }{"d-store-code", v.Delivery.PickupStoreCode}
+					controls["pickup_store_name"] = struct{ id, value string }{"d-store-name", v.Delivery.PickupStoreName}
 					chainTag := tagWithID(t, body, "d-chain")
 					if tc.errors["pickup_chain"] != "" && (!strings.Contains(chainTag, `aria-invalid="true"`) || !strings.Contains(chainTag, `aria-describedby="d-chain-error"`)) {
 						t.Errorf("refused chain has no own error association: %s", chainTag)
 					}
-					selected := `<option value="`+html.EscapeString(string(tc.chain))+`" selected`
+					selected := `<option value="` + html.EscapeString(string(tc.chain)) + `" selected`
 					if !strings.Contains(body, selected) {
 						t.Errorf("submitted chain %q has no selected option", tc.chain)
 					}
 				} else {
-					for field, control := range map[string]struct{id, value string}{
+					for field, control := range map[string]struct{ id, value string }{
 						"postal_code": {"d-postal", v.Delivery.PostalCode}, "city": {"d-city", v.Delivery.City},
 						"district": {"d-district", v.Delivery.District}, "street": {"d-street", v.Delivery.Street},
-					} { controls[field] = control }
+					} {
+						controls[field] = control
+					}
 				}
 				for field, control := range controls {
 					tag := tagWithID(t, body, control.id)
@@ -319,8 +321,10 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 						if !strings.Contains(tag, `aria-invalid="true"`) || !strings.Contains(tag, `aria-describedby="`+control.id+`-error"`) {
 							t.Errorf("%s has no own error association: %s", field, tag)
 						}
-						want := `<p id="`+control.id+`-error" class="ui-error-text" role="alert">`+html.EscapeString(message)+`</p>`
-						if !strings.Contains(body, want) { t.Errorf("%s lacks its error %q", field, want) }
+						want := `<p id="` + control.id + `-error" class="ui-error-text" role="alert">` + html.EscapeString(message) + `</p>`
+						if !strings.Contains(body, want) {
+							t.Errorf("%s lacks its error %q", field, want)
+						}
 					} else if strings.Contains(tag, "aria-invalid") || strings.Contains(tag, "aria-describedby") {
 						t.Errorf("valid %s is marked as refused: %s", field, tag)
 					}

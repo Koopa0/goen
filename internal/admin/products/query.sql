@@ -13,6 +13,9 @@ WHERE (NOT @has_cursor::boolean OR (p.updated_at < @after_at::timestamptz)
 ORDER BY p.updated_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
+-- name: PublishedProductCount :one
+SELECT count(*)::bigint FROM products WHERE status = 'active';
+
 -- name: AdminProduct :one
 SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.warranty_months, 0)::integer AS warranty_months,
@@ -301,3 +304,21 @@ SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE;
 
 -- name: SetProductInvoiceLine :exec
 UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1;
+
+-- One row per shop day of [from_at, to_at), a day without sales included. The
+-- units are those of the orders PaidByShopDay counts.
+-- name: ProductUnitsByShopDay :many
+SELECT d.day::date AS day, coalesce(sum(t.units), 0)::bigint AS units
+FROM generate_series(shop_day(@from_at::timestamptz),
+                     shop_day((@to_at::timestamptz) - interval '1 microsecond'),
+                     interval '1 day') AS d(day)
+LEFT JOIN (
+    SELECT shop_day(o.placed_at) AS day, ol.quantity AS units
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN sold_orders s ON s.id = o.id
+    WHERE ol.product_id = @product_id::uuid
+      AND o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
+) t ON t.day = d.day::date
+GROUP BY d.day
+ORDER BY d.day;

@@ -23,30 +23,30 @@ func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {
 		PickupChain: pickup.SevenEleven,
 	}
 	for _, tt := range []struct {
-		name string
-		to destination.Kind
+		name   string
+		to     destination.Kind
 		change func(*DeliveryCorrection)
-		want []web.FieldRefusal
+		want   []web.FieldRefusal
 	}{
 		{
 			name: "short phone", to: destination.Address,
 			change: func(d *DeliveryCorrection) { d.Phone = " 123 " },
-			want: []web.FieldRefusal{{Field: "phone", MessageKey: i18n.KeyPhoneMalformed}},
+			want:   []web.FieldRefusal{{Field: "phone", MessageKey: i18n.KeyPhoneMalformed}},
 		},
 		{
 			name: "pickup code without name", to: destination.PickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreCode = " a123 " },
-			want: []web.FieldRefusal{{Field: "pickup_store_name", MessageKey: i18n.KeyAddressIncomplete}},
+			want:   []web.FieldRefusal{{Field: "pickup_store_name", MessageKey: i18n.KeyAddressIncomplete}},
 		},
 		{
 			name: "pickup name without code", to: destination.PickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreName = " Store " },
-			want: []web.FieldRefusal{{Field: "pickup_store_code", MessageKey: i18n.KeyStoreCodeMalformed}},
+			want:   []web.FieldRefusal{{Field: "pickup_store_code", MessageKey: i18n.KeyStoreCodeMalformed}},
 		},
 		{
 			name: "recipient field identity", to: destination.Address,
 			change: func(d *DeliveryCorrection) { d.Recipient = " " },
-			want: []web.FieldRefusal{{Field: "name", MessageKey: i18n.KeyNameRequired}},
+			want:   []web.FieldRefusal{{Field: "name", MessageKey: i18n.KeyNameRequired}},
 		},
 		{
 			name: "postal and non-postal failures", to: destination.Address,
@@ -95,7 +95,7 @@ func TestValidatedDeliveryNormalizesOnlyItsSuccessfulCopy(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
-		to destination.Kind
+		to   destination.Kind
 		want order.Delivery
 	}{
 		{

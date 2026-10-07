@@ -9,45 +9,51 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// rules is nil where the page has no shop rules to state.
-templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
+// rules and head are nil where the page has none to state.
+templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
 	@layouts.Base(p) {
-		<div class="goen-listing">
+		{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
+		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
-				<div class="goen-pagehead__text">
-					@components.Breadcrumb(components.BreadcrumbProps{
-						Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
-						Crumbs: v.Trail(ctx),
-					})
-					<h1 class="goen-pagehead__title">{ v.Name }</h1>
-					if len(v.Children()) > 0 {
-						<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
-							for _, c := range v.Children() {
-								if c.Slug == v.Slug {
-									<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
-								} else {
-									<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
-								}
+				<div class="goen-band">
+					<div class="goen-band__grid">
+						if photo.Shown() {
+							// Low priority: the stylesheet drops the photograph below 1024, where an eager
+							// image is still fetched and must not compete with the tiles.
+							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false)
+						}
+						<div class="goen-band__body goen-pagehead__text">
+							@components.Breadcrumb(components.BreadcrumbProps{
+								Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+								Crumbs: v.Trail(ctx),
+							})
+							<h1 class={ "goen-pagehead__title", templ.KV("goen-band__name--long", bandNameLong(v.Name)) }>{ v.Name }</h1>
+							if head != nil {
+								@departmentFacts(head)
 							}
-						</nav>
-					}
+							if len(v.Children()) > 0 {
+								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
+									for _, c := range v.Children() {
+										if c.Slug == v.Slug {
+											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) } aria-current="page">{ c.Name }</a>
+										} else {
+											<a class="goen-pagehead__chip" href={ templ.URL("/c/" + c.Slug) }>{ c.Name }</a>
+										}
+									}
+								</nav>
+							}
+						</div>
+					</div>
 				</div>
-				if v.Theme.Image().Shown() {
-					// Low priority: the stylesheet drops the photograph below 1024, where an eager
-					// image is still fetched and must not compete with the tiles.
-					<img
-						class="goen-pagehead__photo"
-						src={ v.Theme.Image().URL }
-						srcset={ v.Theme.Image().Srcset }
-						sizes="(min-width: 1344px) 36rem, 45vw"
-						alt={ v.Theme.Image().Alt }
-						width="800"
-						height="600"
-						fetchpriority="low"
-						decoding="async"
-					/>
-				}
 			</div>
+		</div>
+		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
+			if head != nil {
+				if head.Notice != nil {
+					@departmentNotice(head.Notice)
+				}
+				@departmentSlot(head)
+			}
 			<div class="goen-listing__layout">
 				@listingFilters(v)
 				<div class="goen-listing__main">
@@ -69,7 +75,6 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 							</div>
 						} else {
 							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-							<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 							@compareForm(AnyComparable(v.Grid())) {
 								<ul class="goen-tiles__grid" role="list">
 									for _, t := range v.Grid() {
@@ -77,7 +82,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules) {
 									}
 								</ul>
 							}
-							@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
+							@showMore(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 						}
 					</div>
 				</div>
@@ -113,7 +118,7 @@ templ listingFilters(v ListingView) {
 				hx-trigger="change delay:300ms"
 				hx-target="#listing-results"
 				hx-select="#listing-results"
-				hx-select-oob="#filters-applied, #listing-status:innerHTML"
+				hx-select-oob="#filters-applied, #listing-status:innerHTML, #listing-count:innerHTML, #listing-sort:innerHTML"
 				hx-swap="outerHTML"
 				hx-push-url="true"
 				hx-sync="this:replace"
@@ -123,69 +128,82 @@ templ listingFilters(v ListingView) {
 				// Keeps the outline unbroken: without an h2 between the page title and a tile's
 				// h3 the document skips a level (check-layout.mjs reads that as a defect).
 				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
-				for _, group := range v.Facets {
-					<details class="goen-filters__group" open>
-						<summary class="goen-filters__summary">{ group.Label }</summary>
+				<div class="goen-filters__menus">
+					for _, group := range v.Facets {
+						<details class="goen-filters__group" name="filters" data-popover>
+							<summary class="goen-filters__summary">{ group.Label }</summary>
+							<div class="goen-filters__options">
+								for position, option := range group.Options {
+									<label class="goen-filters__option">
+										<input type="checkbox" name={ group.Param() } value={ option.Value } class="goen-check" checked?={ option.Selected }/>
+										<span class="goen-filters__label">{ option.Label }</span>
+										<span class="goen-filters__count" id={ group.CountID(position) }>{ option.CountText() }</span>
+									</label>
+								}
+							</div>
+						</details>
+					}
+					<details class="goen-filters__group" name="filters" data-popover>
+						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
 						<div class="goen-filters__options">
-							for position, option := range group.Options {
-								<label class="goen-filters__option">
-									<input type="checkbox" name={ group.Param() } value={ option.Value } class="goen-check" checked?={ option.Selected }/>
-									<span class="goen-filters__label">{ option.Label }</span>
-									<span class="goen-filters__count" id={ group.CountID(position) }>{ option.CountText() }</span>
-								</label>
-							}
+							<label class="goen-filters__option">
+								<input type="checkbox" name="in_stock" value="1" class="goen-check" checked?={ v.InStockOnly }/>
+								<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyFacetInStock) }</span>
+							</label>
 						</div>
 					</details>
-				}
-				<details class="goen-filters__group" open>
-					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
-					<div class="goen-filters__options">
-						<label class="goen-filters__option">
-							<input type="checkbox" name="in_stock" value="1" class="goen-check" checked?={ v.InStockOnly }/>
-							<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyFacetInStock) }</span>
-						</label>
+					<details class="goen-filters__group" name="filters" data-popover>
+						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
+						<div class="goen-filters__prices">
+							<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
+							// ui-input is what check-layout.mjs measures in its tap sweep; app.css writes the recipe.
+							<input
+								class="ui-input"
+								id="min-price"
+								type="number"
+								name="min_price"
+								inputmode="numeric"
+								min="0"
+								placeholder={ i18n.T(ctx, i18n.KeyPriceMinShort) }
+								value={ v.MinPriceText() }
+							/>
+							<span class="goen-filters__dash" aria-hidden="true">–</span>
+							<label class="goen-sr-only" for="max-price">{ i18n.T(ctx, i18n.KeyPriceMax) }</label>
+							<input
+								class="ui-input"
+								id="max-price"
+								type="number"
+								name="max_price"
+								inputmode="numeric"
+								min="0"
+								placeholder={ i18n.T(ctx, i18n.KeyPriceMaxShort) }
+								value={ v.MaxPriceText() }
+							/>
+						</div>
+					</details>
+				</div>
+				<div class="goen-filters__end">
+					// Nothing to sort when nothing is listed; the box stays so a swap can fill it.
+					<div id="listing-sort" class="goen-filters__sort">
+						if !v.Empty() {
+							@sortField(v.SortOptions(ctx))
+						}
 					</div>
-				</details>
-				<details class="goen-filters__group" open>
-					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
-					<div class="goen-filters__prices">
-						<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
-						// ui-input is what check-layout.mjs looks for to decide the desktop rail
-						// rendered and to measure its tap sweep; app.css writes the recipe.
-						<input
-							class="ui-input"
-							id="min-price"
-							type="number"
-							name="min_price"
-							inputmode="numeric"
-							min="0"
-							placeholder={ i18n.T(ctx, i18n.KeyPriceMinShort) }
-							value={ v.MinPriceText() }
-						/>
-						<span class="goen-filters__dash" aria-hidden="true">–</span>
-						<label class="goen-sr-only" for="max-price">{ i18n.T(ctx, i18n.KeyPriceMax) }</label>
-						<input
-							class="ui-input"
-							id="max-price"
-							type="number"
-							name="max_price"
-							inputmode="numeric"
-							min="0"
-							placeholder={ i18n.T(ctx, i18n.KeyPriceMaxShort) }
-							value={ v.MaxPriceText() }
-						/>
-					</div>
-				</details>
-				@sortField(v.SortOptions(ctx))
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
-					Block:       true,
-					Class:       "goen-filters__apply",
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyApplyFilters) }
-				}
+					@components.Button(components.ButtonProps{
+						ButtonStyle: components.ButtonStylePrimary,
+						Block:       true,
+						Class:       "goen-filters__apply",
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeyApplyFilters) }
+					}
+				</div>
 			</form>
 		</details>
+		<p class="goen-listing__count" id="listing-count" aria-hidden="true">
+			if !v.Empty() {
+				{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }
+			}
+		</p>
 		// Shown by script when an update fails: the old results stay and this says why.
 		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 		// Announced from here, a region that stays while the results around it are
@@ -247,28 +265,21 @@ templ pager(label string, hasPrev, hasNext bool, prev, next, page, pages string)
 	}
 }
 
-templ numberedPager(hasPrev, hasNext bool, prev, next string, links []PageLink) {
-	if len(links) > 1 {
-		<nav class="goen-pager goen-pager--numbered" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
-			if hasPrev {
-				<a class="goen-pager__step" href={ templ.URL(prev) } rel="prev" aria-label={ i18n.T(ctx, i18n.KeyPrevPage) }><span aria-hidden="true">‹</span></a>
-			} else {
-				<span class="goen-pager__step" aria-disabled="true"><span aria-hidden="true">‹</span><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyPrevPage) }</span></span>
-			}
-			for _, l := range links {
-				if l.Gap {
-					<span class="goen-pager__gap" aria-hidden="true">…</span>
-				} else if l.Current {
-					<span class="goen-pager__page" aria-current="page"><span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPageNumber), l.Label) }</span><span aria-hidden="true">{ l.Label }</span></span>
-				} else {
-					<a class="goen-pager__page" href={ templ.URL(l.Href) } aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyPageNumber), l.Label) }>{ l.Label }</a>
+// A link to the next page, not a button: with scripting off it is the whole control.
+// The progress line counts pages because each page replaces the one before it.
+templ showMore(hasPrev, hasNext bool, prev, next, page, pages string) {
+	if hasPrev || hasNext {
+		<nav class="goen-pager goen-pager--more" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
+			<p class="goen-pager__at">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPageOf), page, pages) }</p>
+			<progress class="goen-pager__progress" value={ page } max={ pages } aria-hidden="true"></progress>
+			<div class="goen-pager__links">
+				if hasPrev {
+					<a class="goen-pager__prev" href={ templ.URL(prev) } rel="prev">{ i18n.T(ctx, i18n.KeyPrevPage) }</a>
 				}
-			}
-			if hasNext {
-				<a class="goen-pager__step" href={ templ.URL(next) } rel="next" aria-label={ i18n.T(ctx, i18n.KeyNextPage) }><span aria-hidden="true">›</span></a>
-			} else {
-				<span class="goen-pager__step" aria-disabled="true"><span aria-hidden="true">›</span><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyNextPage) }</span></span>
-			}
+				if hasNext {
+					<a class="goen-btn goen-btn--outline" href={ templ.URL(next) } rel="next">{ i18n.T(ctx, i18n.KeyShowMore) }</a>
+				}
+			</div>
 		</nav>
 	}
 }
@@ -285,9 +296,6 @@ templ Search(p layouts.Page, v SearchView) {
 						{ i18n.T(ctx, i18n.KeySearchHeading) }
 					}
 				</h1>
-				if v.Searched() {
-					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
-				}
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
@@ -344,6 +352,7 @@ templ Search(p layouts.Page, v SearchView) {
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeySearchSortApply) }
 					}
+					<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
 				</form>
 				<div id="search-results">
 					@compareForm(AnyComparable(v.Products)) {
@@ -353,7 +362,7 @@ templ Search(p layouts.Page, v SearchView) {
 							}
 						</ul>
 					}
-					@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
+					@showMore(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 				</div>
 			}
 		</div>

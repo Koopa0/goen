@@ -150,6 +150,8 @@ var (
 
 	KeyAdminHomeShowing = key("admin.home.showing", Message{ZhHant: "顯示中", En: "Showing"})
 
+	KeyAdminHomeEligible = key("admin.home.eligible", Message{ZhHant: "可顯示", En: "Eligible to show"})
+
 	KeyAdminHomeEndsAt = key("admin.home.endsat", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyAdminHomePromote = key("admin.home.promote", Message{ZhHant: "設為顯示", En: "Show this one"})

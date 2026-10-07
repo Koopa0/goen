@@ -135,7 +135,7 @@ templ Register(p layouts.Page, v AuthView) {
 						{ i18n.T(ctx, i18n.KeyFormHasErrors) }
 					}
 				}
-				if v.Sent {
+				if v.OffersResend {
 					<form class="goen-auth__form" method="post" action="/register/resend">
 						<input type="hidden" name="next" value={ v.Next }/>
 						if v.Email != "" {
@@ -160,9 +160,11 @@ templ Register(p layouts.Page, v AuthView) {
 							{ i18n.T(ctx, i18n.KeyRegisterResend) }
 						}
 					</form>
-					<p class="goen-auth__alt">
-						<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
-					</p>
+					if v.HasNotice() {
+						<p class="goen-auth__alt">
+							<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
+						</p>
+					}
 				} else {
 					<form class="goen-auth__form" method="post" action="/register">
 						<input type="hidden" name="next" value={ v.Next }/>
@@ -407,23 +409,21 @@ templ Account(p layouts.Page, v *AccountView) {
 							<table class="goen-account__orders">
 								<thead>
 									<tr>
-										<th class="goen-account__ordercol" scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
 										<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
 										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
-										<th class="goen-account__ordertotal" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
 									</tr>
 								</thead>
 								<tbody>
 									for _, o := range v.Orders {
 										<tr>
-											<td class="goen-account__ordercol">{ o.PlacedAt }</td>
 											<td>
 												<a class="goen-account__number" href={ templ.SafeURL("/orders/" + o.Number) }>
 													{ o.Number }
 												</a>
 												<span class="goen-account__ordermeta">
-													{ o.PlacedAt } · { i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()) }
+													{ i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()) }
 												</span>
+												@components.StatLine(o.Facts(ctx), components.StatLineSmall)
 											</td>
 											<td>
 												@components.Badge(components.BadgeProps{Intent: o.BadgeIntent()}) {
@@ -433,7 +433,6 @@ templ Account(p layouts.Page, v *AccountView) {
 													<a class="goen-account__orderpay" href={ templ.SafeURL("/orders/" + o.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
 												}
 											</td>
-											<td class="goen-account__ordertotal">{ o.Total() }</td>
 										</tr>
 									}
 								</tbody>

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
@@ -133,11 +134,23 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, status, admin.CampaignForm(
-		layouts.Page{Title: detail.Title}, admin.CampaignView{
-			Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
-			Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
-		}))
+	var altDraft, altEnDraft string
+	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
+		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
+	}
+	view := admin.CampaignView{
+		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
+		Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
+	}
+	// The results are one figure of the page: failing to read them must not
+	// take the editor with them.
+	view.Results, err = h.store.Results(r.Context(), slug, detail, len(products), time.Now())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
+		view.ResultsUnavailable = true
+	}
+	web.Render(w, r, h.log, status, admin.CampaignForm(layouts.Page{Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {

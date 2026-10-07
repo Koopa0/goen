@@ -990,41 +990,42 @@ input.goen-check {
   max-width: 68ch;
 }
 
-/* The figures a shift starts with. A counted grid with tracks that may shrink
-   to nothing, not auto-fit: a track whose minimum is a length is floored by it,
-   and one screen on this row has a stat label base.css refuses to wrap,
-   which took the whole page sideways at 375. */
-/* As many tiles as fit a figure, counted by the browser rather than by hand at
-   three widths. A back-office figure is money as often as it is a count — a
-   customer's lifetime spend, their store credit — and a six-figure sum at the
-   editorial size needs about 13rem of tile. Counted by hand it did not get it:
-   two across at 375 put the number outside its tile and the page scrolling
-   sideways, and five across at 1280 asks for five tiles out of a column the
-   rail has already taken 15rem from. The floor is the measurement; the count
-   follows from it, at every width and from whatever the rail leaves. */
+/* The newsletter screen's three counts, as many tiles as fit a 13rem floor. */
 .goen-admin__stats {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }
 
-/* A phone shows two tiles a row: the figure steps down so a seven-digit amount
-   stays inside a tile half the column wide. */
+/* A phone shows two tiles a row, the figure stepped down to fit. */
 @media (max-width: 479px) {
   .goen-admin__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .goen-admin__stats .goen-stat,
-  .goen-admin__stats .ui-stat {
+  .goen-admin__stats .goen-stat {
     padding: 12px;
   }
 
-  .goen-admin__stats .goen-stat__value,
-  .goen-admin__stats .ui-stat__value {
+  .goen-admin__stats .goen-stat__value {
     font-size: var(--fs-ed-20);
     overflow-wrap: anywhere;
   }
+}
+
+.goen-admin__tier {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+}
+
+.goen-admin__tier p {
+  margin: 0;
+}
+
+/* The stat line is one grid item that spans the row; the newsletter screen still lays its own tiles in it. */
+.goen-admin__stats > .ui-statline {
+  grid-column: 1 / -1;
 }
 
 .goen-stat {
@@ -1032,33 +1033,17 @@ input.goen-check {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-1);
-  color: inherit;
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
   padding: 16px;
-  text-decoration: none;
-  transition:
-    border-color var(--dur-base) var(--ease-standard),
-    box-shadow var(--dur-base) var(--ease-standard);
-}
-
-.goen-stat:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-2);
 }
 
 .goen-stat__label {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-normal);
-}
-
-.goen-stat__note {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
   line-height: var(--lh-normal);
 }
 
@@ -1146,6 +1131,14 @@ input.goen-check {
   font-size: var(--fs-13);
   line-height: var(--lh-normal);
   margin: 0;
+}
+
+/* The days cover rows above the stock list keep the page's own rhythm. */
+.goen-admin__cover {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 /* The second line of a cell or a card: who, when, which brand. */
@@ -1278,17 +1271,6 @@ input.goen-check {
 
 .goen-admin .ui-table tbody .goen-admin__cellkey {
   color: var(--fg);
-}
-
-.goen-admin__stats .ui-stat {
-  min-width: 0;
-}
-
-/* The shared stat label does not wrap, so a long one is wider than
-   its grid track and takes the page sideways with it. The screens still on
-   that component are measured at 375 by the layout gate. */
-.goen-admin__stats .ui-stat__label {
-  white-space: normal;
 }
 
 .goen-admin__row--low td {
@@ -1871,6 +1853,31 @@ input.goen-check {
   padding: 12px 16px;
 }
 
+.goen-admin__task--alert {
+  border-color: var(--warn);
+}
+
+.goen-admin__taskfigure {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+}
+
+.goen-admin__taskfigure .goen-admin__cellnum {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-regular);
+}
+
+.goen-admin__task:first-child .goen-admin__cellnum {
+  font-size: var(--fs-ed-30);
+  line-height: 1;
+}
+
+.goen-admin__taskage {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+}
+
 /* Worker health. One box per worker, marked at the edge when it needs
    attention — the page is opened to find out whether anything is wrong, so the
    answer has to be visible without reading. */
@@ -2205,6 +2212,7 @@ input.goen-check {
   font-size: var(--fs-ed-24);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
 }
 
 /* The two lists under the figures. Not tables: every cell already carries its
@@ -2248,6 +2256,14 @@ input.goen-check {
 
 .goen-report__bar {
   flex: 1 0 100%;
+}
+
+/* The sentence beside a warned estimate; the triangle repeats it for a reader
+   who scans the column. */
+.goen-report__warn {
+  color: var(--warn);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
 }
 
 @media (min-width: 1024px) {
@@ -2481,6 +2497,28 @@ input.goen-check {
   min-width: 0;
   /* Clears the sticky section row when a link scrolls here. */
   scroll-margin-top: 72px;
+}
+
+/* The rating spread of a product: a star, then its bar and count. The table is
+   the text of the spread; the bar only draws it. */
+.goen-spread {
+  border-collapse: collapse;
+  max-width: 28rem;
+  width: 100%;
+}
+
+.goen-spread th {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  white-space: nowrap;
+  width: 4.5rem;
+}
+
+.goen-spread td {
+  padding: 4px 0;
 }
 
 /* A product's options and its variants read the same way: one row per thing,
@@ -2847,16 +2885,18 @@ form[data-request-pending] [aria-disabled="true"] {
 
 /* A meter is a square-ended 10px track with its used part in hue. The unfilled
    part is the track, so a coupon with room left reads as room left. */
+/* Where the count does not fit beside the bar, it goes under it and wraps. */
 .goen-chartmeter {
   align-items: center;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 12px;
-  grid-template-columns: minmax(4rem, 1fr) auto;
+  gap: 4px 12px;
 }
 
 .goen-chartmeter svg {
   display: block;
+  flex: 1 1 4rem;
 }
 
 .goen-chartmeter__track {
@@ -2867,10 +2907,49 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-hue);
 }
 
+.goen-chartmeter__limit {
+  fill: var(--chart-annotation);
+}
+
 .goen-chartmeter__label {
   color: var(--fg);
   font-variant-numeric: tabular-nums lining-nums;
-  white-space: nowrap;
+}
+
+/* A bar over its range. The 1.5px range and the ink reference line are the
+   annotation; the row's text says the same in words. */
+.goen-chartrangebar svg {
+  display: block;
+}
+
+.goen-chartrangebar__track {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chartrangebar__fill {
+  fill: var(--chart-hue);
+}
+
+.goen-chartrangebar__range,
+.goen-chartrangebar__cap {
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chartrangebar__mark {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-chartrangebar__fill {
+    animation: goen-chart-grow 420ms var(--ease-standard) backwards;
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+  }
 }
 
 /* The SVG names its own system colours rather than relying on which
@@ -2897,9 +2976,535 @@ form[data-request-pending] [aria-disabled="true"] {
     fill: CanvasText;
   }
 
+  .goen-chartmeter__limit {
+    fill: CanvasText;
+  }
+
   .goen-chartmeter__track {
     fill: Canvas;
     stroke: CanvasText;
     stroke-width: 2;
+  }
+
+  .goen-chartrangebar svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chartrangebar__fill,
+  .goen-chartrangebar__range,
+  .goen-chartrangebar__cap,
+  .goen-chartrangebar__mark {
+    fill: CanvasText;
+    stroke: CanvasText;
+  }
+
+  .goen-chartrangebar__track {
+    stroke: transparent;
+  }
+}
+
+/* A figure: the sentence it makes, the drawing, the same data as a table, and
+   where the figures come from. The drawing is three SVGs side by side, the
+   axis, the plot and the line ends, so that a label never has to fit inside a
+   plot that stretches. The plot has no viewBox of its own: its text stays the
+   size it is written at, at any width. */
+.goen-chart {
+  container-type: inline-size;
+  margin: 0;
+}
+
+.goen-chart__caption {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-medium);
+  margin-block-end: 20px;
+}
+
+.goen-chart__frame {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 6.5rem;
+}
+
+.goen-chart__frame svg {
+  display: block;
+  overflow: visible;
+}
+
+.goen-chart__label,
+.goen-chart__endvalue {
+  fill: var(--chart-label);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-chart__endname,
+.goen-chart__today {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__grid {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-chart__baseline {
+  stroke: var(--chart-annotation);
+}
+
+.goen-chart__current,
+.goen-chart__previous {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.goen-chart__current {
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__previous {
+  stroke: var(--chart-previous);
+  stroke-width: 1.5;
+}
+
+.goen-chart__wash {
+  fill: var(--chart-hue);
+  fill-opacity: 0.08;
+}
+
+/* Today is not over, so its end is drawn open: a filled one would say the day
+   is final. */
+.goen-chart__end--current {
+  fill: var(--chart-hue);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__end--previous {
+  fill: var(--chart-previous);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__end--open {
+  fill: var(--bg);
+}
+
+.goen-chart__end--current.goen-chart__end--open {
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chart__end--previous.goen-chart__end--open {
+  stroke: var(--chart-previous);
+  stroke-width: 1.5;
+}
+
+.goen-chart__todaymark {
+  stroke: var(--mark, #26395a);
+  stroke-width: 2;
+}
+
+/* No column for the line ends: the plot takes what they would. */
+.goen-chart__frame--noends {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__level {
+  fill: none;
+  stroke: var(--chart-hue);
+  stroke-width: 2;
+}
+
+.goen-chart__safety,
+.goen-chart__receipt {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+}
+
+/* A name over a line is set on a halo of the page's own colour, so the line
+   does not run through its letters. */
+.goen-chart__annotation {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+}
+
+/* Fourteen days under a figure: the earlier seven in the previous grey, the
+   last seven in the data colour. A day not yet over is an outline. */
+.goen-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-block-start: 12px;
+  max-width: 16rem;
+}
+
+.goen-spark svg {
+  display: block;
+  overflow: visible;
+}
+
+.goen-spark__base {
+  shape-rendering: crispEdges;
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.goen-spark__bar--previous {
+  fill: var(--chart-previous);
+}
+
+.goen-spark__bar--current {
+  fill: var(--chart-hue);
+}
+
+.goen-spark__bar--open {
+  fill: var(--bg);
+  stroke-width: 1.5;
+}
+
+.goen-spark__bar--previous.goen-spark__bar--open {
+  stroke: var(--chart-previous);
+}
+
+.goen-spark__bar--current.goen-spark__bar--open {
+  stroke: var(--chart-hue);
+}
+
+.goen-spark__keys {
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-regular);
+  justify-content: space-between;
+}
+
+@container (max-width: 519px) {
+  .goen-chart__tick--minor {
+    display: none;
+  }
+}
+
+.goen-chart__data {
+  margin-block-start: 12px;
+}
+
+.goen-chart__data summary {
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--fs-13);
+}
+
+/* A table is two-dimensional, so on a narrow screen with large text it scrolls in
+   its own box rather than the page (WCAG 1.4.10). */
+.goen-chart__scroll {
+  overflow-x: auto;
+}
+
+.goen-chart__table {
+  border-collapse: collapse;
+  font-size: var(--fs-13);
+  margin-block-start: 8px;
+  width: 100%;
+}
+
+.goen-chart__table th,
+.goen-chart__table td {
+  border-block-end: 1px solid var(--chart-grid);
+  padding: 6px 8px 6px 0;
+  text-align: start;
+}
+
+.goen-chart__table td,
+.goen-chart__table tfoot th {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.goen-chart__table td {
+  text-align: end;
+}
+
+.goen-chart__table thead th:not(:first-child) {
+  text-align: end;
+}
+
+.goen-chart__table tfoot {
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 8px 0 0;
+}
+
+/* The readout (goen.js): the day under the pointer, read out of the table below
+   the chart. It sits in the flow under the plot, so it never covers a column; its
+   height is held while it is empty so showing it moves nothing. Nothing moves. */
+.goen-chart__hit {
+  fill: transparent;
+}
+
+.goen-chart__hit--on {
+  fill: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+.goen-chart__crosshair {
+  stroke: var(--chart-annotation);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* Only where scripts run, so a page without them is unchanged. The padding, not
+   a margin, keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. Its height is held for the longest line,
+   which runs to two on a narrow figure. */
+.goen-chart__readout {
+  display: none;
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+@media (scripting: enabled) {
+  .goen-chart__readout {
+    display: block;
+    min-height: calc(var(--fs-13) * var(--lh-normal));
+    padding-block-start: 8px;
+  }
+
+  .goen-chart__readout:empty {
+    visibility: hidden;
+  }
+
+  @container (max-width: 519px) {
+    .goen-chart__readout {
+      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
+    }
+  }
+}
+
+/* Forced colours: the SVG names its own system colours. The line is
+   CanvasText, the previous one GrayText, the wash and the grid, which the one
+   grey of a forced palette could not tell from the line, step aside. The
+   labels are set to CanvasText, since forced-color-adjust is off. */
+@media (forced-colors: active) {
+  .goen-chart__frame svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-chart__current,
+  .goen-chart__baseline {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__previous {
+    stroke: GrayText;
+  }
+
+  .goen-chart__wash,
+  .goen-chart__grid:not(.goen-chart__baseline) {
+    fill: transparent;
+    stroke: transparent;
+  }
+
+  .goen-chart__end--current {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__end--previous {
+    fill: GrayText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__end--open {
+    fill: Canvas;
+  }
+
+  .goen-chart__end--current.goen-chart__end--open {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__end--previous.goen-chart__end--open {
+    stroke: GrayText;
+  }
+
+  .goen-chart__todaymark {
+    stroke: Highlight;
+  }
+
+  .goen-chart__hit--on {
+    fill: transparent;
+    stroke: Highlight;
+  }
+
+  .goen-chart__crosshair {
+    stroke: CanvasText;
+  }
+
+  .goen-spark svg {
+    forced-color-adjust: none;
+  }
+
+  .goen-spark__bar--current {
+    fill: CanvasText;
+  }
+
+  .goen-spark__bar--previous {
+    fill: GrayText;
+  }
+
+  .goen-spark__bar--open {
+    fill: Canvas;
+  }
+
+  .goen-spark__bar--current.goen-spark__bar--open {
+    stroke: CanvasText;
+  }
+
+  .goen-spark__bar--previous.goen-spark__bar--open {
+    stroke: GrayText;
+  }
+
+  .goen-spark__base {
+    stroke: transparent;
+  }
+
+  .goen-chart__level,
+  .goen-chart__safety,
+  .goen-chart__receipt {
+    stroke: CanvasText;
+  }
+
+  .goen-chart__annotation {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .goen-chart__label,
+  .goen-chart__endname,
+  .goen-chart__endvalue,
+  .goen-chart__today {
+    fill: CanvasText;
+  }
+}
+
+/* Columns: a bar a day, or a bar to seven days, on the same baseline as the
+   running totals. A campaign is a bracket above them, cut into days where a
+   column is a day, and a pale ground behind them; its colour is the time mark,
+   which is also today's, because both are dates. */
+.goen-chart__frame--columns {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.goen-chart__frame--plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.goen-chart__hue {
+  fill: var(--chart-hue);
+}
+
+.goen-chart__hue--previous {
+  fill: var(--chart-previous);
+}
+
+.goen-chart__window {
+  fill: var(--chart-previous);
+}
+
+.goen-chart__open {
+  fill: var(--bg);
+  stroke: var(--chart-hue);
+  stroke-width: 1.5;
+}
+
+.goen-chart__span {
+  fill: var(--n-100);
+}
+
+.goen-chart__strip {
+  fill: var(--mark, #26395a);
+}
+
+.goen-chart__gap {
+  shape-rendering: crispEdges;
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.goen-chart__gap--thin {
+  stroke-width: 1;
+}
+
+/* A span's name is placed on the server, fitted to a 12px label (columns.go,
+   textWidth and narrowPlot), so it keeps that size: a rem size outgrows the
+   room it was fitted to and runs off a phone at large text. Page zoom still
+   scales it, and the data table under the chart names every span. */
+.goen-chart__spanlabel {
+  fill: var(--fg);
+  font-size: 12px;
+}
+
+.goen-chart__value {
+  fill: var(--fg);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-medium);
+}
+
+/* The names over the brackets are placed for a plot of narrowPlot, 244px, at
+   12px text (internal/ui/chart/columns.go): with the value axis, a figure of
+   18rem at any text size. A narrower figure, the campaign card at 320px or a
+   small screen with large text, would push a name off the screen (WCAG
+   1.4.10), so it drops them; the table names the stretch on each of its days. */
+@container (width < 18rem) {
+  .goen-chart__spanlabel {
+    display: none;
+  }
+}
+
+.goen-chart__table .goen-chart__spans,
+.goen-chart__table thead th.goen-chart__spans {
+  text-align: start;
+}
+
+@media (forced-colors: active) {
+  .goen-chart__hue,
+  .goen-chart__strip {
+    fill: CanvasText;
+  }
+
+  .goen-chart__open {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  .goen-chart__hue--previous,
+  .goen-chart__window {
+    fill: GrayText;
+  }
+
+  .goen-chart__span {
+    fill: transparent;
+  }
+
+  .goen-chart__gap {
+    stroke: Canvas;
+  }
+
+  .goen-chart__spanlabel,
+  .goen-chart__value {
+    fill: CanvasText;
   }
 }

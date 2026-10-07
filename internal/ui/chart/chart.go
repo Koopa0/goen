@@ -2,7 +2,10 @@
 // and the table that is each chart's text equivalent belong to the page.
 package chart
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 // minBarWidth keeps a positive value visible when it is far below the longest,
 // at the price of proportionality: every value below 0.6% of Max draws the
@@ -35,12 +38,69 @@ func (p BarProps) width() string {
 // column and the same track.
 func (p BarProps) wide() bool { return p.Max >= wideScale }
 
-// MeterProps is Value of a Limit, Label the count as already localised text.
-// A caller with no limit draws no meter.
-type MeterProps struct {
+// Bucket is one shop day's value: Day is the date as SQL returns a date column,
+// Value the day's amount in cents, or its count.
+type Bucket struct {
+	Day   time.Time
 	Value int64
-	Limit int64
-	Label string
+}
+
+// Series is a run of consecutive shop days under one legend label. Partial says
+// that the last bucket is a day still going, or cut at a time of day, so that
+// it is drawn as not yet final.
+type Series struct {
+	Label   string
+	Buckets []Bucket
+	Partial bool
+}
+
+// Density is how many of a series' buckets are not zero, which is what decides
+// whether there is enough to draw and how much to label.
+type Density int
+
+const (
+	DensityNone   Density = iota // no bucket
+	DensityFew                   // one or two
+	DensitySparse                // three to six
+	DensityFull                  // seven or more
+)
+
+// Density counts the buckets that are not zero.
+func (s Series) Density() Density {
+	filled := 0
+	for _, b := range s.Buckets {
+		if b.Value != 0 {
+			filled++
+		}
+	}
+	switch {
+	case filled == 0:
+		return DensityNone
+	case filled < 3:
+		return DensityFew
+	case filled < 7:
+		return DensitySparse
+	}
+	return DensityFull
+}
+
+// Measure is what a value counts, which sets the steps of its axis and how it
+// reads.
+type Measure int
+
+const (
+	MeasureCount Measure = iota
+	MeasureMoney         // cents
+)
+
+// MeterProps is Value of a Limit, Label the count as already localised text.
+// A caller with no limit draws no meter. LimitLine marks the limit with a line
+// at the end of the track, for a limit that is a threshold to cross.
+type MeterProps struct {
+	Value     int64
+	Limit     int64
+	Label     string
+	LimitLine bool
 }
 
 // width is the filled part as a percentage of the meter; a limit that is
@@ -51,4 +111,25 @@ func (p MeterProps) width() string {
 		w = float64(min(p.Value, p.Limit)) / float64(p.Limit) * 100
 	}
 	return strconv.FormatFloat(w, 'f', 2, 64) + "%"
+}
+
+// RangeBarProps is one value, the range it may lie in and a reference line,
+// all numbers on the scale 0 to Max that the page chose and every row shares.
+// Values beyond Max are drawn at its end.
+type RangeBarProps struct {
+	Value, Low, High, Mark, Max int64
+}
+
+// position is v as a percentage of the track, held within it.
+func (p RangeBarProps) position(v int64) string {
+	pct := 0.0
+	if p.Max > 0 {
+		pct = float64(min(max(v, 0), p.Max)) / float64(p.Max) * 100
+	}
+	return strconv.FormatFloat(pct, 'f', 2, 64) + "%"
+}
+
+// ranged reports whether the range has any length on the scale.
+func (p RangeBarProps) ranged() bool {
+	return p.Max > 0 && min(p.High, p.Max) > max(p.Low, 0)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -411,52 +412,59 @@ func TestListingPriceIsBuyable(t *testing.T) {
 	t.Error("the fixture product is not in the listing")
 }
 
-// "On sale" is a variant fact, and a product qualifies when ANY active variant
-// carries one.
-func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
-	ctx := t.Context()
+func dealSlugs(t *testing.T, s *catalog.Store) (slugs []string, total int64) {
+	t.Helper()
+	for page := 1; page <= 50; page++ {
+		view, err := s.Deals(t.Context(), page)
+		if err != nil {
+			t.Fatalf("deals page %d: %v", page, err)
+		}
+		total = view.Total
+		if len(view.Products) == 0 {
+			break
+		}
+		for i := range view.Products {
+			slugs = append(slugs, view.Products[i].Slug)
+		}
+	}
+	return slugs, total
+}
+
+func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
 	s := catalog.NewStore(pool)
+	_, before := dealSlugs(t, s)
 
-	view, err := s.Deals(ctx, 1)
-	if err != nil {
-		t.Fatalf("deals: %v", err)
-	}
-	if view.Total == 0 {
-		t.Fatal("no deals at all; the seed has marked-down variants, so the query is wrong")
-	}
-
-	for _, tile := range view.Products {
-		var discounted bool
-		if err := pool.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id
-				WHERE p.slug = $1 AND pv.is_active
-				  AND pv.compare_at_price_cents > pv.price_cents)`,
-			tile.Slug).Scan(&discounted); err != nil {
-			t.Fatalf("check %s: %v", tile.Slug, err)
-		}
-		if !discounted {
-			t.Errorf("%q is on the deals page with nothing marked down", tile.Slug)
-		}
+	product := discountedProduct(t)
+	slugs, total := dealSlugs(t, s)
+	if slices.Contains(slugs, product) || total != before {
+		t.Errorf("a discounted product in no campaign is on the deals page (listed %v, total %d, was %d)",
+			slices.Contains(slugs, product), total, before)
 	}
 
-	var expected int64
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM products p
-		WHERE p.status = 'active' AND EXISTS (
-			SELECT 1 FROM product_variants dv
-			WHERE dv.product_id = p.id AND dv.is_active
-			  AND dv.compare_at_price_cents > dv.price_cents)`).Scan(&expected); err != nil {
-		t.Fatalf("count: %v", err)
+	slug := campaign(t, "deals-"+uuid.NewString()[:8])
+	if err := feature(t, slug, product); err != nil {
+		t.Fatalf("feature: %v", err)
 	}
-	if view.Total != expected {
-		t.Errorf("deals shows %d products, the catalogue has %d marked down",
-			view.Total, expected)
+	slugs, total = dealSlugs(t, s)
+	if !slices.Contains(slugs, product) || total != before+1 {
+		t.Errorf("a product of a running campaign with stock is missing from the deals page (listed %v, total %d, want %d)",
+			slices.Contains(slugs, product), total, before+1)
+	}
+
+	if _, err := pool.Exec(t.Context(), `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
+		ends_at = now() - interval '1 day' WHERE slug = $1`, slug); err != nil {
+		t.Fatalf("end campaign: %v", err)
+	}
+	slugs, total = dealSlugs(t, s)
+	if slices.Contains(slugs, product) || total != before {
+		t.Errorf("a product of an ended campaign is on the deals page (listed %v, total %d, was %d)",
+			slices.Contains(slugs, product), total, before)
 	}
 }
 
 // By fraction, not amount: ordering by absolute saving puts the expensive
-// things on top, which is a price list rather than a sale.
+// things on top, which is a price list rather than a sale. Sellable products
+// come first, and depth orders each group.
 func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -469,8 +477,15 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 		t.Skipf("only %d deals; ordering cannot be observed", len(view.Products))
 	}
 
-	last := 2.0
-	for i, tile := range view.Products {
+	last, soldOut := 2.0, false
+	for i := range view.Products {
+		tile := &view.Products[i]
+		if !tile.InStock && !soldOut {
+			soldOut, last = true, 2.0
+		}
+		if tile.InStock && soldOut {
+			t.Errorf("product %d can be bought, after one that cannot", i)
+		}
 		if tile.CompareCents <= 0 {
 			continue
 		}
@@ -536,15 +551,20 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 	}
 }
 
+// listedSlugs reads every page: other tests commit listed campaigns, so one
+// page of CampaignPageSize rows need not hold the campaign under test.
 func listedSlugs(t *testing.T, s *catalog.Store) []string {
 	t.Helper()
-	view, err := s.ListedCampaigns(t.Context(), 1)
-	if err != nil {
-		t.Fatalf("running campaigns: %v", err)
-	}
 	var out []string
-	for _, r := range view.Rows {
-		out = append(out, r.Slug)
+	for page, last := 1, 1; page <= last; page++ {
+		view, err := s.ListedCampaigns(t.Context(), page)
+		if err != nil {
+			t.Fatalf("running campaigns page %d: %v", page, err)
+		}
+		last = int((view.Total + catalog.CampaignPageSize - 1) / catalog.CampaignPageSize)
+		for _, r := range view.Rows {
+			out = append(out, r.Slug)
+		}
 	}
 	return out
 }
@@ -568,6 +588,9 @@ func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			slug := campaign(t, "listed-"+uuid.NewString()[:8])
+			t.Cleanup(func() {
+				_, _ = pool.Exec(context.WithoutCancel(ctx), `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, slug)
+			})
 			if tt.stock >= 0 {
 				featureNewProduct(t, pool, slug, tt.stock, tt.status)
 			}
@@ -608,7 +631,7 @@ func plainSlug(t *testing.T) string {
 	return slug
 }
 
-func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
+func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
 
@@ -616,8 +639,8 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 	if err := feature(t, running, discountedSlug(t)); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
-	if _, err := s.Campaign(ctx, running); err != nil {
-		t.Fatalf("a running campaign was not found: %v", err)
+	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.State != pages.CampaignRunning {
+		t.Fatalf("a running campaign = state %q, %v", view.Schedule.State, err)
 	}
 
 	tests := []struct {
@@ -625,12 +648,12 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 		// Spelled out: sale_campaigns_slug_format allows no spaces.
 		slug  string
 		setup string
+		want  pages.CampaignState
 	}{
 		{"already ended", "window-ended", `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
-			ends_at = now() - interval '1 day' WHERE slug = $1`},
+			ends_at = now() - interval '1 day' WHERE slug = $1`, pages.CampaignEnded},
 		{"not started yet", "window-future", `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
-			ends_at = now() + interval '30 days' WHERE slug = $1`},
-		{"switched off", "window-off", `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`},
+			ends_at = now() + interval '30 days' WHERE slug = $1`, pages.CampaignNotStarted},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -641,32 +664,118 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 			if _, err := pool.Exec(ctx, tt.setup, slug); err != nil {
 				t.Fatalf("setup: %v", err)
 			}
-			if _, err := s.Campaign(ctx, slug); !errors.Is(err, catalog.ErrNotFound) {
-				t.Errorf("got %v, want ErrNotFound", err)
+			view, err := s.Campaign(ctx, slug)
+			if err != nil {
+				t.Fatalf("Campaign(%s) = %v, want the page", slug, err)
+			}
+			if view.Schedule.State != tt.want {
+				t.Errorf("Campaign(%s) state = %q, want %q", slug, view.Schedule.State, tt.want)
 			}
 		})
 	}
+
+	off := campaign(t, "window-off")
+	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, off); err != nil {
+		t.Fatalf("switch off: %v", err)
+	}
+	if _, err := s.Campaign(ctx, off); !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("Campaign of a switched-off campaign = %v, want ErrNotFound", err)
+	}
 }
 
-// A year-long campaign names no last day; one ending within the month does.
-func TestARunningCampaignNamesOnlyANearLastDay(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	near := campaign(t, "near-end-"+uuid.NewString()[:8])
-	far := campaign(t, "far-end-"+uuid.NewString()[:8])
-	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET ends_at = now() + interval '1 year' WHERE slug = $1`, far); err != nil {
-		t.Fatalf("lengthen campaign: %v", err)
+// What can be bought comes before what cannot, however deep the sold-out
+// markdown is. On /deals the tile shows the discounted variant, so a product
+// whose discounted variant is sold out ranks as sold out even when a regular
+// variant is in stock.
+func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	s := catalog.NewStore(tx)
+
+	deep := newDeal(t, tx, 100, 0)
+	shallow := newDeal(t, tx, 950, 5)
+	soldOutDiscount := newDeal(t, tx, 900, 0)
+	if _, err = tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+		SELECT id, upper(replace($1, '-', '')) || 'R', 1000, 5, 0, 1 FROM products WHERE slug = $1`, soldOutDiscount); err != nil {
+		t.Fatalf("add regular variant: %v", err)
 	}
 
-	s := catalog.NewStore(pool)
-	for slug, wantDay := range map[string]bool{near: true, far: false} {
-		view, err := s.Campaign(ctx, slug)
-		if err != nil {
-			t.Fatalf("read campaign %s: %v", slug, err)
-		}
-		if got := view.EndsOn != ""; got != wantDay {
-			t.Errorf("%s names its last day = %v (%q), want %v", slug, got, view.EndsOn, wantDay)
+	dealsCamp := "deals-sellable-" + uuid.NewString()[:8]
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, dealsCamp); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	for position, slug := range []string{deep, shallow, soldOutDiscount} {
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+			SELECT c.id, p.id, $3 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, dealsCamp, slug, position); err != nil {
+			t.Fatalf("feature %s: %v", slug, err)
 		}
 	}
+
+	var slugs []string
+	for page := 1; ; page++ {
+		view, dealsErr := s.Deals(ctx, page)
+		if dealsErr != nil {
+			t.Fatalf("Deals(%d): %v", page, dealsErr)
+		}
+		for i := range view.Products {
+			slugs = append(slugs, view.Products[i].Slug)
+		}
+		if int64(page*catalog.PageSize) >= view.Total {
+			break
+		}
+	}
+	at := func(slug string) int { return slices.Index(slugs, slug) }
+	if at(shallow) < 0 || at(deep) >= 0 || at(soldOutDiscount) >= 0 {
+		t.Errorf("Deals lists: sellable %d, sold out %d and %d, want only the sellable one", at(shallow), at(deep), at(soldOutDiscount))
+	}
+
+	camp := "sellable-first-" + uuid.NewString()[:8]
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ($1, '測試活動', now() + interval '7 days')`, camp); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	// Positions: the sold-out one is first by the back office's order.
+	for position, slug := range []string{deep, newDeal(t, tx, 800, 5), shallow} {
+		if _, err = tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+			SELECT c.id, p.id, $3 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, camp, slug, position); err != nil {
+			t.Fatalf("feature %s: %v", slug, err)
+		}
+	}
+	view, err := s.Campaign(ctx, camp)
+	if err != nil {
+		t.Fatalf("Campaign: %v", err)
+	}
+	stock := make([]bool, 0, len(view.Products))
+	prices := make([]int64, 0, len(view.Products))
+	for i := range view.Products {
+		stock = append(stock, view.Products[i].InStock)
+		prices = append(prices, view.Products[i].PriceCents)
+	}
+	if !slices.Equal(stock, []bool{true, true, false}) || !slices.Equal(prices[:2], []int64{800, 950}) {
+		t.Errorf("Campaign products in stock %v at prices %v, want the sellable ones in position order, then the sold-out one", stock, prices)
+	}
+}
+
+func newDeal(t *testing.T, db sqlExecer, price, stock int) string {
+	t.Helper()
+	slug := "deal-" + uuid.NewString()
+	if _, err := db.Exec(t.Context(), `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '特價商品', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, upper(replace($1, '-', '')), $2, 1000, $3, 0, 0 FROM p`, slug, price, stock); err != nil {
+		t.Fatalf("create deal: %v", err)
+	}
+	return slug
 }
 
 // sale_campaign_needs_discount takes a lock on the product before it reads the
@@ -736,7 +845,8 @@ func constraintName(err error) (code, name string) {
 func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
-	slugs := activeSlugs(t, 5)
+	// One past pages.MaxCompare, so the ceiling cases follow the constant.
+	slugs := activeSlugs(t, pages.MaxCompare+1)
 
 	tests := []struct {
 		name string
@@ -744,8 +854,8 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 		want int
 	}{
 		{"two products", slugs[:2], 2},
-		{"the ceiling", slugs[:4], 4},
-		{"past the ceiling", slugs, 4},
+		{"the ceiling", slugs[:pages.MaxCompare], pages.MaxCompare},
+		{"past the ceiling", slugs, pages.MaxCompare},
 		{"a repeat is one column", []string{slugs[0], slugs[0], slugs[1]}, 2},
 		{"an unknown slug is dropped", []string{slugs[0], "no-such-product", slugs[1]}, 2},
 		{"nothing at all", nil, 0},
@@ -1010,11 +1120,10 @@ func TestSearchFindsAProductByItsSpecification(t *testing.T) {
 	}
 }
 
-// A product is on /deals when ANY active variant carries a discount, while a
-// tile is priced on the cheapest BUYABLE variant — a different variant whenever
-// the discounted one is dearer or sold out. Every product in the seed satisfies
-// both rules with one variant, so this fixture puts the discount on the DEARER
-// one.
+// The tile shows a discounted variant that can be bought, which is a different
+// variant from the cheapest buyable one whenever the discount sits on the dearer
+// variant. Every product in the seed has the discount on its cheapest variant, so
+// this fixture puts it on the DEARER one.
 func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -1047,6 +1156,9 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		     )
 		SELECT slug FROM p`).Scan(&slug); err != nil {
 		t.Fatalf("build a product whose discount is on the dearer variant: %v", err)
+	}
+	if err := feature(t, campaign(t, "split-"+uuid.NewString()[:8]), slug); err != nil {
+		t.Fatalf("feature the product: %v", err)
 	}
 
 	view, err := s.Deals(ctx, 1)
@@ -1081,9 +1193,8 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 			"cheaper variant exists — 起 on a price that is not the lowest")
 	}
 
-	// A campaign has the same admission rule as /deals: the product is present
-	// because one active variant is discounted. It must not fall back to the
-	// cheaper regular variant and erase the campaign's own markdown.
+	// The campaign shelf must not fall back to the cheaper regular variant and
+	// erase the campaign's own markdown.
 	var productID uuid.UUID
 	if queryErr := pool.QueryRow(ctx, `SELECT id FROM products WHERE slug = $1`, slug).Scan(&productID); queryErr != nil {
 		t.Fatalf("read campaign product: %v", queryErr)
@@ -1362,4 +1473,194 @@ func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
 			t.Errorf("%s is suggested for a laptop, off its shelf", sg.Slug)
 		}
 	}
+}
+
+// discountedProduct creates an active product with one discounted variant in stock,
+// featured by no campaign.
+func discountedProduct(t *testing.T) string {
+	t.Helper()
+	slug := "discounted-" + uuid.NewString()
+	if _, err := pool.Exec(t.Context(), `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '折扣商品', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, 5, 0, 0 FROM p`, slug); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	return slug
+}
+
+func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	tests := []struct {
+		name  string
+		setup string
+		want  bool
+	}{
+		{"running", ``, true},
+		{"already ended", `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
+			ends_at = now() - interval '1 day' WHERE slug = $1`, false},
+		{"not started yet", `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
+			ends_at = now() + interval '30 days' WHERE slug = $1`, false},
+		{"switched off", `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, false},
+		{"nothing left to buy", `UPDATE product_variants SET stock_quantity = 0
+			WHERE product_id IN (SELECT cp.product_id FROM sale_campaign_products cp
+			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			product := discountedProduct(t)
+			slug := campaign(t, "card-"+uuid.NewString()[:8])
+			if err := feature(t, slug, product); err != nil {
+				t.Fatalf("feature: %v", err)
+			}
+			if tt.setup != "" {
+				if _, err := pool.Exec(ctx, tt.setup, slug); err != nil {
+					t.Fatalf("setup: %v", err)
+				}
+			}
+			tiles, err := s.NewestProducts(ctx, 50)
+			if err != nil {
+				t.Fatalf("newest products: %v", err)
+			}
+			for i := range tiles {
+				if tile := &tiles[i]; tile.Slug == product {
+					if tile.InCampaign != tt.want {
+						t.Errorf("%s: InCampaign = %v, want %v", tt.name, tile.InCampaign, tt.want)
+					}
+					return
+				}
+			}
+			t.Fatalf("%s: product %s is not among the newest 50", tt.name, product)
+		})
+	}
+
+	t.Run("featured by none", func(t *testing.T) {
+		product := discountedProduct(t)
+		tiles, err := s.NewestProducts(ctx, 50)
+		if err != nil {
+			t.Fatalf("newest products: %v", err)
+		}
+		for i := range tiles {
+			if tile := &tiles[i]; tile.Slug == product {
+				if tile.InCampaign || tile.CompareCents == 0 {
+					t.Errorf("a discounted product in no campaign: InCampaign = %v, CompareCents = %d, want false and its standing compare price", tile.InCampaign, tile.CompareCents)
+				}
+				return
+			}
+		}
+		t.Fatalf("product %s is not among the newest 50", product)
+	})
+}
+
+// A card strikes only a price the shopper can pay: a product whose discounted
+// variant is sold out, with another in stock at full price, shows the full price
+// unstruck on /deals and on its campaign page, and /deals does not list it.
+func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	slug := "split-" + uuid.NewString()
+	if _, err := pool.Exec(ctx, `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '售完折扣測試', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, 'SOLD-' || upper(replace($1, '-', '')), 100000, 200000, 0, 0, 0 FROM p
+		UNION ALL
+		SELECT p.id, 'FULL-' || upper(replace($1, '-', '')), 150000, NULL, 10, 0, 1 FROM p`, slug); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	campaignSlug := campaign(t, "soldout-"+uuid.NewString()[:8])
+	if err := feature(t, campaignSlug, slug); err != nil {
+		t.Fatalf("feature: %v", err)
+	}
+	// Another product keeps the campaign something to buy.
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+		SELECT c.id, p.id, 1 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, discountedProduct(t)); err != nil {
+		t.Fatalf("feature the other product: %v", err)
+	}
+
+	// A product with an undiscounted variant (no compare price) and a discounted
+	// one, both in stock, must show the discounted one struck.
+	mixed := "mixed-" + uuid.NewString()
+	if _, err := pool.Exec(ctx, `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           $1, '混合折扣測試', 'active', now()
+		    RETURNING id
+		)
+		INSERT INTO product_variants
+		    (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		SELECT p.id, 'PLAIN-' || upper(replace($1, '-', '')), 100000, NULL, 10, 0, 0 FROM p
+		UNION ALL
+		SELECT p.id, 'DISC-' || upper(replace($1, '-', '')), 150000, 300000, 10, 0, 1 FROM p`, mixed); err != nil {
+		t.Fatalf("create mixed product: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+		SELECT c.id, p.id, 2 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, mixed); err != nil {
+		t.Fatalf("feature the mixed product: %v", err)
+	}
+
+	slugs, _ := dealSlugs(t, s)
+	if slices.Contains(slugs, slug) {
+		t.Error("/deals lists a product whose only discounted variant is sold out")
+	}
+
+	view, err := s.Campaign(ctx, campaignSlug)
+	if err != nil {
+		t.Fatalf("campaign: %v", err)
+	}
+	var sawSoldOut, sawMixed bool
+	for i := range view.Products {
+		switch tile := &view.Products[i]; tile.Slug {
+		case slug:
+			sawSoldOut = true
+			if tile.PriceCents != 150000 || tile.OnSale() {
+				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", tile.PriceCents, tile.OnSale())
+			}
+		case mixed:
+			sawMixed = true
+			if tile.PriceCents != 150000 || !tile.OnSale() || tile.CompareCents != 300000 {
+				t.Errorf("campaign card of a product with a plain and a discounted variant in stock: price %d, was %d, on sale %v; want NT$1,500 struck from NT$3,000",
+					tile.PriceCents, tile.CompareCents, tile.OnSale())
+			}
+		}
+	}
+	if !sawSoldOut || !sawMixed {
+		t.Error("a product is missing from its campaign page")
+	}
+	for page := 1; page <= 50; page++ {
+		deals, dealsErr := s.Deals(ctx, page)
+		if dealsErr != nil {
+			t.Fatalf("deals page %d: %v", page, dealsErr)
+		}
+		if len(deals.Products) == 0 {
+			break
+		}
+		for i := range deals.Products {
+			if tile := &deals.Products[i]; tile.Slug == mixed {
+				if tile.PriceCents != 150000 || !tile.OnSale() {
+					t.Errorf("deals card of a product with a plain and a discounted variant in stock: price %d, on sale %v; want NT$1,500 struck", tile.PriceCents, tile.OnSale())
+				}
+				return
+			}
+		}
+	}
+	t.Error("the mixed product is not on /deals")
 }

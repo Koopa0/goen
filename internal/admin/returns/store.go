@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -249,7 +250,7 @@ func buildReturnQueue(
 // an ambiguous attempt reuses its provider key, while a known terminal attempt
 // gets a fresh DB-derived key and immutable successor row.
 func (s *Store) Decide(
-	ctx context.Context, id, decision, resolution, assessmentVersion string, _ uuid.NullUUID,
+	ctx context.Context, id, decision, resolution, assessmentVersion string,
 ) error {
 	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
@@ -259,10 +260,8 @@ func (s *Store) Decide(
 	if !ok {
 		return fmt.Errorf("%w: decide return", audit.ErrNoActor)
 	}
-	// The signed-in context is the authority for every side effect of this
-	// decision. Trusting the caller-supplied parameter instead could attribute
-	// the return audit, provider attempt and store-credit posting to three
-	// different people.
+	// The signed-in context keeps the return audit, provider attempt and
+	// store-credit posting attributed to the same person.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
 	kind, ok := returnrules.ParseDecisionKind(decision)
@@ -288,6 +287,9 @@ func (s *Store) retryDecideReturn(
 	ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID,
 ) error {
 	worked, err := s.payouts.Resume(ctx, row, actor)
+	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) && !errors.Is(err, refundstate.ErrRefused) {
+		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
+	}
 	if err != nil || worked {
 		return err
 	}
@@ -318,7 +320,11 @@ func (s *Store) decideReturnFirst(
 	if kind == returnrules.DecisionReject {
 		return nil
 	}
-	return s.payouts.PayApproved(ctx, row.ID, actor)
+	err := s.payouts.PayApproved(ctx, row.ID, actor)
+	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) {
+		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
+	}
+	return err
 }
 
 // refusedIfNoRow reports a missing row as ErrRefused and any other error as the
@@ -775,7 +781,7 @@ func (s *Store) Inspect(
 // Complete closes an inspected return. It writes no stock: the movement
 // was posted with the INSPECTION, which is when the goods went back on the
 // shelf.
-func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.NullUUID) error {
+func (s *Store) Complete(ctx context.Context, id, resolution string) error {
 	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
 			ErrInvalid, returnrules.MaxResolutionRunes)

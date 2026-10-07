@@ -1110,7 +1110,8 @@ INSERT INTO shipping_methods (id, code, destination_kind, position) VALUES
 -- and this number are the same claim, so they change together. In effect from
 -- the shop's midnight rather than the hour the seed ran: seed/demo_shift.sql
 -- keeps that hour, and a demo restored earlier in the day would otherwise offer
--- no way to ship until then.
+-- no way to ship until then. It also dates the database by the home-delivery
+-- one.
 INSERT INTO shipping_method_versions (id, method_id, name, carrier, name_en, carrier_en,
                                       fee_cents, free_over_cents, effective_at) VALUES
     ('ffff0002-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000001', '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000, 300000,
@@ -1201,7 +1202,7 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('退貨', '哪些商品可以退貨？',
      '只有「已出貨」的商品可以申請退貨，而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消，不需要走退貨流程。', 10),
     ('退貨', '退款什麼時候會收到？',
-     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。', 20),
+     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。卡款入帳時間依發卡銀行而定，通常是數個工作天；購物金退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which

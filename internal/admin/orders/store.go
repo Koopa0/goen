@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/ordercancel"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -47,16 +48,22 @@ type Invoices interface {
 	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
 }
 
-// Stock names the variants running low, for the dashboard; the stock desk
+// Stock ranks the SKUs by days cover, for the dashboard; the stock desk
 // implements it.
 type Stock interface {
-	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error)
 }
 
 // Health lists what the health desk judges to need a person, as dashboard
 // tasks; the health desk implements it.
 type Health interface {
 	Tasks(ctx context.Context) ([]admin.Task, error)
+}
+
+// Sales reads the dashboard's last seven days and its latest paid order; the
+// reports desk implements it.
+type Sales interface {
+	FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error
 }
 
 type Store struct {
@@ -66,13 +73,14 @@ type Store struct {
 	invoices Invoices
 	stock    Stock
 	health   Health
+	sales    Sales
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health) *Store {
-	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil {
-		panic("orders: NewStore requires a pool, refunds, invoices, stock and health")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health, sales Sales) *Store {
+	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil || sales == nil {
+		panic("orders: NewStore requires a pool, refunds, invoices, stock, health and sales")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health, sales: sales}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -81,16 +89,21 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		return admin.DashboardView{}, fmt.Errorf("read summary: %w", err)
 	}
 	view := admin.DashboardView{
-		PendingOrders:  sum.PendingOrders,
-		ReadyOrders:    sum.ReadyOrders,
-		PickingOrders:  sum.PickingOrders,
-		LowStock:       sum.LowStock,
-		ActiveProducts: sum.ActiveProducts,
-		OpenMessages:   sum.OpenMessages,
+		PendingOrders:             sum.PendingOrders,
+		ReadyOrders:               sum.ReadyOrders,
+		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
+		PickingOrders:             sum.PickingOrders,
+		PickingOldestSeconds:      sum.PickingOldestSeconds,
+		SoldOut:                   sum.SoldOut,
+		OpenMessages:              sum.OpenMessages,
+		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
 
-		PendingReturns:      sum.PendingReturns,
-		UninspectedReturns:  sum.UninspectedReturns,
-		UnansweredQuestions: sum.UnansweredQuestions,
+		PendingReturns:                   sum.PendingReturns,
+		PendingReturnsOldestSeconds:      sum.PendingReturnsOldestSeconds,
+		UninspectedReturns:               sum.UninspectedReturns,
+		UninspectedReturnsOldestSeconds:  sum.UninspectedReturnsOldestSeconds,
+		UnansweredQuestions:              sum.UnansweredQuestions,
+		UnansweredQuestionsOldestSeconds: sum.UnansweredQuestionsOldestSeconds,
 	}
 	// No status: the newest orders whatever state they are in. The tiles above
 	// the queue already count each state, and a queue filtered to one of them
@@ -103,10 +116,11 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	view.Low, err = s.stock.LowStock(ctx, 10)
+	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
 	if err != nil {
-		return admin.DashboardView{}, err
+		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
+	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }
@@ -115,6 +129,12 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 // still worth opening without it, so the caller decides what an error costs.
 func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
 	return s.health.Tasks(ctx)
+}
+
+// FillWeek is the last seven days of the shop's sales. The dashboard is still
+// worth opening without it, so the caller decides what an error costs.
+func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
+	return s.sales.FillWeek(ctx, view, now)
 }
 
 const DashboardRows = 8
@@ -296,7 +316,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	}
 
 	timeline, err := s.q.AdminOrderTimeline(ctx, db.AdminOrderTimelineParams{
-		OrderID: o.ID, MailTopics: orderMailTopics,
+		OrderID: o.ID, MailTopics: orderMailTopics, InvoicingEnabled: view.InvoicingEnabled,
 	})
 	if err != nil {
 		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
@@ -363,11 +383,6 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	}); advanceErr != nil {
 		return nil, pgerr.WrapRefusal(advanceErr, ErrRefused)
 	}
-	// LockOrderForAdvance owns the aggregate row before this snapshot. If an
-	// expiry release won the order lock first, we now see no held row; if this
-	// transition won, that release waits behind us. A pre-lock snapshot can go
-	// stale and make an otherwise valid cancellation roll back.
-	var held []uuid.UUID
 	if status == order.FulfillmentCancelled {
 		// The database admits cancelling a paid order once its refund before
 		// shipment has settled, but only RefundBeforeShipment closes that
@@ -378,19 +393,20 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 		if funded(row.Committed, row.OwedCents, row.CreditCents) {
 			return nil, ErrPaidCancel
 		}
-		if held, err = q.HeldReservationsForOrder(ctx, number); err != nil {
-			return nil, fmt.Errorf("read holds of %s: %w", number, err)
-		}
 	}
 	if err := applyStatusEffects(ctx, q, statusEffect{
-		status: status, previous: order.FulfillmentStatus(row.FulfillmentStatus), number: number, orderID: row.ID, held: held,
+		status: status, previous: order.FulfillmentStatus(row.FulfillmentStatus), number: number,
+		orderID: row.ID, actor: actor,
 	}); err != nil {
 		return nil, err
 	}
-	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: row.ID, Kind: kind, ActorUserID: actor,
-	}); err != nil {
-		return nil, fmt.Errorf("record order event: %w", err)
+	// A cancellation records its own event.
+	if status != order.FulfillmentCancelled {
+		if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
+			OrderID: row.ID, Kind: kind, ActorUserID: actor,
+		}); err != nil {
+			return nil, fmt.Errorf("record order event: %w", err)
+		}
 	}
 	if err := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(row.ID),
@@ -455,18 +471,13 @@ type statusEffect struct {
 	previous order.FulfillmentStatus
 	number   string
 	orderID  uuid.UUID
-	held     []uuid.UUID
+	actor    uuid.NullUUID
 }
 
 // applyStatusEffects does what a status move MEANS beyond the column — the
 // stock release, the credit reversal, the parcel stamp — in the CALLER's
 // transaction, so a status cannot disagree with what it implies.
 func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) error {
-	for _, id := range e.held {
-		if err := q.ReleaseReservation(ctx, id); err != nil {
-			return fmt.Errorf("release hold %s of %s: %w", id, e.number, err)
-		}
-	}
 	switch e.status {
 	case order.FulfillmentPending, order.FulfillmentShipped:
 	case order.FulfillmentPicking:
@@ -474,10 +485,12 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
 	case order.FulfillmentCancelled:
-		// The customer's own cancellation does this too; the back office
-		// cancelling on their behalf must not be the path that keeps their credit.
-		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
-			return fmt.Errorf("return store credit spent on %s: %w", e.number, err)
+		_, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: email.TerminalCancelledByStaff,
+			VoidTrigger: web.RequestID(ctx),
+		})
+		if err != nil {
+			return err
 		}
 		if _, err := q.ReverseOrderPoints(ctx, e.orderID); err != nil {
 			return fmt.Errorf("claw back loyalty earned on %s: %w", e.number, err)
@@ -497,8 +510,6 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 
 func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
 	switch e.status {
-	case order.FulfillmentCancelled:
-		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: email.TerminalCancelledByStaff})
 	case order.FulfillmentDelivered, order.FulfillmentCompleted:
 		row, err := q.OrderDestinationKind(ctx, e.number)
 		if err != nil {

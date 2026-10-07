@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -124,6 +124,12 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 			err := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item)
 			if got := errors.Is(err, refundstate.ErrRefused); got != tt.wantErr {
 				t.Fatalf("fillReturnPayoutState() refundstate.ErrRefused = %t, want %t; error = %v",
+					got, tt.wantErr, err)
+			}
+			// A payout that does not fit its record is the mismatch notice, not
+			// the generic refusal: the cause has to stay ErrPayoutUnfit.
+			if got := errors.Is(err, ErrPayoutUnfit); got != tt.wantErr {
+				t.Fatalf("fillReturnPayoutState() ErrPayoutUnfit = %t, want %t; error = %v",
 					got, tt.wantErr, err)
 			}
 			wantItem := admin.Return{

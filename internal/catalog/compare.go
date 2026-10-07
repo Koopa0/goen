@@ -38,7 +38,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		view.Products = append(view.Products, pages.CompareProduct{
 			Slug: r.Slug, Name: r.Name, Summary: r.Summary,
 			Brand: r.Brand, Category: r.Category,
-			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries, CompareCents: r.CompareAtPriceCents.Int64,
+			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries, CompareCents: r.CompareAtPriceCents.Int64, InCampaign: r.InCampaign,
 			Rating: r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
 			WarrantyMonths: int(r.WarrantyMonths),
 			ImageURL:       assets.ProductImageURL(r.ImageKey),

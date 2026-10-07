@@ -72,3 +72,93 @@ func TestLastDayIsTheDayBeforeAMidnightEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestDaysBetweenCountsDays(t *testing.T) {
+	t.Parallel()
+	d := func(m time.Month, day int) shoptime.Date { return shoptime.Date{Year: 2026, Month: m, Day: day} }
+	for _, tt := range []struct {
+		name     string
+		from, to shoptime.Date
+		want     int
+	}{
+		{"same day", d(10, 9), d(10, 9), 0},
+		{"next day", d(10, 9), d(10, 10), 1},
+		{"across a month", d(9, 30), d(10, 2), 2},
+		{"earlier", d(10, 9), d(10, 7), -2},
+	} {
+		if got := shoptime.DaysBetween(tt.from, tt.to); got != tt.want {
+			t.Errorf("%s: DaysBetween = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+// A midnight end is exclusive, so its last day is the day before; a mid-day end
+// is its own last day.
+func TestDaysLeftCountsToTheLastDay(t *testing.T) {
+	t.Parallel()
+	taipei := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, taipei)
+	for _, tt := range []struct {
+		name   string
+		endsAt time.Time
+		want   int
+	}{
+		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), 1},
+		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), 0},
+		{"mid-day end, three days on", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), 3},
+		{"ended yesterday", time.Date(2026, 10, 9, 0, 0, 0, 0, taipei), -1},
+		// 17:00 UTC is already the next day in Taipei.
+		{"in UTC", time.Date(2026, 10, 12, 17, 0, 0, 0, time.UTC), 4},
+	} {
+		if got := shoptime.DaysLeft(now, tt.endsAt); got != tt.want {
+			t.Errorf("%s: DaysLeft = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestDateLabelIsTheShortForm(t *testing.T) {
+	t.Parallel()
+	d := shoptime.Date{Year: 2026, Month: time.October, Day: 30}
+	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "10/30", i18n.En: "Oct\u00a030"} {
+		if got := shoptime.DateLabel(i18n.WithLocale(t.Context(), locale), d); got != want {
+			t.Errorf("DateLabel(%s) = %q, want %q", locale, got, want)
+		}
+	}
+}
+
+func TestMonthsBetweenCountsWholeMonths(t *testing.T) {
+	t.Parallel()
+	day := func(y int, m time.Month, d int) shoptime.Date { return shoptime.Date{Year: y, Month: m, Day: d} }
+	for _, tt := range []struct {
+		name     string
+		from, to shoptime.Date
+		want     int
+	}{
+		{"the same day", day(2026, 10, 6), day(2026, 10, 6), 0},
+		{"before the month's day", day(2026, 10, 6), day(2026, 11, 5), 0},
+		{"on the month's day", day(2026, 10, 6), day(2026, 11, 6), 1},
+		{"across a year", day(2026, 10, 6), day(2028, 9, 30), 23},
+		{"the later day first", day(2026, 10, 6), day(2026, 9, 6), 0},
+	} {
+		if got := shoptime.MonthsBetween(tt.from, tt.to); got != tt.want {
+			t.Errorf("%s: MonthsBetween = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestStampTextIsTheShortDateAndTheShopsClock(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC) // 14:02 in Taipei
+	for locale, want := range map[i18n.Locale]string{
+		i18n.ZhHant: "10/3 14:02",
+		i18n.En:     "Oct 3 14:02",
+	} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		if got := shoptime.StampText(ctx, at); got != want {
+			t.Errorf("%v: StampText = %q, want %q", locale, got, want)
+		}
+	}
+	if got, want := shoptime.ISOStamp(at), "2026-10-03T14:02+08:00"; got != want {
+		t.Errorf("ISOStamp = %q, want %q", got, want)
+	}
+}

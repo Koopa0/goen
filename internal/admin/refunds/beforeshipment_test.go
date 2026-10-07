@@ -17,16 +17,16 @@ func TestTheRefundBeforeShipmentIsOfferedFromPaidAndPicking(t *testing.T) {
 		order.FulfillmentShipped:   false,
 		order.FulfillmentCancelled: false,
 	} {
-		offered, open := beforeShipmentRefundState(&db.BeforeShipmentRefundRow{
+		offered, open := beforeShipmentRefundState(&beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{
 			FulfillmentStatus: string(status), Committed: true,
-		})
+		}})
 		if offered != want || open {
 			t.Errorf("committed %s: offered=%t open=%t, want offered=%t open=false", status, offered, open, want)
 		}
 	}
-	if offered, _ := beforeShipmentRefundState(&db.BeforeShipmentRefundRow{
+	if offered, _ := beforeShipmentRefundState(&beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{
 		FulfillmentStatus: string(order.FulfillmentPending), Committed: false,
-	}); offered {
+	}}); offered {
 		t.Error("an unpaid order is offered a refund")
 	}
 }
@@ -39,16 +39,16 @@ func TestACreditPaidPendingOrderIsOfferedItsCancellation(t *testing.T) {
 	pending, picking := string(order.FulfillmentPending), string(order.FulfillmentPicking)
 	for _, tc := range []struct {
 		name                string
-		row                 db.BeforeShipmentRefundRow
+		row                 beforeShipment
 		offered, creditPaid bool
 	}{
-		{name: "pending, credit paid", row: db.BeforeShipmentRefundRow{FulfillmentStatus: pending, PaidByCredit: true}, offered: true, creditPaid: true},
-		{name: "pending, credit paid, committed", row: db.BeforeShipmentRefundRow{FulfillmentStatus: pending, PaidByCredit: true, Committed: true}, offered: true},
-		{name: "picking, credit paid, committed", row: db.BeforeShipmentRefundRow{FulfillmentStatus: picking, PaidByCredit: true, Committed: true}, offered: true},
-		{name: "picking, credit paid", row: db.BeforeShipmentRefundRow{FulfillmentStatus: picking, PaidByCredit: true}, offered: false},
-		{name: "pending, credit paid, has a return", row: db.BeforeShipmentRefundRow{FulfillmentStatus: pending, PaidByCredit: true, HasReturn: true}, offered: false},
-		{name: "pending, owes", row: db.BeforeShipmentRefundRow{FulfillmentStatus: pending}, offered: false},
-		{name: "cancelled, credit paid", row: db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentCancelled), PaidByCredit: true}, offered: false},
+		{name: "pending, credit paid", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: pending}, PaidByCredit: true}, offered: true, creditPaid: true},
+		{name: "pending, credit paid, committed", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: pending, Committed: true}, PaidByCredit: true}, offered: true},
+		{name: "picking, credit paid, committed", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: picking, Committed: true}, PaidByCredit: true}, offered: true},
+		{name: "picking, credit paid", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: picking}, PaidByCredit: true}, offered: false},
+		{name: "pending, credit paid, has a return", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: pending, HasReturn: true}, PaidByCredit: true}, offered: false},
+		{name: "pending, owes", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: pending}}, offered: false},
+		{name: "cancelled, credit paid", row: beforeShipment{BeforeShipmentRefundRow: db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentCancelled)}, PaidByCredit: true}, offered: false},
 	} {
 		offered, open := beforeShipmentRefundState(&tc.row)
 		if offered != tc.offered || open {

@@ -140,6 +140,11 @@ var (
 
 	KeyAdminTimelineInvoicePending = key("admin.timeline.invoice.pending", Message{ZhHant: "處理中", En: "In progress"})
 
+	KeyAdminTimelineInvoiceNotSent = key("admin.timeline.invoice.not_sent", Message{
+		ZhHant: "未啟用電子發票，尚未送出",
+		En:     "E-invoicing is off, not sent",
+	})
+
 	KeyAdminTimelineInvoiceAwaitingBuyer = key("admin.timeline.invoice.awaiting", Message{
 		ZhHant: "等待顧客同意",
 		En:     "Waiting for the customer to agree",
@@ -231,9 +236,9 @@ var (
 		En:     "This order is already in a final state.",
 	})
 
-	KeyAdminQueueLowOnly = key("admin.queue.lowonly", Message{
-		ZhHant: "僅低庫存",
-		En:     "Low stock only",
+	KeyAdminQueueSoldOutOnly = key("admin.queue.soldoutonly", Message{
+		ZhHant: "僅已售完",
+		En:     "Sold out only",
 	})
 
 	KeyAdminQueueNoVariants = key("admin.queue.novariants", Message{
@@ -289,7 +294,7 @@ var (
 	})
 
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
-		ZhHant: "額度的金額或原因有誤，請重新確認後再送出。",
+		ZhHant: "購物金的金額或原因有誤，請重新確認後再送出。",
 		En:     "The credit amount or reason is not right. Check them and send again.",
 	})
 

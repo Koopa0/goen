@@ -9,6 +9,15 @@ var (
 
 	KeyHome = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
+	KeyDeptBrands = key("dept.brands", Message{ZhHant: "品牌", En: "Brands"})
+
+	KeyUnitBrands = countKey("unit.brands", "%d\u00a0個", "%d\u00a0brand", "%d\u00a0brands")
+
+	KeyDeptCompareTitle = key("dept.compare.title", Message{ZhHant: "把規格擺在一起", En: "Specifications, side by side"})
+
+	// The colours' names joined into the story's title.
+	KeyDeptColourJoin = key("dept.colours.join", Message{ZhHant: "、", En: ", "})
+
 	KeyListingCount = countKey("listing.count", "共 %s 件商品", "%s product", "%s products")
 
 	KeyListingEmpty = key("listing.empty", Message{
@@ -95,7 +104,7 @@ var (
 
 	KeySubcategories = key("listing.subcategories", Message{ZhHant: "子分類", En: "Subcategories"})
 
-	KeyPageNumber = key("listing.pager.number", Message{ZhHant: "第 %s 頁", En: "Page %s"})
+	KeyShowMore = key("listing.pager.more", Message{ZhHant: "顯示更多", En: "Show more"})
 
 	KeyPageOf = key("listing.pager.at", Message{ZhHant: "第 %s / %s 頁", En: "Page %s of %s"})
 
@@ -129,6 +138,11 @@ var (
 	KeyOnSale = key("card.onsale", Message{ZhHant: "特價", En: "On sale"})
 
 	KeyWasPrice = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
+
+	KeyNoPhoto = key("card.nophoto", Message{ZhHant: "沒有照片", En: "No photo"})
+
+	// KeyColourCount is said to a screen reader, which cannot see the dots.
+	KeyColourCount = key("card.colours", Message{ZhHant: "%d 種顏色", En: "%d colours"})
 
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",

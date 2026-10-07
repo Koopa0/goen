@@ -218,8 +218,8 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	view := pages.AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	view.OffersResend = q.Get("resend") == "1" || q.Get("sent") == "1"
 	if q.Get("sent") == "1" {
-		view.Sent = true
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
 		// Not in the URL: history and proxy logs keep URLs.
 		if addr, next, ok := readPendingRegistration(r); ok {
@@ -693,9 +693,9 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	current := r.PostFormValue("current")
-	if _, err := h.store.Authenticate(r.Context(), u.Email, current); err != nil {
+	if err := h.store.ConfirmPassword(r.Context(), u.Email, current); err != nil {
 		if !errors.Is(err, ErrBadCredentials) {
-			h.log.ErrorContext(r.Context(), "authenticate password change", "error", err)
+			h.log.ErrorContext(r.Context(), "confirm password change", "error", err)
 			h.serverError(w, r)
 			return
 		}
@@ -835,9 +835,9 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.Authenticate(r.Context(), u.Email, r.PostFormValue("current")); err != nil {
+	if err := h.store.ConfirmPassword(r.Context(), u.Email, r.PostFormValue("current")); err != nil {
 		if !errors.Is(err, ErrBadCredentials) {
-			h.log.ErrorContext(r.Context(), "authenticate email change", "error", err)
+			h.log.ErrorContext(r.Context(), "confirm email change", "error", err)
 			h.serverError(w, r)
 			return
 		}
@@ -888,6 +888,15 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	// The live address-verification token changes identity data; never compress it.
 	web.NoCompress(w)
 	ctx := r.Context()
+	if r.URL.Query().Get("done") == "1" {
+		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
+			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
+			pages.NewsletterActionView{
+				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
+				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
+			}))
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
 		pages.NewsletterActionView{
@@ -911,7 +920,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	if u, ok := user.FromContext(ctx); ok {
 		asker = u.ID
 	}
-	confirmed, err := h.store.ConfirmVerification(ctx, token, asker)
+	_, err := h.store.ConfirmVerification(ctx, token, asker)
 	switch {
 	case errors.Is(err, ErrVerifyNeedsPassword):
 		// A registration link reached the page for proving an address; it is
@@ -923,12 +932,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		back := "/verify?" + url.Values{"token": {token}}.Encode()
 		http.Redirect(w, r, "/signin?"+url.Values{"next": {back}}.Encode(), http.StatusSeeOther)
 	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
-			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			pages.NewsletterActionView{
-				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
-				Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyVerifyDoneBody), confirmed.Email),
-			}))
+		http.Redirect(w, r, "/verify?done=1", http.StatusSeeOther)
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrStaffAddress):
@@ -970,7 +974,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 	addr, err := h.store.RegistrationAddress(ctx, token)
 	if errors.Is(err, ErrVerifyInvalid) {
-		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		h.registrationDead(w, r, next)
 		return
 	}
 	if err != nil {
@@ -1002,11 +1006,16 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
 	case errors.Is(err, ErrVerifyInvalid):
-		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		h.registrationDead(w, r, next)
 	default:
 		h.log.ErrorContext(ctx, "complete registration", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next string) {
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegistrationDead(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {

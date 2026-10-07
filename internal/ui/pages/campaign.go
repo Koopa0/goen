@@ -8,16 +8,37 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// CampaignEndsOn is "" while the last day is more than 30 days off: a year-long
-// "limited time" date reads as a deadline the shop does not mean.
+// CampaignEndsOn is the last day a campaign runs, said the short way.
 func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
-	if endsAt.After(now.AddDate(0, 0, 30)) {
-		return ""
-	}
 	return shoptime.DateText(ctx, shoptime.LastDay(endsAt, now))
+}
+
+// CampaignEndStat is the campaign's last day as a stat, with the time of day when it does not end at
+// midnight; the last two days say so in its note.
+func CampaignEndStat(ctx context.Context, endsAt, now time.Time) components.Stat {
+	clock := ""
+	if !shoptime.Midnight(endsAt).Equal(endsAt) {
+		clock = shoptime.ClockText(endsAt)
+	}
+	datetime := shoptime.LastDay(endsAt, now).ISO()
+	if clock != "" {
+		datetime += "T" + clock
+	}
+	stat := components.Stat{
+		Label: i18n.T(ctx, i18n.KeySlideEnds),
+		Value: components.StatDate(CampaignEndsOn(ctx, endsAt, now), clock).WithDatetime(datetime),
+	}
+	switch left := shoptime.DaysLeft(now, endsAt); {
+	case left <= 0:
+		stat.Note = i18n.T(ctx, i18n.KeyEndsToday)
+	case left == 1:
+		stat.Note = i18n.T(ctx, i18n.KeyEndsTomorrow)
+	}
+	return stat
 }
 
 type CampaignSummary struct {
@@ -31,16 +52,90 @@ func (c CampaignSummary) Href() string { return "/s/" + c.Slug }
 
 func (c CampaignSummary) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
 
+// CampaignState is where a campaign's window lies against the present; the zero value is running.
+type CampaignState string
+
+const (
+	CampaignRunning    CampaignState = ""
+	CampaignNotStarted CampaignState = "not-started"
+	CampaignEnded      CampaignState = "ended"
+)
+
+// CampaignStateAt judges the window [startsAt, endsAt) at now.
+func CampaignStateAt(startsAt, endsAt, now time.Time) CampaignState {
+	switch {
+	case now.Before(startsAt):
+		return CampaignNotStarted
+	case !now.Before(endsAt):
+		return CampaignEnded
+	}
+	return CampaignRunning
+}
+
+// CampaignSchedule is what a campaign page says about its window: the fact line
+// and, when the span fits one, the day grid.
+type CampaignSchedule struct {
+	State CampaignState
+	Facts []components.Stat
+	// Ends and DaysLeft are Facts' own stats; DaysLeft has no value in the last two days and outside the window.
+	Ends, DaysLeft components.Stat
+	Period         components.PeriodSpec
+	HasPeriod      bool
+}
+
+// NewCampaignSchedule states a campaign of items products running from startsAt
+// to endsAt, which is exclusive.
+func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
+	state := CampaignStateAt(startsAt, endsAt, now)
+	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: StatCountOf(ctx, i18n.KeyUnitItems, items)}
+	ends := CampaignEndStat(ctx, endsAt, now)
+	schedule := CampaignSchedule{State: state, Ends: ends}
+
+	switch state {
+	case CampaignNotStarted:
+		first := shoptime.DateOf(startsAt, now)
+		starts := components.Stat{
+			Label: i18n.T(ctx, i18n.KeyCampaignStarts),
+			Value: components.StatDate(shoptime.DateText(ctx, first), "").WithDatetime(first.ISO()),
+		}
+		schedule.Ends.Note = ""
+		schedule.Facts = []components.Stat{starts, schedule.Ends, count}
+	case CampaignEnded:
+		schedule.Ends.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
+		schedule.Facts = []components.Stat{schedule.Ends, count}
+	default:
+		// The last two days say so in the end's note instead.
+		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
+			schedule.DaysLeft = components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: StatCountOf(ctx, i18n.KeyUnitDays, int64(left))}
+		}
+		schedule.Facts = []components.Stat{count, schedule.Ends}
+		if schedule.DaysLeft.Label != "" {
+			schedule.Facts = append(schedule.Facts, schedule.DaysLeft)
+		}
+	}
+	schedule.Period, schedule.HasPeriod = components.DayPeriod(ctx, title, startsAt, endsAt, now)
+	return schedule
+}
+
+// CardFacts are what is left, when it is shown, and then when it ends: the
+// facts of a card whose item count is its link.
+func (s *CampaignSchedule) CardFacts() []components.Stat {
+	if s.DaysLeft.Label == "" {
+		return []components.Stat{s.Ends}
+	}
+	return []components.Stat{s.DaysLeft, s.Ends}
+}
+
 type CampaignView struct {
 	Slug     string
 	Title    string
-	EndsOn   string
+	Schedule CampaignSchedule
 	Products []ProductTile
 	Image    Photo
 	Tone     Tone
 }
 
-func (v CampaignView) Empty() bool { return len(v.Products) == 0 }
+func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }
 
 func CampaignMeta(ctx context.Context, title string, photo Photo) layouts.Page {
 	return layouts.Page{

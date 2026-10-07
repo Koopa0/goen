@@ -790,9 +790,9 @@ func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
 
 	body := res.Body.String()
 	targetID := "pre-" + zoneA.String()
-	target := admintest.InputElementByID(t, body, targetID)
-	if got := admintest.InputAttribute(t, target, "value"); got != raw {
-		t.Errorf("target row value = %q, want raw %q", got, raw)
+	target, targetText := admintest.TextareaByID(t, body, targetID)
+	if targetText != raw {
+		t.Errorf("target row text = %q, want raw %q", targetText, raw)
 	}
 	if admintest.InputAttribute(t, target, "aria-invalid") != "true" {
 		t.Errorf("target row is not marked aria-invalid: %s", target)
@@ -806,15 +806,15 @@ func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
 		t.Errorf("no nonempty error element resolves %q", errorID)
 	}
 
-	neighbour := admintest.InputElementByID(t, body, "pre-"+zoneB.String())
-	if got := admintest.InputAttribute(t, neighbour, "value"); got != p[1] {
-		t.Errorf("neighbour value = %q, want database value %q", got, p[1])
+	neighbour, neighbourText := admintest.TextareaByID(t, body, "pre-"+zoneB.String())
+	if neighbourText != p[1] {
+		t.Errorf("neighbour text = %q, want database value %q", neighbourText, p[1])
 	}
 	if strings.Contains(neighbour, "aria-invalid") {
 		t.Errorf("neighbour row inherited the target error: %s", neighbour)
 	}
-	create := admintest.InputElementByID(t, body, "z-prefixes")
-	if strings.Contains(create, "aria-invalid") || admintest.InputAttribute(t, create, "value") == raw {
+	create, createText := admintest.TextareaByID(t, body, "z-prefixes")
+	if strings.Contains(create, "aria-invalid") || createText == raw {
 		t.Errorf("create-zone field inherited an existing-row refusal: %s", create)
 	}
 	assertZonePrefixes(t, zoneA, p[:1])
@@ -1447,4 +1447,240 @@ func TestSurchargeChecksTheCurrentVersionAfterItsLockWait(t *testing.T) {
 	}
 	assertSurchargeVersions(t, oldVersion, current, zone, 10000, 10000)
 	assertSurchargeAudit(t, actor, 0)
+}
+
+func TestZoneRemovalRefusalsKeepTheirCauseAndRows(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			owner := admintest.Pool(t)
+			ctx, _ := admintest.StaffContext(t, owner)
+			ctx = i18n.WithLocale(ctx, locale)
+			store := shipping.NewStore(admintest.AdminRolePool(t, owner))
+			mux := http.NewServeMux()
+			handlerOver(store).Routes(mux, admintest.BackOffice)
+			for _, tt := range []struct {
+				name       string
+				prefixes   bool
+				versions   bool
+				historical bool
+				use        shipping.ZoneUse
+				location   string
+				message    i18n.Key
+			}{
+				{name: "prefixes", prefixes: true, use: shipping.ZoneUsedByPrefixes, location: "/admin/shipping?zoneprefixes=1", message: i18n.KeyAdminShipZoneHasPrefixes},
+				{name: "current version", versions: true, use: shipping.ZoneUsedByVersions, location: "/admin/shipping?zoneversions=1", message: i18n.KeyAdminShipZoneHasVersions},
+				{name: "historical version", versions: true, historical: true, use: shipping.ZoneUsedByVersions, location: "/admin/shipping?zoneversions=1", message: i18n.KeyAdminShipZoneHasVersions},
+				{name: "both blockers", prefixes: true, versions: true, use: shipping.ZoneUsedByPrefixes, location: "/admin/shipping?zoneprefixes=1", message: i18n.KeyAdminShipZoneHasPrefixes},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					zone, version := zoneRemovalFixture(t, ctx, owner, store, tt.prefixes, tt.versions, tt.historical)
+					assertZoneRemovalResponse(t, ctx, mux, zone, tt.location, tt.message)
+					err := store.DeleteZone(ctx, zone.String())
+					inUse, ok := errors.AsType[*shipping.ZoneInUseError](err)
+					if !ok || inUse.Use != tt.use || !errors.Is(err, shipping.ErrInUse) {
+						t.Fatalf("DeleteZone refusal=%v, want %s with ErrInUse compatibility", err, tt.use)
+					}
+					want := zoneRemovalState{Zones: 1}
+					if tt.prefixes {
+						want.Prefixes = 1
+					}
+					if tt.versions {
+						want.VersionReferences = 1
+					}
+					assertZoneRemovalState(t, ctx, owner, zone, want)
+					if tt.historical {
+						var currentReferences int
+						if err := owner.QueryRow(ctx, `SELECT count(*) FROM shipping_version_zones WHERE version_id=$1 AND zone_id=$2`, version, zone).Scan(&currentReferences); err != nil {
+							t.Fatalf("read current surcharge: %v", err)
+						}
+						if currentReferences != 0 {
+							t.Fatalf("current surcharge references=%d, want 0 while history prevents deletion", currentReferences)
+						}
+						return
+					}
+					if tt.prefixes {
+						if errs, err := store.SetZonePrefixes(ctx, zone.String(), ""); err != nil || len(errs) != 0 {
+							t.Fatalf("clear prefixes: %v %v", err, errs)
+						}
+					}
+					if tt.versions {
+						if tt.prefixes {
+							assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?zoneversions=1", i18n.KeyAdminShipZoneHasVersions)
+							assertZoneRemovalState(t, ctx, owner, zone, zoneRemovalState{Zones: 1, VersionReferences: 1})
+						}
+						if err := store.SetZoneSurcharge(ctx, version.String(), zone.String(), 0); err != nil {
+							t.Fatalf("clear current surcharge: %v", err)
+						}
+					}
+					assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?ok=1", i18n.KeyAdminNoticeOK)
+					assertZoneRemovalState(t, ctx, owner, zone, zoneRemovalState{DeleteAudits: 1})
+				})
+			}
+		})
+	}
+}
+
+func TestZoneRemovalMissingAndUnusedZones(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			owner := admintest.Pool(t)
+			ctx, _ := admintest.StaffContext(t, owner)
+			ctx = i18n.WithLocale(ctx, locale)
+			store := shipping.NewStore(admintest.AdminRolePool(t, owner))
+			mux := http.NewServeMux()
+			handlerOver(store).Routes(mux, admintest.BackOffice)
+			for _, id := range []string{uuid.NewString(), "not-a-uuid"} {
+				if err := store.DeleteZone(ctx, id); !errors.Is(err, shipping.ErrNotFound) {
+					t.Fatalf("DeleteZone(%q)=%v, want ErrNotFound", id, err)
+				}
+				res := submitZoneRemoval(ctx, mux, id)
+				if res.Code != http.StatusNotFound || res.Header().Get("Location") != "" {
+					t.Errorf("missing zone status/location=%d/%q, want 404 without redirect", res.Code, res.Header().Get("Location"))
+				}
+			}
+			zone, _ := zoneRemovalFixture(t, ctx, owner, store, false, false, false)
+			assertZoneRemovalResponse(t, ctx, mux, zone, "/admin/shipping?ok=1", i18n.KeyAdminNoticeOK)
+			assertZoneRemovalState(t, ctx, owner, zone, zoneRemovalState{DeleteAudits: 1})
+			res := httptest.NewRecorder()
+			mux.ServeHTTP(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping?inuse=1", http.NoBody))
+			if res.Code != http.StatusOK || strings.Contains(res.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeInUse)) {
+				t.Errorf("legacy inuse notice status=%d, want 200 without the taxonomy sentence", res.Code)
+			}
+		})
+	}
+}
+
+func zoneRemovalFixture(
+	t *testing.T, ctx context.Context, owner *pgxpool.Pool, store *shipping.Store, prefixes, versions, historical bool,
+) (zone, version uuid.UUID) {
+	t.Helper()
+	var method uuid.UUID
+	if err := owner.QueryRow(ctx, `INSERT INTO shipping_zones (code,name) VALUES ($1,'Removal fixture') RETURNING id`, "removal_"+uuid.NewString()[:8]).Scan(&zone); err != nil {
+		t.Fatalf("create removal zone: %v", err)
+	}
+	if prefixes {
+		var prefix string
+		if err := owner.QueryRow(ctx, `SELECT lpad(n::text,3,'0') FROM generate_series(0,999) n WHERE NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes p WHERE p.prefix=lpad(n::text,3,'0')) ORDER BY n LIMIT 1`).Scan(&prefix); err != nil {
+			t.Fatalf("find free prefix: %v", err)
+		}
+		if _, err := owner.Exec(ctx, `INSERT INTO shipping_zone_prefixes (prefix,zone_id) VALUES ($1,$2)`, prefix, zone); err != nil {
+			t.Fatalf("create blocking prefix: %v", err)
+		}
+	}
+	if !versions {
+		return zone, version
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO shipping_methods (code,destination_kind,is_active) VALUES ($1,'address',false) RETURNING id`, "removal_"+uuid.NewString()[:8]).Scan(&method); err != nil {
+		t.Fatalf("create removal method: %v", err)
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO shipping_method_versions (method_id,name,fee_cents,effective_at) VALUES ($1,'Removal shipping',8000,now()-interval '1 day') RETURNING id`, method).Scan(&version); err != nil {
+		t.Fatalf("create removal version: %v", err)
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO shipping_version_zones (version_id,zone_id,surcharge_cents) VALUES ($1,$2,10000)`, version, zone); err != nil {
+		t.Fatalf("create blocking version: %v", err)
+	}
+	if historical {
+		if err := store.PublishShippingVersion(ctx, shipping.ShippingVersion{MethodID: method.String(), Name: "New removal shipping", FeeDollars: 90}); err != nil {
+			t.Fatalf("publish newer version: %v", err)
+		}
+		if err := owner.QueryRow(ctx, `SELECT id FROM shipping_method_versions WHERE method_id=$1 AND effective_at <= statement_timestamp() ORDER BY effective_at DESC,id DESC LIMIT 1`, method).Scan(&version); err != nil {
+			t.Fatalf("read new removal version: %v", err)
+		}
+		if err := store.SetZoneSurcharge(ctx, version.String(), zone.String(), 0); err != nil {
+			t.Fatalf("clear new version surcharge: %v", err)
+		}
+	}
+	return zone, version
+}
+
+func submitZoneRemoval(ctx context.Context, mux *http.ServeMux, id string) *httptest.ResponseRecorder {
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/zone/"+id+"/delete", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	mux.ServeHTTP(res, req)
+	return res
+}
+
+func assertZoneRemovalResponse(
+	t *testing.T, ctx context.Context, mux *http.ServeMux, zone uuid.UUID, location string, message i18n.Key,
+) {
+	t.Helper()
+	res := submitZoneRemoval(ctx, mux, zone.String())
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != location {
+		t.Fatalf("zone removal status/location=%d/%q, want 303/%q", res.Code, res.Header().Get("Location"), location)
+	}
+	page := httptest.NewRecorder()
+	mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, location, http.NoBody))
+	if page.Code != http.StatusOK || strings.Count(page.Body.String(), i18n.T(ctx, message)) != 1 {
+		t.Errorf("zone removal landing status=%d, want 200 and one %q", page.Code, i18n.T(ctx, message))
+	}
+	if strings.Contains(page.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeInUse)) {
+		t.Error("shipping page renders the taxonomy in-use refusal")
+	}
+}
+
+type zoneRemovalState struct {
+	Zones             int
+	Prefixes          int
+	VersionReferences int
+	DeleteAudits      int
+}
+
+func assertZoneRemovalState(t *testing.T, ctx context.Context, owner *pgxpool.Pool, zone uuid.UUID, want zoneRemovalState) {
+	t.Helper()
+	var got zoneRemovalState
+	if err := owner.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM shipping_zones WHERE id=$1),
+		(SELECT count(*) FROM shipping_zone_prefixes WHERE zone_id=$1),
+		(SELECT count(*) FROM shipping_version_zones WHERE zone_id=$1),
+		(SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='shipping.zone.delete')`, zone).
+		Scan(&got.Zones, &got.Prefixes, &got.VersionReferences, &got.DeleteAudits); err != nil {
+		t.Fatalf("read zone removal state: %v", err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("zone removal state (-want +got):\n%s", diff)
+	}
+}
+
+func TestZoneRemovalInfrastructureFailuresStayServerErrors(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, column := range []string{"id", "name"} {
+			t.Run(locale.Tag()+"/"+column, func(t *testing.T) {
+				owner := admintest.Pool(t)
+				ctx, _ := admintest.StaffContext(t, owner)
+				ctx = i18n.WithLocale(ctx, locale)
+				store := shipping.NewStore(admintest.AdminRolePool(t, owner))
+				zone, _ := zoneRemovalFixture(t, ctx, owner, store, true, false, false)
+				if _, err := owner.Exec(ctx, "ALTER TABLE shipping_zones RENAME COLUMN "+column+" TO broken_removal_column"); err != nil {
+					t.Fatalf("break zone %s query: %v", column, err)
+				}
+				restore := "ALTER TABLE shipping_zones RENAME COLUMN broken_removal_column TO " + column
+				t.Cleanup(func() {
+					if _, err := owner.Exec(context.WithoutCancel(ctx), restore); err != nil {
+						t.Errorf("restore zone column: %v", err)
+					}
+				})
+				err := store.DeleteZone(ctx, zone.String())
+				if err == nil || errors.Is(err, shipping.ErrInUse) || errors.Is(err, shipping.ErrRefused) || errors.Is(err, shipping.ErrNotFound) {
+					t.Fatalf("DeleteZone query fault=%v, want infrastructure error", err)
+				}
+				mux := http.NewServeMux()
+				handlerOver(store).Routes(mux, admintest.BackOffice)
+				res := submitZoneRemoval(ctx, mux, zone.String())
+				if res.Code != http.StatusInternalServerError || res.Header().Get("Location") != "" {
+					t.Errorf("zone query fault status/location=%d/%q, want 500 without redirect", res.Code, res.Header().Get("Location"))
+				}
+				var prefixes, refs, audits int
+				if err := owner.QueryRow(ctx, `SELECT
+					(SELECT count(*) FROM shipping_zone_prefixes WHERE zone_id=$1),
+					(SELECT count(*) FROM shipping_version_zones WHERE zone_id=$1),
+					(SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='shipping.zone.delete')`, zone).Scan(&prefixes, &refs, &audits); err != nil {
+					t.Fatalf("read query-fault state: %v", err)
+				}
+				if diff := cmp.Diff([]int{1, 0, 0}, []int{prefixes, refs, audits}); diff != "" {
+					t.Errorf("query-fault state (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // TestUploadsBeyondTheSlotsAreRefused holds the bound on decodes at once. Each
@@ -111,5 +114,29 @@ func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
 	}
 	if n := stored.Load(); n != 0 {
 		t.Errorf("%d images stored while every slot was taken, want 0", n)
+	}
+}
+
+func TestUploadNoticeNamesEachUploadRefusal(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		err  error
+		want i18n.Key
+	}{
+		{name: "too large", err: ErrTooLarge, want: i18n.KeyAdminNoticeTooBig},
+		{name: "not an image", err: ErrNotAnImage, want: i18n.KeyAdminNoticeNotImage},
+		{name: "lossless WebP", err: ErrLosslessWebP, want: i18n.KeyAdminNoticeLosslessWebP},
+		{name: "decoder busy", err: ErrBusy, want: i18n.KeyAdminNoticeUploadBusy},
+		{name: "storage failure", err: errors.New("storage unavailable"), want: i18n.KeyAdminNoticeUploadFailed},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, err := range []error{tt.err, fmt.Errorf("upload: %w", tt.err)} {
+				if got := UploadNotice(err); got != tt.want {
+					t.Errorf("UploadNotice(%v) = %q, want %q", err, got, tt.want)
+				}
+			}
+		})
 	}
 }

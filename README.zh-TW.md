@@ -10,7 +10,9 @@
 
 **示範站：[goen.koopa0.dev](https://goen.koopa0.dev)**
 
-![繁體中文店面：商品分類與推薦商品](assets/readme/storefront.zh-TW.png)
+![繁體中文店面：活動輪播的起訖日期與日格，下方是館別](assets/readme/storefront.zh-TW.png)
+
+![繁體中文後台總覽：等你處理的工作、近 7 天的營收與已付款訂單，以及最新訂單](assets/readme/backoffice.zh-TW.png)
 
 ## 功能
 
