@@ -16,7 +16,9 @@ templ Home(p layouts.Page, v HomeView) {
 			@heroCarousel(v.Slides)
 		}
 		<div class="goen-home">
-			@departmentDirectory(v.Categories, v.Directory())
+			if v.ShowsDirectory() {
+				@departmentDirectory(v.Categories)
+			}
 			@productRow(v.Row)
 		</div>
 		if v.Band != nil {
@@ -149,25 +151,19 @@ templ departmentBand(b *DepartmentBand) {
 	</section>
 }
 
-templ departmentDirectory(cats []HomeCategory, layout DirectoryLayout) {
-	if layout != DirectoryNone {
-		<section class="goen-home__section" aria-labelledby="cats-heading">
-			<div class="goen-home__head">
-				@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
-			</div>
-			<ul class={ "goen-cats__grid", "goen-cats__grid--" + string(layout) } role="list">
-				for _, c := range cats {
-					<li>
-						if layout == DirectoryTiles {
-							@departmentTile(c)
-						} else {
-							@departmentRow(c, layout == DirectoryRows)
-						}
-					</li>
-				}
-			</ul>
-		</section>
-	}
+templ departmentDirectory(cats []HomeCategory) {
+	<section class="goen-home__section goen-cats" aria-labelledby="cats-heading">
+		<div class="goen-home__head">
+			@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
+		</div>
+		<ul class="goen-cats__grid" role="list">
+			for _, c := range cats {
+				<li>
+					@departmentTile(c)
+				</li>
+			}
+		</ul>
+	</section>
 }
 
 templ departmentTile(c HomeCategory) {
@@ -178,7 +174,7 @@ templ departmentTile(c HomeCategory) {
 					class="goen-cat__photo"
 					src={ c.Photo.URL }
 					srcset={ c.Photo.Srcset }
-					sizes="(min-width: 704px) 50vw, 100vw"
+					sizes="(min-width: 64rem) 15vw, (min-width: 48rem) 16vw, 30vw"
 					alt=""
 					width="800"
 					height="600"
@@ -188,44 +184,7 @@ templ departmentTile(c HomeCategory) {
 				<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
 			}
 		</span>
-		<span class="goen-cat__line">
-			<span class="goen-cat__name">{ c.Name }</span>
-			<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
-		</span>
-	</a>
-}
-
-// With a stage the photograph is both the row's thumbnail and, from 1024px, the
-// picture the list switches between, so no department is fetched twice.
-templ departmentRow(c HomeCategory, stage bool) {
-	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
-		if c.Photo.Shown() {
-			<img
-				class="goen-cat__photo"
-				src={ c.Photo.URL }
-				srcset={ c.Photo.Srcset }
-				if stage {
-					sizes="(min-width: 1024px) 40vw, 4rem"
-				} else {
-					sizes="5rem"
-				}
-				alt=""
-				width="800"
-				height="600"
-				decoding="async"
-			/>
-		} else {
-			<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
-			if stage {
-				<span class="goen-cat__stage" aria-hidden="true">{ c.Name }</span>
-			}
-		}
 		<span class="goen-cat__name">{ c.Name }</span>
-		if c.Subs != "" {
-			<span class="goen-cat__subs">{ c.Subs }</span>
-		}
-		<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
-		<span class="goen-cat__go" aria-hidden="true">→</span>
 	</a>
 }
 
