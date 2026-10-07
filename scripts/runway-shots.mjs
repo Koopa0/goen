@@ -99,6 +99,16 @@ async function measurePage(tag, path) {
     const box = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)]; };
     return { row: box(r), name: box(r.querySelector('a, .goen-report__name')), figure: box(r.querySelector('.goen-report__figure')), bar: box(r.querySelector('.goen-chartrangebar, .goen-chartbar, .goen-report__bar')) };
   })()`));
+  if (path === '/admin/reports') {
+    measure(`${tag} headline tiles`, await evaluate(`(() => {
+      const list = document.querySelector('.goen-report__figures');
+      if (!list) return null;
+      const box = (e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)]; };
+      const tile = list.querySelector('.goen-report__figure');
+      const cs = getComputedStyle(tile);
+      return { list: box(list), tiles: [...list.children].map(box), tile: { display: cs.display, gap: cs.gap, padding: cs.padding, border: cs.borderTopWidth, flexDirection: cs.flexDirection }, pageHeight: document.documentElement.scrollHeight };
+    })()`));
+  }
   if (path === '/admin') {
     const runway = await evaluate(`(() => {
       const section = document.querySelector('#runway-heading')?.closest('section');
@@ -126,11 +136,13 @@ async function states(path, base) {
       await capture(`${base}-${suffix}.png`);
     } catch (e) { failures.push(`${base}-${suffix}: ${e.message}`); }
   }
-  try {
-    await media(true);
-    await open(path, 1440, 0);
-    await capture(`${base}-1440-forced.png`);
-  } catch (e) { failures.push(`${base}-1440-forced: ${e.message}`); }
+  for (const width of [1440, 375]) {
+    try {
+      await media(true);
+      await open(path, width, 0);
+      await capture(`${base}-${width}-forced.png`);
+    } catch (e) { failures.push(`${base}-${width}-forced: ${e.message}`); }
+  }
   await media(false);
 }
 
@@ -151,7 +163,7 @@ await media(false);
 await send('Emulation.setScrollbarsHidden', { hidden: true });
 await send('Network.enable');
 await send('Network.clearBrowserCookies');
-await cookie('goen_locale', 'zh-Hant');
+await cookie('goen_locale', process.env.LOCALE || 'zh-Hant');
 await cookie('goen_session', process.env.ADMIN_TOKEN);
 
 await states('/admin', 'admin-overview');
