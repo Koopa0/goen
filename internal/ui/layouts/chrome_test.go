@@ -532,7 +532,7 @@ func TestTheCartCountSitsBesideTheBagAndOnlyWhenThereIsSomethingInIt(t *testing.
 		}
 		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
 		cart, _, _ = strings.Cut(cart, "</a>")
-		if !strings.Contains(cart, `d="M16 10a4 4 0 0 1-8 0"`) {
+		if !strings.Contains(cart, `d="M9 10.5V7a3 3 0 0 1 6 0v3.5"`) {
 			t.Errorf("count %d: the cart link does not draw a bag", tc.count)
 		}
 		if tc.want == "" {
