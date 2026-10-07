@@ -135,20 +135,20 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 				t.Fatalf("return hint changed order: %+v, %v", view, err)
 			}
 			var heldUntil time.Time
-			if err := pool.QueryRow(ctx, `SELECT min(expires_at) FROM inventory_reservations WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&heldUntil); err != nil {
-				t.Fatalf("read canonical hold deadline: %v", err)
+			if holdErr := pool.QueryRow(ctx, `SELECT min(expires_at) FROM inventory_reservations WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&heldUntil); holdErr != nil {
+				t.Fatalf("read canonical hold deadline: %v", holdErr)
 			}
 			if !view.HoldUntil.Equal(heldUntil) || !view.HoldUntil.After(view.Now) {
 				t.Fatalf("stored deadline = %v, want actual future reservation deadline %v", view.HoldUntil, heldUntil)
 			}
 			var payments int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM payments WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&payments); err != nil || payments != 0 {
-				t.Fatalf("return hint wrote a payment: count=%d err=%v", payments, err)
+			if paymentCountErr := pool.QueryRow(ctx, `SELECT count(*) FROM payments WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number).Scan(&payments); paymentCountErr != nil || payments != 0 {
+				t.Fatalf("return hint wrote a payment: count=%d err=%v", payments, paymentCountErr)
 			}
 
 			session := "cs_return_" + number
-			if _, err := pool.Exec(ctx, `SELECT open_payment(id, $2, $3) FROM orders WHERE order_number = $1`, number, session, view.OwedCents); err != nil {
-				t.Fatalf("open payment: %v", err)
+			if _, openErr := pool.Exec(ctx, `SELECT open_payment(id, $2, $3) FROM orders WHERE order_number = $1`, number, session, view.OwedCents); openErr != nil {
+				t.Fatalf("open payment: %v", openErr)
 			}
 			if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, view.OwedCents); err != nil {
 				t.Fatalf("capture payment: %v", err)
