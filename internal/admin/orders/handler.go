@@ -402,7 +402,7 @@ func applyDeliveryRefusals(ctx context.Context, view *admin.OrderView, d *Delive
 		case "pickup_chain", "pickup_store_code", "pickup_store_name":
 			shown = view.PickupDestination
 		}
-		if !shown && view.Notice.Text == "" {
+		if shown && view.Notice.Text == "" {
 			view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: view.DeliveryErrors[field]}
 		}
 	}
