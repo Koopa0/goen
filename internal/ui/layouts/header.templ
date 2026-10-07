@@ -39,7 +39,13 @@ templ Header(p Page) {
 						</a>
 					}
 					if HasDeals(ctx) {
-						<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+						<a
+							class="ui-navitem goen-header__navitem--deal"
+							if currentPage(ctx, "/deals") {
+								aria-current="page"
+							}
+							href="/deals"
+						>{ i18n.T(ctx, i18n.KeyDeals) }</a>
 					}
 					// Reached from the drawer, not the wide bar's action row: at 1024 with the English
 					// catalogue names the search field is already on its floor and a text button there
@@ -102,7 +108,13 @@ templ Header(p Page) {
 					@department(p, n)
 				}
 				if HasDeals(ctx) {
-					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					<a
+						class="ui-navitem goen-header__navitem--deal"
+						if currentPage(ctx, "/deals") {
+							aria-current="page"
+						}
+						href="/deals"
+					>{ i18n.T(ctx, i18n.KeyDeals) }</a>
 				}
 			</nav>
 		}
