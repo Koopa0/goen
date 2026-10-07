@@ -5,9 +5,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Not layouts.Base, like PickupReturn: anyone can send a browser here
-// cross-site, and the header would run a category query for each. target is
-// the request's own path and query, so it never leaves goen.
+// Not layouts.Base, like PickupReturn: the page is on screen for an instant.
+// target is the request's own path and query, so it never leaves goen.
 templ OrderReload(target string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
