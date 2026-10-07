@@ -1,3 +1,5 @@
+// Package pagestest holds assertions shared by the tests of pages rendered
+// from internal/ui/pages.
 package pagestest
 
 import (
@@ -8,6 +10,9 @@ import (
 	"golang.org/x/net/html"
 )
 
+// AssertEmailLink checks that an emailed-link page names exactly one heading,
+// one reason and, unless destination is empty, one primary action pointing at
+// destination, all inside its notice panel.
 func AssertEmailLink(t *testing.T, body, heading, reason, destination string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -15,11 +20,23 @@ func AssertEmailLink(t *testing.T, body, heading, reason, destination string) {
 		t.Error(err)
 		return
 	}
-	type selection struct {
-		Headings, Reasons, Destinations []string
+	want := emailLinkSelection{Headings: []string{heading}, Reasons: []string{reason}}
+	if destination != "" {
+		want.Destinations = []string{destination}
 	}
-	var got selection
-	// The footer also offers signup and contact; only the notice is the recovery.
+	if diff := cmp.Diff(want, selectEmailLink(doc)); diff != "" {
+		t.Errorf("email link selection (-want +got):\n%s", diff)
+	}
+}
+
+type emailLinkSelection struct {
+	Headings, Reasons, Destinations []string
+}
+
+// selectEmailLink reads the notice panels only: the footer also offers signup
+// and contact, and only the notice is the recovery.
+func selectEmailLink(doc *html.Node) emailLinkSelection {
+	var got emailLinkSelection
 	for panel := range doc.Descendants() {
 		if !hasClass(panel, "notice") {
 			continue
@@ -28,33 +45,30 @@ func AssertEmailLink(t *testing.T, body, heading, reason, destination string) {
 			if n.Type != html.ElementNode {
 				continue
 			}
-			if n.Data == "h1" {
+			switch {
+			case n.Data == "h1":
 				got.Headings = append(got.Headings, text(n))
-			}
-			if hasClass(n, "notice__body") {
+			case hasClass(n, "notice__body"):
 				got.Reasons = append(got.Reasons, text(n))
-			}
-			if hasClass(n, "goen-btn--primary") {
-				dest := attr(n, "href")
-				if n.Data != "a" {
-					for p := n.Parent; p != nil && p != panel; p = p.Parent {
-						if p.Data == "form" {
-							dest = attr(p, "action")
-							break
-						}
-					}
-				}
-				got.Destinations = append(got.Destinations, dest)
+			case hasClass(n, "goen-btn--primary"):
+				got.Destinations = append(got.Destinations, destinationOf(n, panel))
 			}
 		}
 	}
-	want := selection{Headings: []string{heading}, Reasons: []string{reason}}
-	if destination != "" {
-		want.Destinations = []string{destination}
+	return got
+}
+
+// destinationOf is a link's href, or the action of the form a button submits.
+func destinationOf(n, panel *html.Node) string {
+	if n.Data == "a" {
+		return attr(n, "href")
 	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("email link selection (-want +got):\n%s", diff)
+	for p := n.Parent; p != nil && p != panel; p = p.Parent {
+		if p.Data == "form" {
+			return attr(p, "action")
+		}
 	}
+	return attr(n, "href")
 }
 
 func attr(n *html.Node, key string) string {
