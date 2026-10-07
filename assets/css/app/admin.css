@@ -1200,6 +1200,72 @@ input.goen-check {
   width: 100%;
 }
 
+/* Eight controls a row take the table's spare width, so the SKU and the product
+   name shrink to their shortest unbreakable piece unless they are held. The
+   table scrolls inside its frame; the SKU stays pinned on the left and, where
+   there is room, the stock adjustment on the right, so the one control that
+   writes stock is never off-screen. scroll-padding keeps a focused control out
+   from under a pinned column (WCAG 2.4.11). */
+.goen-admin__stock td:first-child a:first-child {
+  white-space: nowrap;
+}
+
+.goen-admin__stock td:nth-child(2) {
+  min-width: 9rem;
+}
+
+.goen-admin__stock :is(th, td):first-child {
+  box-shadow: 0.5rem 0 0.5rem -0.5rem var(--border-strong);
+  inset-inline-start: 0;
+  position: sticky;
+  z-index: 1;
+}
+
+.goen-admin__stock td:first-child {
+  background: var(--panel);
+}
+
+.goen-admin__stock .goen-admin__row--low td:first-child {
+  background: var(--warn-bg);
+}
+
+.goen-admin__tablewrap:has(.goen-admin__stock) {
+  scroll-padding-inline: 7rem 0;
+}
+
+@media (forced-colors: active) {
+  .goen-admin__stock :is(th, td):first-child {
+    border-inline-end: 1px solid CanvasText;
+  }
+}
+
+@media (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    box-shadow: -0.5rem 0 0.5rem -0.5rem var(--border-strong);
+    inset-inline-end: 0;
+    position: sticky;
+    z-index: 1;
+  }
+
+  .goen-admin__stock td:last-child {
+    background: var(--panel);
+  }
+
+  .goen-admin__stock .goen-admin__row--low td:last-child {
+    background: var(--warn-bg);
+  }
+
+  .goen-admin__tablewrap:has(.goen-admin__stock) {
+    scroll-padding-inline: 7rem 11rem;
+  }
+}
+
+@media (forced-colors: active) and (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    border-inline-start: 1px solid CanvasText;
+  }
+}
+
 /* Stock links are too close for the WCAG 2.5.8 spacing exception; each target
    therefore needs its own 24px box. */
 .goen-admin__stock td a {
@@ -2236,6 +2302,7 @@ input.goen-check {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2250,10 +2317,18 @@ input.goen-check {
 .goen-report__value {
   color: var(--fg);
   font-family: var(--font-display);
-  font-size: var(--fs-ed-24);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-size: clamp(var(--fs-ed-20), 15cqi, var(--fs-ed-24));
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .goen-report__figure:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 /* The two lists under the figures. Not tables: every cell already carries its
