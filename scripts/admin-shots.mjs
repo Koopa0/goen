@@ -149,6 +149,8 @@ const steps = [
   ['zh', 'shipping', '/admin/shipping', 1440, {}, mShip],
   ['zh', 'shipping', '/admin/shipping', 375, {}, mShip],
   ['en', 'shipping', '/admin/shipping', 1440, {}, mShip],
+  ['en', 'shipping', '/admin/shipping', 375, {}, mShip],
+  ['zh', 'credit', '/admin/credit', 1440, {}, M(mSku)],
   ['zh', 'staff', '/admin/staff', 1440, {}, M(mStaff)],
   ['zh', 'tiers', '/admin/tiers', 1440, {}, M(mTier)],
   ['zh', 'picking-slips', '/admin/orders/picking/slips', 1440, {}, M(mPick)],
