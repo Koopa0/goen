@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -674,10 +673,14 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		}
 		beforeAudit := uploadAuditCount(t, owner)
 		diagnostics.Reset()
+		witness.code = ""
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, " Recovered description ", false))
 		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
 			t.Errorf("recovered image upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
+		}
+		if witness.seen != 2 || witness.code != "" || !witness.live || ctx.Err() != nil {
+			t.Errorf("recovered PutMedia = %d/%q/live=%t, want the second actual successful write", witness.seen, witness.code, witness.live)
 		}
 		var alt, altEn string
 		if err := owner.QueryRow(ctx, `SELECT alt_text, alt_text_en FROM product_images WHERE product_id=(SELECT id FROM products WHERE slug=$1)`, slug).Scan(&alt, &altEn); err != nil {
@@ -789,6 +792,10 @@ func assertUploadFailure(t *testing.T, ctx context.Context, body, diagnostics st
 			t.Error("malformed multipart text did not show the bad-form response")
 		}
 	case 422:
+		input := admintest.InputElementByID(t, body, "p-image")
+		if admintest.InputAttribute(t, input, "aria-invalid") != "true" || admintest.InputAttribute(t, input, "aria-describedby") != "p-image-error" {
+			t.Error("corrupt file must flag only its image control with the linked refusal")
+		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminNoticeNotImage)) {
 			t.Error("corrupt upload did not retain the image refusal")
 		}
