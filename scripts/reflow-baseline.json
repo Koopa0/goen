@@ -4,9 +4,6 @@
     "/admin/credit": [
       "scroll-200"
     ],
-    "/admin/health": [
-      "scroll-200"
-    ],
     "/admin/messages": [
       "scroll-200",
       "text-200:span.goen-admin__meta"
