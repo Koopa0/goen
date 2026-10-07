@@ -26,7 +26,6 @@ SELECT
     ) AND (sqlc.narg(campaign_id)::uuid IS NULL OR NOT EXISTS (
         SELECT 1 FROM product_variants cv
         WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
-          AND cv.stock_quantity > cv.safety_stock
     )))::boolean AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
