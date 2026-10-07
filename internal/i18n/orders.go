@@ -253,7 +253,7 @@ var (
 
 	KeyOrderOpening = key("order.opening", Message{ZhHant: "正在開啟你的訂單…", En: "Opening your order…"})
 
-	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "繼續", En: "Continue"})
+	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "開啟訂單", En: "Open your order"})
 
 	KeyCancelRefusedTitle = key("order.cancel.refused", Message{
 		ZhHant: "這筆訂單無法取消",
