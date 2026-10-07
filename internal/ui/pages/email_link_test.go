@@ -36,7 +36,11 @@ func TestEmailLinkPageRenderContract(t *testing.T) {
 				if tt.name == "notice" {
 					view.Token = ""
 				}
-				body := renderComponent(t, ctx, pages.EmailLinkPage(pages.EmailLinkMeta(view.Heading), view))
+				var rendered strings.Builder
+				if err := pages.EmailLinkPage(pages.EmailLinkMeta(view.Heading), view).Render(ctx, &rendered); err != nil {
+					t.Fatal(err)
+				}
+				body := rendered.String()
 				pagestest.AssertEmailLink(t, body, "Email link", "Open the next step.", tt.destination)
 				doc, err := html.Parse(strings.NewReader(body))
 				if err != nil {
