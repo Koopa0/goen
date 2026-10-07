@@ -84,6 +84,16 @@ var (
 		En:     "See the rest in the report",
 	})
 
+	KeyAdminQueueRunwayNone = countKey("admin.queue.runwaynone",
+		"%d 天內沒有會賣完的品項。",
+		"Nothing is expected to run out within %d day.",
+		"Nothing is expected to run out within %d days.")
+
+	KeyAdminQueueRunwayLegend = key("admin.queue.runwaylegend", Message{
+		ZhHant: "依近 %[1]d 天銷量估算。條是估計的天數，淡色是可能撐到的天數；深一階的底是 %[2]d 天內。",
+		En:     "Estimated from the last %[1]d days of sales. The bar is the estimated days; the pale stretch is how long it may last; the darker part of the track is within %[2]d days.",
+	})
+
 	KeyAdminQueueWeekUnavailable = key("admin.queue.week.unavailable", Message{
 		ZhHant: "近 7 天的數字暫時無法取得。",
 		En:     "The last 7 days are unavailable right now.",

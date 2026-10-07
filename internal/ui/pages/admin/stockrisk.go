@@ -7,9 +7,11 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 )
 
@@ -120,10 +122,10 @@ func (c DaysCover) Urgent() bool {
 // Beyond reports whether the estimate is past the end of the scale.
 func (c DaysCover) Beyond() bool { return c.Days > coverMaxDays }
 
-// Bar is the estimate and its range drawn on the one scale of every row, with
-// the warning line at the days that mark ▲.
+// Bar is the estimate and how far it may reach, drawn on the one scale of every
+// row, whose track changes shade at the days that mark ▲.
 func (c DaysCover) Bar() chart.RangeBarProps {
-	return chart.RangeBarProps{Value: int64(c.Days), Low: int64(c.Low), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays}
+	return chart.RangeBarProps{Value: int64(c.Days), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays, Urgent: c.Urgent()}
 }
 
 // Figure is the estimate as it heads the row.
@@ -155,8 +157,9 @@ func (c DaysCover) Range(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepRange, int64(c.High), c.High, strconv.Itoa(c.Low), high)
 }
 
-// Warning is the sentence the ▲ stands for. It follows the range: the words are
-// stronger when even the slowest end of it runs out within the line.
+// Warning is the sentence the ▲ stands for, which is its text alternative. It
+// follows the range: the words are stronger when even the slowest end of it runs
+// out within the line.
 func (c DaysCover) Warning(ctx context.Context) string {
 	if c.State != CoverEstimated || !c.Urgent() {
 		return ""
@@ -168,6 +171,23 @@ func (c DaysCover) Warning(ctx context.Context) string {
 }
 
 func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
+
+// Facts is the line under the name: the SKU, what can be sold and what was.
+func (r StockRisk) Facts(ctx context.Context, days int) string {
+	return strings.Join([]string{
+		r.SKU,
+		fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), r.SellableText()),
+		r.SoldText(ctx, days),
+	}, " · ")
+}
+
+// SoldOutSince is the day it ran out, empty when it was out before the window.
+func (r StockRisk) SoldOutSince(ctx context.Context) string {
+	if r.SoldOutAt.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSoldOutSince), shoptime.DateLabel(ctx, shoptime.DateOf(r.SoldOutAt, r.SoldOutAt)))
+}
 
 // SoldText says what was sold over the window, in units and in orders.
 func (r StockRisk) SoldText(ctx context.Context, days int) string {
@@ -214,12 +234,14 @@ func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.
 const dashboardRunwayRows = 5
 
-// DashboardRunway keeps the first rows of a ranked days cover list that are not
-// sold out: the sold-out task row already counts those and links to them. cut
-// reports that rows were left off.
+// DashboardRunway keeps the first rows of a ranked days cover list that run out
+// within the warning line: the sold-out task row already counts the sold out
+// ones and links to them, and an estimate past the line is not what the
+// section's title promises. cut reports that rows were left off.
 func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool) {
 	for _, r := range listed {
-		if r.Estimate().State == CoverSoldOut {
+		cover := r.Estimate()
+		if cover.State != CoverEstimated || !cover.Urgent() {
 			continue
 		}
 		if len(kept) == dashboardRunwayRows {

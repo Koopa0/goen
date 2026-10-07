@@ -191,11 +191,8 @@ func TestFigureRangeAndMarkAcrossTheScale(t *testing.T) {
 		if got := tc.c.Urgent(); got != tc.urgent {
 			t.Errorf("%s: Urgent = %v, want %v", tc.name, got, tc.urgent)
 		}
-		// Whatever the bar draws of the range, the row says in words.
-		bar := tc.c.Bar()
-		drawn := bar.Low < bar.Max
-		if drawn != (tc.rng != "") && tc.c.High > tc.c.Low {
-			t.Errorf("%s: the bar draws a range = %v but the text is %q", tc.name, drawn, tc.rng)
+		if got := tc.c.Bar().Urgent; got != tc.urgent {
+			t.Errorf("%s: Bar().Urgent = %v, want %v, the same as the ▲", tc.name, got, tc.urgent)
 		}
 	}
 }
@@ -228,7 +225,7 @@ func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
 			t.Errorf("the stock rows lack %q", want)
 		}
 	}
-	if got := strings.Count(html, `class="goen-chartrangebar"`); got != 1 {
+	if got := strings.Count(html, `<div class="goen-chartrangebar`); got != 1 {
 		t.Errorf("%d range bars drawn, want 1: only the estimated row has one", got)
 	}
 	if strings.Contains(html, "style=") {
@@ -317,6 +314,52 @@ func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
 	} {
 		if !strings.Contains(page, section) {
 			t.Errorf("%s does not contain the shared days cover section", name)
+		}
+	}
+}
+
+func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
+	t.Parallel()
+
+	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		rows := []StockRisk{
+			{SKU: "OUT-1", Name: "Gone", Slug: "gone", SoldOutAt: time.Date(2026, time.October, 2, 4, 0, 0, 0, time.UTC)},
+			{SKU: "OUT-2", Name: "Long gone", Slug: "long-gone"},
+			{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow},
+			{SKU: "EST-2", Name: "Later", Slug: "later", Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow},
+			{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sellable: 9, Sold: 2, Orders: 2, InStock: stockedAllWindow},
+		}
+		html := renderComponent(t, ctx, StockRiskRows(rows, 0, 30))
+
+		if got := strings.Count(html, `<li class="goen-report__row">`); got != 5 {
+			t.Fatalf("%s: %d rows, want 5", loc, got)
+		}
+		if got := strings.Count(html, `<p class="goen-report__facts">`); got != 5 {
+			t.Errorf("%s: %d fact lines, want one under each name", loc, got)
+		}
+		if got := strings.Count(html, "<svg class=\"goen-report__tri\""); got != 1 {
+			t.Errorf("%s: %d warning triangles, want 1: only the estimate within the line", loc, got)
+		}
+		warning := DaysCover{State: CoverEstimated, Days: 10, Low: 7, High: 14}.Warning(ctx)
+		if want := fmt.Sprintf(`aria-label=%q`, warning); !strings.Contains(html, want) {
+			t.Errorf("%s: the triangle lacks its text alternative %s in %s", loc, want, html)
+		}
+		if got := strings.Count(html, warning); got != 1 {
+			t.Errorf("%s: the warning %q is written %d times, want once, as the triangle's alternative", loc, warning, got)
+		}
+		if got := strings.Count(html, "goen-chartrangebar--urgent"); got != 1 {
+			t.Errorf("%s: %d urgent bars, want 1", loc, got)
+		}
+		if got := strings.Count(html, `<div class="goen-chartrangebar`); got != 2 {
+			t.Errorf("%s: %d bars, want the two estimated rows only", loc, got)
+		}
+		since := i18n.T(ctx, i18n.KeyAdminRepSoldOutSince)
+		if want := strings.Replace(since, "%s", map[i18n.Locale]string{i18n.ZhHant: "10/2", i18n.En: "Oct\u00a02"}[loc], 1); strings.Count(html, want) != 1 {
+			t.Errorf("%s: the sold-out row lacks %q, or the one already out before the window has it", loc, want)
+		}
+		if got := strings.Count(html, i18n.T(ctx, i18n.KeySoldOut)); got != 2 {
+			t.Errorf("%s: sold out is said %d times, want once for each of two rows", loc, got)
 		}
 	}
 }

@@ -2215,55 +2215,106 @@ input.goen-check {
   overflow-wrap: anywhere;
 }
 
-/* The two lists under the figures. Not tables: every cell already carries its
-   own label, because the sentence is what internal/i18n holds. */
+/* The lists under the figures. Not tables: every cell already carries its own
+   label, because the sentence is what internal/i18n holds. A row is what it is
+   on the left and its figure on the right; the rows share the two columns, so
+   the figures line up down the list. Below 40rem of its own width the figure
+   moves under the name. */
 .goen-report__rows {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  display: flex;
-  flex-direction: column;
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(min(14rem, 100%), 22rem);
   list-style: none;
   margin: 0;
   padding: 0 16px;
 }
 
 .goen-report__row {
-  align-items: baseline;
-  border-bottom: 1px solid var(--border-faint);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  padding: 12px 0;
+  align-items: start;
+  display: grid;
+  gap: 6px 32px;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  padding: 14px 0;
 }
 
-.goen-report__row:last-child {
-  border-bottom: 0;
+.goen-report__row + .goen-report__row {
+  border-top: 1px solid var(--line);
+}
+
+@container (max-width: 40rem) {
+  .goen-report__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.goen-report__what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .goen-report__name {
   color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  min-width: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
 }
 
-.goen-report__num {
+.goen-report__name:hover {
+  text-decoration: underline;
+}
+
+.goen-report__facts,
+.goen-report__aside {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
-.goen-report__bar {
-  flex: 1 0 100%;
+.goen-report__figure {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
-/* The sentence beside a warned estimate; the triangle repeats it for a reader
-   who scans the column. */
-.goen-report__warn {
-  color: var(--warn);
-  font-size: var(--fs-13);
+.goen-report__state {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
+  gap: 2px 8px;
+  margin: 0;
+}
+
+.goen-report__figtext {
+  align-items: baseline;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
+  gap: 6px;
+}
+
+.goen-report__figtext--warn {
+  color: var(--warn);
+}
+
+.goen-report__tri {
+  fill: var(--warn-mark);
+  flex: none;
+  height: 10px;
+  width: 10px;
+}
+
+/* The money is the figure of a department row, so its column is as wide as an
+   amount, not as a count. */
+.goen-report__departments .goen-chartbar {
+  grid-template-columns: minmax(0, 1fr) 7rem;
 }
 
 @media (min-width: 1024px) {
@@ -2916,32 +2967,39 @@ form[data-request-pending] [aria-disabled="true"] {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* A bar over its range. The 1.5px range and the ink reference line are the
-   annotation; the row's text says the same in words. */
+/* A bullet graph: the track is one shade within the warning line and a lighter
+   one beyond it, the value is filled from the start and the pale stretch is as
+   far as it may reach. The row's text says the same in words. */
+.goen-chartrangebar {
+  border-radius: 4px;
+  outline: 1px solid transparent;
+  overflow: hidden;
+}
+
 .goen-chartrangebar svg {
   display: block;
 }
 
 .goen-chartrangebar__track {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-grid);
-  stroke-width: 1;
+  fill: var(--n-100);
+}
+
+.goen-chartrangebar__near {
+  fill: var(--n-200);
 }
 
 .goen-chartrangebar__fill {
-  fill: var(--chart-hue);
+  fill: var(--accent);
 }
 
-.goen-chartrangebar__range,
-.goen-chartrangebar__cap {
-  stroke: var(--chart-hue);
-  stroke-width: 1.5;
+.goen-chartrangebar__reach {
+  fill: var(--accent);
+  fill-opacity: 0.3;
 }
 
-.goen-chartrangebar__mark {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-annotation);
-  stroke-width: 1;
+.goen-chartrangebar--urgent .goen-chartrangebar__fill,
+.goen-chartrangebar--urgent .goen-chartrangebar__reach {
+  fill: var(--warn-mark);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2990,16 +3048,24 @@ form[data-request-pending] [aria-disabled="true"] {
     forced-color-adjust: none;
   }
 
-  .goen-chartrangebar__fill,
-  .goen-chartrangebar__range,
-  .goen-chartrangebar__cap,
-  .goen-chartrangebar__mark {
-    fill: CanvasText;
-    stroke: CanvasText;
+  .goen-chartrangebar__track,
+  .goen-chartrangebar__near {
+    fill: Canvas;
   }
 
-  .goen-chartrangebar__track {
-    stroke: transparent;
+  .goen-chartrangebar__fill,
+  .goen-chartrangebar--urgent .goen-chartrangebar__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartrangebar__reach,
+  .goen-chartrangebar--urgent .goen-chartrangebar__reach {
+    fill: GrayText;
+    fill-opacity: 1;
+  }
+
+  .goen-report__tri {
+    fill: CanvasText;
   }
 }
 

@@ -372,6 +372,9 @@ body {
   --success-bg: #f0fdf4;
   --warn: #92400e;
   --warn-bg: #fffbeb;
+  /* The warning as a mark with no text on it: the triangle and the bar. 3:1 on
+     the white and grey grounds a bar is drawn on. */
+  --warn-mark: #b45309;
   --info: #1f5b92;
   --info-bg: #eff6ff;
 

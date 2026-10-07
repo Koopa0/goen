@@ -112,6 +112,18 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
+	// The warning mark is a triangle and a bar, held to 3:1 (WCAG 1.4.11) on
+	// the white and the two greys of a runway row's track.
+	if tokens["--warn-mark"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --warn-mark")
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100", "--n-200"} {
+		if got := contrast(tokens["--warn-mark"], tokens[ground]); got < 3 {
+			t.Errorf("--warn-mark (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--warn-mark"], ground, tokens[ground], got)
+		}
+	}
+
 	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
 	// text to carry them.
 	for _, ground := range []string{"--n-0", "--wash", "--well"} {

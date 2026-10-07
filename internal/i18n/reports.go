@@ -104,13 +104,14 @@ var (
 	KeyAdminRepUnitCount  = countKey("admin.rep.unitcount", "%d 件", "%d unit", "%d units")
 	KeyAdminRepOrderCount = countKey("admin.rep.ordercount", "%d 筆訂單", "%d order", "%d orders")
 
-	KeyAdminRepAbout       = countKey("admin.rep.about", "約 %d 天", "About %d day", "About %d days")
-	KeyAdminRepBeyond      = countKey("admin.rep.beyond", "%d 天以上", "More than %d day", "More than %d days")
-	KeyAdminRepRange       = countKey("admin.rep.range", "90%% 區間 %[2]s–%[3]s 天", "90%% range: %[2]s–%[3]s day", "90%% range: %[2]s–%[3]s days")
-	KeyAdminRepWithin      = countKey("admin.rep.within", "%d 天內會賣完", "Runs out within %d day", "Runs out within %d days")
-	KeyAdminRepMayRun      = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
-	KeyAdminRepFewSold     = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
-	KeyAdminRepMoreSoldOut = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
+	KeyAdminRepAbout        = countKey("admin.rep.about", "約 %d 天", "About %d day", "About %d days")
+	KeyAdminRepBeyond       = countKey("admin.rep.beyond", "%d 天以上", "More than %d day", "More than %d days")
+	KeyAdminRepRange        = countKey("admin.rep.range", "90%% 區間 %[2]s–%[3]s 天", "90%% range: %[2]s–%[3]s day", "90%% range: %[2]s–%[3]s days")
+	KeyAdminRepWithin       = countKey("admin.rep.within", "%d 天內會賣完", "Runs out within %d day", "Runs out within %d days")
+	KeyAdminRepMayRun       = countKey("admin.rep.mayrun", "可能在 %d 天內賣完", "May run out within %d day", "May run out within %d days")
+	KeyAdminRepFewSold      = key("admin.rep.fewsold", Message{ZhHant: "銷量太少，估不準", En: "Too few sales to estimate"})
+	KeyAdminRepSoldOutSince = key("admin.rep.soldoutsince", Message{ZhHant: "%s 起", En: "since %s"})
+	KeyAdminRepMoreSoldOut  = countKey("admin.rep.moresoldout", "另有 %d 個已售完", "%d more item sold out", "%d more items sold out")
 
 	KeyAdminRepReturned = key("admin.rep.returned", Message{ZhHant: "退貨最多的商品", En: "Products returned most"})
 

@@ -365,24 +365,37 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			}
 		})
 
-		t.Run(string(loc)+" nothing to show leaves the section out", func(t *testing.T) {
+		t.Run(string(loc)+" nothing running out says so", func(t *testing.T) {
 			t.Parallel()
 			html := render(DashboardView{SoldOut: 3})
-			for _, gone := range []string{`id="runway-heading"`, `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
+			if want := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays); !strings.Contains(html, want) {
+				t.Errorf("the dashboard with nothing running out lacks %q", want)
+			}
+			for _, gone := range []string{"goen-report__rows", "goen-chartrangebar", `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
 				if strings.Contains(html, gone) {
 					t.Errorf("the dashboard with nothing to estimate renders %q", gone)
 				}
+			}
+			if rows := render(DashboardView{Runway: []StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}}); strings.Contains(rows, i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays)) {
+				t.Error("the dashboard says nothing is running out above a row that is")
 			}
 		})
 	}
 }
 
-func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
+func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
 	t.Parallel()
 
-	estimated := func(n int) (rows []StockRisk) {
+	// 9 sellable at 30 units over 30 days is 9 days; 45 sellable is 45 days.
+	runningOut := func(n int) (rows []StockRisk) {
 		for i := range n {
-			rows = append(rows, StockRisk{SKU: fmt.Sprintf("EST-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("RUN-%d", i), Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow})
+		}
+		return rows
+	}
+	later := func(n int) (rows []StockRisk) {
+		for i := range n {
+			rows = append(rows, StockRisk{SKU: fmt.Sprintf("LATER-%d", i), Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow})
 		}
 		return rows
 	}
@@ -392,6 +405,7 @@ func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
 		}
 		return rows
 	}
+	fewOrders := []StockRisk{{SKU: "FEW-0", Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}
 	skus := func(rows []StockRisk) (out []string) {
 		for _, r := range rows {
 			out = append(out, r.SKU)
@@ -405,11 +419,14 @@ func TestDashboardRunwayLeavesOutSoldOutRowsAndKeepsFive(t *testing.T) {
 		want    []string
 		wantCut bool
 	}{
-		{"four sold out and three estimated", append(soldOut(4), estimated(3)...), []string{"EST-0", "EST-1", "EST-2"}, false},
+		{"sold out and running out", append(soldOut(4), runningOut(3)...), []string{"RUN-0", "RUN-1", "RUN-2"}, false},
 		{"only sold out", soldOut(6), nil, false},
-		{"seven estimated", estimated(7), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
-		{"five estimated", estimated(5), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, false},
-		{"sold out first and six estimated", append(soldOut(5), estimated(6)...), []string{"EST-0", "EST-1", "EST-2", "EST-3", "EST-4"}, true},
+		{"estimates past the line are left out", append(runningOut(2), append(later(3), fewOrders...)...), []string{"RUN-0", "RUN-1"}, false},
+		{"only estimates past the line", later(4), nil, false},
+		{"rows that cannot be estimated are left out", fewOrders, nil, false},
+		{"seven running out", runningOut(7), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, true},
+		{"five running out", runningOut(5), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false},
+		{"a later row does not count as one left off", append(runningOut(5), later(2)...), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false},
 	} {
 		kept, cut := DashboardRunway(tc.listed)
 		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut {
