@@ -143,10 +143,7 @@ if (mode === 'storefront') {
   console.log('deal product', dealProduct);
   await navigate(ORIGIN + '/c/home-living');
   const subcategory = await evaluate(`document.querySelector('.goen-pagehead__chips a')?.getAttribute('href') || null`);
-  let optionProduct = null;
-  for (const list of ['/deals', '/c/home-living', '/search?q=%E8%8C%B6', '/']) {
-    optionProduct ||= await firstPageWhere(list, '/p/', `!!document.querySelector('.goen-swatch--on:not(.goen-swatch--dot)')`);
-  }
+  const optionProduct = '/p/pixelight-9-pro';
   console.log('subcategory', subcategory, 'option product', optionProduct);
   // Signed out: the shop as a guest with a cart and an unpaid order.
   await capture([
