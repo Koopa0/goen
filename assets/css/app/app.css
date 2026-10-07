@@ -4640,7 +4640,7 @@ input.goen-check {
   }
 
   :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) {
-    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -6473,13 +6473,13 @@ input.goen-check {
    the browser scrolls a focused element clear of this much of the bottom edge. */
 @media (max-width: 1023.98px) {
   :root:has(.goen-cart__summary) {
-    scroll-padding-block-end: 8rem;
+    scroll-padding-block-end: 9rem;
   }
 }
 
 @media (max-width: 768px) {
   :root[data-buybar='out'] {
-    scroll-padding-block-end: 7rem;
+    scroll-padding-block-end: 8rem;
   }
 }
 
