@@ -4589,10 +4589,10 @@ input.goen-check {
     border-top: 1px solid var(--n-200);
     bottom: 0;
     display: flex;
-    gap: 1rem;
-    left: 0;
     flex-wrap: wrap;
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    gap: 0.5rem 1rem;
+    left: 0;
+    padding: 0.75rem var(--page-gutter) calc(0.75rem + env(safe-area-inset-bottom));
     position: fixed;
     right: 0;
     transform: translateY(100%);
@@ -4629,7 +4629,6 @@ input.goen-check {
     flex: 1 1 9rem;
     height: auto;
     min-height: 3rem;
-    white-space: nowrap;
   }
 
   /* The menu drawer belongs to the header, which this later fixed block would
@@ -4639,7 +4638,7 @@ input.goen-check {
     visibility: hidden;
   }
 
-  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) {
+  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) .goen-footer {
     padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   }
 }
@@ -5743,9 +5742,12 @@ input.goen-check {
   padding-bottom: 0;
 }
 
-.goen-summary__row dt,
-.goen-summary__row dd {
+.goen-summary__row dt {
   margin: 0;
+}
+
+.goen-summary__row dd {
+  margin: 0 0 0 auto;
 }
 
 .goen-summary__value {
@@ -6065,8 +6067,14 @@ input.goen-check {
   color: var(--n-700);
   display: flex;
   font-size: var(--fs-14);
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
+}
+
+.goen-checkout__lines li > :first-child {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 /* The coupon sits under the totals, not above them: a shopper reads the total
@@ -6359,8 +6367,8 @@ input.goen-check {
   .goen-line--cart {
     grid-template-areas:
       'thumb body'
-      'thumb money'
-      'controls controls';
+      'thumb controls'
+      'thumb money';
     grid-template-columns: min(4.5rem, 24%) minmax(0, 1fr);
   }
 
@@ -6368,6 +6376,16 @@ input.goen-check {
     align-items: flex-start;
     margin-left: 0;
     text-align: left;
+  }
+}
+
+/* Below this the stepper and the remove button no longer fit beside the photo. */
+@container cartlines (max-width: 17.5rem) {
+  .goen-line--cart {
+    grid-template-areas:
+      'thumb body'
+      'controls controls'
+      'money money';
   }
 }
 
