@@ -86,8 +86,11 @@ func TestOrderPaymentReturnCancellationUsesTheStoredDeadline(t *testing.T) {
 					if got := strings.Contains(html, `action="/orders/ORD-1/cancel"`); got != tt.want {
 						t.Errorf("cancel form present = %v, want %v", got, tt.want)
 					}
-					if !strings.Contains(html, `href="/contact"`) || strings.Contains(html, `href="/orders/ORD-1/pay"`) {
-						t.Error("the unresolved return lost contact or invited another payment")
+					if strings.Contains(html, `href="/orders/ORD-1/pay"`) {
+						t.Error("the unresolved return invited another payment")
+					}
+					if !tt.refresh && !strings.Contains(html, `href="/contact"`) {
+						t.Error("ended confirmation lost its contact link")
 					}
 				})
 			}
