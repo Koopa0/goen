@@ -5,6 +5,7 @@ SELECT
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     localized_name(p.description, p.description_en, @locale::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,

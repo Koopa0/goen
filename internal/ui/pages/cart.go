@@ -125,7 +125,7 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 // Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
 func (v CartView) Facts(ctx context.Context) []components.Stat {
 	return []components.Stat{
-		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyCartUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
 		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
 		v.FreeDelivery.Stat(ctx),
 	}
