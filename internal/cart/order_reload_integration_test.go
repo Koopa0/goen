@@ -134,7 +134,7 @@ func placeOwnedOrder(t *testing.T, s *cart.Store) (owner uuid.UUID, number strin
 		t.Fatalf("create user: %v", err)
 	}
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "owned-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
