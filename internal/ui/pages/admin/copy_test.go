@@ -106,3 +106,35 @@ func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 		})
 	}
 }
+
+func TestEveryExampleHintReadsInFull(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale   i18n.Locale
+		sentence func(example string) string
+	}{
+		{i18n.ZhHant, func(e string) string { return "<p class=\"goen-admin__hint\">例如 " + e + "。</p>" }},
+		{i18n.En, func(e string) string { return "<p class=\"goen-admin__hint\">For example, " + e + ".</p>" }},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			for name, c := range map[string]struct {
+				body     string
+				examples []string
+			}{
+				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
+				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware", "kitchen"}},
+				"shipping": {renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
+				"tiers":    {renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})), []string{"Silver"}},
+				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
+			} {
+				for _, e := range c.examples {
+					if want := tt.sentence(e); !strings.Contains(c.body, want) {
+						t.Errorf("%s page lacks the hint %s", name, want)
+					}
+				}
+			}
+		})
+	}
+}
