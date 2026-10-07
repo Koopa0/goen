@@ -128,7 +128,7 @@ function setup() {
 function list(which) {
   sql(`UPDATE products SET status = 'active' WHERE id IN (SELECT product_id FROM probe_hidden)`);
   sql(`DELETE FROM probe_hidden`);
-  const keep = which === 'solo' ? `r.slug = 'probe-toys'` : which === 'long' ? `r.slug = 'probe-long'` : `r.n <= ${Number(which)}`;
+  const keep = which === 'none' ? `false` : which === 'tech' ? `r.slug = 'tech'` : which === 'solo' ? `r.slug = 'probe-toys'` : which === 'long' ? `r.slug = 'probe-long'` : `r.n <= ${Number(which)}`;
   sql(`WITH RECURSIVE roots AS (
          SELECT id, slug, row_number() OVER (ORDER BY position, name, id) AS n FROM categories WHERE parent_id IS NULL
        ), tree AS (
@@ -244,6 +244,14 @@ async function capture(s) {
     await grow(m.bandBox.y + m.bandBox.h + pad * 2);
     const box = (await evaluate(measure)).bandBox;
     await save(`${id}-band`, { x: 0, y: Math.max(0, Math.floor(box.y - pad)), width: s.width, height: Math.ceil(box.h + pad * 2) });
+    if (s.focus) {
+      await evaluate(`document.querySelector('#band-heading').closest('section').querySelectorAll('.goen-band__tiles a')[1].focus({ focusVisible: true })`);
+      await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 });
+      await sleep(400);
+      const box2 = (await evaluate(measure)).bandBox;
+      console.log(`MEASURE ${label} ${id} focus ${await evaluate(`(() => { const t = document.activeElement; const c = getComputedStyle(t); return JSON.stringify({ focusVisible: t.matches(':focus-visible'), outline: c.outlineStyle + ' ' + c.outlineWidth + ' ' + c.outlineColor, inBand: !!t.closest('.goen-band--shelf') }); })()`)}`);
+      await save(`${id}-band-focus`, { x: 0, y: Math.max(0, Math.floor(box2.y - pad)), width: s.width, height: Math.ceil(box2.h + pad * 2) });
+    }
   }
 }
 
@@ -267,7 +275,7 @@ await send('Emulation.setScrollbarsHidden', { hidden: true });
 const media = (features) => send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }, ...features] });
 await media([]);
 
-const WIDTHS = [1440, 1024, 768, 375, 320];
+const WIDTHS = [1440, 1100, 1024, 768, 375, 320];
 const failures = [];
 const run = async (s) => { try { await capture(s); } catch (e) { failures.push(`${s.name} ${s.locale} ${s.width}: ${e.message}`); } };
 
@@ -276,7 +284,7 @@ const run = async (s) => { try { await capture(s); } catch (e) { failures.push(`
 list(6);
 await media([]);
 for (const locale of ['zh-Hant', 'en']) {
-  for (const width of WIDTHS) await run({ name: 'six', width, locale, full: width === 1440 || width === 375 || (locale === 'zh-Hant' && width === 768) });
+  for (const width of WIDTHS) await run({ name: 'six', width, locale, full: width === 1440 || width === 375 || (locale === 'zh-Hant' && width === 768), focus: width === 1440 || width === 375 });
   for (const width of [375, 320]) await run({ name: 'six', width, locale, text: 200 });
   await media([{ name: 'forced-colors', value: 'active' }]);
   await run({ name: 'six', width: 1440, locale, forced: true, full: true });
@@ -287,9 +295,24 @@ for (const locale of ['zh-Hant', 'en']) {
 // selects, so these show the page order and the directory around it.
 for (const count of [1, 2, 10, 'solo']) {
   list(count);
-  for (const width of WIDTHS) await run({ name: `n${count}`, width, locale: 'zh-Hant', full: count === 10 && (width === 1440 || width === 375) });
+  for (const width of WIDTHS) await run({ name: `n${count}`, width, locale: 'zh-Hant', full: (count === 10 && (width === 1440 || width === 375)) || (count === 'solo' && (width === 1440 || width === 375)) });
   if (count === 10) for (const width of [375, 320]) await run({ name: `n${count}`, width, locale: 'zh-Hant', text: 200 });
 }
+
+// The day the band is 3C: only that department is listed, so five-digit prices
+// meet the narrowest cards. Keyboard focus on the second shelf card.
+list('tech');
+for (const locale of ['zh-Hant', 'en']) {
+  for (const width of WIDTHS) await run({ name: 'tech', width, locale, full: width === 1440 || width === 375, focus: true });
+  for (const width of [375, 320]) await run({ name: 'tech', width, locale, text: 200 });
+  await media([{ name: 'forced-colors', value: 'active' }]);
+  await run({ name: 'tech', width: 1440, locale, forced: true });
+  await media([]);
+}
+
+// No department listed at all.
+list('none');
+for (const width of [1440, 375, 320]) await run({ name: 'zero', width, locale: 'zh-Hant', full: true });
 
 // A band department with long names and eight long sub-categories, in both
 // languages, at every width, at 200% text and in forced colours.
