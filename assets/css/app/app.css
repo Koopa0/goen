@@ -1754,7 +1754,6 @@ th {
 .goen-home__aside {
   color: var(--n-500);
   font-weight: var(--fw-regular);
-  overflow-wrap: anywhere;
 }
 
 @media (max-width: 39.99rem) {
@@ -2177,7 +2176,6 @@ th {
   font-size: var(--fs-13);
   grid-column: 2;
   grid-row: 2;
-  overflow-wrap: anywhere;
   word-break: keep-all;
 }
 
