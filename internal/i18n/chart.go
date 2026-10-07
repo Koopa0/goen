@@ -27,6 +27,13 @@ var (
 		"The earliest stretch has %d day.",
 		"The earliest stretch has %d days.")
 
+	// Under a chart that brackets only the first campaigns of those running at
+	// once: %d is how many it leaves out.
+	KeyChartSpansUnbracketed = countKey("chart.spans.unbracketed",
+		"另有 %d 檔活動同時進行，名稱列在表格裡。",
+		"%d more campaign runs at the same time; its name is in the table.",
+		"%d more campaigns run at the same time; their names are in the table.")
+
 	// Names run together in a table cell or a sentence.
 	KeyChartListSeparator = key("chart.list.separator", Message{ZhHant: "、", En: ", "})
 

@@ -3104,7 +3104,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chart__todaymark {
-  stroke: var(--mark, #26395a);
+  stroke: var(--ink-2);
   stroke-width: 2;
 }
 
@@ -3433,18 +3433,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--n-100);
 }
 
-.goen-chart__strip {
-  fill: var(--mark, #26395a);
-}
-
-.goen-chart__gap {
-  shape-rendering: crispEdges;
-  stroke: var(--bg);
-  stroke-width: 2;
-}
-
-.goen-chart__gap--thin {
-  stroke-width: 1;
+.goen-chart__strip,
+.goen-chart__strip-end {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
 }
 
 /* A span's name is placed on the server, fitted to a 12px label (columns.go,
@@ -3452,8 +3444,9 @@ form[data-request-pending] [aria-disabled="true"] {
    room it was fitted to and runs off a phone at large text. Page zoom still
    scales it, and the data table under the chart names every span. */
 .goen-chart__spanlabel {
-  fill: var(--fg);
+  fill: var(--ink-2);
   font-size: 12px;
+  font-weight: var(--fw-medium);
 }
 
 .goen-chart__value {
@@ -3480,9 +3473,13 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  .goen-chart__hue,
-  .goen-chart__strip {
+  .goen-chart__hue {
     fill: CanvasText;
+  }
+
+  .goen-chart__strip,
+  .goen-chart__strip-end {
+    stroke: CanvasText;
   }
 
   .goen-chart__open {
@@ -3497,10 +3494,6 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__span {
     fill: transparent;
-  }
-
-  .goen-chart__gap {
-    stroke: Canvas;
   }
 
   .goen-chart__spanlabel,
