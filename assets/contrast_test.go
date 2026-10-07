@@ -121,6 +121,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
 		{ink: "--error", ground: "--error-bg"},
+		{ink: "--error", ground: "--error-bg-hover"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
 	} {
 		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
@@ -451,21 +452,24 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 // A focus outline that names its own colour skips the re-pointed --ring and
 // can land on a ground it does not read on. Only "none" (the ring is drawn on
 // another element), "transparent" (the field draws its own border) and the
-// error colour on an invalid field are allowed.
+// error colour on an invalid field are allowed. A rule for
+// :not(:focus-visible) is not a focus rule.
 func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	rule := regexp.MustCompile(`([^{}]*[^(]:focus-visible[^{}]*)\{([^{}]*)\}`)
 	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
 	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
-	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
-		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
-			if !allowed.MatchString(strings.TrimSpace(o[1])) {
-				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+	for _, name := range []string{AppCSS, AdminCSS} {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+			for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+				if !allowed.MatchString(strings.TrimSpace(o[1])) {
+					t.Errorf("%s: %s draws its focus outline as %q, want var(--ring)", name, strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+				}
 			}
 		}
 	}
