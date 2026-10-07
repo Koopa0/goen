@@ -3058,12 +3058,12 @@ func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
 	const firstPassword = "first sibling reset password"
 	const secondPassword = "second sibling reset password"
 	go func() {
-		_, err := firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword)
-		firstDone <- err
+		_, resetErr := firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword)
+		firstDone <- resetErr
 	}()
 	go func() {
-		_, err := secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword)
-		secondDone <- err
+		_, resetErr := secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword)
+		secondDone <- resetErr
 	}()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)

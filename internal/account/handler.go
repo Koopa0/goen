@@ -245,7 +245,7 @@ func (h *Handler) writeSignInContext(w http.ResponseWriter, purpose signInPurpos
 	})
 }
 
-func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (signInPurpose, string) {
+func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (purpose signInPurpose, address string) {
 	cookie, err := r.Cookie(h.signInContextCookie())
 	if err != nil {
 		return "", ""
@@ -258,15 +258,15 @@ func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (sig
 		return "", ""
 	}
 	kind, encoded, ok := strings.Cut(cookie.Value, ":")
-	purpose := signInPurpose(kind)
+	purpose = signInPurpose(kind)
 	if !ok || purpose != signInAfterReset && purpose != signInBeforeErasure {
 		return "", ""
 	}
-	address, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil || len(address) > email.Max || !email.Valid(string(address)) {
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil || len(decoded) > email.Max || !email.Valid(string(decoded)) {
 		return "", ""
 	}
-	return purpose, string(address)
+	return purpose, string(decoded)
 }
 
 func signInReturnMessage(ctx context.Context, next string) string {
@@ -1128,7 +1128,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		clearPendingRegistration(w, h.secure)
-		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther)
 	case errors.Is(err, ErrBadCredentials):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
 			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{

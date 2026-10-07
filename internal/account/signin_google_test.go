@@ -34,7 +34,7 @@ func TestSignInProductReturnDoesNotClaimTheHeartWasSaved(t *testing.T) {
 func TestSignInContextRejectsMalformedOrUnrelatedSuggestions(t *testing.T) {
 	h := rateLimitedAccountHandler(deadAccountStore(t))
 	for _, value := range []string{"reset:not-base64!", "other:" + base64.RawURLEncoding.EncodeToString([]byte("suggested@example.com")), "reset:" + base64.RawURLEncoding.EncodeToString([]byte("not an address")), strings.Repeat("a", 513)} {
-		request := httptest.NewRequest(http.MethodGet, "/signin?reset=1", http.NoBody)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin?reset=1", http.NoBody)
 		request.AddCookie(&http.Cookie{Name: h.signInContextCookie(), Value: value}) //nolint:gosec // G124: an untrusted request cookie.
 		response := httptest.NewRecorder()
 		if purpose, address := h.takeSignInContext(response, request); purpose != "" || address != "" {
@@ -46,7 +46,7 @@ func TestSignInContextRejectsMalformedOrUnrelatedSuggestions(t *testing.T) {
 	}
 	written := httptest.NewRecorder()
 	h.writeSignInContext(written, signInBeforeErasure, "suggested@example.com")
-	request := httptest.NewRequest(http.MethodGet, "/signin?reset=1", http.NoBody)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin?reset=1", http.NoBody)
 	request.AddCookie(written.Result().Cookies()[0])
 	response := httptest.NewRecorder()
 	h.SignInPage(response, request)

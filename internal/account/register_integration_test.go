@@ -146,7 +146,7 @@ func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
 			if got := followed.Header().Get("Location"); got != "/account?welcome=1" {
 				t.Errorf("unsafe registration return = %q, want /account?welcome=1", got)
 			}
-			request := httptest.NewRequest(http.MethodGet, "/account?welcome=1&next="+url.QueryEscape(next), http.NoBody)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account?welcome=1&next="+url.QueryEscape(next), http.NoBody)
 			request.AddCookie(sessionCookie(t, followed))
 			page := httptest.NewRecorder()
 			h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(page, request)

@@ -13,6 +13,7 @@ func TestRegistrationWelcomeKeepsTheOriginalActionAndCartRecovery(t *testing.T) 
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			welcome := "Your account is created. Welcome."
 			if locale == i18n.ZhHant {
