@@ -1222,6 +1222,12 @@ input.goen-check {
   scroll-padding-inline: 7rem 0;
 }
 
+@media (forced-colors: active) {
+  .goen-admin__stock :is(th, td):first-child {
+    border-inline-end: 1px solid CanvasText;
+  }
+}
+
 @media (min-width: 64rem) {
   .goen-admin__stock :is(th, td):last-child {
     box-shadow: -0.5rem 0 0.5rem -0.5rem var(--border-strong);
@@ -1240,6 +1246,12 @@ input.goen-check {
 
   .goen-admin__tablewrap:has(.goen-admin__stock) {
     scroll-padding-inline: 7rem 11rem;
+  }
+}
+
+@media (forced-colors: active) and (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    border-inline-start: 1px solid CanvasText;
   }
 }
 
@@ -2249,6 +2261,7 @@ input.goen-check {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2263,7 +2276,7 @@ input.goen-check {
 .goen-report__value {
   color: var(--fg);
   font-family: var(--font-display);
-  font-size: var(--fs-ed-24);
+  font-size: clamp(var(--fs-ed-20), 15cqi, var(--fs-ed-24));
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--fw-display);
   letter-spacing: -0.01em;
@@ -2274,10 +2287,6 @@ input.goen-check {
 @media (max-width: 420px) {
   .goen-report__figure:first-child {
     grid-column: 1 / -1;
-  }
-
-  .goen-report__value {
-    font-size: var(--fs-ed-20);
   }
 }
 
