@@ -2928,8 +2928,8 @@ try {
             fail(label, boundary.selector + ': ' + boundary.error);
             continue;
           }
-          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
-            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast, boundary.underlineContrast, boundary.arrowContrast) < 3) {
+            fail(label, boundary.selector + ': boundary, underline, arrow and fill all below 3:1');
           }
           const focused = await controlFocus(boundary.selector);
           console.log(label + ' focus ' + JSON.stringify(focused));
