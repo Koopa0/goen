@@ -1173,6 +1173,7 @@ th {
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
   cursor: pointer;
   display: none;
   height: 44px;
