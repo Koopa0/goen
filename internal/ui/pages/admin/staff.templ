@@ -52,7 +52,9 @@ templ Staff(p layouts.Page, v StaffView) {
 						<tr>
 							<td class="goen-admin__cellkey">
 								{ r.DisplayName() }
-								<span class="goen-admin__meta">{ r.Email }</span>
+								if r.Name != "" {
+									<span class="goen-admin__meta">{ r.Email }</span>
+								}
 							</td>
 							<td>{ RoleLabel(ctx, r.Role) }</td>
 							<td>

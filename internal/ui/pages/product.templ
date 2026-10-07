@@ -196,7 +196,12 @@ templ productBand(v *ProductView) {
 						<p class="goen-pdp__brand">{ v.Brand }</p>
 					}
 					<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
-					<p class="goen-pdp__prose">{ v.Description }</p>
+					<p
+						class="goen-pdp__prose"
+						if v.DescriptionUntranslated {
+							lang={ i18n.ZhHant.Tag() }
+						}
+					>{ v.Description }</p>
 				</div>
 			</div>
 		</section>
