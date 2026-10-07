@@ -395,6 +395,7 @@ body {
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
   --font-editorial: 'Noto Serif TC', serif;
 
+  /* Noto Sans TC draws 350; Instrument Sans starts at 400, so Latin and figures in a display title draw at 400. */
   --fw-display: 350;
 
   --t-12: 0.75rem;
