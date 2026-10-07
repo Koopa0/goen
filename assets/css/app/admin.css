@@ -200,6 +200,19 @@ h3 {
   background: var(--overlay);
 }
 
+/* A destructive action reads as one: it moves money or removes access, which a
+   soft blue "save" would not say. The transparent border is what forced colours
+   draws as its edge. */
+.goen-btn--danger {
+  background: var(--error-bg);
+  border-color: transparent;
+  color: var(--error);
+}
+
+.goen-btn--danger:hover {
+  background: color-mix(in srgb, var(--error) 10%, var(--error-bg));
+}
+
 /* A disabled control keeps its place and stops responding. It is not hidden: a
    shopper who cannot buy still needs to see what they cannot buy, and the
    sentence beside it saying why. */
@@ -860,7 +873,7 @@ input.goen-check {
   color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   min-height: 44px;
   padding: 0 12px;
   text-decoration: none;
@@ -879,7 +892,7 @@ input.goen-check {
    carries. A state class beside it would be a second place to disagree. */
 .goen-admin__nav [aria-current='page'] {
   background: var(--accent-faint);
-  color: var(--accent-deep);
+  color: var(--accent);
   font-weight: var(--fw-medium);
 }
 
@@ -1478,6 +1491,7 @@ input.goen-check {
 .goen-admin__tabs .ui-filter {
   text-decoration: none;
   min-height: 44px;
+  font-weight: var(--fw-regular);
 }
 
 @media (min-width: 768px) {
@@ -2055,12 +2069,12 @@ input.goen-check {
 .goen-admin__tabs [aria-current] {
   background: var(--accent-faint);
   border-color: transparent;
-  color: var(--accent-deep);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
 }
 
-/* Forced colours drop the tint, and the current item's weight is its
-   neighbours', so it draws its edge in Highlight; the focus ring still wins
-   while it is focused. */
+/* Forced colours drop the tint and the blue, so the current item draws its edge
+   in Highlight; the focus ring still wins while it is focused. */
 @media (forced-colors: active) {
   .goen-admin__nav [aria-current='page']:not(:focus-visible),
   .goen-admin__tabs [aria-current]:not(:focus-visible) {

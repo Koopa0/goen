@@ -463,6 +463,22 @@ th {
   color: var(--accent-deep);
 }
 
+/* A soft button on a blue notice would vanish into it: it takes the white ground. */
+.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary) {
+  background: var(--n-0);
+}
+
+.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):hover {
+  background: var(--accent-muted);
+}
+
+/* With payments off the pay page's notice is a plain sentence under the total, not a blue panel. */
+.goen-pay__summary .goen-notice--accent {
+  background: none;
+  color: var(--fg-muted);
+  padding: 0;
+}
+
 .goen-notice--warn {
   background: var(--warn-bg);
   border-color: transparent;
@@ -819,7 +835,6 @@ th {
 .goen-header__nav .ui-navitem[aria-current='page'] {
   background: none;
   color: var(--n-900);
-  font-weight: var(--fw-medium);
   text-decoration-color: var(--accent);
   text-decoration-line: underline;
 }
@@ -1197,6 +1212,7 @@ th {
 .goen-lang__item[aria-pressed='true'] {
   color: var(--n-900);
   text-decoration: underline;
+  text-decoration-color: var(--accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
 }
@@ -1379,8 +1395,8 @@ th {
 }
 
 .goen-header__drawer .ui-navitem[aria-current='page'] {
-  background: var(--n-100);
-  color: var(--n-900);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
 }
 
 /* The way out of the drawer, and what the phone's bar has no room for. The
@@ -2132,6 +2148,10 @@ th {
   grid-row: 1;
 }
 
+.goen-cats__grid--rows .goen-cat__name {
+  font-weight: var(--fw-regular);
+}
+
 .goen-cat__subs {
   align-self: start;
   color: var(--n-500);
@@ -2397,6 +2417,7 @@ th {
   .goen-cats__grid--rows .goen-cat__name {
     align-self: baseline;
     font-size: var(--t-32);
+    font-weight: var(--fw-display);
     grid-column: 1;
     grid-row: 1;
   }
@@ -3403,9 +3424,9 @@ input.goen-check {
 }
 
 .goen-pagehead__chip[aria-current='page'] {
-  background: var(--n-900);
-  border-color: var(--n-900);
-  color: var(--n-0);
+  background: var(--accent-faint);
+  border-color: transparent;
+  color: var(--accent-deep);
 }
 
 [data-tone='ink'] .goen-pagehead__chip {
@@ -3629,11 +3650,12 @@ input.goen-check {
 
 .goen-deptnotice__name {
   align-items: baseline;
-  color: var(--fg);
+  color: var(--accent-text);
   display: flex;
   flex: 1 1 16rem;
   flex-wrap: wrap;
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   gap: 4px var(--s-3);
   text-decoration: none;
 }
@@ -3682,8 +3704,9 @@ input.goen-check {
 }
 
 .goen-deptcompare__more {
-  color: var(--fg);
+  color: var(--accent-text);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin-left: auto;
   text-underline-offset: 3px;
 }
@@ -3724,9 +3747,11 @@ input.goen-check {
 }
 
 .goen-story__link {
-  color: var(--fg);
+  color: var(--accent-text);
   display: inline-block;
+  font-weight: var(--fw-medium);
   margin-top: var(--s-4);
+  text-decoration: none;
   text-underline-offset: 3px;
 }
 
@@ -4212,7 +4237,7 @@ input.goen-check {
 }
 
 .goen-pdp__pick:checked ~ .goen-pdp__thumb {
-  border-bottom-color: var(--n-900);
+  border-bottom-color: var(--accent);
 }
 
 .goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
@@ -4454,6 +4479,15 @@ input.goen-check {
   border-color: var(--n-900);
   outline: 2px solid var(--n-900);
   outline-offset: 1px;
+}
+
+/* A text option is chosen in the accent, drawn inside its own edge: an outline
+   would read as focus. Colour discs keep the ink ring, which a blue ring would
+   blur into a blue disc. */
+.goen-swatch--on:not(.goen-swatch--dot) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
 }
 
 .goen-swatch__note {
@@ -5875,11 +5909,11 @@ input.goen-check {
   background: var(--n-50);
 }
 
-/* The one source for "this is the chosen one": ink, not the accent. The extra
-   pixel makes the outline two without moving the content. */
+/* The one source for "this is the chosen one": the accent, where a shopper chooses.
+   The extra pixel makes the outline two without moving the content. */
 .goen-checkout__ship:has(input:checked) {
-  border-color: var(--n-900);
-  box-shadow: 0 0 0 1px var(--n-900);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* The card shows the focus its hidden radio has, or a keyboard user moving
@@ -6123,12 +6157,16 @@ input.goen-check {
 }
 
 .goen-order__dot {
-  background: var(--accent);
+  background: var(--n-300);
   border-radius: var(--r-full);
   flex: none;
-  height: 16px;
-  margin-top: 4px;
-  width: 16px;
+  height: 10px;
+  margin-top: 7px;
+  width: 10px;
+}
+
+.goen-order__step:last-child .goen-order__dot {
+  background: var(--accent);
 }
 
 .goen-order__connector {
@@ -6310,7 +6348,7 @@ input.goen-check {
 .goen-findorder__title {
   color: var(--fg);
   font-size: var(--fs-ed-20);
-  font-weight: var(--fw-display);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -6333,7 +6371,7 @@ input.goen-check {
   .goen-checkout .goen-pagehead__title,
   .goen-order .goen-pagehead__title,
   .goen-pay .goen-pagehead__title {
-    font-size: 2.25rem;
+    font-size: var(--t-44);
   }
 
   .goen-line--cart {
@@ -6736,7 +6774,8 @@ input.goen-check {
 .goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
 .goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
 .goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
-  background: var(--n-200);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
 }
 
 .goen-account__navname {
@@ -7979,7 +8018,8 @@ input.goen-check {
   .goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
   .goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
   .goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
-    background: var(--n-100);
+    background: var(--accent-faint);
+    color: var(--accent-deep);
   }
 
   .goen-account__navhint {
