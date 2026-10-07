@@ -5681,10 +5681,10 @@ $$;
 
 -- What the storefront says about a campaign
 --
--- Views rather than functions so the planner inlines them into the query asking;
--- a function called per product is what goen measured as slow. security_invoker,
--- so a reader still needs its own SELECT on every table beneath. Created below
--- both blanket grants, so only the roles that read them are granted.
+-- Views rather than functions so the planner inlines them into the query asking.
+-- security_invoker, so a reader still needs its own SELECT on every table
+-- beneath. Created below both blanket grants, so only the roles that read them
+-- are granted.
 
 CREATE VIEW running_campaigns WITH (security_invoker = true) AS
     SELECT c.id
