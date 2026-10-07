@@ -823,7 +823,7 @@ func (v *OrderView) CanCancel() bool {
 
 // ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
 func (v *OrderView) ShowCancel() bool {
-	return v.CanCancel() && !v.paymentReturnHoldsCancel()
+	return v.CanCancel() && v.PaymentRefreshURL == "" && !v.paymentReturnHoldsCancel()
 }
 
 func (v *OrderView) paymentReturnHoldsCancel() bool {
