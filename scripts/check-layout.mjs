@@ -901,12 +901,12 @@ for (const want of EXPECTED) {
 // reads as the share of the span. Elapsed stays apart from to come: by colour,
 // and in forced colours, where the colours are the system's, by thickness. A
 // label a track draws lies inside it and the viewport and overlaps no other. A
-// route with no period fails, because a track that is not drawn cannot be
+// route with no period drawn fails, because a track that is not drawn cannot be
 // measured and the check would pass on nothing.
 const PERIOD_PROBE = `(() => {
   const vw = document.documentElement.clientWidth;
   const forced = matchMedia('(forced-colors: active)').matches;
-  const periods = [...document.querySelectorAll('.ui-period')];
+  const periods = [...document.querySelectorAll('.ui-period')].filter((e) => e.getClientRects().length > 0);
   const problems = [];
   const tracks = [];
   periods.forEach((period, n) => {
@@ -925,7 +925,7 @@ const PERIOD_PROBE = `(() => {
     if (cells.length === 0) problems.push(at + ' has no cells');
     cells.forEach((c, i) => {
       if (c.r.height <= 0 || c.width < 2 || c.style === 'none' || c.style === 'hidden'
-        || c.colour === 'transparent' || /, 0\\)$/.test(c.colour)) {
+        || c.colour === 'transparent' || /^rgba\\(.*,\\s*0\\)$/.test(c.colour)) {
         problems.push(at + ' cell ' + i + ' draws no line (' + c.width + 'px ' + c.style + ' ' + c.colour + ')');
       }
       if (c.r.left < box.left - 0.5 || c.r.right > box.right + 0.5) {

@@ -3685,6 +3685,15 @@ input.goen-check {
   max-width: 26rem;
 }
 
+/* A phone would stack the track under the end line, two layers for one fact, and
+   push the first product out of the first screen (check-layout.mjs, listing 375).
+   The end line already says when the campaign ends. */
+@media (max-width: 767px) {
+  .goen-deptnotice .ui-period {
+    display: none;
+  }
+}
+
 .goen-deptcompare__head {
   align-items: baseline;
   display: flex;
