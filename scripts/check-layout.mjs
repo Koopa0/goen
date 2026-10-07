@@ -1529,7 +1529,7 @@ const proveListingDesktopResize = async (label, locale) => {
       const cy = r.top + r.height / 2;
       for (const [dx, dy] of [[-21, -21], [21, -21], [-21, 21], [21, 21]]) {
         const hit = document.elementFromPoint(cx + dx, cy + dy);
-        if (!hit || !remove.contains(hit)) missed.push(dx + ',' + dy);
+        if (!hit || !remove.contains(hit)) missed.push(dx + ',' + dy + ' hit=' + (hit ? hit.tagName + '.' + String(hit.className) + ' ' + JSON.stringify(hit.getBoundingClientRect()) + ' removeRect=' + JSON.stringify(r) : 'null'));
       }
     }
     return {
