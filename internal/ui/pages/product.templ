@@ -280,11 +280,8 @@ templ productBuy(v *ProductView) {
 				}
 			</div>
 			if v.OnSale() {
-				{{ before, after := v.Campaign.Source(ctx) }}
-				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ after }</p>
-				if v.Campaign.HasPeriod {
-					@components.Period(v.Campaign.Period)
-				}
+				{{ before, middle, after := v.Campaign.Source(ctx) }}
+				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ middle }<span class="goen-pdp__left">{ v.Campaign.End.Left(ctx) }</span>{ after }</p>
 			}
 		}
 		if v.Summary != "" {
