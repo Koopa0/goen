@@ -644,28 +644,21 @@ func TestAuditProducerFieldsHaveLabels(t *testing.T) {
 								return resolve(value.Args[0], payload, scope, visiting)
 							}
 						}
-						if name, isName := value.Fun.(*ast.Ident); isName {
-							if name.Name == "make" && payload && len(value.Args) > 0 {
-								if _, isMap := value.Args[0].(*ast.MapType); isMap {
-									return nil
-								}
-							}
-							for _, source := range packageFiles {
-								for _, candidate := range source.Decls {
-									helper, isHelper := candidate.(*ast.FuncDecl)
-									if !isHelper || helper.Name.Name != name.Name || helper.Body == nil {
-										continue
-									}
-									ast.Inspect(helper.Body, func(node ast.Node) bool {
-										if returned, isReturn := node.(*ast.ReturnStmt); isReturn && len(returned.Results) > 0 {
-											result = append(result, resolve(returned.Results[0], payload, helper, make(map[string]bool))...)
-										}
-										return true
-									})
-									return result
-								}
-							}
+						if payload && auditGoEmptyMapCall(value) {
+							return nil
 						}
+						name, isName := value.Fun.(*ast.Ident)
+						if !isName {
+							break
+						}
+						helper := auditGoFunction(packageFiles, name.Name)
+						if helper == nil {
+							break
+						}
+						for _, returned := range auditGoFunctionReturns(helper) {
+							result = append(result, resolve(returned, payload, helper, make(map[string]bool))...)
+						}
+						return result
 					}
 					t.Fatalf("%s:%d: unsupported audit expression %T; extend producer discovery", paths[file], fset.Position(expr.Pos()).Line, expr)
 					return nil
@@ -810,6 +803,38 @@ func auditStructJSONFields(t *testing.T, root, dir string, expr ast.Expr, import
 	return nil
 }
 
+func auditGoEmptyMapCall(call *ast.CallExpr) bool {
+	name, isName := call.Fun.(*ast.Ident)
+	if !isName || name.Name != "make" || len(call.Args) == 0 {
+		return false
+	}
+	_, isMap := call.Args[0].(*ast.MapType)
+	return isMap
+}
+
+func auditGoFunction(files []*ast.File, name string) *ast.FuncDecl {
+	for _, file := range files {
+		for _, declaration := range file.Decls {
+			helper, isHelper := declaration.(*ast.FuncDecl)
+			if isHelper && helper.Name.Name == name && helper.Body != nil {
+				return helper
+			}
+		}
+	}
+	return nil
+}
+
+func auditGoFunctionReturns(helper *ast.FuncDecl) []ast.Expr {
+	var result []ast.Expr
+	ast.Inspect(helper.Body, func(node ast.Node) bool {
+		if returned, isReturn := node.(*ast.ReturnStmt); isReturn && len(returned.Results) > 0 {
+			result = append(result, returned.Results[0])
+		}
+		return true
+	})
+	return result
+}
+
 func auditSQLProducerFields(t *testing.T, root string, add func(string, []string, string)) map[string]string {
 	t.Helper()
 	wrappers := make(map[string]string)
@@ -834,6 +859,51 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 		t.Fatalf("unsupported SQL audit payload %v; extend producer discovery", tokens)
 		return nil
 	}
+	readCall := func(name string, args [][]string, invoiceEntity, path string) {
+		t.Helper()
+		if auditSQLQueryParameters(path, args) {
+			return
+		}
+		switch name {
+		case "record_audit_event":
+			if (len(args) != 6 && len(args) != 7) || len(args[2]) != 1 || !strings.HasPrefix(args[2][0], "'") {
+				t.Fatalf("unsupported audit SQL call in %s", path)
+			}
+			entity := strings.Trim(args[2][0], "'")
+			add(entity, readPayload(args[4]), path)
+			add(entity, readPayload(args[5]), path)
+		case "record_invoice_operation_audit":
+			if len(args) != 3 {
+				t.Fatalf("unsupported invoice audit SQL call in %s", path)
+			}
+			if invoiceEntity == "" {
+				t.Fatalf("%s: cannot resolve invoice audit wrapper entity", path)
+			}
+			add(invoiceEntity, readPayload(args[2]), path)
+		}
+	}
+	readInsert := func(function string, signature [][]string, tokens []string, index int, path string) {
+		t.Helper()
+		columns, values := auditSQLInsertValues(t, tokens, index)
+		entity := auditSQLInsertEntity(columns, values)
+		if entity == "" {
+			if !auditSQLGenericForwarder(function, signature, columns, values) {
+				t.Fatalf("%s: unsupported dynamic audit INSERT entity in %s", path, function)
+			}
+			return
+		}
+		invoiceForwarder := auditSQLInvoiceForwarder(function, signature, columns, values)
+		for column, names := range columns {
+			if names[0] != "before" && names[0] != "after" {
+				continue
+			}
+			if names[0] == "after" && invoiceForwarder {
+				continue // Only this exact wrapper forwards caller-supplied JSON.
+			}
+			add(entity, readPayload(values[column]), path)
+		}
+	}
+	sourceFS := os.DirFS(root)
 	paths, err := filepath.Glob(filepath.Join(root, "migrations", "*.up.sql"))
 	if err != nil {
 		t.Fatal(err)
@@ -852,7 +922,11 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 		}
 	}
 	for _, path := range paths {
-		data, readErr := os.ReadFile(path)
+		relative, pathErr := filepath.Rel(root, path)
+		if pathErr != nil {
+			t.Fatal(pathErr)
+		}
+		data, readErr := fs.ReadFile(sourceFS, filepath.ToSlash(relative))
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -920,73 +994,55 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 			}
 			if (name == "record_audit_event" || name == "record_invoice_operation_audit") && index+1 < len(tokens) && tokens[index+1] == "(" && (index == 0 || !strings.EqualFold(tokens[index-1], "function")) {
 				args, _ := auditSQLArguments(t, tokens, index+1)
-				if strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
-					// Parameter-only query wrappers are resolved at their Go callers.
-					if len(args) == 7 && len(args[4]) > 0 && len(args[5]) > 0 && args[4][0] == "@" && args[5][0] == "@" {
-						continue
-					}
-					if len(args) == 7 && len(args[5]) > 0 && args[5][0] == "@" && strings.EqualFold(args[4][0], "null") {
-						continue
-					}
-				}
-				if name == "record_audit_event" {
-					if (len(args) != 6 && len(args) != 7) || len(args[2]) != 1 || !strings.HasPrefix(args[2][0], "'") {
-						t.Fatalf("unsupported audit SQL call in %s", path)
-					}
-					entity := strings.Trim(args[2][0], "'")
-					add(entity, readPayload(args[4]), path)
-					add(entity, readPayload(args[5]), path)
-				} else {
-					if len(args) != 3 {
-						t.Fatalf("unsupported invoice audit SQL call in %s", path)
-					}
-					if invoiceEntity == "" {
-						t.Fatalf("%s: cannot resolve invoice audit wrapper entity", path)
-					}
-					add(invoiceEntity, readPayload(args[2]), path)
-				}
+				readCall(name, args, invoiceEntity, path)
 			}
 			if name == "insert" && index+3 < len(tokens) && strings.EqualFold(tokens[index+1], "into") && strings.EqualFold(tokens[index+2], "audit_events") {
-				columns, end := auditSQLArguments(t, tokens, index+3)
-				if end+1 >= len(tokens) || !strings.EqualFold(tokens[end], "values") {
-					t.Fatal("audit INSERT is not an explicit VALUES row")
-				}
-				values, _ := auditSQLArguments(t, tokens, end+1)
-				if len(columns) != len(values) {
-					t.Fatal("audit INSERT columns and values differ")
-				}
-				entity := ""
-				for column, names := range columns {
-					if names[0] == "entity_table" && len(values[column]) == 1 && strings.HasPrefix(values[column][0], "'") {
-						entity = strings.Trim(values[column][0], "'")
-					}
-				}
-				if entity == "" {
-					if !auditSQLGenericForwarder(function, signature, columns, values) {
-						t.Fatalf("%s: unsupported dynamic audit INSERT entity in %s", path, function)
-					}
-					continue
-				}
-				for column, names := range columns {
-					if names[0] == "before" || names[0] == "after" {
-						if names[0] == "after" && auditSQLInvoiceForwarder(function, signature, columns, values) {
-							continue // Only this exact wrapper forwards caller-supplied JSON.
-						}
-						add(entity, readPayload(values[column]), path)
-					}
-				}
+				readInsert(function, signature, tokens, index, path)
 			}
 		}
 	}
 	return wrappers
 }
 
-func auditSQLArguments(t *testing.T, tokens []string, start int) ([][]string, int) {
+func auditSQLQueryParameters(path string, args [][]string) bool {
+	if !strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
+		return false
+	}
+	// Parameter-only query wrappers are resolved at their Go callers.
+	if len(args) == 7 && len(args[4]) > 0 && len(args[5]) > 0 && args[4][0] == "@" && args[5][0] == "@" {
+		return true
+	}
+	return len(args) == 7 && len(args[5]) > 0 && args[5][0] == "@" && strings.EqualFold(args[4][0], "null")
+}
+
+func auditSQLInsertValues(t *testing.T, tokens []string, index int) (columns, values [][]string) {
+	t.Helper()
+	columns, end := auditSQLArguments(t, tokens, index+3)
+	if end+1 >= len(tokens) || !strings.EqualFold(tokens[end], "values") {
+		t.Fatal("audit INSERT is not an explicit VALUES row")
+	}
+	values, _ = auditSQLArguments(t, tokens, end+1)
+	if len(columns) != len(values) {
+		t.Fatal("audit INSERT columns and values differ")
+	}
+	return columns, values
+}
+
+func auditSQLInsertEntity(columns, values [][]string) string {
+	entity := ""
+	for column, names := range columns {
+		if names[0] == "entity_table" && len(values[column]) == 1 && strings.HasPrefix(values[column][0], "'") {
+			entity = strings.Trim(values[column][0], "'")
+		}
+	}
+	return entity
+}
+
+func auditSQLArguments(t *testing.T, tokens []string, start int) (args [][]string, next int) {
 	t.Helper()
 	if start >= len(tokens) || tokens[start] != "(" {
 		t.Fatalf("expected SQL argument list at token %d in %v", start, tokens[max(0, start-3):min(len(tokens), start+3)])
 	}
-	var args [][]string
 	var current []string
 	depth := 1
 	for index := start + 1; index < len(tokens); index++ {
@@ -1033,30 +1089,15 @@ func auditSQLTokens(t *testing.T, source string) []string {
 		}
 		character := source[index]
 		if character == '$' {
-			end := index + 1
-			for end < len(source) && (source[end] == '_' || unicode.IsLetter(rune(source[end])) || unicode.IsDigit(rune(source[end]))) {
-				end++
-			}
-			if end < len(source) && source[end] == '$' {
-				marker := source[index : end+1]
-				closeAt := strings.Index(source[end+1:], marker)
-				if closeAt < 0 {
-					t.Fatal("unterminated SQL dollar quote")
-				}
-				bodyEnd := end + 1 + closeAt
-				body := source[end+1 : bodyEnd]
-				if len(tokens) > 0 && (strings.EqualFold(tokens[len(tokens)-1], "as") || strings.EqualFold(tokens[len(tokens)-1], "do")) {
-					tokens = append(tokens, "$audit_body_begin$")
-					tokens = append(tokens, auditSQLTokens(t, body)...)
-					tokens = append(tokens, "$audit_body_end$")
-				} else {
-					tokens = append(tokens, source[index:bodyEnd+len(marker)])
-				}
-				index = bodyEnd + len(marker)
+			quoted, next := auditSQLDollarTokens(t, source, index, tokens)
+			if next != index {
+				tokens = append(tokens, quoted...)
+				index = next
 				continue
 			}
 		}
-		if character == '\'' {
+		switch {
+		case character == '\'':
 			start := index
 			index++
 			for index < len(source) {
@@ -1071,20 +1112,45 @@ func auditSQLTokens(t *testing.T, source string) []string {
 				index++
 			}
 			tokens = append(tokens, source[start:index])
-		} else if unicode.IsSpace(rune(character)) {
+		case unicode.IsSpace(rune(character)):
 			index++
-		} else if character == '_' || unicode.IsLetter(rune(character)) {
+		case character == '_' || unicode.IsLetter(rune(character)):
 			start := index
 			for index < len(source) && (source[index] == '_' || unicode.IsLetter(rune(source[index])) || unicode.IsDigit(rune(source[index]))) {
 				index++
 			}
 			tokens = append(tokens, source[start:index])
-		} else {
+		default:
 			tokens = append(tokens, string(character))
 			index++
 		}
 	}
 	return tokens
+}
+
+func auditSQLDollarTokens(t *testing.T, source string, start int, preceding []string) (tokens []string, next int) {
+	t.Helper()
+	end := start + 1
+	for end < len(source) && (source[end] == '_' || unicode.IsLetter(rune(source[end])) || unicode.IsDigit(rune(source[end]))) {
+		end++
+	}
+	if end >= len(source) || source[end] != '$' {
+		return nil, start
+	}
+	marker := source[start : end+1]
+	closeAt := strings.Index(source[end+1:], marker)
+	if closeAt < 0 {
+		t.Fatal("unterminated SQL dollar quote")
+	}
+	bodyEnd := end + 1 + closeAt
+	next = bodyEnd + len(marker)
+	if len(preceding) == 0 || (!strings.EqualFold(preceding[len(preceding)-1], "as") && !strings.EqualFold(preceding[len(preceding)-1], "do")) {
+		return []string{source[start:next]}, next
+	}
+	tokens = append(tokens, "$audit_body_begin$")
+	tokens = append(tokens, auditSQLTokens(t, source[end+1:bodyEnd])...)
+	tokens = append(tokens, "$audit_body_end$")
+	return tokens, next
 }
 
 func auditStaffCallbackFields(t *testing.T, packageFiles []*ast.File, scope *ast.FuncDecl, resolve func(ast.Expr, *ast.FuncDecl) []string) []string {
@@ -1226,14 +1292,16 @@ func TestAuditSQLForwardingRequiresItsExactFunction(t *testing.T) {
 	}
 }
 
-func auditSQLFunctionDeclaration(t *testing.T, tokens []string, start int) (string, [][]string) {
+func auditSQLFunctionDeclaration(t *testing.T, tokens []string, start int) (name string, signature [][]string) {
 	t.Helper()
-	name := tokens[start+2]
+	var declaration strings.Builder
+	declaration.WriteString(tokens[start+2])
 	index := start + 3
 	for index+1 < len(tokens) && tokens[index] == "." {
-		name += "." + tokens[index+1]
+		declaration.WriteByte('.')
+		declaration.WriteString(tokens[index+1])
 		index += 2
 	}
-	signature, _ := auditSQLArguments(t, tokens, index)
-	return name, signature
+	signature, _ = auditSQLArguments(t, tokens, index)
+	return declaration.String(), signature
 }
