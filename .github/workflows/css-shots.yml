@@ -65,26 +65,8 @@ jobs:
           for which in before after; do
             sha_var=$(echo "${which}_SHA" | tr a-z A-Z)
             git worktree add "wt-$which" "${!sha_var}"
-            (cd "wt-$which" && git log -1 --format="$which: %H %s" && make build && cp bin/goen "../builds/goen-$which")
-          done
-
-      - name: Capture
-        run: |
-          set -euo pipefail
-          chrome=$(scripts/resolve-chrome.sh)
-          "$chrome" --version
-          profile=$(mktemp -d)
-          nice -n 10 "$chrome" --headless --disable-gpu --no-first-run \
-            --remote-debugging-port=9333 --user-data-dir="$profile" about:blank > chrome-shots.log 2>&1 &
-          chrome_pid=$!
-          trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
-          sleep 3
-          set -a; . ./fixtures.env; set +a
-          status=0
-          for which in before after; do
-            echo "::group::$which"
-            # Each build runs from its own checkout so it serves its own embedded assets.
-            (cd "wt-$which" && GOEN_INSECURE_COOKIES=1 ../builds/goen-$which > "../server-$which.log" 2>&1 & echo $! > "../goen-$which.pid")
+            (cd "wt-$which" && GOEN_INSECURE_COOKIES=1 exec "../builds/goen-$which" > "../server-$which.log" 2>&1) &
+            echo $! > "goen-$which.pid"
             for _ in $(seq 1 60); do
               if curl -sf -o /dev/null "$GOEN_URL/readyz"; then break; fi
               sleep 1
