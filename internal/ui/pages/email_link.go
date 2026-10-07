@@ -20,7 +20,7 @@ const (
 func (r EmailLinkRecovery) URL() string {
 	switch r {
 	case EmailLinkContact:
-		return "mailto:" + layouts.ContactEmail
+		return "mailto:wrong@goen.invalid"
 	case EmailLinkVerify:
 		return "/account#email-heading"
 	case EmailLinkReset:
