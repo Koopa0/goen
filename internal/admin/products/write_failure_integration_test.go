@@ -5,21 +5,28 @@ package products_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -274,4 +281,328 @@ func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	for _, locale := range i18n.Locales() {
+		for _, endpoint := range []struct {
+			name, path, query, lock, log string
+			action                      audit.Action
+		}{
+			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", action: audit.ActionSetImageOption},
+			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", action: audit.ActionAddSpec},
+		} {
+			for _, fault := range []string{"closed pool", "row lock"} {
+				t.Run(locale.Tag()+"/"+endpoint.name+"/"+fault, func(t *testing.T) {
+					ctx := i18n.WithLocale(staff, locale)
+					slug, digest, valueID := seedProductWriteOutcome(t, ctx, owner, adminPool)
+					form := productOutcomeForm(endpoint.path, digest, valueID)
+					before := productOutcomeState(t, ctx, owner, slug)
+					beforeAudit := admintest.AuditRows(t, owner, endpoint.action)
+					trace := &productWriteTrace{query: endpoint.query}
+					cfg := adminPool.Config().Copy()
+					cfg.MaxConns = 1
+					cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200"
+					cfg.ConnConfig.Tracer = trace
+					writing, err := pgxpool.NewWithConfig(t.Context(), cfg)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(writing.Close)
+					var role string
+					if roleErr := writing.QueryRow(ctx, `SELECT current_user`).Scan(&role); roleErr != nil || role != "admin" {
+						t.Fatalf("writer role = %q, want admin: %v", role, roleErr)
+					}
+					var holder pgx.Tx
+					if fault == "closed pool" {
+						writing.Close()
+						if pingErr := writing.Ping(ctx); pingErr == nil || ctx.Err() != nil {
+							t.Fatalf("closed writer = %v, request = %v, want an unavailable pool with a live request", pingErr, ctx.Err())
+						}
+					} else {
+						holder, err = owner.Begin(ctx)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer pgtx.Rollback(ctx, holder)
+						if _, lockErr := holder.Exec(ctx, endpoint.lock, slug); lockErr != nil {
+							t.Fatal(lockErr)
+						}
+					}
+					var diagnostics bytes.Buffer
+					logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
+					mux := productOutcomeRoutes(writing, logger)
+					response := postProductOutcome(t, ctx, mux, "/admin/products/"+slug+endpoint.path, form)
+					if fault == "row lock" {
+						attempts := trace.snapshot()
+						if len(attempts) != 1 {
+							t.Fatalf("%s lock attempts = %d, want one", endpoint.query, len(attempts))
+						}
+						pgErr, ok := errors.AsType[*pgconn.PgError](attempts[0])
+						if !ok || pgErr.Code != "55P03" || ctx.Err() != nil {
+							t.Fatalf("%s error = %v, request = %v, want SQLSTATE55P03 with a live request", endpoint.query, attempts[0], ctx.Err())
+						}
+					}
+					if response.Code != http.StatusInternalServerError || response.Header().Get("Location") != "" {
+						t.Errorf("%s on %s = %d to %q, want 500 without Location", endpoint.name, fault, response.Code, response.Header().Get("Location"))
+					}
+					if body := response.Body.String(); !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminErrorBody)) || strings.Contains(body, "SQLSTATE") || strings.Contains(body, "closed pool") {
+						t.Error("product fault must show the localized server error without the database cause")
+					}
+					if !strings.Contains(diagnostics.String(), `level=ERROR msg="`+endpoint.log+`"`) {
+						t.Errorf("%s diagnostics = %q, want Error for the failed write", endpoint.name, diagnostics.String())
+					}
+					if diff := cmp.Diff(before, productOutcomeState(t, ctx, owner, slug)); diff != "" {
+						t.Errorf("failed product write changed saved rows or audit (-want +got):\n%s", diff)
+					}
+					if holder != nil {
+						if rollbackErr := holder.Rollback(ctx); rollbackErr != nil {
+							t.Fatal(rollbackErr)
+						}
+					}
+					if fault == "closed pool" {
+						mux = productOutcomeRoutes(adminPool, logger)
+					}
+					retry := postProductOutcome(t, ctx, mux, "/admin/products/"+slug+endpoint.path, form)
+					if retry.Code != http.StatusSeeOther || retry.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
+						t.Fatalf("recovered %s = %d to %q, want 303 to success", endpoint.name, retry.Code, retry.Header().Get("Location"))
+					}
+					if admintest.AuditRows(t, owner, endpoint.action) != beforeAudit+1 {
+						t.Error("recovered product write must commit exactly one audit event")
+					}
+					if endpoint.path == "/images/option" {
+						var shows string
+						if readErr := owner.QueryRow(ctx, `SELECT i.option_value_id::text FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$2`, slug, digest).Scan(&shows); readErr != nil {
+							t.Fatal(readErr)
+						}
+						if shows != valueID {
+							t.Errorf("recovered image shows %q, want %q", shows, valueID)
+						}
+					} else {
+						var values [3]string
+						if readErr := owner.QueryRow(ctx, `SELECT s.value, s.label_en, s.value_en FROM product_specs s JOIN products p ON p.id=s.product_id WHERE p.slug=$1 AND s.label='Capacity'`, slug).Scan(&values[0], &values[1], &values[2]); readErr != nil {
+							t.Fatal(readErr)
+						}
+						if diff := cmp.Diff([3]string{"350 mL", "Capacity", "350 mL"}, values); diff != "" {
+							t.Errorf("recovered specification (-want +got):\n%s", diff)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestProductEditorWriteOutcomesPreserveMissingAndRefusedForms(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	slug, digest, valueID := seedProductWriteOutcome(t, staff, owner, adminPool)
+	_, _, foreignValue := seedProductWriteOutcome(t, staff, owner, adminPool)
+	mux := productOutcomeRoutes(adminPool, slog.New(slog.DiscardHandler))
+	for _, locale := range i18n.Locales() {
+		for _, outcome := range []string{"missing image", "missing image product", "missing spec product", "invalid image option", "foreign image option", "empty spec label", "duplicate spec label"} {
+			t.Run(locale.Tag()+"/"+outcome, func(t *testing.T) {
+				ctx := i18n.WithLocale(staff, locale)
+				before := productOutcomeState(t, ctx, owner, slug)
+				requestSlug, path := slug, "/images/option"
+				form := productOutcomeForm(path, digest, valueID)
+				status, location := http.StatusNotFound, ""
+				switch outcome {
+				case "missing image":
+					form.Set("digest", "missing-image")
+				case "missing image product":
+					requestSlug = "missing-" + uuid.NewString()
+				case "missing spec product":
+					requestSlug, path = "missing-"+uuid.NewString(), "/specs"
+					form = productOutcomeForm(path, digest, valueID)
+				case "invalid image option", "foreign image option":
+					form.Set("option_value", "not-an-option")
+					if outcome == "foreign image option" {
+						form.Set("option_value", foreignValue)
+					}
+					status, location = http.StatusSeeOther, "/admin/products/"+slug+"?badoption=1"
+				case "empty spec label", "duplicate spec label":
+					path = "/specs"
+					form = productOutcomeForm(path, digest, valueID)
+					form.Set("label", "   ")
+					if outcome == "duplicate spec label" {
+						form.Set("label", " Size ")
+					}
+					status = http.StatusUnprocessableEntity
+				}
+				response := postProductOutcome(t, ctx, mux, "/admin/products/"+requestSlug+path, form)
+				if response.Code != status || response.Header().Get("Location") != location {
+					t.Errorf("%s = %d to %q, want %d to %q", outcome, response.Code, response.Header().Get("Location"), status, location)
+				}
+				if diff := cmp.Diff(before, productOutcomeState(t, ctx, owner, slug)); diff != "" {
+					t.Errorf("missing/refused product write changed saved rows or audit (-want +got):\n%s", diff)
+				}
+				if status == http.StatusUnprocessableEntity {
+					admintest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
+					for id, field := range map[string]string{"spec-value": "value", "spec-label-en": "label_en", "spec-value-en": "value_en"} {
+						input := admintest.InputElementByID(t, response.Body.String(), id)
+						if got := admintest.InputAttribute(t, input, "value"); got != form.Get(field) {
+							t.Errorf("refused %s draft = %q, want %q", id, got, form.Get(field))
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestRefusedSpecificationKeepsDraftWhenRatingsAreUnavailable(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	slug, _, _ := seedProductWriteOutcome(t, staff, owner, adminPool)
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(staff, locale)
+			before := productOutcomeState(t, ctx, owner, slug)
+			trace := &productWriteTrace{query: "ProductRating"}
+			cfg := adminPool.Config().Copy()
+			cfg.MaxConns = 1
+			cfg.ConnConfig.RuntimeParams["lock_timeout"] = "200"
+			cfg.ConnConfig.Tracer = trace
+			reading, err := pgxpool.NewWithConfig(t.Context(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(reading.Close)
+			var role string
+			if roleErr := reading.QueryRow(ctx, `SELECT current_user`).Scan(&role); roleErr != nil || role != "admin" {
+				t.Fatalf("reader role = %q, want admin: %v", role, roleErr)
+			}
+			holder, err := owner.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer pgtx.Rollback(ctx, holder)
+			if _, lockErr := holder.Exec(ctx, `LOCK TABLE reviews IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
+				t.Fatal(lockErr)
+			}
+			var diagnostics bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
+			form := productOutcomeForm("/specs", "", "")
+			form.Set("label", "   ")
+			response := postProductOutcome(t, ctx, productOutcomeRoutes(reading, logger), "/admin/products/"+slug+"/specs", form)
+			attempts := trace.snapshot()
+			if len(attempts) != 1 {
+				t.Fatalf("ProductRating lock attempts = %d, want one", len(attempts))
+			}
+			pgErr, ok := errors.AsType[*pgconn.PgError](attempts[0])
+			if !ok || pgErr.Code != "55P03" || ctx.Err() != nil {
+				t.Fatalf("ProductRating error = %v, request = %v, want SQLSTATE55P03 with a live request", attempts[0], ctx.Err())
+			}
+			if response.Code != http.StatusUnprocessableEntity || response.Header().Get("Location") != "" {
+				t.Fatalf("spec refusal with unavailable ratings = %d to %q, want 422 without Location", response.Code, response.Header().Get("Location"))
+			}
+			admintest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
+			input := admintest.InputElementByID(t, response.Body.String(), "spec-value")
+			if got := admintest.InputAttribute(t, input, "value"); got != form.Get("value") {
+				t.Errorf("refused spec value = %q, want raw %q", got, form.Get("value"))
+			}
+			if !strings.Contains(diagnostics.String(), `level=ERROR msg="read product sales and reviews"`) {
+				t.Errorf("partial editor diagnostics = %q, want the standing failure", diagnostics.String())
+			}
+			if diff := cmp.Diff(before, productOutcomeState(t, ctx, owner, slug)); diff != "" {
+				t.Errorf("partial editor refusal changed saved rows or audit (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func seedProductWriteOutcome(t *testing.T, ctx context.Context, owner, adminPool *pgxpool.Pool) (slug, digest, valueID string) {
+	t.Helper()
+	s := products.NewStore(adminPool)
+	slug = admintest.DraftProduct(t, ctx, owner, s)
+	digest = "write-outcome-" + uuid.NewString()
+	if err := s.AttachImage(ctx, slug, digest, "Outcome photograph", "", "", 800, 600); err != nil {
+		t.Fatal(err)
+	}
+	if fields, err := s.AddSpec(ctx, slug, products.SpecDraft{Label: "Size", Value: "Original value"}); err != nil || len(fields) > 0 {
+		t.Fatalf("spec fixture = %v/%v", fields, err)
+	}
+	if fields, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "Colour"}); err != nil || len(fields) > 0 {
+		t.Fatalf("option fixture = %v/%v", fields, err)
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil || len(view.Options) != 1 {
+		t.Fatalf("product fixture options = %d, want one: %v", len(view.Options), err)
+	}
+	if fields, addErr := s.AddOptionValue(ctx, slug, products.OptionDraft{OptionID: view.Options[0].ID, Name: "Blue"}); addErr != nil || len(fields) > 0 {
+		t.Fatalf("option value fixture = %v/%v", fields, addErr)
+	}
+	if err := owner.QueryRow(ctx, `SELECT v.id::text FROM product_option_values v JOIN product_options o ON o.id=v.option_id JOIN products p ON p.id=o.product_id WHERE p.slug=$1`, slug).Scan(&valueID); err != nil {
+		t.Fatal(err)
+	}
+	return slug, digest, valueID
+}
+
+func productOutcomeForm(path, digest, valueID string) url.Values {
+	if path == "/images/option" {
+		return url.Values{"digest": {digest}, "option_value": {valueID}}
+	}
+	return url.Values{"label": {" Capacity "}, "value": {" 350 mL "}, "label_en": {" Capacity "}, "value_en": {" 350 mL "}}
+}
+
+func productOutcomeRoutes(p *pgxpool.Pool, logger *slog.Logger) *http.ServeMux {
+	mux := http.NewServeMux()
+	products.NewHandler(products.NewStore(p), media.NewHandler(media.NewStore(p), logger), logger).Routes(mux, admintest.BackOffice)
+	return mux
+}
+
+func postProductOutcome(t *testing.T, ctx context.Context, mux *http.ServeMux, path string, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, req)
+	return response
+}
+
+func productOutcomeState(t *testing.T, ctx context.Context, p *pgxpool.Pool, slug string) string {
+	t.Helper()
+	var state string
+	if err := p.QueryRow(ctx, `SELECT jsonb_build_object(
+		'product', (SELECT to_jsonb(p) FROM products p WHERE slug=$1),
+		'images', (SELECT coalesce(jsonb_agg(to_jsonb(i) ORDER BY i.id), '[]'::jsonb) FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1),
+		'specs', (SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY s.id), '[]'::jsonb) FROM product_specs s JOIN products p ON p.id=s.product_id WHERE p.slug=$1),
+		'audit', (SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY id), '[]'::jsonb) FROM audit_events a)
+	)::text`, slug).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
+type productWriteQueryKey struct{}
+
+type productWriteTrace struct {
+	mu     sync.Mutex
+	query  string
+	errors []error
+}
+
+func (tr *productWriteTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	return context.WithValue(ctx, productWriteQueryKey{}, strings.HasPrefix(data.SQL, "-- name: "+tr.query+" :"))
+}
+
+func (tr *productWriteTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if matched, _ := ctx.Value(productWriteQueryKey{}).(bool); !matched {
+		return
+	}
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	tr.errors = append(tr.errors, data.Err)
+}
+
+func (tr *productWriteTrace) snapshot() []error {
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	return slices.Clone(tr.errors)
 }
