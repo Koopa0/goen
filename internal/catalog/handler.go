@@ -34,7 +34,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	f := parseFilters(r.URL.Query())
 
-	view, err := h.store.Listing(r.Context(), slug, f)
+	view, head, err := h.store.ListingPage(r.Context(), slug, f, !web.IsHTMX(r))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -45,17 +45,20 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view.Query = canonicalQuery(f)
-	view.Filtered = f.Active()
-	view.InStockOnly = f.InStockOnly
-	view.MinPrice = f.MinPrice
-	view.MaxPrice = f.MaxPrice
-	view.Sort = f.Sort.Param()
-
+	// A partial swap never draws the rules or the head, so it does not read them.
+	var rules *pages.ShopRules
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
+	} else {
+		loaded, err := h.store.ShopRules(r.Context())
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "load shop rules", "error", err)
+			h.serverError(w, r)
+			return
+		}
+		rules = &loaded
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view))
+	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules, head))
 }
 
 const newestOnEmpty = 4
@@ -187,7 +190,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	campaigns, err := h.store.RunningCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
+	campaigns, err := h.store.ListedCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
 	if err != nil {
 		// Best effort: the discounted products are the page's substance.
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
@@ -196,7 +199,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Deals(pages.DealsMeta(r.Context()), view))
 }
 
-// Campaign answers 404 for a promotion outside its window.
+// Campaign answers 404 for a campaign that is switched off or does not exist.
 func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	view, err := h.store.Campaign(r.Context(), slug)

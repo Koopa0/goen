@@ -22,6 +22,8 @@ var (
 			"movement in the ledger.",
 	})
 
+	KeyAdminStockList = key("admin.stock.list", Message{ZhHant: "庫存品項清單", En: "Stock items"})
+
 	KeyAdminStockSearch = key("admin.stock.search", Message{ZhHant: "搜尋庫存品項", En: "Search stock items"})
 
 	KeyAdminStockSearchPlaceholder = key("admin.stock.searchplaceholder", Message{
@@ -69,7 +71,7 @@ var (
 
 	KeyAdminStockNowSafe = key("admin.stock.nowsafe", Message{
 		ZhHant: "· 目前 %s 件，安全庫存 %s",
-		En:     "· %s in stock, safety level %s",
+		En:     "· %s in stock, safety stock %s",
 	})
 
 	KeyAdminLedgerEmpty = key("admin.ledger.empty", Message{
@@ -82,6 +84,41 @@ var (
 		ZhHant: "最近 50 筆。結存是從帳本第一筆累加到該筆的數量。",
 		En:     "The last 50 movements. Each balance counts from the first movement in the ledger.",
 	})
+
+	KeyAdminStockLineStock = key("admin.stock.line.stock", Message{ZhHant: "庫存", En: "In stock"})
+
+	KeyAdminStockLineSafety = key("admin.stock.line.safety", Message{ZhHant: "安全庫存", En: "Safety stock"})
+
+	KeyAdminStockLineReceived = key("admin.stock.line.received", Message{ZhHant: "進貨", En: "Received"})
+
+	// The caption is the three sentences below it, each counted on its own.
+	KeyAdminStockLineCaption = key("admin.stock.line.caption", Message{ZhHant: "%s；%s，%s。", En: "%s; %s, %s."})
+
+	KeyAdminStockLineNow = key("admin.stock.line.now", Message{ZhHant: "目前 %d 件", En: "%d in stock"})
+
+	KeyAdminStockLineReceipts = countKey("admin.stock.line.receipts",
+		"%[2]d 天裡進貨 %[1]d 次",
+		"received %[1]d time in %[2]d days", "received %[1]d times in %[2]d days")
+
+	KeyAdminStockLineHeld = countKey("admin.stock.line.held",
+		"有 %d 天不高於安全庫存",
+		"at or below the safety stock on %d day", "at or below the safety stock on %d days")
+
+	KeyAdminStockLineLow = key("admin.stock.line.low", Message{ZhHant: "最低到過 %d 件", En: "never below %d"})
+
+	KeyAdminStockLineNote = key("admin.stock.line.note", Message{
+		ZhHant: "每天結束時的庫存，由現在的庫存依異動帳本往回推算。",
+		En:     "The stock at the close of each day, worked back from the current count through the movement ledger.",
+	})
+
+	KeyAdminStockLineNone = countKey("admin.stock.line.none",
+		"近 %d 天沒有庫存異動。",
+		"No stock movement in the last %d day.", "No stock movement in the last %d days.")
+
+	KeyAdminStockLineOne = countKey("admin.stock.line.one",
+		"近 %d 天只有 1 筆庫存異動，還畫不出庫存線。",
+		"Only one stock movement in the last %d day, too few to draw a line.",
+		"Only one stock movement in the last %d days, too few to draw a line.")
 
 	KeyAdminReceiveQty = key("admin.receive.qty", Message{ZhHant: "進貨數量", En: "Quantity received"})
 

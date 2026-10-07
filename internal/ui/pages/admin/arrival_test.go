@@ -30,3 +30,29 @@ func TestStockArrivalIsAnOptionalPlainFormAndPreservesARefusedDate(t *testing.T)
 		})
 	}
 }
+
+func TestStockDeskNamesTheVariantListAfterTheCoverSection(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			view := VariantsView{ShowCover: true, Variants: []Variant{{SKU: "A"}}}
+			html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+			order := []string{
+				`<h2 class="goen-admin__subhead" id="stock">` + i18n.T(ctx, i18n.KeyAdminRepStock),
+				`<section aria-labelledby="stock-list-heading">`,
+				`<h2 class="goen-sr-only" id="stock-list-heading">` + i18n.T(ctx, i18n.KeyAdminStockList) + `</h2>`,
+				`<table`,
+			}
+			from := 0
+			for _, want := range order {
+				i := strings.Index(html[from:], want)
+				if i < 0 {
+					t.Fatalf("%q missing or out of order after offset %d", want, from)
+				}
+				from += i + len(want)
+			}
+		})
+	}
+}

@@ -16,10 +16,10 @@ import (
 
 const CampaignPageSize = 6
 
-// Campaign returns ErrNotFound for a promotion outside its window rather than
-// an empty page.
+// Campaign returns ErrNotFound for a campaign that is switched off. One outside
+// its window is still shown, as not started or ended.
 func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, error) {
-	c, err := s.q.RunningCampaign(ctx, db.RunningCampaignParams{
+	c, err := s.q.CampaignBySlug(ctx, db.CampaignBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	return pages.CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
-		EndsOn:   pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
+		Schedule: pages.NewCampaignSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
 		Image: pages.Photo{
 			URL:    assets.ProductImageURL(c.ImageKey),
@@ -49,14 +49,23 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
-	total, err := s.q.RunningCampaignsCount(ctx)
+// DealsOnOffer is whether a running campaign has something to buy, which is what /deals lists.
+func (s *Store) DealsOnOffer(ctx context.Context) (bool, error) {
+	offered, err := s.q.DealsHaveSomethingToBuy(ctx)
+	if err != nil {
+		return false, fmt.Errorf("read whether deals are on offer: %w", err)
+	}
+	return offered, nil
+}
+
+func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
+	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {
 		return pages.CampaignPage{}, fmt.Errorf("count campaigns: %w", err)
 	}
 	page = max(1, min(page, maxPage, max(1, int((total+CampaignPageSize-1)/CampaignPageSize))))
 	view := pages.CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
-	rows, err := s.q.RunningCampaigns(ctx, db.RunningCampaignsParams{
+	rows, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{
 		PageSize: CampaignPageSize, PageOffset: int32((page - 1) * CampaignPageSize), Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
@@ -84,9 +93,11 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			PriceCents:   r.TilePriceCents,
 			PriceVaries:  r.PriceVaries.Bool,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,

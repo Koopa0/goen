@@ -37,10 +37,10 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/returnpage"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -148,13 +148,13 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 
 	t.Run("full return", func(t *testing.T) {
 		requestID, orderID, userID := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
-		if err := s.Decide(ctx, requestID.String(), "approved", "全額退貨", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "全額退貨", ""); err != nil {
 			t.Fatalf("settle return: %v", err)
 		}
 		assertReturnedLoyalty(t, requestID, orderID, userID, 0, -120)
 
 		// The already-paid retry is refused, but must not post a second clawback.
-		_ = s.Decide(ctx, requestID.String(), "approved", "重試", "", uuid.NullUUID{})
+		_ = s.Decide(ctx, requestID.String(), "approved", "重試", "")
 		var rows int
 		if err := pool.QueryRow(ctx, `
 			SELECT count(*) FROM loyalty_entries
@@ -195,7 +195,7 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		if err := pool.QueryRow(ctx, `SELECT return_refundable_amount($1)`, requestID).Scan(&refunded); err != nil {
 			t.Fatalf("read refundable amount: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "部分退貨", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "部分退貨", ""); err != nil {
 			t.Fatalf("settle return: %v", err)
 		}
 		assertReturnedLoyalty(t, requestID, orderID, userID,
@@ -281,7 +281,7 @@ func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
 	}}, actor); err != nil {
 		t.Fatalf("inspect points-gap return: %v", err)
 	}
-	completeErr := s.Complete(ctx, requestID.String(), "已驗貨", actor)
+	completeErr := s.Complete(ctx, requestID.String(), "已驗貨")
 	pgErr, ok := errors.AsType[*pgconn.PgError](completeErr)
 	if !errors.Is(completeErr, returns.ErrRefused) || !ok ||
 		pgErr.ConstraintName != "return_requests_completed_points_settled" {
@@ -304,7 +304,7 @@ func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
 	t.Fatalf("return %s is absent from queue", requestID)
 
 retry:
-	if decideErr := s.Decide(ctx, requestID.String(), "approved", "補登點數", "", uuid.NullUUID{}); decideErr != nil {
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "補登點數", ""); decideErr != nil {
 		t.Fatalf("retry missing clawback: %v", decideErr)
 	}
 	var points, requested int64
@@ -318,7 +318,7 @@ retry:
 	if points != -120 || requested != 120 {
 		t.Errorf("retried clawback = %d requested %d, want -120/120", points, requested)
 	}
-	if completeErr := s.Complete(ctx, requestID.String(), "已退款、驗貨並回收點數", actor); completeErr != nil {
+	if completeErr := s.Complete(ctx, requestID.String(), "已退款、驗貨並回收點數"); completeErr != nil {
 		t.Fatalf("complete return after clawback retry: %v", completeErr)
 	}
 	view, err = s.Queue(ctx)
@@ -394,7 +394,7 @@ func TestASettledReturnCanClawPointsBackAfterOwnerErasure(t *testing.T) {
 		t.Fatalf("return %s is absent from the erased-owner recovery queue", requestID)
 	}
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "補登點數", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "補登點數", ""); err != nil {
 		t.Fatalf("retry clawback after erasure: %v", err)
 	}
 	var points, requested int64
@@ -414,7 +414,7 @@ func TestASettledReturnCanClawPointsBackAfterOwnerErasure(t *testing.T) {
 	}}, actor); err != nil {
 		t.Fatalf("inspect erased-owner return: %v", err)
 	}
-	if err := s.Complete(ctx, requestID.String(), "已退款、驗貨並回收點數", actor); err != nil {
+	if err := s.Complete(ctx, requestID.String(), "已退款、驗貨並回收點數"); err != nil {
 		t.Fatalf("complete erased-owner return after clawback: %v", err)
 	}
 	var status string
@@ -627,7 +627,7 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 			s := storeOver(pool, admintest.Refunder{})
 			requestID, _ := couponedShippedOrder(t, tt.lines)
 
-			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 				t.Fatalf("approve: %v — a return the shop cannot pay for is the defect", err)
 			}
 			var amount int64
@@ -662,7 +662,7 @@ func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
 			WHERE order_id = $1 AND status = 'requested'`, orderID).Scan(&requestID); err != nil {
 			t.Fatalf("find %s return: %v", reason, err)
 		}
-		if err := shop.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+		if err := shop.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 			t.Fatalf("approve %s return: %v", reason, err)
 		}
 		var amount int64
@@ -703,7 +703,7 @@ func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 
@@ -774,7 +774,7 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 			s := storeOver(pool, tt.refunder)
 			requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
-			if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err == nil {
+			if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err == nil {
 				t.Fatal("a refund that did not happen was reported as success")
 			}
 
@@ -820,12 +820,12 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
 	})
 
-	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err == nil {
+	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
 		t.Fatal("a refund that timed out was reported as success")
 	}
 
 	healthy := storeOver(pool, admintest.Refunder{})
-	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("the retry was refused, so a stalled refund can never be finished "+
 			"and the customer is never paid: %v", err)
 	}
@@ -872,7 +872,7 @@ func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
 	stalled := storeOver(pool, admintest.Refunder{
 		RefundErr: errors.New("provider outcome is ambiguous"),
 	})
-	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", actor); err == nil {
+	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
 		t.Fatal("ambiguous provider refund was reported as settled")
 	}
 	if err := stalled.Inspect(ctx, requestID.String(), []returns.LineInspection{{
@@ -881,7 +881,7 @@ func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
 		t.Fatalf("inspect return before payout retry: %v", err)
 	}
 
-	err := stalled.Complete(ctx, requestID.String(), "已驗貨", actor)
+	err := stalled.Complete(ctx, requestID.String(), "已驗貨")
 	if !errors.Is(err, returns.ErrRefused) {
 		t.Fatalf("complete with ambiguous payout = %v, want ErrRefused", err)
 	}
@@ -891,10 +891,10 @@ func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
 	}
 
 	healthy := storeOver(pool, admintest.Refunder{})
-	if err := healthy.Decide(ctx, requestID.String(), "approved", "完成退款", "", actor); err != nil {
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "完成退款", ""); err != nil {
 		t.Fatalf("retry approved payout and clawback: %v", err)
 	}
-	if err := healthy.Complete(ctx, requestID.String(), "已退款並驗貨", actor); err != nil {
+	if err := healthy.Complete(ctx, requestID.String(), "已退款並驗貨"); err != nil {
 		t.Fatalf("complete exactly settled return: %v", err)
 	}
 
@@ -954,7 +954,7 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 			staffCtx, _ := admintest.StaffContext(t, isolated)
 			requestID, _ := admintest.ReturnedOrder(t, isolated, 1)
 			s := storeOver(isolated, tc.refunder)
-			_ = s.Decide(staffCtx, requestID.String(), "approved", "退款", "", uuid.NullUUID{})
+			_ = s.Decide(staffCtx, requestID.String(), "approved", "退款", "")
 
 			view, err := s.Queue(staffCtx)
 			if err != nil {
@@ -1023,7 +1023,7 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 	s := storeOver(pool, admintest.Refunder{State: refundstate.Failed})
-	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", "", uuid.NullUUID{})
+	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", "")
 	if !errors.Is(decideErr, refundstate.ErrIncomplete) || errors.Is(decideErr, returns.ErrRefused) || errors.Is(decideErr, refundstate.ErrRefused) {
 		t.Fatalf("terminal decision = %v, want only refundstate.ErrIncomplete", decideErr)
 	}
@@ -1144,7 +1144,7 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 	s := storeOver(pool, admintest.Refunder{})
 	tooLong := strings.Repeat("界", 301)
-	if err := s.Decide(ctx, requestID.String(), "approved", tooLong, "", uuid.NullUUID{}); !errors.Is(err, returns.ErrInvalid) {
+	if err := s.Decide(ctx, requestID.String(), "approved", tooLong, ""); !errors.Is(err, returns.ErrInvalid) {
 		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
 	}
 
@@ -1187,7 +1187,7 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 			s := storeOver(pool, admintest.Refunder{State: tt.state})
 			requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
-			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 				t.Fatalf("a refund Stripe ACCEPTED was treated as a failure: %v", err)
 			}
 
@@ -1243,7 +1243,7 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
-	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", ""); err != nil {
 		t.Fatalf("reject: %v", err)
 	}
 
@@ -1254,6 +1254,14 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	}
 	if refundRows != 0 {
 		t.Errorf("%d refunds written for a REJECTED return", refundRows)
+	}
+	var refundable int64
+	if err := pool.QueryRow(ctx,
+		`SELECT return_refundable_amount($1)`, requestID).Scan(&refundable); err != nil {
+		t.Fatalf("read the refundable amount: %v", err)
+	}
+	if refundable != 0 {
+		t.Errorf("a rejected return shows %d refundable, want 0", refundable)
 	}
 
 	var status, resolution string
@@ -1272,10 +1280,10 @@ func TestAReturnIsDecidedOnce(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); !errors.Is(err, returns.ErrRefused) {
 		t.Errorf("second decision gave %v, want ErrRefused", err)
 	}
 
@@ -1308,7 +1316,7 @@ func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 	}
 
 	decided := make(chan error, 1)
-	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}) }()
+	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", "") }()
 
 	select {
 	case err := <-decided:
@@ -1370,7 +1378,7 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 2)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("first approval: %v", err)
 	}
 
@@ -1389,7 +1397,7 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
 		VALUES ($1, $2, $3, 2)`, orderID, second, lineID); err == nil {
-		if decideErr := s.Decide(ctx, second.String(), "approved", "", "", uuid.NullUUID{}); decideErr == nil {
+		if decideErr := s.Decide(ctx, second.String(), "approved", "", ""); decideErr == nil {
 			t.Fatal("the same order was refunded twice")
 		}
 	}
@@ -1430,7 +1438,7 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 		t.Fatalf("post the goodwill refund: %v", err)
 	}
 
-	err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{})
+	err := s.Decide(ctx, requestID.String(), "approved", "", "")
 	if err == nil {
 		t.Fatal("a return claiming more than remains was approved")
 	}
@@ -1505,7 +1513,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 				return id
 			},
 			credit: 200000,
-			want:   "店儲 NT$2,000 退回額度",
+			want:   "購物金 NT$2,000 退回餘額",
 			not:    "走 Stripe",
 		},
 		{
@@ -1517,7 +1525,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			},
 			card:   140000,
 			credit: 60000,
-			want:   "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
+			want:   "卡款 NT$1,400 走 Stripe，購物金 NT$600 退回餘額",
 		},
 		{
 			name: "card-only",
@@ -1528,13 +1536,13 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			},
 			card: 200000,
 			want: "卡款 NT$2,000 走 Stripe",
-			not:  "額度",
+			not:  "購物金",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestID := tt.setup(t)
-			if err := s.Decide(ctx, requestID.String(), "approved", "核准", "", uuid.NullUUID{}); err != nil {
+			if err := s.Decide(ctx, requestID.String(), "approved", "核准", ""); err != nil {
 				t.Fatalf("Decide: %v", err)
 			}
 			view, err := s.Queue(ctx)
@@ -1741,7 +1749,7 @@ func TestAReturnPaysBackBothSources(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
 
@@ -1779,7 +1787,7 @@ func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 1, 60000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "退一件", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "退一件", ""); err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
 
@@ -1806,7 +1814,7 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
-	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", "", uuid.NullUUID{}); decideErr != nil {
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); decideErr != nil {
 		t.Fatalf("Decide: %v", decideErr)
 	}
 
@@ -1831,7 +1839,7 @@ func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
 
@@ -1896,7 +1904,7 @@ func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
 	}
 
 	s := storeOver(pool, admintest.Refunder{})
-	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", "", uuid.NullUUID{}); err == nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); err == nil {
 		t.Fatal("injected timeline failure was reported as a complete payout")
 	}
 	if got := creditBalanceOf(t, accountID); got != 200000 {
@@ -1931,7 +1939,7 @@ func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
 	}
 
 	dropFailure()
-	if err := s.Decide(ctx, requestID.String(), "approved", "補登退款事件", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "補登退款事件", ""); err != nil {
 		t.Fatalf("retry missing refunded event: %v", err)
 	}
 	if got := creditBalanceOf(t, accountID); got != 200000 {
@@ -1945,7 +1953,7 @@ func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
 	if events != 1 {
 		t.Errorf("event retry left %d refunded events, want exactly 1", events)
 	}
-	if err := s.Decide(ctx, requestID.String(), "approved", "重複補登", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+	if err := s.Decide(ctx, requestID.String(), "approved", "重複補登", ""); !errors.Is(err, returns.ErrRefused) {
 		t.Fatalf("second event retry = %v, want an already-settled refusal", err)
 	}
 
@@ -1954,7 +1962,7 @@ func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
 	}}, actor); err != nil {
 		t.Fatalf("inspect event-repaired return: %v", err)
 	}
-	if err := s.Complete(ctx, requestID.String(), "退款事件已補登", actor); err != nil {
+	if err := s.Complete(ctx, requestID.String(), "退款事件已補登"); err != nil {
 		t.Fatalf("complete event-repaired return: %v", err)
 	}
 }
@@ -1974,7 +1982,7 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 			requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 			s := storeOver(pool, tt.refunder)
 
-			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", "", uuid.NullUUID{})
+			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", "")
 			if !errors.Is(err, refundstate.ErrIncomplete) || errors.Is(err, returns.ErrRefused) || errors.Is(err, refundstate.ErrRefused) {
 				t.Fatalf("split terminal decision = %v, want only refundstate.ErrIncomplete", err)
 			}
@@ -2024,7 +2032,7 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 	s := storeOver(pool, admintest.Refunder{State: refundstate.Pending})
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", ""); err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
 
@@ -2060,7 +2068,7 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 			"refunded tells the customer the money is back", events)
 	}
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", ""); err != nil {
 		t.Fatalf("retry while the card is still pending: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `
@@ -2078,15 +2086,15 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	figures := reports.NewStore(pool)
 
-	before, err := figures.Report(ctx, 30)
+	before, err := figures.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("read report before refund: %v", err)
 	}
 	requestID, orderNumber, _ := admintest.CreditFundedReturn(t, pool, 2, 200000)
-	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", "", uuid.NullUUID{}); decideErr != nil {
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); decideErr != nil {
 		t.Fatalf("Decide: %v", decideErr)
 	}
-	after, err := figures.Report(ctx, 30)
+	after, err := figures.ReportAt(ctx, 30, time.Now())
 	if err != nil {
 		t.Fatalf("read report after refund: %v", err)
 	}
@@ -2111,7 +2119,7 @@ func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", ""); err != nil {
 		t.Fatalf("first Decide: %v", err)
 	}
 	// Retry the public compensation operation with the exact same authority.
@@ -2263,7 +2271,7 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	lineID := returnLineID(t, requestID)
 
 	before := stockOf(t, variantID)
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", actor); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	if got := stockOf(t, variantID); got != before {
@@ -2307,11 +2315,11 @@ func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	requestID, variantID := returnedOrderWithStock(t, "uninspected", 2)
 	lineID := returnLineID(t, requestID)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", actor); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 
-	if err := s.Complete(ctx, requestID.String(), "", actor); !errors.Is(err, returns.ErrRefused) {
+	if err := s.Complete(ctx, requestID.String(), ""); !errors.Is(err, returns.ErrRefused) {
 		t.Fatalf("closing an uninspected return = %v, want ErrRefused", err)
 	}
 	var status string
@@ -2328,7 +2336,7 @@ func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	}}, actor); err != nil {
 		t.Fatalf("inspect: %v", err)
 	}
-	if err := s.Complete(ctx, requestID.String(), "已退款並入庫", actor); err != nil {
+	if err := s.Complete(ctx, requestID.String(), "已退款並入庫"); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
@@ -2370,7 +2378,7 @@ func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 	requestID, variantID := returnedOrderWithStock(t, "overrestock", 1)
 	lineID := returnLineID(t, requestID)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", actor); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	before := stockOf(t, variantID)
@@ -2393,7 +2401,7 @@ func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	requestID, variantID := returnedOrderWithStock(t, "twice", 2)
 	lineID := returnLineID(t, requestID)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "", "", actor); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 	before := stockOf(t, variantID)
@@ -2460,7 +2468,7 @@ func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
 	}
 
 	decided := make(chan error, 1)
-	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}) }()
+	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", "") }()
 
 	select {
 	case err := <-decided:
@@ -2529,7 +2537,7 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 
 	sent := &atomic.Int64{}
 	s := storeOver(pool, admintest.Refunder{Sent: sent})
-	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
 		t.Fatalf("the retry was refused (%v), so the CARD half can never be sent "+
 			"and the customer stays short — goen consumes no refund webhook, so "+
 			"pressing 同意 again is the only door", err)
@@ -2573,7 +2581,7 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 	before := admintest.CreditBalance(t, pool, accountID)
 
 	failed := storeOver(pool, admintest.Refunder{State: refundstate.Failed})
-	if err := failed.Decide(ctx, requestID.String(), "approved", "erasure retry", "", uuid.NullUUID{}); err == nil {
+	if err := failed.Decide(ctx, requestID.String(), "approved", "erasure retry", ""); err == nil {
 		t.Fatal("known-failed card attempt was reported as settled")
 	}
 	var customerID uuid.UUID
@@ -2596,7 +2604,7 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 
 	sent := &atomic.Int64{}
 	healthy := storeOver(pool, admintest.Refunder{Sent: sent})
-	if err := healthy.Decide(ctx, requestID.String(), "approved", "erasure retry", "", uuid.NullUUID{}); err != nil {
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "erasure retry", ""); err != nil {
 		t.Fatalf("retry terminal card attempt after erasure: %v", err)
 	}
 	if sent.Load() != 1 {
@@ -2626,7 +2634,7 @@ func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refundstate.Failed})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err == nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
 		t.Fatal("a refund Stripe refused was reported as success")
 	}
 
@@ -2652,7 +2660,7 @@ func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 	}
 
 	healthy := admintest.ReturnDesk(pool, admintest.Refunder{})
-	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err != nil {
 		t.Fatalf("retry after a known provider refusal: %v", err)
 	}
 
@@ -2754,7 +2762,7 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 	// The retry must RESUME the credit half rather than refuse the whole return.
 	sent := &atomic.Int64{}
 	s := admintest.ReturnDesk(pool, admintest.Refunder{Sent: sent})
-	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", "", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", ""); err != nil {
 		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
 			"and the customer stays short", err)
 	}

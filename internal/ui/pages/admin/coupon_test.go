@@ -1,0 +1,260 @@
+package admin
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/net/html"
+
+	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+func TestCouponStateReflectsRemainingUses(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		row  Coupon
+		zh   string
+		en   string
+		live bool
+	}{
+		{name: "cap reached", row: Coupon{Active: true, Current: true, MaxRedeem: 1, Redeemed: 1}, zh: "已用完", en: "Used up"},
+		{name: "over cap", row: Coupon{Active: true, Current: true, MaxRedeem: 1, Redeemed: 2}, zh: "已用完", en: "Used up"},
+		{name: "one use remains", row: Coupon{Active: true, Current: true, MaxRedeem: 2, Redeemed: 1}, zh: "使用中", en: "Live", live: true},
+		{name: "no cap", row: Coupon{Active: true, Current: true, Redeemed: 100}, zh: "使用中", en: "Live", live: true},
+		{name: "cancelled use released", row: Coupon{Active: true, Current: true, MaxRedeem: 1}, zh: "使用中", en: "Live", live: true},
+		{name: "off with cap reached", row: Coupon{Current: true, MaxRedeem: 1, Redeemed: 1}, zh: "已停用", en: "Switched off"},
+		{name: "outside window with cap reached", row: Coupon{Active: true, MaxRedeem: 1, Redeemed: 1}, zh: "不在期間內", en: "Outside its window"},
+	} {
+		for _, locale := range i18n.Locales() {
+			t.Run(tt.name+"/"+locale.Tag(), func(t *testing.T) {
+				t.Parallel()
+				want := tt.en
+				if locale == i18n.ZhHant {
+					want = tt.zh
+				}
+				ctx := i18n.WithLocale(t.Context(), locale)
+				if got := tt.row.State(ctx); got != want {
+					t.Errorf("Coupon.State = %q, want %q", got, want)
+				}
+				if got := tt.row.Live(); got != tt.live {
+					t.Errorf("Coupon.Live = %t, want %t", got, tt.live)
+				}
+			})
+		}
+	}
+}
+
+func TestCouponTableSeparatesConditionsUsesAndExpiry(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale     i18n.Locale
+		headers    []string
+		conditions string
+		used       string
+		expiry     string
+		state      string
+	}{
+		{locale: i18n.ZhHant, headers: []string{"條件", "已使用", "到期"}, conditions: "限量 1 · 每位會員 1 次", used: "已使用 1 次 1 / 1", expiry: "至 2027-01-02 11:04", state: "已用完"},
+		{locale: i18n.En, headers: []string{"Conditions", "Used", "Expiry"}, conditions: "1 in total · 1 per member", used: "1 used 1 / 1", expiry: "Until 2027-01-02 11:04", state: "Used up"},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			body := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{Rows: []Coupon{{
+				Code: "LIMIT", Kind: coupon.Amount, AmountCents: 10000,
+				MaxRedeem: 1, PerCustomer: 1, Redeemed: 1,
+				Active: true, Current: true, EndsAt: "2027-01-02 11:04",
+			}}}))
+			doc, err := html.Parse(strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			headers := couponTableCells(doc, "thead", "th")
+			cells := couponTableCells(doc, "tbody", "td")
+			if len(headers) != 7 || len(cells) != 7 {
+				t.Fatalf("coupon table has %d headers and %d cells, want seven of each", len(headers), len(cells))
+			}
+			gotHeaders := make([]string, 0, 3)
+			for _, header := range headers[2:5] {
+				gotHeaders = append(gotHeaders, couponCellText(header))
+				if couponAttribute(header, "scope") != "col" {
+					t.Error("coupon header lost its column scope")
+				}
+			}
+			if diff := cmp.Diff(tt.headers, gotHeaders); diff != "" {
+				t.Errorf("coupon column headers (-want +got):\n%s", diff)
+			}
+			wantCells := []string{tt.conditions, tt.used, tt.expiry, tt.state}
+			gotCells := make([]string, 0, 4)
+			for _, cell := range cells[2:6] {
+				gotCells = append(gotCells, couponCellText(cell))
+			}
+			if diff := cmp.Diff(wantCells, gotCells); diff != "" {
+				t.Errorf("coupon column values (-want +got):\n%s", diff)
+			}
+			badgeFound := false
+			for node := range cells[5].Descendants() {
+				if node.Data == "span" && couponCellText(node) == tt.state {
+					badgeFound = true
+					if class := couponAttribute(node, "class"); class != "goen-badge" {
+						t.Errorf("used-up badge class = %q, want neutral goen-badge", class)
+					}
+				}
+			}
+			if !badgeFound {
+				t.Error("used-up coupon has no neutral text badge")
+			}
+		})
+	}
+}
+
+func couponTableCells(doc *html.Node, section, cell string) []*html.Node {
+	var cells []*html.Node
+	for node := range doc.Descendants() {
+		if node.Type != html.ElementNode || node.Data != section {
+			continue
+		}
+		for child := range node.Descendants() {
+			if child.Type == html.ElementNode && child.Data == cell {
+				cells = append(cells, child)
+			}
+		}
+	}
+	return cells
+}
+
+func couponAttribute(node *html.Node, name string) string {
+	for _, attr := range node.Attr {
+		if attr.Key == name {
+			return attr.Val
+		}
+	}
+	return ""
+}
+
+func couponCellText(node *html.Node) string {
+	var parts []string
+	for child := range node.Descendants() {
+		if child.Type == html.TextNode {
+			parts = append(parts, child.Data)
+		}
+	}
+	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
+}
+
+func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
+	t.Parallel()
+
+	markup := renderToString(t, Coupons(layouts.Page{Title: "Coupons"}, CouponsView{Rows: []Coupon{
+		{Code: "HALF", Kind: coupon.Amount, MaxRedeem: 20, PerCustomer: 1, Redeemed: 5, Active: true, Current: true},
+		{Code: "GONE", Kind: coupon.Amount, MaxRedeem: 2, PerCustomer: 1, Redeemed: 2, Active: true, Current: true},
+		{Code: "OPEN", Kind: coupon.Amount, PerCustomer: 1, Redeemed: 9, Active: true, Current: true},
+	}}))
+
+	if got := strings.Count(markup, `class="goen-chartmeter__track"`); got != 2 {
+		t.Fatalf("list draws %d meters, want 2 (the uncapped coupon keeps its count alone)", got)
+	}
+	if !strings.Contains(markup, `width="25.00%"`) {
+		t.Error("list does not fill 5 uses of 20 to a quarter")
+	}
+	if !strings.Contains(markup, `width="100.00%"`) {
+		t.Error("list does not fill a used-up coupon")
+	}
+	for _, label := range []string{"5 / 20", "2 / 2"} {
+		if !strings.Contains(markup, `<span class="goen-chartmeter__label">`+label+`</span>`) {
+			t.Errorf("list omits the count %q beside its meter", label)
+		}
+	}
+	if strings.Contains(markup, "9 / 0") {
+		t.Error("list meters a coupon with no cap")
+	}
+}
+
+func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, refused := range [][]string{nil, {"min"}, {"days"}, {"max"}, {"min", "days", "max"}} {
+			t.Run(locale.Tag()+"/"+strings.Join(refused, "+"), func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				messages := map[string]string{
+					"min":  i18n.T(ctx, i18n.KeyFormCouponMinSpend),
+					"days": i18n.T(ctx, i18n.KeyFormCouponDays),
+					"max":  i18n.T(ctx, i18n.KeyFormCouponMaxUses),
+				}
+				errs := make(map[string]string)
+				for _, field := range refused {
+					errs[field] = messages[field]
+				}
+				markup := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{
+					Draft:  CouponDraft{MinSpend: "0100000001", Days: "001000001", MaxRedeem: "001000001", Cap: "", PerCustomer: "01"},
+					Errors: errs,
+				}))
+				doc, err := html.Parse(strings.NewReader(markup))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := map[string]couponFieldFacts{
+					"min":         {Controls: 1, Tag: "input", Value: "0100000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupMinSpend)}},
+					"days":        {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupDays)}},
+					"max":         {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem)}},
+					"cap":         {Controls: 1, Tag: "input", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupCap)}},
+					"percustomer": {Controls: 1, Tag: "input", Value: "01", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupPerCustomer)}},
+				}
+				for _, field := range refused {
+					facts := want[field]
+					facts.Invalid, facts.DescribedBy = "true", "c-"+field+"-error"
+					facts.Errors, facts.ErrorTag, facts.ErrorClass, facts.ErrorText = 1, "p", "ui-error-text", messages[field]
+					want[field] = facts
+				}
+				got := make(map[string]couponFieldFacts)
+				for field := range want {
+					got[field] = couponControlFacts(doc, field)
+				}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("coupon refusal controls (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+type couponFieldFacts struct {
+	Controls    int
+	Tag         string
+	Value       string
+	Invalid     string
+	DescribedBy string
+	Labels      []string
+	Errors      int
+	ErrorTag    string
+	ErrorClass  string
+	ErrorText   string
+}
+
+func couponControlFacts(doc *html.Node, field string) couponFieldFacts {
+	var facts couponFieldFacts
+	id := "c-" + field
+	for node := range doc.Descendants() {
+		if node.Type != html.ElementNode {
+			continue
+		}
+		switch couponAttribute(node, "id") {
+		case id:
+			facts.Controls++
+			facts.Tag, facts.Value = node.Data, couponAttribute(node, "value")
+			facts.Invalid, facts.DescribedBy = couponAttribute(node, "aria-invalid"), couponAttribute(node, "aria-describedby")
+		case id + "-error":
+			facts.Errors++
+			facts.ErrorTag, facts.ErrorClass, facts.ErrorText = node.Data, couponAttribute(node, "class"), couponCellText(node)
+		}
+		if node.Data == "label" && couponAttribute(node, "for") == id {
+			facts.Labels = append(facts.Labels, couponCellText(node))
+		}
+	}
+	return facts
+}

@@ -3,10 +3,12 @@ package admin
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/postcode"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -199,3 +201,30 @@ func (m *ShippingMethod) SurchargeDollars(zoneID string) string {
 func (z ShippingZone) PrefixCountText() string {
 	return strconv.FormatInt(z.PrefixCount, 10)
 }
+
+type zonePrefixEntry struct {
+	Prefix    string
+	Districts []string
+}
+
+func zonePrefixEntries(raw string) []zonePrefixEntry {
+	fields := postcode.Fields(raw)
+	entries := make([]zonePrefixEntry, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
+	for _, prefix := range fields {
+		if seen[prefix] {
+			continue
+		}
+		seen[prefix] = true
+		entries = append(entries, zonePrefixEntry{Prefix: prefix, Districts: postcode.Districts(prefix)})
+	}
+	return entries
+}
+
+func zonePrefixRows(raw string) string {
+	return strconv.Itoa(max(3, len(postcode.Fields(raw)), strings.Count(raw, "\n")+1))
+}
+
+// HTML discards the first newline after a textarea opens; supply it separately
+// so a refused draft that starts with a newline keeps that newline in the control.
+func zonePrefixTextareaText(raw string) string { return "\n" + raw }

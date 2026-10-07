@@ -17,6 +17,11 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Changes   []AuditChange
+	// CustomerName is the customer a customer.view row is about, by CustomerID.
+	// It is empty when the account is erased or has neither a name nor an email
+	// to read.
+	CustomerName string
+	CustomerID   string
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool
@@ -59,7 +64,10 @@ var entityLabels = map[string]i18n.Key{
 	"categories":               i18n.KeyAuditEntityCategories,
 	"contact_messages":         i18n.KeyAuditEntityContactMessages,
 	"coupons":                  i18n.KeyAuditEntityCoupons,
+	"newsletter_issues":        i18n.KeyAuditEntityNewsletterIssues,
 	"faq_entries":              i18n.KeyAuditEntityFaqEntries,
+	"invoice_documents":        i18n.KeyAuditEntityInvoiceDocuments,
+	"invoice_operations":       i18n.KeyAuditEntityInvoiceOperations,
 	"hero_slides":              i18n.KeyAuditEntityHeroSlides,
 	"membership_tiers":         i18n.KeyAuditEntityMembershipTiers,
 	"product_answers":          i18n.KeyAuditEntityProductAnswers,
@@ -186,13 +194,14 @@ func (e AuditEntry) ActorText(ctx context.Context) string {
 	return e.Actor
 }
 
+// Money reports whether the entry recorded an amount.
 func (e AuditEntry) Money() bool {
-	switch e.Action {
-	case "credit.grant", "return.decide", "stock.adjust", "variant.reprice":
-		return true
-	default:
-		return false
+	for _, c := range e.Changes {
+		if f, ok := e.field(c.Field); ok && f.amount != nil && f.amount(e) {
+			return true
+		}
 	}
+	return false
 }
 
 func (e AuditEntry) ShortRequestID() string {

@@ -97,24 +97,41 @@ func (t StatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
 // to one state would answer what the tiles above already answer, and hide the order
 // somebody walked over to ask about.
 type DashboardView struct {
-	PendingOrders  int64
-	ReadyOrders    int64
-	PickingOrders  int64
-	LowStock       int64
-	ActiveProducts int64
-	OpenMessages   int64
+	PendingOrders int64
+	ReadyOrders   int64
+	// ReadyOldestSeconds and the other *OldestSeconds are how long the oldest
+	// waiting item has waited, on the database's clock.
+	ReadyOldestSeconds        int64
+	PickingOrders             int64
+	PickingOldestSeconds      int64
+	SoldOut                   int64
+	OpenMessages              int64
+	OpenMessagesOldestSeconds int64
 	// PendingReturns is the requests nobody has decided, UninspectedReturns the
 	// approved ones whose parcel nobody has opened.
-	PendingReturns      int64
-	UninspectedReturns  int64
-	UnansweredQuestions int64
-	Recent              []OrderRow
-	Low                 []Variant
+	PendingReturns                   int64
+	PendingReturnsOldestSeconds      int64
+	UninspectedReturns               int64
+	UninspectedReturnsOldestSeconds  int64
+	UnansweredQuestions              int64
+	UnansweredQuestionsOldestSeconds int64
+	Recent                           []OrderRow
+	// Runway is the first days cover rows of SKUs that are not sold out, and
+	// RunwayCut says more were left off.
+	Runway    []StockRisk
+	RunwayCut bool
 	// Tasks is the work that waits for a person, in the order it is listed.
 	Tasks []Task
 	// HealthUnavailable is set when the health desk could not be read, so an
 	// absent payment or invoice task is not taken for "nothing to check".
 	HealthUnavailable bool
+	// Week is the last seven days; WeekUnavailable says it could not be read,
+	// which is not the same as a week without orders. Likewise Latest, nil when
+	// no order was ever paid, and LatestUnavailable.
+	Week              Week
+	WeekUnavailable   bool
+	Latest            *LatestPaid
+	LatestUnavailable bool
 }
 
 // Task is one kind of work that waits for a person: what it is, how much of
@@ -123,31 +140,39 @@ type Task struct {
 	Label i18n.Key
 	Count int64
 	Href  string
+	// HasAge is false for work with no start time to measure from.
+	HasAge     bool
+	AgeSeconds int64
+	// Alert marks work that is wrong rather than merely waiting.
+	Alert bool
+}
+
+const secondsPerDay = 24 * 60 * 60
+
+// AgeText says how long the oldest item has waited, in whole days.
+func (t Task) AgeText(ctx context.Context) string {
+	days := t.AgeSeconds / secondsPerDay
+	if days < 1 {
+		return i18n.T(ctx, i18n.KeyAdminQueueTaskUnderADay)
+	}
+	return i18n.Count(ctx, i18n.KeyAdminQueueTaskOldestDays, days, days)
 }
 
 // DeskTasks lists what the order desk itself counts, leaving out each kind with
 // nothing waiting.
-func (v DashboardView) DeskTasks() []Task {
+func (v *DashboardView) DeskTasks() []Task {
 	all := []Task{
-		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready"},
-		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns"},
-		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns"},
-		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions"},
-		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages"},
-		{Label: i18n.KeyAdminQueueStatLowStock, Count: v.LowStock, Href: "/admin/stock?low=1"},
+		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
+		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: v.PickingOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatPending, Count: v.PendingOrders, Href: "/admin/orders?status=pending"},
+		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
+		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions", HasAge: true, AgeSeconds: v.UnansweredQuestionsOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages", HasAge: true, AgeSeconds: v.OpenMessagesOldestSeconds},
+		{Label: i18n.KeyAdminQueueStatSoldOut, Count: v.SoldOut, Href: "/admin/reports#stock"},
 	}
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
-
-func (v DashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
-
-func (v DashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }
-
-func (v DashboardView) ActiveProductsText() string {
-	return strconv.FormatInt(v.ActiveProducts, 10)
-}
-
-func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
 	web.Bound
@@ -253,11 +278,12 @@ type OrderView struct {
 	PickupChains      []pages.PickupChainChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
-	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
+	// exists for.
+	RefundOffered bool
+	// RefundOpen is one whose refund before shipment Resume finishes.
+	RefundOpen bool
 	// RefundCreditPaid is an offered one store credit alone paid, which the
 	// refund cancels at once.
-	RefundOffered    bool
-	RefundOpen       bool
 	RefundCreditPaid bool
 }
 
@@ -566,10 +592,15 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 type VariantsView struct {
 	web.Bound
 
-	Variants []Variant
-	LowOnly  bool
-	Term     string
-	Notice   components.Result
+	Variants    []Variant
+	SoldOutOnly bool
+	Term        string
+	Notice      components.Result
+	// ShowCover is set on the desk's opening page only: not on a search, the
+	// sold out filter or a later page of the list.
+	ShowCover   bool
+	AtRisk      []StockRisk
+	MoreSoldOut int
 	// Return is this page's own address, filter and position, which each form
 	// posts back so a write returns to the page it was made on.
 	Return string
@@ -577,7 +608,9 @@ type VariantsView struct {
 
 func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
 
-func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "low", "1", "q", v.Term) }
+func (v VariantsView) SoldOutHref() string {
+	return web.ScopeURL("/admin/stock", "soldout", "1", "q", v.Term)
+}
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 
@@ -666,6 +699,7 @@ type MovementsView struct {
 	Stock       int32
 	Safety      int32
 	Rows        []Movement
+	Days        []StockDay
 	Notice      components.Result
 	FormID      string
 }

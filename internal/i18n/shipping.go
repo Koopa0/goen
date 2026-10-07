@@ -192,6 +192,16 @@ var (
 
 	KeyAdminShipRefused = key("admin.ship.refused", Message{ZhHant: "配送設定未儲存，這項變更不符合配送規則。", En: "The shipping settings were not saved; this change breaks a delivery rule."})
 
+	KeyAdminShipZoneHasPrefixes = key("admin.ship.zone.hasprefixes", Message{
+		ZhHant: "這個分區還有郵遞區號，先移除它的郵遞區號再刪。",
+		En:     "This zone still has postal-code prefixes. Remove its prefixes before deleting it.",
+	})
+
+	KeyAdminShipZoneHasVersions = key("admin.ship.zone.hasversions", Message{
+		ZhHant: "配送方式的版本仍使用這個分區；發布新版本不會移除舊版本的加價紀錄，因此目前無法刪除這個分區。",
+		En:     "Delivery-method versions still use this zone. Publishing a new version does not remove old surcharge records, so this zone cannot be deleted while those records remain.",
+	})
+
 	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{
 		ZhHant: "配送費率已變更。請確認目前設定，再重新送出分區加價。",
 		En:     "Shipping fees changed. Review the current settings, then submit the zone surcharge again.",

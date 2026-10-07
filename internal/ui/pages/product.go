@@ -57,6 +57,9 @@ type ProductOption struct {
 	Values []ProductOptionValue
 }
 
+// Fixed is true where the product comes in one value of this option only, so there is nothing to pick.
+func (o ProductOption) Fixed() bool { return len(o.Values) == 1 }
+
 // HasSwatches is all or nothing per option: one row of choices should look like one row, and a
 // colour beside a word reads as two kinds of thing.
 func (o ProductOption) HasSwatches() bool {
@@ -114,7 +117,7 @@ type ProductReview struct {
 	Body     string
 	Author   string
 	Verified bool
-	Date     string
+	Date     shoptime.Date
 }
 
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
@@ -150,16 +153,19 @@ type ProductView struct {
 	Description  string
 	WarrantyNote string
 	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
-	WarrantyMonths    int32
-	FreeDeliveryCents int64
-	Brand             string
-	CategorySlug      string
-	CategoryName      string
-	Crumbs            []Crumb
+	WarrantyMonths int32
+	Rules          ShopRules
+	Brand          string
+	CategorySlug   string
+	CategoryName   string
+	Crumbs         []Crumb
 
 	Images  []ProductImage
 	Options []ProductOption
 	Specs   []ProductSpec
+
+	// Campaign is the running campaign featuring the product; CompareCents is struck only while it runs.
+	Campaign ProductCampaign
 
 	SelectionOK bool
 	Exact       bool
@@ -197,6 +203,9 @@ type ProductView struct {
 	AlsoBought   []ProductTile
 
 	Related []ProductTile
+
+	// Tone is the department's; the gallery's mat and the band wear it.
+	Tone Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.
@@ -275,7 +284,9 @@ func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 
-func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.PriceCents }
+func (v *ProductView) OnSale() bool {
+	return v.Campaign.Running() && v.Sellable && v.CompareCents > v.PriceCents
+}
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
@@ -302,6 +313,14 @@ func (v *ProductView) MaxQuantity() string {
 
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
 
+// BandPhoto is the second photograph: the first is the gallery's.
+func (v *ProductView) BandPhoto() (ProductImage, bool) {
+	if len(v.Images) < 2 {
+		return ProductImage{}, false
+	}
+	return v.Images[1], true
+}
+
 // GalleryFollowsChoice is true only when a photograph shows one value: only then can choosing another reorder the gallery.
 func (v *ProductView) GalleryFollowsChoice() bool {
 	return slices.ContainsFunc(v.Images, func(i ProductImage) bool { return i.ShowsOption })
@@ -315,7 +334,7 @@ func (v *ProductView) ChoiceSwap() string {
 }
 
 func (v *ProductView) BuyBarFollows() string {
-	if v.SoldOut() {
+	if v.NotifyOffered() {
 		return "restock"
 	}
 	return "add-to-cart"
@@ -396,7 +415,30 @@ const (
 	NotifyRecordedForAccount NotifyOutcome = "account"
 	NotifyBadAddress         NotifyOutcome = "bad"
 	NotifyVariantUnavailable NotifyOutcome = "unavailable"
+	NotifyNoOption           NotifyOutcome = "option"
 )
+
+// NotifyOffered is true where a notice can be asked for: once a combination is settled and sold out, and, while
+// every option is sold out, before any is picked, where the request is refused until one is. A request refused for
+// want of a pick keeps its form whatever the stock is now, or the 422 would drop the address it was sent with.
+func (v *ProductView) NotifyOffered() bool {
+	return v.SoldOut() || v.NeedsChoice() && (v.AllSoldOut() || v.NotifyNeedsOption())
+}
+
+// NotifyVariant is empty until a combination is picked: the default variant is only the cheapest, not the one wanted.
+func (v *ProductView) NotifyVariant() string {
+	if v.NeedsChoice() {
+		return ""
+	}
+	return v.VariantID
+}
+
+func (v *ProductView) NotifyNeedsOption() bool { return v.NotifyOutcome == NotifyNoOption }
+
+// OptionInvalid marks the choices a refused request left unpicked.
+func (v *ProductView) OptionInvalid(o ProductOption) bool {
+	return v.NotifyNeedsOption() && v.NotifyOffered() && o.SelectedLabel() == ""
+}
 
 func (v *ProductView) NotifyTaken() bool {
 	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount
@@ -499,7 +541,53 @@ func (v *ProductView) AlreadyComparing() bool {
 
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
-func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+// maxHighlights is how many specification values stand under the name.
+const maxHighlights = 3
+
+// Highlights are the first specification values, written one after another under the name.
+func (v *ProductView) Highlights() []string {
+	var out []string
+	for _, s := range v.Specs {
+		if s.Value != "" && len(out) < maxHighlights {
+			out = append(out, s.Value)
+		}
+	}
+	return out
+}
+
+// BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, the
+// shop's right to cancel, the stock hold only while there is stock to hold, and free delivery.
+func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
+	stats := make([]components.Stat, 0, 4)
+	if v.HasWarranty() {
+		stats = append(stats, components.Stat{
+			Label: i18n.T(ctx, i18n.KeySectionWarranty),
+			Value: components.StatCount(int64(v.WarrantyMonths), countUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
+		})
+	}
+	stats = append(stats, v.Rules.rescissionStat(ctx))
+	if v.AnySellable {
+		stats = append(stats, v.Rules.holdStat(ctx))
+	}
+	return append(stats, v.Rules.freeDeliveryStat(ctx))
+}
+
+// RestockNote is the sentence over the notify form, asking for a pick only while there is none.
+func (v *ProductView) RestockNote(ctx context.Context) string {
+	if v.NeedsChoice() {
+		return i18n.T(ctx, i18n.KeyRestockPick)
+	}
+	return i18n.T(ctx, i18n.KeyRestockNote)
+}
+
+// ValueSoldOut is the words an option value that leads to nothing buyable carries: sold out for the
+// whole product, otherwise only for this combination of choices.
+func (v *ProductView) ValueSoldOut(ctx context.Context) string {
+	if v.AllSoldOut() {
+		return i18n.T(ctx, i18n.KeySoldOut)
+	}
+	return i18n.T(ctx, i18n.KeyVariantUnavailable)
+}
 
 func (v *ProductView) ArrivalDay() string { return shoptime.Day(v.ExpectedArrival) }
 
@@ -512,4 +600,33 @@ func (v *ProductView) ArrivalText() string {
 
 func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
 	return v.LabelFacts.Rows(ctx)
+}
+
+// ProductCampaign is the running campaign that features a product, or the zero value.
+type ProductCampaign struct {
+	Slug      string
+	Title     string
+	EndsOn    string
+	Period    components.PeriodSpec
+	HasPeriod bool
+}
+
+func NewProductCampaign(ctx context.Context, slug, title string, startsAt, endsAt, now time.Time) ProductCampaign {
+	period, ok := components.DayPeriod(ctx, title, startsAt, endsAt, now)
+	return ProductCampaign{
+		Slug: slug, Title: title,
+		EndsOn: shoptime.DateText(ctx, shoptime.LastDay(endsAt, now)),
+		Period: period, HasPeriod: ok,
+	}
+}
+
+func (c ProductCampaign) Running() bool { return c.Slug != "" }
+
+func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
+
+// Source splits the sentence naming the campaign around its title, which the page links.
+func (c ProductCampaign) Source(ctx context.Context) (before, after string) {
+	const mark = "\x00"
+	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignPrice), mark, c.EndsOn), mark)
+	return before, after
 }

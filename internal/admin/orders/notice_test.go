@@ -15,46 +15,78 @@ import (
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	t.Parallel()
-	pinned := map[string]components.Outcome{
-		"ok":             components.OutcomeDone,
-		"shipped":        components.OutcomeDone,
-		"refused":        components.OutcomeRefused,
-		"paidcancel":     components.OutcomeRefused,
-		"voidfailed":     components.OutcomeFailed,
-		"refundretry":    components.OutcomeFailed,
-		"invoicepending": components.OutcomeFailed,
-		"invoicingoff":   components.OutcomeRefused,
-		"refundpending":  components.OutcomeFailed,
-		"cancelinvoice":  components.OutcomeFailed,
-		"invoicefailed":  components.OutcomeFailed,
-		"allowfailed":    components.OutcomeFailed,
+	want := []struct {
+		name    string
+		outcome components.Outcome
+	}{
+		{"ok", components.OutcomeDone},
+		{"refused", components.OutcomeRefused},
+		{"shipped", components.OutcomeDone},
+		{"toolate", components.OutcomeRefused},
+		{"deliveryneeds", components.OutcomeRefused},
+		{"paidcancel", components.OutcomeRefused},
+		{"refunded", components.OutcomeDone},
+		{"refundpending", components.OutcomeFailed},
+		{"cancelinvoice", components.OutcomeFailed},
+		{"refundretry", components.OutcomeFailed},
+		{"cancelretry", components.OutcomeFailed},
+		{"refundshipped", components.OutcomeRefused},
+		{"refundhasreturn", components.OutcomeRefused},
+		{"refundcancelled", components.OutcomeRefused},
+		{"refundunpaid", components.OutcomeRefused},
+		{"refundchanged", components.OutcomeRefused},
+		{"refundpicking", components.OutcomeRefused},
+		{"refundreason", components.OutcomeRefused},
+		{"refundmismatch", components.OutcomeFailed},
+		{"refundunsure", components.OutcomeFailed},
+		{"unfunded", components.OutcomeRefused},
+		{"owesparcel", components.OutcomeRefused},
+		{"invoiced", components.OutcomeDone},
+		{"voided", components.OutcomeDone},
+		{"hasinvoice", components.OutcomeRefused},
+		{"noinvoice", components.OutcomeRefused},
+		{"invoicefailed", components.OutcomeFailed},
+		{"invoicingoff", components.OutcomeRefused},
+		{"invoicepending", components.OutcomeFailed},
+		{"allowed", components.OutcomeDone},
+		{"allowsent", components.OutcomeDone},
+		{"allowtoomuch", components.OutcomeRefused},
+		{"allowclaimed", components.OutcomeRefused},
+		{"voidreason", components.OutcomeRefused},
+		{"voidfailed", components.OutcomeFailed},
+		{"allowfailed", components.OutcomeFailed},
 	}
-	for name, want := range pinned {
-		if got := notices[name].Outcome; got != want {
-			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)
+	if len(want) != len(notices) {
+		t.Fatalf("the table names %d redirects, notices has %d", len(want), len(notices))
+	}
+	for _, tc := range want {
+		m, ok := notices[tc.name]
+		if !ok {
+			t.Fatalf("notices has no entry %q", tc.name)
 		}
-	}
-	for name, m := range notices {
+		if m.Outcome != tc.outcome {
+			t.Errorf("notices[%q].Outcome = %d, want %d", tc.name, m.Outcome, tc.outcome)
+		}
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+name+"=1", http.NoBody)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+tc.name+"=1", http.NoBody)
 		var page strings.Builder
 		view := admin.OrdersView{Notice: web.Notice(req, notices)}
 		if err := admin.Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()
-		sentence := i18n.T(ctx, m.Key)
-		if !strings.Contains(got, sentence) {
-			t.Fatalf("?%s=1: the page does not show %q", name, sentence)
+		if sentence := i18n.T(ctx, m.Key); !strings.Contains(got, sentence) {
+			t.Fatalf("?%s=1: the page does not show %q", tc.name, sentence)
 		}
 		refusal := strings.Contains(got, `role="alert"`) && strings.Contains(got, "goen-notice--danger")
 		saved := strings.Contains(got, `role="status"`) && strings.Contains(got, "goen-notice--accent")
-		if (m.Outcome == components.OutcomeDone) == refusal || (m.Outcome == components.OutcomeDone) != saved {
-			t.Errorf("?%s=1 with outcome %d: danger treatment = %t, accent treatment = %t", name, m.Outcome, refusal, saved)
+		if (tc.outcome == components.OutcomeDone) == refusal || (tc.outcome == components.OutcomeDone) != saved {
+			t.Errorf("?%s=1 with outcome %d: danger treatment = %t, accent treatment = %t", tc.name, tc.outcome, refusal, saved)
 		}
-		if lead := strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadRefused)) ||
-			strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadFailed)); lead == (m.Outcome == components.OutcomeDone) {
-			t.Errorf("?%s=1 with outcome %d: leading word shown = %t", name, m.Outcome, lead)
+		refused := strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadRefused))
+		failed := strings.Contains(got, i18n.T(ctx, i18n.KeyAdminNoticeLeadFailed))
+		if refused != (tc.outcome == components.OutcomeRefused) || failed != (tc.outcome == components.OutcomeFailed) {
+			t.Errorf("?%s=1 with outcome %d: refused lead = %t, failed lead = %t", tc.name, tc.outcome, refused, failed)
 		}
 	}
 }

@@ -52,6 +52,9 @@ WHERE provider = 'stripe' AND event_id = $1;
 -- name: MarkWebhookUnreconciled :one
 SELECT mark_payment_event_unreconciled(@event_id::text, @reason::text);
 
+-- name: RefundStatusByProviderRef :one
+SELECT status FROM refunds WHERE provider_ref = @provider_ref::text;
+
 -- The webhook is trusted for what happened, never for which order.
 -- name: OrderByPaymentRef :one
 SELECT o.id, o.order_number, o.fulfillment_status,
@@ -81,6 +84,21 @@ SELECT ir.expires_at,
 FROM inventory_reservations ir
 WHERE ir.order_id = $1 AND ir.state = 'held'
 ORDER BY ir.expires_at
+LIMIT 1;
+
+-- The span the page draws: from the first hold taken to the earliest expiry,
+-- whatever became of the holds. swept_at is when the hold sweeper cancelled the
+-- order at its deadline; a customer's or a staff member's cancellation is not.
+-- name: OrderHoldSpan :one
+SELECT min(ir.created_at)::timestamptz AS held_from,
+       min(ir.expires_at)::timestamptz AS held_until,
+       sw.occurred_at AS swept_at
+FROM inventory_reservations ir
+LEFT JOIN order_events sw
+       ON sw.order_id = ir.order_id AND sw.kind = 'cancelled' AND sw.by_system
+WHERE ir.order_id = $1
+GROUP BY sw.occurred_at
+ORDER BY sw.occurred_at DESC NULLS LAST
 LIMIT 1;
 
 -- The one non-terminal session for this order. A session for an old figure is

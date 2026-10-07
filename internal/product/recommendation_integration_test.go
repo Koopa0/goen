@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,131 @@ type recommendationFaultDB struct {
 	fault        recommendationFault
 	cancelParent context.CancelFunc
 	calls        int
+}
+
+type recommendationQueryKey struct{}
+
+type coldRecommendationRead struct {
+	mu sync.Mutex
+
+	query        string
+	pool         *pgxpool.Pool
+	cancelParent context.CancelFunc
+	stalled      bool
+	stallErr     error
+	stalledPID   uint32
+	closed       bool
+	connecting   bool
+	idleBefore   int32
+	acquiredAt   time.Time
+	acquireTime  time.Duration
+	acquireErr   error
+	queryBudget  time.Duration
+	healthyPID   uint32
+}
+
+func (d *coldRecommendationRead) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	name := ""
+	for _, query := range []string{"ProductReviews", "RelatedProducts", "BoughtTogether"} {
+		if strings.HasPrefix(data.SQL, "-- name: "+query+" ") {
+			name = query
+			break
+		}
+	}
+	if name == "RelatedProducts" && d.query == "BoughtTogether" {
+		d.stall(ctx, conn)
+	}
+	if name == d.query {
+		d.mu.Lock()
+		d.healthyPID = conn.PgConn().PID()
+		if deadline, ok := ctx.Deadline(); ok {
+			d.queryBudget = time.Until(deadline)
+		}
+		d.mu.Unlock()
+	}
+	return context.WithValue(ctx, recommendationQueryKey{}, name)
+}
+
+func (d *coldRecommendationRead) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
+	if d.query != "RelatedProducts" || ctx.Value(recommendationQueryKey{}) != "ProductReviews" || data.Err != nil {
+		return
+	}
+	// The core result is already consumed. Cancel a real read on its connection
+	// before release, leaving the following optional read with no idle connection.
+	readCtx, cancel := context.WithTimeout(ctx, 150*time.Millisecond)
+	defer cancel()
+	d.stall(readCtx, conn)
+}
+
+func (d *coldRecommendationRead) stall(ctx context.Context, conn *pgx.Conn) {
+	_, err := conn.PgConn().Exec(ctx, "SELECT pg_sleep(5)").ReadAll()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.stalled = true
+	d.stallErr = err
+	d.stalledPID = conn.PgConn().PID()
+	d.closed = conn.IsClosed()
+}
+
+func (d *coldRecommendationRead) beforeConnect(ctx context.Context, _ *pgx.ConnConfig) error {
+	d.mu.Lock()
+	if !d.stalled || d.connecting {
+		d.mu.Unlock()
+		return nil
+	}
+	d.connecting = true
+	d.idleBefore = d.pool.Stat().IdleConns()
+	cancelParent := d.cancelParent
+	d.mu.Unlock()
+	if cancelParent != nil {
+		cancelParent()
+	}
+	// This bounds a genuine replacement connection's construction, not the query.
+	delay := time.NewTimer(300 * time.Millisecond)
+	defer delay.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-delay.C:
+		return nil
+	}
+}
+
+func (d *coldRecommendationRead) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.stalled && !d.connecting {
+		d.acquiredAt = time.Now()
+	}
+	return ctx
+}
+
+func (d *coldRecommendationRead) TraceAcquireEnd(_ context.Context, _ *pgxpool.Pool, data pgxpool.TraceAcquireEndData) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.acquiredAt.IsZero() && d.acquireTime == 0 {
+		d.acquireTime = time.Since(d.acquiredAt)
+		d.acquireErr = data.Err
+	}
+}
+
+func coldRecommendationPool(t *testing.T, p *pgxpool.Pool, d *coldRecommendationRead) *pgxpool.Pool {
+	t.Helper()
+	config := p.Config()
+	config.MaxConns = 1
+	config.MinConns = 0
+	config.MinIdleConns = 0
+	config.ConnConfig.Tracer = d
+	config.BeforeConnect = d.beforeConnect
+	cold, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	d.pool = cold
+	d.mu.Unlock()
+	t.Cleanup(cold.Close)
+	return cold
 }
 
 //nolint:rowserrcheck // The sqlc caller owns and checks the returned rows.
@@ -341,6 +467,75 @@ func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	}
 }
 
+func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing.T) {
+	p, want, _ := recommendationFixture(t)
+	for _, query := range []string{"RelatedProducts", "BoughtTogether"} {
+		t.Run(query, func(t *testing.T) {
+			d := &coldRecommendationRead{query: query}
+			cold := coldRecommendationPool(t, p, d)
+			var log bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&log, nil))
+			h := product.NewHandler(product.NewStore(cold, logger), logger, "https://goen.example")
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			doc := assertBuyBoxIntact(t, recommendationResponse(t, ctx, h, &want), &want)
+			for _, heading := range []string{"related-heading", "also-heading"} {
+				present := findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) != nil
+				wantPresent := query == "RelatedProducts" || heading == "also-heading"
+				if present != wantPresent {
+					t.Errorf("cold %s: section %s present = %t, want %t", query, heading, present, wantPresent)
+				}
+			}
+			assertRecommendationQueriesDrained(t, p)
+			if acquired := cold.Stat().AcquiredConns(); acquired != 0 {
+				t.Errorf("cold %s: acquired connections = %d, want 0", query, acquired)
+			}
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			if !d.stalled || !errors.Is(d.stallErr, context.DeadlineExceeded) || !d.closed || !d.connecting || d.idleBefore != 0 {
+				t.Fatalf("cold %s: stalled = %t, error = %v, closed = %t, connecting = %t, idle = %d; want cancelled real read, destroyed connection and zero idle", query, d.stalled, d.stallErr, d.closed, d.connecting, d.idleBefore)
+			}
+			if d.acquireErr != nil || d.acquireTime < 300*time.Millisecond || d.healthyPID == 0 || d.healthyPID == d.stalledPID || d.queryBudget <= 0 || d.queryBudget > 150*time.Millisecond {
+				t.Errorf("cold %s: acquisition = %s, error = %v, backend = %d after %d, query budget = %s; want healthy replacement after >=300ms with a fresh <=150ms query budget", query, d.acquireTime, d.acquireErr, d.healthyPID, d.stalledPID, d.queryBudget)
+			}
+			if query == "RelatedProducts" && log.Len() != 0 {
+				t.Errorf("cold related query was omitted: %s", log.String())
+			}
+			if query == "BoughtTogether" {
+				var record map[string]any
+				if err := json.Unmarshal(log.Bytes(), &record); err != nil {
+					t.Fatalf("stalled read diagnostic = %q: %v", log.String(), err)
+				}
+				// The trace closes the connection before pgx runs the related query.
+				if record["operation"] != "related_products" || record["reason"] != "query_failed" {
+					t.Errorf("cold following query diagnostic = %v, want only related_products query_failed", record)
+				}
+			}
+			t.Logf("cold %s: cancelled backend %d, zero idle, replacement backend %d acquired in %s, query budget %s", query, d.stalledPID, d.healthyPID, d.acquireTime, d.queryBudget)
+		})
+	}
+}
+
+func TestColdRecommendationAcquisitionKeepsParentCancellation(t *testing.T) {
+	p, want, _ := recommendationFixture(t)
+	for _, query := range []string{"RelatedProducts", "BoughtTogether"} {
+		t.Run(query, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			d := &coldRecommendationRead{query: query, cancelParent: cancel}
+			cold := coldRecommendationPool(t, p, d)
+			logger := slog.New(slog.DiscardHandler)
+			h := product.NewHandler(product.NewStore(cold, logger), logger, "https://goen.example")
+			res := recommendationResponse(t, ctx, h, &want)
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			if !d.connecting || d.idleBefore != 0 || !errors.Is(d.acquireErr, context.Canceled) || !errors.Is(ctx.Err(), context.Canceled) || res.Body.Len() != 0 {
+				t.Errorf("cold %s: connecting = %t, idle = %d, acquisition error = %v, parent error = %v, response bytes = %d; want cancelled cold acquisition without rendering", query, d.connecting, d.idleBefore, d.acquireErr, ctx.Err(), res.Body.Len())
+			}
+		})
+	}
+}
+
 func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 	p, want, _ := recommendationFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -365,5 +560,128 @@ func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 	h := product.NewHandler(product.NewStore(p, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	if res := recommendationResponse(t, t.Context(), h, &want); res.Code != http.StatusInternalServerError {
 		t.Errorf("core read failure returned %d, want 500", res.Code)
+	}
+}
+
+type saturatedRecommendationKey struct{}
+
+type saturatedRecommendationRead struct {
+	mu         sync.Mutex
+	pool       *pgxpool.Pool
+	preceding  string
+	armed      bool
+	held       *pgxpool.Conn
+	setupErr   error
+	saturated  bool
+	acquireErr error
+	reached    bool
+}
+
+func (d *saturatedRecommendationRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	return context.WithValue(ctx, recommendationQueryKey{}, strings.HasPrefix(data.SQL, "-- name: "+d.preceding+" "))
+}
+
+func (d *saturatedRecommendationRead) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if ctx.Value(recommendationQueryKey{}) == true && data.Err == nil {
+		d.mu.Lock()
+		d.armed = true
+		d.mu.Unlock()
+	}
+}
+
+func (d *saturatedRecommendationRead) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
+	if ctx.Value(saturatedRecommendationKey{}) != nil {
+		return ctx
+	}
+	d.mu.Lock()
+	armed := d.armed
+	d.armed = false
+	d.mu.Unlock()
+	if !armed {
+		return ctx
+	}
+	// The preceding rows have released their connection; reserve it before the optional acquire.
+	held, err := d.pool.Acquire(context.WithValue(ctx, saturatedRecommendationKey{}, "holder"))
+	d.mu.Lock()
+	d.held, d.setupErr, d.reached = held, err, true
+	d.saturated = err == nil && d.pool.Stat().AcquiredConns() == 1 && d.pool.Stat().IdleConns() == 0
+	d.mu.Unlock()
+	return context.WithValue(ctx, saturatedRecommendationKey{}, "optional")
+}
+
+func (d *saturatedRecommendationRead) TraceAcquireEnd(ctx context.Context, _ *pgxpool.Pool, data pgxpool.TraceAcquireEndData) {
+	if ctx.Value(saturatedRecommendationKey{}) != "optional" {
+		return
+	}
+	d.mu.Lock()
+	d.acquireErr = data.Err
+	held := d.held
+	d.held = nil
+	d.mu.Unlock()
+	if held != nil {
+		held.Release()
+	}
+}
+
+func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T) {
+	p, want, productID := recommendationFixture(t)
+	for _, op := range []struct{ query, preceding, operation, missing, retained string }{
+		{"RelatedProducts", "ProductReviews", "related_products", "related-heading", "also-heading"},
+		{"BoughtTogether", "RelatedProducts", "bought_together", "also-heading", "related-heading"},
+	} {
+		t.Run(op.query, func(t *testing.T) {
+			setupCtx, setupCancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer setupCancel()
+			d := &saturatedRecommendationRead{preceding: op.preceding}
+			config := p.Config()
+			config.MaxConns = 1
+			config.MinConns = 0
+			config.MinIdleConns = 0
+			config.ConnConfig.Tracer = d
+			single, err := pgxpool.NewWithConfig(setupCtx, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.pool = single
+			defer single.Close()
+			conn, err := single.Acquire(setupCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn.Release()
+			var log bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&log, nil))
+			h := product.NewHandler(product.NewStore(single, logger), logger, "https://goen.example")
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			started := time.Now()
+			res := recommendationResponse(t, ctx, h, &want)
+			d.mu.Lock()
+			reached, saturated, setupErr, acquireErr := d.reached, d.saturated, d.setupErr, d.acquireErr
+			d.mu.Unlock()
+			if !reached || !saturated || setupErr != nil || !errors.Is(acquireErr, context.DeadlineExceeded) {
+				t.Errorf("saturated %s: reached = %t, saturated = %t, holder error = %v, acquisition error = %v, want held sole connection and deadline exceeded", op.query, reached, saturated, setupErr, acquireErr)
+			}
+			elapsed := time.Since(started)
+			t.Logf("saturated %s: reached=%t saturated=%t holder_error=%v acquire_error=%v elapsed=%s parent_error=%v diagnostic=%q", op.query, reached, saturated, setupErr, acquireErr, elapsed, ctx.Err(), log.String())
+			if ctx.Err() != nil || elapsed >= 2*time.Second {
+				t.Errorf("saturated %s: response = %s, parent error = %v, want live parent and response before 2s of 3s", op.query, elapsed, ctx.Err())
+			}
+			var record map[string]any
+			if err := json.Unmarshal(log.Bytes(), &record); err != nil {
+				t.Errorf("saturated diagnostic = %q: %v", log.String(), err)
+			}
+			if record["msg"] != "product recommendations unavailable" || record["operation"] != op.operation || record["product_id"] != productID.String() || record["request_id"] != "req-optional-read" || record["reason"] != "timed_out" {
+				t.Errorf("saturated diagnostic = %v, want one product recommendations unavailable record for %s, reason timed_out", record, op.operation)
+			}
+			doc := assertBuyBoxIntact(t, res, &want)
+			if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
+				t.Error("saturated acquisition did not omit only its own recommendation section")
+			}
+
+			if acquired := single.Stat().AcquiredConns(); acquired != 0 {
+				t.Errorf("saturated acquired connections = %d, want 0", acquired)
+			}
+		})
 	}
 }

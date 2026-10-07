@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/productlabel"
@@ -20,6 +21,7 @@ import (
 )
 
 type Store struct {
+	dbtx     db.DBTX
 	q        *db.Queries
 	log      *slog.Logger
 	noPickup bool
@@ -30,7 +32,7 @@ func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
 	if dbtx == nil || log == nil {
 		panic("product: NewStore requires a database handle and a logger")
 	}
-	return &Store{q: db.New(dbtx), log: log, now: time.Now}
+	return &Store{dbtx: dbtx, q: db.New(dbtx), log: log, now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -56,6 +58,73 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	if err != nil {
 		return pages.ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
 	}
+	variants := variantsOf(rows)
+
+	groups, labels, order, err := s.optionGroups(ctx, p.ID, slug)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+
+	// A query key is a variant option only if some variant carries it.
+	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
+	// /compare set's ?p= outran it; derived from the variants because the next
+	// parameter somebody adds will not be added to a list.
+	sel = sel.WithSingleChoices(groups).OnlyOptionsOf(variants)
+
+	chosen, exact := Resolve(variants, sel)
+
+	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+
+	view := pages.ProductView{
+		Rules:        rules,
+		Slug:         p.Slug,
+		Name:         p.Name,
+		Summary:      p.Summary,
+		Description:  p.Description,
+		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		Brand:        p.Brand,
+		CategorySlug: p.CategorySlug,
+		CategoryName: p.CategoryName,
+		SelectionOK:  chosen.SKU != "",
+		Exact:        exact,
+		PriceVaries:  dearerThan(chosen.PriceCents, variants),
+		AnySellable:  slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable }),
+	}
+	if view.SelectionOK {
+		s.showChosenVariant(ctx, &view, &chosen)
+	}
+
+	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
+		po := pages.ProductOption{Name: o.Name, Label: o.Label}
+		for _, v := range o.Values {
+			po.Values = append(po.Values, pages.ProductOptionValue{
+				Value:     v.Value,
+				Label:     v.Label,
+				Selected:  v.Selected,
+				Available: v.Available,
+				Href:      v.Href,
+				SwatchHex: v.SwatchHex,
+			})
+		}
+		view.Options = append(view.Options, po)
+	}
+
+	view.Campaign, err = s.runningCampaign(ctx, p.ID, slug)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+
+	if err := s.loadDetail(ctx, &p, &view); err != nil {
+		return pages.ProductView{}, err
+	}
+	return view, nil
+}
+
+// variantsOf is the product's variants as the page chooses between them.
+func variantsOf(rows []db.ProductVariantsRow) []Variant {
 	variants := make([]Variant, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -75,83 +144,54 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 			Options:         opts,
 		})
 	}
+	return variants
+}
 
+// optionGroups is the product's options: the choices of each by name, the label of each, and the order they are offered in.
+func (s *Store) optionGroups(ctx context.Context, id uuid.UUID, slug string) (choices map[string][]OptionChoice, labels map[string]string, order []string, err error) {
 	optRows, err := s.q.ProductOptions(ctx, db.ProductOptionsParams{
-		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read options of %q: %w", slug, err)
+		return nil, nil, nil, fmt.Errorf("read options of %q: %w", slug, err)
 	}
-	groups := make(map[string][]OptionChoice, len(optRows))
-	labels := make(map[string]string, len(optRows))
-	order := make([]string, 0, len(optRows))
+	choices = make(map[string][]OptionChoice, len(optRows))
+	labels = make(map[string]string, len(optRows))
+	order = make([]string, 0, len(optRows))
 	for _, o := range optRows {
-		if _, seen := groups[o.OptionName]; !seen {
+		if _, seen := choices[o.OptionName]; !seen {
 			order = append(order, o.OptionName)
 			labels[o.OptionName] = o.OptionLabel
 		}
-		groups[o.OptionName] = append(groups[o.OptionName],
+		choices[o.OptionName] = append(choices[o.OptionName],
 			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
 	}
+	return choices, labels, order, nil
+}
 
-	// A query key is a variant option only if some variant carries it.
-	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
-	// /compare set's ?p= outran it; derived from the variants because the next
-	// parameter somebody adds will not be added to a list.
-	sel = sel.OnlyOptionsOf(variants)
+// showChosenVariant puts the variant the shopper resolved to on the page.
+func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, chosen *Variant) {
+	view.VariantID = chosen.ID
+	view.SKU = chosen.SKU
+	view.PriceCents = chosen.PriceCents
+	view.CompareCents = chosen.CompareCents
+	view.Sellable = chosen.Sellable
+	view.Available = chosen.Available
+	view.ExpectedArrival = chosen.ExpectedArrival
+	view.ExpectedArrivalText = s.arrivalText(ctx, view)
+}
 
-	chosen, exact := Resolve(variants, sel)
-
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
+func (s *Store) runningCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
+	c, err := s.q.RunningCampaignOfProduct(ctx, db.RunningCampaignOfProductParams{
+		ProductID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pages.ProductCampaign{}, nil
+	}
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
+		return pages.ProductCampaign{}, fmt.Errorf("read running campaign of %q: %w", slug, err)
 	}
-
-	view := pages.ProductView{
-		FreeDeliveryCents: freeOver,
-		Slug:              p.Slug,
-		Name:              p.Name,
-		Summary:           p.Summary,
-		Description:       p.Description,
-		WarrantyNote:      p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
-		Brand:        p.Brand,
-		CategorySlug: p.CategorySlug,
-		CategoryName: p.CategoryName,
-		SelectionOK:  chosen.SKU != "",
-		Exact:        exact,
-		PriceVaries:  dearerThan(chosen.PriceCents, variants),
-		AnySellable:  slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable }),
-	}
-	if view.SelectionOK {
-		view.VariantID = chosen.ID
-		view.SKU = chosen.SKU
-		view.PriceCents = chosen.PriceCents
-		view.CompareCents = chosen.CompareCents
-		view.Sellable = chosen.Sellable
-		view.Available = chosen.Available
-		view.ExpectedArrival = chosen.ExpectedArrival
-		view.ExpectedArrivalText = s.arrivalText(ctx, &view)
-	}
-
-	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
-		po := pages.ProductOption{Name: o.Name, Label: o.Label}
-		for _, v := range o.Values {
-			po.Values = append(po.Values, pages.ProductOptionValue{
-				Value:     v.Value,
-				Label:     v.Label,
-				Selected:  v.Selected,
-				Available: v.Available,
-				Href:      v.Href,
-				SwatchHex: v.SwatchHex,
-			})
-		}
-		view.Options = append(view.Options, po)
-	}
-
-	if err := s.loadDetail(ctx, &p, &view); err != nil {
-		return pages.ProductView{}, err
-	}
-	return view, nil
+	return pages.NewProductCampaign(ctx, c.Slug, c.Title, c.StartsAt, c.EndsAt, s.now()), nil
 }
 
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
@@ -184,6 +224,12 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read comparable categories for %q: %w", p.Slug, offersErr)
 	}
 	view.Comparable = slices.Contains(offers, p.CategoryID)
+
+	tone, toneErr := s.q.CategoryTone(ctx, p.CategoryID)
+	if toneErr != nil {
+		return fmt.Errorf("read tone of %q: %w", p.Slug, toneErr)
+	}
+	view.Tone = pages.ResolveTone(tone)
 
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{
@@ -263,13 +309,16 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
-			Date:     shoptime.Day(r.CreatedAt),
+			Date:     shoptime.DateOf(r.CreatedAt, s.now()),
 		})
 	}
 
-	readCtx, cancel := recommendationContext(ctx)
-	defer cancel()
-	related, err := s.q.RelatedProducts(readCtx, db.RelatedProductsParams{
+	q, readCtx, release, err := s.recommendationQueries(ctx)
+	if err != nil {
+		return s.omitFailedRecommendation(ctx, readRelatedProducts, p.ID, err)
+	}
+	defer release()
+	related, err := q.RelatedProducts(readCtx, db.RelatedProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
 		CategoryID: p.CategoryID,
 		ExcludeID:  p.ID,
@@ -284,7 +333,8 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
+			InCampaign:   r.InCampaign,
+			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
 			ImageURL:    assets.ProductImageURL(r.ImageKey),
 			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:    r.ImageAlt, ImageWidth: r.ImageWidth, ImageHeight: r.ImageHeight,
@@ -300,9 +350,12 @@ const MinCoPurchases = 2
 const MaxRecommendations = 4
 
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
-	readCtx, cancel := recommendationContext(ctx)
-	defer cancel()
-	rows, err := s.q.BoughtTogether(readCtx, db.BoughtTogetherParams{
+	q, readCtx, release, err := s.recommendationQueries(ctx)
+	if err != nil {
+		return nil, s.omitFailedRecommendation(ctx, readBoughtTogether, productID, err)
+	}
+	defer release()
+	rows, err := q.BoughtTogether(readCtx, db.BoughtTogetherParams{
 		Locale:    string(i18n.FromContext(ctx)),
 		ProductID: productID,
 		MinOrders: MinCoPurchases,
@@ -322,9 +375,11 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
+			InCampaign:   r.InCampaign,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
+			Colours:      r.Colours,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
@@ -366,5 +421,5 @@ func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
 	if v.ExpectedArrival.IsZero() {
 		return ""
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, v.ExpectedArrival, s.now()))
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), shoptime.DateText(ctx, shoptime.DateOf(v.ExpectedArrival, s.now())))
 }

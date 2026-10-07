@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -30,17 +31,21 @@ type WorkerHealthView struct {
 	Stuck                []StuckMessage
 	// The two resolution subjects stay concrete: an event id and a provider ref
 	// are different evidence and route to different database functions.
-	UnreconciledEvents           []UnreconciledEvent
-	UnreconciledCompletePayments []UnreconciledCompletePayment
-	StrandedClaimCount           int64
-	StrandedClaims               []StrandedClaim
-	Notice                       components.Result
-	OpenRefundCount              int64
-	OpenRefunds                  []OpenRefund
-	UninvoicedCount              int64
-	Uninvoiced                   []UninvoicedOrder
-	CancelledOrderInvoiceCount   int64
-	CancelledOrderInvoices       []CancelledOrderInvoice
+	UnreconciledEvents                 []UnreconciledEvent
+	UnreconciledCompletePayments       []UnreconciledCompletePayment
+	StrandedClaimCount                 int64
+	StrandedClaimOldestSeconds         int64
+	StrandedClaims                     []StrandedClaim
+	Notice                             components.Result
+	OpenRefundCount                    int64
+	OpenRefunds                        []OpenRefund
+	UninvoicedCount                    int64
+	UninvoicedOldestSeconds            int64
+	Uninvoiced                         []UninvoicedOrder
+	CancelledOrderInvoiceCount         int64
+	CancelledOrderInvoiceOldestSeconds int64
+	CancelledOrderInvoices             []CancelledOrderInvoice
+	Disputes                           DisputeState
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -96,7 +101,7 @@ func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
-		v.CancelledOrderInvoicesResolved()
+		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
 }
 
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
@@ -190,7 +195,13 @@ type UnreconciledEvent struct {
 	Ref     string
 	Reason  string
 	Since   string
+	// RefundOrderNumber and RefundCents are goen's own succeeded refund a
+	// refund.failed event names; "" and 0 for every other event.
+	RefundOrderNumber string
+	RefundCents       int64
 }
+
+func (u UnreconciledEvent) RefundAmount() string { return money.TWD(u.RefundCents) }
 
 type UnreconciledCompletePayment struct {
 	OrderNumber            string
@@ -251,6 +262,28 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 	}
 }
 
+func (r OpenRefund) NextStep(ctx context.Context) string {
+	var key i18n.Key
+	switch r.Status {
+	case refundstate.Pending:
+		key = i18n.KeyHealthRefundPendingNext
+	case refundstate.RequiresAction:
+		key = i18n.KeyHealthRefundActionNext
+	case refundstate.Failed:
+		key = i18n.KeyHealthRefundFailedNext
+	case refundstate.Cancelled:
+		key = i18n.KeyHealthRefundCancelledNext
+	default:
+		return i18n.T(ctx, i18n.KeyHealthRefundExternalNext)
+	}
+	next := i18n.T(ctx, key)
+	if strings.HasPrefix(r.Key, "return:") {
+		return next + " " + fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundRetryNext),
+			i18n.T(ctx, i18n.KeyAdminRefundResume), i18n.T(ctx, i18n.KeyAdminRetRetryPayout))
+	}
+	return next + " " + i18n.T(ctx, i18n.KeyHealthRefundExternalNext)
+}
+
 func (r OpenRefund) Reference(ctx context.Context) string {
 	if r.ProviderRef == "" {
 		return i18n.T(ctx, i18n.KeyHealthNoRef)
@@ -288,19 +321,65 @@ func (c StrandedClaim) AttemptsText() string {
 func (v *WorkerHealthView) ClaimsSettled() bool { return v.StrandedClaimCount == 0 }
 
 // Tasks is every check on this page that needs a person, as the dashboard lists
-// it, so the two cannot disagree about whether something is wrong.
+// it, so the two cannot disagree about whether something is wrong. Each links
+// to its own table, and carries an age where the query behind it lists items.
 func (v *WorkerHealthView) Tasks() []Task {
 	var tasks []Task
-	add := func(healthy bool, label i18n.Key, count int64) {
+	add := func(healthy bool, label i18n.Key, count int64, href string, hasAge bool, ageSeconds int64) {
 		if !healthy {
-			tasks = append(tasks, Task{Label: label, Count: count, Href: "/admin/health"})
+			tasks = append(tasks, Task{Label: label, Count: count, Href: href, Alert: true, HasAge: hasAge, AgeSeconds: ageSeconds})
 		}
 	}
-	add(v.PaymentsReconciled(), i18n.KeyAdminHPUnreconciledHeading, v.UnreconciledPayments)
-	add(v.ClaimsSettled(), i18n.KeyAdminHPClaimsHeading, v.StrandedClaimCount)
-	add(v.PaidOrdersInvoiced(), i18n.KeyAdminHPUninvoicedHeading, v.UninvoicedCount)
-	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount)
-	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount)
-	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds)
+	add(v.PaymentsReconciled(), i18n.KeyAdminQueueTaskPayments, v.UnreconciledPayments, "/admin/health#events-heading", false, 0)
+	add(v.ClaimsSettled(), i18n.KeyAdminQueueTaskClaims, v.StrandedClaimCount, "/admin/health#claims-heading", true, v.StrandedClaimOldestSeconds)
+	add(v.PaidOrdersInvoiced(), i18n.KeyAdminQueueTaskUninvoiced, v.UninvoicedCount, "/admin/health#uninvoiced-heading", true, v.UninvoicedOldestSeconds)
+	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "/admin/health#cancelled-order-invoices-heading", true, v.CancelledOrderInvoiceOldestSeconds)
+	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "/admin/health#refunds-heading", false, 0)
+	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "/admin/health", false, 0)
 	return tasks
+}
+
+// DisputeState is what Stripe said about disputes awaiting the shop's answer.
+// Unknown means the read failed or timed out, which is not the same as none.
+type DisputeState struct {
+	Configured bool
+	Unknown    bool
+	// OrdersUnknown means the disputes are known but the lookup of their goen
+	// orders failed, which is not the same as no order.
+	OrdersUnknown bool
+	Items         []OpenDispute
+}
+
+func (d DisputeState) Healthy() bool {
+	return !d.Configured || (!d.Unknown && !d.OrdersUnknown && len(d.Items) == 0)
+}
+
+func (d DisputeState) Text(ctx context.Context) string {
+	switch {
+	case d.Unknown:
+		return i18n.T(ctx, i18n.KeyHealthDisputesUnknown)
+	case len(d.Items) == 0:
+		return i18n.T(ctx, i18n.KeyHealthDisputesClear)
+	default:
+		return i18n.Count(ctx, i18n.KeyHealthDisputesOpen, int64(len(d.Items)), len(d.Items))
+	}
+}
+
+// OpenDispute is a card dispute the shop can still answer. OrderNumber is empty
+// when no goen payment matches it.
+type OpenDispute struct {
+	URL         string
+	OrderNumber string
+	AmountCents int64
+	Currency    string
+	RespondBy   string
+}
+
+// Amount leaves foreign figures in Stripe's Dashboard because their minor-unit
+// exponent depends on the currency.
+func (d OpenDispute) Amount() string {
+	if d.Currency == "twd" {
+		return money.TWD(d.AmountCents)
+	}
+	return strings.ToUpper(d.Currency)
 }

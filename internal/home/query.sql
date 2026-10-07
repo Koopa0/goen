@@ -23,6 +23,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
@@ -37,7 +47,38 @@ SELECT
         SELECT 1 FROM product_variants
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
-    ) AS in_stock
+    ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
@@ -71,21 +112,6 @@ ORDER BY (SELECT cp.position FROM sale_campaign_products cp
           WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id) NULLS LAST,
          p.published_at DESC, p.id
 LIMIT @max_tiles::integer;
-
--- The running campaigns, soonest-ending first. The window is judged against the
--- database's clock, which wrote the timestamps.
--- name: HomeCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
-       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
-       coalesce(m.width, 0)::integer AS image_width,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
-FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT @max_campaigns::integer;
 
 -- The scheduled slides in the order an editor queued them by `position`. The
 -- window is judged against the database's clock, which wrote the timestamps.
@@ -162,7 +188,10 @@ JOIN categories r ON r.id = c.parent_id AND r.parent_id IS NULL
 ORDER BY c.position, c.name, c.id;
 
 -- How many active products each root holds across its whole subtree: a
--- department with fewer than three has no band to show.
+-- department with fewer than three has no band to show, and the header prints
+-- it beside each department in the phone menu, so it runs on every page with a
+-- header. Unlike the header's other reads it counts the catalogue, not the
+-- categories, and its plan has not been measured.
 -- name: HomeDepartmentStock :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL
@@ -268,8 +297,9 @@ WHERE sm.is_active
 -- pickup there, so a floor or threshold that counted it would promise a price
 -- nobody can choose.
 -- MIN across methods: the strip states one floor, and the honest one is the
--- lowest fee any active method charges. coalesce AND cast, because min() over
--- an empty set is NULL and sqlc types the result as non-null.
+-- lowest fee any active method charges; a method that is always free charges
+-- none, so it is not the fee below the threshold. coalesce AND cast, because
+-- min() over an empty set is NULL and sqlc types the result as non-null.
 -- name: LowestDeliveryFee :one
 SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
@@ -277,6 +307,7 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
   AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
+  AND v.fee_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);

@@ -135,6 +135,16 @@ SELECT
           AND (@max_price::bigint = 0 OR dv.price_cents <= @max_price::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -155,6 +165,37 @@ SELECT
           )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -289,6 +330,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -296,6 +347,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -410,6 +492,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -417,6 +509,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -485,8 +608,9 @@ WHERE p.status = 'active'
       )
   );
 
--- "On sale" is a variant fact, and a product qualifies when any active variant
--- carries one.
+-- Products a running campaign with something to buy features, and that have a
+-- discounted variant that can be bought: the rule of the in_campaign column of
+-- the cards, and the variant the tile shows.
 -- name: DealProducts :many
 SELECT
     p.slug,
@@ -510,6 +634,16 @@ SELECT
         WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
     ))::boolean AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -517,26 +651,55 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
--- A DISCOUNTED variant first, which is what puts the product on this page at
--- all. The listing's LATERAL takes the cheapest buyable one, and a product
--- qualifies here when ANY variant carries a discount — two different variants
--- whenever the discounted one is dearer or out of stock, so the sale page could
--- quote a price with no discount on it and no badge beside it. They agree on
--- every product in the dev seed, which is what a fixture where two rules agree
--- is worth.
+-- A DISCOUNTED variant that can be bought first, so the price the tile strikes
+-- is one the shopper can add to the cart. The listing's LATERAL takes the
+-- cheapest buyable one, which is a different variant whenever the discounted
+-- one is dearer.
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
@@ -552,8 +715,17 @@ WHERE p.status = 'active'
   AND EXISTS (
       SELECT 1 FROM product_variants dv
       WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
         AND dv.compare_at_price_cents > dv.price_cents
+        AND dv.stock_quantity > dv.safety_stock)
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        AND EXISTS (
+            SELECT 1 FROM sale_campaign_products cp
+            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   )
 ORDER BY
     -- Deepest discount first, as a fraction rather than an amount.
@@ -569,8 +741,17 @@ WHERE p.status = 'active'
   AND EXISTS (
       SELECT 1 FROM product_variants dv
       WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents IS NOT NULL
         AND dv.compare_at_price_cents > dv.price_cents
+        AND dv.stock_quantity > dv.safety_stock)
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products fp
+      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+        AND EXISTS (
+            SELECT 1 FROM sale_campaign_products cp
+            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
   );
 
 
@@ -600,30 +781,72 @@ WHERE EXISTS (
 ORDER BY c.updated_at DESC
 LIMIT $1;
 
--- The window is judged against the database's clock, which wrote the timestamps.
--- name: RunningCampaign :one
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+-- Any active campaign by its slug, inside its window or not: the page says
+-- honestly whether it has not started or has ended.
+-- name: CampaignBySlug :one
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at,
        c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.slug = @slug::text AND c.is_active
-  AND c.starts_at <= now() AND c.ends_at > now();
+WHERE c.slug = @slug::text AND c.is_active;
 
--- name: RunningCampaigns :many
+-- A campaign is listed only while a published featured product can be bought,
+-- so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
+-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
-       c.ends_at,
-       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
+       c.starts_at, c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products cp
+        JOIN products p ON p.id = cp.product_id
+        WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ORDER BY c.ends_at, c.id
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
--- name: RunningCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns
-WHERE is_active AND starts_at <= now() AND ends_at > now();
+-- The same listing as ListedCampaigns, counted.
+-- name: ListedCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock);
+
+-- Whether /deals has anything to buy: a product DealProducts lists. The header
+-- asks on every page; it stops at the first row. Its plan has not been measured.
+-- name: DealsHaveSomethingToBuy :one
+SELECT EXISTS (
+    SELECT 1 FROM products p
+    WHERE p.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM product_variants dv
+          WHERE dv.product_id = p.id AND dv.is_active
+            AND dv.compare_at_price_cents > dv.price_cents
+            AND dv.stock_quantity > dv.safety_stock)
+      AND EXISTS (
+          SELECT 1 FROM sale_campaign_products fp
+          JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+          WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+            AND EXISTS (
+                SELECT 1 FROM sale_campaign_products cp
+                JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+                JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+                WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock))
+)::boolean AS offered;
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many
@@ -643,6 +866,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -650,6 +883,37 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    coalesce((
+        SELECT array_agg(cv.swatch_hex ORDER BY cv.position, cv.id)
+        FROM product_option_values cv
+        WHERE cv.option_id = (
+            SELECT co.id FROM product_options co
+            WHERE co.product_id = p.id
+              AND EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM product_option_values x
+                  WHERE x.option_id = co.id AND x.swatch_hex IS NULL AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = x.id AND pv.is_active
+                  )
+              )
+            ORDER BY co.position, co.id
+            LIMIT 1
+        )
+          AND EXISTS (
+                      SELECT 1 FROM variant_option_values vov
+                      JOIN product_variants pv ON pv.id = vov.variant_id
+                      WHERE vov.option_value_id = cv.id AND pv.is_active
+                  )
+    ), ARRAY[]::text[])::text[] AS colours,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -661,12 +925,13 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A campaign may feature a product only while an active discounted variant
-    -- exists. Price the fact that admitted it, as /deals does, rather than a
-    -- cheaper regular variant that would erase the markdown from the campaign.
-    ORDER BY (compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents) DESC,
+    -- A discounted variant that can be bought, else any variant that can be
+    -- bought, so the price shown is never one a shopper cannot pay; a missing
+    -- compare price is not a discount.
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
              price_cents
     LIMIT 1
 ) mv ON true
@@ -679,7 +944,8 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
-ORDER BY cp.position, p.id;
+-- Sellable products first, then the position the back office set.
+ORDER BY in_stock DESC, cp.position, p.id;
 
 -- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many
@@ -698,6 +964,16 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
     EXISTS (
@@ -855,3 +1131,144 @@ JOIN product_option_values axis_value ON axis_value.option_id = axis.id
 WHERE p.status = 'active' AND p.category_id = ANY(@category_ids::uuid[])
 GROUP BY axis.name, axis_value.value
 ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value;
+
+-- What a department says about itself under its head: the products it holds across
+-- its whole subtree, the sub-categories directly under it, and the brands of those
+-- products.
+-- name: DepartmentFacts :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT
+    (SELECT count(*) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
+    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
+     WHERE r.slug = @slug::text)::bigint AS categories,
+    (SELECT count(DISTINCT p.brand_id) FROM products p
+     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands;
+
+-- The first running campaign that features a product of the department which can be
+-- bought: ListedCampaigns' test, narrowed to the department's own products.
+-- name: DepartmentCampaign :one
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+)
+SELECT c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.starts_at, c.ends_at
+FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+  AND EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
+      JOIN product_variants v ON v.product_id = p.id AND v.is_active
+      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
+        AND v.stock_quantity > v.safety_stock)
+ORDER BY c.ends_at, c.id
+LIMIT 1;
+
+-- Per category of the department that holds at least two products that can be bought, its three
+-- newest. A category is a candidate for the comparison; whether it may be compared
+-- is the caller's to say.
+-- name: DepartmentCompareCandidates :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+held AS (
+    SELECT p.category_id, p.slug,
+           row_number() OVER (PARTITION BY p.category_id ORDER BY p.published_at DESC, p.id DESC) AS nth,
+           count(*) OVER (PARTITION BY p.category_id) AS held
+    FROM products p
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+)
+SELECT category_id, slug FROM held
+WHERE held >= 2 AND nth <= 3
+ORDER BY held DESC, category_id, nth;
+
+-- The newest product of the department with three or more colours that each have a
+-- photograph, and those colours with the first photograph of each, in the order the
+-- product lists them. A swatch marks a colour: the schema leaves it NULL on a value
+-- that is not one.
+-- name: DepartmentColourStory :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.slug = @slug::text
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+),
+story AS (
+    SELECT p.id
+    FROM products p
+    JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+    JOIN product_images i ON i.product_id = p.id AND i.option_value_id = v.id
+    WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d)
+      AND EXISTS (
+          SELECT 1 FROM product_variants sv
+          WHERE sv.product_id = p.id AND sv.is_active AND sv.stock_quantity > sv.safety_stock)
+    GROUP BY p.id
+    HAVING count(DISTINCT v.id) >= 3
+    ORDER BY p.published_at DESC, p.id DESC
+    LIMIT 1
+)
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, @locale::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
+    coalesce(b.name, '') AS brand,
+    mv.price_cents AS price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    EXISTS (
+        SELECT 1 FROM sale_campaign_products fp
+        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
+          AND EXISTS (
+              SELECT 1 FROM sale_campaign_products cp
+              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
+              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
+              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+    ) AS in_campaign,
+    localized_name(v.value, v.value_en, @locale::text) AS colour,
+    v.swatch_hex::text AS swatch,
+    img.storage_key AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width
+FROM story s
+JOIN products p ON p.id = s.id
+LEFT JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
+JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width
+    FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
+) img ON true
+ORDER BY v.position, v.id;
+
+-- The first two specifications each product lists, for the line under its name on a
+-- department whose products are compared.
+-- name: ListingHighlights :many
+SELECT slug, value FROM (
+    SELECT p.slug, localized_name(s.value, s.value_en, @locale::text) AS value,
+           row_number() OVER (PARTITION BY s.product_id ORDER BY s.position, s.id) AS nth
+    FROM product_specs s
+    JOIN products p ON p.id = s.product_id
+    WHERE p.slug = ANY(@slugs::text[])
+) ranked
+WHERE nth <= 2
+ORDER BY slug, nth;

@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -34,6 +34,9 @@ var (
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
+	// invoicingOff is a deployment with no 加值中心: an invoice operation nothing
+	// has sent is waiting for one to be configured, not stranded.
+	invoicingOff bool
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
@@ -41,6 +44,13 @@ func NewStore(pool *pgxpool.Pool) *Store {
 		panic("health: NewStore requires a pool")
 	}
 	return &Store{pool: pool, q: db.New(pool)}
+}
+
+// WithInvoicing says whether e-invoicing is configured. A store starts as if it were.
+func (s *Store) WithInvoicing(enabled bool) *Store {
+	c := *s
+	c.invoicingOff = !enabled
+	return &c
 }
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
@@ -110,7 +120,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 
 	// 折讓 claims the provider never answered. Whether ECPay filed is not knowable
 	// from here, so the claim survives as a row only a person can settle.
-	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
 		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
@@ -119,7 +129,6 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		view.StrandedClaimCount = stranded[0].Total
 	}
 
-	// goen consumes no refund webhook: this is the only unpaid-customer alarm.
 	// Count independently of the bounded diagnostic sample below, or 37 open
 	// refunds are rendered as 20 merely because the table stops at 20 rows.
 	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
@@ -155,21 +164,32 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 		UnreconciledPayments: row.UnreconciledPayments,
 		MaxExpiredHolds:      MaxExpiredHolds,
 	}
-	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
 		return nil, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
 	if len(stranded) > 0 {
 		view.StrandedClaimCount = stranded[0].Total
+		view.StrandedClaimOldestSeconds = stranded[0].OldestSeconds
 	}
 	if view.OpenRefundCount, err = s.q.OpenRefundCount(ctx); err != nil {
 		return nil, fmt.Errorf("count open refunds: %w", err)
 	}
-	if _, view.UninvoicedCount, err = s.UninvoicedOrders(ctx, UninvoicedAfter); err != nil {
-		return nil, err
+	uninvoiced, err := s.q.UninvoicedOrders(ctx, interval(UninvoicedAfter))
+	if err != nil {
+		return nil, fmt.Errorf("read paid orders with no invoice operation: %w", err)
 	}
-	if _, view.CancelledOrderInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter); err != nil {
-		return nil, err
+	if len(uninvoiced) > 0 {
+		view.UninvoicedCount = uninvoiced[0].Total
+		view.UninvoicedOldestSeconds = uninvoiced[0].OldestSeconds
+	}
+	unvoided, err := s.q.CancelledOrderInvoices(ctx, interval(UnvoidedAfter))
+	if err != nil {
+		return nil, fmt.Errorf("read live invoices of cancelled orders: %w", err)
+	}
+	if len(unvoided) > 0 {
+		view.CancelledOrderInvoiceCount = unvoided[0].Total
+		view.CancelledOrderInvoiceOldestSeconds = unvoided[0].OldestSeconds
 	}
 	return view.Tasks(), nil
 }
@@ -177,9 +197,7 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 func (s *Store) CancelledOrderInvoices(
 	ctx context.Context, olderThan time.Duration,
 ) ([]admin.CancelledOrderInvoice, int64, error) {
-	rows, err := s.q.CancelledOrderInvoices(ctx, pgtype.Interval{
-		Microseconds: olderThan.Microseconds(), Valid: true,
-	})
+	rows, err := s.q.CancelledOrderInvoices(ctx, interval(olderThan))
 	if err != nil {
 		return nil, 0, fmt.Errorf("read live invoices of cancelled orders: %w", err)
 	}
@@ -199,9 +217,7 @@ func (s *Store) CancelledOrderInvoices(
 func (s *Store) UninvoicedOrders(
 	ctx context.Context, olderThan time.Duration,
 ) ([]admin.UninvoicedOrder, int64, error) {
-	rows, err := s.q.UninvoicedOrders(ctx, pgtype.Interval{
-		Microseconds: olderThan.Microseconds(), Valid: true,
-	})
+	rows, err := s.q.UninvoicedOrders(ctx, interval(olderThan))
 	if err != nil {
 		return nil, 0, fmt.Errorf("read paid orders with no invoice operation: %w", err)
 	}
@@ -216,6 +232,10 @@ func (s *Store) UninvoicedOrders(
 		}
 	}
 	return out, total, nil
+}
+
+func interval(d time.Duration) pgtype.Interval {
+	return pgtype.Interval{Microseconds: d.Microseconds(), Valid: true}
 }
 
 func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {
@@ -237,6 +257,7 @@ func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []admin.UnreconciledE
 		out[i] = admin.UnreconciledEvent{
 			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
 			Reason: u.Reason, Since: shoptime.Minute(u.ReceivedAt),
+			RefundOrderNumber: u.RefundOrderNumber, RefundCents: u.RefundCents,
 		}
 	}
 	return out

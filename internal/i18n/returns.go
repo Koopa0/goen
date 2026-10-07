@@ -52,7 +52,9 @@ var (
 
 	KeyReturnQuantityInvalid = key("returns.quantity.invalid", Message{ZhHant: "請填寫零或以上的整數。", En: "Enter a whole number of zero or more."})
 
-	KeyReturnReasonInvalid = key("returns.reason.invalid", Message{ZhHant: "退貨原因最多 500 字，請移除無法顯示的字元。", En: "Keep the optional reason within 500 characters and remove unsupported characters."})
+	KeyReturnReasonTooLong = key("returns.reason.toolong", Message{ZhHant: "退貨原因最多 500 字。", En: "Keep the optional reason within 500 characters."})
+
+	KeyReturnReasonUnsupportedControls = key("returns.reason.unsupportedcontrols", Message{ZhHant: "請移除退貨原因中不支援的控制字元。", En: "Remove unsupported control characters from the optional reason."})
 
 	KeyReturnAlreadyOpen = key("returns.alreadyopen", Message{
 		ZhHant: "這筆訂單已經有一筆還在處理中的退貨申請。",
@@ -132,7 +134,7 @@ var (
 	KeyAdminPageReturns = key("admin.page.returns", Message{ZhHant: "退貨申請", En: "Return requests"})
 
 	KeyAdminRetLead = key("admin.ret.lead", Message{
-		ZhHant: "同意退貨會依原付款組成退回：卡款走 Stripe，店儲退回額度。金額由訂單本身的單價計算。",
+		ZhHant: "同意退貨會依原付款組成退回：卡款走 Stripe，購物金退回餘額。金額由訂單本身的單價計算。",
 		En: "Approving a return pays it back the way it was funded: the card half through Stripe, " +
 			"store credit back to the balance. The amount is computed from the order's own unit prices.",
 	})
@@ -143,12 +145,12 @@ var (
 	})
 
 	KeyAdminRetPayoutCredit = key("admin.ret.payout.credit", Message{
-		ZhHant: "店儲 %s 退回額度",
+		ZhHant: "購物金 %s 退回餘額",
 		En:     "Store credit %s returns to the balance",
 	})
 
 	KeyAdminRetPayoutSplit = key("admin.ret.payout.split", Message{
-		ZhHant: "卡款 %s 走 Stripe，店儲 %s 退回額度",
+		ZhHant: "卡款 %s 走 Stripe，購物金 %s 退回餘額",
 		En:     "Card %s through Stripe, store credit %s back to the balance",
 	})
 
@@ -354,6 +356,11 @@ var (
 		En:     "The refund did not complete. Check the payment in the Stripe dashboard, then press “Resume the refund”.",
 	})
 
+	KeyAdminNoticeCancelRetry = key("admin.notice.cancelretry", Message{
+		ZhHant: "退款已完成，但訂單還沒取消。請按「繼續退款」完成取消。",
+		En:     "The refund went through, but the order is not cancelled yet. Press “Resume the refund” to finish.",
+	})
+
 	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{
 		ZhHant: "退款已記錄，但 Stripe 尚未完成。請確認 Stripe 後台，再按「繼續退款」。",
 		En:     "The refund is recorded but Stripe has not settled it. Check the Stripe dashboard, then press Resume the refund.",
@@ -367,6 +374,46 @@ var (
 	KeyAdminNoticePaidCancel = key("admin.notice.paidcancel", Message{
 		ZhHant: "這筆訂單已付款，不能直接取消。請使用「出貨前退款並取消」。",
 		En:     "This order is paid and cannot be cancelled directly. Use Refund and cancel before shipment.",
+	})
+
+	KeyAdminNoticeRefundShipped = key("admin.notice.refundshipped", Message{
+		ZhHant: "這張訂單已經出貨，不能退款取消。請到退貨頁，用退貨處理。",
+		En:     "This order has already shipped, so it cannot be refunded and cancelled here. Handle it as a return on the Returns page.",
+	})
+
+	KeyAdminNoticeRefundHasReturn = key("admin.notice.refundhasreturn", Message{
+		ZhHant: "這張訂單已有退貨申請，不能再退款取消。請到退貨頁，處理那筆退貨。",
+		En:     "This order already has a return, so it cannot be refunded and cancelled here. Handle that return on the Returns page.",
+	})
+
+	KeyAdminNoticeRefundCancelled = key("admin.notice.refundcancelled", Message{
+		ZhHant: "這張訂單已經取消，這次沒有退款。請重新整理，在訂單紀錄確認款項有沒有退回顧客。",
+		En:     "This order is already cancelled, so nothing was refunded this time. Reload the page and check Order history to see whether the customer was paid back.",
+	})
+
+	KeyAdminNoticeRefundUnpaid = key("admin.notice.refundunpaid", Message{
+		ZhHant: "這張訂單還沒有付款，沒有款項可以退。要取消這張訂單，請用上方的狀態選單。",
+		En:     "This order has not been paid, so there is nothing to refund. To cancel it, use the status menu above.",
+	})
+
+	KeyAdminNoticeRefundChanged = key("admin.notice.refundchanged", Message{
+		ZhHant: "這張訂單剛被改過，這次沒有退款。請重新整理，看目前的狀態再決定。",
+		En:     "This order was just changed by someone else, so nothing was refunded. Reload the page and decide from its current state.",
+	})
+
+	KeyAdminNoticeRefundPicking = key("admin.notice.refundpicking", Message{
+		ZhHant: "這張訂單剛開始備貨，這次沒有取消。請重新整理，再按一次「出貨前退款並取消」。",
+		En:     "Packing has just started on this order, so it was not cancelled. Reload the page and press Refund and cancel before shipment again.",
+	})
+
+	KeyAdminNoticeRefundMismatch = key("admin.notice.refundmismatch", Message{
+		ZhHant: "這筆退款沒辦法照紀錄完成：金額和付款紀錄對不上，或顧客的帳號已刪除。請先到 Stripe 後台確認款項有沒有退出，再聯絡負責系統的人；先不要再按。",
+		En:     "This refund cannot be completed as recorded: its amounts do not match the payment records, or the customer's account was deleted. Check the Stripe dashboard to see whether any money went out, then contact whoever runs the system. Do not press it again yet.",
+	})
+
+	KeyAdminNoticeRefundUnsure = key("admin.notice.refundunsure", Message{
+		ZhHant: "退款沒有完成，目前不確定款項有沒有退出。請重新整理，到訂單紀錄和 Stripe 後台確認；仍然不行，請聯絡負責系統的人。",
+		En:     "The refund did not finish, and it is not certain whether any money went out. Reload the page and check Order history and the Stripe dashboard; if it still fails, contact whoever runs the system.",
 	})
 
 	KeyAdminNoticeInspected = key("admin.notice.inspected", Message{

@@ -38,7 +38,7 @@ var (
 	})
 
 	KeyTwoFALead = key("admin.2fa.lead", Message{
-		ZhHant: "後台可以退款、發放額度和調整庫存，所以進去之前要再確認一次是你本人。",
+		ZhHant: "後台可以退款、發放購物金和調整庫存，所以進去之前要再確認一次是你本人。",
 		En: "The back office can refund money, grant store credit and adjust stock, so it checks once " +
 			"more that this is really you before letting you in.",
 	})

@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -68,18 +69,31 @@ func (c Coupon) Used(ctx context.Context) string {
 	return s
 }
 
+// UsesMeter draws the uses against the total limit; only a coupon with a limit has one.
+func (c Coupon) UsesMeter() chart.MeterProps {
+	return chart.MeterProps{
+		Value: c.Redeemed,
+		Limit: int64(c.MaxRedeem),
+		Label: fmt.Sprintf("%d / %d", c.Redeemed, c.MaxRedeem),
+	}
+}
+
 func (c Coupon) State(ctx context.Context) string {
 	switch {
 	case !c.Active:
 		return i18n.T(ctx, i18n.KeyAdminCouponOff)
 	case !c.Current:
 		return i18n.T(ctx, i18n.KeyAdminCouponOutside)
+	case c.usedUp():
+		return i18n.T(ctx, i18n.KeyAdminCouponUsedUp)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminCouponLive)
 	}
 }
 
-func (c Coupon) Live() bool { return c.Active && c.Current }
+func (c Coupon) usedUp() bool { return c.MaxRedeem > 0 && c.Redeemed >= int64(c.MaxRedeem) }
+
+func (c Coupon) Live() bool { return c.Active && c.Current && !c.usedUp() }
 
 func (c Coupon) Action() string { return "/admin/coupons/" + c.Code + "/active" }
 

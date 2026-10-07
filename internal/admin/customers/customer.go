@@ -16,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -101,6 +103,13 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		return admin.CustomerView{}, fmt.Errorf("read customer: %w", err)
 	}
 
+	standing, err := q.MemberStanding(ctx, db.MemberStandingParams{
+		UserID: uid, WindowDays: loyalty.MembershipWindowDays, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return admin.CustomerView{}, fmt.Errorf("read customer standing: %w", err)
+	}
+
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
 		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: web.PageSize,
 	})
@@ -124,6 +133,8 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
+		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: standing.SpendCents, NextTierName: standing.NextName,
+		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {
 		o := &orders[i]

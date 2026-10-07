@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -51,7 +51,7 @@ func (f returnPayoutFacts) position() (returnPayoutPosition, error) {
 	if outstanding.Credit > 0 && !f.HasAccount {
 		return returnPayoutPosition{}, fmt.Errorf(
 			"%w: return %s still owes %d in store credit but the order has no account",
-			refundstate.ErrRefused, f.ID, outstanding.Credit)
+			ErrPayoutUnfit, f.ID, outstanding.Credit)
 	}
 	moneySettled := outstanding.Card == 0 && outstanding.Credit == 0
 	return returnPayoutPosition{
@@ -72,17 +72,17 @@ func (f returnPayoutFacts) frozenSplit() (refundSplit, error) {
 	if full.Card < 0 || full.Credit < 0 || full.Card+full.Credit != f.RefundableCents {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s froze card/credit %d/%d for a %d refund",
-			refundstate.ErrRefused, f.ID, full.Card, full.Credit, f.RefundableCents)
+			ErrPayoutUnfit, f.ID, full.Card, full.Credit, f.RefundableCents)
 	}
 	if f.CardPaidCents != 0 && f.CardPaidCents != full.Card {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s has %d settled on card against a frozen %d",
-			refundstate.ErrRefused, f.ID, f.CardPaidCents, full.Card)
+			ErrPayoutUnfit, f.ID, f.CardPaidCents, full.Card)
 	}
 	if f.CreditPaidCents != 0 && f.CreditPaidCents != full.Credit {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s has %d posted as credit against a frozen %d",
-			refundstate.ErrRefused, f.ID, f.CreditPaidCents, full.Credit)
+			ErrPayoutUnfit, f.ID, f.CreditPaidCents, full.Credit)
 	}
 	return full, nil
 }

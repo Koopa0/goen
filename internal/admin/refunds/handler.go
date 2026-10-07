@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -55,28 +55,70 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	}
 	back := "/admin/orders/" + number
 	sessions, err := h.store.RefundBeforeShipment(r.Context(), number, r.PostFormValue("reason"))
-	switch {
-	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
-		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, ErrUnsettled):
-		h.log.WarnContext(r.Context(), "refund before shipment has not settled", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
-		h.log.WarnContext(r.Context(), "refund before shipment waits on the invoice", "order", number, "error", err)
-		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, refundstate.ErrIncomplete):
-		// Tested before ErrRefused: a payout may carry a database refusal as its
-		// cause, but the refund is open and Resume is what the staff member needs.
-		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, refundstate.ErrRefused), errors.Is(err, ErrInvalid):
-		h.log.WarnContext(r.Context(), "refund before shipment refused", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	default:
+	outcome, ok := refundNotice(err)
+	if !ok {
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
 		access.ServerError(w, r, h.log)
+		return
 	}
+	if err == nil {
+		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
+	} else {
+		h.log.Log(r.Context(), outcome.Level, "refund before shipment", "order", number, "error", err)
+	}
+	http.Redirect(w, r, back+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+}
+
+// refundOutcome is where a refund press sends the staff member and how loudly
+// the log records it: Error for what needs a person, Warn for a refusal.
+type refundOutcome struct {
+	Query string
+	Level slog.Level
+}
+
+// refundNotice is the outcome that selects the order page notice for what
+// RefundBeforeShipment or RefundPreview returned, and false for an error no
+// notice describes. Recovery comes before the refusals: a payout or
+// cancellation can retain a database refusal as its cause while the approved
+// refund remains open, and the refusal's sentence would then claim nothing moved.
+func refundNotice(err error) (refundOutcome, bool) {
+	switch {
+	case err == nil:
+		return refundOutcome{Query: "?refunded=1", Level: slog.LevelInfo}, true
+	case errors.Is(err, ErrUnsettled):
+		return refundOutcome{Query: "?refundpending=1", Level: slog.LevelWarn}, true
+	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
+		return refundOutcome{Query: "?cancelinvoice=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrCancellationIncomplete):
+		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}, true
+	case errors.Is(err, refundstate.ErrIncomplete):
+		return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}, true
+	case errors.Is(err, ErrShipped):
+		return refundOutcome{Query: "?refundshipped=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrHasReturn):
+		return refundOutcome{Query: "?refundhasreturn=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrOrderCancelled), pgerr.IsConstraint(err, "orders_history_frozen"):
+		return refundOutcome{Query: "?refundcancelled=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrNotPaid):
+		return refundOutcome{Query: "?refundunpaid=1", Level: slog.LevelWarn}, true
+	case pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+		return refundOutcome{Query: "?refundpicking=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrOrderChanged),
+		pgerr.IsConstraint(err, "return_before_shipment_eligible"),
+		pgerr.IsConstraint(err, "orders_legal_transition"):
+		return refundOutcome{Query: "?refundchanged=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, ErrPayoutUnfit),
+		pgerr.IsConstraint(err, "refunds_sources_cover_return"),
+		pgerr.IsConstraint(err, "refunds_credit_attribution"),
+		pgerr.IsConstraint(err, "refunds_card_amount_positive"),
+		pgerr.IsConstraint(err, "refunds_return_captured"):
+		return refundOutcome{Query: "?refundmismatch=1", Level: slog.LevelError}, true
+	case errors.Is(err, ErrInvalid):
+		return refundOutcome{Query: "?refundreason=1", Level: slog.LevelWarn}, true
+	case errors.Is(err, refundstate.ErrRefused):
+		return refundOutcome{Query: "?refundunsure=1", Level: slog.LevelError}, true
+	}
+	return refundOutcome{}, false
 }
 
 func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {
@@ -86,8 +128,9 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 		access.NotFound(w, r, h.log)
 		return true
 	case errors.Is(err, refundstate.ErrRefused):
+		outcome, _ := refundNotice(err)
 		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
+		http.Redirect(w, r, "/admin/orders/"+number+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 		return true
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "read refund before shipment", "order", number, "error", err)

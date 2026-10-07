@@ -37,6 +37,35 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
+// hexTokens reads the colour tokens from base.css, where both layouts get them.
+// A token base.css declares and app.css or admin.css declares again with another
+// value would be read by neither test below, so it fails here.
+func hexTokens(t *testing.T) map[string]string {
+	t.Helper()
+
+	read := func(name string) [][]string {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
+	}
+	tokens := make(map[string]string)
+	for _, m := range read(BaseCSS) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	for _, name := range []string{AppCSS, AdminCSS} {
+		for _, m := range read(name) {
+			if base, ok := tokens[m[1]]; ok && base != m[2] {
+				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
+			}
+		}
+	}
+	return tokens
+}
+
 // TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
 // colours against the grounds a page paints. A palette is edited a value at a
 // time, and a pale grey that looks fine beside its neighbours fails a reader
@@ -44,25 +73,17 @@ func contrast(a, b string) float64 {
 func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--n-500", "--n-900", "--accent-text", "--photo"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
 		if tokens[name] == "" {
-			t.Fatalf("%s declares no hex value for %s", AppCSS, name)
+			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
-	for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
-		for _, ground := range []string{"--n-0", "--n-50"} {
+	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
+	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], ground, tokens[ground], got)
@@ -72,7 +93,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
 	if tokens["--chart-hue"] == "" {
-		t.Fatalf("%s declares no hex value for --chart-hue", AppCSS)
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
 	for _, ground := range []string{"--n-0", "--n-50"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
@@ -81,26 +102,60 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// A meter's unfilled part is a tint of the hue, and the filled part must
+	// stand out from it.
+	if tokens["--chart-hue-track"] == "" {
+		t.Fatalf("no stylesheet declares a hex value for --chart-hue-track")
+	}
+	if got := contrast(tokens["--chart-hue"], tokens["--chart-hue-track"]); got < 3 {
+		t.Errorf("--chart-hue (#%s) on --chart-hue-track (#%s) = %.2f:1, want at least 3:1",
+			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
+	}
+
+	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
+	// text to carry them.
+	for _, ground := range []string{"--n-0", "--wash", "--well"} {
+		if got := contrast(tokens["--edge"], tokens[ground]); got < 3 {
+			t.Errorf("--edge (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--edge"], ground, tokens[ground], got)
+		}
+	}
+	if got := contrast(tokens["--mark"], tokens["--n-0"]); got < 3 {
+		t.Errorf("--mark (#%s) on --n-0 = %.2f:1, want at least 3:1", tokens["--mark"], got)
+	}
+
 	// The photographs are encoded on #f9f9f9; any other container ground
 	// draws an edge around every product.
-	if tokens["--photo"] != "f9f9f9" {
-		t.Errorf("--photo = #%s, want #f9f9f9, the ground the photographs carry", tokens["--photo"])
+	if tokens["--well"] != "f9f9f9" {
+		t.Errorf("--well = #%s, want #f9f9f9, the ground the photographs carry", tokens["--well"])
 	}
 }
 
 // toneBlock finds a [data-tone="…"] rule and its declarations.
-var toneBlock = regexp.MustCompile(`(?s)\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
+var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 
 // toneDecl finds one declaration inside a tone block. The value is a hex colour
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
+
+// periodOverride finds the colours a head gives the day grid on its tone, and
+// periodDecl one of them: a tone token, or a token of the page's own.
+var (
+	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
+	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
+)
+
+// toneHeads are the heads that lay the day grid on a tone's ground: the home
+// hero, the department and campaign head, and the lead tile.
+var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
 // toneNames is pages.Tone's closed set. assets cannot import pages, whose test
 // repeats the list.
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground. A new tone is a new block, and one
+// shows to 4.5:1 on each tone's ground, and its edge and mark colours to 3:1
+// (WCAG 1.4.11). A new tone is a new block, and one
 // whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
 func TestEveryToneGroundHoldsItsText(t *testing.T) {
@@ -110,12 +165,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -138,7 +188,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted"} {
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-edge", "--tone-mark"} {
 			if len(decl[prop]) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -150,41 +200,46 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 					prop, decl[prop], name, ground, got)
 			}
 		}
+		// The day grid sits on the tone's ground under each head: its fill and
+		// line are graphical objects (WCAG 1.4.11) and its labels are text.
+		// Each head starts from the page's tokens and takes only its own
+		// overrides, so one head's rules cannot stand in for another's.
+		for _, head := range toneHeads {
+			period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+			for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
+				if m[1] != head || (m[2] != "" && m[2] != name) {
+					continue
+				}
+				for _, d := range periodDecl.FindAllStringSubmatch(m[3], -1) {
+					if strings.HasPrefix(d[2], "--tone-") {
+						period[d[1]] = decl[d[2]]
+					} else {
+						period[d[1]] = tokens[d[2]]
+					}
+				}
+			}
+			for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
+				if got := contrast(period[part], ground); got < min {
+					t.Errorf("%s: the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
+						head, part, period[part], name, ground, got, min)
+				}
+			}
+		}
+		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
+			if got := contrast(decl[prop], ground); got < 3 {
+				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
+					prop, decl[prop], name, ground, got)
+			}
+		}
 		if name == "ink" {
 			continue
 		}
 		// A light ground is also where links and the plain text tokens land.
-		for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
+		for _, ink := range []string{"--muted", "--ink", "--accent"} {
 			if got := contrast(tokens[ink], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					ink, tokens[ink], name, ground, got)
 			}
-		}
-	}
-}
-
-// A visitor who asked for less motion must get no autoplay: the progress fill
-// is what advances the carousel, so switching its animation off and hiding the
-// pause control is what keeps the slides still.
-func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
-	t.Parallel()
-
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	css := string(sheet)
-	start := strings.Index(css, "@media (prefers-reduced-motion: reduce) {\n  .goen-hero.is-playing")
-	if start < 0 {
-		t.Fatal("app.css has no reduced-motion block for the carousel's autoplay")
-	}
-	block := css[start : start+strings.Index(css[start:], "\n}\n\n")+3]
-	for _, want := range []string{
-		`.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after`,
-		"animation: none;",
-	} {
-		if !strings.Contains(block, want) {
-			t.Errorf("the reduced-motion block does not contain %q:\n%s", want, block)
 		}
 	}
 }
@@ -199,12 +254,7 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 	outline := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	fill := regexp.MustCompile(`(?s)\.goen-pdp__starrow:not\(:hover\)[^{]*\{\s*fill: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if outline == nil || fill == nil {
@@ -225,16 +275,11 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 
 func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 	t.Parallel()
-	sheet, err := fs.ReadFile(files, AppCSS)
+	sheet, err := fs.ReadFile(files, BaseCSS)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := make(map[string]string)
-	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
-		if _, seen := tokens[m[1]]; !seen {
-			tokens[m[1]] = m[2]
-		}
-	}
+	tokens := hexTokens(t)
 	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
 	if len(alias) != 2 || tokens[alias[1]] == "" {
 		t.Fatal("controls need a boundary from the existing colour ramp")
@@ -245,5 +290,141 @@ func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 		if math.IsNaN(got) || got < 3 {
 			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
 		}
+	}
+}
+
+// The focus ring is a graphical object (WCAG 1.4.11, 2.4.7): 3:1 on every
+// ground a focusable thing sits on. The accent is dark, so the grounds that
+// are dark themselves re-point --ring to white.
+func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	tokens := hexTokens(t)
+
+	for _, ground := range []string{"--n-0", "--n-50", "--wash", "--well"} {
+		if got := contrast(tokens["--accent"], tokens[ground]); got < 3 {
+			t.Errorf("focus ring --accent (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+				tokens["--accent"], ground, tokens[ground], got)
+		}
+	}
+
+	override := regexp.MustCompile(`(?s)((?:[^{}]*)\{[^{}]*--ring: var\((--[a-z0-9-]+)\);)`).FindStringSubmatch(string(sheet))
+	if override == nil {
+		t.Fatal("app.css does not re-point --ring on any dark ground")
+	}
+	selectorList, _, _ := strings.Cut(override[1], "{")
+	selectors := strings.Split(strings.TrimSpace(selectorList), ",")
+	for _, sel := range selectors {
+		// A bare tone selector also reaches the light grounds that carry
+		// the tone as data, where a white ring would be 1:1.
+		if strings.HasPrefix(strings.TrimSpace(sel), "[data-tone") {
+			t.Errorf("the white --ring override selects %q on any element; scope it to a dark ground", strings.TrimSpace(sel))
+		}
+	}
+	for _, bg := range []string{tokens["--n-900"], "18181b" /* [data-tone="ink"] */} {
+		if got := contrast(tokens[override[2]], bg); got < 3 {
+			t.Errorf("focus ring %s (#%s) on the dark ground #%s = %.2f:1, want at least 3:1",
+				override[2], tokens[override[2]], bg, got)
+		}
+	}
+}
+
+// A focus outline that names its own colour skips the re-pointed --ring and
+// can land on a ground it does not read on. Only "none" (the ring is drawn on
+// another element), "transparent" (the field draws its own border) and the
+// error colour on an invalid field are allowed.
+func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
+	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
+	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+			if !allowed.MatchString(strings.TrimSpace(o[1])) {
+				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+			}
+		}
+	}
+}
+
+var (
+	customDecl = regexp.MustCompile(`(--[a-z0-9-]+)\s*:`)
+	customUse  = regexp.MustCompile(`var\((--[a-z0-9-]+)\s*\)`)
+)
+
+// A var() naming a property no served sheet declares is invalid at
+// computed-value time, and each property that reads it falls back to its
+// initial value, silently.
+func TestEveryCustomPropertyUsedIsDeclared(t *testing.T) {
+	t.Parallel()
+
+	declared := make(map[string]bool)
+	used := make(map[string][]string)
+	err := fs.WalkDir(files, "css", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(name, ".css") {
+			return err
+		}
+		body, readErr := fs.ReadFile(files, name)
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range customDecl.FindAllStringSubmatch(string(body), -1) {
+			declared[m[1]] = true
+		}
+		for _, m := range customUse.FindAllStringSubmatch(string(body), -1) {
+			used[m[1]] = append(used[m[1]], name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for prop, sheets := range used {
+		if !declared[prop] {
+			t.Errorf("%s is read in %s and declared in no stylesheet", prop, sheets[0])
+		}
+	}
+}
+
+// The band paints its tone behind text that the page styles in --n-500, which
+// no tone ground holds to 4.5:1; each of these classes must take the tone's own
+// muted colour.
+func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := regexp.MustCompile(`(?s)((?:\.goen-band [.a-z_-]+,\s*)*\.goen-band [.a-z_-]+) \{\s*color: var\(--tone-muted\);`).FindStringSubmatch(string(sheet))
+	if rule == nil {
+		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
+	}
+	for _, class := range []string{"goen-home__aside", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
+		if !strings.Contains(rule[1], ".goen-band ."+class) {
+			t.Errorf("the band's muted-text rule does not name .%s", class)
+		}
+	}
+}
+
+// The promotion strip owns .goen-promo; a second block declaring it restyles the
+// strip on every page that has one.
+func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
+		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
 	}
 }

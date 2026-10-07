@@ -2462,6 +2462,66 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	})
 }
 
+// TestASoldOrderIsCommittedAndNotRefundedBeforeShipment reads sold_orders as the
+// back office does. The refunded order is still committed, which is the window
+// the view exists for.
+func TestASoldOrderIsCommittedAndNotRefundedBeforeShipment(t *testing.T) {
+	const (
+		shippedWithReturn = "66666666-6666-4666-8666-666666666666"
+		unpaid            = "6666aaaa-6666-4666-8666-666666666666"
+		free              = "6666bbbb-6666-4666-8666-666666666666"
+	)
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err := tx.Exec(ctx, fixtures+refundRuleStaff+`SET LOCAL ROLE admin;`); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+	sold := func(order string) bool {
+		t.Helper()
+		var in bool
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM sold_orders WHERE id = $1)`, order).Scan(&in); err != nil {
+			t.Fatalf("read sold_orders: %v", err)
+		}
+		return in
+	}
+
+	if !sold(free) {
+		t.Fatal("the free order, committed and not refunded, is not sold")
+	}
+	if _, err := tx.Exec(ctx, `
+		SELECT open_refund_before_shipment('GO-260721-000389', 'sold',
+		       '55550001-0000-4000-8000-000000000001', 'sold-req')`); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	var committed bool
+	if err := tx.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM committed_orders WHERE id = $1)`, free).Scan(&committed); err != nil {
+		t.Fatalf("read committed_orders: %v", err)
+	}
+	if !committed {
+		t.Fatal("the refunded order is no longer committed; the case below would prove nothing")
+	}
+
+	for _, tt := range []struct {
+		name  string
+		order string
+		want  bool
+	}{
+		{"shipped, a customer's return requested", shippedWithReturn, true},
+		{"awaiting payment", unpaid, false},
+		{"committed, refunded before shipment", free, false},
+	} {
+		if got := sold(tt.order); got != tt.want {
+			t.Errorf("%s: in sold_orders = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 // TestCampaignDiscountSurvivesBulkEdits covers the two doors a per-row form of the rule leaves:
 // one statement clearing every discount (a BEFORE-row trigger reads the pre-statement snapshot,
 // so each row sees a sibling still discounted), and a DELETE, which UPDATE OF never fires on.

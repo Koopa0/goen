@@ -14,6 +14,7 @@ import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusi
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
+const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
 
@@ -28,7 +29,7 @@ const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/,
 // that so the checker could get in would mean auditing a page no visitor is
 // served. A CDP evaluation runs outside the page's CSP and leaves the document
 // exactly as a visitor receives it.
-const AXE_SOURCE = process.env.AXE_SOURCE || '.layout-chrome/axe.min.js';
+const AXE_SOURCE = process.env.AXE_SOURCE || `${LAYOUT_DIR}/axe.min.js`;
 const AXE_BASELINE = process.env.AXE_BASELINE || 'scripts/axe-baseline.json';
 
 // One width. Every rule asked for below is a property of the document rather
@@ -60,14 +61,31 @@ try {
 }
 const axeBaseline = axeBaselineFile.routes || {};
 
-// What the two artboards fold into. Column counts are read off the rendered
+// The same file, for the 320px and 200%-text pass at the end of this file: route
+// -> the checks that fail there today. It is read here so an unparsable file
+// stops the run before the measuring starts.
+const REFLOW_BASELINE = process.env.REFLOW_BASELINE || 'scripts/reflow-baseline.json';
+let reflowBaselineFile;
+try {
+  reflowBaselineFile = JSON.parse(readFileSync(REFLOW_BASELINE, 'utf8'));
+} catch (err) {
+  console.error(`the reflow baseline at ${REFLOW_BASELINE} did not parse: ${err.message}`);
+  process.exit(2);
+}
+const reflowBaseline = reflowBaselineFile.routes || {};
+
+// What the two artboards fold into. The seeded six departments are rows,
+// one per line, with the stage beside them from 1024; the
+// seeded campaign has four products and a wide first photograph, so its row is
+// the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
+// card. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
 // stops applying is caught rather than a rule that stops existing.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 2, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 3, tiles: 3, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 4, hero: 'side-by-side' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, hero: 'side-by-side' },
+  { label: '375 (artboard)', width: 375, height: 812, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -177,14 +195,15 @@ const CART = [
   { label: 'reset 1440', width: 1440, height: 900, path: '/reset?token=layoutcheck', marker: '.goen-auth__form' },
 ];
 
-// The listing page. Its filter rail sits beside the grid from lg and above it
-// below, which is the one thing its fold decides — asserted by comparing the
-// rail's top against the results', the same way the hero's split is read.
+// The listing page. Its filters are a toolbar open above the grid from lg and a
+// collapsed disclosure above it below; either way they sit over the results, so
+// the rail is always 'stacked'. What lg changes is whether the controls show
+// (`toolbar`), which the desktop probes below assert.
 const LISTING = [
   { label: 'listing 375', width: 375, height: 812, rail: 'stacked' },
   { label: 'listing 768', width: 768, height: 1024, rail: 'stacked' },
-  { label: 'listing 1024', width: 1024, height: 900, rail: 'beside' },
-  { label: 'listing 1440', width: 1440, height: 900, rail: 'beside' },
+  { label: 'listing 1024', width: 1024, height: 900, rail: 'stacked', toolbar: true },
+  { label: 'listing 1440', width: 1440, height: 900, rail: 'stacked', toolbar: true },
 ];
 
 // English category names in the desktop header compete with the search field.
@@ -201,8 +220,8 @@ const HEADER_EN = [
 // provides through ADMIN_TOKEN; without one these are skipped rather than
 // silently measuring a sign-in page.
 const ADMIN = [
-  { label: 'admin 375', width: 375, height: 812, path: '/admin' },
-  { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
+  { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-spark' },
+  { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-spark' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
   { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
@@ -215,15 +234,47 @@ const ADMIN = [
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  // .goen-chartbar: scripts/check-layout.sql gives the report two best sellers,
-  // one at four digits, so a row without a bar measured the one-seller page.
-  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartbar' },
-  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartbar' },
+  // The sales and reviews card in its drawn state: scripts/check-layout.sql gives
+  // PRODUCT_SLUG paid orders on nine shop days and five visible reviews, so a row
+  // missing either drawing fails.
+  { label: 'admin product standing 320', width: 320, height: 568, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  { label: 'admin product standing 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG',
+    marker: '#sec-standing:has(.goen-chart__frame--columns):has(.goen-spread)' },
+  // .goen-report__rows--returned .goen-chartbar: scripts/check-layout.sql gives the
+  // report two best sellers, one at four digits, paid orders on seven shop days with a period total of seven digits (the running totals' .goen-chart), and a return of a quarter of the
+  // second's units, so the row waits for the returned-products bar, the one with
+  // the most text; without it the page measured is the one-sentence state.
+  // .goen-chart__frame--columns:has(.goen-chart__strip): the paid-orders columns
+  // with a campaign over them. Seven paid days give the full drawing, and the
+  // running campaign layout-campaign (scripts/check-layout.sql:44, now - 3 days to
+  // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
+  // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
+  // ledger that starts twenty days back, so its row carries the range bar, the range text
+  // and the warning; without it the rows measured say only that sales are too few.
+  { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
+  { label: 'admin reports columns 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  { label: 'admin reports columns 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chart__frame--columns:has(.goen-chart__strip)' },
+  // .goen-report__departments .goen-chartbar: the two best sellers are in two
+  // departments, so the row waits for the department bars; without them it
+  // measured the page with one department or none.
+  { label: 'admin reports departments 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports departments 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-report__departments .goen-chartbar' },
+  { label: 'admin reports stock 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-chartrangebar' },
+  { label: 'admin reports stock 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-chartrangebar' },
   { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
-  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-admin' },
-  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-admin' },
+  // .goen-chartmeter: scripts/check-layout.sql adds a coupon with a total limit,
+  // so a row without a meter measured the list of uncapped coupons.
+  { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-chartmeter' },
+  { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-chartmeter' },
   { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
   { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
   // .ui-table and not .goen-health: the status list is always present, so a
@@ -275,8 +326,8 @@ const ADMIN = [
   { label: 'admin faq 1440', width: 1440, height: 900, path: '/admin/faq', marker: '.goen-admin__coupons' },
   { label: 'admin customers 375', width: 375, height: 812, path: '/admin/customers?q=layout', marker: '.ui-table' },
   { label: 'admin customers 1440', width: 1440, height: 900, path: '/admin/customers?q=layout', marker: '.ui-table' },
-  { label: 'admin customer 375', width: 375, height: 812, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-admin__stats' },
-  { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-admin__stats' },
+  { label: 'admin customer 375', width: 375, height: 812, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
+  { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
   { label: 'admin messages 375', width: 375, height: 812, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin messages 1440', width: 1440, height: 900, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin newsletter 375', width: 375, height: 812, path: '/admin/newsletter', marker: '.goen-admin' },
@@ -293,6 +344,15 @@ const ADMIN = [
   { label: 'admin returns 1440', width: 1440, height: 900, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin taxonomy 375', width: 375, height: 812, path: '/admin/taxonomy', marker: '.goen-admin' },
   { label: 'admin taxonomy 1440', width: 1440, height: 900, path: '/admin/taxonomy', marker: '.goen-admin' },
+  // .goen-chart__frame--columns:has(.goen-chart__window): the editor of the running
+  // campaign layout-campaign, whose start scripts/check-layout.sql:44 puts three
+  // days back. The same script pays four units of its first product on each of the
+  // seven days before today, so the card has the grey days before under their
+  // "Before" line, the campaign days bracketed with their "until ..." name beside
+  // it, and the table; without them the page measured is the sentence.
+  { label: 'admin campaign results 320', width: 320, height: 568, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 375', width: 375, height: 812, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
+  { label: 'admin campaign results 1440', width: 1440, height: 900, path: '/admin/campaigns/layout-campaign', marker: '.goen-chart__frame--columns:has(.goen-chart__window)' },
   { label: 'admin campaigns 375', width: 375, height: 812, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin campaigns 1440', width: 1440, height: 900, path: '/admin/campaigns', marker: '.goen-admin' },
   { label: 'admin shipping 375', width: 375, height: 812, path: '/admin/shipping', marker: '.goen-admin' },
@@ -357,10 +417,10 @@ const ACCOUNT_PAGES = [
 const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
 
 // The narrowest a product card may be once the viewport is wide enough for the
-// filter rail to sit beside the grid. Two-up on a 375px phone gives 166px and
+// filter toolbar to open above the grid. Two-up on a 375px phone gives 166px and
 // that is correct; the defect is a card that is no wider at 1024 than it is on
-// a phone, which is a column count that stopped fitting once the rail took
-// 272px out of the row. Only checked where rail === 'beside'.
+// a phone, which is a column count that stopped fitting. Only checked where
+// the row has `toolbar`.
 const MIN_CARD = 200;
 
 // The narrowest the desktop search field may be once English names are in
@@ -407,7 +467,7 @@ async function pageSocket() {
 function chromeStartupReport() {
   const lines = [];
   try {
-    const pid = Number(readFileSync('.layout-chrome/pid', 'utf8'));
+    const pid = Number(readFileSync(`${LAYOUT_DIR}/pid`, 'utf8'));
     try {
       process.kill(pid, 0);
       lines.push(`Chrome (pid ${pid}) is still running`);
@@ -543,8 +603,10 @@ const PROBE = `(() => {
     .slice(0, 6)
     .map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]);
 
-  const body = document.querySelector('.goen-hero__body').getBoundingClientRect();
-  const media = document.querySelector('.goen-hero__media').getBoundingClientRect();
+  // A slide with no photograph is colour and type and has no media to compare.
+  const photoSlide = document.querySelector('.goen-hero__slide:has(.goen-hero__media)');
+  const body = photoSlide.querySelector('.goen-hero__body').getBoundingClientRect();
+  const media = photoSlide.querySelector('.goen-hero__media').getBoundingClientRect();
 
   // The content column has to line up across the three landmarks, or the page
   // reads as three documents stacked.
@@ -571,6 +633,10 @@ const PROBE = `(() => {
     overflowing,
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
     cats: cols('.goen-cats__grid > li'),
+    stage: (() => {
+      const e = document.querySelector('.goen-cats__grid--rows li:first-child .goen-cat__photo, .goen-cats__grid--rows li:first-child .goen-cat__stage');
+      return !!e && getComputedStyle(e).position === 'absolute' && getComputedStyle(e).opacity === '1';
+    })(),
     tiles: cols('.goen-tiles__grid > li'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
@@ -809,6 +875,7 @@ for (const want of EXPECTED) {
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
   if (got.cats !== want.cats) fail(at, `category grid has ${got.cats} columns, want ${want.cats}`);
+  if (got.stage !== want.stage) fail(at, `the department stage is ${got.stage ? 'shown' : 'hidden'}, want ${want.stage ? 'shown' : 'hidden'}`);
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
@@ -828,13 +895,63 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
+// The day grid's labels (WCAG 1.4.4, 1.4.10): at 320px and at 200% text every
+// label lies inside its own period and inside the viewport, and no two labels
+// overlap. A route with no period fails, because a grid that is not drawn
+// cannot be measured and the check would pass on nothing.
+const PERIOD_PROBE = `(() => {
+  const vw = document.documentElement.clientWidth;
+  const periods = [...document.querySelectorAll('.ui-period')];
+  const problems = [];
+  periods.forEach((period, n) => {
+    period.closest('.goen-hero__slide')?.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' });
+    const box = period.getBoundingClientRect();
+    const labels = [...period.querySelectorAll('b, small')].map((e) => ({ text: e.textContent, r: e.getBoundingClientRect() }));
+    for (const { text, r } of labels) {
+      if (r.left < Math.max(0, box.left) - 0.5 || r.right > Math.min(vw, box.right) + 0.5) {
+        problems.push('period ' + n + ' label "' + text + '" [' + r.left.toFixed(1) + ',' + r.right.toFixed(1) + '] lies outside its period [' + box.left.toFixed(1) + ',' + box.right.toFixed(1) + '] or the viewport ' + vw);
+      }
+    }
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i].r, b = labels[j].r;
+        if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) {
+          problems.push('period ' + n + ' labels "' + labels[i].text + '" and "' + labels[j].text + '" overlap');
+        }
+      }
+    }
+  });
+  return { periods: periods.length, problems };
+})()`;
+
+async function periodPass(route) {
+  for (const [name, fontSize] of [['320', ''], ['320 at 200% text', '200%']]) {
+    const at = 'period labels ' + route + ' ' + name;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: true });
+    const target = ORIGIN + route;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, at, target);
+    await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+    const got = (await send(ws, 'Runtime.evaluate', { expression: PERIOD_PROBE, returnByValue: true })).result?.value;
+    if (!got) {
+      fail(at, 'the period probe did not run');
+      continue;
+    }
+    if (got.periods === 0) fail(at, 'no .ui-period on the page: the day grid is not drawn');
+    for (const problem of got.problems) fail(at, problem);
+    console.log(at.padEnd(40) + ' periods=' + got.periods + (got.problems.length || got.periods === 0 ? '' : ' ok'));
+  }
+}
+
+for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) await periodPass(route);
+
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the
 // stylesheet opens it; display:flex on the form alone is not enough.
 const FILTER_SHELL_PROBE = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
   const form = document.querySelector('.goen-filters');
-  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const input = document.querySelector('.goen-filters #sort');
   const summary = document.querySelector('.goen-filters__shell-summary');
   const formRect = form ? form.getBoundingClientRect() : null;
   const inputRect = input ? input.getBoundingClientRect() : null;
@@ -894,7 +1011,7 @@ const LISTING_LAYOUT_PROBE = `(() => {
     resultsW: +resultsRect.width.toFixed(1),
     cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
     layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
-    resultsBesideFilter: resultsRect.left > rail.right - 2,
+    resultsBelowFilter: resultsRect.top > rail.bottom - 2,
   };
 })()`;
 
@@ -903,11 +1020,8 @@ const assertDesktopResultsLayout = (at, got) => {
     fail(at, got.why || 'listing layout probe failed');
     return;
   }
-  if (got.rail !== 'beside') {
-    fail(at, `results are not beside the filter rail — ${JSON.stringify(got)}`);
-  }
-  if (!got.resultsBesideFilter) {
-    fail(at, `results sit in the narrow filter column — ${JSON.stringify(got)}`);
+  if (got.rail !== 'stacked' || !got.resultsBelowFilter) {
+    fail(at, `results are not below the filter toolbar — ${JSON.stringify(got)}`);
   }
   if (got.layoutChildren.length !== 2) {
     fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
@@ -983,10 +1097,9 @@ const LISTING_PROBE = `(() => {
       .slice(0, 6).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     rail: Math.abs(rail.y - results.y) < 2 ? 'beside' : 'stacked',
     tiles: cols('.goen-tiles__grid > li'),
-    // The filter rail takes 272px out of the row, so a column count copied from
-    // the home page produced 156px cards here — narrower than the same card on
-    // a 375px phone. Column count alone would not have caught that; the width
-    // is what the visitor sees.
+    // A column count copied from the home page once produced 156px cards here —
+    // narrower than the same card on a 375px phone. Column count alone would not
+    // have caught that; the width is what the visitor sees.
     cardWidth: (() => {
       const c = document.querySelector('.goen-tiles__grid > li');
       return c ? +c.getBoundingClientRect().width.toFixed(1) : 0;
@@ -1049,15 +1162,15 @@ for (const want of LISTING) {
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
   }
-  if (want.rail === 'beside') {
+  if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     assertDesktopFiltersVisible(at, filters);
   }
   if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
-  if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
+  if (want.toolbar && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
     fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
-      `too many columns for the space the filter rail leaves`);
+      `too many columns for the space the grid has`);
   }
   if (got.header && got.main &&
       (Math.abs(got.header[0] - got.main[0]) > 1 || Math.abs(got.header[1] - got.main[1]) > 1)) {
@@ -1073,8 +1186,8 @@ for (const want of LISTING) {
 const LISTING_AUDIO = [
   { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant' },
   { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en' },
-  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'beside' },
-  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'beside' },
+  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'stacked', toolbar: true },
+  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'stacked', toolbar: true },
 ];
 
 for (const want of LISTING_AUDIO) {
@@ -1115,7 +1228,7 @@ for (const want of LISTING_AUDIO) {
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
   }
-  if (want.rail === 'beside') {
+  if (want.toolbar) {
     const filters = await evalPage(FILTER_SHELL_PROBE);
     if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
     assertDesktopFiltersVisible(at, filters);
@@ -1224,11 +1337,11 @@ const proveListingFilterJourney = async (label, locale) => {
   const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
   assertMobileResultsLayout(`${label} filtered`, filteredLayout);
   // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
-  // still fits once the filter rail has taken its width out of the row, which is
-  // a question only the desktop layout can answer — its own declaration says
-  // "Only checked where rail === 'beside'", and the two call sites that honour
-  // that are assertDesktopResultsLayout and the `want.rail === 'beside'` guard
-  // on the LISTING rows. This journey runs at 375, where the rail is stacked and
+  // still fits the grid's columns, which is a question only the desktop layout
+  // can answer — its own declaration says
+  // "Only checked where the row has `toolbar`", and the two call sites that honour
+  // that are assertDesktopResultsLayout and the `want.toolbar` guard
+  // on the LISTING rows. This journey runs at 375, where the filters are stacked and
   // EXPECTED requires two columns; two columns in a 343px content area is a
   // 163.5px card, so asserting 200 here contradicts the artboard the same file
   // declares. Adding it back makes the two assertions unsatisfiable together.
@@ -1293,6 +1406,7 @@ const proveListingDesktopResize = async (label, locale) => {
     const before = document.getElementById('listing-results');
     // Extra facets can put stock below the viewport. Bring the control into
     // view before measuring whether the results update itself moves the page.
+    box.closest('details').open = true;
     box.scrollIntoView({ block: 'center', behavior: 'instant' });
     box.focus({ preventScroll: true });
     const y = window.scrollY;
@@ -2342,6 +2456,9 @@ if (process.env.CUST_TOKEN) {
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
+  // A delivered order of the signed-in customer: one grid for the right to cancel, one for the warranty.
+  await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''));
+
   for (const want of ACCOUNT_PAGES) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
       width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
@@ -2553,6 +2670,106 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+  }
+
+  // The charts' hover readout: pointing at a day writes that row of the chart's
+  // own table under the plot without moving anything, it stays while the
+  // pointer is on it, Escape puts it away, and nothing overflows sideways.
+  if (ADMIN.length) {
+    for (const [width, height] of [[375, 812], [1440, 900]]) {
+      const label = `admin chart readout ${width}`;
+      await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
+      const target = ORIGIN + '/admin/reports';
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const count = await evalPage('document.querySelectorAll(".goen-chart__hit").length ? document.querySelectorAll(".goen-chart").length : 0');
+      if (!count || count.threw) {
+        fail(label, 'the reports page rendered no chart with hit areas — its fixture did not run, so this check proved nothing');
+        continue;
+      }
+      const mouse = (at) => send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+      // pick is an expression over hits: the middle day, then the last, whose
+      // line is the longest (the largest totals, the "up to" time, the campaign).
+      const probe = (k, pick) => evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          const hits = [...fig.querySelectorAll('.goen-chart__hit')];
+          if (!hits.length) return { none: true };
+          fig.scrollIntoView({ block: 'center' });
+          const at = ${pick};
+          const row = fig.querySelector('.goen-chart__table').tBodies[0].rows[Number(at.dataset.row)];
+          const heads = [...fig.querySelector('.goen-chart__table').tHead.rows[0].cells];
+          const series = [], notes = [];
+          heads.forEach((h, i) => {
+            const text = row.cells[i].textContent.trim();
+            if (!text) return;
+            if (h.dataset.readout === 'series') series.push(text + ' ' + h.textContent.trim());
+            if (h.dataset.readout === 'note') notes.push(text);
+          });
+          const box = at.getBoundingClientRect();
+          const frame = fig.querySelector('.goen-chart__frame').getBoundingClientRect();
+          const readout = fig.querySelector('.goen-chart__readout');
+          const line = readout ? readout.getBoundingClientRect() : null;
+          return {
+            hit: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+            gap: { x: box.left + box.width / 2, y: frame.bottom + 1 },
+            line: line && { x: line.left + line.width / 2, y: line.top + line.height / 2 },
+            want: [...series, row.cells[0].textContent.trim(), ...notes].join(' · '),
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+          };
+        })()`);
+      for (let k = 0; k < count; k++) {
+        const chart = `${label} chart ${k + 1}`;
+        const got = await probe(k, 'hits[hits.length >> 1]');
+        if (got.none) continue;
+        if (got.threw || !got.line) {
+          fail(chart, 'no .goen-chart__readout in the figure');
+          continue;
+        }
+        const read = () => evalPage(`(() => {
+          const fig = document.querySelectorAll('.goen-chart')[${k}];
+          return {
+            text: fig.querySelector('.goen-chart__readout').textContent,
+            top: fig.querySelector('.goen-chart__data').getBoundingClientRect().top,
+            wide: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        })()`);
+        await mouse({ x: 2, y: 2 });
+        await mouse(got.hit);
+        const hovered = await read();
+        if (hovered.text !== got.want) fail(chart, `hovering a day reads "${hovered.text}", want the table row "${got.want}"`);
+        if (Math.abs(hovered.top - got.top) > 0.5) fail(chart, `the table moved ${hovered.top - got.top}px when the readout appeared`);
+        if (hovered.wide > 0) fail(chart, `the page scrolls sideways by ${hovered.wide}px with the readout showing`);
+        // The first pixel under the plot is the readout's own padding while the
+        // two touch. With a gap there it is the figure, and crossing it puts the
+        // readout away before the pointer gets down to it.
+        await mouse(got.gap);
+        const below = await read();
+        if (below.text !== got.want) fail(chart, `the readout went away 1px under the plot, on the way down to it: "${below.text}"`);
+        await mouse(got.line);
+        const onIt = await read();
+        if (onIt.text !== got.want) fail(chart, `the readout went away when the pointer moved onto it: "${onIt.text}"`);
+        for (const type of ['keyDown', 'keyUp']) {
+          await send(ws, 'Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        }
+        const gone = await read();
+        if (gone.text !== '') fail(chart, `Escape left the readout showing "${gone.text}"`);
+        // The last day reads the longest line, two lines on a narrow figure; the
+        // height held for it is what keeps the table's toggle where it was.
+        const last = await probe(k, 'hits[hits.length - 1]');
+        if (last.threw || last.none) {
+          fail(chart, 'could not measure the last day');
+          continue;
+        }
+        await mouse({ x: 2, y: 2 });
+        await mouse(last.hit);
+        const longest = await read();
+        if (longest.text !== last.want) fail(chart, `hovering the last day reads "${longest.text}", want the table row "${last.want}"`);
+        if (Math.abs(longest.top - last.top) > 0.5) fail(chart, `the table moved ${longest.top - last.top}px when the last day's readout appeared`);
+        if (longest.wide > 0) fail(chart, `the page scrolls sideways by ${longest.wide}px with the last day's readout showing`);
+        await mouse({ x: 2, y: 2 });
+        console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}", last "${last.want.slice(0, 40)}"`);
+      }
+    }
   }
 
   // The order page is the packing slip: printed, the back office around it is
@@ -3408,7 +3625,7 @@ const annotate = (msg) => console.log(
 //
 // It reports rather than exits, unlike settled(), because this pass runs last:
 // an exit here would throw away the failure list everything above built.
-const axeSettled = async (route, url) => {
+const settledFor = async (pass, route, url) => {
   await send(ws, 'Page.navigate', { url: 'about:blank' });
   for (let i = 0; i < 30; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -3430,7 +3647,7 @@ const axeSettled = async (route, url) => {
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  fail(`axe ${route}`, 'the page never finished loading for the audit');
+  fail(`${pass} ${route}`, 'the page never finished loading');
   return '';
 };
 
@@ -3456,7 +3673,7 @@ const proveTargetSizeGates = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
-  if (!(await axeSettled('target fixture', `${ORIGIN}/about`))) return;
+  if (!(await settledFor('axe', 'target fixture', `${ORIGIN}/about`))) return;
   try {
     await send(ws, 'Runtime.evaluate', { expression: axeSource });
     await evalPage(TARGET_SIZE_FIXTURE);
@@ -3522,7 +3739,7 @@ const auditAccessibility = async () => {
       });
       sessionRestored = true;
     }
-    const landed = await axeSettled(asked, url);
+    const landed = await settledFor('axe', asked, url);
     if (!landed) {
       unaudited.push(asked);
       continue;
@@ -3636,8 +3853,195 @@ const auditAccessibility = async () => {
   console.log('::endgroup::');
 };
 
+// WCAG 1.4.4 (text at 200%) and 1.4.10 (reflow at 320px), on every route this
+// run visited.
+//
+// Each route is loaded at 320 x 800 and measured, then its root font is set to
+// 200% and it is measured again. Per width a route can fail two checks:
+//   scroll  the page scrolls sideways. body.scrollWidth is compared with the 320
+//           that was asked for and not with innerWidth, because phone emulation
+//           widens innerWidth to fit the content; after scrollTo(10000, 0) a
+//           scrollX other than 0 settles any disagreement.
+//   text    one entry per owning element (text-320:a.goen-footer__link): a
+//           run of text is cut by the clip of an ancestor that does not
+//           scroll, or runs past the right edge of the viewport. This is what
+//           neither width above sees: a position:fixed element wider than the
+//           screen, and text cut by overflow:hidden.
+//
+// Inside a scroll container (overflow auto | scroll) text is reachable, so it
+// is not judged. A run wholly outside a clip is a panel parked out of view (a
+// carousel's other slides), so only a run the clip or the edge cuts through
+// counts. text-overflow: ellipsis and -webkit-line-clamp cut on purpose and
+// mark the cut.
+const REFLOW_WIDTH = 320;
+const REFLOW_PROBE = `(async () => {
+  await document.fonts.ready;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const width = ${REFLOW_WIDTH};
+  const scrolls = (o) => o === 'auto' || o === 'scroll';
+  const clips = (o) => o === 'hidden' || o === 'clip';
+  const cuts = (lo, hi, boxLo, boxHi) => lo < boxHi && hi > boxLo && (lo < boxLo - 0.5 || hi > boxHi + 0.5);
+  const text = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue.trim()) continue;
+    const owner = node.parentElement;
+    if (!owner || owner.closest('script, style, noscript, template, option')) continue;
+    if (getComputedStyle(owner).visibility !== 'visible') continue;
+    range.selectNodeContents(node);
+    const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    if (!rects.length) continue;
+    const left = Math.min(...rects.map((r) => r.left));
+    const right = Math.max(...rects.map((r) => r.right));
+    const top = Math.min(...rects.map((r) => r.top));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    let xFree = false;
+    let yFree = false;
+    let cause = '';
+    for (let a = owner; a && a !== document.body && a !== document.documentElement && !cause; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      const box = a.getBoundingClientRect();
+      if (!xFree) {
+        if (scrolls(cs.overflowX)) xFree = true;
+        else if (clips(cs.overflowX)) {
+          if (box.width <= 1 || cs.textOverflow === 'ellipsis') xFree = true;
+          else if (cuts(left, right, box.left, box.right)) cause = 'cut by the clip of';
+        }
+      }
+      if (!yFree && !cause) {
+        if (scrolls(cs.overflowY)) yFree = true;
+        else if (clips(cs.overflowY)) {
+          if (box.height <= 1 || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) yFree = true;
+          else if (cuts(top, bottom, box.top, box.bottom)) cause = 'cut by the clip of';
+        }
+      }
+      if (cs.position === 'fixed') break;
+    }
+    if (!cause && !xFree && cuts(left, right, 0, width)) cause = 'runs past the viewport in';
+    if (cause) {
+      // The attribute, not className: on an SVG element className is an SVGAnimatedString.
+      const where = owner.tagName.toLowerCase() + '.' + (owner.getAttribute('class') || '').split(' ')[0];
+      text.push({ owner: where, detail: cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)) });
+    }
+  }
+  const scrollWidth = document.body.scrollWidth;
+  window.scrollTo(10000, 0);
+  const scrollX = window.scrollX;
+  window.scrollTo(0, 0);
+  return { scrollWidth, scrollX, text };
+})()`;
+
+const auditReflow = async () => {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: REFLOW_WIDTH, height: 800, deviceScaleFactor: 1, mobile: true,
+  });
+
+  // The auth pages answer a signed-in visitor with a redirect to /account, so
+  // they are measured first with the session cookie taken off, as the axe pass
+  // does.
+  const signedOutOnly = ([asked]) => SIGNED_OUT_ROUTES.has(asked);
+  const visits = [...visited.entries()];
+  const requested = [...visits.filter(signedOutOnly), ...visits.filter((v) => !signedOutOnly(v))];
+  console.log(`\nreflow: ${requested.length} routes at ${REFLOW_WIDTH}px and at 200% text`);
+
+  const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+  const session = cookies.find((c) => c.name === 'goen_session');
+  if (session) {
+    await send(ws, 'Network.deleteCookies', { name: session.name, domain: session.domain, path: session.path });
+  }
+  let sessionRestored = !session;
+
+  const observed = {};
+  const measured = new Set();
+  const unmeasured = [];
+  let debtMoved = false;
+
+  const measure = async (zoom) => {
+    const evaluated = await send(ws, 'Runtime.evaluate', {
+      expression: REFLOW_PROBE, awaitPromise: true, returnByValue: true,
+    }, 60000);
+    if (evaluated.exceptionDetails || !evaluated.result || !evaluated.result.value) {
+      throw new Error(evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 300));
+    }
+    const got = evaluated.result.value;
+    const found = {};
+    if (got.scrollWidth > REFLOW_WIDTH || got.scrollX !== 0) {
+      found[`scroll-${zoom}`] = `scrollWidth ${got.scrollWidth} > ${REFLOW_WIDTH}, scrollX ${got.scrollX} after scrollTo`;
+    }
+    // One entry per owner, so a baseline that lists a route's footer link does
+    // not accept a new cut elsewhere on it.
+    for (const run of got.text) {
+      const key = `text-${zoom}:${run.owner}`;
+      found[key] = found[key] ? found[key] + `; ${run.detail}` : run.detail;
+    }
+    return found;
+  };
+
+  for (const [asked, url] of requested) {
+    if (!sessionRestored && !SIGNED_OUT_ROUTES.has(asked)) {
+      await send(ws, 'Network.setCookie', {
+        name: session.name, value: session.value, domain: session.domain, path: session.path,
+      });
+      sessionRestored = true;
+    }
+    const landed = await settledFor('reflow', asked, url);
+    if (!landed) {
+      unmeasured.push(asked);
+      continue;
+    }
+    const route = routeOf(landed);
+    if (measured.has(route)) continue;
+    measured.add(route);
+
+    const found = {};
+    try {
+      Object.assign(found, await measure('320'));
+      await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = '200%'` });
+      Object.assign(found, await measure('200'));
+    } catch (err) {
+      unmeasured.push(route);
+      fail(`reflow ${route}`, `the measurement did not complete — ${err.message}`);
+      continue;
+    }
+
+    const known = reflowBaseline[route] || [];
+    for (const [check, detail] of Object.entries(found)) {
+      if (known.includes(check)) continue;
+      debtMoved = true;
+      fail(`reflow ${route}`, `${check}: ${detail}`);
+    }
+    // A listed check that stopped firing is removed by the change that fixed it,
+    // so this file can only shrink.
+    for (const check of known) {
+      if (check in found) continue;
+      debtMoved = true;
+      fail(`reflow ${route}`, `the baseline lists ${check}, which no longer fires here — remove it`);
+    }
+    observed[route] = Object.keys(found).sort();
+    console.log(`reflow ${route.padEnd(46).slice(0, 46)} failing=${observed[route].join(',') || '-'}`);
+  }
+
+  if (!debtMoved) return;
+
+  const merged = { ...reflowBaseline };
+  for (const [route, checks] of Object.entries(observed)) {
+    if (checks.length) merged[route] = checks;
+    else delete merged[route];
+  }
+  const ordered = {};
+  for (const route of Object.keys(merged).sort()) ordered[route] = merged[route];
+  console.log('::group::reflow baseline candidate — scripts/reflow-baseline.json');
+  if (unmeasured.length) {
+    console.log(`INCOMPLETE — these routes were not measured: ${unmeasured.join(', ')}`);
+  }
+  console.log(JSON.stringify({ ...reflowBaselineFile, routes: ordered }, null, 2));
+  console.log('::endgroup::');
+};
+
 await proveTargetSizeGates();
 await auditAccessibility();
+await auditReflow();
 
 ws.close();
 

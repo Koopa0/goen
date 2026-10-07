@@ -3,14 +3,11 @@ package home
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -21,7 +18,7 @@ const maxSlides = 3
 // slides runs in the order the shop means it: slides an editor scheduled,
 // campaigns running (soonest-ending first), then departments with a photograph
 // to fill what is left.
-func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string, camps []db.HomeCampaignsRow) ([]pages.HeroSlide, error) {
+func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSlide, error) {
 	locale := i18n.FromContext(ctx)
 	rows, err := s.q.HeroSlides(ctx, db.HeroSlidesParams{Locale: string(locale), MaxSlides: maxSlides})
 	if err != nil {
@@ -44,6 +41,7 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 		// with no button rather than a dead one.
 		if href, ok := web.SitePath(r.PrimaryCtaHref); ok {
 			slide.CTA = pages.CTA{Label: r.PrimaryCtaLabel, Href: href}
+			slide.Tone = src.toneOf(href)
 		}
 		if key := r.ImageKey.String; key != "" {
 			slide.Photo = pages.Photo{
@@ -56,18 +54,21 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 		out = append(out, slide)
 	}
 
-	for i := range camps {
+	for i := range src.camps {
 		if len(out) == maxSlides {
 			return out, nil
 		}
-		c := &camps[i]
+		c := &src.camps[i]
 		slide := pages.HeroSlide{
 			Source: pages.SlideCampaign,
 			Layout: pages.SlidePhoto,
 			Tone:   pages.ResolveTone(c.Tone),
 			Title:  c.Title,
-			Fact:   s.campaignFact(ctx, c, i18n.KeyHomeCampaignFact),
+			Stats:  s.campaignStats(ctx, c),
 			CTA:    pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
+		}
+		if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
+			slide.Period = &period
 		}
 		if c.ImageKey != "" {
 			slide.Photo = pages.Photo{
@@ -80,11 +81,11 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 		out = append(out, slide)
 	}
 
-	for i := range cats {
+	for i := range src.cats {
 		if len(out) == maxSlides {
 			break
 		}
-		c := &cats[i]
+		c := &src.cats[i]
 		photo := departmentPhoto(c)
 		if !photo.Shown() {
 			continue
@@ -96,22 +97,23 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 			Photo:      photo,
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
-			Fact:  strings.Join(subs[c.ID], " · "),
-			CTA: pages.CTA{
-				Label: fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), c.Name),
-				Href:  "/c/" + c.Slug,
+			Stats: []components.Stat{
+				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: pages.StatCountOf(ctx, i18n.KeyUnitItems, src.held[c.ID])},
+				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: pages.StatCountOf(ctx, i18n.KeyUnitCategories, int64(len(src.subs[c.ID])))},
 			},
+			CTA: pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})
 	}
 	return out, nil
 }
 
-func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow, withDay i18n.Key) string {
-	day := pages.CampaignEndsOn(ctx, c.EndsAt, s.now())
-	if day == "" {
-		return i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, strconv.FormatInt(c.Products, 10))
-	}
-	return i18n.Count(ctx, withDay, c.Products, c.Products, day)
+// campaignStats is the fact line of a campaign the query lists, which is always running.
+func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
+	return s.campaignSchedule(ctx, c).Facts
+}
+
+func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) pages.CampaignSchedule {
+	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
 func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
@@ -124,4 +126,20 @@ func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
 		Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
 		Alt:    c.ImageAlt,
 	}
+}
+
+// toneOf is the tone of the campaign or department a link goes to; any other
+// link, and a link to nothing the shop has, is stone.
+func (src carouselSources) toneOf(href string) pages.Tone {
+	for i := range src.camps {
+		if href == "/s/"+src.camps[i].Slug {
+			return pages.ResolveTone(src.camps[i].Tone)
+		}
+	}
+	for i := range src.cats {
+		if href == "/c/"+src.cats[i].Slug {
+			return pages.ResolveTone(src.cats[i].Tone)
+		}
+	}
+	return pages.ToneStone
 }

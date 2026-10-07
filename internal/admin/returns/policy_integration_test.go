@@ -39,7 +39,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("window = %q, want within — shop_today would have aged this January filing", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "原因未填", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "原因未填", ""); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("statutory rejection = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -60,7 +60,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("window = %q, want within", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 			t.Fatalf("approve statutory blank-reason return: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -121,13 +121,13 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 			if window := queueWindow(t, s, requestID); window != "goodwill" {
 				t.Fatalf("day-%d window = %q, want goodwill", days, window)
 			}
-			if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "approved", "", ""); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("approve day-%d without assessment = %v, want ErrRefused", days, err)
 			}
-			if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", ""); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("reject day-%d without assessment = %v, want ErrRefused", days, err)
 			}
-			if err := s.Decide(ctx, requestID.String(), "exception", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "exception", "", ""); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("exception day-%d without assessment = %v, want ErrRefused", days, err)
 			}
 			status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -154,7 +154,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess partial unmet: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1"); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("exception partial goodwill = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -183,7 +183,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess unknown goodwill line: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "late line goodwill", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "exception", "late line goodwill", "1"); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("exception mixed unknown goodwill + late = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -212,7 +212,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess unmet: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1"); err != nil {
 			t.Fatalf("exception fully assessed unmet goodwill: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -241,10 +241,10 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess unmet: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1"); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("approve unmet goodwill = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "used", "1", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "used", "1"); err != nil {
 			t.Fatalf("reject unmet goodwill: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -277,7 +277,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if status != "requested" || refunds != 0 {
 			t.Fatalf("assessment itself left %q/%d, want requested/0", status, refunds)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "used; staff exception", "1", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "exception", "used; staff exception", "1"); err != nil {
 			t.Fatalf("exception unmet goodwill: %v", err)
 		}
 		status, refunds = returnPayoutOn(t, isolated, requestID)
@@ -306,7 +306,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess met: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1"); err != nil {
 			t.Fatalf("approve met goodwill: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -334,10 +334,10 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if found.Rescission() {
 			t.Error("a day-15 request still reads as statutory entitlement")
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "goodwill exception", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "goodwill exception", ""); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("policy-approve day-15 = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", ""); err != nil {
 			t.Fatalf("exception-approve day-15: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -359,7 +359,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 				t.Fatalf("open day-15 return: %v", err)
 			}
 			requestID := openReturnIDOn(t, isolated, number)
-			if err := s.Decide(ctx, requestID.String(), "exception", resolution, "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "exception", resolution, ""); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("unexplained exception %q = %v, want ErrRefused", resolution, err)
 			}
 			status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -417,7 +417,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		stalled := storeOver(isolated, admintest.Refunder{
 			RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
 		})
-		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", "", uuid.NullUUID{}); err == nil {
+		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", ""); err == nil {
 			t.Fatal("a timed-out exception payout was reported as complete")
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -425,7 +425,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 			t.Fatalf("stalled exception is %q/%d, want approved/1", status, refunds)
 		}
 		healthy := storeOver(isolated, admintest.Refunder{})
-		if err := healthy.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+		if err := healthy.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 			t.Fatalf("retry approved exception payout without a new reason: %v", err)
 		}
 		status, refunds = returnPayoutOn(t, isolated, requestID)
@@ -442,7 +442,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "undelivered" {
 			t.Fatalf("window = %q, want undelivered", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", ""); err != nil {
 			t.Fatalf("reject undelivered return: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -459,7 +459,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("partial-delivery window = %q, want within", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 			t.Fatalf("approve partial-delivery return: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -480,10 +480,10 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "mixed" {
 			t.Fatalf("mixed window = %q, want mixed", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", ""); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("approve mixed unknown = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", ""); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("reject mixed statutory = %v, want ErrRefused", err)
 		}
 		if err := s.Assess(ctx, requestID.String(), "photos of both parcels", []returns.LineEligibility{
@@ -492,7 +492,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("assess mixed met: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1"); err != nil {
 			t.Fatalf("approve mixed all-met: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -513,7 +513,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("unrelated later shipment window = %q, want within", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", ""); err != nil {
 			t.Fatalf("approve after unrelated later shipment: %v", err)
 		}
 		if got := decisionClaimOn(t, isolated, requestID); got != "statutory" {
@@ -539,10 +539,10 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if err := s.Assess(ctx, requestID.String(), "second look", met); err != nil {
 			t.Fatalf("assess v2: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1"); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("stale version decide = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "2", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "2"); err != nil {
 			t.Fatalf("current version decide: %v", err)
 		}
 		if got := decisionClaimOn(t, isolated, requestID); got != "goodwill" {
@@ -756,7 +756,7 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	errc := make(chan error, 2)
 	for range 2 {
 		go func() {
-			errc <- s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{})
+			errc <- s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "")
 		}()
 	}
 	for range 2 {
@@ -787,7 +787,7 @@ func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 	errc := make(chan error, 2)
 	for range 2 {
 		go func() {
-			errc <- s.Decide(ctx, requestID.String(), "exception", "exception", "", uuid.NullUUID{})
+			errc <- s.Decide(ctx, requestID.String(), "exception", "exception", "")
 		}()
 	}
 	var won, lost int

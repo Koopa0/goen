@@ -89,8 +89,9 @@ SELECT
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, or a completed checkout whose money is still in
-    -- flight. Each is still marked processed because retrying the same event
+    -- already cancelled, a completed checkout whose money is still in flight,
+    -- or a refund goen recorded as succeeded that Stripe later reported failed.
+    -- Each is still marked processed because retrying the same event
     -- changes nothing; the durable reason makes the human action countable
     -- instead of leaving only a log line nobody reads.
     ((SELECT count(*) FROM payment_webhook_events
@@ -107,12 +108,22 @@ SELECT
 -- The events a person has to act on, named rather than counted: a page saying
 -- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
 -- and nothing about what to do, which is the reason outbox.Stuck() lists.
+-- A refund.failed names goen's refund by provider_ref alone, as the webhook
+-- attributed it, and only a succeeded one: the page tells staff that money is
+-- back in the Stripe balance, which is not so of a refund goen still has open.
 -- name: UnreconciledPayments :many
-SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
-       unreconciled::text AS reason, received_at
-FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
-ORDER BY received_at
+SELECT e.event_id, e.type, coalesce(e.object_ref, '') AS object_ref,
+       e.unreconciled::text AS reason, e.received_at,
+       coalesce(o.order_number, '')::text AS refund_order_number,
+       coalesce(r.amount_cents, 0)::bigint AS refund_cents
+FROM payment_webhook_events e
+LEFT JOIN (refunds r
+           JOIN payments p ON p.id = r.payment_id
+           JOIN orders o ON o.id = p.order_id)
+  ON e.type = 'refund.failed' AND r.provider_ref = e.object_ref
+     AND r.status = 'succeeded'
+WHERE e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+ORDER BY e.received_at
 LIMIT 50;
 
 -- Provider-complete payment identities without an outstanding event alarm.
@@ -141,7 +152,8 @@ LIMIT 50;
 -- pending beyond several worker polls. Succeeded evidence and a staff claim's
 -- rejection, which that person saw, are not an active health alarm. A system
 -- issue's rejection was seen by nobody, so it stays while the order still owes
--- an invoice and no later issue exists.
+-- an invoice and no later issue exists. With no 加值中心 configured an operation
+-- never sent is waiting for one, not stranded; one already sent stays.
 -- name: StrandedInvoiceClaims :many
 SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
@@ -154,11 +166,14 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
            AS can_authorize_resend,
-       count(*) OVER () AS total
+       count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(op.created_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
-   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes'
+       AND (@invoicing_enabled::boolean OR op.send_attempts > 0))
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
        AND (order_is_committed(op.order_id)
             OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(op.order_id) = 0))
@@ -176,7 +191,9 @@ LIMIT 50;
 -- operations existed, owe no claim. Newest first, so the order that just went
 -- wrong is on top; the total says how many more there are.
 -- name: UninvoicedOrders :many
-SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total
+SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(f.funded_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM orders o
 CROSS JOIN LATERAL (
     SELECT coalesce(
@@ -206,7 +223,9 @@ LIMIT 50;
 -- 加值中心 was configured to send one. One with an operation still active is on
 -- the stranded-claims list instead.
 -- name: CancelledOrderInvoices :many
-SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(o.cancelled_at) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.fulfillment_status = 'cancelled'
@@ -238,3 +257,10 @@ SELECT release_payment_event(@event_id::text);
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- name: OrderNumbersByProviderRef :many
+SELECT p.provider_ref, o.order_number
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE p.provider = 'stripe'
+  AND p.provider_ref = ANY(@provider_refs::text[]);

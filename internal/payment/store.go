@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/refundstate"
 )
 
 // Store holds the pool rather than a DBTX because processing a webhook spans
@@ -82,6 +83,11 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		hold.ExpiresAt = time.Time{}
 	}
 
+	span, err := s.q.OrderHoldSpan(ctx, row.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("read stock hold span of order %s: %w", number, err)
+	}
+
 	o := &Order{
 		Number:            row.OrderNumber,
 		TotalCents:        row.TotalCents,
@@ -89,6 +95,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		Paid:              paid,
 		Fulfillment:       row.FulfillmentStatus,
 		HoldExpiresAt:     hold.ExpiresAt,
+		Hold:              HoldSpan{From: span.HeldFrom, Until: span.HeldUntil, SweptAt: span.SweptAt.Time},
 		holdCoversSession: hold.CoversSession,
 		Lines:             make([]Line, 0, len(lines)),
 	}
@@ -538,6 +545,23 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 		return fmt.Errorf("cancel payment for session %s: %w", w.objectRef, err)
 	}
 	return nil
+}
+
+// RefundStatus reads goen's own refund this webhook object names. Only the
+// provider reference attributes it: a refund made in the Stripe Dashboard has
+// none here, and its metadata or payment intent could name any of goen's.
+func (w *webhookTx) RefundStatus(ctx context.Context) (refundstate.State, error) {
+	if w.objectRef == "" {
+		return "", errors.New("read refund for webhook without a provider object")
+	}
+	status, err := w.q.RefundStatusByProviderRef(ctx, w.objectRef)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("read refund %s: %w", w.objectRef, err)
+	}
+	return refundstate.State(status), nil
 }
 
 func cardLabel(c Capture) string {

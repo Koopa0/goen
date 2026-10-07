@@ -15,7 +15,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	with := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{
-		Slug: "c", Title: "Sale", EndsOn: "soon",
+		Slug: "c", Title: "Sale",
 		Image: Photo{
 			URL: assets.ProductImageURL(seedBanner), Srcset: assets.ProductImageSrcsetAt(seedBanner, 1600),
 			Alt: "Products on sale",
@@ -29,7 +29,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 			t.Errorf("a campaign with a header lacks %q", want)
 		}
 	}
-	without := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "Sale", EndsOn: "soon"}))
+	without := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "Sale"}))
 	if strings.Contains(without, "goen-campaign__header") {
 		t.Error("a campaign with no header still draws one")
 	}

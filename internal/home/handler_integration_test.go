@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -145,6 +146,12 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	for _, slide := range slides {
 		if slide.Layout != pages.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
 			t.Errorf("a department slide is %+v, want a photograph and a button", slide)
+		}
+		if want := i18n.T(ctx, i18n.KeyHeroCampaignCTA); slide.CTA.Label != want {
+			t.Errorf("a department slide's button reads %q, want %q", slide.CTA.Label, want)
+		}
+		if len(slide.Stats) != 2 {
+			t.Errorf("a department slide states %d figures, want items and categories", len(slide.Stats))
 		}
 	}
 }
@@ -492,14 +499,9 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 			t.Fatalf("insert campaign %s: %v", c.slug, err)
 		}
 	}
-	// The row shows a campaign only when it holds a product; an empty one falls
-	// back to the newest of the shop.
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO sale_campaign_products (campaign_id, product_id)
-		SELECT c.id, p.id FROM sale_campaigns c, products p
-		WHERE c.slug = 'hero-sooner' AND p.status = 'active'
-		ORDER BY p.slug LIMIT 1`); err != nil {
-		t.Fatalf("attach a product to the soonest campaign: %v", err)
+	// A campaign is listed only while it features a published product in stock.
+	for _, slug := range []string{"hero-sooner", "hero-later"} {
+		featureProduct(t, slug, 5)
 	}
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -532,6 +534,86 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 	if view.Row.Href != "/s/hero-sooner" {
 		t.Errorf("the product row is %q, want the campaign ending soonest", view.Row.Href)
 	}
+}
+
+// A campaign whose featured product is sold out takes no carousel slide and no
+// product row; a sellable product brings both back.
+func TestACampaignWithNothingToBuyTakesNoCarouselSlide(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	emptyHeroSlides(t)
+	stopCampaigns(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('hero-empty', '空活動', now() + interval '1 hour')`); err != nil {
+		t.Fatalf("insert campaign: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `DELETE FROM sale_campaigns WHERE slug = 'hero-empty'`); err != nil {
+			t.Errorf("clean up campaign: %v", err)
+		}
+	})
+
+	shown := func() (slide, row bool) {
+		for _, s := range slidesOf(t, ctx) {
+			slide = slide || s.CTA.Href == "/s/hero-empty"
+		}
+		view, err := home.NewStore(pool).Load(ctx)
+		if err != nil {
+			t.Fatalf("load home: %v", err)
+		}
+		return slide, view.Row.Href == "/s/hero-empty"
+	}
+	featureProduct(t, "hero-empty", 0)
+	if slide, row := shown(); slide || row {
+		t.Fatalf("a campaign with only a sold-out product is on the home page (slide %v, row %v)", slide, row)
+	}
+	featureProduct(t, "hero-empty", 5)
+	if slide, row := shown(); !slide || !row {
+		t.Fatalf("a campaign with a sellable product is missing from the home page (slide %v, row %v)", slide, row)
+	}
+}
+
+func featureProduct(t *testing.T, campaignSlug string, stock int) {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		WITH p AS (
+		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		    SELECT (SELECT id FROM brands LIMIT 1),
+		           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		           'hero-' || gen_random_uuid(), '活動商品', 'active', now()
+		    RETURNING id, slug
+		), v AS (
+		    INSERT INTO product_variants
+		        (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		    SELECT p.id, 'HERO-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
+		)
+		SELECT slug FROM p`, stock).Scan(&slug); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+		SELECT c.id, p.id,
+		       (SELECT coalesce(max(position) + 1, 0) FROM sale_campaign_products WHERE campaign_id = c.id)
+		FROM sale_campaigns c, products p
+		WHERE c.slug = $1 AND p.slug = $2`, campaignSlug, slug); err != nil {
+		t.Fatalf("feature product on %s: %v", campaignSlug, err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		for _, stmt := range []string{
+			`DELETE FROM sale_campaign_products WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
+			`UPDATE products SET status = 'draft' WHERE slug = $1`,
+			`DELETE FROM product_variants WHERE product_id = (SELECT id FROM products WHERE slug = $1)`,
+			`DELETE FROM products WHERE slug = $1`,
+		} {
+			if _, err := pool.Exec(clean, stmt, slug); err != nil {
+				t.Errorf("remove product %s: %v", slug, err)
+				return
+			}
+		}
+	})
 }
 
 func emptyHeroSlides(t *testing.T) {
@@ -658,8 +740,8 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 
 	// The other active method still carries the seeded 300000; only the higher
 	// threshold is free for both.
-	if got := view.FreeDelivery(); got != "NT$5,555" {
-		t.Errorf("the strip states %q, want NT$5,555 — the highest threshold, "+
+	if got := view.Rules.FreeDeliveryCents; got != 555500 {
+		t.Errorf("the shop rules state a threshold of %d cents, want 555500 — the highest threshold, "+
 			"the one every active method honours", got)
 	}
 
@@ -677,14 +759,14 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
-	if got := bare.FreeDelivery(); got != "" {
-		t.Errorf("a shop that charges for every parcel advertises free delivery over %q", got)
+	if got := bare.Rules.FreeDeliveryCents; got != 0 {
+		t.Errorf("a shop that charges for every parcel advertises free delivery over %d cents", got)
 	}
 }
 
 // fee_cents lives in shipping_method_versions, which a shop edits at
 // /admin/shipping, so a page stating the figure can drift from the till.
-func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
+func TestTheFreeDeliveryNoteStatesTheLowestCurrentFee(t *testing.T) {
 	ctx := t.Context()
 
 	// A new version, because shipping_method_versions is append-only. Every
@@ -712,10 +794,10 @@ func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
 	body := res.Body.String()
 
 	if !strings.Contains(body, "未達門檻運費 NT$80 起") {
-		t.Error("the trust body does not state the current lowest fee")
+		t.Error("the free-delivery note does not state the current lowest fee")
 	}
 	if strings.Contains(body, "NT$60") {
-		t.Error("the trust body still states the old NT$60 floor")
+		t.Error("the free-delivery note still states the old NT$60 floor")
 	}
 }
 
@@ -779,8 +861,8 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 }
 
 // Checkout drops store pickup where the store map is not configured, so the
-// strip's floor and wording must describe the home delivery it still offers.
-func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
+// note's floor and wording must describe the home delivery it still offers.
+func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	// New versions, because shipping_method_versions is append-only and a
@@ -818,15 +900,49 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	if !strings.Contains(with, "未達門檻運費 NT$60 起") {
 		t.Error("a shop that offers pickup does not state its NT$60 floor")
 	}
-	if !strings.Contains(with, "超商取貨皆適用") {
+	if !strings.Contains(with, "宅配與超商取貨") {
 		t.Error("a shop that offers pickup does not say so")
 	}
 	without := render(home.NewStore(pool).WithoutPickup())
-	if strings.Contains(without, "超商取貨皆適用") {
-		t.Error("the strip promises pickup where checkout does not offer it")
+	if strings.Contains(without, "宅配與超商取貨") {
+		t.Error("the free-delivery note promises pickup where checkout does not offer it")
 	}
 	if want := "未達門檻運費 NT$80 起"; !strings.Contains(without, want) {
-		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
+		t.Errorf("the note's floor is not the home delivery fee; want %q", want)
+	}
+}
+
+// A method that is always free charges nothing below any threshold, so the
+// floor the strip states is the cheapest fee that is actually charged.
+func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
+		       CASE sm.destination_kind WHEN 'pickup_point' THEN 0 ELSE 8000 END,
+		       300000, now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("publish the fees: %v", err)
+	}
+
+	view, err := home.NewStore(tx).Load(ctx)
+	if err != nil {
+		t.Fatalf("load home: %v", err)
+	}
+	if view.Rules.LowestFeeCents != 8000 {
+		t.Errorf("Rules.LowestFeeCents = %d, want 8000: an always-free pickup method is not the fee below the threshold",
+			view.Rules.LowestFeeCents)
 	}
 }
 
@@ -915,5 +1031,154 @@ func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
 	}
 	if shown == 0 {
 		t.Fatal("no department showed a product, so this compared nothing")
+	}
+}
+
+func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
+	ctx := t.Context()
+	var big, small, sub uuid.UUID
+	for _, c := range []struct {
+		id     *uuid.UUID
+		slug   string
+		parent *uuid.UUID
+	}{
+		{&big, "navcount-big", nil},
+		{&small, "navcount-small", nil},
+		{&sub, "navcount-big-sub", &big},
+	} {
+		var parent any
+		if c.parent != nil {
+			parent = *c.parent
+		}
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO categories (slug, name, parent_id, position)
+			VALUES ($1, $1, $2, (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NOT DISTINCT FROM $2))
+			RETURNING id`, c.slug, parent).Scan(c.id); err != nil {
+			t.Fatalf("insert category %s: %v", c.slug, err)
+		}
+	}
+	slugs := []string{"navcount-a", "navcount-b", "navcount-c", "navcount-d"}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		// Archived first: an active product may not lose its last variant.
+		for _, q := range []string{
+			`UPDATE products SET status = 'archived' WHERE slug = ANY($1)`,
+			`DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE slug = ANY($1))`,
+			`DELETE FROM products WHERE slug = ANY($1)`,
+		} {
+			if _, err := pool.Exec(clean, q, slugs); err != nil {
+				t.Errorf("clean up: %v", err)
+			}
+		}
+		if _, err := pool.Exec(clean, `DELETE FROM categories WHERE id IN ($1, $2, $3)`, sub, big, small); err != nil {
+			t.Errorf("clean up categories: %v", err)
+		}
+	})
+	for _, p := range []struct {
+		slug, status string
+		category     uuid.UUID
+	}{
+		{slugs[0], "active", big},
+		{slugs[1], "active", sub},
+		{slugs[2], "draft", big},
+		{slugs[3], "active", small},
+	} {
+		if _, err := pool.Exec(ctx, `
+			WITH p AS (
+			    INSERT INTO products (category_id, slug, name, status, published_at)
+			    VALUES ($1, $2, $2, $3, now())
+			    RETURNING id
+			)
+			INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+			SELECT p.id, upper($2), 1000, 5, 0, 0 FROM p`,
+			p.category, p.slug, p.status); err != nil {
+			t.Fatalf("insert product %s: %v", p.slug, err)
+		}
+	}
+
+	items, err := home.NewStore(pool).Nav(i18n.WithLocale(ctx, i18n.ZhHant))
+	if err != nil {
+		t.Fatalf("nav: %v", err)
+	}
+	got := map[string]int{}
+	for _, n := range items {
+		got[n.Slug] = n.ProductCount
+	}
+	if got["navcount-big"] != 2 || got["navcount-small"] != 1 {
+		t.Errorf("department counts = big %d, small %d; want 2 (one in a sub-category, the draft left out) and 1",
+			got["navcount-big"], got["navcount-small"])
+	}
+}
+
+// The lead tile is the campaign's first product, so its first photograph's
+// width decides; a photograph whose width was never stored counts as too narrow.
+func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	emptyHeroSlides(t)
+	stopCampaigns(t)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
+		t.Fatalf("insert campaign: %v", err)
+	}
+	var campaignID uuid.UUID
+	if err = tx.QueryRow(ctx, `SELECT id FROM sale_campaigns WHERE slug = 'lead-width'`).Scan(&campaignID); err != nil {
+		t.Fatalf("read campaign: %v", err)
+	}
+	productIDs := make([]uuid.UUID, 0, 4)
+	for range 4 {
+		var id uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			WITH p AS (
+			    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+			    SELECT (SELECT id FROM brands LIMIT 1),
+			           (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+			           'lead-' || gen_random_uuid(), '主圖商品', 'active', now()
+			    RETURNING id
+			), v AS (
+			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+			    SELECT p.id, 'LEAD-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, 5, 0, 0 FROM p
+			)
+			SELECT id FROM p`).Scan(&id); err != nil {
+			t.Fatalf("create product: %v", err)
+		}
+		productIDs = append(productIDs, id)
+	}
+	for i, id := range productIDs {
+		if _, err := tx.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ($1, $2, $3)`, campaignID, id, i); err != nil {
+			t.Fatalf("feature product: %v", err)
+		}
+	}
+	for _, tt := range []struct {
+		name  string
+		width any
+		lead  bool
+	}{
+		{"wide", 1600, true},
+		{"just under", 1199, false},
+		{"width never stored", nil, false},
+	} {
+		if _, err := tx.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1`, productIDs[0]); err != nil {
+			t.Fatalf("clear photograph: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO product_images (product_id, storage_key, alt_text, width, height, position)
+			VALUES ($1, 'lead.webp', '主圖', $2, 1200, 0)`, productIDs[0], tt.width); err != nil {
+			t.Fatalf("%s: insert photograph: %v", tt.name, err)
+		}
+		view, err := home.NewStore(tx).Load(ctx)
+		if err != nil {
+			t.Fatalf("%s: load: %v", tt.name, err)
+		}
+		if view.Row.Href != "/s/lead-width" {
+			t.Fatalf("%s: the row is %q, want the campaign's", tt.name, view.Row.Href)
+		}
+		if got := view.Row.HasLead(); got != tt.lead {
+			t.Errorf("%s: lead tile = %t, want %t (first photograph %v wide)", tt.name, got, tt.lead, tt.width)
+		}
 	}
 }

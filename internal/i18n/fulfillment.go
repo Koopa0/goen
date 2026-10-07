@@ -140,6 +140,11 @@ var (
 
 	KeyAdminTimelineInvoicePending = key("admin.timeline.invoice.pending", Message{ZhHant: "處理中", En: "In progress"})
 
+	KeyAdminTimelineInvoiceNotSent = key("admin.timeline.invoice.not_sent", Message{
+		ZhHant: "未啟用電子發票，尚未送出",
+		En:     "E-invoicing is off, not sent",
+	})
+
 	KeyAdminTimelineInvoiceAwaitingBuyer = key("admin.timeline.invoice.awaiting", Message{
 		ZhHant: "等待顧客同意",
 		En:     "Waiting for the customer to agree",
@@ -231,9 +236,9 @@ var (
 		En:     "This order is already in a final state.",
 	})
 
-	KeyAdminQueueLowOnly = key("admin.queue.lowonly", Message{
-		ZhHant: "僅低庫存",
-		En:     "Low stock only",
+	KeyAdminQueueSoldOutOnly = key("admin.queue.soldoutonly", Message{
+		ZhHant: "僅已售完",
+		En:     "Sold out only",
 	})
 
 	KeyAdminQueueNoVariants = key("admin.queue.novariants", Message{
@@ -289,7 +294,7 @@ var (
 	})
 
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
-		ZhHant: "額度的金額或原因有誤，請重新確認後再送出。",
+		ZhHant: "購物金的金額或原因有誤，請重新確認後再送出。",
 		En:     "The credit amount or reason is not right. Check them and send again.",
 	})
 
@@ -329,10 +334,11 @@ var (
 	})
 
 	KeyAdminShipPickupOff = key("admin.ship.pickupoff", Message{
-		ZhHant: "尚未設定超商地圖，結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
-		En: "No store map is configured, so checkout does not offer this method. Setting " +
-			"GOEN_ECPAY_LOGISTICS is what turns it on.",
+		ZhHant: "顧客結帳時看不到超商取貨：還沒接上綠界物流。這要由架站的人設定。",
+		En:     "Customers cannot pick this at checkout: ECPay logistics is not connected yet. Whoever runs the server sets that up.",
 	})
+
+	KeyAdminShipPickupNotOffered = key("admin.ship.pickupnotoffered", Message{ZhHant: "結帳未提供", En: "Not offered at checkout"})
 
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題：每一項不能超過還沒出貨的數量，也不能超過這筆訂單保留的庫存。",

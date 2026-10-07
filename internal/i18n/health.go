@@ -55,6 +55,39 @@ var (
 		En:     "Refunds that have not completed, including any interrupted on the way to Stripe. None of them closes on its own.",
 	})
 
+	KeyAdminHPDisputesName = key("admin.hp.disputes.name", Message{ZhHant: "待回應的爭議款", En: "Disputes"})
+
+	KeyAdminHPDisputesNote = key("admin.hp.disputes.note", Message{
+		ZhHant: "即時向 Stripe 查詢。持卡人提出爭議後，期限內沒有回應，款項就會被收回。",
+		En:     "Read live from Stripe. A dispute takes the money back unless the shop responds before its deadline.",
+	})
+
+	KeyAdminHPDisputesHeading = key("admin.hp.disputes.heading", Message{
+		ZhHant: "等你回應的爭議款",
+		En:     "Disputes waiting for a response",
+	})
+
+	KeyAdminHPColRespondBy = key("admin.hp.col.respondby", Message{ZhHant: "回應期限", En: "Respond by"})
+
+	KeyAdminHPColDispute = key("admin.hp.col.dispute", Message{ZhHant: "爭議款", En: "Dispute"})
+
+	KeyAdminHPDisputeOpen = key("admin.hp.dispute.open", Message{ZhHant: "到 Stripe 處理", En: "Open in Stripe"})
+
+	KeyAdminHPDisputeNoOrder = key("admin.hp.dispute.noorder", Message{
+		ZhHant: "找不到對應的訂單",
+		En:     "No matching order",
+	})
+
+	KeyAdminHPDisputeOrderUnknown = key("admin.hp.dispute.orderunknown", Message{
+		ZhHant: "訂單無法查詢",
+		En:     "Order could not be looked up",
+	})
+
+	KeyAdminHPDisputeNoDeadline = key("admin.hp.dispute.nodeadline", Message{
+		ZhHant: "銀行不接受回應",
+		En:     "The bank accepts no response",
+	})
+
 	KeyAdminHPHousekeepingName = key("admin.hp.housekeeping.name", Message{
 		ZhHant: "清理",
 		En:     "Housekeeping",
@@ -232,6 +265,11 @@ var (
 		En:     "Stripe events needing action",
 	})
 
+	KeyAdminHPRefundFailedAtStripe = key("admin.hp.unreconciled.refundfailed", Message{
+		ZhHant: "系統已記為退款成功，但 Stripe 回報這筆退款失敗，款項已回到 Stripe 餘額。請用其他方式把錢還給顧客，再按「確認已全額退款或已有成功入帳」。",
+		En:     "goen recorded this refund as succeeded, but Stripe reports it failed and the money is back in the Stripe balance. Repay the customer another way, then press “Confirmed fully refunded/already accounted”.",
+	})
+
 	KeyAdminHPUnreconciledHint = key("admin.hp.unreconciled.hint", Message{
 		ZhHant: "請依原因與事件編號檢查 Stripe。只有確認款項已全額退款，或已有 succeeded 付款完整入帳，才可解除付款閘門；單純看過事件不算處理完成。",
 		En: "Use the reason and event reference to investigate in Stripe. Release the payment gate only " +
@@ -286,6 +324,21 @@ var (
 		En:     "No refunds stuck",
 	})
 
+	KeyHealthDisputesClear = key("health.disputes.clear", Message{
+		ZhHant: "沒有等待回應的爭議款",
+		En:     "No disputes waiting for a response",
+	})
+
+	KeyHealthDisputesUnknown = key("health.disputes.unknown", Message{
+		ZhHant: "無法向 Stripe 查詢，不知道有沒有等待回應的爭議款，請直接到 Stripe 確認",
+		En:     "Stripe could not be read, so whether a dispute is waiting is unknown; check Stripe directly",
+	})
+
+	KeyHealthDisputesOpen = countKey("health.disputes.open",
+		"%d 筆爭議款等待回應",
+		"%d dispute is waiting for a response",
+		"%d disputes are waiting for a response")
+
 	KeyHealthRefundsStuck = key("health.refunds.stuck", Message{
 		ZhHant: "%d 筆退款尚未完成，顧客還沒收到款項",
 		En:     "%d refunds have not gone through, so the money has not reached the customer",
@@ -319,13 +372,43 @@ var (
 	})
 
 	KeyHealthRefundFailed = key("health.refund.failed", Message{
-		ZhHant: "金流端拒絕了，錢沒有退出去，退貨也還沒結案",
-		En:     "The provider refused it: no money moved, and the return is still open",
+		ZhHant: "金流端拒絕了這筆退款，錢沒有退出去",
+		En:     "The provider refused this refund: no money moved",
 	})
 
 	KeyHealthRefundCancelled = key("health.refund.cancelled", Message{
-		ZhHant: "金流端取消了這筆退款，錢沒有退出去，請從退貨清單重新退款",
-		En:     "The provider cancelled it: no money moved; retry it from the returns queue",
+		ZhHant: "金流端取消了這筆退款，錢沒有退出去",
+		En:     "The provider cancelled this refund attempt: no money moved",
+	})
+
+	KeyHealthRefundPendingNext = key("health.refund.pending.next", Message{
+		ZhHant: "請在 Stripe 查詢退款結果。",
+		En:     "Check the refund status in Stripe.",
+	})
+
+	KeyHealthRefundActionNext = key("health.refund.action.next", Message{
+		ZhHant: "請先查看 Stripe 顯示的退款處理指示。",
+		En:     "Read the refund action instructions shown in Stripe first.",
+	})
+
+	KeyHealthRefundFailedNext = key("health.refund.failed.next", Message{
+		ZhHant: "請在 Stripe 查明退款失敗原因。",
+		En:     "Check why the refund failed in Stripe.",
+	})
+
+	KeyHealthRefundCancelledNext = key("health.refund.cancelled.next", Message{
+		ZhHant: "請在 Stripe 查明這筆退款被取消的原因。",
+		En:     "Check why this refund attempt was cancelled in Stripe.",
+	})
+
+	KeyHealthRefundRetryNext = key("health.refund.retry.next", Message{
+		ZhHant: "goen 不會自動接續這筆退款；訂單或退貨頁若提供「%s」或「%s」，才可使用該操作核對並繼續退款。",
+		En:     "goen does not automatically resume this refund; use “%s” or “%s” on the order or returns page only if offered to check and continue it.",
+	})
+
+	KeyHealthRefundExternalNext = key("health.refund.external.next", Message{
+		ZhHant: "goen 不會自動接續這筆退款；請依 Stripe 顯示的狀態與指示處理，此頁不提供重試操作。",
+		En:     "goen does not automatically resume this refund; follow the status and instructions shown in Stripe. This page offers no retry action.",
 	})
 )
 
