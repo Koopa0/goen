@@ -97,7 +97,7 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
 				view := ShippingView{Methods: []ShippingMethod{{
 					MethodID: "method", VersionID: "version", Code: "internal_method_code",
-					Name: "Method name", Destination: tt.destination, Active: true,
+					Name: "Method name", NameEn: "Method name", Destination: tt.destination, Active: true,
 					PickupUnavailable: tt.unavailable,
 				}}}
 				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
@@ -329,7 +329,7 @@ func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
 		want   []string
 		absent []string
 	}{
-		{i18n.En, []string{"Home delivery", "宅配到府", "Outlying islands", "離島", "1 version in all", "1 postal code<", "2 postal codes", "No English"}, []string{"1 versions", "1 postal codes"}},
+		{i18n.En, []string{"Home delivery", "宅配到府", "Outlying islands", "離島", "1 version so far", "1 postal code<", "2 postal codes", "No English"}, []string{"1 versions", "1 postal codes"}},
 		{i18n.ZhHant, []string{"宅配到府", "Home delivery", "離島", "Outlying islands", "共 1 個版本", "1 個郵遞區號", "未翻譯"}, nil},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {

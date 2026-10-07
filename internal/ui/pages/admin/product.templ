@@ -174,7 +174,8 @@ templ productDetails(v ProductView) {
 							aria-describedby="p-slug-error"
 						}
 					/>
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdSlugHint) } { fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "ceramic-mug") }</p>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdSlugHint) }</p>
+					<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "ceramic-mug") }</p>
 					if v.HasErr("slug") {
 						<p class="ui-error-text" id="p-slug-error">{ v.Err("slug") }</p>
 					}

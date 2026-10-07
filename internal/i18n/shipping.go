@@ -62,8 +62,8 @@ var (
 	KeyAdminNone = key("admin.none", Message{ZhHant: "無", En: "None"})
 
 	KeyFormMethodCode = key("form.method.code", Message{
-		ZhHant: "代碼只能用小寫英數與底線，例如 home_delivery。",
-		En:     "A code takes lower-case letters, digits and underscores — home_delivery, for example.",
+		ZhHant: "代碼只能用小寫英數與底線，例如 express_delivery。",
+		En:     "A code takes lower-case letters, digits and underscores — express_delivery, for example.",
 	})
 
 	KeyFormMethodDestination = key("form.method.destination", Message{
@@ -97,8 +97,8 @@ var (
 	})
 
 	KeyFormZoneCode = key("form.zone.code", Message{
-		ZhHant: "代碼只能用小寫英數與底線，例如 offshore。",
-		En:     "A code takes lower-case letters, digits and underscores — offshore, for example.",
+		ZhHant: "代碼只能用小寫英數與底線，例如 mountain。",
+		En:     "A code takes lower-case letters, digits and underscores — mountain, for example.",
 	})
 
 	KeyFormZoneCodeTaken = key("form.zone.code.taken", Message{
@@ -134,7 +134,7 @@ var (
 	})
 
 	KeyAdminShipSince = countKey("admin.ship.since", "%s 起生效，共 %d 個版本。",
-		"In force since %s, %d version in all.", "In force since %s, %d versions in all.")
+		"In force since %s, %d version so far.", "In force since %s, %d versions so far.")
 
 	KeyAdminShipCarrierOptional = key("admin.ship.carrier.optional", Message{
 		ZhHant: "物流商（選填）",
@@ -256,11 +256,6 @@ var (
 			"and Hi-Life takes only 5000 by weight.",
 	})
 
-	KeyAdminShipNamePlaceholder = key("admin.ship.name.placeholder", Message{
-		ZhHant: "隔日到貨",
-		En:     "Next-day delivery",
-	})
-
 	KeyAdminShipFirstVersion = key("admin.ship.firstversion", Message{
 		ZhHant: "新增方式時會一起發布第一個版本。",
 		En:     "Adding a method publishes its first version with it.",
@@ -281,11 +276,6 @@ var (
 	})
 
 	KeyAdminShipAddZone = key("admin.ship.addzone", Message{ZhHant: "新增分區", En: "Add a zone"})
-
-	KeyAdminShipZoneNamePlaceholder = key("admin.ship.zone.name.placeholder", Message{
-		ZhHant: "離島",
-		En:     "Outlying islands",
-	})
 
 	KeyAdminShipZoneNameEnHint = key("admin.ship.zone.nameen.hint", Message{
 		ZhHant: "/shipping 和結帳的加價說明都會讀這個名字。",

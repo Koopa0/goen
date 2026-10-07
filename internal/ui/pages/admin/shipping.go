@@ -256,3 +256,11 @@ func zonePrefixRows(raw string) string {
 // HTML discards the first newline after a textarea opens; supply it separately
 // so a refused draft that starts with a newline keeps that newline in the control.
 func zonePrefixTextareaText(raw string) string { return "\n" + raw }
+
+// otherTag marks a name in the language the page is not in.
+func otherTag(ctx context.Context) string {
+	if i18n.FromContext(ctx) == i18n.En {
+		return i18n.ZhHant.Tag()
+	}
+	return i18n.En.Tag()
+}
