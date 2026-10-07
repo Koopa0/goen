@@ -1419,6 +1419,10 @@ input.goen-check {
   line-height: 1.35;
 }
 
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint {
+  grid-row: 4;
+}
+
 .goen-admin__surcharge {
   max-width: min(100%, 12rem);
 }
