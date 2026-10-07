@@ -343,7 +343,8 @@ body {
   /* The one hue, 藍 (blue): what a shopper can press, where they are, and
      how far a period has run. 7.15:1 on white, so it is the link text as well
      as the ring and the fill; a price is never blue, or it reads as a link.
-     --mark is goen's mark for time. 藍墨 (ink blue) is the same hue pressed:
+     --mark marks a stretch of time on the storefront; a chart's dates are drawn
+     in --ink-2. 藍墨 (ink blue) is the same hue pressed:
      hover, text on a blue tint, and a label that is not an action. The tints
      are opaque so text on them is measured against one colour. */
   --accent: #2a56a0;
@@ -379,6 +380,7 @@ body {
   --star: #b07c00;
   --error: #b91c1c;
   --error-bg: #fef2f2;
+  --error-bg-hover: #f7dddd;
   --error-outline: #fca5a5;
   --success: #15803d;
   --success-bg: #f0fdf4;
@@ -395,6 +397,7 @@ body {
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
   --font-editorial: 'Noto Serif TC', serif;
 
+  /* Noto Sans TC draws 350; Instrument Sans starts at 400, so Latin and figures in a display title draw at 400. */
   --fw-display: 350;
 
   --t-12: 0.75rem;

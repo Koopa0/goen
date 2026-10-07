@@ -136,7 +136,7 @@ h3 {
 
 .goen-btn:focus-visible,
 .goen-swatch:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -210,7 +210,7 @@ h3 {
 }
 
 .goen-btn--danger:hover {
-  background: color-mix(in srgb, var(--error) 10%, var(--error-bg));
+  background: var(--error-bg-hover);
 }
 
 /* A disabled control keeps its place and stops responding. It is not hidden: a
@@ -415,7 +415,7 @@ h3 {
 .goen-filters .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 
@@ -1161,6 +1161,16 @@ input.goen-check {
   line-height: var(--lh-normal);
 }
 
+/* Same name, other language, after it on the same line; drops the heading's weight and tracking. */
+.goen-admin__othername {
+  display: inline-block;
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  letter-spacing: normal;
+  margin-inline-start: 8px;
+}
+
 .goen-admin__note {
   margin: 0;
   padding: 10px 12px;
@@ -1384,7 +1394,7 @@ input.goen-check {
 }
 
 .goen-admin__langopt:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -3145,7 +3155,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chart__todaymark {
-  stroke: var(--mark, #26395a);
+  stroke: var(--ink-2);
   stroke-width: 2;
 }
 
@@ -3441,9 +3451,9 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 /* Columns: a bar a day, or a bar to seven days, on the same baseline as the
-   running totals. A campaign is a bracket above them, cut into days where a
-   column is a day, and a pale ground behind them; its colour is the time mark,
-   which is also today's, because both are dates. */
+   running totals. A campaign is a bracket above them in a lane of its own, open
+   at an end that is off the chart, and a pale ground behind them; the bracket
+   and today's mark are the ink colour, not the data's, because both are dates. */
 .goen-chart__frame--columns {
   grid-template-columns: 2.75rem minmax(0, 1fr);
 }
@@ -3474,18 +3484,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--n-100);
 }
 
-.goen-chart__strip {
-  fill: var(--mark, #26395a);
-}
-
-.goen-chart__gap {
-  shape-rendering: crispEdges;
-  stroke: var(--bg);
-  stroke-width: 2;
-}
-
-.goen-chart__gap--thin {
-  stroke-width: 1;
+.goen-chart__strip,
+.goen-chart__strip-end {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
 }
 
 /* A span's name is placed on the server, fitted to a 12px label (columns.go,
@@ -3493,8 +3495,14 @@ form[data-request-pending] [aria-disabled="true"] {
    room it was fitted to and runs off a phone at large text. Page zoom still
    scales it, and the data table under the chart names every span. */
 .goen-chart__spanlabel {
-  fill: var(--fg);
+  fill: var(--ink-2);
   font-size: 12px;
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__spanlabel--window {
+  fill: var(--chart-label);
+  font-weight: var(--fw-regular);
 }
 
 .goen-chart__value {
@@ -3521,9 +3529,13 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  .goen-chart__hue,
-  .goen-chart__strip {
+  .goen-chart__hue {
     fill: CanvasText;
+  }
+
+  .goen-chart__strip,
+  .goen-chart__strip-end {
+    stroke: CanvasText;
   }
 
   .goen-chart__open {
@@ -3538,10 +3550,6 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__span {
     fill: transparent;
-  }
-
-  .goen-chart__gap {
-    stroke: Canvas;
   }
 
   .goen-chart__spanlabel,
