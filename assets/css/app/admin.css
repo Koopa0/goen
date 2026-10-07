@@ -3400,9 +3400,9 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 /* Columns: a bar a day, or a bar to seven days, on the same baseline as the
-   running totals. A campaign is a bracket above them, cut into days where a
-   column is a day, and a pale ground behind them; its colour is the time mark,
-   which is also today's, because both are dates. */
+   running totals. A campaign is a bracket above them in a lane of its own, open
+   at an end that is off the chart, and a pale ground behind them; the bracket
+   and today's mark are the ink colour, not the data's, because both are dates. */
 .goen-chart__frame--columns {
   grid-template-columns: 2.75rem minmax(0, 1fr);
 }
@@ -3447,6 +3447,11 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--ink-2);
   font-size: 12px;
   font-weight: var(--fw-medium);
+}
+
+.goen-chart__spanlabel--window {
+  fill: var(--chart-label);
+  font-weight: var(--fw-regular);
 }
 
 .goen-chart__value {
