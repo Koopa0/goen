@@ -2,7 +2,11 @@ package chart
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -341,6 +345,32 @@ func TestNameAtKeepsAStripsNameInsideThePlot(t *testing.T) {
 	text, _, _, left, right := nameAt(long, 30)
 	if !strings.HasSuffix(text, "…") || left < 0 || right > narrowPlot {
 		t.Errorf("a name wider than the plot is %q taking %.0f to %.0f px, want it cut with …", text, left, right)
+	}
+}
+
+// The names fit a plot of narrowPlot at 12px text and no narrower, so the
+// stylesheet drops them from a figure narrower than that plot and its value
+// axis. The bound is in rem, so that it holds at 200% text too.
+func TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "css", "app", "admin.css"))
+	if err != nil {
+		t.Fatalf("read admin.css: %v", err)
+	}
+	axis := regexp.MustCompile(`\.goen-chart__frame--columns \{\s*grid-template-columns: ([0-9.]+)rem `).FindSubmatch(sheet)
+	if axis == nil {
+		t.Fatal("admin.css gives the columns' value axis no width in rem")
+	}
+	axisWidth, err := strconv.ParseFloat(string(axis[1]), 64)
+	if err != nil {
+		t.Fatalf("value axis width %q: %v", axis[1], err)
+	}
+	// textWidth counts in 12px, which is --fs-12, 0.75rem.
+	figure := strconv.FormatFloat(narrowPlot*0.75/12+axisWidth, 'f', -1, 64) + "rem"
+	drop := regexp.MustCompile(`@container \(width < ` + regexp.QuoteMeta(figure) + `\) \{\s*\.goen-chart__spanlabel \{\s*display: none;`)
+	if !drop.Match(sheet) {
+		t.Errorf("admin.css does not drop .goen-chart__spanlabel from a figure narrower than %s, a %d px plot at 12px text and a %srem value axis", figure, narrowPlot, axis[1])
 	}
 }
 
