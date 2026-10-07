@@ -1189,21 +1189,58 @@ input.goen-check {
   width: 100%;
 }
 
-/* Eight controls a row take the table's spare width, so without a floor the
-   SKU and the product name shrink to their shortest unbreakable piece. The
-   table keeps its width and scrolls inside its own frame instead. */
-.goen-admin__stock {
-  min-width: 64rem;
-}
-
-.goen-admin__stock th:first-child,
-.goen-admin__stock td:first-child {
+/* Eight controls a row take the table's spare width, so the SKU and the product
+   name shrink to their shortest unbreakable piece unless they are held. The
+   table scrolls inside its frame; the SKU stays pinned on the left and, where
+   there is room, the stock adjustment on the right, so the one control that
+   writes stock is never off-screen. scroll-padding keeps a focused control out
+   from under a pinned column (WCAG 2.4.11). */
+.goen-admin__stock td:first-child a:first-child {
   white-space: nowrap;
 }
 
-.goen-admin__stock th:nth-child(2),
 .goen-admin__stock td:nth-child(2) {
-  min-width: 12rem;
+  min-width: 9rem;
+}
+
+.goen-admin__stock :is(th, td):first-child {
+  box-shadow: 0.5rem 0 0.5rem -0.5rem var(--border-strong);
+  inset-inline-start: 0;
+  position: sticky;
+  z-index: 1;
+}
+
+.goen-admin__stock td:first-child {
+  background: var(--panel);
+}
+
+.goen-admin__stock .goen-admin__row--low td:first-child {
+  background: var(--warn-bg);
+}
+
+.goen-admin__tablewrap:has(.goen-admin__stock) {
+  scroll-padding-inline: 7rem 0;
+}
+
+@media (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    box-shadow: -0.5rem 0 0.5rem -0.5rem var(--border-strong);
+    inset-inline-end: 0;
+    position: sticky;
+    z-index: 1;
+  }
+
+  .goen-admin__stock td:last-child {
+    background: var(--panel);
+  }
+
+  .goen-admin__stock .goen-admin__row--low td:last-child {
+    background: var(--warn-bg);
+  }
+
+  .goen-admin__tablewrap:has(.goen-admin__stock) {
+    scroll-padding-inline: 7rem 11rem;
+  }
 }
 
 /* Stock links are too close for the WCAG 2.5.8 spacing exception; each target
@@ -2227,12 +2264,18 @@ input.goen-check {
   color: var(--fg);
   font-family: var(--font-display);
   font-size: var(--fs-ed-24);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   overflow-wrap: normal;
 }
 
 @media (max-width: 420px) {
+  .goen-report__figure:first-child {
+    grid-column: 1 / -1;
+  }
+
   .goen-report__value {
     font-size: var(--fs-ed-20);
   }
