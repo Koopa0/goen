@@ -95,7 +95,7 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	if tokens["--chart-hue"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
 	}
-	for _, ground := range []string{"--n-0", "--n-50"} {
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
 		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
 			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--chart-hue"], ground, tokens[ground], got)
@@ -112,15 +112,18 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 			tokens["--chart-hue"], tokens["--chart-hue-track"], got)
 	}
 
-	// The warning mark is a triangle and a bar, held to 3:1 (WCAG 1.4.11) on
-	// the white and the two greys of a runway row's track.
+	// The warning mark is a triangle and a bar, and the line at 30 days is drawn
+	// in --ink-2: each is held to 3:1 (WCAG 1.4.11) on the white and the grey a
+	// runway row's track is drawn on.
 	if tokens["--warn-mark"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --warn-mark")
 	}
-	for _, ground := range []string{"--n-0", "--n-50", "--n-100", "--n-200"} {
-		if got := contrast(tokens["--warn-mark"], tokens[ground]); got < 3 {
-			t.Errorf("--warn-mark (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
-				tokens["--warn-mark"], ground, tokens[ground], got)
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		for _, mark := range []string{"--warn-mark", "--ink-2"} {
+			if got := contrast(tokens[mark], tokens[ground]); got < 3 {
+				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+					mark, tokens[mark], ground, tokens[ground], got)
+			}
 		}
 	}
 

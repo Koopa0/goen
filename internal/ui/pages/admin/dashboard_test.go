@@ -367,17 +367,43 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 
 		t.Run(string(loc)+" nothing running out says so", func(t *testing.T) {
 			t.Parallel()
-			html := render(DashboardView{SoldOut: 3})
-			if want := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays); !strings.Contains(html, want) {
-				t.Errorf("the dashboard with nothing running out lacks %q", want)
+			none := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays)
+			unknown := i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown)
+			all := i18n.T(ctx, i18n.KeyAdminQueueRunwayAll)
+			going := []StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}
+
+			for _, tc := range []struct {
+				name string
+				view DashboardView
+				want []string
+				not  []string
+			}{
+				{"estimated and none running out", DashboardView{SoldOut: 3, RunwayEstimated: true}, []string{none, all}, []string{unknown}},
+				{"nothing can be estimated", DashboardView{SoldOut: 3}, []string{unknown, all}, []string{none}},
+				{"rows listed", DashboardView{Runway: going, RunwayEstimated: true}, []string{all}, []string{none, unknown, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}},
+				{"rows left off", DashboardView{Runway: going, RunwayCut: true, RunwayEstimated: true}, []string{i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}, []string{none, unknown, all}},
+			} {
+				html := render(tc.view)
+				for _, want := range tc.want {
+					if !strings.Contains(html, want) {
+						t.Errorf("%s: the dashboard lacks %q", tc.name, want)
+					}
+				}
+				for _, not := range tc.not {
+					if strings.Contains(html, not) {
+						t.Errorf("%s: the dashboard says %q", tc.name, not)
+					}
+				}
+				if !strings.Contains(html, `href="/admin/reports#stock"`) {
+					t.Errorf("%s: the runway section does not link to the report", tc.name)
+				}
 			}
+
+			html := render(DashboardView{SoldOut: 3})
 			for _, gone := range []string{"goen-report__rows", "goen-chartrangebar", `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
 				if strings.Contains(html, gone) {
 					t.Errorf("the dashboard with nothing to estimate renders %q", gone)
 				}
-			}
-			if rows := render(DashboardView{Runway: []StockRisk{{SKU: "EST-1", Name: "Going", Slug: "going", Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}}); strings.Contains(rows, i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays)) {
-				t.Error("the dashboard says nothing is running out above a row that is")
 			}
 		})
 	}
@@ -418,19 +444,21 @@ func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
 		listed  []StockRisk
 		want    []string
 		wantCut bool
+		// wantEstimated is whether any row could be estimated at all.
+		wantEstimated bool
 	}{
-		{"sold out and running out", append(soldOut(4), runningOut(3)...), []string{"RUN-0", "RUN-1", "RUN-2"}, false},
-		{"only sold out", soldOut(6), nil, false},
-		{"estimates past the line are left out", append(runningOut(2), append(later(3), fewOrders...)...), []string{"RUN-0", "RUN-1"}, false},
-		{"only estimates past the line", later(4), nil, false},
-		{"rows that cannot be estimated are left out", fewOrders, nil, false},
-		{"seven running out", runningOut(7), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, true},
-		{"five running out", runningOut(5), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false},
-		{"a later row does not count as one left off", append(runningOut(5), later(2)...), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false},
+		{"sold out and running out", append(soldOut(4), runningOut(3)...), []string{"RUN-0", "RUN-1", "RUN-2"}, false, true},
+		{"only sold out", soldOut(6), nil, false, false},
+		{"estimates past the line are left out", append(runningOut(2), append(later(3), fewOrders...)...), []string{"RUN-0", "RUN-1"}, false, true},
+		{"only estimates past the line", later(4), nil, false, true},
+		{"rows that cannot be estimated are left out", fewOrders, nil, false, false},
+		{"seven running out", runningOut(7), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, true, true},
+		{"five running out", runningOut(5), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, true},
+		{"a later row does not count as one left off", append(runningOut(5), later(2)...), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, true},
 	} {
-		kept, cut := DashboardRunway(tc.listed)
-		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut {
-			t.Errorf("%s: DashboardRunway kept %v, cut %t, want %v, cut %t", tc.name, got, cut, tc.want, tc.wantCut)
+		kept, cut, estimated := DashboardRunway(tc.listed)
+		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut || estimated != tc.wantEstimated {
+			t.Errorf("%s: DashboardRunway kept %v, cut %t, estimated %t, want %v, cut %t, estimated %t", tc.name, got, cut, estimated, tc.want, tc.wantCut, tc.wantEstimated)
 		}
 	}
 }

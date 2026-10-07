@@ -20,23 +20,17 @@ templ returnedProducts(v *ReportView) {
 			<ul class="goen-report__rows goen-report__rows--returned" role="list">
 				{{ top := v.TopReturned() }}
 				for _, item := range v.Returned {
-					<li class="goen-report__row">
-						<div class="goen-report__what">
-							<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
-							if item.Brand != "" {
-								<p class="goen-report__facts">{ item.Brand }</p>
-							}
-						</div>
-						<div class="goen-report__figure">
+					@ReportRow(item.Name, item.Href(), item.Brand) {
+						<div class="goen-report__plot">
 							<p class="goen-report__state">
 								<span class="goen-report__figtext">{ item.Figure(ctx) }</span>
 								if item.ShowsRate() {
 									<span class="goen-report__aside">{ item.Counts(ctx) }</span>
 								}
 							</p>
-							@chart.Bar(chart.BarProps{Value: item.Returned, Max: top, Label: item.ReturnedText()})
+							@chart.Bar(chart.BarProps{Value: item.Returned, Max: top})
 						</div>
-					</li>
+					}
 				}
 			</ul>
 		}

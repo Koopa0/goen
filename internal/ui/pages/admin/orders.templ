@@ -102,16 +102,22 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</a>
 			</h2>
 			if len(v.Runway) == 0 {
-				<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays) }</p>
+				if v.RunwayEstimated {
+					<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays) }</p>
+				} else {
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown) }</p>
+				}
 			} else {
 				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), CoverWindowDays, coverWarnDays) }</p>
 				@StockRiskRows(v.Runway, 0, CoverWindowDays)
-				if v.RunwayCut {
-					<p class="goen-admin__hint">
-						<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayRest) }</a>
-					</p>
-				}
 			}
+			<p class="goen-admin__hint">
+				if v.RunwayCut {
+					<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayRest) }</a>
+				} else {
+					<a href="/admin/reports#stock">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayAll) }</a>
+				}
+			</p>
 		</section>
 	}
 }

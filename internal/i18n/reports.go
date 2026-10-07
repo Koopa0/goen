@@ -85,8 +85,8 @@ var (
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
 	KeyAdminRepStockLead = key("admin.rep.stock.lead", Message{
-		ZhHant: "依近 %[1]d 天的銷量估算還能賣幾天，已售完的日子不計入速率。已售完的排在最前面，最多列 %[4]d 個；其餘由短到長，也最多 %[4]d 個；條是估計的天數，細線是 90%% 區間，豎線標在 %[3]d 天；已售完和估計少於 %[3]d 天的標 ▲。近 %[1]d 天至少要有 %[2]d 筆訂單才估算。",
-		En:     "Days of stock left at the rate of the last %[1]d days, leaving out the days it was sold out. Sold out first, at most %[4]d; then the shortest, also at most %[4]d. The bar is the estimate, the thin line its 90%% range and the vertical line marks %[3]d days; ▲ marks a sold out item or an estimate under %[3]d days. An estimate needs at least %[2]d orders in the last %[1]d days.",
+		ZhHant: "依近 %[1]d 天的銷量估算還能賣幾天，已售完的日子不計入速率。已售完的排在最前面，最多列 %[4]d 個；其餘由短到長，也最多 %[4]d 個。淡色是可能撐到的天數，短豎線是 %[3]d 天；▲ 只標估計少於 %[3]d 天的。近 %[1]d 天至少要有 %[2]d 筆訂單才估算。",
+		En:     "Days of stock left at the rate of the last %[1]d days, leaving out the days it was sold out. Sold out first, at most %[4]d; then the shortest, also at most %[4]d. The pale stretch is how long it may last and the short line marks %[3]d days; ▲ marks only an estimate under %[3]d days. An estimate needs at least %[2]d orders in the last %[1]d days.",
 	})
 
 	KeyAdminRepStockEmpty = countKey("admin.rep.stock.empty",

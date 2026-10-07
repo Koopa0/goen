@@ -1,17 +1,17 @@
 package chart
 
-// RangeBar is a bullet graph inside a list row: a track that changes shade at
-// the threshold, the value filled from its start, and a paler stretch to the
-// farthest it may reach. It is hidden from assistive technology: the row's own
-// text carries the value and the range.
+// RangeBar is a bullet graph inside a list row: a track, the value filled from
+// its start, a paler stretch to the farthest it may reach and a short line at
+// the threshold. It is hidden from assistive technology: the row's own text
+// carries the value and the range.
 templ RangeBar(p RangeBarProps) {
 	<div class={ "goen-chartrangebar", templ.KV("goen-chartrangebar--urgent", p.Urgent) } aria-hidden="true">
 		<svg width="100%" height="8" aria-hidden="true" focusable="false">
 			<rect class="goen-chartrangebar__track" x="0" y="0" width="100%" height="8"></rect>
-			<rect class="goen-chartrangebar__near" x="0" y="0" width={ p.position(p.Mark) } height="8"></rect>
 			if p.ranged() {
 				<rect class="goen-chartrangebar__reach" x={ p.position(p.Value) } y="0" width={ p.length(p.Value, p.High) } height="8"></rect>
 			}
+			<rect class="goen-chartrangebar__mark" x={ p.position(p.Mark) } y="0" width="2" height="8"></rect>
 			if p.Value > 0 {
 				<rect class="goen-chartrangebar__fill" x="0" y="0" width={ p.position(p.Value) } height="8"></rect>
 			}

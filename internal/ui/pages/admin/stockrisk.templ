@@ -28,12 +28,8 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 		<ul class="goen-report__rows" role="list">
 			for _, item := range rows {
 				{{ cover := item.Estimate() }}
-				<li class="goen-report__row">
-					<div class="goen-report__what">
-						<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
-						<p class="goen-report__facts">{ item.Facts(ctx, days) }</p>
-					</div>
-					<div class="goen-report__figure">
+				@ReportRow(item.Name, item.Href(), item.Facts(ctx, days)) {
+					<div class="goen-report__plot">
 						switch cover.State {
 							case CoverSoldOut:
 								<p class="goen-report__state">
@@ -50,7 +46,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 								<p class="goen-report__state">
 									if cover.Urgent() {
 										<span class="goen-report__figtext goen-report__figtext--warn">
-											<svg class="goen-report__tri" viewBox="0 0 10 10" role="img" aria-label={ cover.Warning(ctx) } focusable="false"><path d="M5 1 9.5 9h-9z"></path></svg>
+											<svg class="goen-report__tri" viewBox="0 0 10 10" role="img" aria-label={ cover.Warning(ctx) } focusable="false"><title>{ cover.Warning(ctx) }</title><path d="M5 1 9.5 9h-9z"></path></svg>
 											{ cover.Figure(ctx) }
 										</span>
 									} else {
@@ -63,7 +59,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 								@chart.RangeBar(cover.Bar())
 						}
 					</div>
-				</li>
+				}
 			}
 		</ul>
 		if moreSoldOut > 0 {

@@ -113,8 +113,8 @@ func (p MeterProps) width() string {
 	return strconv.FormatFloat(w, 'f', 2, 64) + "%"
 }
 
-// RangeBarProps is one value and the farthest it may reach, on a track that
-// changes shade at Mark, all numbers on the scale 0 to Max that the page chose
+// RangeBarProps is one value and the farthest it may reach, with a line drawn
+// at Mark, all numbers on the scale 0 to Max that the page chose
 // and every row shares. Values beyond Max are drawn at its end. Urgent colours
 // the value as a warning; the row's own text says so too, and gives the nearer
 // end of the range, which is not drawn.
