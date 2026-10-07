@@ -96,14 +96,14 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--accent-deep", "--edge", "--mark"} {
 		if tokens[name] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
 	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
-	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+	for _, ink := range []string{"--ink", "--muted", "--accent", "--accent-deep"} {
 		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",

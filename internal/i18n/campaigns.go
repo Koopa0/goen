@@ -45,8 +45,12 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	// %s is the last day: after the product count on the offers page, and in a department's notice.
+	// %s is the last day: after the product count on the offers page.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
+
+	// The notice's last day, followed in English by a pause a screen reader takes before the time left: the
+	// comma after the date is hidden on screen, where a dot already parts the two.
+	KeyCampaignNoticeUntil = key("campaign.notice.until", Message{ZhHant: "至 %s", En: "until %s,"})
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})
 
