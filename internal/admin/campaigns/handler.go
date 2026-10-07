@@ -199,7 +199,12 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
-		h.respondToUploadError(w, r, err)
+		if errors.Is(err, web.ErrFormText) {
+			h.respondToUploadError(w, r, err)
+			return
+		}
+		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
+		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 		return
 	}
 	err = h.store.SetImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
