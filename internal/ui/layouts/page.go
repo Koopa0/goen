@@ -4,8 +4,10 @@ package layouts
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // htmxConfig is set from the document because a policy that allows no inline script
@@ -174,6 +176,11 @@ func (p Page) ariaCurrent(item NavItem) string {
 		return "page"
 	}
 	return "false"
+}
+
+func currentPage(ctx context.Context, path string) bool {
+	requestPath, _, _ := strings.Cut(web.RequestPath(ctx), "?")
+	return requestPath == path
 }
 
 func cartLabel(ctx context.Context, count int) string {
