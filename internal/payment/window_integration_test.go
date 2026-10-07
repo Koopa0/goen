@@ -55,7 +55,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 				body := page.Body.String()
 
 				if tc.name == "window open" {
-					deadline := fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), shoptime.ClockText(expiry.Add(-31*time.Minute)))
+					deadline := fmt.Sprintf(i18n.T(ctx, i18n.KeyPayDeadline), shoptime.ClockText(expiry.Add(-31*time.Minute)))
 					if page.Code != http.StatusOK || !strings.Contains(body, `action="/orders/`+number+`/pay"`) || !strings.Contains(body, deadline) {
 						t.Errorf("open window = %d, want the payment form and %q", page.Code, deadline)
 					}

@@ -241,44 +241,43 @@ func TestAGuestSeesTheWarrantyMonthsAndNoRegisterLink(t *testing.T) {
 	}
 }
 
-func TestARegisteredWarrantyDrawsItsMonths(t *testing.T) {
+// A registered warranty states the day its cover ends and draws nothing: a
+// grid of its months would fill one cell and say only "the first month".
+func TestARegisteredWarrantyStatesItsEndInWords(t *testing.T) {
 	t.Parallel()
-	registered := headphones()
-	registered.Registered, registered.WarrantyUntil = 1, time.Date(2027, 10, 6, 0, 0, 0, 0, time.UTC)
-	html := orderPage(t, &OrderView{
-		Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
-		Lines: []OrderLine{registered}, Shipments: []OrderShipment{deliveredOn(6, registered)},
-	})
-	if !strings.Contains(html, "保固至") {
-		t.Error("a registered warranty does not state when it ends")
-	}
-	if strings.Contains(html, "/account/warranty/") {
-		t.Error("a fully registered line offers registration again")
-	}
-	var months string
-	for _, grid := range periods(html) {
-		if strings.Contains(grid, `data-unit="month"`) {
-			months = grid
+	for _, tt := range []struct {
+		name   string
+		months int
+		until  time.Time
+		want   string
+	}{
+		{"a year", 12, time.Date(2027, 10, 6, 0, 0, 0, 0, time.UTC), `<time datetime="2027-10-06">`},
+		{"ten years", 120, time.Date(2036, 10, 6, 0, 0, 0, 0, time.UTC), `<time datetime="2036-10-06">`},
+	} {
+		registered := headphones()
+		registered.WarrantyMonths, registered.Registered, registered.WarrantyUntil = tt.months, 1, tt.until
+		html := orderPage(t, &OrderView{
+			Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
+			Lines: []OrderLine{registered}, Shipments: []OrderShipment{deliveredOn(6, registered)},
+		})
+		for _, want := range []string{"<dt>保固至</dt>", tt.want} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: a registered warranty does not state %s", tt.name, want)
+			}
 		}
-	}
-	if got := strings.Count(months, "<i"); got != 12 {
-		t.Errorf("the warranty grid has %d cells, want 12 months", got)
-	}
-}
-
-func TestAWarrantyBeyondWhatAGridHoldsIsTheDateOnly(t *testing.T) {
-	t.Parallel()
-	long := headphones()
-	long.WarrantyMonths, long.Registered, long.WarrantyUntil = 120, 1, time.Date(2036, 10, 6, 0, 0, 0, 0, time.UTC)
-	html := orderPage(t, &OrderView{
-		Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
-		Lines: []OrderLine{long}, Shipments: []OrderShipment{deliveredOn(6, long)},
-	})
-	if strings.Contains(html, `data-unit="month"`) {
-		t.Error("a ten-year warranty draws a month grid")
-	}
-	if !strings.Contains(html, "保固至") {
-		t.Error("a ten-year warranty does not state its date")
+		if strings.Contains(html, "/account/warranty/") {
+			t.Errorf("%s: a fully registered line offers registration again", tt.name)
+		}
+		i := strings.Index(html, `class="goen-order__lines"`)
+		if i < 0 {
+			t.Fatalf("%s: no order lines", tt.name)
+		}
+		if strings.Contains(html[i:], "ui-period") {
+			t.Errorf("%s: a line draws its warranty; the end date says it", tt.name)
+		}
+		if got := len(periods(html)); got != 1 {
+			t.Errorf("%s: %d periods on the page, want only the right to cancel", tt.name, got)
+		}
 	}
 }
 

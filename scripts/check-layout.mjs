@@ -1032,7 +1032,7 @@ async function periodPass(route, extra = false) {
   }
 }
 
-for (const route of ['/', '/s/layout-campaign', '/orders/' + (process.env.PLACED_ORDER || '') + '/pay']) await periodPass(route);
+for (const route of ['/', '/s/layout-campaign']) await periodPass(route);
 
 // Whether the filter shell exposes its form and a control. On desktop a closed
 // <details> keeps ::details-content at content-visibility:hidden until the
@@ -2545,7 +2545,7 @@ if (process.env.CUST_TOKEN) {
       `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
-  // A delivered order of the signed-in customer: one track for the right to cancel, one for the warranty.
+  // A delivered order of the signed-in customer: the track of its right to cancel.
   await periodPass('/orders/' + (process.env.RETURN_FORM_ORDER || ''), true);
 
   for (const want of ACCOUNT_PAGES) {

@@ -4420,7 +4420,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 				}
 			}
 			if v.SimpleLines() {
-				templ_7745c5c3_Err = orderLines(v, v.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", false, !v.IsCancelled() && v.Returned == nil, OrderShipment{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = orderLines(v, v.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", false, !v.IsCancelled() && v.Returned == nil).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -4436,7 +4436,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if len(v.Unshipped) > 0 {
-					templ_7745c5c3_Err = orderLines(v, v.Unshipped, i18n.T(ctx, i18n.KeyOrderNotShipped), "unshipped-heading", false, true, OrderShipment{}).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = orderLines(v, v.Unshipped, i18n.T(ctx, i18n.KeyOrderNotShipped), "unshipped-heading", false, true).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -5467,7 +5467,7 @@ func orderParcel(v *OrderView, sh OrderShipment, i int) templ.Component {
 			}
 		}
 		if v.SeveralParcels() {
-			templ_7745c5c3_Err = orderLines(v, sh.Lines, "", "", sh.Delivered(), true, sh).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = orderLines(v, sh.Lines, "", "", sh.Delivered(), true).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -5477,7 +5477,7 @@ func orderParcel(v *OrderView, sh OrderShipment, i int) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if !v.SeveralParcels() {
-			templ_7745c5c3_Err = orderLines(v, sh.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", sh.Delivered(), true, sh).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = orderLines(v, sh.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", sh.Delivered(), true).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -5487,7 +5487,7 @@ func orderParcel(v *OrderView, sh OrderShipment, i int) templ.Component {
 }
 
 // A list of lines keeps the markers the layout gate and the tests read. Without a heading it sits inside its parcel.
-func orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool, sh OrderShipment) templ.Component {
+func orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -5552,7 +5552,7 @@ func orderLines(v *OrderView, lines []OrderLine, heading, headingID string, deli
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = orderLineList(v, lines, delivered, warranty, sh).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = orderLineList(v, lines, delivered, warranty).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -5561,7 +5561,7 @@ func orderLines(v *OrderView, lines []OrderLine, heading, headingID string, deli
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = orderLineList(v, lines, delivered, warranty, sh).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = orderLineList(v, lines, delivered, warranty).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -5570,7 +5570,7 @@ func orderLines(v *OrderView, lines []OrderLine, heading, headingID string, deli
 	})
 }
 
-func orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool, sh OrderShipment) templ.Component {
+func orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -5738,68 +5738,58 @@ func orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool, sh
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if grid, ok := v.WarrantyGrid(ctx, l, sh); ok {
-					templ_7745c5c3_Err = components.Period(grid).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 457, " ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
 				if v.CanRegister(l, delivered) {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 458, "<a class=\"goen-line__act\" href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 457, "<a class=\"goen-line__act\" href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var312 templ.SafeURL
 					templ_7745c5c3_Var312, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.WarrantyLink()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1174, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1171, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var312))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 459, "\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 458, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var313 string
 					templ_7745c5c3_Var313, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyOrderWarrantyRegister))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1174, Col: 118}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1171, Col: 118}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var313))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 460, "</a>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 459, "</a>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 461, "</div><div class=\"goen-line__money\"><span class=\"goen-line__total\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 460, "</div><div class=\"goen-line__money\"><span class=\"goen-line__total\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var314 string
 			templ_7745c5c3_Var314, templ_7745c5c3_Err = templ.JoinStringErrs(l.LineTotal())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1179, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 1176, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var314))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 462, "</span></div></li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 461, "</span></div></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 463, "</ul>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 462, "</ul>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -3650,16 +3650,18 @@ input.goen-check {
   padding-block: var(--s-3);
 }
 
+/* The whole line is the link, read as words: the campaign's name takes the link
+   colour and what is left of it the blue of a running period. */
 .goen-deptnotice__name {
-  align-items: baseline;
-  color: var(--accent-text);
-  display: flex;
-  flex: 1 1 16rem;
-  flex-wrap: wrap;
+  color: var(--n-700);
+  flex: 0 1 auto;
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  gap: 4px var(--s-3);
   text-decoration: none;
+}
+
+.goen-deptnotice__name b {
+  color: var(--accent-text);
+  font-weight: var(--fw-medium);
 }
 
 .goen-deptnotice__name:hover b {
@@ -3670,21 +3672,27 @@ input.goen-check {
 .goen-deptnotice__eyebrow {
   color: var(--fg-muted);
   font-size: var(--fs-12);
+  margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice .ui-statline {
-  --stat-min: 8rem;
+.goen-deptnotice__until {
+  white-space: nowrap;
 }
 
-.goen-deptnotice .ui-statline dd {
-  font-size: var(--fs-16);
+.goen-deptnotice__name > [aria-hidden="true"],
+.goen-deptnotice__until > [aria-hidden="true"] {
+  color: var(--fg-muted);
+  margin-inline: 0.25em;
 }
 
-/* The end line already says when the campaign ends; a track beside it would be
-   a second layer for one fact, and on a phone it pushes the first product out of
-   the first screen (check-layout.mjs, listing 375). */
-.goen-deptnotice .ui-period {
-  display: none;
+.goen-deptnotice__left {
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
+}
+
+.goen-deptnotice__left > [aria-hidden] {
+  color: var(--accent);
 }
 
 .goen-deptcompare__head {
@@ -4400,10 +4408,10 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
-/* The buy box's 1.5rem gap would part the track from the sentence it draws. */
-.goen-pdp__source + .ui-period {
-  margin-top: -0.75rem;
-  max-width: 26rem;
+.goen-pdp__left {
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -5369,6 +5377,51 @@ input.goen-check {
   margin: 0;
 }
 
+/* The stock hold in words. While a payment can start it sits on the blue that
+   marks a period running for the customer; once none can, on the neutral wash.
+   The transparent outline draws the panel's edge in forced colours, which drop
+   the background. */
+.goen-pay__window {
+  background: var(--accent-faint);
+  border-radius: var(--r-lg);
+  margin-top: var(--s-6);
+  outline: 1px solid transparent;
+  padding: 1.25rem 1.5rem;
+}
+
+.goen-pay__window--closed {
+  background: var(--wash);
+}
+
+.goen-pay__deadline {
+  color: var(--accent-deep);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-medium);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.goen-pay__window--closed .goen-pay__deadline {
+  color: var(--fg);
+}
+
+.goen-pay__hold {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  margin: 0.125rem 0 0;
+  text-wrap: pretty;
+}
+
+.goen-pagehead > .goen-pay__window + .ui-statline {
+  margin-top: var(--s-5);
+}
+
+@media (max-width: 30rem) {
+  .goen-pay__window {
+    padding: 1rem;
+  }
+}
+
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
    names, on the page head; a custom property is never set inline because
    style-src has no 'unsafe-inline'. Only these properties vary: accent, type,
@@ -6297,28 +6350,16 @@ input.goen-check {
   width: auto;
 }
 
-.goen-line--order .ui-statline,
-.goen-line--order .ui-period {
+.goen-line--order .ui-statline {
   align-self: stretch;
+  margin-top: var(--s-2);
   max-width: 26rem;
 }
 
-.goen-line--order .ui-statline {
-  margin-top: var(--s-2);
-}
-
-.goen-line--order .ui-period {
-  margin-block: var(--s-3) var(--s-2);
-}
-
-/* The parcel's and the pay head's flex gap already parts the facts from the
-   track, so each adds only what sets the track 16px under them. */
+/* The parcel's flex gap already parts the facts from the track, so it adds only
+   what sets the track 16px under them. */
 .goen-order__parcel > .ui-period {
   margin-top: 0;
-}
-
-.goen-pay .goen-pagehead > .ui-period {
-  margin-top: var(--s-3);
 }
 
 .goen-line__act {

@@ -96,14 +96,14 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--accent-deep", "--edge", "--mark"} {
 		if tokens[name] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
 	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
-	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+	for _, ink := range []string{"--ink", "--muted", "--accent", "--accent-deep"} {
 		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
@@ -113,13 +113,15 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	}
 
 	// The labels of the filled and the soft button, and text and links on a
-	// blue tint: a current item, a badge, an information notice.
+	// blue tint: a current item, a badge, an information notice, the pay page's
+	// hold.
 	for _, pair := range []struct{ ink, ground string }{
 		{ink: "--on-accent", ground: "--accent"},
 		{ink: "--on-accent", ground: "--accent-deep"},
 		{ink: "--accent-deep", ground: "--accent-faint"},
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
+		{ink: "--muted", ground: "--accent-faint"},
 		{ink: "--error", ground: "--error-bg"},
 		{ink: "--error", ground: "--error-bg-hover"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
