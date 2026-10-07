@@ -144,7 +144,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read shipping for the cart", "error", err)
 	} else {
 		view.FreeDelivery = freeDeliveryFor(choices, view.SubtotalCents)
-		view.NoDelivery = len(choices) == 0
 	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
