@@ -90,7 +90,7 @@ JOIN LATERAL (
     -- the cheapest overall so a sold-out product still shows what it costs. On a
     -- campaign's row a discounted variant leads, as on the campaign's own page.
     ORDER BY (sqlc.narg(campaign_id)::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
-              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
+              AND compare_at_price_cents > price_cents) DESC,
              (stock_quantity > safety_stock) DESC,
              (sqlc.narg(campaign_id)::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
               AND compare_at_price_cents > price_cents) DESC,
