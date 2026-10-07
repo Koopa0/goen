@@ -49,6 +49,12 @@ type Brand struct {
 	UpdatedAt time.Time
 }
 
+// A product a running campaign features that can be bought at its discount: published, with an active variant in stock priced below its compare-at price. Stock at full price is no deal. What /deals lists.
+type CampaignDeal struct {
+	CampaignID uuid.UUID
+	ProductID  uuid.UUID
+}
+
 type Cart struct {
 	ID              uuid.UUID
 	UserID          uuid.NullUUID
@@ -273,6 +279,11 @@ type InvoicePreference struct {
 	TaxID         pgtype.Text
 	CustomerName  string
 	CustomerEmail string
+}
+
+// Running campaigns with a deal: the ones the storefront lists, and the only ones whose products a card shows at a struck-through price.
+type ListedCampaign struct {
+	ID uuid.UUID
 }
 
 // Spendable points per account: each unexpired award lot net of the spends and clawbacks paired with it. Expiry is applied on read, never by a job that might not have run.
@@ -718,6 +729,11 @@ type ReturnRequestLine struct {
 	ReceivedQuantity  pgtype.Int4
 	RestockedQuantity pgtype.Int4
 	InspectionNote    pgtype.Text
+}
+
+// Campaigns switched on and inside their window.
+type RunningCampaign struct {
+	ID uuid.UUID
 }
 
 type SaleCampaign struct {

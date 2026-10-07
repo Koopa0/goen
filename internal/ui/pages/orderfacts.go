@@ -96,7 +96,7 @@ func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []componen
 	}
 	return []components.Stat{
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, countUnit(ctx, i18n.KeyUnitDays, left))},
+		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, i18n.T(ctx, i18n.KeyFactUnitDays))},
 		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
 	}
 }

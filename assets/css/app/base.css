@@ -102,13 +102,15 @@ body {
 .ui-btn--icon { padding: 8px; }            /* square icon-only */
 .ui-btn--icon.ui-btn--sm { padding: 6px; }
 
-.ui-btn--primary { background: var(--n-900); color: var(--n-0); box-shadow: var(--sh-xs); }
-.ui-btn--primary:hover  { background: #27272a; }
-.ui-btn--primary:active { background: #27272a; }
+.ui-btn--primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--sh-xs); }
+.ui-btn--primary:hover  { background: var(--accent-deep); }
+.ui-btn--primary:active { background: var(--accent-deep); }
 
-.ui-btn--secondary { background: var(--n-0); color: var(--n-700); border-color: var(--n-300); }
-.ui-btn--secondary:hover  { background: var(--n-50); }
-.ui-btn--secondary:active { background: var(--n-100); }
+/* Soft: a blue tint and no outline. The transparent border is what forced
+   colours draws as its edge. */
+.ui-btn--secondary { background: var(--accent-faint); color: var(--accent-deep); border-color: transparent; }
+.ui-btn--secondary:hover  { background: var(--accent-muted); }
+.ui-btn--secondary:active { background: var(--accent-muted); }
 
 .ui-btn--ghost { background: transparent; color: var(--fg-muted); }
 .ui-btn--ghost:hover  { background: var(--overlay); color: var(--fg); }
@@ -125,7 +127,7 @@ body {
   line-height: 1; padding: 3px 8px; border-radius: var(--r-sm);
   background: var(--elevated); color: var(--fg-muted); border: 1px solid var(--border-faint);
 }
-.ui-badge--brand { background: var(--brand-muted); color: var(--accent-text); border-color: transparent; }
+.ui-badge--brand { background: var(--brand-muted); color: var(--accent-deep); border-color: transparent; }
 .ui-badge--warn  { background: var(--warn-bg);     color: var(--warn);  border-color: transparent; }
 
 /* count pill (the cart's number) */
@@ -222,7 +224,7 @@ body {
 
 .ui-alert { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); line-height: var(--lh-normal); }
 .ui-alert svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
-.ui-alert--info  { background: var(--info-bg);  color: #1e3a5f; }
+.ui-alert--info  { background: var(--info-bg);  color: var(--info); }
 .ui-alert--error { background: var(--error-bg); color: #991b1b; }
 .ui-alert strong { font-weight: var(--fw-semibold); }
 .ui-alert__body { color: var(--fg-muted); }
@@ -257,7 +259,7 @@ body {
 
 .ui-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .ui-page-head__eyebrow { font-family: var(--font-sans); font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 6px; white-space: nowrap; }
-.ui-page-head__title { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); letter-spacing: var(--track-tight); color: var(--fg); margin: 0; }
+.ui-page-head__title { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-medium); letter-spacing: var(--track-tight); color: var(--fg); margin: 0; }
 .ui-page-head__sub { font-size: var(--fs-13); color: var(--fg-muted); margin: 6px 0 0; max-width: 60ch; }
 .ui-page-head__actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
@@ -304,8 +306,8 @@ body {
 
    The neutrals carry no chroma, because the product photographs sit on a
    chroma-free #f9f9f9 and any tint in the page would show as an edge around
-   them. Colour is spent in three places only: the accent, the functional
-   hues a status needs, and the one chart data colour, --chart-hue.
+   them. Colour is spent in two places only: the accent, which is also the
+   chart's data colour, and the functional hues a status needs.
    ------------------------------------------------------------------------ */
 
 :root {
@@ -335,18 +337,26 @@ body {
   /* The boundary of a control: 3:1 on white, --wash and --well. */
   --edge: #85858c;
 
-  /* The one hue, 藍墨 (ink blue): 11.6:1 on white, so it is the link text
-     as well as the ring and the fill. --mark is goen's mark for time. */
-  --accent: #26395a;
-  --mark: #26395a;
+  /* The one hue, 藍 (blue): what a shopper can press, where they are, and
+     how far a period has run. 7.15:1 on white, so it is the link text as well
+     as the ring and the fill; a price is never blue, or it reads as a link.
+     --mark marks a stretch of time on the storefront; a chart's dates are drawn
+     in --ink-2. 藍墨 (ink blue) is the same hue pressed:
+     hover, text on a blue tint, and a label that is not an action. The tints
+     are opaque so text on them is measured against one colour. */
+  --accent: #2a56a0;
+  --accent-deep: #26395a;
+  --mark: #2a56a0;
   --accent-text: var(--accent);
-  --accent-text-hover: #1a2740;
-  --accent-faint: rgb(38 57 90 / 0.06);
-  --accent-muted: rgb(38 57 90 / 0.1);
+  --accent-text-hover: var(--accent-deep);
+  --accent-faint: #eef1f7;
+  --accent-muted: #e2e8f2;
   --accent-strong: var(--accent-text);
   --on-accent: #ffffff;
+  /* The blue on the ink tone, where --accent is 2.5:1. */
+  --on-ink-accent: #a9c0ea;
   /* The focus ring. A dark ground sets it to white, because the accent is
-     1.5:1 on #18181b. */
+     2.5:1 on #18181b. */
   --ring: var(--accent);
 
   /* The names the existing rules were written against, now on the ramp. */
@@ -367,13 +377,14 @@ body {
   --star: #b07c00;
   --error: #b91c1c;
   --error-bg: #fef2f2;
+  --error-bg-hover: #f7dddd;
   --error-outline: #fca5a5;
   --success: #15803d;
   --success-bg: #f0fdf4;
   --warn: #92400e;
   --warn-bg: #fffbeb;
-  --info: #1f5b92;
-  --info-bg: #eff6ff;
+  --info: var(--accent-deep);
+  --info-bg: var(--accent-faint);
 
   --font-display: var(--font-sans);
 
@@ -383,6 +394,7 @@ body {
   --font-sans: 'Instrument Sans', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
   --font-editorial: 'Noto Serif TC', serif;
 
+  /* Noto Sans TC draws 350; Instrument Sans starts at 400, so Latin and figures in a display title draw at 400. */
   --fw-display: 350;
 
   --t-12: 0.75rem;
@@ -437,14 +449,16 @@ body {
 
 /* ---------- Charts ----------
 
-   One data colour. Its contrast against the page grounds is held by
-   assets/contrast_test.go, so it stays a six-digit hex. Position, length and
-   the row's own text carry the meaning, never the hue alone.
+   One data colour, the accent's blue: "this period" on a chart and the
+   storefront's period fill say the same thing. Its contrast against the page
+   grounds is held by assets/contrast_test.go, so it stays a six-digit hex.
+   Position, length and the row's own text carry the meaning, never the hue
+   alone.
    ------------------------------------------------------------------------ */
 
 :root {
-  --chart-hue: #007f69;
-  --chart-hue-track: #c0ebe1;
+  --chart-hue: #2a56a0;
+  --chart-hue-track: #d4ddec;
   --chart-previous: #8e8e96;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
