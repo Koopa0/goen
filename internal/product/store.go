@@ -192,7 +192,7 @@ func (s *Store) listedCampaign(ctx context.Context, id uuid.UUID, slug string) (
 	if err != nil {
 		return pages.ProductCampaign{}, fmt.Errorf("read listed campaign of %q: %w", slug, err)
 	}
-	return pages.NewProductCampaign(ctx, c.Slug, c.Title, c.StartsAt, c.EndsAt, s.now()), nil
+	return pages.NewProductCampaign(c.Slug, c.Title, c.EndsAt, s.now()), nil
 }
 
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
