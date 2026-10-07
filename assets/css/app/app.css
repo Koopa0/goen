@@ -784,6 +784,7 @@ th {
   column-gap: 12px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   margin: 0 auto;
   max-width: var(--page-width);
   min-height: 4rem;
@@ -1541,7 +1542,7 @@ th {
   }
 }
 
-@media (min-width: 40rem) and (max-width: 63.99rem) {
+@media (min-width: 640px) and (max-width: 1023.98px) {
   .goen-header__search {
     flex: 1 1 12rem;
     max-width: 24rem;
