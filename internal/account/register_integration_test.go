@@ -215,7 +215,7 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 			t.Errorf("registration cart recovery omits %s", key)
 		}
 	}
-	retry := cartForm(ctx, "/account/cart-recovery", url.Values{"next": {welcome}})
+	retry := cartForm(ctx, "/account/cart/retry", url.Values{"next": {welcome}})
 	retry.AddCookie(session)
 	retry.AddCookie(guestCookie)
 	response := httptest.NewRecorder()

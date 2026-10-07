@@ -29,7 +29,7 @@ func TestRegistrationWelcomeKeepsTheOriginalActionAndCartRecovery(t *testing.T) 
 			recovery := renderComponent(t, ctx, CartRecovery(CartRecoveryMeta(ctx), CartRecoveryView{
 				Welcome: true, Next: "/account?welcome=1", Notice: i18n.T(ctx, i18n.KeyCartMergeFailed), Retry: i18n.T(ctx, i18n.KeyCartMergeRetry),
 			}))
-			for _, want := range []string{welcome, `action="/account/cart-recovery"`, `name="next" value="/account?welcome=1"`, html.EscapeString(i18n.T(ctx, i18n.KeyCartMergeFailed))} {
+			for _, want := range []string{welcome, `action="/account/cart/retry"`, `name="next" value="/account?welcome=1"`, html.EscapeString(i18n.T(ctx, i18n.KeyCartMergeFailed))} {
 				if !strings.Contains(recovery, want) {
 					t.Errorf("registration cart recovery omits %q", want)
 				}

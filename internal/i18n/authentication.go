@@ -198,11 +198,6 @@ var (
 		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
 	})
 
-	KeyAccountCreated = key("auth.created", Message{
-		ZhHant: "帳號已建立，請登入。",
-		En:     "Your account is created. Sign in to continue.",
-	})
-
 	KeyPasswordReset = key("auth.reset.done", Message{
 		ZhHant: "密碼已重設，請用新密碼登入。",
 		En:     "Your password is reset. Sign in with the new one.",
