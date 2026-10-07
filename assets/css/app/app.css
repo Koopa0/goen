@@ -1724,7 +1724,8 @@ th {
   align-items: baseline;
   display: flex;
   container-type: inline-size;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
