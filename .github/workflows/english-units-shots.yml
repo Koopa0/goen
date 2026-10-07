@@ -1,0 +1,123 @@
+name: english-units-shots
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: english-units-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+  # origin/main where the PR branch starts; "after" is this checkout.
+  BEFORE_SHA: 3bd26ca5e1cd125687416a1da63fec8748f76d11
+
+jobs:
+  english-units-shots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    env:
+      GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
+      GOEN_URL: http://127.0.0.1:9700
+      GOEN_ECPAY_MERCHANT_ID: "2000132"
+      GOEN_ECPAY_HASH_KEY: ejCk326UnaZWKisg
+      GOEN_ECPAY_HASH_IV: q9jcZX8Ib9LM8wYk
+      GOEN_ECPAY_LOGISTICS: b2c
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Build before and after
+        run: |
+          set -euo pipefail
+          mkdir -p builds
+          git log -1 --format='after: %H parents %P %s'
+          go build -o builds/goen-after ./cmd/goen
+          git worktree add wt-before "$BEFORE_SHA"
+          (cd wt-before && git log -1 --format='before: %H %s' && go build -o ../builds/goen-before ./cmd/goen)
+          ls -l builds
+
+      - name: Start PostgreSQL
+        run: make db-up
+
+      - name: Migrate, seed and fixtures
+        run: |
+          set -euo pipefail
+          make migrate-up
+          make db-seed
+          psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
+          sed -E 's/(TOKEN)=.*/\1=<hidden>/' fixtures.env
+
+      - name: Capture
+        run: |
+          set -euo pipefail
+          chrome=$(scripts/resolve-chrome.sh)
+          "$chrome" --version
+          profile=$(mktemp -d)
+          nice -n 10 "$chrome" --headless --disable-gpu --no-first-run \
+            --remote-debugging-port=9333 --user-data-dir="$profile" about:blank > chrome-shots.log 2>&1 &
+          chrome_pid=$!
+          trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
+          sleep 3
+          set -a; . ./fixtures.env; set +a
+          status=0
+
+          # Each build serves from its own checkout. The pid is the server's own
+          # (exec), written from this shell, and a server that never answers
+          # stops the step with its log rather than leaving the browser to fail.
+          serve() {
+            dir="$GITHUB_WORKSPACE"
+            if [ "$1" = before ]; then dir="$GITHUB_WORKSPACE/wt-before"; fi
+            (cd "$dir" && GOEN_INSECURE_COOKIES=1 exec "$GITHUB_WORKSPACE/builds/goen-$1" >> "$GITHUB_WORKSPACE/server-$1.log" 2>&1) &
+            server_pid=$!
+            for _ in $(seq 1 60); do
+              if curl -sf -o /dev/null "$GOEN_URL/readyz"; then return 0; fi
+              if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            echo "the $1 server never answered /readyz" >&2
+            tail -50 "server-$1.log" >&2
+            exit 1
+          }
+          stop() {
+            kill "$server_pid"
+            while kill -0 "$server_pid" 2>/dev/null; do sleep 0.5; done
+          }
+
+          for which in before after; do
+            echo "::group::storefront, $which"
+            serve "$which"
+            CDP_PORT=9333 node scripts/english-units-shots.mjs "shots/$which" || status=$?
+            stop
+            echo '::endgroup::'
+          done
+
+          file shots/*/*.png
+          exit "$status"
+
+      - name: Keep the shots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: english-units-shots
+          path: |
+            shots/
+            server-*.log
+            chrome-shots.log
+          if-no-files-found: warn
