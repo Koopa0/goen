@@ -225,12 +225,48 @@ func TestMessageQueueWaitingAndOverdueNeedYouAndOverdueSaysSo(t *testing.T) {
 
 func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ReturnsView{Rows: []Return{
-		{ID: "r1", OrderNumber: "GO-1", Status: returns.StatusRequested, StatusText: "待處理", Window: "within"},
-		{ID: "r2", OrderNumber: "GO-2", Status: returns.StatusCompleted, StatusText: "已完成", Window: "within", Decided: true},
-	}}
-	page := renderComponent(t, ctx, Returns(layouts.Page{}, view))
-	wantBadge(t, page, "待處理", "goen-badge goen-badge--warn")
-	wantBadge(t, page, "已完成", "goen-badge goen-badge--done")
+	inspected := []ReturnLine{{Inspected: true}}
+	waiting := []ReturnLine{{}}
+	for _, locale := range []struct {
+		locale i18n.Locale
+		words  [8]string
+	}{
+		{i18n.ZhHant, [8]string{"待處理", "退回中", "待結案", "待重新退款", "退款失敗", "未同意", "已完成", "已取消並退款"}},
+		{i18n.En, [8]string{"Open", "On its way back", "Ready to close", "Refund to resend", "Refund failed", "Declined", "Completed", "Cancelled and refunded"}},
+	} {
+		t.Run(string(locale.locale), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale.locale)
+			w := locale.words
+			rows := []struct {
+				row   Return
+				word  string
+				class string
+			}{
+				{Return{Status: returns.StatusRequested, StatusText: w[0]}, w[0], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, StatusText: "x1"}, w[1], "goen-badge goen-badge--progress"},
+				{Return{Status: returns.StatusApproved, Lines: inspected, StatusText: "x2"}, w[2], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, StatusText: "x3"}, w[3], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true, StatusText: "x4"}, w[4], "goen-badge goen-badge--danger"},
+				{Return{Status: returns.StatusRejected, StatusText: w[5]}, w[5], "goen-badge"},
+				{Return{Status: returns.StatusCompleted, StatusText: w[6]}, w[6], "goen-badge goen-badge--done"},
+				{Return{Status: returns.StatusCompleted, BeforeShipment: true, StatusText: w[7]}, w[7], "goen-badge"},
+			}
+			for i, r := range rows {
+				r.row.ID = fmt.Sprintf("r%d", i)
+				r.row.OrderNumber = fmt.Sprintf("GO-%d", i)
+				r.row.Window = "within"
+				page := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{Rows: []Return{r.row}}))
+				wantBadge(t, page, r.word, r.class)
+				if got := badgeClasses(t, page, ""); len(got) != 1 {
+					t.Errorf("%q: %d badges on a one-row queue, want 1", r.word, len(got))
+				}
+				for _, stale := range []string{"x1", "x2", "x3", "x4"} {
+					if len(badgeClasses(t, page, stale)) != 0 {
+						t.Errorf("%q: a badge shows the store's word %q", r.word, stale)
+					}
+				}
+			}
+		})
+	}
 }
