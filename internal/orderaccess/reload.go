@@ -18,9 +18,9 @@ import (
 // the browser still withholds the cookie. Only a navigation, and only an exact
 // "cross-site": every other value is a request that carried the cookie already,
 // the second request among them, and a browser that sends no Sec-Fetch-Site
-// would be sent round forever. Only a GET or HEAD, because the refresh re-requests with GET.
-// The two GETs it serves must stay free of side effects: this page lets any
-// site load them with the member's cookie.
+// would be sent round forever. Only a GET or HEAD, because the refresh
+// re-requests with GET. The two GETs it serves must stay free of side effects:
+// this page lets any site load them with the member's cookie.
 //
 // Call it only after refusing, and before reading the order: the answer is
 // the same whether the order exists or not.
