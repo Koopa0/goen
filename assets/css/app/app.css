@@ -1096,7 +1096,11 @@ th {
 /* Deals is not a department, so a 2.5rem space, the row's gap and this padding
    together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
+  padding-left: 0;
+}
+
+.goen-header__nav > :has(+ .goen-header__navitem--deal) {
+  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {
@@ -1274,7 +1278,10 @@ th {
 }
 
 .goen-header__actions .goen-langmenu > summary {
+  box-sizing: border-box;
   color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
 }
 
 .goen-header__actions .goen-langmenu > summary:hover,
@@ -1295,8 +1302,15 @@ th {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1rem;
-  width: 1rem;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+@media (min-width: 1280px) {
+  .goen-header__actions .goen-langmenu svg {
+    height: 1rem;
+    width: 1rem;
+  }
 }
 
 .goen-header .goen-langmenu__current {
@@ -1488,14 +1502,22 @@ th {
   }
 }
 
-/* English department names out-measure the zh-Hant ones, so the desktop row
-   gives up the wishlist icon below 1280 before it lets the search field fall
-   under the width `check-layout.mjs` calls usable; the account page carries
-   the wishlist link at every width. */
 @media (min-width: 1024px) {
   .goen-header__bar {
     column-gap: 1.25rem;
     padding: 0 var(--page-gutter);
+  }
+
+  .goen-header__action--wide {
+    display: inline-flex;
+  }
+
+  .goen-header__action--wide[href='/admin'] {
+    font-size: var(--fs-13);
+    font-weight: var(--fw-regular);
+    padding-inline: 0.75rem;
+    white-space: nowrap;
+    width: auto;
   }
 
   .goen-header__menu {
@@ -1521,7 +1543,9 @@ th {
 
 @media (min-width: 40rem) and (max-width: 63.99rem) {
   .goen-header__search {
+    flex: 1 1 12rem;
     max-width: 24rem;
+    order: 0;
   }
 }
 
@@ -1532,18 +1556,6 @@ th {
 
   .goen-header__actions {
     gap: 0;
-  }
-
-  /* The mark is the brand where the row is this tight; the word stays in the
-     link's accessible name. */
-  .goen-header__wordmark {
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
   }
 
   .goen-header__search {
@@ -1560,28 +1572,6 @@ th {
     overflow: visible;
     position: static;
     width: auto;
-  }
-
-  .goen-header__action--wide {
-    display: inline-flex;
-  }
-
-  .goen-header__action--wide[href='/admin'] {
-    font-size: var(--fs-13);
-    font-weight: var(--fw-medium);
-    padding-inline: 0.75rem;
-    position: relative;
-    white-space: nowrap;
-    width: auto;
-  }
-
-  .goen-header__action--wide[href='/admin']::before {
-    border-left: 1px solid var(--line);
-    content: '';
-    height: 1rem;
-    left: -3px;
-    position: absolute;
-    top: calc(50% - 0.5rem);
   }
 }
 
