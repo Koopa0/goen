@@ -339,7 +339,7 @@ func TestCartPageDistinguishesUnavailableDeliveryFromALookupFailure(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(t.Context(), string(seed)); err != nil {
+	if _, err = owner.Exec(t.Context(), string(seed)); err != nil {
 		t.Fatal(err)
 	}
 	trace := &cartPageShippingFailure{}
@@ -347,8 +347,8 @@ func TestCartPageDistinguishesUnavailableDeliveryFromALookupFailure(t *testing.T
 	cfg.MaxConns = 2
 	cfg.ConnConfig.Tracer = trace
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, err := conn.Exec(ctx, "SET ROLE store")
-		return err
+		_, roleErr := conn.Exec(ctx, "SET ROLE store")
+		return roleErr
 	}
 	app, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {

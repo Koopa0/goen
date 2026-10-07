@@ -34,6 +34,7 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 		{locale: i18n.En, message: "No delivery method is available for this cart. Change the items or contact us."},
 	} {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
 			for _, tt := range []struct {
 				name       string
 				noDelivery bool
@@ -46,6 +47,7 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 				{name: "stock short and no delivery", noDelivery: true, blocked: true, describes: "cart-alert cart-delivery-unavailable"},
 			} {
 				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
 					v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
 					if tt.blocked {
