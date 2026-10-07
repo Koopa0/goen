@@ -8,8 +8,8 @@ import (
 	"errors"
 	"image"
 	"image/color"
-	"io"
 	"image/png"
+	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/catalog"

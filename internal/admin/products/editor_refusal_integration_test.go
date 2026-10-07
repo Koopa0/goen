@@ -8,8 +8,8 @@ import (
 	"errors"
 	"image"
 	"image/color"
-	"io"
 	"image/png"
+	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -23,6 +23,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/content"
@@ -31,7 +33,6 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/pgtx"
-	"golang.org/x/net/html"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
