@@ -201,7 +201,19 @@ await send('Network.clearBrowserCookies');
 await cookie('goen_locale', 'zh-Hant');
 if (process.env.CART_TOKEN) await cookie('goen_cart', process.env.CART_TOKEN);
 
-const PRODUCT = '/p/meridian-watch-c1';
+// The first product whose buy bar is not empty (one that can be bought).
+async function buyableProduct() {
+  await navigate(ORIGIN + '/c/home-living');
+  const links = await evaluate(`[...new Set([...document.querySelectorAll('main a[href^="/p/"]')].map((a) => a.getAttribute('href')))]`);
+  for (const href of links.slice(0, 12)) {
+    await navigate(ORIGIN + href);
+    const ok = await evaluate(`!!document.querySelector('#buybar .goen-buybar__btn') && !!document.querySelector('#add-to-cart:not([disabled])')`);
+    if (ok) { console.log('buyable product', href); return href; }
+  }
+  console.log('no buyable product found, using the watch');
+  return '/p/meridian-watch-c1';
+}
+const PRODUCT = await buyableProduct();
 const PAST_CTA = `(() => { const b = document.getElementById('add-to-cart'); window.scrollTo(0, b ? b.getBoundingClientRect().bottom + scrollY + 40 : 700); return 1; })()`;
 
 const steps = [
