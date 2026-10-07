@@ -228,16 +228,28 @@ func (h *Handler) Recent(ctx context.Context) ([]Object, error) {
 // size and the kind and nothing more: saying which decoder refused a file would
 // tell an attacker which decoders are wired up.
 func UploadNotice(err error) i18n.Key {
+	if key, ok := uploadRefusalNotice(err); ok {
+		return key
+	}
+	return i18n.KeyAdminNoticeUploadFailed
+}
+
+func IsRefusal(err error) bool {
+	_, ok := uploadRefusalNotice(err)
+	return ok
+}
+
+func uploadRefusalNotice(err error) (i18n.Key, bool) {
 	switch {
 	case errors.Is(err, ErrTooLarge):
-		return i18n.KeyAdminNoticeTooBig
+		return i18n.KeyAdminNoticeTooBig, true
 	case errors.Is(err, ErrNotAnImage):
-		return i18n.KeyAdminNoticeNotImage
+		return i18n.KeyAdminNoticeNotImage, true
 	case errors.Is(err, ErrLosslessWebP):
-		return i18n.KeyAdminNoticeLosslessWebP
+		return i18n.KeyAdminNoticeLosslessWebP, true
 	case errors.Is(err, ErrBusy):
-		return i18n.KeyAdminNoticeUploadBusy
+		return i18n.KeyAdminNoticeUploadBusy, true
 	default:
-		return i18n.KeyAdminNoticeUploadFailed
+		return "", false
 	}
 }
