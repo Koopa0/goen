@@ -446,12 +446,12 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{
 		UnreconciledPayments: 2, UninvoicedCount: 3, StrandedClaimCount: 4,
-		UnreconciledEvents: []UnreconciledEvent{{EventID: "evt_preserved"}},
+		UnreconciledEvents:           []UnreconciledEvent{{EventID: "evt_preserved"}},
 		UnreconciledCompletePayments: []UnreconciledCompletePayment{{OrderNumber: "GO-payment", ProviderRef: "cs_preserved", PaidAttributionAllowed: true}},
-		Uninvoiced: []UninvoicedOrder{{OrderNumber: "GO-invoice"}},
-		StrandedClaims: []StrandedClaim{{Operation: "op_preserved", OrderNumber: "GO-claim", CanAuthorizeResend: true}},
-		CancelledOrderInvoiceCount: 5, CancelledOrderInvoices: []CancelledOrderInvoice{{OrderNumber: "GO-cancelled"}},
-		Disputes: DisputeState{Configured: true, Items: []OpenDispute{{OrderNumber: "GO-dispute", URL: "https://dashboard.stripe.com/disputes/dp_preserved"}}},
+		Uninvoiced:                   []UninvoicedOrder{{OrderNumber: "GO-invoice"}},
+		StrandedClaims:               []StrandedClaim{{Operation: "op_preserved", OrderNumber: "GO-claim", CanAuthorizeResend: true}},
+		CancelledOrderInvoiceCount:   5, CancelledOrderInvoices: []CancelledOrderInvoice{{OrderNumber: "GO-cancelled"}},
+		Disputes:        DisputeState{Configured: true, Items: []OpenDispute{{OrderNumber: "GO-dispute", URL: "https://dashboard.stripe.com/disputes/dp_preserved"}}},
 		OpenRefundCount: 6, OpenRefunds: []OpenRefund{{OrderNumber: "GO-refund", Status: refundstate.Pending}},
 		Pools: []PoolHealth{{Name: "staff pool"}}, Stuck: []StuckMessage{{Key: "stuck_preserved"}},
 	}
@@ -515,7 +515,7 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) 
 					t.Errorf("code %s is not retained as a small diagnostic", code)
 				}
 				label := tt.labels[labelIndexes[index]]
-				cell := regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(label)+`\s*<small class="goen-admin__meta">`+regexp.QuoteMeta(code)+`</small>\s*</td>`)
+				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(code) + `</small>\s*</td>`)
 				if !cell.MatchString(html) {
 					t.Errorf("code %q lacks its localized explanation %q in the same cell", code, label)
 				}
@@ -568,7 +568,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{LastError: "allowance_provider_rejected_3100010"},
 		}}
 		html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
-		if !regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(tt.missing)+`\s*</td>`).MatchString(html) {
+		if !regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(tt.missing) + `\s*</td>`).MatchString(html) {
 			t.Errorf("missing reason lost its distinct wording %q", tt.missing)
 		}
 		for _, pair := range [][2]string{
@@ -576,7 +576,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{"issue_provider_rejected_2000006", tt.rejected},
 			{"allowance_provider_rejected_3100010", tt.rejected},
 		} {
-			cell := regexp.MustCompile(`<td>\s*`+regexp.QuoteMeta(pair[1])+`\s*<small class="goen-admin__meta">`+regexp.QuoteMeta(pair[0])+`</small>\s*</td>`)
+			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(pair[0]) + `</small>\s*</td>`)
 			if !cell.MatchString(html) {
 				t.Errorf("reason %s is not explained as %q in its diagnostic cell", pair[0], pair[1])
 			}

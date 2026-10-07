@@ -195,21 +195,21 @@ var (
 			"queuing for a connection.",
 	})
 
-	KeyAdminHPColPool         = key("admin.hp.col.pool", Message{ZhHant: "連線池", En: "Pool"})
+	KeyAdminHPColPool = key("admin.hp.col.pool", Message{ZhHant: "連線池", En: "Pool"})
 
-	KeyAdminHPColPoolMax      = key("admin.hp.col.poolmax", Message{ZhHant: "上限", En: "Max"})
+	KeyAdminHPColPoolMax = key("admin.hp.col.poolmax", Message{ZhHant: "上限", En: "Max"})
 
 	KeyAdminHPColPoolAcquired = key("admin.hp.col.poolacquired", Message{ZhHant: "使用中", En: "Acquired"})
 
-	KeyAdminHPColPoolIdle     = key("admin.hp.col.poolidle", Message{ZhHant: "閒置", En: "Idle"})
+	KeyAdminHPColPoolIdle = key("admin.hp.col.poolidle", Message{ZhHant: "閒置", En: "Idle"})
 
-	KeyAdminHPColPoolTotal    = key("admin.hp.col.pooltotal", Message{ZhHant: "已建立", En: "Open"})
+	KeyAdminHPColPoolTotal = key("admin.hp.col.pooltotal", Message{ZhHant: "已建立", En: "Open"})
 
 	KeyAdminHPColPoolAcquires = key("admin.hp.col.poolacquires", Message{ZhHant: "取用次數", En: "Total acquires"})
 
-	KeyAdminHPColPoolEmpty    = key("admin.hp.col.poolempty", Message{ZhHant: "等待連線次數", En: "Empty acquires"})
+	KeyAdminHPColPoolEmpty = key("admin.hp.col.poolempty", Message{ZhHant: "等待連線次數", En: "Empty acquires"})
 
-	KeyAdminHPColPoolWait     = key("admin.hp.col.poolwait", Message{ZhHant: "累計等待", En: "Cumulative wait"})
+	KeyAdminHPColPoolWait = key("admin.hp.col.poolwait", Message{ZhHant: "累計等待", En: "Cumulative wait"})
 
 	KeyAdminHPOpenRefundsHeading = key("admin.hp.openrefunds.heading", Message{
 		ZhHant: "還沒退成功的退款",
