@@ -1872,15 +1872,15 @@ th {
   --period-fill: var(--tone-mark);
 }
 
-/* On ink the fill is --on-ink-accent (#a9c0ea), so the track is a tint of that
-   blue, at 22% to show on the dark ground. */
+/* On ink the fill is --on-ink-accent, so the track is a tint of that blue. */
 .goen-hero__slide[data-tone="ink"] .ui-period {
-  --period-track: rgb(169 192 234 / 0.22);
+  --period-track: var(--period-track-on-ink);
 }
 
 /* The track belongs to the facts above it, so it sits closer to them than to the button. */
 .goen-hero__inner > .ui-period {
-  margin-top: var(--s-1);
+  margin-bottom: var(--s-2);
+  margin-top: 0;
 }
 
 .goen-pagehead[data-tone] .ui-period {
@@ -1888,7 +1888,7 @@ th {
 }
 
 .goen-pagehead[data-tone="ink"] .ui-period {
-  --period-track: rgb(169 192 234 / 0.22);
+  --period-track: var(--period-track-on-ink);
 }
 
 .goen-hero__actions {
@@ -2866,11 +2866,11 @@ input.goen-check {
 }
 
 .goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-track: rgb(169 192 234 / 0.22);
+  --period-track: var(--period-track-on-ink);
 }
 
 .goen-rowcard > .ui-period {
-  margin-top: var(--s-3);
+  margin-top: var(--s-2);
 }
 
 .goen-rowcard .goen-home__more {
@@ -3664,19 +3664,11 @@ input.goen-check {
   font-size: var(--fs-16);
 }
 
+/* The end line already says when the campaign ends; a track beside it would be
+   a second layer for one fact, and on a phone it pushes the first product out of
+   the first screen (check-layout.mjs, listing 375). */
 .goen-deptnotice .ui-period {
-  flex: 1 1 16rem;
-  margin-top: 0;
-  max-width: 26rem;
-}
-
-/* A phone would stack the track under the end line, two layers for one fact, and
-   push the first product out of the first screen (check-layout.mjs, listing 375).
-   The end line already says when the campaign ends. */
-@media (max-width: 767px) {
-  .goen-deptnotice .ui-period {
-    display: none;
-  }
+  display: none;
 }
 
 .goen-deptcompare__head {
@@ -6286,13 +6278,13 @@ input.goen-check {
 }
 
 /* The parcel's and the pay head's flex gap already parts the facts from the
-   track, so each adds only what sets the track 20px under them. */
+   track, so each adds only what sets the track 16px under them. */
 .goen-order__parcel > .ui-period {
-  margin-top: var(--s-1);
+  margin-top: 0;
 }
 
 .goen-pay .goen-pagehead > .ui-period {
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
 }
 
 .goen-line__act {

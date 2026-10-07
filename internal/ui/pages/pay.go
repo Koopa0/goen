@@ -66,8 +66,8 @@ type PayView struct {
 	CreditCents    int64
 }
 
-// Facts is the deadline, the stock hold and the amount, or for a lapsed hold what
-// became of the order.
+// Facts is when the order was placed, the deadline, the stock hold and the
+// amount, or for a lapsed hold what became of the order.
 func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat {
 	switch {
 	case h.PlacedAt.IsZero():
@@ -79,7 +79,7 @@ func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat 
 			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
 		}
 	}
-	var facts []components.Stat
+	facts := []components.Stat{{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)}}
 	if !h.StartBy.IsZero() {
 		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: payClock(h.StartBy), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
 	}
