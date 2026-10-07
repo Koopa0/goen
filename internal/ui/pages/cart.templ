@@ -93,8 +93,13 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
 							}
 						}
+						if v.NoDelivery {
+							@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "cart-delivery-unavailable"}) {
+								{ i18n.T(ctx, i18n.KeyShippingUnavailable) }
+							}
+						}
 						<div class="goen-summary__actions">
-							if v.CanCheckout() {
+							if v.CanCheckout() && !v.NoDelivery {
 								@components.ButtonLink(components.ButtonProps{
 									ButtonStyle: components.ButtonStylePrimary,
 									Size:        components.SizeLarge,
@@ -109,6 +114,14 @@ templ Cart(p layouts.Page, v CartView) {
 									class="goen-btn goen-btn--primary goen-btn--lg goen-btn--block"
 									role="link"
 									aria-disabled="true"
+									if v.NoDelivery && v.StockNotice(ctx) != "" {
+										aria-describedby="cart-alert cart-delivery-unavailable"
+									}
+									else
+									if v.NoDelivery {
+										aria-describedby="cart-delivery-unavailable"
+									}
+									else
 									if v.StockNotice(ctx) != "" {
 										aria-describedby="cart-alert"
 									}
