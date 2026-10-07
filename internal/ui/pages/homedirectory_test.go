@@ -196,22 +196,3 @@ func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
 		}
 	}
 }
-
-func TestTheDirectoryHeadingCountsDepartmentsAndItems(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		lang        i18n.Locale
-		departments int
-		want        string
-	}{
-		{i18n.ZhHant, 3, `<p class="goen-home__meta">3&nbsp;個館 · 12&nbsp;件</p>`},
-		{i18n.En, 3, `<p class="goen-home__meta">3&nbsp;departments · 12&nbsp;items</p>`},
-		{i18n.En, 1, `<p class="goen-home__meta">1&nbsp;department · 4&nbsp;items</p>`},
-	} {
-		page := renderIn(t, tt.lang, Home(layouts.Page{}, HomeView{Categories: departmentsOf(tt.departments)}))
-		want := strings.ReplaceAll(tt.want, "&nbsp;", " ")
-		if !strings.Contains(page, want) {
-			t.Errorf("%v, %d departments: no %q in the directory heading", tt.lang, tt.departments, want)
-		}
-	}
-}

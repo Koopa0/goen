@@ -1723,8 +1723,8 @@ th {
 .goen-home__head {
   align-items: baseline;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 1rem;
+  container-type: inline-size;
+  gap: 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
@@ -1737,11 +1737,13 @@ th {
   margin: 0;
 }
 
-.goen-home__meta {
-  color: var(--n-500);
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  margin: 0;
+/* A phone at 200% text leaves a head under 16rem, where "Departments" at its
+   own size is wider than the line. */
+@container (width < 16rem) {
+  .goen-home__heading {
+    font-size: min(var(--t-24), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 /* The continuation after a section's name: same line, same size, grey. On a
@@ -1751,6 +1753,7 @@ th {
 .goen-home__aside {
   color: var(--n-500);
   font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 39.99rem) {
@@ -2164,7 +2167,6 @@ th {
 }
 
 .goen-cats__grid--rows .goen-cat__name {
-  font-size: var(--t-18);
   font-weight: var(--fw-regular);
 }
 
@@ -2174,6 +2176,7 @@ th {
   font-size: var(--fs-13);
   grid-column: 2;
   grid-row: 2;
+  overflow-wrap: anywhere;
   word-break: keep-all;
 }
 
@@ -2436,10 +2439,9 @@ th {
 
   .goen-cats__grid--rows .goen-cat__name {
     align-self: baseline;
-    font-size: var(--t-24);
+    font-size: var(--t-32);
     font-weight: var(--fw-display);
     grid-column: 1;
-    letter-spacing: -0.01em;
     grid-row: 1;
   }
 

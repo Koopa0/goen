@@ -32,14 +32,6 @@ templ heading(id, name string) {
 	<h2 id={ id } class="goen-home__heading">{ name }</h2>
 }
 
-func productsIn(cats []HomeCategory) int64 {
-	var n int64
-	for i := range cats {
-		n += cats[i].Items
-	}
-	return n
-}
-
 templ seeAll(label, href string) {
 	<a class="goen-home__more" href={ templ.URL(href) }>
 		{ label }
@@ -162,7 +154,6 @@ templ departmentDirectory(cats []HomeCategory, layout DirectoryLayout) {
 		<section class="goen-home__section" aria-labelledby="cats-heading">
 			<div class="goen-home__head">
 				@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
-				<p class="goen-home__meta">{ i18n.Count(ctx, i18n.KeyHomeDepartmentCount, int64(len(cats)), len(cats)) } · { i18n.Count(ctx, i18n.KeyUnitItems, productsIn(cats), productsIn(cats)) }</p>
 			</div>
 			<ul class={ "goen-cats__grid", "goen-cats__grid--" + string(layout) } role="list">
 				for _, c := range cats {

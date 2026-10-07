@@ -69,8 +69,6 @@ var (
 
 	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})
 
-	KeyHomeDepartmentCount = countKey("home.departments.count", "%d\u00a0個館", "%d\u00a0department", "%d\u00a0departments")
-
 	KeyHomeNewIn = key("home.new_in", Message{ZhHant: "新到貨", En: "New in"})
 
 	KeyHeroPrevious = key("home.hero.previous", Message{ZhHant: "上一張", En: "Previous"})
