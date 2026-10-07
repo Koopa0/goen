@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -114,7 +113,7 @@ func validatedDelivery(d *DeliveryCorrection, to destination.Kind) (*order.Deliv
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
+		return nil, &DeliveryValidationError{Fields: errs}
 	}
 	addr.DropOtherDestination()
 	return addr, nil
@@ -148,12 +147,11 @@ func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, ad
 }
 
 func deliveryFormOf(values func(string) string) *DeliveryCorrection {
-	get := func(key string) string { return strings.TrimSpace(values(key)) }
 	return &DeliveryCorrection{
-		Email: get("email"), Recipient: get("recipient"), Phone: get("phone"),
-		PostalCode: get("postal_code"), City: get("city"),
-		District: get("district"), Street: get("street"),
-		PickupChain: pickup.Chain(get("pickup_chain")), PickupStoreCode: get("pickup_store_code"),
-		PickupStoreName: get("pickup_store_name"),
+		Email: values("email"), Recipient: values("recipient"), Phone: values("phone"),
+		PostalCode: values("postal_code"), City: values("city"),
+		District: values("district"), Street: values("street"),
+		PickupChain: pickup.Chain(values("pickup_chain")), PickupStoreCode: values("pickup_store_code"),
+		PickupStoreName: values("pickup_store_name"),
 	}
 }
