@@ -4629,6 +4629,7 @@ input.goen-check {
     flex: 1 1 9rem;
     height: auto;
     min-height: 3rem;
+    text-wrap: balance;
   }
 
   /* The menu drawer belongs to the header, which this later fixed block would
@@ -5570,8 +5571,9 @@ input.goen-check {
   background: transparent;
   color: var(--n-700);
   font-size: var(--fs-14);
+  justify-content: flex-start;
   min-width: 2.75rem;
-  padding: 0 0.5rem;
+  padding: 0;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -5728,7 +5730,7 @@ input.goen-check {
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 1rem;
+  gap: 0.25rem 1rem;
   justify-content: space-between;
   padding: 0.75rem 0;
 }
@@ -6068,7 +6070,7 @@ input.goen-check {
   display: flex;
   font-size: var(--fs-14);
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.25rem 0.75rem;
   justify-content: space-between;
 }
 
