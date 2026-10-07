@@ -885,7 +885,7 @@ func TestVerificationInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
 func TestRegistrationLandingKeepsTheNextStepAfterWelcome(t *testing.T) {
 	for _, tt := range []struct {
 		name, next, want string
-		adoption cartAdoption
+		adoption         cartAdoption
 	}{
 		{name: "default", next: "/account", want: "/account?welcome=1"},
 		{name: "cart", next: "/cart", want: "/account?next=%2Fcart&welcome=1"},

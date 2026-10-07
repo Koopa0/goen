@@ -19,13 +19,13 @@ var (
 	})
 
 	KeyOAuthUnverified = key("auth.google.unverified", Message{
-		ZhHant: "Google 還沒有驗證這個信箱，請改用密碼註冊。",
-		En: "Google has not verified this email address. Create an account with a password instead.",
+		ZhHant: "Google 還沒有驗證這個電子郵件地址，請改用密碼註冊。",
+		En:     "Google has not verified this email address. Create an account with a password instead.",
 	})
 
 	KeyOAuthCollision = key("auth.google.collision", Message{
-		ZhHant: "這個信箱的 goen 帳號還沒完成驗證，請先重設密碼，再連結 Google。",
-		En: "The goen account at this address is not verified. Reset its password before linking Google.",
+		ZhHant: "這個電子郵件地址的 goen 帳號還沒完成驗證，請先重設密碼，再連結 Google。",
+		En:     "The goen account at this address is not verified. Reset its password before linking Google.",
 	})
 
 	KeyRegister = key("auth.register", Message{ZhHant: "註冊", En: "Register"})
@@ -220,11 +220,11 @@ var (
 		En:     "To protect your account, sign in again before deleting it.",
 	})
 	KeySignInReturnWishlist = key("auth.return.wishlist", Message{ZhHant: "請先登入，登入後會回到願望清單。", En: "Please sign in. You will return to your wishlist after signing in."})
-	KeySignInReturnAccount = key("auth.return.account", Message{ZhHant: "請先登入，登入後會回到會員中心。", En: "Please sign in. You will return to your account after signing in."})
+	KeySignInReturnAccount  = key("auth.return.account", Message{ZhHant: "請先登入，登入後會回到會員中心。", En: "Please sign in. You will return to your account after signing in."})
 	KeySignInReturnCheckout = key("auth.return.checkout", Message{ZhHant: "請先登入，登入後會回到結帳。", En: "Please sign in. You will return to checkout after signing in."})
-	KeySignInReturnCart = key("auth.return.cart", Message{ZhHant: "請先登入，登入後會回到購物車。", En: "Please sign in. You will return to your cart after signing in."})
-	KeySignInReturnProduct = key("auth.return.product", Message{ZhHant: "請先登入，登入後會回到商品頁。若要加入願望清單，請再按「%s」。", En: "Please sign in to return to the product. To save it, press “%s” afterwards."})
-	KeySignInReturnPage = key("auth.return.page", Message{ZhHant: "請先登入，登入後會回到你剛剛開啟的頁面。", En: "Please sign in. You will return to the page you opened after signing in."})
-	KeyDemoSignInPassword = key("auth.demo.password", Message{ZhHant: "示範帳號只能用帳號密碼登入。", En: "Sign in to the demo account with its email address and password."})
-	KeyDemoPasswordNoReset = key("auth.demo.reset", Message{ZhHant: "示範帳號的密碼不能重設。", En: "The demo account password cannot be reset."})
+	KeySignInReturnCart     = key("auth.return.cart", Message{ZhHant: "請先登入，登入後會回到購物車。", En: "Please sign in. You will return to your cart after signing in."})
+	KeySignInReturnProduct  = key("auth.return.product", Message{ZhHant: "請先登入，登入後會回到商品頁。若要加入願望清單，請再按「%s」。", En: "Please sign in to return to the product. To save it, press “%s” afterwards."})
+	KeySignInReturnPage     = key("auth.return.page", Message{ZhHant: "請先登入，登入後會回到你剛剛開啟的頁面。", En: "Please sign in. You will return to the page you opened after signing in."})
+	KeyDemoSignInPassword   = key("auth.demo.password", Message{ZhHant: "示範帳號只能用帳號密碼登入。", En: "Sign in to the demo account with its email address and password."})
+	KeyDemoPasswordNoReset  = key("auth.demo.reset", Message{ZhHant: "示範帳號的密碼不能重設。", En: "The demo account password cannot be reset."})
 )
