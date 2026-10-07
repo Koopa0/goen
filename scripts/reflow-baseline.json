@@ -53,12 +53,10 @@
     ],
     "/checkout": [
       "scroll-200",
-      "text-200:dd.goen-summary__value",
       "text-200:span.goen-summary__value"
     ],
     "/checkout?ship={id}": [
       "scroll-200",
-      "text-200:dd.goen-summary__value",
       "text-200:span.goen-summary__value"
     ],
     "/contact": [

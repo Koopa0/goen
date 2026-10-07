@@ -277,7 +277,7 @@ h3 {
 
 .goen-notice {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -961,15 +961,14 @@ input.goen-check {
 }
 
 /* The page's own name, denser than the storefront's: this is a heading read
-   forty times a day, not one a visitor arrives at. */
+   forty times a day, not one a visitor arrives at. Space under it, not a rule. */
 .goen-admin .ui-page-head {
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 24px;
 }
 
 .goen-admin .ui-page-head__eyebrow {
@@ -1040,15 +1039,16 @@ input.goen-check {
   grid-column: 1 / -1;
 }
 
+/* A count is a wash face, not a framed card; the transparent outline is what
+   forced colours draws as its edge. */
 .goen-stat {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
+  background: var(--wash);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  outline: 1px solid transparent;
   padding: 16px;
 }
 
@@ -1445,6 +1445,12 @@ input.goen-check {
 
 .goen-admin .ui-dl__desc {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .goen-admin .ui-dl {
+    gap: 1rem;
+  }
 }
 
 .goen-admin__form .ui-textarea,
