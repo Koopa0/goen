@@ -59,7 +59,6 @@ type OrderRow struct {
 	PlacedAt     string
 	Recipient    string
 	TotalCents   int64
-	Committed    bool
 }
 
 func (o OrderRow) Total() string { return money.TWD(o.TotalCents) }

@@ -104,6 +104,22 @@ func TestEveryFulfillmentStateHasAGroup(t *testing.T) {
 	}
 }
 
+func TestEveryReturnStatusHasAGroup(t *testing.T) {
+	t.Parallel()
+	for _, status := range returns.Statuses {
+		row := &Return{Status: status}
+		if status == returns.StatusApproved {
+			row.Lines = []ReturnLine{{}}
+		}
+		if status == returns.StatusRejected {
+			continue
+		}
+		if row.StatusIntent() == components.IntentNeutral {
+			t.Errorf("%q falls to neutral, the group of states nobody acts on", status)
+		}
+	}
+}
+
 func TestReturnIntentGroupsEachReturnState(t *testing.T) {
 	t.Parallel()
 	inspected := []ReturnLine{{Inspected: true}}
@@ -137,9 +153,9 @@ func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
 	view := OrdersView{
 		Bound: firstPageBound("orders"),
 		Orders: []OrderRow{
-			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: components.IntentProgress, Committed: true},
-			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn, Committed: true},
-			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: components.IntentDone, Committed: true},
+			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: components.IntentProgress},
+			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn},
+			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: components.IntentDone},
 		},
 	}
 	page := renderComponent(t, ctx, Orders(layouts.Page{}, view))
@@ -269,4 +285,16 @@ func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDashboardAndCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn}
+
+	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []OrderRow{row}}))
+	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
+
+	customer := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{Orders: 1, Recent: []OrderRow{row}}))
+	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
 }

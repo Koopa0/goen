@@ -152,7 +152,6 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
 		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
-		Committed:    o.Committed,
 	}
 }
 
