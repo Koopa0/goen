@@ -230,6 +230,25 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	}
 }
 
+func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
+	body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
+	_, summary, ok := strings.Cut(body, `id="cart-summary"`)
+	if !ok {
+		t.Fatal("the cart has no summary")
+	}
+	shipping := strings.Index(summary, "<dt>"+i18n.T(ctx, i18n.KeyShippingFee)+"</dt>")
+	total := strings.Index(summary, `goen-summary__row--total"><dt>`+i18n.T(ctx, i18n.KeySubtotal)+"</dt>")
+	if shipping < 0 || total < 0 {
+		t.Fatalf("the summary lacks a row: shipping at %d, total at %d", shipping, total)
+	}
+	if total < shipping {
+		t.Error("the cart summary opens on its total, so the total's rule has nothing above it")
+	}
+}
+
 // TestTheApplyButtonAimsAtTheSectionItChanged holds the scripting-off half. The
 // answer is the whole form again, and a form that opens at its top has taken the
 // customer away from the control they just pressed.

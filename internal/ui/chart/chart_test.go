@@ -47,7 +47,7 @@ func TestBarWidthIsScaledToTheMax(t *testing.T) {
 	}
 }
 
-func TestBarDrawsSquareOverAHairlineWithItsCountAsText(t *testing.T) {
+func TestBarFillsATrackWithItsCountAsText(t *testing.T) {
 	t.Parallel()
 
 	got := renderBar(t, BarProps{Value: 20, Max: 40, Label: "20"})
@@ -56,7 +56,8 @@ func TestBarDrawsSquareOverAHairlineWithItsCountAsText(t *testing.T) {
 		`class="goen-chartbar__track"`,
 		`class="goen-chartbar__fill"`,
 		`width="50.00%"`,
-		`height="6"`,
+		`class="goen-chartbar__track" x="0" y="0" width="100%" height="8"`,
+		`class="goen-chartbar__fill" x="0" y="0" width="50.00%" height="8"`,
 		`aria-hidden="true"`,
 		`focusable="false"`,
 	} {
@@ -66,9 +67,6 @@ func TestBarDrawsSquareOverAHairlineWithItsCountAsText(t *testing.T) {
 	}
 	if strings.Contains(svg, "<text") {
 		t.Errorf("Bar(20 of 40) draws %s, want the count outside the SVG", svg)
-	}
-	if strings.Contains(svg, "rx=") {
-		t.Errorf("Bar(20 of 40) draws %s, want square ends", svg)
 	}
 	if !strings.Contains(got, `<span class="goen-chartbar__label">20</span>`) {
 		t.Errorf("Bar(20 of 40) = %s, want the count 20 as text beside the bar", got)
@@ -81,12 +79,12 @@ func TestBarDrawsSquareOverAHairlineWithItsCountAsText(t *testing.T) {
 	}
 }
 
-func TestBarOfZeroDrawsNoRectButKeepsItsLabel(t *testing.T) {
+func TestBarOfZeroDrawsNoFillButKeepsItsLabel(t *testing.T) {
 	t.Parallel()
 
 	got := renderBar(t, BarProps{Value: 0, Max: 40, Label: "0"})
-	if strings.Contains(got, "<rect") {
-		t.Errorf("Bar(0 of 40) = %s, want no rect", got)
+	if strings.Contains(got, "goen-chartbar__fill") {
+		t.Errorf("Bar(0 of 40) = %s, want no fill", got)
 	}
 	if !strings.Contains(got, `<span class="goen-chartbar__label">0</span>`) {
 		t.Errorf("Bar(0 of 40) = %s, want its label", got)
@@ -220,26 +218,24 @@ func TestRangeBarPositionsAreAPercentageOfTheScale(t *testing.T) {
 	}
 }
 
-func TestRangeBarDrawsTheBarItsRangeAndTheLine(t *testing.T) {
+func TestRangeBarDrawsTheValueItsReachAndTheWarningLine(t *testing.T) {
 	t.Parallel()
 
-	got := renderRangeBar(t, RangeBarProps{Value: 45, Low: 18, High: 72, Mark: 30, Max: 90})
+	got := renderRangeBar(t, RangeBarProps{Value: 45, High: 72, Mark: 30, Max: 90})
 	svg := svgOf(t, got)
 	for _, want := range []string{
-		`class="goen-chartrangebar__fill"`, `width="50.00%"`,
-		`class="goen-chartrangebar__range" x1="20.00%" x2="80.00%"`,
-		`class="goen-chartrangebar__cap" x1="20.00%" x2="20.00%"`,
-		`class="goen-chartrangebar__cap" x1="80.00%" x2="80.00%"`,
-		`class="goen-chartrangebar__mark" x1="33.33%" x2="33.33%"`,
+		`class="goen-chartrangebar__mark" x="33.33%" y="0" width="2"`,
+		`class="goen-chartrangebar__reach" x="50.00%" y="0" width="30.00%"`,
+		`class="goen-chartrangebar__fill" x="0" y="0" width="50.00%"`,
 		`aria-hidden="true"`, `focusable="false"`,
 	} {
 		if !strings.Contains(svg, want) {
-			t.Errorf("RangeBar(45, 18-72, line 30 of 90) draws %s, want it to contain %s", svg, want)
+			t.Errorf("RangeBar(45 to 72, line at 30 of 90) draws %s, want it to contain %s", svg, want)
 		}
 	}
-	for _, banned := range []string{"<text", "rx=", "style="} {
+	for _, banned := range []string{"<text", "<line", "style="} {
 		if strings.Contains(got, banned) {
-			t.Errorf("RangeBar(45, 18-72, line 30 of 90) = %s, want no %s", got, banned)
+			t.Errorf("RangeBar(45 to 72, line at 30 of 90) = %s, want no %s", got, banned)
 		}
 	}
 	if !strings.HasPrefix(got, `<div class="goen-chartrangebar" aria-hidden="true">`) {
@@ -247,22 +243,33 @@ func TestRangeBarDrawsTheBarItsRangeAndTheLine(t *testing.T) {
 	}
 }
 
-func TestRangeBarWithoutALengthDrawsNoRange(t *testing.T) {
+func TestRangeBarIsUrgentOnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	for _, urgent := range []bool{false, true} {
+		got := renderRangeBar(t, RangeBarProps{Value: 9, High: 13, Mark: 30, Max: 90, Urgent: urgent})
+		if has := strings.Contains(got, "goen-chartrangebar--urgent"); has != urgent {
+			t.Errorf("RangeBar(Urgent: %t) = %s, urgent class present = %t", urgent, got, has)
+		}
+	}
+}
+
+func TestRangeBarWithoutALengthDrawsNoReach(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name string
 		p    RangeBarProps
 	}{
-		{"low and high meet", RangeBarProps{Value: 10, Low: 10, High: 10, Mark: 30, Max: 90}},
-		{"the range starts past the scale", RangeBarProps{Value: 90, Low: 95, High: 120, Mark: 30, Max: 90}},
+		{"high is the value", RangeBarProps{Value: 10, High: 10, Mark: 30, Max: 90}},
+		{"the value is at the end of the scale", RangeBarProps{Value: 90, High: 120, Mark: 30, Max: 90}},
 	} {
 		got := renderRangeBar(t, tc.p)
-		if strings.Contains(got, "goen-chartrangebar__range") || strings.Contains(got, "goen-chartrangebar__cap") {
-			t.Errorf("%s: RangeBar(%+v) = %s, want no range", tc.name, tc.p, got)
+		if strings.Contains(got, "goen-chartrangebar__reach") {
+			t.Errorf("%s: RangeBar(%+v) = %s, want no reach", tc.name, tc.p, got)
 		}
 		if !strings.Contains(got, "goen-chartrangebar__mark") {
-			t.Errorf("%s: RangeBar(%+v) = %s, want the line still drawn", tc.name, tc.p, got)
+			t.Errorf("%s: RangeBar(%+v) = %s, want the 30-day line still drawn", tc.name, tc.p, got)
 		}
 	}
 }

@@ -1,21 +1,20 @@
 package chart
 
-// RangeBar is a bar inside a list row with the range its value may lie in drawn
-// under it and a reference line across both. It is hidden from assistive
-// technology: the row's own text carries the value, the range and the line.
+// RangeBar is a bullet graph inside a list row: a track, the value filled from
+// its start, a paler stretch to the farthest it may reach and a short line at
+// the threshold. It is hidden from assistive technology: the row's own text
+// carries the value and the range.
 templ RangeBar(p RangeBarProps) {
-	<div class="goen-chartrangebar" aria-hidden="true">
-		<svg width="100%" height="16" aria-hidden="true" focusable="false">
-			<line class="goen-chartrangebar__track" x1="0" x2="100%" y1="7.5" y2="7.5"></line>
-			if p.Value > 0 {
-				<rect class="goen-chartrangebar__fill" x="0" y="2" width={ p.position(p.Value) } height="6"></rect>
-			}
+	<div class={ "goen-chartrangebar", templ.KV("goen-chartrangebar--urgent", p.Urgent) } aria-hidden="true">
+		<svg width="100%" height="8" aria-hidden="true" focusable="false">
+			<rect class="goen-chartrangebar__track" x="0" y="0" width="100%" height="8"></rect>
 			if p.ranged() {
-				<line class="goen-chartrangebar__range" x1={ p.position(p.Low) } x2={ p.position(p.High) } y1="11.5" y2="11.5"></line>
-				<line class="goen-chartrangebar__cap" x1={ p.position(p.Low) } x2={ p.position(p.Low) } y1="9.5" y2="13.5"></line>
-				<line class="goen-chartrangebar__cap" x1={ p.position(p.High) } x2={ p.position(p.High) } y1="9.5" y2="13.5"></line>
+				<rect class="goen-chartrangebar__reach" x={ p.position(p.Value) } y="0" width={ p.length(p.Value, p.High) } height="8"></rect>
 			}
-			<line class="goen-chartrangebar__mark" x1={ p.position(p.Mark) } x2={ p.position(p.Mark) } y1="0" y2="16"></line>
+			<rect class="goen-chartrangebar__mark" x={ p.position(p.Mark) } y="0" width="2" height="8"></rect>
+			if p.Value > 0 {
+				<rect class="goen-chartrangebar__fill" x="0" y="0" width={ p.position(p.Value) } height="8"></rect>
+			}
 		</svg>
 	</div>
 }
