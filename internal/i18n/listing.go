@@ -45,6 +45,11 @@ var (
 		En:     "Active filters",
 	})
 
+	KeyFiltersSelected = key("listing.filters.selected", Message{
+		ZhHant: "已選 %d 項",
+		En:     "%d selected",
+	})
+
 	KeyPriceRangeChip = key("listing.filters.chip.price.range", Message{
 		ZhHant: "%s–%s",
 		En:     "%s–%s",

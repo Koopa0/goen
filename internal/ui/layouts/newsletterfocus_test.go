@@ -42,3 +42,23 @@ func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
 		t.Error("no field has the id the label points at")
 	}
 }
+
+// The field and its button are one shape: the stylesheet draws the button
+// inside the field's box, which only works while both sit in the one wrapper.
+func TestTheNewsletterButtonSitsInsideTheField(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	if err := layouts.NewsletterForm(layouts.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
+		t.Fatal(err)
+	}
+	_, inside, ok := strings.Cut(b.String(), `<div class="goen-footer__field">`)
+	if !ok {
+		t.Fatalf("the newsletter form has no field wrapper:\n%s", b.String())
+	}
+	inside, _, _ = strings.Cut(inside, `</div>`)
+	for _, id := range []string{`id="newsletter-email"`, `id="newsletter-submit"`} {
+		if !strings.Contains(inside, id) {
+			t.Errorf("%s is outside the field wrapper:\n%s", id, inside)
+		}
+	}
+}

@@ -505,7 +505,6 @@ th {
     outline-offset: -2px;
   }
 
-  .goen-header__drawer .ui-navitem[aria-current='page']:not(:focus-visible),
   .goen-account__navitem[aria-current='page']:not(:focus-visible) {
     outline: 1px solid Highlight;
     outline-offset: -1px;
@@ -621,6 +620,7 @@ th {
 .goen-input:focus-visible,
 .goen-filters .ui-input:focus-visible,
 .goen-filters .ui-select:focus-visible,
+.goen-search-sort .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
   border-color: var(--ink);
@@ -1107,10 +1107,9 @@ th {
 .goen-header__searchicon {
   align-items: center;
   bottom: 0;
-  color: var(--n-500);
+  color: var(--ink-2);
   display: flex;
   left: 0;
-  padding-left: 12px;
   pointer-events: none;
   position: absolute;
   top: 0;
@@ -1121,10 +1120,14 @@ th {
   width: 16px;
 }
 
+/* Page chrome, not a form: the field is its line. The line is the control's
+   boundary (1.4.11, 3.66:1) and focus draws the shared ring around the whole
+   field on top of it. */
 .goen-header .goen-header__field {
   background: none;
   border-radius: 0;
-  padding-left: 40px;
+  border-width: 0 0 1px;
+  padding-left: 1.75rem;
 }
 
 .goen-header__actions {
@@ -1410,8 +1413,11 @@ th {
 }
 
 .goen-header__drawer .ui-navitem[aria-current='page'] {
-  background: var(--accent-faint);
-  color: var(--accent-deep);
+  background: none;
+  color: var(--n-900);
+  font-weight: var(--fw-medium);
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 0.45em;
 }
 
 /* The way out of the drawer, and what the phone's bar has no room for. The
@@ -1480,10 +1486,14 @@ th {
     margin-right: 0;
   }
 
+  .goen-header .goen-header__field {
+    font-size: var(--fs-14);
+  }
+
   .goen-header__search {
     flex: 1 1 8.75rem;
     margin-left: auto;
-    max-width: 22rem;
+    max-width: 15.5rem;
     min-width: 8.75rem;
     order: 0;
   }
@@ -1632,9 +1642,30 @@ th {
   flex: 0 0 100%;
 }
 
-.goen-footer__signup .goen-input {
-  flex: 1 1 8rem;
+/* One shape: the field's own box, with the button set inside it 4px from every
+   edge. The field reserves the button's width, so typed text never runs under
+   it. */
+.goen-footer__field {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
+}
+
+.goen-footer__field > .goen-input {
+  border-radius: var(--r-lg);
+  grid-area: 1 / 1 / 2 / 3;
+  height: 3.25rem;
+  padding-right: 7rem;
+}
+
+.goen-footer__field > .goen-btn {
+  border-radius: var(--r-md);
+  grid-area: 1 / 2;
+  margin: 4px;
+  min-height: 2.75rem;
+  padding-inline: 0.875rem;
+  z-index: 1;
 }
 
 .goen-footer__signup-done {
@@ -1781,6 +1812,17 @@ th {
   color: var(--accent-text-hover);
   text-decoration: underline;
   text-underline-offset: 0.25em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-home__more > span {
+    display: inline-block;
+    transition: transform var(--dur-base) var(--ease-standard);
+  }
+
+  .goen-home__more:hover > span {
+    transform: translateX(3px);
+  }
 }
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
@@ -1950,7 +1992,8 @@ th {
 
 .goen-hero__tabs {
   display: flex;
-  gap: var(--s-6);
+  gap: var(--s-1);
+  margin-inline-start: calc(var(--s-4) * -1);
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -1965,13 +2008,14 @@ th {
 }
 
 .goen-hero__tabs a {
-  border-top: 2px solid var(--n-200);
+  border-radius: var(--r-full);
   color: var(--fg-muted);
   flex: none;
   font-size: var(--t-14);
+  line-height: 1.5rem;
   max-width: 14em;
   overflow: hidden;
-  padding: var(--s-2) 0;
+  padding: var(--s-2) var(--s-4);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1980,9 +2024,19 @@ th {
   color: var(--fg);
 }
 
+/* The current tab is told apart by its weight and its fill, so colour is not
+   the only cue; forced colours drop the fill and draw the edge instead. */
 .goen-hero__tabs a[aria-current="true"] {
-  border-top-color: var(--n-900);
-  color: var(--fg);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+@media (forced-colors: active) {
+  .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 .goen-hero__nav {
@@ -2956,9 +3010,11 @@ input.goen-check {
 }
 
 .goen-listing__filters {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 0 12px;
   min-width: 0;
 }
 
@@ -2981,8 +3037,18 @@ input.goen-check {
 }
 
 .goen-filters__shell {
-  border-bottom: 1px solid var(--n-200);
-  border-top: 1px solid var(--n-200);
+  min-width: 0;
+}
+
+.goen-listing__filters .goen-listing__count {
+  margin-inline-start: auto;
+}
+
+/* An open sheet takes the row; the count goes under it, not beside it. */
+@media (max-width: 63.99rem) {
+  .goen-filters__shell[open] {
+    flex: 1 1 100%;
+  }
 }
 
 .goen-filters__shell-summary {
@@ -2991,7 +3057,7 @@ input.goen-check {
   display: flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
 }
@@ -3052,7 +3118,6 @@ input.goen-check {
 }
 
 .goen-filters__group {
-  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
@@ -3061,10 +3126,16 @@ input.goen-check {
   cursor: pointer;
   display: flex;
   font-size: var(--fs-14);
+  color: var(--ink-2);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
+}
+
+.goen-filters__summary:hover,
+.goen-filters__group[open] > .goen-filters__summary {
+  color: var(--ink);
 }
 
 .goen-filters__summary::-webkit-details-marker {
@@ -3072,6 +3143,7 @@ input.goen-check {
 }
 
 .goen-filters__summary::after {
+  margin-inline-start: auto;
   border-bottom: 2px solid var(--fg-muted);
   border-right: 2px solid var(--fg-muted);
   content: '';
@@ -3120,6 +3192,28 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
 }
 
+/* How many of a group's options are on. Empty when none, and then not drawn;
+   the element stays so a swap has somewhere to put the number. */
+.goen-filters__selected {
+  align-items: center;
+  background: var(--accent-faint);
+  border-radius: var(--r-full);
+  color: var(--accent-deep);
+  display: inline-flex;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  justify-content: center;
+  line-height: 1;
+  min-height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.375rem;
+}
+
+.goen-filters__selected:empty {
+  display: none;
+}
+
 .goen-filters__prices {
   align-items: center;
   display: flex;
@@ -3133,17 +3227,20 @@ input.goen-check {
 }
 
 .goen-filters__field {
+  align-items: center;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+.goen-filters__field > .goen-label {
+  color: var(--fg-muted);
+  font-weight: var(--fw-regular);
 }
 
 /* The price pair and the sort control keep the shared names: the shell probe
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
-.goen-filters .ui-input,
-.goen-filters .ui-select,
-.goen-search-sort .ui-select {
+.goen-filters .ui-input {
   background: var(--bg);
   border: 0;
   border-radius: var(--r-md);
@@ -3159,11 +3256,31 @@ input.goen-check {
   width: 100%;
 }
 
+/* The sort is words and an arrow, not a box. The arrow is its cue (1.4.11,
+   5.70:1 on white) and the target stays 44px tall. */
 .goen-filters .ui-select,
 .goen-search-sort .ui-select {
   appearance: none;
-  background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
-  padding-right: 2.5rem;
+  background: transparent var(--chevron) no-repeat right 0.25rem center;
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  min-width: 0;
+  outline: 0;
+  padding: 0 1.75rem 0 0.25rem;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .goen-filters .ui-select,
+  .goen-search-sort .ui-select {
+    font-size: var(--fs-14);
+  }
 }
 
 .goen-filters__apply {
@@ -3182,26 +3299,21 @@ input.goen-check {
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
-  align-items: flex-end;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 0 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
-}
-
-.goen-search-sort .ui-select {
-  width: auto;
 }
 
 .goen-search-sort .goen-listing__count {
   align-items: center;
   display: flex;
+  margin-inline-end: auto;
   min-height: 44px;
-}
-
-.goen-search-sort .goen-filters__field {
-  min-width: min(100%, 16rem);
+  order: -1;
 }
 
 .goen-search-sort .goen-filters__field > label {
@@ -3438,23 +3550,55 @@ input.goen-check {
   color: var(--n-900);
 }
 
-.goen-pagehead__chip[aria-current='page'] {
-  background: var(--n-0);
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  color: var(--accent-deep);
+/* The department head's sub-categories are words on the tone, each a pill-sized
+   target on hover; only the current one is filled. They do not scroll as a
+   boxed button row: the empty search's shortcuts above keep the box. */
+.goen-listing__head .goen-pagehead__chips {
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+  padding-inline-start: calc(var(--page-gutter) - var(--s-3));
 }
 
-[data-tone='ink'] .goen-pagehead__chip {
-  background: var(--tone-rule);
-  border-color: var(--tone-rule);
+@media (min-width: 48rem) {
+  .goen-listing__head .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: calc(var(--s-3) * -1) 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+.goen-listing__head .goen-pagehead__chip {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  font-size: var(--fs-15);
+  min-height: 2.5rem;
+  padding: 0 var(--s-3);
+}
+
+.goen-listing__head .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.62);
   color: var(--tone-text);
 }
 
-[data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
-  background: var(--tone-text);
-  box-shadow: none;
-  color: var(--n-900);
+.goen-listing__head .goen-pagehead__chip[aria-current='page'] {
+  background: var(--accent-faint);
+  color: var(--accent-deep);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip {
+  color: var(--tone-text);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--on-ink-accent);
 }
 
 .goen-empty__links {
@@ -4030,16 +4174,11 @@ input.goen-check {
      are guarded: where ::details-content does not exist the toolbar stays behind
      its summary, which works. */
   .goen-listing__filters {
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: wrap;
     gap: 8px 24px;
   }
 
   .goen-filters__shell {
-    border: none;
     flex: 1 1 auto;
-    min-width: 0;
   }
 
   @supports selector(details::details-content) {
@@ -4069,7 +4208,7 @@ input.goen-check {
     align-items: center;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px 12px;
+    gap: 8px 24px;
   }
 
   .goen-filters__end {
@@ -4083,15 +4222,12 @@ input.goen-check {
   }
 
   .goen-filters__summary {
-    border: 1px solid var(--n-300);
-    border-radius: var(--r-full);
-    gap: 10px;
-    padding: 0 16px;
+    gap: 6px;
+    padding: 0 4px;
   }
 
-  .goen-filters__summary:hover,
-  .goen-filters__group[open] > .goen-filters__summary {
-    border-color: var(--n-900);
+  .goen-filters__summary::after {
+    margin-inline-start: 0;
   }
 
   .goen-filters__options,
@@ -4107,16 +4243,6 @@ input.goen-check {
     position: absolute;
     top: calc(100% + 6px);
     z-index: 4;
-  }
-
-  .goen-filters__field {
-    align-items: center;
-    flex-direction: row;
-    gap: 8px;
-  }
-
-  .goen-filters__end .ui-select {
-    width: auto;
   }
 
   .goen-filters__end .goen-filters__apply {
