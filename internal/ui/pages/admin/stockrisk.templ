@@ -28,33 +28,38 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 		<ul class="goen-report__rows" role="list">
 			for _, item := range rows {
 				{{ cover := item.Estimate() }}
-				<li class="goen-report__row">
-					<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
-					<span class="goen-admin__meta">{ item.SKU }</span>
-					<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.SellableText()) }</span>
-					<span class="goen-report__num">{ item.SoldText(ctx, days) }</span>
-					if cover.Urgent() {
-						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-							<span aria-hidden="true">▲ </span>
-							{ cover.Figure(ctx) }
+				@ReportRow(item.Name, item.Href(), item.Facts(ctx, days)) {
+					<div class="goen-report__plot">
+						switch cover.State {
+							case CoverSoldOut:
+								<p class="goen-report__state">
+									@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
+										{ cover.Figure(ctx) }
+									}
+									if since := item.SoldOutSince(ctx); since != "" {
+										<span class="goen-report__aside">{ since }</span>
+									}
+								</p>
+							case CoverFewOrders:
+								<p class="goen-report__aside">{ cover.Figure(ctx) }</p>
+							default:
+								<p class="goen-report__state">
+									if cover.Urgent() {
+										<span class="goen-report__figtext goen-report__figtext--warn">
+											<svg class="goen-report__tri" viewBox="0 0 10 10" role="img" aria-label={ cover.Warning(ctx) } focusable="false"><title>{ cover.Warning(ctx) }</title><path d="M5 1 9.5 9h-9z"></path></svg>
+											{ cover.Figure(ctx) }
+										</span>
+									} else {
+										<span class="goen-report__figtext">{ cover.Figure(ctx) }</span>
+									}
+									if rng := cover.Range(ctx); rng != "" {
+										<span class="goen-report__aside">{ rng }</span>
+									}
+								</p>
+								@chart.RangeBar(cover.Bar())
 						}
-					} else {
-						@components.Badge(components.BadgeProps{}) {
-							{ cover.Figure(ctx) }
-						}
-					}
-					if rng := cover.Range(ctx); rng != "" {
-						<span class="goen-report__num">{ rng }</span>
-					}
-					if warning := cover.Warning(ctx); warning != "" {
-						<span class="goen-report__warn">{ warning }</span>
-					}
-					if cover.State == CoverEstimated {
-						<div class="goen-report__bar">
-							@chart.RangeBar(cover.Bar())
-						</div>
-					}
-				</li>
+					</div>
+				}
 			}
 		</ul>
 		if moreSoldOut > 0 {

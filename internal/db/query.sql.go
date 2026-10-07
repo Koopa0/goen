@@ -7260,15 +7260,12 @@ WITH RECURSIVE d AS (
     SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
 )
 SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
-       c.starts_at, c.ends_at,
-       (SELECT count(DISTINCT cd.product_id) FROM campaign_deals cd
-        JOIN products p ON p.id = cd.product_id
-        WHERE cd.campaign_id = c.id AND p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products
+       c.starts_at, c.ends_at
 FROM sale_campaigns c
 WHERE EXISTS (
     SELECT 1 FROM campaign_deals cd
     JOIN products p ON p.id = cd.product_id
-    WHERE cd.campaign_id = c.id AND p.status = 'active' AND p.category_id IN (SELECT id FROM d))
+    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
 ORDER BY c.ends_at, c.id
 LIMIT 1
 `
@@ -7283,11 +7280,10 @@ type DepartmentCampaignRow struct {
 	Title    string
 	StartsAt time.Time
 	EndsAt   time.Time
-	Products int64
 }
 
 // Of the campaigns with a deal on a product of the department, the one that ends
-// first, and how many of the department's products it takes in.
+// first.
 func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
 	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
 	var i DepartmentCampaignRow
@@ -7296,7 +7292,6 @@ func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaign
 		&i.Title,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Products,
 	)
 	return i, err
 }
@@ -7466,37 +7461,6 @@ func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) 
 		return nil, err
 	}
 	return items, nil
-}
-
-const departmentFacts = `-- name: DepartmentFacts :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $1::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT
-    (SELECT count(*) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
-    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
-     WHERE r.slug = $1::text)::bigint AS categories,
-    (SELECT count(DISTINCT p.brand_id) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
-`
-
-type DepartmentFactsRow struct {
-	Products   int64
-	Categories int64
-	Brands     int64
-}
-
-// What a department says about itself under its head: the products it holds across
-// its whole subtree, the sub-categories directly under it, and the brands of those
-// products.
-func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
-	row := q.db.QueryRow(ctx, departmentFacts, slug)
-	var i DepartmentFactsRow
-	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
-	return i, err
 }
 
 const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
@@ -12487,6 +12451,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     localized_name(p.description, p.description_en, $2::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -12513,26 +12478,27 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID                   uuid.UUID
-	Slug                 string
-	Name                 string
-	Summary              string
-	Description          string
-	WarrantyNote         pgtype.Text
-	WarrantyMonths       int32
-	Brand                string
-	BrandSlug            string
-	CategoryID           uuid.UUID
-	CategorySlug         string
-	CategoryName         string
-	CategoryParentID     uuid.NullUUID
-	Origin               string
-	DomesticPartyName    string
-	DomesticPartyPhone   string
-	DomesticPartyAddress string
-	NetQuantity          string
-	NetUnit              string
-	MinAgeMonths         pgtype.Int2
+	ID                    uuid.UUID
+	Slug                  string
+	Name                  string
+	Summary               string
+	Description           string
+	DescriptionTranslated bool
+	WarrantyNote          pgtype.Text
+	WarrantyMonths        int32
+	Brand                 string
+	BrandSlug             string
+	CategoryID            uuid.UUID
+	CategorySlug          string
+	CategoryName          string
+	CategoryParentID      uuid.NullUUID
+	Origin                string
+	DomesticPartyName     string
+	DomesticPartyPhone    string
+	DomesticPartyAddress  string
+	NetQuantity           string
+	NetUnit               string
+	MinAgeMonths          pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -12544,6 +12510,7 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.Name,
 		&i.Summary,
 		&i.Description,
+		&i.DescriptionTranslated,
 		&i.WarrantyNote,
 		&i.WarrantyMonths,
 		&i.Brand,

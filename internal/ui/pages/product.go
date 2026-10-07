@@ -145,13 +145,16 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
-	LabelFacts   *productlabel.Facts
-	Saved        bool
-	Slug         string
-	Name         string
-	Summary      string
-	Description  string
-	WarrantyNote string
+	LabelFacts  *productlabel.Facts
+	Saved       bool
+	Slug        string
+	Name        string
+	Summary     string
+	Description string
+	// DescriptionUntranslated is true when the page is not Chinese and the shop wrote no
+	// description in its language, so Description is the Chinese one.
+	DescriptionUntranslated bool
+	WarrantyNote            string
 	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
 	WarrantyMonths int32
 	Rules          ShopRules
@@ -622,10 +625,7 @@ func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
 func (c ProductCampaign) Source(ctx context.Context) (before, middle, after string) {
 	const title, left = "\x00", "\x01"
 	key := i18n.KeyCampaignPriceDaysLeft
-	switch {
-	case c.End.DaysLeft == 1:
-		key = i18n.KeyCampaignPriceTomorrow
-	case c.End.DaysLeft < 1:
+	if c.End.EndsByTomorrow() {
 		key = i18n.KeyCampaignPriceToday
 	}
 	before, rest, _ := strings.Cut(fmt.Sprintf(i18n.T(ctx, key), title, left, c.End.Day(ctx)), title)

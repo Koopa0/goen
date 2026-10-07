@@ -1,34 +1,25 @@
 package pages
 
-import (
-	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
-)
+import "github.com/koopa0/goen/internal/i18n"
 
-templ departmentFacts(h *DepartmentHead) {
-	@components.StatLine(h.Facts(ctx), components.StatLinePlain)
-}
-
-// One line of words, all of it the link to the campaign: which one runs here, how many of the department's
-// products take part, its last day and what is left.
+// One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
 // Each part wraps whole, a dot stays with the words before it and the arrow with the last words, so a wrapped
 // line never starts on a dot or an arrow.
 templ departmentNotice(n *DepartmentNotice) {
 	{{ before, after := n.End.Until(ctx) }}
 	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
-		<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
-			<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
-			<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>
-			if n.Products > 0 {
-				<span class="goen-deptnotice__count">{ i18n.Count(ctx, i18n.KeyDeptNoticeProducts, n.Products, n.Products) }&nbsp;<span aria-hidden="true">·</span></span>
-			}
-			if n.End.EndsAtClockToday() {
-				<span class="goen-deptnotice__left"><time datetime={ n.End.Datetime() }>{ n.End.Left(ctx) }</time>&nbsp;<span aria-hidden="true">&rarr;</span></span>
-			} else {
-				<span class="goen-deptnotice__until">{ before }<time datetime={ n.End.Datetime() }>{ n.End.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span aria-hidden="true">·</span></span>
-				<span class="goen-deptnotice__left">{ n.End.Left(ctx) }&nbsp;<span aria-hidden="true">&rarr;</span></span>
-			}
-		</a>
+		<div class="goen-deptnotice__in">
+			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
+				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
+				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>
+				if n.End.EndsByTomorrow() {
+					<span class="goen-deptnotice__left"><time datetime={ n.End.Datetime() }>{ n.End.Left(ctx) }</time>&nbsp;<span aria-hidden="true">&rarr;</span></span>
+				} else {
+					<span class="goen-deptnotice__until">{ before }<time datetime={ n.End.Datetime() }>{ n.End.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span aria-hidden="true">·</span></span>
+					<span class="goen-deptnotice__left">{ n.End.Left(ctx) }&nbsp;<span aria-hidden="true">&rarr;</span></span>
+				}
+			</a>
+		</div>
 	</section>
 }
 

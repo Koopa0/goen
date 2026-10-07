@@ -253,7 +253,7 @@ const ADMIN = [
   // now + 1 day) is bracketed with its "until ..." name, which has to fit at 320.
   // .goen-chartrangebar: the same script adds ten paid orders on one SKU with a
   // ledger that starts twenty days back, so its row carries the range bar, the range text
-  // and the warning; without it the rows measured say only that sales are too few.
+  // and the triangle with its text alternative; without it the rows measured say only that sales are too few.
   { label: 'admin reports 320', width: 320, height: 568, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin:has(.goen-report__rows--returned .goen-chartbar):has(.goen-chart)' },
