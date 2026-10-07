@@ -106,6 +106,34 @@ func TestEachParcelDrawsTheRightToCancelFromItsOwnDelivery(t *testing.T) {
 	}
 }
 
+var periodCell = regexp.MustCompile(`<i(?: [^>]*)?>`)
+
+// The seven statutory days are the customer's right and the seven after them
+// goen's offer, so the track marks exactly the offer's cells for the stylesheet
+// to dash, whichever side today falls on.
+func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
+	t.Parallel()
+	for _, delivered := range []int{6, 1} {
+		html := orderPage(t, &OrderView{
+			Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
+			Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(delivered, headphones())},
+		})
+		grids := periods(html)
+		if len(grids) != 1 {
+			t.Fatalf("delivered on the %d: %d grids, want the return window alone", delivered, len(grids))
+		}
+		cells := periodCell.FindAllString(grids[0], -1)
+		if len(cells) != 14 {
+			t.Fatalf("delivered on the %d: %d cells, want 14:\n%s", delivered, len(cells), grids[0])
+		}
+		for i, cell := range cells {
+			if got, want := strings.Contains(cell, `data-span="extra"`), i >= 7; got != want {
+				t.Errorf("delivered on the %d: day %d %s marked as goodwill = %v, want %v", delivered, i+1, cell, got, want)
+			}
+		}
+	}
+}
+
 func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	t.Parallel()
 	waiting := OrderShipment{Carrier: carrier.BlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), Lines: []OrderLine{headphones()}}

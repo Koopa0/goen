@@ -127,10 +127,8 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	}
 }
 
-// A phone hides the end line only where the day grid is its sibling
-// (.goen-deptnotice__in:has(> .ui-period) > .ui-statline), so the end date always
-// shows: on the grid's last label, or on the line when the campaign is too long for
-// a grid.
+// The period's track carries no dates, so the end line is drawn at every width,
+// with or without a track beside it; a campaign too long for one has the line alone.
 func TestACampaignNoticeKeepsItsEndLineWhereThereIsNoGrid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

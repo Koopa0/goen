@@ -116,7 +116,7 @@ func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
 	}
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
-		`ui-statline`, "<dt>開始付款期限</dt>", `<dd><time datetime="2026-10-09T14:31">14:31</time>`, "台灣時間",
+		`ui-statline`, "<dt>送出</dt>", `<dd><time datetime="2026-10-09T14:02">14:02</time>`, "<dt>開始付款期限</dt>", `<dd><time datetime="2026-10-09T14:31">14:31</time>`, "台灣時間",
 		"<dt>庫存保留至</dt>", `<dd><time datetime="2026-10-09T15:02">15:02</time>`,
 		"<dt>應付金額</dt>", `<small class="ui-statline__pre">NT$</small>1,493`,
 		`data-unit="minute"`, `data-mark`, `data-span="extra"`,
@@ -134,6 +134,9 @@ func TestThePayPageStatesTheDeadlineAndTheHold(t *testing.T) {
 	html = renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	if strings.Contains(html, "開始付款期限") || strings.Contains(html, "data-mark") {
 		t.Error("a resumed session still shows a start-paying deadline")
+	}
+	if !strings.Contains(html, "<dt>送出</dt>") {
+		t.Error("a resumed session no longer says when the order was placed")
 	}
 }
 
