@@ -63,6 +63,9 @@ jobs:
           make db-seed
           psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
           sed -E 's/(TOKEN)=.*/\1=<hidden>/' fixtures.env
+          . ./fixtures.env
+          psql "$GOEN_DATABASE_URL" -X -q -v customer_id="$CUSTOMER_ID" -v env=fixtures2.env -f scripts/lines-probe-seed.sql
+          sed -E 's/(TOKEN)=.*/\1=<hidden>/' fixtures2.env
 
       - name: Capture
         run: |
@@ -75,7 +78,7 @@ jobs:
           chrome_pid=$!
           trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
           sleep 3
-          set -a; . ./fixtures.env; set +a
+          set -a; . ./fixtures.env; . ./fixtures2.env; set +a
           status=0
 
           # Each build serves from its own checkout. The pid is the server's own
@@ -101,8 +104,9 @@ jobs:
           }
 
           for which in before after; do
-            echo "::group::pay page at 200% text, $which"
+            echo "::group::review re-shoot, $which"
             serve "$which"
+            CDP_PORT=9333 node scripts/lines-shots.mjs review "shots/$which" "$which" || status=$?
             CDP_PORT=9333 node scripts/lines-shots.mjs pay200 "shots/$which" "$which" || status=$?
             stop
             echo '::endgroup::'

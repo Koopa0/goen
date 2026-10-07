@@ -128,6 +128,29 @@ async function pay200() {
   }
 }
 
+// A page at 320 and 375 with the root at 200%, as the reflow gate sets it: the page's
+// scrollWidth against the viewport, and the elements that pass it.
+async function text200(path, name) {
+  for (const width of [320, 375]) {
+    await media(false);
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: true });
+    await navigate(ORIGIN + path);
+    await evaluate('document.fonts.ready.then(() => 1)', true);
+    await evaluate(`document.documentElement.style.fontSize = '200%'`);
+    await evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300))))', true);
+    const d = await evaluate(DIAG.replace(/const sels = \[[^\]]*\];/, 'const sels = [];'));
+    const h1 = await evaluate(`(document.querySelector('h1') || {}).textContent || ''`);
+    console.log(`MEASURE ${label} text200 ${name}-${width} h1=${JSON.stringify(h1.trim())} innerWidth=${d.innerWidth} scrollWidth=${d.scrollWidth} root=${d.rootFont} over=${d.scrollWidth > d.innerWidth}`);
+    for (const r of d.past) console.log(`MEASURE ${label} text200 ${name}-${width} past ${JSON.stringify(r)}`);
+    if (/404|找不到/.test(h1)) failures.push(`${name}-${width}-text200: landed on a not-found page`);
+    const height = Math.min(CAP, Math.max(await evaluate('Math.ceil(document.documentElement.scrollHeight)'), 400));
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
+    await sleep(400);
+    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${outDir}/${name}-${width}-text200.png`, Buffer.from(data, 'base64'));
+  }
+}
+
 // The viewport grows to the page before the images are awaited, so a lazy image
 // below the fold loads instead of being waited on until the timeout.
 async function shot(path, name, width, { forced = false, notFound = false } = {}) {
@@ -235,6 +258,23 @@ if (mode === 'storefront') {
   if (process.env.CART_TOKEN) await cookie('goen_cart', process.env.CART_TOKEN);
   if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOKEN);
   await pay200();
+} else if (mode === 'review') {
+  // The designer's re-shoot list: a cart of three lines and a sold-out one, a two-parcel order,
+  // cart, checkout and pay at 200% text, forced colours on pay, order and account, and the
+  // back-office overview at 375. CART2_TOKEN and TWO_PARCEL_ORDER come from scripts/lines-probe-seed.sql.
+  await cookie('goen_cart', process.env.CART2_TOKEN);
+  await cookie('goen_placed', process.env.PLACED_TOKEN);
+  await metrics(1440, 900);
+  await capture([['cart-four', '/cart'], ['checkout-four', '/checkout']], [1440, 375]);
+  await text200('/cart', 'cart-four');
+  await text200('/checkout', 'checkout-four');
+  await text200(`/orders/${process.env.PLACED_ORDER}/pay`, 'pay');
+  await capture([['pay', `/orders/${process.env.PLACED_ORDER}/pay`]], [1440], { forced: true });
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  await capture([['order-two-parcels', `/orders/${process.env.TWO_PARCEL_ORDER}`]], [1440, 375]);
+  await capture([['order-two-parcels', `/orders/${process.env.TWO_PARCEL_ORDER}`], ['account', '/account']], [1440], { forced: true });
+  await cookie('goen_session', process.env.ADMIN_TOKEN);
+  await capture([['admin-overview', '/admin']], [375]);
 } else if (mode === 'admin') {
   await cookie('goen_session', process.env.ADMIN_TOKEN);
   await metrics(1440, 900);
