@@ -216,9 +216,9 @@ func TestSignInPrefillIsPrivateAndConsumed(t *testing.T) {
 					t.Fatal(err)
 				}
 				type formState struct {
-					Email                                     string
+					Email                                       string
 					EmailFocus, PasswordFocus, Reauthentication bool
-					RegisterLinks                             int
+					RegisterLinks                               int
 				}
 				var state formState
 				for node := range doc.Descendants() {

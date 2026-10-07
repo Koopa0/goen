@@ -199,8 +199,11 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 		return response
 	}, guestCookie)
 	faults := statements.takeErrors()
-	var lockFault *pgconn.PgError
-	if len(faults) != 1 || !errors.As(faults[0], &lockFault) || lockFault.Code != "55P03" || ctx.Err() != nil {
+	if len(faults) != 1 {
+		t.Fatalf("adoption faults=%v, want one actual lock failure", faults)
+	}
+	lockFault, ok := errors.AsType[*pgconn.PgError](faults[0])
+	if !ok || lockFault.Code != "55P03" || ctx.Err() != nil {
 		t.Fatalf("adoption fault=%v parent=%v, want one SQLSTATE 55P03 with live request", faults, ctx.Err())
 	}
 	const welcome = "/account?next=%2Fcheckout&welcome=1"
@@ -232,7 +235,7 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	request.AddCookie(guestCookie)
 	page := httptest.NewRecorder()
 	h.Authenticate(http.HandlerFunc(h.CartRecoveryPage)).ServeHTTP(page, request)
-	for _, key := range []string{i18n.KeyAccountWelcome, i18n.KeyCartMergeFailed, i18n.KeyCartMergeRetry} {
+	for _, key := range []i18n.Key{i18n.KeyAccountWelcome, i18n.KeyCartMergeFailed, i18n.KeyCartMergeRetry} {
 		if !strings.Contains(page.Body.String(), html.EscapeString(i18n.T(ctx, key))) {
 			t.Errorf("registration cart recovery omits %s", key)
 		}
