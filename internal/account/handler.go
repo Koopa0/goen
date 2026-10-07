@@ -858,7 +858,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
 		}
 		h.forgetSession(w, r)
-		h.writeSignInContext(w, signInAfterReset, u.Email)
+		h.writeSignInContext(w, signInBeforeErasure, u.Email)
 		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
@@ -1128,11 +1128,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		clearPendingRegistration(w, h.secure)
-		landing := registrationLanding(next, adoption)
-		if landing != "" {
-			landing = cartAdoptionLanding(next, adoption)
-		}
-		http.Redirect(w, r, landing, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 	case errors.Is(err, ErrBadCredentials):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
 			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{
