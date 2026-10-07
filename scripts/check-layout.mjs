@@ -901,10 +901,10 @@ for (const want of EXPECTED) {
 // reads as the share of the span. Elapsed stays apart from to come: by colour,
 // and in forced colours, where the colours are the system's, by thickness. The
 // span after a mark (the return window's goodwill days) is drawn apart from the
-// days before it: dashes under a transparent border, or a dashed border in
-// forced colours. A dashed cell and today's half-filled one draw their line as
-// a gradient. A label a track draws lies inside it and the viewport and
-// overlaps no other. A route with no period drawn fails, because a track that
+// days before it: dashes under a transparent border, in forced colours too,
+// where a dashed border paints solid on a short cell. A dashed cell and today's
+// half-filled one draw their line as a gradient. A label a track draws lies
+// inside it and the viewport and overlaps no other. A route with no period drawn fails, because a track that
 // is not drawn cannot be measured and the check would pass on nothing.
 const PERIOD_PROBE = `(() => {
   const vw = document.documentElement.clientWidth;
@@ -967,7 +967,7 @@ const PERIOD_PROBE = `(() => {
       if (!c.extra) return;
       extras++;
       const before = cells.find((d) => !d.extra && !d.today && d.filled === c.filled);
-      const dashed = forced ? c.style === 'dashed' : clear(c.colour) && /gradient/.test(c.image);
+      const dashed = clear(c.colour) && /gradient/.test(c.image);
       if (!dashed || (before && drawn(before) === drawn(c))) {
         problems.push(at + ' cell ' + i + ' after the mark is drawn like the days before it (' + drawn(c) + ')');
       }
