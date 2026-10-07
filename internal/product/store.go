@@ -79,12 +79,13 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 
 	view := pages.ProductView{
-		Rules:        rules,
-		Slug:         p.Slug,
-		Name:         p.Name,
-		Summary:      p.Summary,
-		Description:  p.Description,
-		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		Rules:                   rules,
+		Slug:                    p.Slug,
+		Name:                    p.Name,
+		Summary:                 p.Summary,
+		Description:             p.Description,
+		DescriptionUntranslated: i18n.FromContext(ctx) != i18n.ZhHant && !p.DescriptionTranslated,
+		WarrantyNote:            p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
 		Brand:        p.Brand,
 		CategorySlug: p.CategorySlug,
 		CategoryName: p.CategoryName,
