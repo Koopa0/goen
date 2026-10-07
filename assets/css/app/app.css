@@ -5815,13 +5815,6 @@ input.goen-check {
   padding-top: 1rem;
 }
 
-/* With nothing above it there is nothing for it to total. */
-.goen-summary__row--total:first-child {
-  border-top: 0;
-  margin-top: 0;
-  padding-top: 0;
-}
-
 .goen-summary__row--total .goen-summary__value {
   font-size: 1.625rem;
   font-weight: var(--fw-display);
