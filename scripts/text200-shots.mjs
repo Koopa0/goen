@@ -243,6 +243,11 @@ async function justAdded(name, width, height, big) {
   await save(`${name}.png`);
 }
 
+const withSession = async (fn) => {
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  try { await fn(); } finally { await send('Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' }); }
+};
+
 const mixedCart = async (fn) => {
   if (!process.env.MIXED_CART_TOKEN) throw new Error('no mixed cart');
   await cookie('goen_cart', process.env.MIXED_CART_TOKEN);
@@ -286,6 +291,11 @@ const states = (lang) => [
   () => mixedCart(() => shot('/cart', `${lang}-mixedcart-200-375`, 375, true)),
   () => mixedCart(() => viewport('/cart', `${lang}-mixedcart-view200-375`, 375, 667, true)),
   () => mixedCart(() => tabWalk('/cart', `${lang}-tab200-mixedcart-375`, 375, 667, true, 40)),
+  () => mixedCart(() => shot('/cart', `${lang}-mixedcart-normal-1440`, 1440, false)),
+  () => shot(`/orders/${process.env.PLACED_ORDER}/pay`, `${lang}-pay-normal-375`, 375, false),
+  () => shot(`/orders/${process.env.PLACED_ORDER}/pay`, `${lang}-pay-200-375`, 375, true),
+  () => withSession(() => shot(`/orders/${process.env.RETURN_FORM_ORDER}`, `${lang}-order-normal-375`, 375, false)),
+  () => withSession(() => shot(`/orders/${process.env.RETURN_FORM_ORDER}`, `${lang}-order-200-375`, 375, true)),
   () => shot('/checkout', `${lang}-checkout-200-375`, 375, true),
   () => shot(PRODUCT, `${lang}-product-200-375`, 375, true),
   () => shot(PRODUCT, `${lang}-product-normal-375`, 375, false),
