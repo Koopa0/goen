@@ -3411,9 +3411,10 @@ input.goen-check {
 
 .goen-filters__applied {
   align-items: center;
+  column-gap: 4px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  row-gap: 8px;
 }
 
 .goen-filters__applied-label {
