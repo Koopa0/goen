@@ -193,7 +193,7 @@ await send('Emulation.setScrollbarsHidden', { hidden: true });
 await send('Network.enable');
 await send('Network.clearBrowserCookies');
 
-const widths = [320, 375, 768, 1024, 1280, 1440];
+const widths = [320, 375, 640, 768, 1023, 1024, 1280, 1440];
 const run = async (job) => { try { await state(job); } catch (e) { failures.push(`${job.file}: ${e.message}`); } };
 
 for (const locale of ['zh-Hant', 'en']) {
@@ -202,7 +202,7 @@ for (const locale of ['zh-Hant', 'en']) {
     const r = staff ? 'staff' : 'shopper';
     for (const width of widths) await run({ file: `header-${width}-${l}-${r}`, width, locale, staff });
     for (const width of [320, 1280]) {
-      for (const count of [0, 12, 100]) await run({ file: `header-${width}-${l}-${r}-count${count}`, width, locale, staff, count });
+      for (const count of [0, 12, 100, 12345, 123456]) await run({ file: `header-${width}-${l}-${r}-count${count}`, width, locale, staff, count });
     }
     for (const width of [375, 1280]) await run({ file: `header-${width}-${l}-${r}-forced`, width, locale, staff, count: 12, forced: true });
     for (const width of widths) await run({ file: `header-${width}-${l}-${r}-200pct`, width, locale, staff, count: 12, big: true });
@@ -228,6 +228,34 @@ for (const locale of ['zh-Hant', 'en']) {
     await crop(`drawer-375-${locale === 'en' ? 'en' : 'zh'}.png`, { x: 0, y: 0, width: 375, height: 520, scale: 1 });
     console.log('MEASURE drawer ' + locale + ' ' + await evaluate(`JSON.stringify([...document.querySelectorAll('.goen-header__drawer .ui-navitem[aria-current="page"]')].map((a) => ({ link: a.getBoundingClientRect().width.toFixed(1), name: (a.querySelector('.goen-header__navname') || a).getBoundingClientRect().width.toFixed(1), count: (a.querySelector('small') || {textContent: ''}).textContent })))`));
   } catch (e) { failures.push(`drawer ${locale}: ${e.message}`); }
+}
+
+// The heart on the product page and the wishlist, unsaved then saved, signed in as a customer.
+for (const width of [1440, 375]) {
+  try {
+    await cookie('goen_locale', 'zh-Hant');
+    await cookie('goen_session', process.env.CUST_TOKEN);
+    await metrics(width, 900);
+    await navigate(ORIGIN + '/p/meridian-watch-c1');
+    const wish = `document.querySelector('form[action="/account/wishlist"]')`;
+    for (const phase of ['unsaved', 'saved']) {
+      if (phase === 'saved') {
+        await evaluate(`${wish}.requestSubmit()`);
+        await sleep(1500);
+        await navigate(ORIGIN + '/p/meridian-watch-c1');
+      }
+      await evaluate(`${wish}.scrollIntoView({ block: 'center' })`);
+      await sleep(300);
+      const box = await evaluate(`(() => { const r = ${wish}.getBoundingClientRect(); return { x: Math.max(0, r.x - 20), y: scrollY + r.y - 20, width: Math.min(innerWidth, r.width + 40), height: r.height + 40 }; })()`);
+      console.log(`MEASURE heart-${width}-${phase} ${JSON.stringify(box)} pressed=${await evaluate(`${wish}.querySelector('button').getAttribute('aria-pressed')`)}`);
+      await crop(`pdp-heart-${width}-${phase}.png`, { ...box, scale: 1 });
+    }
+    await metrics(width, 900);
+    await navigate(ORIGIN + '/account/wishlist');
+    await sleep(400);
+    await crop(`wishlist-${width}.png`, { x: 0, y: 0, width, height: 700, scale: 1 });
+    await send('Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  } catch (e) { failures.push(`heart ${width}: ${e.message}`); }
 }
 
 // The buy button and the buy bar with the bag.
