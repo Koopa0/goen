@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// The shop's list, its count and the back office's reason each spell "has
-// something to buy" in their own SQL; the same fixtures must satisfy all three.
+// The shop's list, its count and the back office's reason must agree on which
+// campaign has something to buy.
 func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	shop := catalog.NewStore(pool)
@@ -27,12 +27,14 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 		stock    int
 		safety   int
 		inactive bool
+		plain    bool // an active full-price variant in stock beside the discounted one
 		want     bool
 	}{
-		{"sellable", "active", 6, 5, false, true},
-		{"at safety stock", "active", 5, 5, false, false},
-		{"unpublished", "draft", 6, 5, false, false},
-		{"only an inactive variant in stock", "active", 0, 0, true, false},
+		{"sellable", "active", 6, 5, false, false, true},
+		{"at safety stock", "active", 5, 5, false, false, false},
+		{"unpublished", "draft", 6, 5, false, false, false},
+		{"only an inactive variant in stock", "active", 0, 0, true, false, false},
+		{"only full-price stock", "active", 0, 0, false, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -64,6 +66,13 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 					INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, is_active, position)
 					SELECT id, upper(replace($1, '-', '')) || 'B', 1000, 10, 0, false, 1 FROM products WHERE slug = $1`, product); execErr != nil {
 					t.Fatalf("create inactive variant: %v", execErr)
+				}
+			}
+			if tt.plain {
+				if _, execErr := pool.Exec(ctx, `
+					INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, is_active, position)
+					SELECT id, upper(replace($1, '-', '')) || 'C', 1000, 10, 0, true, 2 FROM products WHERE slug = $1`, product); execErr != nil {
+					t.Fatalf("create full-price variant: %v", execErr)
 				}
 			}
 			if _, execErr := pool.Exec(ctx, `
