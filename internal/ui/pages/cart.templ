@@ -116,9 +116,13 @@ templ Cart(p layouts.Page, v CartView) {
 									aria-disabled="true"
 									if v.NoDelivery && v.StockNotice(ctx) != "" {
 										aria-describedby="cart-alert cart-delivery-unavailable"
-									} else if v.NoDelivery {
+									}
+									else
+									if v.NoDelivery {
 										aria-describedby="cart-delivery-unavailable"
-									} else if v.StockNotice(ctx) != "" {
+									}
+									else
+									if v.StockNotice(ctx) != "" {
 										aria-describedby="cart-alert"
 									}
 								>
