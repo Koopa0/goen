@@ -286,8 +286,11 @@ await media([]);
 await run({ name: 'six', width: 1440, locale: 'en' });
 await run({ name: 'six', width: 1024, locale: 'zh-Hant' });
 for (const width of [320]) await run({ name: 'six', width, locale: 'zh-Hant', text: 200 });
-const only = process.env.ONLY_FACT_SHOTS;
-if (only) { list(6); ws.close(); console.log('all shots captured'); process.exit(failures.length ? 1 : 0); }
+list(6);
+ws.close();
+if (failures.length) { console.log(failures.join('\n')); process.exit(1); }
+console.log('all shots captured');
+process.exit(0);
 
 // Counts of departments, Chinese; the band is whichever department the day
 // selects, so these show the page order and the directory around it.
