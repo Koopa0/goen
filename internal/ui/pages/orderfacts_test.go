@@ -295,15 +295,15 @@ func TestTheHeadFactsOfAnOrderWithOneDeliveredParcel(t *testing.T) {
 	}
 }
 
-func TestDaysLeftAgreeInEnglish(t *testing.T) {
+func TestDaysLeftIsABareFigureInEnglish(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
 		day  int
 		want string
 	}{
-		{"one day", 12, "1 <small>day</small>"},
-		{"two days", 11, "2 <small>days</small>"},
+		{"one day", 12, "<dt>Days left</dt><dd>1</dd>"},
+		{"two days", 11, "<dt>Days left</dt><dd>2</dd>"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

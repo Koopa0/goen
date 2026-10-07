@@ -171,7 +171,7 @@ func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
 			newZone   bool
 			refused   bool
 		}{
-			{name: "stored island zone", raw: islands, districts: islandDistricts, rows: "18"},
+			{name: "stored island zone", raw: islands, districts: islandDistricts, rows: "3"},
 			{name: "refused existing zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", draft: true, refused: true},
 			{name: "cleared existing zone", rows: "3", draft: true},
 			{name: "refused new zone", raw: "\n209,\n880;999 <bad>\n300\t", districts: []string{"209 連江縣南竿鄉", "880 澎湖縣馬公市", "999", "<bad>", "300 新竹市北區 新竹市東區 新竹市香山區"}, rows: "5", newZone: true, refused: true},
@@ -206,7 +206,7 @@ func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
 					t.Fatalf("prefix editors = %d, want two zones and the new-zone form", len(forms))
 				}
 				wanted := map[string]shippingPrefixControl{
-					"pre-islands":   {Element: "textarea", Raw: islands, Rows: "18", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
+					"pre-islands":   {Element: "textarea", Raw: islands, Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/islands/prefixes", FullWidth: true, VisibleLabel: true, Districts: islandDistricts},
 					"pre-neighbour": {Element: "textarea", Raw: "100", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone/neighbour/prefixes", FullWidth: true, VisibleLabel: true, Districts: []string{"100 臺北市中正區"}},
 					"z-prefixes":    {Element: "textarea", Rows: "3", Class: "ui-textarea goen-input--area", Method: "post", FormClass: "goen-admin__form", Action: "/admin/shipping/zone", FullWidth: true, VisibleLabel: true, Required: true},
 				}
