@@ -407,7 +407,7 @@ func Staff(p layouts.Page, v StaffView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
+							ButtonStyle: components.ButtonStyleDanger,
 							Size:        components.SizeSmall,
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -459,7 +459,7 @@ func Staff(p layouts.Page, v StaffView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+						ButtonStyle: components.ButtonStyleDanger,
 						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {

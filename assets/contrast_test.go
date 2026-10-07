@@ -91,6 +91,27 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
+	// The labels of the filled and the soft button, and text and links on a
+	// blue tint: a current item, a badge, an information notice.
+	for _, pair := range []struct{ ink, ground string }{
+		{ink: "--on-accent", ground: "--accent"},
+		{ink: "--on-accent", ground: "--accent-deep"},
+		{ink: "--accent-deep", ground: "--accent-faint"},
+		{ink: "--accent-deep", ground: "--accent-muted"},
+		{ink: "--accent", ground: "--accent-faint"},
+		{ink: "--error", ground: "--error-bg"},
+		{ink: "--error", ground: "--error-bg-hover"},
+		{ink: "--n-900", ground: "--on-ink-accent"},
+	} {
+		if tokens[pair.ink] == "" || tokens[pair.ground] == "" {
+			t.Fatalf("no stylesheet declares a hex value for %s or %s", pair.ink, pair.ground)
+		}
+		if got := contrast(tokens[pair.ink], tokens[pair.ground]); got < 4.5 {
+			t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
+				pair.ink, tokens[pair.ink], pair.ground, tokens[pair.ground], got)
+		}
+	}
+
 	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
 	if tokens["--chart-hue"] == "" {
 		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
@@ -194,7 +215,8 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 			}
 		}
 		ground := decl["--tone-ground"]
-		for _, prop := range []string{"--tone-text", "--tone-muted"} {
+		// The mark is also the colour of a link on the tone ("see all").
+		for _, prop := range []string{"--tone-text", "--tone-muted", "--tone-mark"} {
 			if got := contrast(decl[prop], ground); got < 4.5 {
 				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
 					prop, decl[prop], name, ground, got)
@@ -225,11 +247,9 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 				}
 			}
 		}
-		for _, prop := range []string{"--tone-edge", "--tone-mark"} {
-			if got := contrast(decl[prop], ground); got < 3 {
-				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
-					prop, decl[prop], name, ground, got)
-			}
+		if got := contrast(decl["--tone-edge"], ground); got < 3 {
+			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
+				decl["--tone-edge"], name, ground, got)
 		}
 		if name == "ink" {
 			continue
@@ -336,21 +356,24 @@ func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
 // A focus outline that names its own colour skips the re-pointed --ring and
 // can land on a ground it does not read on. Only "none" (the ring is drawn on
 // another element), "transparent" (the field draws its own border) and the
-// error colour on an invalid field are allowed.
+// error colour on an invalid field are allowed. A rule for
+// :not(:focus-visible) is not a focus rule.
 func TestEveryFocusOutlineColourIsTheRing(t *testing.T) {
 	t.Parallel()
 
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	rule := regexp.MustCompile(`([^{}]*:focus-visible[^{}]*)\{([^{}]*)\}`)
+	rule := regexp.MustCompile(`([^{}]*[^(]:focus-visible[^{}]*)\{([^{}]*)\}`)
 	outline := regexp.MustCompile(`outline(?:-color)?:\s*([^;]+);`)
 	allowed := regexp.MustCompile(`^(?:none|transparent|var\(--error\)|2px solid var\(--ring\)|var\(--ring\))$`)
-	for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
-		for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
-			if !allowed.MatchString(strings.TrimSpace(o[1])) {
-				t.Errorf("%s draws its focus outline as %q, want var(--ring)", strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+	for _, name := range []string{AppCSS, AdminCSS} {
+		sheet, err := fs.ReadFile(files, name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, r := range rule.FindAllStringSubmatch(string(sheet), -1) {
+			for _, o := range outline.FindAllStringSubmatch(r[2], -1) {
+				if !allowed.MatchString(strings.TrimSpace(o[1])) {
+					t.Errorf("%s: %s draws its focus outline as %q, want var(--ring)", name, strings.TrimSpace(r[1]), strings.TrimSpace(o[1]))
+				}
 			}
 		}
 	}
