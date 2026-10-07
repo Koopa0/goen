@@ -113,23 +113,34 @@ func (p MeterProps) width() string {
 	return strconv.FormatFloat(w, 'f', 2, 64) + "%"
 }
 
-// RangeBarProps is one value, the range it may lie in and a reference line,
-// all numbers on the scale 0 to Max that the page chose and every row shares.
-// Values beyond Max are drawn at its end.
+// RangeBarProps is one value and the farthest it may reach, with a line drawn
+// at Mark, all numbers on the scale 0 to Max that the page chose
+// and every row shares. Values beyond Max are drawn at its end. Urgent colours
+// the value as a warning; the row's own text says so too, and gives the nearer
+// end of the range, which is not drawn.
 type RangeBarProps struct {
-	Value, Low, High, Mark, Max int64
+	Value, High, Mark, Max int64
+	Urgent                 bool
 }
 
 // position is v as a percentage of the track, held within it.
 func (p RangeBarProps) position(v int64) string {
-	pct := 0.0
-	if p.Max > 0 {
-		pct = float64(min(max(v, 0), p.Max)) / float64(p.Max) * 100
-	}
-	return strconv.FormatFloat(pct, 'f', 2, 64) + "%"
+	return strconv.FormatFloat(p.percent(v), 'f', 2, 64) + "%"
 }
 
-// ranged reports whether the range has any length on the scale.
+func (p RangeBarProps) percent(v int64) float64 {
+	if p.Max <= 0 {
+		return 0
+	}
+	return float64(min(max(v, 0), p.Max)) / float64(p.Max) * 100
+}
+
+// length is the stretch of the track from one value to another.
+func (p RangeBarProps) length(from, to int64) string {
+	return strconv.FormatFloat(p.percent(to)-p.percent(from), 'f', 2, 64) + "%"
+}
+
+// ranged reports whether the range reaches past the value on the scale.
 func (p RangeBarProps) ranged() bool {
-	return p.Max > 0 && min(p.High, p.Max) > max(p.Low, 0)
+	return p.Max > 0 && min(p.High, p.Max) > min(max(p.Value, 0), p.Max)
 }

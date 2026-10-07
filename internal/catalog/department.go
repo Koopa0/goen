@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -52,12 +51,7 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.Depar
 	if err != nil {
 		return nil, fmt.Errorf("read campaign of %q: %w", slug, err)
 	}
-	now := s.now()
-	notice := &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, Ends: pages.CampaignEndStat(ctx, c.EndsAt, now)}
-	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, now); ok {
-		notice.Period = &period
-	}
-	return notice, nil
+	return &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: pages.NewCampaignEnd(c.EndsAt, s.now())}, nil
 }
 
 // comparePreview tries the categories holding the most comparable products, each with its
