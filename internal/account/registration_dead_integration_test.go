@@ -160,8 +160,12 @@ func TestRegistrationRecoveryFormResendsWithoutAPendingCookie(t *testing.T) {
 				mux.ServeHTTP(completed, cartForm(ctx, "/register/complete", url.Values{
 					"token": {fresh}, "password": {cartOwnerPassword}, "next": {next},
 				}))
-				if completed.Code != http.StatusSeeOther || completed.Header().Get("Location") != tt.wantNext {
-					t.Fatalf("the resent link = %d %q, want 303 %s", completed.Code, completed.Header().Get("Location"), tt.wantNext)
+				wantLanding := "/account?welcome=1"
+				if tt.wantNext != "/account" {
+					wantLanding = "/account?" + url.Values{"welcome": {"1"}, "next": {tt.wantNext}}.Encode()
+				}
+				if completed.Code != http.StatusSeeOther || completed.Header().Get("Location") != wantLanding {
+					t.Fatalf("the resent link = %d %q, want 303 %s", completed.Code, completed.Header().Get("Location"), wantLanding)
 				}
 				sessionCookie(t, completed)
 			})

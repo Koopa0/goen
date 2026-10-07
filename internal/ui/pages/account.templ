@@ -14,6 +14,17 @@ templ SignIn(p layouts.Page, v AuthView) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
+				if v.ReturnMessage != "" {
+					<p class="goen-auth__alt">{ v.ReturnMessage }</p>
+				}
+				if v.HasErr("oauth") {
+					<p class="goen-notice goen-notice--danger" id="signin-google-error" role="alert">
+						{ v.Err("oauth") }
+						if v.Recovery != SignInNoRecovery {
+							<a href={ templ.SafeURL(v.Recovery.Href()) }>{ v.Recovery.Label(ctx) }</a>
+						}
+					</p>
+				}
 				if v.HasNotice() {
 					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 						{ v.Notice }
@@ -28,20 +39,21 @@ templ SignIn(p layouts.Page, v AuthView) {
 				}
 				<form class="goen-auth__form" method="post" action="/signin">
 					<input type="hidden" name="next" value={ v.Next }/>
+					if v.HideRegister {
+						<input type="hidden" name="reauth" value="erase"/>
+					}
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "email"}) {
 							{ i18n.T(ctx, i18n.KeyFieldEmail) }
 						}
 						@components.Input(components.FieldProps{
-							ID:        "email",
-							Name:      "email",
-							Type:      "email",
-							Value:     v.Email,
-							Invalid:   v.HasErr("form"),
-							Describes: "signin-error",
+							ID:    "email",
+							Name:  "email",
+							Type:  "email",
+							Value: v.Email,
 							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
-								"autofocus":    true,
+								"autofocus":    !v.PasswordFocus,
 								"required":     true,
 							}),
 						})
@@ -61,6 +73,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 							Describes: "signin-error",
 							Attrs: templ.Attributes{
 								"autocomplete": "current-password",
+								"autofocus":    v.PasswordFocus,
 								"required":     true,
 							},
 						})
@@ -80,10 +93,12 @@ templ SignIn(p layouts.Page, v AuthView) {
 						{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
 					}
 				}
-				<p class="goen-auth__alt">
-					{ i18n.T(ctx, i18n.KeyNoAccountYet) }
-					<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
-				</p>
+				if !v.HideRegister {
+					<p class="goen-auth__alt">
+						{ i18n.T(ctx, i18n.KeyNoAccountYet) }
+						<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
+					</p>
+				}
 			</div>
 		</div>
 	}
@@ -310,6 +325,11 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	@layouts.Base(p) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
+			if v.Welcome {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
+					{ i18n.T(ctx, i18n.KeyAccountWelcome) }
+				}
+			}
 			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
 				{ v.Notice }
 			}
@@ -353,6 +373,16 @@ templ Account(p layouts.Page, v *AccountView) {
 			if v.HasNotice() {
 				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "account-notice"}) {
 					{ v.Notice }
+				}
+			}
+			if v.CartAdjusted {
+				@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+					{ i18n.T(ctx, i18n.KeyCartQuantityAdjusted) }
+				}
+			}
+			if v.ReturnAfterWelcome != "" {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.ReturnAfterWelcome)) {
+					{ i18n.T(ctx, i18n.KeyWelcomeReturn) }
 				}
 			}
 			<div class="goen-account__layout">

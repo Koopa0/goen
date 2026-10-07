@@ -32,7 +32,7 @@ func TestResetMailDeliverySkipsObsoleteTokens(t *testing.T) {
 			case "expired":
 				expireResetMailToken(t, first)
 			case "spent":
-				if err := f.accounts.CompleteReset(t.Context(), first.Payload.Token, "a newly chosen long password"); err != nil {
+				if _, err := f.accounts.CompleteReset(t.Context(), first.Payload.Token, "a newly chosen long password"); err != nil {
 					t.Fatalf("CompleteReset = %v", err)
 				}
 			case "superseded":
@@ -273,7 +273,7 @@ func assertWorkingResetMail(t *testing.T, f *resetDeliveryFixture, m queuedReset
 	if !strings.Contains(got[0].Body, "https://goen.test/reset?token="+m.Payload.Token) {
 		t.Fatal("the delivered reset mail does not carry the current token")
 	}
-	if err := f.accounts.CompleteReset(t.Context(), m.Payload.Token, "another newly chosen long password"); err != nil {
+	if _, err := f.accounts.CompleteReset(t.Context(), m.Payload.Token, "another newly chosen long password"); err != nil {
 		t.Fatalf("the delivered link cannot complete a password reset: %v", err)
 	}
 }

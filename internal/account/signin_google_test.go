@@ -1,9 +1,11 @@
 package account
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,6 +14,46 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 )
+
+func TestSignInProductReturnDoesNotClaimTheHeartWasSaved(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		want := "To save it, press"
+		if locale == i18n.ZhHant {
+			want = "\u82e5\u8981\u52a0\u5165\u9858\u671b\u6e05\u55ae\uff0c\u8acb\u518d\u6309"
+		}
+		if got := signInReturnMessage(ctx, "/p/a-product?option=one"); !strings.Contains(got, want) || !strings.Contains(got, i18n.T(ctx, i18n.KeyWishlistAdd)) {
+			t.Errorf("product return omits the explicit wishlist action: %q", got)
+		}
+		if got := signInReturnMessage(ctx, "https://elsewhere.invalid/private-token"); got != "" {
+			t.Errorf("unsafe return exposes context: %q", got)
+		}
+	}
+}
+
+func TestSignInContextRejectsMalformedOrUnrelatedSuggestions(t *testing.T) {
+	h := rateLimitedAccountHandler(deadAccountStore(t))
+	for _, value := range []string{"reset:not-base64!", "other:" + base64.RawURLEncoding.EncodeToString([]byte("suggested@example.com")), "reset:" + base64.RawURLEncoding.EncodeToString([]byte("not an address")), strings.Repeat("a", 513)} {
+		request := httptest.NewRequest(http.MethodGet, "/signin?reset=1", http.NoBody)
+		request.AddCookie(&http.Cookie{Name: h.signInContextCookie(), Value: value}) //nolint:gosec // G124: an untrusted request cookie.
+		response := httptest.NewRecorder()
+		if purpose, address := h.takeSignInContext(response, request); purpose != "" || address != "" {
+			t.Errorf("malformed suggestion accepted: purpose=%q address=%q", purpose, address)
+		}
+		if cookies := response.Result().Cookies(); len(cookies) != 1 || cookies[0].MaxAge != -1 {
+			t.Errorf("malformed suggestion was not consumed: %v", cookies)
+		}
+	}
+	written := httptest.NewRecorder()
+	h.writeSignInContext(written, signInBeforeErasure, "suggested@example.com")
+	request := httptest.NewRequest(http.MethodGet, "/signin?reset=1", http.NoBody)
+	request.AddCookie(written.Result().Cookies()[0])
+	response := httptest.NewRecorder()
+	h.SignInPage(response, request)
+	if strings.Contains(response.Body.String(), "suggested@example.com") {
+		t.Error("reset sign-in accepted an erasure suggestion")
+	}
+}
 
 func TestARefusedSignInKeepsTheConfiguredWaysIn(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -63,10 +105,10 @@ func TestSignInFeedbackSelectsTheRelevantFields(t *testing.T) {
 					t.Fatal(err)
 				}
 				type feedback struct {
-					Status                           int
-					EmailInvalid, PasswordInvalid   bool
-					GoogleAlerts                    int
-					Recovery                        []string
+					Status                        int
+					EmailInvalid, PasswordInvalid bool
+					GoogleAlerts                  int
+					Recovery                      []string
 				}
 				got := feedback{Status: res.Code}
 				for node := range doc.Descendants() {
@@ -130,5 +172,92 @@ func TestSignInExplainsTheWishlistReturn(t *testing.T) {
 				t.Errorf("sign-in omits return context %q", want)
 			}
 		})
+	}
+}
+
+func TestSignInPrefillIsPrivateAndConsumed(t *testing.T) {
+	for _, purpose := range []signInPurpose{signInAfterReset, signInBeforeErasure} {
+		for _, secure := range []bool{false, true} {
+			t.Run(string(purpose)+"/"+strconv.FormatBool(secure), func(t *testing.T) {
+				h := rateLimitedAccountHandler(deadAccountStore(t))
+				h.secure = secure
+				const address = "private-prefill@example.com"
+				written := httptest.NewRecorder()
+				h.writeSignInContext(written, purpose, address)
+				cookies := written.Result().Cookies()
+				if len(cookies) != 1 {
+					t.Fatalf("prefill cookies = %d, want 1", len(cookies))
+				}
+				type cookiePolicy struct {
+					Name             string
+					MaxAge           int
+					HTTPOnly, Secure bool
+					SameSite         http.SameSite
+				}
+				got := cookiePolicy{cookies[0].Name, cookies[0].MaxAge, cookies[0].HttpOnly, cookies[0].Secure, cookies[0].SameSite}
+				name := "goen_signin_context"
+				if secure {
+					name = "__Host-goen_signin_context"
+				}
+				want := cookiePolicy{Name: name, MaxAge: 120, HTTPOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("private prefill cookie (-want +got):\n%s", diff)
+				}
+				target := "/signin?reset=1"
+				if purpose == signInBeforeErasure {
+					target = "/signin?next=%2Faccount&reauth=erase"
+				}
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+				request.AddCookie(cookies[0])
+				page := httptest.NewRecorder()
+				h.SignInPage(page, request)
+				doc, err := html.Parse(strings.NewReader(page.Body.String()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				type formState struct {
+					Email                                     string
+					EmailFocus, PasswordFocus, Reauthentication bool
+					RegisterLinks                             int
+				}
+				var state formState
+				for node := range doc.Descendants() {
+					attrs := map[string]string{}
+					for _, a := range node.Attr {
+						attrs[a.Key] = a.Val
+					}
+					if node.Data == "input" && attrs["id"] == "email" {
+						state.Email = attrs["value"]
+						_, state.EmailFocus = attrs["autofocus"]
+					}
+					if node.Data == "input" && attrs["id"] == "password" {
+						_, state.PasswordFocus = attrs["autofocus"]
+					}
+					if node.Data == "input" && attrs["name"] == "reauth" && attrs["value"] == "erase" {
+						state.Reauthentication = true
+					}
+					if node.Data == "a" && attrs["href"] == "/register" {
+						state.RegisterLinks++
+					}
+				}
+				expected := formState{Email: address, PasswordFocus: true, RegisterLinks: 1}
+				if purpose == signInBeforeErasure {
+					expected.RegisterLinks = 0
+					expected.Reauthentication = true
+				}
+				if diff := cmp.Diff(expected, state); diff != "" {
+					t.Errorf("prefilled sign-in form (-want +got):\n%s", diff)
+				}
+				cleared := page.Result().Cookies()
+				if len(cleared) != 1 || cleared[0].Name != name || cleared[0].MaxAge != -1 {
+					t.Errorf("prefill was not consumed: %+v", cleared)
+				}
+				second := httptest.NewRecorder()
+				h.SignInPage(second, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))
+				if strings.Contains(second.Body.String(), address) {
+					t.Error("refresh exposed the consumed address without its private cookie")
+				}
+			})
+		}
 	}
 }

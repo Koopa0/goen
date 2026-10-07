@@ -130,6 +130,104 @@ func neverTold(t *testing.T) func(context.Context, *email.AccountExists) error {
 	}
 }
 
+func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
+	for _, next := range []string{"https://elsewhere.invalid/checkout", "//elsewhere.invalid/checkout", "/%zzelsewhere.invalid"} {
+		t.Run(next, func(t *testing.T) {
+			s := account.NewStore(pool)
+			h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+			addr := "register-unsafe-next-" + uuid.NewString() + "@example.com"
+			h.Register(httptest.NewRecorder(), registrationForm(t.Context(), addr, cartOwnerPassword, next))
+			followed := followRegistrationLink(t, s, addr, func(request *http.Request) *httptest.ResponseRecorder {
+				response := httptest.NewRecorder()
+				h.CompleteRegistration(response, request)
+				return response
+			})
+			if got := followed.Header().Get("Location"); got != "/account?welcome=1" {
+				t.Errorf("unsafe registration return = %q, want /account?welcome=1", got)
+			}
+			request := httptest.NewRequest(http.MethodGet, "/account?welcome=1&next="+url.QueryEscape(next), http.NoBody)
+			request.AddCookie(sessionCookie(t, followed))
+			page := httptest.NewRecorder()
+			h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(page, request)
+			if page.Code != http.StatusOK || strings.Contains(page.Body.String(), "elsewhere.invalid") {
+				t.Errorf("welcome page exposes unsafe return: status=%d", page.Code)
+			}
+		})
+	}
+}
+
+func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	addr := "register-cart-recovery-" + uuid.NewString() + "@example.com"
+	guestToken := "registration-guest-" + uuid.NewString()
+	variant := sellableVariant(t, ctx)
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`, cart.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`, guestCart, variant); err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
+		t.Fatal(err)
+	}
+	carts := cart.NewHandler(cart.NewStore(pool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := account.NewHandler(s, carts, slog.New(slog.DiscardHandler), false, nil)
+	h.Register(httptest.NewRecorder(), registrationForm(ctx, addr, cartOwnerPassword, "/checkout"))
+	finishCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	guestCookie := &http.Cookie{Name: "goen_cart", Value: guestToken} //nolint:gosec // G124: the browser's guest-cart request cookie.
+	completed := followRegistrationLink(t, s, addr, func(request *http.Request) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		h.CompleteRegistration(response, request.WithContext(finishCtx))
+		return response
+	}, guestCookie)
+	const welcome = "/account?next=%2Fcheckout&welcome=1"
+	wantRecovery := "/account/cart-recovery?next=" + url.QueryEscape(welcome) + "&welcome=1"
+	if got := completed.Header().Get("Location"); got != wantRecovery {
+		t.Errorf("registration adoption failure = %q, want %q", got, wantRecovery)
+	}
+	if quantity := cartItemQuantity(t, guestCart, variant); quantity != 2 {
+		t.Errorf("failed registration adoption changed guest quantity: %d, want 2", quantity)
+	}
+	var stillGuest bool
+	if err := pool.QueryRow(ctx, `SELECT user_id IS NULL FROM carts WHERE id = $1`, guestCart).Scan(&stillGuest); err != nil || !stillGuest {
+		t.Fatalf("failed registration adoption changed guest ownership: guest=%t error=%v", stillGuest, err)
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionCookie(t, completed)
+	request := httptest.NewRequestWithContext(ctx, http.MethodGet, completed.Header().Get("Location"), http.NoBody)
+	request.AddCookie(session)
+	request.AddCookie(guestCookie)
+	page := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.CartRecoveryPage)).ServeHTTP(page, request)
+	for _, key := range []string{i18n.KeyAccountWelcome, i18n.KeyCartMergeFailed, i18n.KeyCartMergeRetry} {
+		if !strings.Contains(page.Body.String(), html.EscapeString(i18n.T(ctx, key))) {
+			t.Errorf("registration cart recovery omits %s", key)
+		}
+	}
+	retry := cartForm(ctx, "/account/cart-recovery", url.Values{"next": {welcome}})
+	retry.AddCookie(session)
+	retry.AddCookie(guestCookie)
+	response := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.RetryCartAdoption)).ServeHTTP(response, retry)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != welcome {
+		t.Errorf("registration cart retry = %d Location %q, want 303 %q", response.Code, response.Header().Get("Location"), welcome)
+	}
+	if quantity := cartItemQuantity(t, guestCart, variant); quantity != 2 {
+		t.Errorf("registration retry lost guest quantity: %d, want 2", quantity)
+	}
+}
+
 // TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken is the
 // registration form's promise not to say who has an account. A taken address
 // and a free one get the same answer, the same headers and no session, from the
@@ -252,10 +350,21 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	if followed.Code != http.StatusSeeOther {
 		t.Fatalf("following the link answered %d, want 303; body=%s", followed.Code, followed.Body.String())
 	}
-	if loc := followed.Header().Get("Location"); loc != "/cart" {
-		t.Errorf("following the link lands at %q, want /cart", loc)
+	if loc := followed.Header().Get("Location"); loc != "/account?next=%2Fcart&welcome=1" {
+		t.Errorf("following the link lands at %q, want /account?next=%%2Fcart&welcome=1", loc)
 	}
-	sessionCookie(t, followed)
+	session := sessionCookie(t, followed)
+	for _, locale := range i18n.Locales() {
+		lctx := i18n.WithLocale(ctx, locale)
+		request := httptest.NewRequestWithContext(lctx, http.MethodGet, followed.Header().Get("Location"), http.NoBody)
+		request.AddCookie(session)
+		welcome := httptest.NewRecorder()
+		h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(welcome, request)
+		if welcome.Code != http.StatusOK || !strings.Contains(welcome.Body.String(), html.EscapeString(i18n.T(lctx, i18n.KeyAccountWelcome))) ||
+			!strings.Contains(welcome.Body.String(), `href="/cart"`) {
+			t.Errorf("registration welcome = %d without welcome copy or original cart action", welcome.Code)
+		}
+	}
 
 	var owner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
@@ -445,7 +554,7 @@ func TestAResetProvesTheAddressItWasMailedTo(t *testing.T) {
 	u := register(t, s, addr)
 
 	token := beginReset(t, s, addr)
-	if err := s.CompleteReset(ctx, token, "the password chosen by reset"); err != nil {
+	if _, err := s.CompleteReset(ctx, token, "the password chosen by reset"); err != nil {
 		t.Fatalf("CompleteReset: %v", err)
 	}
 	state, err := s.EmailVerification(ctx, u.ID)
