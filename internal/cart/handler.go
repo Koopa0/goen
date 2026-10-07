@@ -1453,8 +1453,11 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 
 	// Anything but the browser that placed the order or the account that owns
-	// it gets the same 404 as an order that does not exist.
+	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
+		if orderaccess.ReloadSameSite(w, r, h.log) {
+			return
+		}
 		// Its own page rather than a bare Notice: this is the one 404 with a
 		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
