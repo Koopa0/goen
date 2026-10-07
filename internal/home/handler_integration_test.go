@@ -165,8 +165,8 @@ func TestADepartmentWithNoListedProductIsNotInTheDirectory(t *testing.T) {
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if _, err := pool.Exec(clean, `UPDATE products SET status = 'active' WHERE id = ANY($1)`, ids); err != nil {
-			t.Errorf("list the products again: %v", err)
+		if _, relistErr := pool.Exec(clean, `UPDATE products SET status = 'active' WHERE id = ANY($1)`, ids); relistErr != nil {
+			t.Errorf("list the products again: %v", relistErr)
 		}
 	})
 
