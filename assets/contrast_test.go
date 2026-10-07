@@ -201,10 +201,7 @@ func over(t *testing.T, colour, ground string) string {
 	if m == nil || err != nil || len(g) != 3 {
 		t.Fatalf("cannot lay %q on #%s: want rgb(r g b / alpha) on a six-digit hex", colour, ground)
 	}
-	alpha, err := strconv.ParseFloat(m[4], 64)
-	if err != nil {
-		t.Fatalf("alpha of %q: %v", colour, err)
-	}
+	alpha := alphaOf(t, colour)
 	seen := make([]byte, 3)
 	for i := range seen {
 		c, err := strconv.Atoi(m[i+1])
@@ -214,6 +211,20 @@ func over(t *testing.T, colour, ground string) string {
 		seen[i] = uint8(math.Round(alpha*float64(c) + (1-alpha)*float64(g[i])))
 	}
 	return hex.EncodeToString(seen)
+}
+
+// alphaOf is the alpha of a translucent rgb(r g b / alpha).
+func alphaOf(t *testing.T, colour string) float64 {
+	t.Helper()
+	m := translucent.FindStringSubmatch(colour)
+	if m == nil {
+		t.Fatalf("%q is not rgb(r g b / alpha)", colour)
+	}
+	alpha, err := strconv.ParseFloat(m[4], 64)
+	if err != nil {
+		t.Fatalf("alpha of %q: %v", colour, err)
+	}
+	return alpha
 }
 
 // checkPeriod holds a period's fill to 3:1 (WCAG 1.4.11) on its ground and on
@@ -263,6 +274,14 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	track := rgba["--period-track"]
 	if track == "" {
 		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
+	// A tone's own track is its blue at no less alpha than the page's: on the
+	// ink ground the 1.5:1 floor alone would pass the 22% the owner ruled too
+	// faint (1.63:1).
+	for name, colour := range rgba {
+		if strings.HasPrefix(name, "--period-track-") && alphaOf(t, colour) < alphaOf(t, track) {
+			t.Errorf("%s is %s, under the alpha of --period-track %s", name, colour, track)
+		}
 	}
 
 	blocks := make(map[string]map[string]string)
