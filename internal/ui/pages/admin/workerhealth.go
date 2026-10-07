@@ -116,7 +116,7 @@ func (v *WorkerHealthView) StaffTaskText(ctx context.Context) string {
 func (v *WorkerHealthView) FirstStaffTaskAnchor() string {
 	switch {
 	case len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0:
-		return "#missing-staff-tasks"
+		return "#events-heading"
 	case v.UninvoicedCount > 0:
 		return "#uninvoiced-heading"
 	case len(v.StrandedClaims) > 0:
