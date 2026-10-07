@@ -1,2 +1,8 @@
 # Test-only helpers that unit tests in other packages import; the tool does not count test code as a caller.
 internal/admin/access/accesstest.RefuseOutsiders # reason: shared by every admin feature's untagged routes_test.go, which deadcode does not analyse
+internal/ui/pages/pagestest.AssertEmailLink # reason: shared emailed-link assertion imported by untagged account, newsletter and pages tests and integration handler tests; deadcode excludes those callers
+internal/ui/pages/pagestest.selectEmailLink # reason: notice-panel selection used only by the shared AssertEmailLink test assertion; deadcode excludes its test callers
+internal/ui/pages/pagestest.destinationOf # reason: primary action selection used only by the shared emailed-link test assertion; deadcode excludes its test callers
+internal/ui/pages/pagestest.attr # reason: HTML attribute lookup used only by the shared emailed-link test assertion; deadcode excludes its test callers
+internal/ui/pages/pagestest.hasClass # reason: notice-panel and action class matching used only by the shared emailed-link test assertion; deadcode excludes its test callers
+internal/ui/pages/pagestest.text # reason: heading and reason text extraction used only by the shared emailed-link test assertion; deadcode excludes its test callers
