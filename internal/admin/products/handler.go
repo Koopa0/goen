@@ -349,12 +349,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
-		if errors.Is(err, web.ErrFormText) {
-			h.respondToUploadError(w, r, err)
-			return
-		}
-		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
-		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
+		h.respondToUploadError(w, r, err)
 		return
 	}
 

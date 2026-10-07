@@ -163,12 +163,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
-		if errors.Is(err, web.ErrFormText) {
-			h.respondToUploadError(w, r, err)
-			return
-		}
-		h.log.WarnContext(r.Context(), "category image upload", "error", err, "slug", slug)
-		h.renderCategory(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		h.respondToUploadError(w, r, err)
 		return
 	}
 	err = h.store.SetCategoryImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
