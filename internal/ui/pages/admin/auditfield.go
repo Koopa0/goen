@@ -75,7 +75,6 @@ var auditFields = map[string]auditField{
 	"hidden":                           {i18n.KeyAuditFieldHidden, nil, nil},
 	"icon_key":                         {i18n.KeyAdminColIcon, nil, nil},
 	"id":                               {i18n.KeyAuditFieldRecordID, nil, nil},
-	"invoice":                          {i18n.KeyAdminDocInvoice, nil, nil},
 	"invoice_documents.order":          {i18n.KeyFieldOrderNumber, nil, nil},
 	"invoice_unit":                     {i18n.KeyInvoiceUnit, nil, nil},
 	"issue_id":                         {i18n.KeyAuditFieldNewsletterID, nil, nil},
