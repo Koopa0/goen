@@ -168,9 +168,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 						}
 						ctx = templ.InitializeContext(ctx)
 						var templ_7745c5c3_Var10 string
-						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(r.StatusText)
+						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(r.StatusLabel(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 36, Col: 23}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returns.templ`, Line: 36, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
