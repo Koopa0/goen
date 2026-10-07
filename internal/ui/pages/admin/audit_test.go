@@ -863,8 +863,7 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 		var signature [][]string
 		for index, word := range tokens {
 			if strings.EqualFold(word, "create") && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "function") {
-				function = tokens[index+2]
-				signature, _ = auditSQLArguments(t, tokens, index+3)
+				function, signature = auditSQLFunctionDeclaration(t, tokens, index)
 			}
 			if word == "$audit_body_end$" {
 				function, signature = "", nil
@@ -914,8 +913,7 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 		for index, word := range tokens {
 			name := strings.ToLower(word)
 			if name == "create" && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "function") {
-				function = tokens[index+2]
-				signature, _ = auditSQLArguments(t, tokens, index+3)
+				function, signature = auditSQLFunctionDeclaration(t, tokens, index)
 			}
 			if word == "$audit_body_end$" {
 				function, signature = "", nil
@@ -986,7 +984,7 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 func auditSQLArguments(t *testing.T, tokens []string, start int) ([][]string, int) {
 	t.Helper()
 	if start >= len(tokens) || tokens[start] != "(" {
-		t.Fatal("expected SQL argument list")
+		t.Fatalf("expected SQL argument list at token %d in %v", start, tokens[max(0, start-3):min(len(tokens), start+3)])
 	}
 	var args [][]string
 	var current []string
@@ -1226,4 +1224,16 @@ func TestAuditSQLForwardingRequiresItsExactFunction(t *testing.T) {
 	if auditSQLGenericForwarder("record_audit_event", generic, columns, wrongValues) {
 		t.Error("a forwarding function with a different payload was accepted")
 	}
+}
+
+func auditSQLFunctionDeclaration(t *testing.T, tokens []string, start int) (string, [][]string) {
+	t.Helper()
+	name := tokens[start+2]
+	index := start + 3
+	for index+1 < len(tokens) && tokens[index] == "." {
+		name += "." + tokens[index+1]
+		index += 2
+	}
+	signature, _ := auditSQLArguments(t, tokens, index)
+	return name, signature
 }
