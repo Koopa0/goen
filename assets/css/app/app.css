@@ -1726,15 +1726,24 @@ th {
 .goen-home__head {
   align-items: baseline;
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
 
 .goen-home__heading {
-  font-size: var(--fs-ed-24);
+  font-size: var(--t-32);
   font-weight: var(--fw-display);
-  line-height: 1.35;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.goen-home__meta {
+  color: var(--n-500);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
@@ -2164,6 +2173,7 @@ th {
 }
 
 .goen-cats__grid--rows .goen-cat__name {
+  font-size: var(--t-18);
   font-weight: var(--fw-regular);
 }
 
@@ -2431,9 +2441,10 @@ th {
 
   .goen-cats__grid--rows .goen-cat__name {
     align-self: baseline;
-    font-size: var(--t-32);
+    font-size: var(--t-24);
     font-weight: var(--fw-display);
     grid-column: 1;
+    letter-spacing: -0.01em;
     grid-row: 1;
   }
 

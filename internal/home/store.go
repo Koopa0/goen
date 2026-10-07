@@ -131,7 +131,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 			Name:  c.Name,
 			Tone:  pages.ResolveTone(c.Tone),
 			Photo: departmentPhoto(c),
-			Subs:  strings.Join(src.subs[c.ID], " · "),
+			Subs:  joinNames(src.subs[c.ID]),
 			Items: src.held[c.ID],
 		})
 	}
@@ -193,12 +193,23 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages
 	return &pages.DepartmentBand{
 		Name:  c.Name,
 		Items: held[c.ID],
-		Fact:  strings.Join(subs[c.ID], " · "),
+		Fact:  joinNames(subs[c.ID]),
 		Href:  "/c/" + c.Slug,
 		Tone:  pages.ResolveTone(c.Tone),
 		Photo: departmentPhoto(c),
 		Tiles: tiles,
 	}, nil
+}
+
+// joinNames lists names with a middle dot between them. A space inside a name
+// and the one before each dot do not break, so a wrapped line starts with a
+// name and never with the dot.
+func joinNames(names []string) string {
+	words := make([]string, len(names))
+	for i, n := range names {
+		words[i] = strings.ReplaceAll(n, " ", "\u00a0")
+	}
+	return strings.Join(words, "\u00a0· ")
 }
 
 // dayIndex counts days since the epoch, so every visitor on one shop day sees
