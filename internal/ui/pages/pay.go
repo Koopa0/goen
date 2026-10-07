@@ -107,6 +107,16 @@ func (v *PayView) EyebrowKey() i18n.Key {
 	}
 }
 
+// HoldWindow is the hold in words as this page can keep it: a deadline to start paying is named only while a
+// payment can start, so with payments off the page leads with when the items are released.
+func (v *PayView) HoldWindow(ctx context.Context) (lead, note string, ok bool) {
+	h := v.Hold
+	if !v.Payable() {
+		h.StartBy = time.Time{}
+	}
+	return h.Window(ctx)
+}
+
 // Payable is true while a payment can start or resume here.
 func (v *PayView) Payable() bool { return !v.Closed() && v.Enabled }
 

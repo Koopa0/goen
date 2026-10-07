@@ -3652,13 +3652,9 @@ input.goen-check {
 /* The whole line is the link, read as words: the campaign's name takes the link
    colour and what is left of it the blue of a running period. */
 .goen-deptnotice__name {
-  align-items: baseline;
   color: var(--n-700);
-  display: flex;
   flex: 1 1 16rem;
-  flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 4px var(--s-3);
   text-decoration: none;
 }
 
@@ -3675,12 +3671,17 @@ input.goen-check {
 .goen-deptnotice__eyebrow {
   color: var(--fg-muted);
   font-size: var(--fs-12);
+  margin-inline-end: var(--s-2);
+}
+
+.goen-deptnotice__until,
+.goen-deptnotice__left {
+  white-space: nowrap;
 }
 
 .goen-deptnotice__left {
   color: var(--accent-deep);
   font-weight: var(--fw-medium);
-  white-space: nowrap;
 }
 
 .goen-deptnotice__left > [aria-hidden] {
