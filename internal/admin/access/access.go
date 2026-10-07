@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -64,15 +65,23 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 		ctx := layouts.WithAdmin(r.Context(), u.IsAdmin())
 		ctx = layouts.WithHealthTaskCount(ctx, 0, false)
 		if c.healthTaskCount != nil {
-			count, err := c.healthTaskCount(ctx)
+			count, err := c.readHealthTaskCount(ctx)
 			if err != nil {
-				c.log.ErrorContext(ctx, "read background task count", "error", err)
+				if r.Context().Err() == nil {
+					c.log.ErrorContext(ctx, "read background task count", "error", err)
+				}
 			} else {
 				ctx = layouts.WithHealthTaskCount(ctx, count, true)
 			}
 		}
 		next(w, r.WithContext(ctx))
 	}
+}
+
+func (c *Control) readHealthTaskCount(ctx context.Context) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	return c.healthTaskCount(ctx)
 }
 
 // StaffOnly answers 404 to anyone who does not work here, and runs no step-up.

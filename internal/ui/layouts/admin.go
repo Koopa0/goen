@@ -43,8 +43,8 @@ func WithHealthTaskCount(ctx context.Context, count int64, known bool) context.C
 }
 
 func healthTaskText(ctx context.Context) string {
-	count, _ := ctx.Value(healthTaskCountKey{}).(healthTaskCount)
-	if !count.known {
+	count, ok := ctx.Value(healthTaskCountKey{}).(healthTaskCount)
+	if !ok || !count.known {
 		return i18n.T(ctx, i18n.KeyAdminHPTaskCountUnknown)
 	}
 	return i18n.Count(ctx, i18n.KeyAdminHPPendingTasks, count.count, count.count)

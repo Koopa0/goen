@@ -130,34 +130,34 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 	for i := range 2 {
 		number := admintest.PlaceUnpaidOrder(t, fixturePool)
 		ref := "cs_priority_" + uuid.NewString()
-		if _, err := fixturePool.Exec(ctx, `
+		if _, paymentErr := fixturePool.Exec(ctx, `
 			INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
-			SELECT id, $2, 'requires_reconciliation', 500000 FROM orders WHERE order_number = $1`, number, ref); err != nil {
-			t.Fatalf("record payment: %v", err)
+			SELECT id, $2, 'requires_reconciliation', 500000 FROM orders WHERE order_number = $1`, number, ref); paymentErr != nil {
+			t.Fatalf("record payment: %v", paymentErr)
 		}
 		if i == 0 {
 			firstRef = ref
-			if _, err := fixturePool.Exec(ctx, `
+			if _, eventErr := fixturePool.Exec(ctx, `
 				INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 				VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
-				"evt_priority_"+uuid.NewString(), ref); err != nil {
-				t.Fatalf("record matching event: %v", err)
+				"evt_priority_"+uuid.NewString(), ref); eventErr != nil {
+				t.Fatalf("record matching event: %v", eventErr)
 			}
 		}
 	}
 	_, uninvoicedID := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
-	if _, err := fixturePool.Exec(ctx, `
+	if _, ageErr := fixturePool.Exec(ctx, `
 		INSERT INTO order_events (order_id, kind, occurred_at)
-		VALUES ($1, 'paid', now() - interval '30 minutes')`, uninvoicedID); err != nil {
-		t.Fatalf("age the paid order: %v", err)
+		VALUES ($1, 'paid', now() - interval '30 minutes')`, uninvoicedID); ageErr != nil {
+		t.Fatalf("age the paid order: %v", ageErr)
 	}
 	_, claimOrder := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
-	if _, err := fixturePool.Exec(ctx, `
+	if _, claimErr := fixturePool.Exec(ctx, `
 		INSERT INTO invoice_operations (order_id, kind, provider_key, amount_cents, request_payload,
 		    actor_user_id, actor_id_snapshot, actor_kind, request_id, status, last_error)
 		VALUES ($1, 'issue', $2, 100000, '{}', $3, $3, 'staff', $2, 'attention', 'issue_lookup_mismatch')`,
-		claimOrder, strings.ReplaceAll(uuid.NewString(), "-", "")[:30], actor); err != nil {
-		t.Fatalf("record stranded claim: %v", err)
+		claimOrder, strings.ReplaceAll(uuid.NewString(), "-", "")[:30], actor); claimErr != nil {
+		t.Fatalf("record stranded claim: %v", claimErr)
 	}
 	after, err := store.WorkerHealth(ctx, messages)
 	if err != nil {
@@ -175,11 +175,11 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 		t.Fatalf("three-family count delta=%d error=%v, want 4", count-baseline, err)
 	}
 	for range 50 {
-		if _, err := fixturePool.Exec(ctx, `
+		if _, additionalEventErr := fixturePool.Exec(ctx, `
 			INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled)
 			VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', 'unsettled_session: pending')`,
-			"evt_priority_"+uuid.NewString(), firstRef); err != nil {
-			t.Fatalf("fill diagnostic sample: %v", err)
+			"evt_priority_"+uuid.NewString(), firstRef); additionalEventErr != nil {
+			t.Fatalf("fill diagnostic sample: %v", additionalEventErr)
 		}
 	}
 	bounded, err := store.WorkerHealth(ctx, messages)
@@ -196,10 +196,10 @@ func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing
 	if count != bounded.StaffTaskCount() {
 		t.Errorf("navigation count=%d page count=%d", count, bounded.StaffTaskCount())
 	}
-	if _, err := fixturePool.Exec(ctx, `
+	if _, alarmErr := fixturePool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
-		VALUES ('test.priority', $1, '{}', 99, now())`, uuid.NewString()); err != nil {
-		t.Fatalf("add engineering alarm: %v", err)
+		VALUES ('test.priority', $1, '{}', 99, now())`, uuid.NewString()); alarmErr != nil {
+		t.Fatalf("add engineering alarm: %v", alarmErr)
 	}
 	withAlarm, err := store.StaffTaskCount(ctx)
 	if err != nil || withAlarm != count {

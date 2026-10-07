@@ -518,17 +518,17 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	startSession := func(role string, verified bool) string {
 		t.Helper()
 		var id string
-		if err := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, $2) RETURNING id`,
-			"health-count-"+uuid.NewString()+"@example.com", role).Scan(&id); err != nil {
-			t.Fatalf("create %s: %v", role, err)
+		if createErr := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, $2) RETURNING id`,
+			"health-count-"+uuid.NewString()+"@example.com", role).Scan(&id); createErr != nil {
+			t.Fatalf("create %s: %v", role, createErr)
 		}
-		token, err := account.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
-		if err != nil {
-			t.Fatalf("start %s session: %v", role, err)
+		token, sessionErr := account.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
+		if sessionErr != nil {
+			t.Fatalf("start %s session: %v", role, sessionErr)
 		}
 		if verified {
-			if err := twofactor.NewStore(pool, key).MarkVerified(ctx, token); err != nil {
-				t.Fatalf("verify session: %v", err)
+			if verifyErr := twofactor.NewStore(pool, key).MarkVerified(ctx, token); verifyErr != nil {
+				t.Fatalf("verify session: %v", verifyErr)
 			}
 		}
 		return token
