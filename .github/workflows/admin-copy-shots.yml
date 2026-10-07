@@ -92,7 +92,7 @@ jobs:
           VALUES (sha256(convert_to(:'token', 'UTF8')), :'staff_id', now() + interval '1 hour');
           SQL
 
-          for mode in all cleared; do
+          for mode in all; do
             if [ "$mode" = cleared ]; then
               psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
                 -c 'ALTER TABLE shipping_method_versions DISABLE TRIGGER USER' \

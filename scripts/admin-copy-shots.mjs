@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9333);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700').replace(/\/$/, '');
-const CAP = 4000;
+const CAP = 16000;
 const outDir = process.argv[2];
 const failures = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -122,29 +122,20 @@ async function measure(name) {
   })`);
   console.log(`MEASURE ${name} ${JSON.stringify(m)}`);
 }
-const mode = process.argv[3] || 'all';
 await send('Network.setCookie', { name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/' });
-if (mode === 'cleared') {
-  await shot('/admin/shipping', 'en-admin-shipping-noenglish-1440.png', 1440);
-  await measure('shipping-noenglish-en');
-} else {
-  for (const [name, path] of [['shipping', '/admin/shipping'], ['taxonomy', '/admin/taxonomy'], ['new-product', '/admin/products/new'], ['credit', '/admin/credit'], ['tiers', '/admin/tiers']]) {
-    try { await shot(path, `en-admin-${name}-1440.png`, 1440); await measure(`${name}-en`); } catch (e) { failures.push(`en ${name}: ${e.message}`); }
-  }
-  try { await shot('/admin/shipping', 'en-admin-shipping-375.png', 375); await measure('shipping-en-375'); } catch (e) { failures.push(`375: ${e.message}`); }
-  await evaluate("document.documentElement.style.fontSize = '200%'");
-  await viewport(1440);
-  try {
-    await navigate(ORIGIN + '/admin/shipping');
-    await evaluate("document.documentElement.style.fontSize = '200%'");
-    await sleep(500);
-    await measure('shipping-en-200pct');
-    const h = await evaluate('Math.ceil(document.documentElement.scrollHeight)');
-    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: Math.min(CAP, h), deviceScaleFactor: 1, mobile: false });
-    await sleep(400);
-    const { data } = await send('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(`${outDir}/en-admin-shipping-200pct-1440.png`, Buffer.from(data, 'base64'));
-  } catch (e) { failures.push(`200%: ${e.message}`); }
+await shot('/admin/shipping', 'en-admin-shipping-375.png', 375);
+await measure('shipping-en-375');
+await viewport(375);
+await navigate(ORIGIN + '/admin/shipping');
+await evaluate("document.documentElement.style.fontSize = '200%'");
+await sleep(500);
+await measure('shipping-en-375-200pct');
+const full = await evaluate('Math.ceil(document.documentElement.scrollHeight)');
+await send('Emulation.setDeviceMetricsOverride', { width: 375, height: Math.min(CAP, full), deviceScaleFactor: 1, mobile: true });
+await sleep(400);
+{
+  const { data } = await send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync(`${outDir}/en-admin-shipping-375-200pct.png`, Buffer.from(data, 'base64'));
 }
 
 ws.close();
