@@ -136,6 +136,8 @@ const measure = `(() => {
     marks: sec.querySelectorAll('.goen-cat__mark').length,
     notLoaded: [...sec.querySelectorAll('img')].filter((i) => !i.complete || i.naturalWidth === 0).length,
     textScale: getComputedStyle(de).fontSize,
+    sectionRight: Math.round(Math.max(...[...sec.querySelectorAll('*')].map((e) => e.getBoundingClientRect().right))),
+    pageOverflow: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > de.clientWidth + 0.5 && !sec.contains(e)).slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
   });
   return out;
 })()`;
@@ -165,7 +167,7 @@ async function capture(s) {
   const id = `${s.name}-${s.locale}-${s.width}${s.text ? `-text${s.text}` : ''}${s.forced ? '-forced' : ''}`;
   console.log(`MEASURE ${label} ${id} ${JSON.stringify(m)}`);
   if (m.scrollWidth > m.clientWidth) console.log(`OVERFLOW ${label} ${id} scrollWidth ${m.scrollWidth} > ${m.clientWidth}`);
-  const grow = async (height) => { await metrics(s.width, Math.min(6000, Math.max(height, 400))); await sleep(200); };
+  const grow = async (height) => { await metrics(s.width, Math.ceil(Math.min(6000, Math.max(height, 400)))); await sleep(200); };
   if (s.full) {
     await grow(await evaluate('Math.ceil(document.documentElement.scrollHeight)'));
     await save(`${id}-page`);
@@ -173,22 +175,22 @@ async function capture(s) {
   }
   if (m.drawn) {
     const pad = 24;
-    const y = Math.max(0, m.section.y - pad);
+    const y = Math.max(0, Math.floor(m.section.y - pad));
     await grow(m.section.y + m.section.h + pad * 2);
-    await save(id, { x: 0, y, width: s.width, height: m.section.h + pad * 2 });
+    await save(id, { x: 0, y, width: s.width, height: Math.ceil(m.section.h + pad * 2) });
     if (s.focus) {
       await evaluate(`(() => { const e = document.querySelector('#cats-heading').closest('section').querySelectorAll('.goen-cat')[1]; e.focus({ focusVisible: true }); })()`);
       await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 });
       const ring = await evaluate(`(() => { const t = document.activeElement; const w = t.querySelector('.goen-cat__well') || t.querySelector('.goen-cat__photo') || t; const a = getComputedStyle(t), b = getComputedStyle(w); return JSON.stringify({ focusVisible: t.matches(':focus-visible'), tileOutline: a.outlineStyle, wellOutline: b.outlineStyle + ' ' + b.outlineWidth + ' ' + b.outlineOffset + ' ' + b.outlineColor }); })()`);
       console.log(`MEASURE ${label} ${id} focus ${ring}`);
       await sleep(200);
-      await save(`${id}-focus`, { x: 0, y, width: s.width, height: m.section.h + pad * 2 });
+      await save(`${id}-focus`, { x: 0, y, width: s.width, height: Math.ceil(m.section.h + pad * 2) });
     }
     if (s.hover) {
       const box = await evaluate(`(() => { const b = document.querySelector('#cats-heading').closest('section').querySelector('.goen-cat').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 3 }; })()`);
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y });
       await sleep(300);
-      await save(`${id}-hover`, { x: 0, y, width: s.width, height: m.section.h + pad * 2 });
+      await save(`${id}-hover`, { x: 0, y, width: s.width, height: Math.ceil(m.section.h + pad * 2) });
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
     }
   }
