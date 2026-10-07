@@ -5,12 +5,17 @@ import (
 	"io/fs"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-// tokenHex finds a custom property declared as a six-digit hex colour.
-var tokenHex = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*#([0-9a-fA-F]{6});`)
+// tokenHex finds a custom property declared as a six-digit hex colour, and
+// tokenTranslucent one declared as rgb(r g b / alpha).
+var (
+	tokenHex         = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*#([0-9a-fA-F]{6});`)
+	tokenTranslucent = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+):\s*(rgb\([^)]*\));`)
+)
 
 // linear is one sRGB channel as relative luminance counts it.
 func linear(c uint8) float64 {
@@ -37,10 +42,26 @@ func contrast(a, b string) float64 {
 	return (la + 0.05) / (lb + 0.05)
 }
 
-// hexTokens reads the colour tokens from base.css, where both layouts get them.
-// A token base.css declares and app.css or admin.css declares again with another
-// value would be read by neither test below, so it fails here.
+// hexTokens reads the opaque colour tokens from base.css, where both layouts
+// get them, as six hex digits.
 func hexTokens(t *testing.T) map[string]string {
+	t.Helper()
+	return baseTokens(t, tokenHex, "#")
+}
+
+// translucentTokens reads the rgb(r g b / alpha) tokens from base.css. They are
+// kept apart from the hex ones because contrast reads only hex, and the NaN it
+// returns for anything else passes every "less than" check.
+func translucentTokens(t *testing.T) map[string]string {
+	t.Helper()
+	return baseTokens(t, tokenTranslucent, "")
+}
+
+// baseTokens reads the tokens decl finds in base.css. A token base.css declares
+// and app.css or admin.css declares again with another value would be read by
+// none of the tests below, so it fails here; a head that needs another colour
+// points at a token of its own.
+func baseTokens(t *testing.T, decl *regexp.Regexp, prefix string) map[string]string {
 	t.Helper()
 
 	read := func(name string) [][]string {
@@ -48,7 +69,7 @@ func hexTokens(t *testing.T) map[string]string {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		return tokenHex.FindAllStringSubmatch(string(sheet), -1)
+		return decl.FindAllStringSubmatch(string(sheet), -1)
 	}
 	tokens := make(map[string]string)
 	for _, m := range read(BaseCSS) {
@@ -59,7 +80,7 @@ func hexTokens(t *testing.T) map[string]string {
 	for _, name := range []string{AppCSS, AdminCSS} {
 		for _, m := range read(name) {
 			if base, ok := tokens[m[1]]; ok && base != m[2] {
-				t.Errorf("%s redeclares %s as #%s, base.css has #%s", name, m[1], m[2], base)
+				t.Errorf("%s redeclares %s as %s%s, base.css has %s%s", name, m[1], prefix, m[2], prefix, base)
 			}
 		}
 	}
@@ -75,14 +96,14 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 
 	tokens := hexTokens(t)
 
-	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--edge", "--mark"} {
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well", "--ink", "--muted", "--accent", "--accent-deep", "--edge", "--mark"} {
 		if tokens[name] == "" {
 			t.Fatalf("no stylesheet declares a hex value for %s", name)
 		}
 	}
 
 	grounds := []string{"--n-0", "--n-50", "--wash", "--well"}
-	for _, ink := range []string{"--ink", "--muted", "--accent"} {
+	for _, ink := range []string{"--ink", "--muted", "--accent", "--accent-deep"} {
 		for _, ground := range grounds {
 			if got := contrast(tokens[ink], tokens[ground]); got < 4.5 {
 				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1",
@@ -92,13 +113,15 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	}
 
 	// The labels of the filled and the soft button, and text and links on a
-	// blue tint: a current item, a badge, an information notice; and the five badge groups.
+	// blue tint: a current item, a badge, an information notice, the pay page's
+	// hold; and the five badge groups.
 	for _, pair := range []struct{ ink, ground string }{
 		{ink: "--on-accent", ground: "--accent"},
 		{ink: "--on-accent", ground: "--accent-deep"},
 		{ink: "--accent-deep", ground: "--accent-faint"},
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
+		{ink: "--muted", ground: "--accent-faint"},
 		{ink: "--error", ground: "--error-bg"},
 		{ink: "--error", ground: "--error-bg-hover"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
@@ -169,16 +192,20 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
-	// WCAG 1.4.11: the boundary of a control and the day grid's mark have no
-	// text to carry them.
+	// WCAG 1.4.11: the boundary of a control has no text to carry it.
 	for _, ground := range []string{"--n-0", "--wash", "--well"} {
 		if got := contrast(tokens["--edge"], tokens[ground]); got < 3 {
 			t.Errorf("--edge (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
 				tokens["--edge"], ground, tokens[ground], got)
 		}
 	}
-	if got := contrast(tokens["--mark"], tokens["--n-0"]); got < 3 {
-		t.Errorf("--mark (#%s) on --n-0 = %.2f:1, want at least 3:1", tokens["--mark"], got)
+	// Nor has a period's fill, on the page or on its own track.
+	track := translucentTokens(t)["--period-track"]
+	if track == "" {
+		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
+	for _, ground := range grounds {
+		checkPeriod(t, "the page", tokens["--mark"], track, ground, tokens[ground])
 	}
 
 	// The photographs are encoded on #f9f9f9; any other container ground
@@ -195,14 +222,73 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
-// periodOverride finds the colours a head gives the day grid on its tone, and
-// periodDecl one of them: a tone token, or a token of the page's own.
+// periodOverride finds the colours a head gives the period on its tone, and
+// periodDecl one of them: a tone token, a token of the page's own, or a
+// translucent rgb().
 var (
 	periodOverride = regexp.MustCompile(`(?s)\.(goen-hero__slide|goen-pagehead|goen-tiles__grid--lead)\[data-tone(?:="([a-z]+)")?\] \.ui-period \{(.*?)\}`)
-	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*var\((--[a-z0-9-]+)\);`)
+	periodDecl     = regexp.MustCompile(`--period-([a-z]+):\s*(?:var\((--[a-z0-9-]+)\)|(rgb\([^)]*\)));`)
+	translucent    = regexp.MustCompile(`^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) / (0?\.\d+)\)$`)
 )
 
-// toneHeads are the heads that lay the day grid on a tone's ground: the home
+// over lays a translucent rgb(r g b / alpha) on a hex ground and returns the
+// colour a reader sees, blended in sRGB the way the browser paints it.
+func over(t *testing.T, colour, ground string) string {
+	t.Helper()
+	m := translucent.FindStringSubmatch(colour)
+	g, err := hex.DecodeString(ground)
+	if m == nil || err != nil || len(g) != 3 {
+		t.Fatalf("cannot lay %q on #%s: want rgb(r g b / alpha) on a six-digit hex", colour, ground)
+	}
+	alpha := alphaOf(t, colour)
+	seen := make([]byte, 3)
+	for i := range seen {
+		c, err := strconv.Atoi(m[i+1])
+		if err != nil || c > 255 {
+			t.Fatalf("channel %d of %q is not 0–255", i, colour)
+		}
+		seen[i] = uint8(math.Round(alpha*float64(c) + (1-alpha)*float64(g[i])))
+	}
+	return hex.EncodeToString(seen)
+}
+
+// alphaOf is the alpha of a translucent rgb(r g b / alpha).
+func alphaOf(t *testing.T, colour string) float64 {
+	t.Helper()
+	m := translucent.FindStringSubmatch(colour)
+	if m == nil {
+		t.Fatalf("%q is not rgb(r g b / alpha)", colour)
+	}
+	alpha, err := strconv.ParseFloat(m[4], 64)
+	if err != nil {
+		t.Fatalf("alpha of %q: %v", colour, err)
+	}
+	return alpha
+}
+
+// checkPeriod holds a period's fill to 3:1 (WCAG 1.4.11) on its ground and on
+// its track laid over that ground: the edge between elapsed and to come is the
+// one the track exists to show. The track against the ground is held only to
+// 1.5:1, because the facts above the track state what it draws; below that a
+// 4px track fades on most screens and reads as a stub.
+func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
+	t.Helper()
+	if got := contrast(fill, ground); math.IsNaN(got) || got < 3 {
+		t.Errorf("%s: the period's fill (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+			where, fill, groundName, ground, got)
+	}
+	seen := over(t, track, ground)
+	if got := contrast(fill, seen); math.IsNaN(got) || got < 3 {
+		t.Errorf("%s: the period's fill (#%s) on its track %s over %s (#%s) = %.2f:1, want at least 3:1",
+			where, fill, track, groundName, seen, got)
+	}
+	if got := contrast(seen, ground); math.IsNaN(got) || got < 1.5 {
+		t.Errorf("%s: the period's track %s over %s (#%s) is #%s, %.2f:1 against the ground, want at least 1.5:1",
+			where, track, groundName, ground, seen, got)
+	}
+}
+
+// toneHeads are the heads that lay the period on a tone's ground: the home
 // hero, the department and campaign head, and the lead tile.
 var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
@@ -223,6 +309,19 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		t.Fatalf("read %s: %v", AppCSS, err)
 	}
 	tokens := hexTokens(t)
+	rgba := translucentTokens(t)
+	track := rgba["--period-track"]
+	if track == "" {
+		t.Fatalf("no stylesheet declares --period-track as rgb(r g b / alpha)")
+	}
+	// A tone's own track is its blue at no less alpha than the page's: on the
+	// ink ground the 1.5:1 floor alone would pass the 22% the owner ruled too
+	// faint (1.63:1).
+	for name, colour := range rgba {
+		if strings.HasPrefix(name, "--period-track-") && alphaOf(t, colour) < alphaOf(t, track) {
+			t.Errorf("%s is %s, under the alpha of --period-track %s", name, colour, track)
+		}
+	}
 
 	blocks := make(map[string]map[string]string)
 	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
@@ -258,30 +357,29 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 					prop, decl[prop], name, ground, got)
 			}
 		}
-		// The day grid sits on the tone's ground under each head: its fill and
-		// line are graphical objects (WCAG 1.4.11) and its labels are text.
-		// Each head starts from the page's tokens and takes only its own
+		// The period sits on the tone's ground under each head. Each head
+		// starts from the page's fill and track and takes only its own
 		// overrides, so one head's rules cannot stand in for another's.
 		for _, head := range toneHeads {
-			period := map[string]string{"fill": tokens["--mark"], "line": tokens["--edge"], "label": tokens["--ink"], "note": tokens["--muted"]}
+			period := map[string]string{"fill": tokens["--mark"], "track": track}
 			for _, m := range periodOverride.FindAllStringSubmatch(string(sheet), -1) {
 				if m[1] != head || (m[2] != "" && m[2] != name) {
 					continue
 				}
 				for _, d := range periodDecl.FindAllStringSubmatch(m[3], -1) {
-					if strings.HasPrefix(d[2], "--tone-") {
+					switch {
+					case d[3] != "":
+						period[d[1]] = d[3]
+					case strings.HasPrefix(d[2], "--tone-"):
 						period[d[1]] = decl[d[2]]
-					} else {
+					case rgba[d[2]] != "":
+						period[d[1]] = rgba[d[2]]
+					default:
 						period[d[1]] = tokens[d[2]]
 					}
 				}
 			}
-			for part, min := range map[string]float64{"fill": 3, "line": 3, "label": 4.5, "note": 4.5} {
-				if got := contrast(period[part], ground); got < min {
-					t.Errorf("%s: the day grid's %s (#%s) on the %s ground (#%s) = %.2f:1, want at least %.1f:1",
-						head, part, period[part], name, ground, got, min)
-				}
-			}
+			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
 		}
 		if got := contrast(decl["--tone-edge"], ground); got < 3 {
 			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
