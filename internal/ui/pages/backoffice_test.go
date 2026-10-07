@@ -114,6 +114,16 @@ func TestTheDesktopHeaderOffersTheBackOffice(t *testing.T) {
 			"desktop staff member reaches it only through /account")
 	}
 
+	if !strings.Contains(staff, `href="/admin">`+i18n.T(base, i18n.KeyBackOffice)+`</a>`) {
+		t.Error("the staff entrance is not a link whose visible text is its name")
+	}
+	if strings.Contains(staff, `href="/admin" aria-label`) {
+		t.Error("the staff entrance has an aria-label that overrides its visible text")
+	}
+	if !strings.Contains(staff, `href="/account/wishlist"`) {
+		t.Error("a staff member lost the wishlist")
+	}
+
 	customer := renderComponent(t, base, layouts.Header(layouts.Page{}))
 	if !strings.Contains(customer, `href="/account/wishlist"`) {
 		t.Error("the wide slot lost the customer's wishlist")
