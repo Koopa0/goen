@@ -16,13 +16,6 @@ const (
 	StoryColours = 3
 )
 
-// StatCountOf is a count with the unit k writes for it, kept together as one stat value.
-// The unit follows the number after a no-break space, which Count writes.
-func StatCountOf(ctx context.Context, k i18n.Key, n int64) components.StatValue {
-	_, unit, _ := strings.Cut(i18n.Count(ctx, k, n, n), "\u00a0")
-	return components.StatCount(n, unit)
-}
-
 // DepartmentHead is what a department page says under its band. Notice, Preview and Story
 // are nil where the department has nothing to say.
 type DepartmentHead struct {
@@ -36,13 +29,13 @@ type DepartmentHead struct {
 func (h *DepartmentHead) Facts(ctx context.Context) []components.Stat {
 	var out []components.Stat
 	if h.Products > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: StatCountOf(ctx, i18n.KeyUnitItems, h.Products)})
+		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(h.Products, i18n.T(ctx, i18n.KeyFactUnitItems))})
 	}
 	if h.Categories > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: StatCountOf(ctx, i18n.KeyUnitCategories, h.Categories)})
+		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: components.StatCount(h.Categories, i18n.T(ctx, i18n.KeyFactUnitCategories))})
 	}
 	if h.Brands > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeyDeptBrands), Value: StatCountOf(ctx, i18n.KeyUnitBrands, h.Brands)})
+		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeyDeptBrands), Value: components.StatCount(h.Brands, i18n.T(ctx, i18n.KeyFactUnitBrands))})
 	}
 	return out
 }
