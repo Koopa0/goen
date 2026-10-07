@@ -9,19 +9,18 @@ templ departmentFacts(h *DepartmentHead) {
 	@components.StatLine(h.Facts(ctx), components.StatLinePlain)
 }
 
-// The row says which campaign runs here and when it ends; the grid draws the whole period.
+// One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
+// The arrow keeps to the last words, so it never wraps onto a line of its own.
 templ departmentNotice(n *DepartmentNotice) {
+	{{ before, after := n.End.Until(ctx) }}
 	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
 		<div class="goen-deptnotice__in">
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
 				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
 				<b>{ n.Title }</b>
-				<span aria-hidden="true">&rarr;</span>
+				<span>{ before }<time datetime={ n.End.Last.ISO() }>{ n.End.Day(ctx) }</time>{ after }</span>
+				<span class="goen-deptnotice__left">{ n.End.Left(ctx) }&nbsp;<span aria-hidden="true">&rarr;</span></span>
 			</a>
-			@components.StatLine([]components.Stat{n.Ends}, components.StatLinePlain)
-			if n.Period != nil {
-				@components.Period(*n.Period)
-			}
 		</div>
 	</section>
 }

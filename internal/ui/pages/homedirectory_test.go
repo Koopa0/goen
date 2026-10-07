@@ -94,7 +94,7 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 			Tone: ToneSage, Items: 6,
 			Facts:     []components.Stat{{Label: "商品", Value: components.StatCount(6, "件")}},
 			CardFacts: []components.Stat{{Label: "結束", Value: components.StatCount(3, "天")}},
-			Period:    &components.PeriodSpec{Unit: components.PeriodDay, Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
+			Period:    &components.PeriodSpec{Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
 		},
 	}
 }

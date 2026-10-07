@@ -9,6 +9,15 @@ var (
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
 
+	// What is left of a running campaign, said inside a sentence, so English starts in lower case.
+	KeyCampaignDaysLeft = countKey("campaign.daysleft", "剩 %d 天", "%d day left", "%d days left")
+
+	KeyCampaignEndsTomorrow = key("campaign.endstomorrow", Message{ZhHant: "明天結束", En: "ends tomorrow"})
+
+	KeyCampaignEndsToday = key("campaign.endstoday", Message{ZhHant: "今天結束", En: "ends today"})
+
+	KeyCampaignEndsTodayAt = key("campaign.endstodayat", Message{ZhHant: "今天 %s 結束", En: "ends today at %s"})
+
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",
 		En:     "Nothing in this promotion is available right now",
@@ -36,7 +45,7 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	// %s is the last day, after the product count on the offers page.
+	// %s is the last day: after the product count on the offers page, and in a department's notice.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})

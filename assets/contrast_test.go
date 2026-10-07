@@ -93,13 +93,15 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	}
 
 	// The labels of the filled and the soft button, and text and links on a
-	// blue tint: a current item, a badge, an information notice.
+	// blue tint: a current item, a badge, an information notice, the pay page's
+	// hold.
 	for _, pair := range []struct{ ink, ground string }{
 		{ink: "--on-accent", ground: "--accent"},
 		{ink: "--on-accent", ground: "--accent-deep"},
 		{ink: "--accent-deep", ground: "--accent-faint"},
 		{ink: "--accent-deep", ground: "--accent-muted"},
 		{ink: "--accent", ground: "--accent-faint"},
+		{ink: "--muted", ground: "--accent-faint"},
 		{ink: "--error", ground: "--error-bg"},
 		{ink: "--n-900", ground: "--on-ink-accent"},
 	} {

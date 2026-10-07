@@ -465,8 +465,8 @@ JOIN order_shipments s ON s.id = sl.shipment_id
 WHERE ol.order_id = :'invoice_id'
 RETURNING serial_number AS layout_serial \gset
 
--- RETURN_FORM_ORDER is delivered with nothing returned: its order page draws the right-to-cancel grid and the
--- registered warranty's months.
+-- RETURN_FORM_ORDER is delivered with nothing returned: its order page draws the right-to-cancel track and states
+-- the registered warranty's end.
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, 1, o.user_id, 'LAYOUTSN' || translate(o.order_number, 'GO-', ''),
        (shop_day(s.delivered_at) + make_interval(months => ol.warranty_months))::date

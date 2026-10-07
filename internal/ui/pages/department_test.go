@@ -113,60 +113,63 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	if strings.Contains(without, "goen-deptnotice") {
 		t.Error("a department with no campaign draws a notice")
 	}
-	grid := components.PeriodSpec{Description: "秋日選物", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday}, {}}}
-	notice := &DepartmentNotice{
-		Title: "秋日選物", Href: "/s/autumn",
-		Ends:   components.Stat{Label: "結束", Value: components.StatDate("10 月 30 日", "").WithDatetime("2026-10-30")},
-		Period: &grid,
-	}
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	ends := time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC)
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(ends, now)}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
-	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`, `datetime="2026-10-30"`} {
+	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, `<time datetime="2026-10-30">`} {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}
 	}
 }
 
-// The period's track carries no dates, so the end line is drawn at every width,
-// with or without a track beside it; a campaign too long for one has the line alone.
-func TestACampaignNoticeKeepsItsEndLineWhereThereIsNoGrid(t *testing.T) {
+// The notice is one line of words: its last day and what is left are said, and
+// nothing is drawn. The arrow keeps to the last words with a no-break space.
+func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	now := start.AddDate(0, 0, 5)
+	cst := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, cst)
 	for _, tt := range []struct {
-		name     string
-		days     int
-		wantGrid bool
+		name   string
+		locale i18n.Locale
+		ends   time.Time
+		until  string
+		left   string
 	}{
-		{name: "a month", days: 30, wantGrid: true},
-		{name: "a season, too long for a grid", days: 90, wantGrid: false},
+		{"nine days left", i18n.ZhHant, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "至 10\u00a0月 18\u00a0日", "剩 9\u00a0天"},
+		{"nine days left", i18n.En, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "until Oct\u00a018", "9\u00a0days left"},
+		{"ends tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "至 10\u00a0月 10\u00a0日", "明天結束"},
+		{"ends tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "until Oct\u00a010", "ends tomorrow"},
+		{"ends today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "至 10\u00a0月 9\u00a0日", "今天結束"},
+		{"ends today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "until Oct\u00a09", "ends today"},
+		{"ends today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "至 10\u00a0月 9\u00a0日", "今天 18:00 結束"},
+		{"ends today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "until Oct\u00a09", "ends today at 18:00"},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" "+string(tt.locale), func(t *testing.T) {
 			t.Parallel()
-			ends := start.AddDate(0, 0, tt.days)
-			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Ends: CampaignEndStat(ctx, ends, now)}
-			if period, ok := components.DayPeriod(ctx, notice.Title, start, ends, now); ok {
-				notice.Period = &period
-			}
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(tt.ends, now)}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
 			if err != nil {
 				t.Fatal(err)
 			}
-			in := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__in") })
-			if in == nil {
-				t.Fatal("departmentNotice draws no goen-deptnotice__in")
+			link := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__name") })
+			if link == nil {
+				t.Fatal("departmentNotice draws no goen-deptnotice__name")
 			}
-			var line, grid bool
-			for c := in.FirstChild; c != nil; c = c.NextSibling {
-				line = line || hasClass(c, "ui-statline")
-				grid = grid || hasClass(c, "ui-period")
+			if text, want := nodeText(link), notice.Title+" "+tt.until; !strings.Contains(text, want) {
+				t.Errorf("the notice reads %q, want it to say %q", text, want)
 			}
-			if !line {
-				t.Errorf("%d days: the end line is not a child of goen-deptnotice__in", tt.days)
+			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__left") })
+			if left == nil {
+				t.Fatal("the notice sets nothing apart as what is left")
 			}
-			if grid != tt.wantGrid {
-				t.Errorf("%d days: day grid as a child of goen-deptnotice__in = %v, want %v", tt.days, grid, tt.wantGrid)
+			if got, want := nodeText(left), tt.left+"\u00a0\u2192"; got != want {
+				t.Errorf("what is left reads %q, want %q", got, want)
+			}
+			if drawn := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "ui-period") || hasClass(n, "ui-statline") }); drawn != nil {
+				t.Errorf("the notice draws %s; it says its end in words", attrValue(drawn, "class"))
 			}
 		})
 	}
