@@ -54,22 +54,7 @@ func TestCouponToggleFaultsKeepSavedStateAndRecover(t *testing.T) {
 				if roleErr := writing.QueryRow(ctx, `SELECT current_user`).Scan(&role); roleErr != nil || role != "admin" {
 					t.Fatalf("writer role = %q, want admin: %v", role, roleErr)
 				}
-				var holder pgx.Tx
-				if fault == "closed pool" {
-					writing.Close()
-					if pingErr := writing.Ping(ctx); pingErr == nil || ctx.Err() != nil {
-						t.Fatalf("closed writer = %v, request = %v, want an unavailable pool with a live request", pingErr, ctx.Err())
-					}
-				} else {
-					holder, err = owner.Begin(ctx)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer pgtx.Rollback(ctx, holder)
-					if _, lockErr := holder.Exec(ctx, `SELECT 1 FROM coupons WHERE code=$1 FOR UPDATE`, code); lockErr != nil {
-						t.Fatal(lockErr)
-					}
-				}
+				release := couponToggleFault(t, ctx, owner, writing, fault, code)
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
 				mux := http.NewServeMux()
@@ -97,11 +82,7 @@ func TestCouponToggleFaultsKeepSavedStateAndRecover(t *testing.T) {
 				if diff := cmp.Diff(before, couponToggleState(t, ctx, owner, code)); diff != "" {
 					t.Errorf("failed coupon toggle changed saved rows or audit (-want +got):\n%s", diff)
 				}
-				if holder != nil {
-					if rollbackErr := holder.Rollback(ctx); rollbackErr != nil {
-						t.Fatal(rollbackErr)
-					}
-				}
+				release()
 				mux = http.NewServeMux()
 				recoveredPool := writing
 				if fault == "closed pool" {
@@ -121,6 +102,61 @@ func TestCouponToggleFaultsKeepSavedStateAndRecover(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func couponToggleFault(t *testing.T, ctx context.Context, owner, writing *pgxpool.Pool, fault, code string) func() {
+	t.Helper()
+	if fault == "closed pool" {
+		writing.Close()
+		if err := writing.Ping(ctx); err == nil || ctx.Err() != nil {
+			t.Fatalf("closed writer = %v, request = %v, want an unavailable pool with a live request", err, ctx.Err())
+		}
+		return func() {}
+	}
+	holder, err := owner.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { pgtx.Rollback(ctx, holder) })
+	if _, err := holder.Exec(ctx, `SELECT 1 FROM coupons WHERE code=$1 FOR UPDATE`, code); err != nil {
+		t.Fatal(err)
+	}
+	return func() {
+		t.Helper()
+		if err := holder.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestCouponToggleKeepsDatabaseRuleRefusalDistinct(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	code := seedToggleCoupon(t, staff, adminPool)
+	if _, err := owner.Exec(t.Context(), `ALTER TABLE coupons ADD CONSTRAINT test_coupon_toggle_refused CHECK (is_active)`); err != nil {
+		t.Fatal(err)
+	}
+	before := couponToggleState(t, staff, owner, code)
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(staff, locale)
+			var diagnostics bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
+			mux := http.NewServeMux()
+			coupons.NewHandler(coupons.NewStore(adminPool), logger).Routes(mux, admintest.BackOffice)
+			response := postCouponToggle(t, ctx, mux, code)
+			if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/coupons?refused=1" {
+				t.Errorf("rule-refused coupon toggle = %d to %q, want 303 to refused=1", response.Code, response.Header().Get("Location"))
+			}
+			if !strings.Contains(diagnostics.String(), `level=WARN msg="set coupon active refused"`) || !strings.Contains(diagnostics.String(), "test_coupon_toggle_refused") || !strings.Contains(diagnostics.String(), "SQLSTATE 23514") {
+				t.Errorf("rule-refused coupon diagnostics = %q, want Warn with the CHECK refusal", diagnostics.String())
+			}
+			if diff := cmp.Diff(before, couponToggleState(t, ctx, owner, code)); diff != "" {
+				t.Errorf("refused coupon toggle changed saved rows or audit (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

@@ -316,22 +316,7 @@ func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
 					if roleErr := writing.QueryRow(ctx, `SELECT current_user`).Scan(&role); roleErr != nil || role != "admin" {
 						t.Fatalf("writer role = %q, want admin: %v", role, roleErr)
 					}
-					var holder pgx.Tx
-					if fault == "closed pool" {
-						writing.Close()
-						if pingErr := writing.Ping(ctx); pingErr == nil || ctx.Err() != nil {
-							t.Fatalf("closed writer = %v, request = %v, want an unavailable pool with a live request", pingErr, ctx.Err())
-						}
-					} else {
-						holder, err = owner.Begin(ctx)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer pgtx.Rollback(ctx, holder)
-						if _, lockErr := holder.Exec(ctx, endpoint.lock, slug); lockErr != nil {
-							t.Fatal(lockErr)
-						}
-					}
+					release := productWriteFault(t, ctx, owner, writing, fault, endpoint.lock, slug)
 					var diagnostics bytes.Buffer
 					logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
 					mux := productOutcomeRoutes(writing, logger)
@@ -358,11 +343,7 @@ func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
 					if diff := cmp.Diff(before, productOutcomeState(t, ctx, owner, slug)); diff != "" {
 						t.Errorf("failed product write changed saved rows or audit (-want +got):\n%s", diff)
 					}
-					if holder != nil {
-						if rollbackErr := holder.Rollback(ctx); rollbackErr != nil {
-							t.Fatal(rollbackErr)
-						}
-					}
+					release()
 					if fault == "closed pool" {
 						mux = productOutcomeRoutes(adminPool, logger)
 					}
@@ -373,25 +354,96 @@ func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
 					if admintest.AuditRows(t, owner, endpoint.action) != beforeAudit+1 {
 						t.Error("recovered product write must commit exactly one audit event")
 					}
-					if endpoint.path == "/images/option" {
-						var shows string
-						if readErr := owner.QueryRow(ctx, `SELECT i.option_value_id::text FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$2`, slug, digest).Scan(&shows); readErr != nil {
-							t.Fatal(readErr)
-						}
-						if shows != valueID {
-							t.Errorf("recovered image shows %q, want %q", shows, valueID)
-						}
-					} else {
-						var values [3]string
-						if readErr := owner.QueryRow(ctx, `SELECT s.value, s.label_en, s.value_en FROM product_specs s JOIN products p ON p.id=s.product_id WHERE p.slug=$1 AND s.label='Capacity'`, slug).Scan(&values[0], &values[1], &values[2]); readErr != nil {
-							t.Fatal(readErr)
-						}
-						if diff := cmp.Diff([3]string{"350 mL", "Capacity", "350 mL"}, values); diff != "" {
-							t.Errorf("recovered specification (-want +got):\n%s", diff)
-						}
-					}
+					assertRecoveredProductWrite(t, ctx, owner, endpoint.path, slug, digest, valueID)
 				})
 			}
+		}
+	}
+}
+
+func productWriteFault(t *testing.T, ctx context.Context, owner, writing *pgxpool.Pool, fault, lock, slug string) func() {
+	t.Helper()
+	if fault == "closed pool" {
+		writing.Close()
+		if err := writing.Ping(ctx); err == nil || ctx.Err() != nil {
+			t.Fatalf("closed writer = %v, request = %v, want an unavailable pool with a live request", err, ctx.Err())
+		}
+		return func() {}
+	}
+	holder, err := owner.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { pgtx.Rollback(ctx, holder) })
+	if _, err := holder.Exec(ctx, lock, slug); err != nil {
+		t.Fatal(err)
+	}
+	return func() {
+		t.Helper()
+		if err := holder.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func assertRecoveredProductWrite(t *testing.T, ctx context.Context, owner *pgxpool.Pool, path, slug, digest, valueID string) {
+	t.Helper()
+	if path == "/images/option" {
+		var shows string
+		if err := owner.QueryRow(ctx, `SELECT i.option_value_id::text FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$2`, slug, digest).Scan(&shows); err != nil {
+			t.Fatal(err)
+		}
+		if shows != valueID {
+			t.Errorf("recovered image shows %q, want %q", shows, valueID)
+		}
+		return
+	}
+	var values [3]string
+	if err := owner.QueryRow(ctx, `SELECT s.value, s.label_en, s.value_en FROM product_specs s JOIN products p ON p.id=s.product_id WHERE p.slug=$1 AND s.label='Capacity'`, slug).Scan(&values[0], &values[1], &values[2]); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([3]string{"350 mL", "Capacity", "350 mL"}, values); diff != "" {
+		t.Errorf("recovered specification (-want +got):\n%s", diff)
+	}
+}
+
+func TestProductEditorWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
+	owner := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	slug, digest, valueID := seedProductWriteOutcome(t, staff, owner, adminPool)
+	// Catalogue images can already show an option; the isolated CHECK applies to subsequent writes.
+	if _, err := owner.Exec(t.Context(), `
+		ALTER TABLE product_images ADD CONSTRAINT test_product_image_option_refused CHECK (option_value_id IS NULL) NOT VALID;
+		ALTER TABLE product_specs ADD CONSTRAINT test_product_spec_value_refused CHECK (value <> '350 mL');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	before := productOutcomeState(t, staff, owner, slug)
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name, path, notice, log, constraint string
+		}{
+			{name: "image option", path: "/images/option", notice: "refused=1", log: "set image option refused", constraint: "test_product_image_option_refused"},
+			{name: "add spec", path: "/specs", notice: "specfailed=1", log: "add spec refused", constraint: "test_product_spec_value_refused"},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(staff, locale)
+				var diagnostics bytes.Buffer
+				logger := slog.New(slog.NewTextHandler(&diagnostics, nil))
+				form := productOutcomeForm(tt.path, digest, valueID)
+				response := postProductOutcome(t, ctx, productOutcomeRoutes(adminPool, logger), "/admin/products/"+slug+tt.path, form)
+				location := "/admin/products/" + slug + "?" + tt.notice
+				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != location {
+					t.Errorf("rule-refused %s = %d to %q, want 303 to %q", tt.name, response.Code, response.Header().Get("Location"), location)
+				}
+				if !strings.Contains(diagnostics.String(), `level=WARN msg="`+tt.log+`"`) || !strings.Contains(diagnostics.String(), tt.constraint) || !strings.Contains(diagnostics.String(), "SQLSTATE 23514") {
+					t.Errorf("rule-refused %s diagnostics = %q, want Warn with the CHECK refusal", tt.name, diagnostics.String())
+				}
+				if diff := cmp.Diff(before, productOutcomeState(t, ctx, owner, slug)); diff != "" {
+					t.Errorf("refused product write changed saved rows or audit (-want +got):\n%s", diff)
+				}
+			})
 		}
 	}
 }
