@@ -838,16 +838,18 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	for _, directory := range []string{"internal", "seed", "scripts"} {
+		if err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if !entry.IsDir() && strings.HasSuffix(path, ".sql") {
+				paths = append(paths, path)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
 		}
-		if !entry.IsDir() && strings.HasSuffix(path, ".sql") {
-			paths = append(paths, path)
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
 	}
 	for _, path := range paths {
 		data, readErr := os.ReadFile(path)
@@ -858,9 +860,14 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 		// Infer the forwarding wrapper's table from its actual INSERT.
 		invoiceEntity := ""
 		function := ""
+		var signature [][]string
 		for index, word := range tokens {
 			if strings.EqualFold(word, "create") && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "function") {
 				function = tokens[index+2]
+				signature, _ = auditSQLArguments(t, tokens, index+3)
+			}
+			if word == "$audit_body_end$" {
+				function, signature = "", nil
 			}
 			if function != "record_invoice_operation_audit" || !strings.EqualFold(word, "insert") || index+3 >= len(tokens) || !strings.EqualFold(tokens[index+2], "audit_events") {
 				continue
@@ -872,6 +879,9 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 			values, _ := auditSQLArguments(t, tokens, end+1)
 			if len(columns) != len(values) {
 				t.Fatal("invoice audit wrapper columns and values differ")
+			}
+			if !auditSQLInvoiceForwarder(function, signature, columns, values) {
+				t.Fatal("unfamiliar invoice audit forwarding function")
 			}
 			for column, names := range columns {
 				if names[0] != "entity_table" {
@@ -900,8 +910,16 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 				}
 			}
 		}
+		function, signature = "", nil
 		for index, word := range tokens {
 			name := strings.ToLower(word)
+			if name == "create" && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "function") {
+				function = tokens[index+2]
+				signature, _ = auditSQLArguments(t, tokens, index+3)
+			}
+			if word == "$audit_body_end$" {
+				function, signature = "", nil
+			}
 			if (name == "record_audit_event" || name == "record_invoice_operation_audit") && index+1 < len(tokens) && tokens[index+1] == "(" && (index == 0 || !strings.EqualFold(tokens[index-1], "function")) {
 				args, _ := auditSQLArguments(t, tokens, index+1)
 				if strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
@@ -946,21 +964,15 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 					}
 				}
 				if entity == "" {
-					forwarded := false
-					for column, names := range columns {
-						if names[0] == "entity_table" && len(values[column]) == 1 && values[column][0] == "p_entity_table" {
-							forwarded = true
-						}
+					if !auditSQLGenericForwarder(function, signature, columns, values) {
+						t.Fatalf("%s: unsupported dynamic audit INSERT entity in %s", path, function)
 					}
-					if !forwarded {
-						t.Fatalf("%s: unsupported dynamic audit INSERT entity", path)
-					}
-					continue // record_audit_event forwards its callers' entity and JSON.
+					continue
 				}
 				for column, names := range columns {
 					if names[0] == "before" || names[0] == "after" {
-						if len(values[column]) == 1 && values[column][0] == "p_after" {
-							continue // record_invoice_operation_audit forwards the JSON above.
+						if names[0] == "after" && auditSQLInvoiceForwarder(function, signature, columns, values) {
+							continue // Only this exact wrapper forwards caller-supplied JSON.
 						}
 						add(entity, readPayload(values[column]), path)
 					}
@@ -1036,7 +1048,9 @@ func auditSQLTokens(t *testing.T, source string) []string {
 				bodyEnd := end + 1 + closeAt
 				body := source[end+1 : bodyEnd]
 				if len(tokens) > 0 && (strings.EqualFold(tokens[len(tokens)-1], "as") || strings.EqualFold(tokens[len(tokens)-1], "do")) {
+					tokens = append(tokens, "$audit_body_begin$")
 					tokens = append(tokens, auditSQLTokens(t, body)...)
+					tokens = append(tokens, "$audit_body_end$")
 				} else {
 					tokens = append(tokens, source[index:bodyEnd+len(marker)])
 				}
@@ -1138,4 +1152,78 @@ func auditBranchTable(t *testing.T, branch *ast.IfStmt, name string) string {
 		return true
 	})
 	return entity
+}
+
+func auditSQLSignatureMatches(signature [][]string, namesAndTypes []string) bool {
+	if len(signature)*2 != len(namesAndTypes) {
+		return false
+	}
+	for index, parameter := range signature {
+		if len(parameter) < 2 || parameter[0] != namesAndTypes[index*2] || parameter[1] != namesAndTypes[index*2+1] {
+			return false
+		}
+	}
+	return true
+}
+
+func auditSQLColumnsMatch(columns, values [][]string, expected map[string]string) bool {
+	if len(columns) != len(values) {
+		return false
+	}
+	for name, value := range expected {
+		found := false
+		for index, column := range columns {
+			if len(column) == 1 && column[0] == name && len(values[index]) == 1 && values[index][0] == value {
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func auditSQLGenericForwarder(function string, signature, columns, values [][]string) bool {
+	return function == "record_audit_event" &&
+		auditSQLSignatureMatches(signature, []string{"p_actor", "uuid", "p_action", "text", "p_entity_table", "text", "p_entity_id", "uuid", "p_before", "jsonb", "p_after", "jsonb", "p_request_id", "text"}) &&
+		auditSQLColumnsMatch(columns, values, map[string]string{"entity_table": "p_entity_table", "before": "p_before", "after": "p_after"})
+}
+
+func auditSQLInvoiceForwarder(function string, signature, columns, values [][]string) bool {
+	return function == "record_invoice_operation_audit" &&
+		auditSQLSignatureMatches(signature, []string{"p_operation_id", "uuid", "p_entity_id", "uuid", "p_after", "jsonb"}) &&
+		auditSQLColumnsMatch(columns, values, map[string]string{"entity_id": "p_entity_id", "before": "NULL", "after": "p_after"})
+}
+
+func TestAuditSQLForwardingRequiresItsExactFunction(t *testing.T) {
+	t.Parallel()
+	columns := [][]string{{"entity_id"}, {"entity_table"}, {"before"}, {"after"}}
+	generic := [][]string{{"p_actor", "uuid"}, {"p_action", "text"}, {"p_entity_table", "text"}, {"p_entity_id", "uuid"}, {"p_before", "jsonb"}, {"p_after", "jsonb"}, {"p_request_id", "text"}}
+	invoice := [][]string{{"p_operation_id", "uuid"}, {"p_entity_id", "uuid"}, {"p_after", "jsonb"}}
+	genericValues := [][]string{{"p_entity_id"}, {"p_entity_table"}, {"p_before"}, {"p_after"}}
+	invoiceValues := [][]string{{"p_entity_id"}, {"'invoice_documents'"}, {"NULL"}, {"p_after"}}
+	if !auditSQLGenericForwarder("record_audit_event", generic, columns, genericValues) {
+		t.Error("the exact generic forwarding function was not recognized")
+	}
+	if !auditSQLInvoiceForwarder("record_invoice_operation_audit", invoice, columns, invoiceValues) {
+		t.Error("the exact invoice forwarding function was not recognized")
+	}
+	for _, function := range []string{"", "new_writer", "record_invoice_operation_audit"} {
+		if auditSQLGenericForwarder(function, generic, columns, genericValues) {
+			t.Errorf("unrecognized %q may silently omit a dynamic entity", function)
+		}
+	}
+	for _, function := range []string{"", "new_writer", "record_audit_event"} {
+		if auditSQLInvoiceForwarder(function, invoice, columns, invoiceValues) {
+			t.Errorf("unrecognized %q may silently omit p_after", function)
+		}
+	}
+	if auditSQLGenericForwarder("record_audit_event", invoice, columns, genericValues) || auditSQLInvoiceForwarder("record_invoice_operation_audit", generic, columns, invoiceValues) {
+		t.Error("a forwarding name with a different signature was accepted")
+	}
+	wrongValues := [][]string{{"p_entity_id"}, {"p_entity_table"}, {"p_before"}, {"new_payload"}}
+	if auditSQLGenericForwarder("record_audit_event", generic, columns, wrongValues) {
+		t.Error("a forwarding function with a different payload was accepted")
+	}
 }
