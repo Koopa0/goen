@@ -290,7 +290,7 @@ func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, endpoint := range []struct {
 			name, path, query, lock, log string
-			action                      audit.Action
+			action                       audit.Action
 		}{
 			{name: "image option", path: "/images/option", query: "SetProductImageOptionValue", lock: `SELECT 1 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 FOR UPDATE OF i`, log: "set image option", action: audit.ActionSetImageOption},
 			{name: "add spec", path: "/specs", query: "AddProductSpec", lock: `SELECT 1 FROM products WHERE slug=$1 FOR UPDATE`, log: "add spec", action: audit.ActionAddSpec},
@@ -483,7 +483,7 @@ func TestRefusedSpecificationKeepsDraftWhenRatingsAreUnavailable(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer pgtx.Rollback(ctx, holder)
-			if _, lockErr := holder.Exec(ctx, `LOCK TABLE reviews IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
+			if _, lockErr := holder.Exec(ctx, `LOCK TABLE product_reviews IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
 				t.Fatal(lockErr)
 			}
 			var diagnostics bytes.Buffer
