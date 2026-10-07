@@ -143,7 +143,10 @@ if (mode === 'storefront') {
   console.log('deal product', dealProduct);
   await navigate(ORIGIN + '/c/home-living');
   const subcategory = await evaluate(`document.querySelector('.goen-pagehead__chips a')?.getAttribute('href') || null`);
-  const optionProduct = '/p/pixelight-9-pro';
+  // Option links come from the page's own swatches, so the URLs are the shop's Href output.
+  await navigate(ORIGIN + '/p/pixelight-9-pro');
+  const optionProduct = await evaluate(`document.querySelector('a.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--dot)')?.getAttribute('href') || null`);
+  const colourProduct = await evaluate(`document.querySelector('a.goen-swatch--dot:not(.goen-swatch--on)')?.getAttribute('href') || null`);
   console.log('subcategory', subcategory, 'option product', optionProduct);
   // Signed out: the shop as a guest with a cart and an unpaid order.
   await capture([
@@ -153,6 +156,7 @@ if (mode === 'storefront') {
     ['product-deal', dealProduct],
     ['subcategory', subcategory],
     ['product-option', optionProduct],
+    ['product-colour', colourProduct],
     ['search', '/search?q=%E8%8C%B6'],
     ['deals', '/deals'],
     ['cart', '/cart'],
@@ -160,6 +164,18 @@ if (mode === 'storefront') {
     ['pay', `/orders/${process.env.PLACED_ORDER}/pay`],
     ['signin', '/signin'],
   ]);
+  // Keyboard focus on the chosen text option, which must show the ring.
+  for (const width of [1440, 375]) {
+    await metrics(width, 900);
+    await navigate(ORIGIN + optionProduct);
+    await evaluate(`(() => { const e = document.querySelector('.goen-swatch--on:not(.goen-swatch--dot)'); if (!e) return false; e.focus({ focusVisible: true }); return true; })()`);
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 });
+    const ring = await evaluate(`(() => { const e = document.activeElement; const s = getComputedStyle(e); return e.matches(':focus-visible') + ' ' + s.outlineStyle + ' ' + s.outlineWidth + ' ' + s.outlineColor; })()`);
+    console.log(`focus ring ${width}: ${ring}`);
+    await sleep(300);
+    const { data } = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${outDir}/product-option-focus-${width}.png`, Buffer.from(data, 'base64'));
+  }
   // Signed in as the customer whose delivered order is still inside its window.
   await cookie('goen_session', process.env.CUST_TOKEN);
   await capture([['order', `/orders/${process.env.RETURN_FORM_ORDER}`]]);
