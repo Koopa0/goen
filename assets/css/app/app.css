@@ -5801,7 +5801,10 @@ input.goen-check {
   margin: 0 0 0 auto;
 }
 
+/* A label stays whole while the row can wrap it onto its own line; one longer than the panel
+   (a shop-entered discount reason at 200% text) still breaks rather than spilling. */
 .goen-summary__row :is(dt, dd) {
+  overflow-wrap: anywhere;
   word-break: keep-all;
 }
 
