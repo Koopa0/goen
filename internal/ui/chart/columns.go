@@ -25,7 +25,7 @@ const (
 	maxLanes        = 3   // a campaign that finds no free lane among them is shaded without a bracket or a name
 	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
 	desktopPlot     = 888 // the width of a plot at its widest, in pixels
-	minorTickFrom   = 85  // a day tick this far along, in percent, gives way to "Today" beside it
+	widestMinorPlot = 476 // the widest plot that still hides minor ticks: a 519px frame less its 2.75rem value axis, in pixels
 )
 
 // Span is a stretch of days drawn behind the columns and bracketed above them,
@@ -506,24 +506,31 @@ func coveredDays(ctx context.Context, c Column, first, last time.Time) string {
 }
 
 // minorTick is whether the tick of column i of n gives way on a narrow chart:
-// every third of a chart in runs, every other of a week, and, when "Today" ends
-// the axis, a day tick in its last 15%, so that it is dropped rather than
-// printed over "Today".
-func minorTick(i, n int, band float64, grouped, today bool) bool {
+// every third of a chart in runs, every other of a week.
+func minorTick(i, n int, grouped bool) bool {
 	switch {
 	case grouped:
 		return (n-1-i)%3 != 0
 	case n <= 7:
 		return (n-1-i)%2 == 1
-	case today && i != n-1:
-		return (float64(i)+0.5)*band > minorTickFrom
 	}
 	return false
 }
 
+// nearToday says what becomes of the day tick of column i of n, labelled day,
+// when "Today" ends the axis: it is dropped when even the widest plot that hides
+// minor ticks leaves its label less than 4px from "Today", and it is minor, so a
+// narrow chart drops it, when the narrowest plot does.
+func nearToday(day, today string, i, n int) (drop, minor bool) {
+	need := textWidth(day)/2 + textWidth(today) + 4
+	left := 1 - (float64(i)+0.5)/float64(n)
+	return left*widestMinorPlot < need, left*narrowPlot < need
+}
+
 // columnTicks labels the axis: a long chart, drawn in runs, labels the day each
 // starts on; otherwise the days tickDays picks, and every day of a week, and
-// today at the end when the last day is still going.
+// today at the end when the last day is still going, which a day tick must not
+// meet.
 func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
 	picked := map[int]bool{}
@@ -543,7 +550,13 @@ func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band f
 			continue
 		}
 		t := dayTick{X: percent((float64(i) + 0.5) * band), Anchor: "middle", Label: axisDay(ctx, c.Day)}
-		t.Minor = minorTick(i, n, band, grouped, today)
+		t.Minor = minorTick(i, n, grouped)
+		if !grouped && today && n > 7 && i != n-1 {
+			var drop bool
+			if drop, t.Minor = nearToday(t.Label, i18n.T(ctx, i18n.KeyChartToday), i, n); drop {
+				continue
+			}
+		}
 		if i == n-1 {
 			if !grouped && today {
 				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true

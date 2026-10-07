@@ -320,32 +320,70 @@ func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
 	}
 }
 
-func TestColumnTicksMakeTheDayNearestTodayMinorSoItNeverPrintsOverIt(t *testing.T) {
+func TestColumnTicksKeepTheDaysNearTodayClearOfIt(t *testing.T) {
 	t.Parallel()
 
 	type tick struct {
 		label string
 		minor bool
 	}
+	// A run of days starting offset days after Monday Sep 7, so that the last
+	// Monday falls where each row says.
 	for _, tc := range []struct {
-		name    string
-		n       int
-		grouped bool
-		today   bool
-		want    []tick
+		name   string
+		locale i18n.Locale
+		n      int
+		offset int
+		today  bool
+		want   []tick
 	}{
-		// From Sep 8, a Tuesday, Oct 5 is the 28th of 30 days: 92% along, and so near "Today".
-		{"30 days ending today", 30, false, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", true}, {"Today", false}}},
-		{"30 days that ended", 30, false, false, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", false}, {"Oct 7", false}}},
-		{"14 days ending today", 14, false, true, []tick{{"Sep 14", false}, {"Today", false}}},
+		{"last Monday at 85%, English", i18n.En, 30, 3, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", true}, {"Today", false}}},
+		{"last Monday at 85%, Chinese", i18n.ZhHant, 30, 3, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"10/5", true}, {"今天", false}}},
+		{"last Monday at 81.7%, English", i18n.En, 30, 4, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", true}, {"Today", false}}},
+		{"last Monday at 81.7%, Chinese", i18n.ZhHant, 30, 4, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"10/5", false}, {"今天", false}}},
+		{"last Monday at 91.7% is too near for any plot, English", i18n.En, 30, 1, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Today", false}}},
+		{"last Monday at 91.7% is too near for any plot, Chinese", i18n.ZhHant, 30, 1, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"今天", false}}},
+		{"a period that ended keeps its last day", i18n.En, 30, 1, false, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", false}, {"Oct 7", false}}},
+		{"14 days ending today", i18n.En, 14, 1, true, []tick{{"Sep 14", false}, {"Today", false}}},
 	} {
-		cols := Series{Buckets: days(tc.n + 1)[1:]}.Columns()
+		cols := Series{Buckets: days(tc.n + tc.offset)[tc.offset:]}.Columns()
 		got := make([]tick, 0, len(cols))
-		for _, tk := range columnTicks(i18n.WithLocale(t.Context(), i18n.En), cols, tc.grouped, tc.today, 100/float64(len(cols))) {
+		for _, tk := range columnTicks(i18n.WithLocale(t.Context(), tc.locale), cols, false, tc.today, 100/float64(len(cols))) {
 			got = append(got, tick{tk.Label, tk.Minor})
 		}
 		if !slices.Equal(got, tc.want) {
 			t.Errorf("%s: ticks %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestColumnTicksNeverPrintWithin4pxOfToday(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		today := textWidth(i18n.T(ctx, i18n.KeyChartToday))
+		for offset := range 7 {
+			cols := Series{Buckets: days(30 + offset)[offset:]}.Columns()
+			for _, tk := range columnTicks(ctx, cols, false, true, 100/float64(len(cols))) {
+				if tk.Today {
+					continue
+				}
+				x, err := strconv.ParseFloat(strings.TrimSuffix(tk.X, "%"), 64)
+				if err != nil {
+					t.Fatalf("tick X %q: %v", tk.X, err)
+				}
+				// The plot widths: 476, the widest that hides minor ticks, and
+				// narrowPlot, the narrowest there is.
+				for _, plot := range []float64{widestMinorPlot, narrowPlot} {
+					if plot == widestMinorPlot || !tk.Minor {
+						gap := plot - today - (x/100*plot + textWidth(tk.Label)/2)
+						if gap < 4-0.1 {
+							t.Errorf("%s, start +%d: %q (minor %v) is %.1fpx from Today on a %.0fpx plot, want 4 or more", locale, offset, tk.Label, tk.Minor, gap, plot)
+						}
+					}
+				}
+			}
 		}
 	}
 }
