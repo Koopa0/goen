@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 type deliveryPriceOrder struct {
@@ -228,6 +229,11 @@ func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal string) *httptest.ResponseRecorder {
 	t.Helper()
 	values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {postal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
+	return postDeliveryValues(ctx, t, number, values)
+}
+
+func postDeliveryValues(ctx context.Context, t *testing.T, number string, values url.Values) *httptest.ResponseRecorder {
+	t.Helper()
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/delivery", strings.NewReader(values.Encode()))
 	r.SetPathValue("number", number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -362,4 +368,85 @@ func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
 	if got := streetOf(t, f.number); got != "Saved street" {
 		t.Fatal("malformed postcode changed saved address")
 	}
+}
+
+func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tc := range []struct {
+			name string
+			pickup bool
+			errorID string
+			key i18n.Key
+		}{
+			{name: "short phone", errorID: "d-phone", key: i18n.KeyPhoneMalformed},
+			{name: "pickup code without name", pickup: true, errorID: "d-store-name", key: i18n.KeyAddressIncomplete},
+			{name: "pickup name without code", pickup: true, errorID: "d-store-code", key: i18n.KeyStoreCodeMalformed},
+		} {
+			t.Run(string(locale)+"/"+tc.name, func(t *testing.T) {
+				f := pricedDeliveryOrder(t, 0, 0, 0)
+				ctx, _ := admintest.StaffContext(t, pool)
+				ctx = i18n.WithLocale(ctx, locale)
+				values := url.Values{
+					"email": {" proposed@example.com "}, "recipient": {" Proposed recipient "}, "phone": {"0922333444"},
+					"postal_code": {f.oldPostal}, "city": {"New city"}, "district": {"New district"}, "street": {" Proposed <street> "},
+				}
+				controls := map[string]string{"d-email": values.Get("email"), "d-recipient": values.Get("recipient")}
+				if tc.pickup {
+					if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET destination_kind='pickup_point' WHERE id=$1`, f.method); err != nil { t.Fatal(err) }
+					if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart',pickup_store_code='SAVED1',pickup_store_name='Saved store' WHERE order_id=$1`, f.id); err != nil { t.Fatal(err) }
+					values.Set("pickup_chain", string(pickup.SevenEleven))
+					if tc.errorID == "d-store-name" { values.Set("pickup_store_code", "a123") } else { values.Set("pickup_store_name", " Proposed store ") }
+					controls["d-store-code"], controls["d-store-name"] = values.Get("pickup_store_code"), values.Get("pickup_store_name")
+				} else {
+					values.Set("phone", "123")
+					for id, field := range map[string]string{"d-postal":"postal_code", "d-city":"city", "d-district":"district", "d-street":"street"} { controls[id] = values.Get(field) }
+				}
+				controls["d-phone"] = values.Get("phone")
+				store := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+				saved, err := store.Order(ctx, f.number)
+				if err != nil { t.Fatal(err) }
+				var before, after string
+				if err := pool.QueryRow(ctx, `SELECT to_jsonb(pd)::text FROM order_private_data pd WHERE order_id=$1`, f.id).Scan(&before); err != nil { t.Fatal(err) }
+				w := postDeliveryValues(ctx, t, f.number, values)
+				if w.Code != http.StatusUnprocessableEntity || w.Header().Get("Location") != "" {
+					t.Fatalf("refused correction status=%d location=%q, want 422 without redirect", w.Code, w.Header().Get("Location"))
+				}
+				body := w.Body.String()
+				for id, value := range controls {
+					tag := deliveryControlTag(t, body, id)
+					if !strings.Contains(tag, `value="`+html.EscapeString(value)+`"`) { t.Errorf("%s lost draft %q: %s", id, value, tag) }
+					if id == tc.errorID {
+						if !strings.Contains(tag, `aria-invalid="true"`) || !strings.Contains(tag, `aria-describedby="`+id+`-error"`) { t.Errorf("refused %s has no own error association: %s", id, tag) }
+					} else if strings.Contains(tag, "aria-invalid") || strings.Contains(tag, "aria-describedby") { t.Errorf("valid %s is marked refused: %s", id, tag) }
+				}
+				if !strings.Contains(body, `<p id="`+tc.errorID+`-error" class="ui-error-text" role="alert">`+html.EscapeString(i18n.T(ctx, tc.key))+`</p>`) { t.Error("refused control lost its localized reason") }
+				if tc.pickup && !strings.Contains(body, `<option value="seven_eleven" selected`) { t.Error("refusal lost submitted pickup chain") }
+				for _, value := range []string{saved.Recipient, saved.Phone, saved.Email, saved.Address} {
+					if !strings.Contains(body, `<dd class="ui-dl__desc">`+html.EscapeString(value)+`</dd>`) { t.Errorf("refused correction changed saved summary %q", value) }
+				}
+				if err := pool.QueryRow(ctx, `SELECT to_jsonb(pd)::text FROM order_private_data pd WHERE order_id=$1`, f.id).Scan(&after); err != nil { t.Fatal(err) }
+				if after != before { t.Fatalf("refused correction changed saved private data: before=%s after=%s", before, after) }
+				values.Set("phone", "0922333444")
+				if tc.pickup { values.Set("pickup_store_code", "a123"); values.Set("pickup_store_name", " Proposed store ") }
+				w = postDeliveryValues(ctx, t, f.number, values)
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/orders/"+f.number+"?ok=1" { t.Fatalf("corrected delivery status=%d location=%q", w.Code, w.Header().Get("Location")) }
+				updated, err := store.Order(ctx, f.number)
+				if err != nil { t.Fatal(err) }
+				if updated.Delivery.Recipient != "Proposed recipient" || updated.Delivery.Email != "proposed@example.com" || updated.Delivery.Phone != "0922333444" { t.Fatalf("successful correction did not save normalized common fields: %+v", updated.Delivery) }
+				if tc.pickup {
+					if updated.Delivery.PickupChain != pickup.SevenEleven || updated.Delivery.PickupStoreCode != "A123" || updated.Delivery.PickupStoreName != "Proposed store" || updated.Delivery.PostalCode != "" { t.Fatalf("successful pickup correction=%+v", updated.Delivery) }
+				} else if updated.Delivery.Street != "Proposed <street>" || updated.Delivery.PostalCode != f.oldPostal { t.Fatalf("successful address correction=%+v", updated.Delivery) }
+			})
+		}
+	}
+}
+
+func deliveryControlTag(t *testing.T, body, id string) string {
+	t.Helper()
+	at := strings.Index(body, `id="`+id+`"`)
+	if at < 0 { t.Fatalf("no delivery control %q", id) }
+	start := strings.LastIndex(body[:at], "<")
+	end := strings.Index(body[at:], ">")
+	if start < 0 || end < 0 { t.Fatalf("delivery control %q has no complete opening tag", id) }
+	return body[start:at+end+1]
 }

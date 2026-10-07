@@ -322,8 +322,12 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	submitted := deliveryFormOf(r.PostFormValue)
 	err := h.store.CorrectDelivery(r.Context(), number, submitted)
+	if refused, ok := errors.AsType[*DeliveryValidationError](err); ok {
+		h.rejectDelivery(w, r, submitted, refused.Fields)
+		return
+	}
 	if refused, ok := errors.AsType[*DeliveryPostalError](err); ok {
-		h.rejectDelivery(w, r, submitted, i18n.T(r.Context(), refused.Key))
+		h.rejectDelivery(w, r, submitted, []web.FieldRefusal{{Field: "postal_code", MessageKey: refused.Key}})
 		return
 	}
 
@@ -350,7 +354,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 
 // rejectDelivery keeps proposed data in the form while the summary continues
 // to show the saved destination, so a refusal cannot look like a completed edit.
-func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, message string) {
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, refusals []web.FieldRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
@@ -358,7 +362,16 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 		return
 	}
 	view.Delivery = admin.Delivery(*d)
-	view.DeliveryError = message
+	view.DeliveryErrors = make(map[string]string, len(refusals))
+	for _, refusal := range refusals {
+		field := refusal.Field
+		if field == "name" {
+			field = "recipient"
+		}
+		if _, seen := view.DeliveryErrors[field]; !seen {
+			view.DeliveryErrors[field] = i18n.T(r.Context(), refusal.MessageKey)
+		}
+	}
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))

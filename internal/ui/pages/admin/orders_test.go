@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"testing"
 	"time"
@@ -246,6 +247,90 @@ func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.
 			if strings.Contains(html, bad) {
 				t.Errorf("%s: a state with no completion time shows one: %q", tc.locale, bad)
 			}
+		}
+	}
+}
+
+func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tc := range []struct {
+			name string
+			pickup bool
+			chain pickup.Chain
+			errors map[string]i18n.Key
+		}{
+			{name: "phone", errors: map[string]i18n.Key{"phone": i18n.KeyPhoneMalformed}},
+			{name: "pickup pair", pickup: true, chain: pickup.FamilyMart, errors: map[string]i18n.Key{"pickup_store_name": i18n.KeyAddressIncomplete}},
+			{name: "all address fields", errors: map[string]i18n.Key{
+				"recipient": i18n.KeyNameRequired, "phone": i18n.KeyPhoneMalformed, "email": i18n.KeyCheckoutEmailMalformed,
+				"postal_code": i18n.KeyPostalCodeMalformed, "city": i18n.KeyCityRequired,
+				"district": i18n.KeyDistrictRequired, "street": i18n.KeyStreetRequired,
+			}},
+			{name: "all pickup fields", pickup: true, chain: "unknown", errors: map[string]i18n.Key{
+				"recipient": i18n.KeyNameRequired, "phone": i18n.KeyPhoneMalformed, "email": i18n.KeyCheckoutEmailMalformed,
+				"pickup_chain": i18n.KeyPickupChainRequired, "pickup_store_code": i18n.KeyStoreCodeMalformed,
+				"pickup_store_name": i18n.KeyStoreNameTooLong,
+			}},
+			{name: "missing chain", pickup: true, errors: map[string]i18n.Key{"pickup_chain": i18n.KeyPickupChainRequired}},
+		} {
+			t.Run(string(locale)+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				messages := make(map[string]string, len(tc.errors))
+				for field, key := range tc.errors {
+					messages[field] = i18n.T(ctx, key)
+				}
+				v := OrderView{
+					Number: "GO-DRAFT", Correctable: true, PickupDestination: tc.pickup,
+					PickupChains: pages.PickupChainChoices(), DeliveryErrors: messages,
+					Recipient: "Saved recipient", Phone: "0912345678", Email: "saved@example.com", Address: "Saved destination",
+					Delivery: Delivery{Recipient: " Proposed recipient ", Phone: "123", Email: "proposed@example.com",
+						PostalCode: "110", City: "New city", District: "New district", Street: " Proposed <street> ",
+						PickupChain: tc.chain, PickupStoreCode: "a123", PickupStoreName: ""},
+				}
+				body := renderComponent(t, ctx, Order(layouts.Page{}, &v))
+				controls := map[string]struct{id, value string}{
+					"recipient": {"d-recipient", v.Delivery.Recipient}, "phone": {"d-phone", v.Delivery.Phone}, "email": {"d-email", v.Delivery.Email},
+				}
+				if tc.pickup {
+					controls["pickup_store_code"] = struct{id, value string}{"d-store-code", v.Delivery.PickupStoreCode}
+					controls["pickup_store_name"] = struct{id, value string}{"d-store-name", v.Delivery.PickupStoreName}
+					chainTag := tagWithID(t, body, "d-chain")
+					if tc.errors["pickup_chain"] != "" && (!strings.Contains(chainTag, `aria-invalid="true"`) || !strings.Contains(chainTag, `aria-describedby="d-chain-error"`)) {
+						t.Errorf("refused chain has no own error association: %s", chainTag)
+					}
+					selected := `<option value="`+html.EscapeString(string(tc.chain))+`" selected`
+					if !strings.Contains(body, selected) {
+						t.Errorf("submitted chain %q has no selected option", tc.chain)
+					}
+				} else {
+					for field, control := range map[string]struct{id, value string}{
+						"postal_code": {"d-postal", v.Delivery.PostalCode}, "city": {"d-city", v.Delivery.City},
+						"district": {"d-district", v.Delivery.District}, "street": {"d-street", v.Delivery.Street},
+					} { controls[field] = control }
+				}
+				for field, control := range controls {
+					tag := tagWithID(t, body, control.id)
+					if !strings.Contains(tag, `value="`+html.EscapeString(control.value)+`"`) {
+						t.Errorf("%s lost its submitted value %q: %s", field, control.value, tag)
+					}
+					if message := messages[field]; message != "" {
+						if !strings.Contains(tag, `aria-invalid="true"`) || !strings.Contains(tag, `aria-describedby="`+control.id+`-error"`) {
+							t.Errorf("%s has no own error association: %s", field, tag)
+						}
+						want := `<p id="`+control.id+`-error" class="ui-error-text" role="alert">`+html.EscapeString(message)+`</p>`
+						if !strings.Contains(body, want) { t.Errorf("%s lacks its error %q", field, want) }
+					} else if strings.Contains(tag, "aria-invalid") || strings.Contains(tag, "aria-describedby") {
+						t.Errorf("valid %s is marked as refused: %s", field, tag)
+					}
+				}
+				for _, saved := range []string{v.Recipient, v.Phone, v.Email, v.Address} {
+					if !strings.Contains(body, `<dd class="ui-dl__desc">`+html.EscapeString(saved)+`</dd>`) {
+						t.Errorf("saved summary lost %q", saved)
+					}
+				}
+			})
 		}
 	}
 }
