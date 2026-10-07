@@ -414,7 +414,7 @@ func lanesOf(c columns) []int {
 	for k, s := range c.Strips {
 		lanes[k] = -1
 		if !s.Hidden {
-			lanes[k] = int((s.Y - 19 - laneTop) / laneHeight)
+			lanes[k] = int((s.Y - laneBracketAt - laneTop) / laneHeight)
 		}
 	}
 	return lanes
@@ -485,6 +485,17 @@ func TestColumnsKeepLanesApartFromEachOtherAndFromTheValues(t *testing.T) {
 	}
 	if plain := newColumns(t.Context(), columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))); plain.Baseline-columnsPlot != valueRoom {
 		t.Errorf("with no campaign the columns begin at y %.0f, want %d", plain.Baseline-columnsPlot, valueRoom)
+	}
+}
+
+func TestColumnsOfSevenDaysKeepBothSentencesUnderTheChart(t *testing.T) {
+	t.Parallel()
+
+	p := columnsProps(valued(90, map[int]int64{0: 1, 10: 2, 50: 3, 60: 1, 89: 4}))
+	p.Spans = []Span{campaign("One", 10, 80), campaign("Two", 11, 80), campaign("Three", 12, 80), campaign("Four", 13, 80)}
+	want := `<p class="goen-chart__note">The earliest stretch has 6 days. Counted up to 15:20. 1 more campaign runs at the same time; its name is in the table.</p>`
+	if got := renderColumns(t, i18n.En, p); !strings.Contains(got, want) {
+		t.Errorf("the note under a chart of runs of seven days is not %s\n%s", want, got)
 	}
 }
 

@@ -18,6 +18,8 @@ const (
 	columnsPlot     = 150 // the value area of the columns, in pixels
 	laneHeight      = 26  // a campaign's lane: its name, then its bracket under it, in pixels
 	laneTop         = 4   // the room above the first lane
+	laneNameBase    = 11  // a lane's name baseline, from the top of the lane
+	laneBracketAt   = 19  // a lane's bracket line, from the top of the lane
 	valueRoom       = 22  // between the last lane and the columns, for the value over the highest
 	maxLanes        = 3   // a fourth campaign at once is named under the chart, not bracketed
 	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
@@ -291,7 +293,11 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		r.Hits[i] = hit{X: percent(float64(i) * band), Width: percent(band)}
 	}
 
-	r.Note = p.Note
+	var sentences []string
+	if grouped && cols[0].Days != daysPerColumn {
+		sentences = append(sentences, i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days))
+	}
+	sentences = append(sentences, p.Note)
 	hidden := 0
 	for _, l := range lanes {
 		if l < 0 {
@@ -299,12 +305,9 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		}
 	}
 	if hidden > 0 {
-		r.Note = strings.TrimSpace(r.Note + " " + i18n.Count(ctx, i18n.KeyChartSpansUnbracketed, int64(hidden), hidden))
+		sentences = append(sentences, i18n.Count(ctx, i18n.KeyChartSpansUnbracketed, int64(hidden), hidden))
 	}
-	if grouped && cols[0].Days != daysPerColumn {
-		short := i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days)
-		r.Note = strings.TrimSpace(short + " " + p.Note)
-	}
+	r.Note = strings.TrimSpace(strings.Join(sentences, " "))
 	return r
 }
 
@@ -409,7 +412,7 @@ func stripsOf(pl []plan, lanes []int, n int) []strip {
 		if !s.Hidden {
 			text, at, anchor, _, _ := nameAt(sp, n)
 			top := float64(laneTop + laneHeight*lanes[k])
-			s.Y, s.NameY = top+19, top+11
+			s.Y, s.NameY = top+laneBracketAt, top+laneNameBase
 			s.Name, s.NameX, s.Anchor = text, percent(at*band), anchor
 		}
 		strips = append(strips, s)
