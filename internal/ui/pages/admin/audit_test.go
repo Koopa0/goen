@@ -855,13 +855,44 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 			t.Fatal(readErr)
 		}
 		tokens := auditSQLTokens(t, string(data))
+		// Infer the forwarding wrapper's table from its actual INSERT.
+		invoiceEntity := ""
+		function := ""
+		for index, word := range tokens {
+			if strings.EqualFold(word, "create") && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "function") {
+				function = tokens[index+2]
+			}
+			if function != "record_invoice_operation_audit" || !strings.EqualFold(word, "insert") || index+3 >= len(tokens) || !strings.EqualFold(tokens[index+2], "audit_events") {
+				continue
+			}
+			columns, end := auditSQLArguments(t, tokens, index+3)
+			if end+1 >= len(tokens) || !strings.EqualFold(tokens[end], "values") {
+				t.Fatal("invoice audit wrapper has no explicit VALUES row")
+			}
+			values, _ := auditSQLArguments(t, tokens, end+1)
+			if len(columns) != len(values) {
+				t.Fatal("invoice audit wrapper columns and values differ")
+			}
+			for column, names := range columns {
+				if names[0] != "entity_table" {
+					continue
+				}
+				if len(values[column]) != 1 || !strings.HasPrefix(values[column][0], "'") {
+					t.Fatal("invoice audit wrapper has a dynamic entity")
+				}
+				invoiceEntity = strings.Trim(values[column][0], "'")
+			}
+		}
 		query := ""
+		offset := 0
 		for _, line := range strings.Split(string(data), "\n") {
+			lineStart := offset
+			offset += len(line) + 1
 			if strings.HasPrefix(line, "-- name: ") {
 				query = strings.Fields(line)[2]
 			}
 			if strings.Contains(line, "SELECT record_audit_event(") && query != "" {
-				start := strings.Index(string(data), line)
+				start := lineStart
 				args, _ := auditSQLArguments(t, auditSQLTokens(t, string(data)[start:]), 2)
 				wrappers[query] = strings.Trim(args[2][0], "'")
 				if !strings.HasPrefix(args[2][0], "'") {
@@ -893,7 +924,10 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 					if len(args) != 3 {
 						t.Fatalf("unsupported invoice audit SQL call in %s", path)
 					}
-					add("invoice_documents", readPayload(args[2]), path)
+					if invoiceEntity == "" {
+						t.Fatalf("%s: cannot resolve invoice audit wrapper entity", path)
+					}
+					add(invoiceEntity, readPayload(args[2]), path)
 				}
 			}
 			if name == "insert" && index+3 < len(tokens) && strings.EqualFold(tokens[index+1], "into") && strings.EqualFold(tokens[index+2], "audit_events") {
@@ -912,7 +946,16 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 					}
 				}
 				if entity == "" {
-					continue // record_audit_event forwards the entity and payload of its callers.
+					forwarded := false
+					for column, names := range columns {
+						if names[0] == "entity_table" && len(values[column]) == 1 && values[column][0] == "p_entity_table" {
+							forwarded = true
+						}
+					}
+					if !forwarded {
+						t.Fatalf("%s: unsupported dynamic audit INSERT entity", path)
+					}
+					continue // record_audit_event forwards its callers' entity and JSON.
 				}
 				for column, names := range columns {
 					if names[0] == "before" || names[0] == "after" {
