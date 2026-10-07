@@ -5610,12 +5610,13 @@ input.goen-check {
    things a line offers. The box stays 44px tall, which is the target. */
 .goen-line__remove {
   background: transparent;
-  color: var(--n-700);
-  font-size: var(--fs-14);
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
   justify-content: flex-start;
   min-width: 2.75rem;
   padding: 0;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 3px;
 }
 
