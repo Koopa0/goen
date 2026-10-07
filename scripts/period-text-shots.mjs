@@ -179,17 +179,22 @@ await cookie('goen_locale', locale);
 if (process.env.PLACED_TOKEN) await cookie('goen_placed', process.env.PLACED_TOKEN);
 await metrics(1440, 900);
 
-const department = await firstPageWhere('/', '/c/', `!!document.querySelector('.goen-deptnotice')`);
-const product = await firstPageWhere('/s/autumn-picks', '/p/', `!!document.querySelector('.goen-pdp__source')`);
-console.log('department', department, 'product', product);
-await capture('department', department);
-// The layout gate holds this page's first product inside a phone's first screen.
-if (department !== '/c/phones') await capture('phones', '/c/phones');
-await capture('product', product);
-await capture('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
-// Signed in as the customer whose delivered order carries a registered warranty.
-await cookie('goen_session', process.env.CUST_TOKEN);
-await capture('order', `/orders/${process.env.RETURN_FORM_ORDER}`);
+// ONLY=pay shoots the pay page alone, for a run with a test payment key, where a payment can start.
+if (process.env.ONLY === 'pay') {
+  await capture('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+} else {
+  const department = await firstPageWhere('/', '/c/', `!!document.querySelector('.goen-deptnotice')`);
+  const product = await firstPageWhere('/s/autumn-picks', '/p/', `!!document.querySelector('.goen-pdp__source')`);
+  console.log('department', department, 'product', product);
+  await capture('department', department);
+  // The layout gate holds this page's first product inside a phone's first screen.
+  if (department !== '/c/phones') await capture('phones', '/c/phones');
+  await capture('product', product);
+  await capture('pay', `/orders/${process.env.PLACED_ORDER}/pay`);
+  // Signed in as the customer whose delivered order carries a registered warranty.
+  await cookie('goen_session', process.env.CUST_TOKEN);
+  await capture('order', `/orders/${process.env.RETURN_FORM_ORDER}`);
+}
 
 ws.close();
 if (failures.length) {

@@ -97,6 +97,9 @@ jobs:
             while kill -0 "$server_pid" 2>/dev/null; do sleep 0.5; done
           }
 
+          # The other places were shot in run 37591645270, with no payment key. A
+          # test key lets a payment start, so the pay page shows its running state.
+          export GOEN_STRIPE_API_KEY=sk_test_probe GOEN_STRIPE_WEBHOOK_SECRET=whsec_probe ONLY=pay
           for which in before after; do
             for locale in zh-Hant en; do
               echo "::group::$which, $locale"
