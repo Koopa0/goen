@@ -44,7 +44,7 @@ func (s *Store) WithoutPickup() *Store {
 
 const (
 	rowTiles  = 4
-	bandTiles = 4
+	bandTiles = 3
 )
 
 // carouselSources is what the carousel and the sections beside it are read
