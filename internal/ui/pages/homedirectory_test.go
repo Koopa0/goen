@@ -36,7 +36,7 @@ func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
 	} {
 		view := HomeView{Categories: departmentsOf(tt.departments)}
 		if tt.band {
-			view.Band = &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(3)}
+			view.Band = &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)}
 		}
 		if got := view.ShowsDirectory(); got != tt.want {
 			t.Errorf("%s: ShowsDirectory() = %t, want %t", tt.name, got, tt.want)
@@ -208,7 +208,7 @@ func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "看全部 20 件", i18n.En: "See all 20 items"} {
 		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Band: &DepartmentBand{
-			Name: "Tech", Items: 20, Href: "/c/tech", Tiles: tiledShelf(3),
+			Name: "Tech", Items: 20, Href: "/c/tech", Tiles: tiledShelf(4),
 		}}))
 		if !strings.Contains(page, want) {
 			t.Errorf("%s: the band link is not %q", locale, want)
