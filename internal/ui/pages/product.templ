@@ -13,7 +13,7 @@ import (
 )
 
 templ Product(p layouts.Page, v *ProductView) {
-	@layouts.Base(awaiting(p, "gallery")) {
+	@layouts.Base(awaiting(p, layouts.AwaitGallery)) {
 		<div class="goen-pdp">
 			<div class="goen-pdp__intro">
 				@components.Breadcrumb(components.BreadcrumbProps{

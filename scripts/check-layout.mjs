@@ -2247,6 +2247,7 @@ const TRANSITION_RECORDER = `(() => {
         ready: 'resolved',
         newNames: named(),
         groups: running.map(pseudo).filter((p) => p.startsWith('::view-transition-group(')),
+        durations: Object.fromEntries(running.map((a) => [pseudo(a), a.effect.getTiming().duration])),
         moving: moving.map(pseudo),
       });
     }, () => rec({ ready: 'rejected' }));
@@ -2292,6 +2293,14 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
   if (got.ready !== 'resolved') { fail(label, 'the transition was skipped: ' + JSON.stringify(got)); return; }
   if (got.swapped !== true) fail(label, 'the page being left never saw its own pageswap: ' + JSON.stringify(got));
   const photoGroups = (got.groups || []).filter((g) => /^::view-transition-group\((product|department)-photo\)$/.test(g));
+  // The step each group takes is part of the design: the photo travels in the
+  // move step, the page dissolves in the slow one, and reduced motion in the base one.
+  const takes = (group, ms) => {
+    const at = (got.durations || {})[group];
+    if (at !== ms) fail(label, `${group} runs for ${at}ms, want ${ms}ms`);
+  };
+  takes('::view-transition-new(root)', reduce ? 120 : 200);
+  if (!reduce) for (const g of photoGroups) takes(g, 280);
   if (reduce) {
     if (photoGroups.length || (got.oldNames || []).length || (got.newNames || []).length) fail(label, 'reduced motion still named a photo: ' + JSON.stringify(got));
     if ((got.moving || []).length) fail(label, 'reduced motion still runs animations that move, scale or resize: ' + got.moving.join(', '));

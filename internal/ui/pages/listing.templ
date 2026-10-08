@@ -13,7 +13,7 @@ import (
 // rules and head are nil where the page has none to state.
 templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
 	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
-	{{ if photo.Shown() { p = awaiting(p, "pagehead-photo") } }}
+	{{ if photo.Shown() { p = awaiting(p, layouts.AwaitPageheadPhoto) } }}
 	@layouts.Base(p) {
 		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>

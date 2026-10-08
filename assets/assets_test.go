@@ -436,7 +436,7 @@ func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
 		"view-transition-name: footer;",
 		"view-transition-name: gallery;",
 		"view-transition-name: buybox;",
-		"::view-transition-group(*.photo) {\n  animation-duration: var(--dur-move);",
+		"html:active-view-transition-type(page)::view-transition-group(*.photo) {\n  animation-duration: var(--dur-move);",
 		"html:active-view-transition-type(page)::view-transition-new(*) {\n  animation-duration: var(--dur-slow);",
 	} {
 		if !strings.Contains(sheet, rule) {

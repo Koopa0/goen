@@ -26,10 +26,9 @@ func bandPhoto(department Photo, products []ProductTile) (photo Photo, onWell bo
 	return Photo{}, false
 }
 
-// awaiting is p with the first paint held until the element with that id is
-// parsed.
-func awaiting(p layouts.Page, id string) layouts.Page {
-	p.AwaitID = id
+// awaiting is p with the first paint held until the element is parsed.
+func awaiting(p layouts.Page, a layouts.Await) layouts.Page {
+	p.Await = a
 	return p
 }
 

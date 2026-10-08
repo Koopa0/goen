@@ -8627,11 +8627,12 @@ html:active-view-transition-type(page)::view-transition-new(*) {
 }
 
 /* A photo that leaves one page and arrives on the next travels as one image:
-   goen.js names the clicked photo on the way out and the shown one on the way
-   in, and only for that navigation. The old photo stays opaque the whole way
+   assets/js/transitions.js names the clicked photo on the way out and the shown
+   one on the way in, and only for that navigation. The old photo stays opaque the whole way
    and the new one fades in on top of it, so there is no half-transparent dip
    in the middle; an unmatched old photo just fades out. */
-::view-transition-group(*.photo) {
+::view-transition-group(*.photo),
+html:active-view-transition-type(page)::view-transition-group(*.photo) {
   animation-duration: var(--dur-move);
   animation-timing-function: var(--ease-move);
 }
