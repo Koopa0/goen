@@ -78,7 +78,7 @@ INSERT INTO contact_messages (name, email, subject, message)
 VALUES ('版面檢查', 'layout@goen.invalid', '訂單問題', '想確認一下出貨時間，謝謝。');
 SELECT id AS product_id, slug AS product_slug FROM products
 WHERE status = 'active' ORDER BY slug LIMIT 1 \gset
-SELECT slug AS compare_slug_b FROM products
+SELECT slug AS compare_slug FROM products
 WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1 \gset
 INSERT INTO product_questions (product_id, user_id, body)
 VALUES (:'product_id', :'customer_id', '請問這款有支援快充嗎？盒裝裡面有附充電器嗎？');
@@ -574,6 +574,6 @@ COMMIT;
 \qecho LAYOUT_SERIAL=:layout_serial
 \qecho PRODUCT_SLUG=:product_slug
 \qecho REVIEW_SLUG=:review_slug
-\qecho COMPARE_SLUG_B=:compare_slug_b
+\qecho COMPARE_SLUG=:compare_slug
 \qecho PICKUP_SHIP=:pickup_ship
 \o
