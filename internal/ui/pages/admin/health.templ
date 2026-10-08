@@ -68,8 +68,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									for _, u := range v.UnreconciledEvents {
 										<tr>
 											<td class="goen-admin__cellkey">{ u.EventID }</td>
-											<td>{ u.TypeText(ctx) }@technicalDetail(u.Type)
-</td>
+											<td>
+												{ u.TypeText(ctx) }@technicalDetail(u.Type)
+											</td>
 											<td>{ u.Ref }</td>
 											<td>
 												if u.RefundOrderNumber != "" {
@@ -229,11 +230,13 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td>
 										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
 									</td>
-									<td>{ c.ExplainedKindText(ctx) }@technicalDetail(c.Kind)
-</td>
+									<td>
+										{ c.ExplainedKindText(ctx) }@technicalDetail(c.Kind)
+									</td>
 									<td class="goen-admin__cellnum">{ c.Amount() }</td>
-									<td>{ c.ExplainedStatusText(ctx) }@technicalDetail(c.Status)
-</td>
+									<td>
+										{ c.ExplainedStatusText(ctx) }@technicalDetail(c.Status)
+									</td>
 									<td class="goen-admin__cellnum">{ c.AttemptsText() }</td>
 									<td>
 										{ c.ReasonText(ctx) }
