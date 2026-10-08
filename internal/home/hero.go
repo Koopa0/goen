@@ -86,6 +86,9 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			break
 		}
 		c := &src.cats[i]
+		if src.held[c.ID] == 0 {
+			continue
+		}
 		photo := departmentPhoto(c)
 		if !photo.Shown() {
 			continue
