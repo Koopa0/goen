@@ -333,14 +333,14 @@ func Header(p Page) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if IsStaff(ctx) {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "  <a class=\"ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide\" href=\"/admin\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "  <a class=\"ui-btn ui-btn--ghost goen-header__backoffice\" href=\"/admin\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackOffice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 83, Col: 123}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 83, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {

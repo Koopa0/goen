@@ -80,7 +80,7 @@ templ Header(p Page) {
 				if IsStaff(ctx) {
 					// Words, not a glyph. Shown from 1024, where the menu button is hidden; below that the
 					// menu carries the entrance.
-					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
+					<a class="ui-btn ui-btn--ghost goen-header__backoffice" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 				}
 				@languageMenu("goen-header__lang", true)
 				@components.ButtonLink(components.ButtonProps{

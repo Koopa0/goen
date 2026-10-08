@@ -1101,12 +1101,13 @@ th {
   }
 }
 
-/* Deals is not a department, so a 2.5rem space, the row's gap and this padding
-   together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
   padding-left: 0;
 }
 
+/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
+   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
+   at the row's edge. */
 .goen-header__nav > :has(+ .goen-header__navitem--deal) {
   margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
@@ -1176,11 +1177,11 @@ th {
   color: var(--ink);
 }
 
-/* The wide slot: the wishlist, and for staff the words "Back office" before the
-   language menu. It keeps the shared button spelling because
-   `backoffice_test.go:112` asserts the whole class attribute, so the ghost-icon
-   recipe is written out again here rather than taken from `.goen-btn`. */
-.goen-header__action--wide {
+/* The wishlist heart and, for staff, the words "Back office" before the language
+   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
+   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
+.goen-header__action--wide,
+.goen-header__backoffice {
   align-items: center;
   background: none;
   border: 1px solid transparent;
@@ -1190,14 +1191,25 @@ th {
   display: none;
   height: 44px;
   justify-content: center;
-  padding: 0;
   text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__action--wide {
+  padding: 0;
   width: 44px;
+}
+
+.goen-header__backoffice {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
 .goen-header__actions .goen-header__cart {
   gap: 4px;
+  min-width: 2.75rem;
   padding-inline: 0.625rem;
   width: auto;
 }
@@ -1509,16 +1521,9 @@ th {
     padding: 0 var(--page-gutter);
   }
 
-  .goen-header__action--wide {
+  .goen-header__action--wide,
+  .goen-header__backoffice {
     display: inline-flex;
-  }
-
-  .goen-header__action--wide[href='/admin'] {
-    font-size: var(--fs-13);
-    font-weight: var(--fw-regular);
-    padding-inline: 0.75rem;
-    white-space: nowrap;
-    width: auto;
   }
 
   .goen-header__menu {
