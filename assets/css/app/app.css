@@ -1735,33 +1735,6 @@ th {
   margin: 0;
 }
 
-/* The continuation after a section's name: same line, same size, grey. On a
-   phone the pair does not fit one line beside the link, and wrapping would split
-   a count from its unit ("8 / 件商品"), so there the continuation is its own
-   line at the body size and its separator is left to a screen reader. */
-.goen-home__aside {
-  color: var(--n-500);
-  font-weight: var(--fw-regular);
-}
-
-@media (max-width: 39.99rem) {
-  .goen-home__aside {
-    display: block;
-    font-size: var(--fs-16);
-    line-height: 1.5;
-    margin-top: 0.25rem;
-  }
-
-  .goen-home__sep {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-}
-
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -2206,7 +2179,7 @@ th {
   color: var(--tone-muted);
 }
 
-/* Below 768px the three products scroll sideways rather than stacking. */
+/* The four products scroll sideways until the shelf's container reaches 48rem. */
 .goen-band__tiles {
   display: grid;
   gap: 1rem;
@@ -2249,15 +2222,6 @@ th {
 @media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
-  }
-
-  .goen-band__tiles {
-    gap: 1.5rem;
-    grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
   }
 }
 
