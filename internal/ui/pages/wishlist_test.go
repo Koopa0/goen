@@ -295,3 +295,17 @@ func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 		t.Error("the add form does not ask to come back to the wishlist")
 	}
 }
+
+func TestNoSavedProductOffersAPrimaryButton(t *testing.T) {
+	t.Parallel()
+
+	view := WishlistView{Products: []WishlistItem{
+		{ProductTile: ProductTile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"},
+		{ProductTile: ProductTile{Slug: "many-variants", Name: "Many", InStock: true}},
+	}}
+	for i, item := range wishlistGrid(t, parseWishlistHTML(t, view)) {
+		if findDescendant(item, func(n *html.Node) bool { return hasClass(n, "goen-btn--primary") }) != nil {
+			t.Errorf("row %d has a primary button: a list of saved products shows none", i)
+		}
+	}
+}
