@@ -83,7 +83,7 @@ templ Cart(p layouts.Page, v CartView) {
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
 								<dd class="goen-summary__value">
 									if v.FreeDelivery.Kind == FreeDeliveryReached {
-										{ i18n.T(ctx, i18n.KeyFreeShipping) }
+										{ v.FreeDelivery.Word(ctx) }
 									} else {
 										{ i18n.T(ctx, i18n.KeyShippingLater) }
 									}
