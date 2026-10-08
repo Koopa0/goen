@@ -566,7 +566,7 @@ func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
 	if rule == nil {
 		t.Fatalf("%s has no band rule setting color: var(--tone-muted)", AppCSS)
 	}
-	for _, class := range []string{"goen-home__aside", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
+	for _, class := range []string{"goen-band__fact", "goen-tile__brand", "goen-tile__was", "goen-tile__state", "goen-tile__colours"} {
 		if !strings.Contains(rule[1], ".goen-band ."+class) {
 			t.Errorf("the band's muted-text rule does not name .%s", class)
 		}

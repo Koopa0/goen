@@ -147,3 +147,58 @@ func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
 		}
 	}
 }
+
+// Store credit is returned only to someone who applied it, so a cancellation
+// may not claim it was, in either language.
+func TestACancellationMentionsStoreCreditOnlyAsAConditional(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []TerminalKind{TerminalCancelledByCustomer, TerminalCancelledByPaymentDeadline} {
+		for _, refunded := range []bool{false, true} {
+			for _, locale := range []string{"en", "zh-Hant"} {
+				n, sink := notifier(t)
+				if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: kind, Refunded: refunded}, TerminalRecipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+					t.Fatal(err)
+				}
+				body := sink.msg.Body
+				want, bad := "any store credit you applied", ""
+				if locale == "zh-Hant" {
+					want, bad = "若有使用購物金", "你使用的購物金"
+				}
+				if !strings.Contains(body, want) {
+					t.Errorf("%s/%s refunded=%t: missing %q:\n%s", kind, locale, refunded, want, body)
+				}
+				if bad != "" && strings.Contains(body, bad) {
+					t.Errorf("%s/%s refunded=%t: asserts store credit was used (%q):\n%s", kind, locale, refunded, bad, body)
+				}
+			}
+		}
+	}
+}
+
+// A shop cancellation that returned money says so; one that returned none
+// sends the reader to the order page and promises nothing.
+func TestAShopCancellationNamesTheRefundOnlyWhenOneWasMade(t *testing.T) {
+	t.Parallel()
+	for _, refunded := range []bool{false, true} {
+		for _, locale := range []string{"en", "zh-Hant"} {
+			n, sink := notifier(t)
+			if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: TerminalCancelledByStaff, Refunded: refunded}, TerminalRecipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+				t.Fatal(err)
+			}
+			body := sink.msg.Body
+			want, returned, unpromised := "If a payment reached us, it has been or will be refunded in full", "any store credit you applied", "payment and refund status"
+			if locale == "zh-Hant" {
+				want, returned, unpromised = "若有款項已經到帳，已經或將會全額退還給你", "若有使用購物金", "付款及退款狀態"
+			}
+			if got := strings.Contains(body, want); got != refunded {
+				t.Errorf("%s refunded=%t: names the refund = %t:\n%s", locale, refunded, got, body)
+			}
+			if got := strings.Contains(body, returned); got != refunded {
+				t.Errorf("%s refunded=%t: mentions store credit = %t:\n%s", locale, refunded, got, body)
+			}
+			if got := strings.Contains(body, unpromised); got == refunded {
+				t.Errorf("%s refunded=%t: points at the order page for refund status = %t:\n%s", locale, refunded, got, body)
+			}
+		}
+	}
+}
