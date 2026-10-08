@@ -533,7 +533,8 @@ func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 }
 
 // TestMineStatesNoCoverForAnOrderReturnedInFull holds that cover registered before a return is not listed as in
-// force once every unit of the order is in an approved return, and that a part of the order in one leaves it.
+// force once every unit of the order is in a return whose refund has settled, and that a part of the order in one,
+// or an approved return whose card refund has not settled, leaves it.
 func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
@@ -542,10 +543,12 @@ func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
 		name     string
 		ordered  int
 		returned int
+		refunded bool // the payout wrote the refunded event
 		want     bool
 	}{
-		{"every unit", 1, 1, true},
-		{"one unit of two", 2, 1, false},
+		{"every unit, refunded", 1, 1, true, true},
+		{"every unit, the card refund not yet settled", 1, 1, false, false},
+		{"one unit of two, refunded", 2, 1, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, tc.ordered, 12, parcel{units: tc.ordered, arrived: true})
@@ -565,10 +568,17 @@ func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
 				VALUES ($1, $2, $3, $4)`, orderID, returnID, f.lineID, tc.returned); err != nil {
 				t.Fatalf("return line: %v", err)
 			}
+			// The approval freezes a card refund of the returned units against the captured payment.
 			if _, err := pool.Exec(ctx, `
-				UPDATE return_requests SET status = 'approved', decided_at = now(), goods_refund_cents = 0,
-				    card_refund_cents = 0, credit_refund_cents = 0 WHERE id = $1`, returnID); err != nil {
+				UPDATE return_requests SET status = 'approved', decided_at = now() WHERE id = $1`, returnID); err != nil {
 				t.Fatalf("approve return: %v", err)
+			}
+			if tc.refunded {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO order_events (order_id, kind, return_request_id) VALUES ($1, 'refunded', $2)`,
+					orderID, returnID); err != nil {
+					t.Fatalf("record the refund: %v", err)
+				}
 			}
 
 			rows, err := s.Mine(ctx, f.userID)
