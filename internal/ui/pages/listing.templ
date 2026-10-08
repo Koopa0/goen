@@ -12,14 +12,15 @@ import (
 
 // rules and head are nil where the page has none to state.
 templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
+	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
+	{{ p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto) }}
 	@layouts.Base(p) {
-		{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
 		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
+							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@components.Breadcrumb(components.BreadcrumbProps{

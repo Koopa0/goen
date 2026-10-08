@@ -1,0 +1,148 @@
+name: screenshots
+
+# Run by hand, on the branch to shoot: gh workflow run screenshots.yml --ref <branch> -f pages=<entries>
+# The entry syntax is in scripts/screenshots.mjs.
+on:
+  workflow_dispatch:
+    inputs:
+      pages:
+        description: 'Entries path@width[@en][@text200][@forced], one per line or separated by commas'
+        default: |
+          /@1440
+          /@375
+          /@1440@en
+          /deals@1440
+          /signin@375
+          /admin@1440
+          /admin/orders@1440
+      view:
+        description: Whole page or first screen
+        type: choice
+        options:
+          - full
+          - viewport
+        default: full
+      data:
+        description: 'demo: the seed and ninety days of history, as the live demo. layout: the fixtures make check-layout measures, with a customer, a cart and an unpaid order'
+        type: choice
+        options:
+          - demo
+          - layout
+        default: demo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-${{ github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
+      GOEN_URL: http://127.0.0.1:9700
+      CDP_PORT: "9333"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No cache is read or written: a run's token writes its branch's cache, and on
+      # main that is the cache every workflow reads.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Start PostgreSQL
+        run: make db-up
+
+      # layout writes the sessions and fixtures the browser gate uses. demo
+      # writes only a staff session, so the history is the demo's and nothing
+      # else; demo_history.sql needs a staff account to exist first.
+      - name: Migrate and seed
+        env:
+          DATA: ${{ inputs.data }}
+        run: |
+          set -euo pipefail
+          make migrate-up
+          make db-seed
+          if [ "$DATA" = layout ]; then
+            psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
+          else
+            admin_token=$(openssl rand -hex 32)
+            psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v token="$admin_token" <<'SQL'
+          SET ROLE admin;
+          SELECT upsert_staff('screenshots@goen.invalid', '', 'admin')
+          WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = 'screenshots@goen.invalid');
+          SELECT id AS staff_id FROM users WHERE lower(email) = 'screenshots@goen.invalid' AND role = 'admin' \gset
+          SET ROLE store;
+          INSERT INTO sessions (token_hash, user_id, expires_at)
+          VALUES (sha256(convert_to(:'token', 'UTF8')), :'staff_id', now() + interval '1 hour');
+          SQL
+            psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=goen -f seed/demo_history.sql
+            echo "ADMIN_TOKEN=$admin_token" > fixtures.env
+          fi
+
+      # Same server start as the layout job, with the same public ECPay staging
+      # credentials, so the pickup chooser and the invoice pages render.
+      - name: Start the storefront
+        env:
+          GOEN_ECPAY_MERCHANT_ID: "2000132"
+          GOEN_ECPAY_HASH_KEY: ejCk326UnaZWKisg
+          GOEN_ECPAY_HASH_IV: q9jcZX8Ib9LM8wYk
+          GOEN_ECPAY_LOGISTICS: b2c
+        run: |
+          set -euo pipefail
+          make build
+          GOEN_INSECURE_COOKIES=1 ./bin/goen > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null "$GOEN_URL/readyz"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'the server never answered /readyz' >&2
+          cat server.log >&2
+          exit 1
+
+      - name: Shoot
+        env:
+          SHOT_PAGES: ${{ inputs.pages }}
+          SHOT_VIEW: ${{ inputs.view }}
+        run: |
+          set -euo pipefail
+          chrome=$(scripts/resolve-chrome.sh)
+          profile=$(mktemp -d)
+          "$chrome" --headless --disable-gpu --no-first-run --lang=zh-TW \
+            --remote-debugging-port="$CDP_PORT" --user-data-dir="$profile" about:blank > chrome.log 2>&1 &
+          chrome_pid=$!
+          trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
+          sleep 3
+          set -a; . ./fixtures.env; set +a
+          node scripts/screenshots.mjs shots
+
+      - name: Keep the shots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: screenshots
+          path: |
+            shots/
+            server.log
+            chrome.log
+          if-no-files-found: warn
