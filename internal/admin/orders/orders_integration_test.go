@@ -1832,29 +1832,37 @@ func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 	}
 }
 
-// TestTheBackOfficeSaysRefundedOnceEveryUnitIsInAnApprovedReturn holds that the order's header and the queue's row
-// read the fact the shopper's pages do, and that a return of part of the order leaves the delivery word.
-func TestTheBackOfficeSaysRefundedOnceEveryUnitIsInAnApprovedReturn(t *testing.T) {
+// TestTheBackOfficeSaysRefundedOnceEveryUnitsRefundHasSettled holds that the order's header and the queue's row
+// read the fact the shopper's pages do: approval only starts the payout, so an approved return whose card refund has
+// not settled leaves the delivery word, as does a return of part of the order.
+func TestTheBackOfficeSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 
 	for _, tc := range []struct {
 		name     string
 		returned int32
+		refunded bool // the payout wrote the refunded event
 		wantKey  i18n.Key
 	}{
-		{"one unit of two", 1, i18n.KeyAdminStatusShipped},
-		{"both units", 2, i18n.KeyStatusRefunded},
+		{"one unit of two, refunded", 1, true, i18n.KeyAdminStatusShipped},
+		{"both units, the card refund not yet settled", 2, false, i18n.KeyAdminStatusShipped},
+		{"both units, refunded", 2, true, i18n.KeyStatusRefunded},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := i18n.T(ctx, tc.wantKey)
 			returnID, number := admintest.ReturnedOrder(t, pool, tc.returned)
+			// The approval freezes a card refund of the returned units against the captured payment.
 			if _, err := pool.Exec(ctx, `
-				UPDATE return_requests
-				SET status = 'approved', decided_at = now(), goods_refund_cents = 0, card_refund_cents = 0,
-				    credit_refund_cents = 0
-				WHERE id = $1`, returnID); err != nil {
+				UPDATE return_requests SET status = 'approved', decided_at = now() WHERE id = $1`, returnID); err != nil {
 				t.Fatalf("approve return: %v", err)
+			}
+			if tc.refunded {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO order_events (order_id, kind, return_request_id)
+					SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`, returnID); err != nil {
+					t.Fatalf("record the refund: %v", err)
+				}
 			}
 
 			view, err := s.Order(ctx, number)

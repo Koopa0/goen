@@ -10,22 +10,18 @@
     ],
     "/admin/orders/{order}": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?allowfailed=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?voidfailed=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?voidreason=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/products/aurora-charger-65": [
@@ -44,13 +40,6 @@
     "/contact": [
       "scroll-200",
       "text-200:span.contact-method__value"
-    ],
-    "/privacy": [
-      "scroll-200",
-      "text-200:p."
-    ],
-    "/s/layout-campaign": [
-      "text-200:h1.goen-pagehead__title"
     ],
     "/search?q=%C2%A0%E3%80%80pixelight%E2%80%83": [
       "scroll-200",

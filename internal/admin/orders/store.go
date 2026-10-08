@@ -174,8 +174,8 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.Or
 	}
 }
 
-// orderStatus is the word and colour an order carries: an order returned in full says so in place of where its
-// delivery stands, since the refund has already been paid.
+// orderStatus is the word and colour an order carries: an order returned in full, with every refund settled, says
+// so in place of where its delivery stands.
 func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, components.Intent) {
 	if returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
