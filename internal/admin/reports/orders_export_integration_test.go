@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -31,7 +32,7 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 		order exportOrderFixture
 		row   []string
 	}{
-		{order: exportOrderFixture{placed: "2024-02-29 23:59:59", paid: "2024-03-01 00:00:01", subtotal: 100000, discount: 10000, shipping: 6000, committed: true, invoice: "AB12345678"}, row: []string{"2024-02-29 23:59:59", "2024-03-01 00:00:01", "96000", "10000", "6000", "0", "96000", "AB12345678"}},
+		{order: exportOrderFixture{placed: "2024-02-29 23:59:59", paid: "2024-03-01 00:00:01", paidEvent: "2024-03-01 00:00:02", subtotal: 100000, discount: 10000, shipping: 6000, committed: true, invoice: "AB12345678"}, row: []string{"2024-02-29 23:59:59", "2024-03-01 00:00:02", "96000", "10000", "6000", "0", "96000", "AB12345678"}},
 		{order: exportOrderFixture{placed: "2024-02-01 00:00:00", paid: "2024-02-01 00:01:00", subtotal: 200000, discount: 10000, shipping: 5000, credit: 50000, committed: true}, row: []string{"2024-02-01 00:00:00", "2024-02-01 00:01:00", "195000", "10000", "5000", "50000", "145000", ""}},
 		{order: exportOrderFixture{placed: "2024-02-15 12:00:00", subtotal: 30000, credit: 30000, committed: true}, row: []string{"2024-02-15 12:00:00", "2024-02-15 12:00:00", "30000", "0", "0", "30000", "0", ""}},
 		{order: exportOrderFixture{placed: "2024-02-16 12:00:00", committed: true}, row: []string{"2024-02-16 12:00:00", "2024-02-16 12:00:00", "0", "0", "0", "0", "0", ""}},
@@ -102,9 +103,9 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 				t.Fatalf("orders CSV placement order decreased from %s to %s", previous, row[1])
 			}
 			previous = row[1]
-			cents, err := strconv.ParseInt(row[3], 10, 64)
-			if err != nil {
-				t.Fatal(err)
+			cents, parseErr := strconv.ParseInt(row[3], 10, 64)
+			if parseErr != nil {
+				t.Fatal(parseErr)
 			}
 			total += cents
 		}
@@ -130,13 +131,13 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 }
 
 type exportOrderFixture struct {
-	placed, paid                         string
+	placed, paid, paidEvent              string
 	subtotal, discount, shipping, credit int64
 	committed                            bool
 	invoice                              string
 }
 
-func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (uuid.UUID, string) {
+func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (id uuid.UUID, number string) {
 	t.Helper()
 	ctx := t.Context()
 	var buyer uuid.NullUUID
@@ -152,8 +153,6 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (uuid.UUID
 		t.Fatal(err)
 	}
 	defer pgtx.Rollback(ctx, tx)
-	var id uuid.UUID
-	var number string
 	if err := tx.QueryRow(ctx, `
   INSERT INTO orders (order_number,user_id,shipping_version_id,shipping_method_code,shipping_method_name,shipping_cents,discount_cents,placed_at,customer_note)
   SELECT next_order_number(),$1,v.id,sm.code,v.name,$2,$3,$4,'PRIVATE-EXPORT-NOTE'
@@ -172,27 +171,55 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (uuid.UUID
 			t.Fatalf("spend export credit: %v", err)
 		}
 	}
-	total := f.subtotal - f.discount + f.shipping
-	if f.committed && total > f.credit {
-		paid, err := shoptime.ParseSecond(f.paid)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO payments (order_id,provider_ref,status,intended_amount_cents,captured_amount_cents,paid_at) VALUES ($1,$2,'succeeded',$3,$3,$4)`, id, "export_"+id.String(), total-f.credit, paid); err != nil {
-			t.Fatalf("record export payment: %v", err)
-		}
-	} else if f.committed {
-		if _, err := tx.Exec(ctx, `UPDATE orders SET fulfillment_status='picking' WHERE id=$1`, id); err != nil {
-			t.Fatalf("commit funded export order: %v", err)
-		}
-	}
+	fundExportOrder(t, tx, id, f)
 	if f.invoice != "" {
-		if _, err := tx.Exec(ctx, `INSERT INTO invoice_documents (order_id,kind,number,amount_cents) VALUES ($1,'invoice',$2,$3)`, id, f.invoice, total); err != nil {
-			t.Fatal(err)
+		if _, err := tx.Exec(ctx, `
+  WITH voided_invoice AS (
+    INSERT INTO invoice_documents (order_id,kind,number,amount_cents,status,issued_at,voided_at)
+    VALUES ($1,'invoice','CD12345678',$3,'voided','2024-03-01 00:01:00+08','2024-03-01 00:02:00+08')
+  ), reissued_invoice AS (
+    INSERT INTO invoice_documents (order_id,kind,number,amount_cents,issued_at)
+    VALUES ($1,'invoice',$2,$3,'2024-03-01 00:03:00+08') RETURNING id
+  )
+  INSERT INTO invoice_documents (order_id,kind,original_id,number,amount_cents,issued_at)
+  SELECT $1,'allowance',id,'2024030100000001',1000,'2024-03-01 00:04:00+08' FROM reissued_invoice`, id, f.invoice, f.subtotal-f.discount+f.shipping); err != nil {
+			t.Fatalf("record export invoice history: %v", err)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit export fixture: %v", err)
 	}
 	return id, number
+}
+
+func fundExportOrder(t *testing.T, tx pgx.Tx, id uuid.UUID, f exportOrderFixture) {
+	t.Helper()
+	if !f.committed {
+		return
+	}
+	ctx := t.Context()
+	total := f.subtotal - f.discount + f.shipping
+	if total <= f.credit {
+		if _, err := tx.Exec(ctx, `UPDATE orders SET fulfillment_status='picking' WHERE id=$1`, id); err != nil {
+			t.Fatalf("commit funded export order: %v", err)
+		}
+		return
+	}
+	paid, err := shoptime.ParseSecond(f.paid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO payments (order_id,provider_ref,status,intended_amount_cents,captured_amount_cents,paid_at) VALUES ($1,$2,'succeeded',$3,$3,$4)`, id, "export_"+id.String(), total-f.credit, paid); err != nil {
+		t.Fatalf("record export payment: %v", err)
+	}
+	if f.paidEvent == "" {
+		return
+	}
+	paidEvent, err := shoptime.ParseSecond(f.paidEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO order_events (order_id,kind,occurred_at) VALUES ($1,'paid',$2)`, id, paidEvent); err != nil {
+		t.Fatalf("record export paid event: %v", err)
+	}
 }
