@@ -406,7 +406,7 @@ func Product(p layouts.Page, v *ProductView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Base(p).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(awaiting(p, layouts.AwaitGallery)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -762,7 +762,7 @@ func productBand(v *ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if hasPhoto {
-				templ_7745c5c3_Err = bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = bandMedia("goen-band__photo", "", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
