@@ -2111,6 +2111,52 @@ for (const want of [...CART, ...PAGES]) {
   if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
   if (want.path === '/checkout') await proveChoiceKeepsScroll(at, 'invoice_type');
   if (want.marker === 'input[name=pickup_chain]') await proveChoiceKeepsScroll(at, 'pickup_chain', 'seven_eleven');
+  if (want.marker === 'input[name=pickup_chain]') {
+    const fresh = async () => {
+      await send(ws, 'Page.navigate', { url: 'about:blank' });
+      for (let i = 0; i < 30; i++) {
+        if ((await evalPage('location.href')) === 'about:blank') break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, 'probe', target);
+    };
+    const sheet = (css) => `{ const s = new CSSStyleSheet(); s.replaceSync(${JSON.stringify(css)}); document.adoptedStyleSheets = [...document.adoptedStyleSheets, s]; }`;
+    for (const [variant, setup] of [
+      ['baseline', ''],
+      ['html none', sheet('html{overflow-anchor:none}')],
+      ['region none', sheet('#checkout-region{overflow-anchor:none}')],
+      ['page none', sheet('.goen-checkout{overflow-anchor:none}')],
+      ['no transition', 'htmx.config.transitions = false;'],
+      ['no focus', `document.addEventListener('htmx:before:swap', () => document.activeElement && document.activeElement.blur());`],
+    ]) {
+      await fresh();
+      const env = await evalPage(`(() => {
+        ${setup}
+        window.__probeLog = [];
+        const t0 = performance.now();
+        const note = (what) => window.__probeLog.push(Math.round(performance.now() - t0) + 'ms ' + what + ' y=' + Math.round(scrollY));
+        addEventListener('scroll', () => note('scroll'), { passive: true });
+        document.addEventListener('focusin', (e) => note('focusin#' + (e.target.id || e.target.tagName)));
+        for (const ev of ['htmx:before:request', 'htmx:before:swap', 'htmx:before:viewTransition', 'htmx:before:settle', 'htmx:after:settle', 'htmx:after:viewTransition', 'htmx:finally:request']) {
+          document.addEventListener(ev, () => note(ev.slice(5)));
+        }
+        for (const [obj, key] of [[HTMLElement.prototype, 'focus'], [Element.prototype, 'scrollIntoView'], [window, 'scrollTo'], [window, 'scrollBy'], [window, 'scroll']]) {
+          const orig = obj[key];
+          obj[key] = function (...args) { note(key + '(' + JSON.stringify(args[0] ?? null) + ')#' + (this.id || '')); return orig.apply(this, args); };
+        }
+        const region = document.getElementById('checkout-region');
+        return { chrome: (navigator.userAgent.match(/Chrome\\/[\\d.]+/) || [''])[0], vt: !!document.startViewTransition,
+          transitions: htmx.config.transitions, anchor: getComputedStyle(region).overflowAnchor,
+          pageAnchor: getComputedStyle(document.querySelector('.goen-checkout')).overflowAnchor,
+          htmlAnchor: getComputedStyle(document.documentElement).overflowAnchor, regionHeight: Math.round(region.getBoundingClientRect().height) };
+      })()`);
+      console.log(`PROBE ${at} [${variant}] env ${JSON.stringify(env)}`);
+      await proveChoiceKeepsScroll(`PROBE ${at} [${variant}]`, 'pickup_chain', 'seven_eleven');
+      const log = await evalPage(`(window.__probeLog || []).join(' | ') + ' || regionHeight=' + Math.round(document.getElementById('checkout-region').getBoundingClientRect().height)`);
+      console.log(`PROBE ${at} [${variant}] timeline ${typeof log === 'string' ? log : JSON.stringify(log)}`);
+    }
+  }
 }
 
 // Stepping to a bound must leave keyboard focus on the button that was pressed:
