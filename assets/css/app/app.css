@@ -2574,11 +2574,12 @@ th {
    ------------------------------------------------------------------------ */
 
 .goen-tiles__grid {
+  --tiles-gap-x: 1rem;
   display: grid;
-  gap: 2.5rem 1rem;
+  gap: 2.5rem var(--tiles-gap-x);
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2820,7 +2821,7 @@ input.goen-check {
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 2.5rem 1.5rem;
+    --tiles-gap-x: 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -4992,7 +4993,7 @@ input.goen-check {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
 }
 
 .goen-pdp__reviewlayout {
