@@ -80,11 +80,7 @@ func StatDate(text, clock string) StatValue {
 		}
 		run := text[:n]
 		text = text[n:]
-		word := strings.Trim(run, " \u00a0")
-		if word == "" {
-			continue
-		}
-		part := datePart{text: word, unit: strings.IndexFunc(word, unicode.IsLetter) >= 0, wbr: strings.Contains(run, " ")}
+		part := datePart{text: run, unit: strings.IndexFunc(run, unicode.IsLetter) >= 0, wbr: strings.Contains(run, " ")}
 		part.pre = part.unit && len(parts) == 0
 		parts = append(parts, part)
 	}
@@ -175,7 +171,6 @@ func shownLinked(stats []LinkedStat) []LinkedStat {
 	return out
 }
 
-// dateHTML is the date's figure and units with no whitespace between them, since a space would be a break the date does not have.
 func (v StatValue) dateHTML() string {
 	var b strings.Builder
 	for _, p := range v.date {
