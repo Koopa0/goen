@@ -126,6 +126,7 @@ a:hover {
 
 .goen-promo__bar {
   align-items: center;
+  container-type: inline-size;
   display: flex;
   gap: 12px;
   justify-content: space-between;
@@ -152,6 +153,15 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Container rem follows the root font size, so this fires only when text is
+   enlarged; a media query's rem would fire on every phone. */
+@container (width < 20rem) {
+  .goen-promo__message {
+    overflow: visible;
+    white-space: normal;
+  }
 }
 
 /* Two copies of the copy, one shown at a time. The short version is different
@@ -2803,6 +2813,7 @@ th {
 
 .goen-tile__price {
   align-items: baseline;
+  position: relative;
   color: var(--n-900);
   display: flex;
   flex-wrap: wrap;
@@ -3733,6 +3744,7 @@ input.goen-check {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow-x: auto;
+  position: relative;
 }
 
 .goen-compare__table {
@@ -6699,6 +6711,10 @@ input.goen-check {
   text-align: center;
 }
 
+.goen-findorder__sub {
+  text-align: start;
+}
+
 .goen-findorder__alt a {
   color: var(--accent-text);
   text-decoration: underline;
@@ -6811,7 +6827,7 @@ input.goen-check {
   }
 
   .goen-cart__summary .goen-summary {
-    flex: 1 1 0;
+    flex: 1 1 auto;
   }
 
   .goen-cart__summary .goen-summary__row:not(.goen-summary__row--total),
@@ -6830,6 +6846,8 @@ input.goen-check {
 
   .goen-cart__summary .goen-summary__row--total .goen-summary__value {
     margin-left: 0;
+    overflow-wrap: normal;
+    white-space: nowrap;
   }
 
   .goen-cart__summary .goen-summary__row--total dt {
@@ -7281,30 +7299,48 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The order history. One table at every width; each row's facts sit under its number. */
+/* The order history. One table at every width; each row's facts sit under its number.
+   A row is a wrapping flex line so the status drops under the facts when an
+   unbreakable total ("NT$1,234,567") and the status no longer fit side by side. */
 .goen-account__orders {
   border-collapse: collapse;
   font-size: var(--fs-14);
   width: 100%;
 }
 
-.goen-account__orders th {
+.goen-account__orders tr {
   border-bottom: 1px solid var(--line);
-  color: var(--n-500);
-  font-size: 0.8125rem;
-  font-weight: var(--fw-medium);
-  padding: 0.5rem 0.5rem 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.goen-account__orders tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.goen-account__orders th,
+.goen-account__orders td {
+  flex: 0 0 7rem;
+  padding: 0.5rem 0;
   text-align: left;
 }
 
-.goen-account__orders td {
-  border-bottom: 1px solid var(--line);
-  padding: 0.75rem 0.5rem 0.75rem 0;
-  vertical-align: top;
+.goen-account__orders th:first-child,
+.goen-account__orders td:first-child {
+  flex: 1 1 0;
+  min-width: min-content;
 }
 
-.goen-account__orders tr:last-child td {
-  border-bottom: 0;
+.goen-account__orders th {
+  color: var(--n-500);
+  font-size: 0.8125rem;
+  font-weight: var(--fw-medium);
+}
+
+.goen-account__orders td {
+  padding-block: 0.75rem;
+  vertical-align: top;
 }
 
 .goen-account__number {
@@ -7583,8 +7619,9 @@ input.goen-check {
 
 /* An expired line stays visible and reads as past: hiding it would leave a
    customer wondering whether the points were ever there. */
-.goen-points__item.is-expired {
-  opacity: 0.6;
+.goen-points__item.is-expired,
+.goen-points__item.is-expired .goen-points__what {
+  color: var(--fg-muted);
 }
 
 .goen-points__amount {
@@ -7631,8 +7668,9 @@ input.goen-check {
   padding-top: 0;
 }
 
-.goen-warranty__item.is-expired {
-  opacity: 0.6;
+.goen-warranty__item.is-expired,
+.goen-warranty__item.is-expired .goen-warranty__name {
+  color: var(--fg-muted);
 }
 
 .goen-warranty__head {
@@ -8305,6 +8343,7 @@ input.goen-check {
 .goen-campaign__band .goen-pagehead__title {
   font-size: 2.25rem;
   line-height: 1.25;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 

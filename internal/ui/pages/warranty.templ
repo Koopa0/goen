@@ -51,7 +51,9 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 							if item.Label != "" {
 								<span class="goen-warranty__meta">{ item.Label }</span>
 							}
-							@components.StatLine(item.Facts(ctx), components.StatLineSmall)
+							if !item.Returned {
+								@components.StatLine(item.Facts(ctx), components.StatLineSmall)
+							}
 							<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt) }</span>
 							if item.Serial != "" {
 								<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), item.Serial) }</span>
