@@ -11533,10 +11533,7 @@ FROM return_requests rr
 WHERE rr.order_id = $1
   AND NOT rr.before_shipment
   AND (rr.status = 'completed'
-       OR (rr.status = 'approved'
-           AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
-                OR EXISTS (SELECT 1 FROM order_events e
-                           WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+       OR (rr.status = 'approved'))
 ORDER BY refunded_at, rr.id
 `
 
@@ -15181,11 +15178,7 @@ WHERE o.id = ANY($1::uuid[])
                                     WHERE rl.order_line_id = ol.id
                                       AND NOT rr.before_shipment
                                       AND (rr.status = 'completed'
-                                           OR (rr.status = 'approved'
-                                               AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
-                                                    OR EXISTS (SELECT 1 FROM order_events e
-                                                               WHERE e.return_request_id = rr.id
-                                                                 AND e.kind = 'refunded'))))), 0))
+                                           OR (rr.status = 'approved'))), 0))
 `
 
 // The orders among @order_ids whose every unit is in a return whose refund has settled; a refund before shipment
