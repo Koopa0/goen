@@ -416,7 +416,8 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 		return nil, fmt.Errorf("read shipping choices: %w", err)
 	}
 	out := make([]pages.ShippingChoice, 0, len(rows))
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		fee := ShippingFee(r.FeeCents, r.FreeOverCents.Int64, subtotalCents)
 		// A method that costs nothing anyway names no amount: the cart must not say it reached one.
 		threshold := r.FreeOverCents.Int64
@@ -432,6 +433,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 			FeeCents:        fee,
 			Free:            fee == 0,
 			FreeOverCents:   threshold,
+			SurchargeZones:  r.SurchargeZones,
 		})
 	}
 	return out, nil
@@ -977,6 +979,11 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		return pages.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
+	hold, err := s.q.OrderHoldSpan(ctx, o.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return pages.OrderView{}, fmt.Errorf("read order stock hold: %w", err)
+	}
+
 	now := time.Now()
 	view := pages.OrderView{
 		Number:       o.OrderNumber,
@@ -997,6 +1004,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		TaxCents:    o.TaxCents,
 		PlacedAt:    o.PlacedAt,
 		Now:         now,
+		HoldUntil:   hold.HeldUntil,
 		Pickup:      o.PickupChain != "",
 	}
 	ids := make([]uuid.UUID, 0, len(lines))

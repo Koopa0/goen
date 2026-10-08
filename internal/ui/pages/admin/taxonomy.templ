@@ -99,7 +99,6 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					name="slug"
 					required
 					maxlength="120"
-					placeholder="aurora"
 					value={ v.DraftFor(kind, "slug") }
 					if v.HasErr(kind, "slug") {
 						aria-invalid="true"
@@ -109,7 +108,10 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 				if v.HasErr(kind, "slug") {
 					<p class="ui-error-text" id={ kind + "-slug" + "-error" }>{ v.Err(kind, "slug") }</p>
 				}
-				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxSlugFixed) }</p>
+				<div class="goen-admin__hints">
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxSlugFixed) }</p>
+					<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), slugExample(kind)) }</p>
+				</div>
 			</div>
 			if kind == "categories" {
 				<div class="goen-admin__field">
@@ -153,7 +155,6 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 						id="categories-parent"
 						name="parent"
 						maxlength="120"
-						placeholder="kitchen"
 						list="category-slugs"
 						value={ v.DraftFor(kind, "parent") }
 						if v.HasErr(kind, "parent") {
@@ -169,7 +170,10 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					if v.HasErr(kind, "parent") {
 						<p class="ui-error-text" id="categories-parent-error">{ v.Err(kind, "parent") }</p>
 					}
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxParentHint) }</p>
+					<div class="goen-admin__hints">
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxParentHint) }</p>
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "kitchen") }</p>
+					</div>
 				</div>
 			}
 		</div>
@@ -249,7 +253,7 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 							Size:        components.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": "rename"},
 						}, "submit") {
-							{ i18n.T(ctx, i18n.KeyAdminTaxRename) }
+							{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 						}
 						if t.Removable() {
 							@components.Button(components.ButtonProps{

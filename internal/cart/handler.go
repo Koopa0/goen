@@ -102,9 +102,16 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 		return pages.FreeDelivery{}
 	}
 	var allFreeAt, namedAt int64
+	var zones []string
 	reached := true
-	for _, c := range choices {
+	for i := range choices {
+		c := &choices[i]
 		namedAt = max(namedAt, c.FreeOverCents)
+		for _, z := range c.SurchargeZones {
+			if !slices.Contains(zones, z) {
+				zones = append(zones, z)
+			}
+		}
 		if c.Free {
 			continue
 		}
@@ -115,7 +122,7 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 		allFreeAt = max(allFreeAt, c.FreeOverCents)
 	}
 	if reached {
-		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: namedAt}
+		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: namedAt, SurchargeZones: zones}
 	}
 	return pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents, ThresholdCents: allFreeAt}
 }
@@ -1496,7 +1503,8 @@ const (
 // A browser return is not payment evidence. Keep that hint when bounded checks
 // end so a delayed webhook cannot turn it into an invitation to pay again.
 func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
-	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
+	view.PaymentReturnHint = r.URL.Query().Get("paid") == "1"
+	if !view.AwaitingPayment() || !view.PaymentReturnHint {
 		return ""
 	}
 	attempt := 0
@@ -1914,7 +1922,9 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 		}
 		n, err := h.store.ItemCount(r.Context(), id)
 		if err != nil {
-			h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			if !errors.Is(r.Context().Err(), context.Canceled) {
+				h.log.ErrorContext(r.Context(), "count cart items", "error", err)
+			}
 			next.ServeHTTP(w, r)
 			return
 		}

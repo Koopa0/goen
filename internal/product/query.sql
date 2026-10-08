@@ -5,6 +5,7 @@ SELECT
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     localized_name(p.description, p.description_en, @locale::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -157,13 +158,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -295,13 +291,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -399,19 +390,14 @@ SELECT q.id, @user_id, @body::text, true
 FROM product_questions q
 WHERE q.id = @question_id AND q.hidden_at IS NULL;
 
--- The running campaign featuring a product, by the rule of the in_campaign
--- column of the cards; the one that ends first when several do.
--- name: RunningCampaignOfProduct :one
+-- Of the listed campaigns featuring a product, the one that ends first.
+-- name: ListedCampaignOfProduct :one
 SELECT fc.slug, localized_name(fc.title, fc.title_en, @locale::text) AS title,
        fc.starts_at, fc.ends_at
 FROM sale_campaign_products fp
+JOIN listed_campaigns l ON l.id = fp.campaign_id
 JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-WHERE fp.product_id = @product_id::uuid AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-      JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-      WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+WHERE fp.product_id = @product_id::uuid
 ORDER BY fc.ends_at, fc.id
 LIMIT 1;
 

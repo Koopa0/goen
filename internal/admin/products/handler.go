@@ -349,8 +349,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
-		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
-		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
+		h.respondToUploadError(w, r, err)
 		return
 	}
 
@@ -654,5 +653,18 @@ func attachImageRefusal(err error, alt string) (string, i18n.Key) {
 		return "image", i18n.KeyAdminNoticeAttachRefused
 	default:
 		return "", ""
+	}
+}
+
+func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, web.ErrFormText):
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case media.IsRefusal(err):
+		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", r.PathValue("slug"))
+		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
+	default:
+		h.log.ErrorContext(r.Context(), "image upload", "error", err, "slug", r.PathValue("slug"))
+		access.ServerError(w, r, h.log)
 	}
 }

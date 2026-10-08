@@ -222,8 +222,11 @@ func TestColumnsBracketACampaignAndTheTableNamesItOnEachOfItsDays(t *testing.T) 
 			t.Errorf("Columns does not contain %s\n%s", want, got)
 		}
 	}
-	if n := strings.Count(got, `class="goen-chart__gap`); n != 2 {
-		t.Errorf("%d gaps in a strip of 3 days, want 2 between them", n)
+	if n := strings.Count(got, `class="goen-chart__strip"`); n != 1 {
+		t.Errorf("%d bracket lines, want 1 across the 3 days", n)
+	}
+	if n := strings.Count(got, `class="goen-chart__strip-end"`); n != 2 {
+		t.Errorf("%d bracket ends, want one at each end of a campaign that began and ended in the chart", n)
 	}
 	if strings.Contains(got, `class="goen-chart__todaymark" x1=`) && strings.Count(got, "goen-chart__todaymark") != 1 {
 		t.Error("a campaign that ended is marked with today")
@@ -242,8 +245,11 @@ func TestColumnsEndARunningCampaignAtTodayAndSayWhenItEnds(t *testing.T) {
 	p.Spans = []Span{campaign("Autumn picks", 20, 40)} // runs on past the last day, 29
 	got := renderColumns(t, i18n.En, p)
 
-	if n := strings.Count(got, `class="goen-chart__todaymark"`); n != 2 {
-		t.Errorf("%d today marks, want one under the column and one across the strip", n)
+	if n := strings.Count(got, `class="goen-chart__todaymark"`); n != 1 {
+		t.Errorf("%d today marks, want the one under today's column and none across the bracket", n)
+	}
+	if n := strings.Count(got, `class="goen-chart__strip-end"`); n != 1 {
+		t.Errorf("%d bracket ends on a campaign that has not ended, want its start alone: an open end says it goes on", n)
 	}
 	for _, want := range []string{">Autumn picks, until Oct 17<", `<td class="goen-chart__spans">Autumn picks, until Oct 17</td>`} {
 		if !strings.Contains(got, want) {
@@ -264,9 +270,6 @@ func TestColumnsOfSevenDaysSayWhichDaysACampaignCoversOfAColumn(t *testing.T) {
 	p := columnsProps(valued(90, map[int]int64{0: 1, 10: 2, 50: 3, 60: 1, 89: 4}))
 	p.Spans = []Span{campaign("Tea week", 10, 16), campaign("Whole column", 6, 12)}
 	got := renderColumns(t, i18n.En, p)
-	if strings.Contains(got, `class="goen-chart__gap`) {
-		t.Error("a strip over columns of seven days is cut into days")
-	}
 	for _, want := range []string{
 		`<th scope="row">Sep 13</th><td>2</td><td class="goen-chart__spans">Tea week (Sep 17–Sep 19), Whole column</td>`,
 		`<th scope="row">Sep 20</th><td>0</td><td class="goen-chart__spans">Tea week (Sep 20–Sep 23)</td>`,
@@ -317,6 +320,74 @@ func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
 	}
 }
 
+func TestColumnTicksKeepTheDaysNearTodayClearOfIt(t *testing.T) {
+	t.Parallel()
+
+	type tick struct {
+		label string
+		minor bool
+	}
+	// A run of days starting offset days after Monday Sep 7, so that the last
+	// Monday falls where each row says.
+	for _, tc := range []struct {
+		name   string
+		locale i18n.Locale
+		n      int
+		offset int
+		today  bool
+		want   []tick
+	}{
+		{"last Monday at 85%, English", i18n.En, 30, 3, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", true}, {"Today", false}}},
+		{"last Monday at 85%, Chinese", i18n.ZhHant, 30, 3, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"10/5", true}, {"今天", false}}},
+		{"last Monday at 81.7%, English", i18n.En, 30, 4, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", true}, {"Today", false}}},
+		{"last Monday at 81.7%, Chinese", i18n.ZhHant, 30, 4, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"10/5", false}, {"今天", false}}},
+		{"last Monday at 91.7% is too near for any plot, English", i18n.En, 30, 1, true, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Today", false}}},
+		{"last Monday at 91.7% is too near for any plot, Chinese", i18n.ZhHant, 30, 1, true, []tick{{"9/14", false}, {"9/21", false}, {"9/28", false}, {"今天", false}}},
+		{"a period that ended keeps its last day", i18n.En, 30, 1, false, []tick{{"Sep 14", false}, {"Sep 21", false}, {"Sep 28", false}, {"Oct 5", false}, {"Oct 7", false}}},
+		{"14 days ending today", i18n.En, 14, 1, true, []tick{{"Sep 14", false}, {"Today", false}}},
+	} {
+		cols := Series{Buckets: days(tc.n + tc.offset)[tc.offset:]}.Columns()
+		got := make([]tick, 0, len(cols))
+		for _, tk := range columnTicks(i18n.WithLocale(t.Context(), tc.locale), cols, false, tc.today, 100/float64(len(cols))) {
+			got = append(got, tick{tk.Label, tk.Minor})
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: ticks %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestColumnTicksNeverPrintWithin4pxOfToday(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		today := textWidth(i18n.T(ctx, i18n.KeyChartToday))
+		for offset := range 7 {
+			cols := Series{Buckets: days(30 + offset)[offset:]}.Columns()
+			for _, tk := range columnTicks(ctx, cols, false, true, 100/float64(len(cols))) {
+				if tk.Today {
+					continue
+				}
+				x, err := strconv.ParseFloat(strings.TrimSuffix(tk.X, "%"), 64)
+				if err != nil {
+					t.Fatalf("tick X %q: %v", tk.X, err)
+				}
+				// The plot widths: 476, the widest that hides minor ticks, and
+				// narrowPlot, the narrowest there is.
+				for _, plot := range []float64{widestMinorPlot, narrowPlot} {
+					if plot == widestMinorPlot || !tk.Minor {
+						gap := plot - today - (x/100*plot + textWidth(tk.Label)/2)
+						if gap < 4-0.1 {
+							t.Errorf("%s, start +%d: %q (minor %v) is %.1fpx from Today on a %.0fpx plot, want 4 or more", locale, offset, tk.Label, tk.Minor, gap, plot)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestNameAtKeepsAStripsNameInsideThePlot(t *testing.T) {
 	t.Parallel()
 
@@ -327,10 +398,11 @@ func TestNameAtKeepsAStripsNameInsideThePlot(t *testing.T) {
 		wantText   string
 		wantAnchor string
 	}{
-		{"fits at its start", plan{a: 2, b: 5, end: 5, label: "Tea week", short: "Tea week"}, 30, "Tea week", "start"},
-		{"late in the plot it ends at its strip's end", plan{a: 25, b: 29, end: 29, label: "Tea week", short: "Tea week"}, 30, "Tea week", "end"},
-		{"a running one ends at today", plan{a: 20, b: 30, end: 29.5, runs: true, label: "Autumn picks, until Oct 12", short: "Autumn picks"}, 30, "Autumn picks, until Oct 12", "end"},
-		{"too wide for the plot, it drops the day it ends", plan{a: 0, b: 30, end: 29.5, runs: true, label: "A very long campaign name, until Oct 12", short: "A very long campaign name"}, 30, "A very long campaign name", "end"},
+		{"fits at its start", plan{a: 2, b: 5, label: "Tea week", short: "Tea week"}, 30, "Tea week", "start"},
+		{"late in the plot it ends at its strip's end", plan{a: 25, b: 29, label: "Tea week", short: "Tea week"}, 30, "Tea week", "end"},
+		{"a running one ends at the edge of today", plan{a: 20, b: 30, runs: true, label: "Autumn picks, until Oct 12", short: "Autumn picks"}, 30, "Autumn picks, until Oct 12", "end"},
+		{"too wide for the plot, it drops the day it ends", plan{a: 0, b: 30, runs: true, label: "A very long campaign name, until Oct 12", short: "A very long campaign name"}, 30, "A very long campaign name", "start"},
+		{"a running one that fits from its start is written from it", plan{a: 8, b: 30, runs: true, label: "Autumn picks, until Oct 16", short: "Autumn picks"}, 30, "Autumn picks, until Oct 16", "start"},
 	} {
 		text, _, anchor, left, right := nameAt(tc.p, tc.n)
 		if text != tc.wantText || anchor != tc.wantAnchor {
@@ -341,7 +413,7 @@ func TestNameAtKeepsAStripsNameInsideThePlot(t *testing.T) {
 		}
 	}
 
-	long := plan{a: 0, b: 30, end: 30, label: strings.Repeat("長", 40), short: strings.Repeat("長", 40)}
+	long := plan{a: 0, b: 30, label: strings.Repeat("長", 40), short: strings.Repeat("長", 40)}
 	text, _, _, left, right := nameAt(long, 30)
 	if !strings.HasSuffix(text, "…") || left < 0 || right > narrowPlot {
 		t.Errorf("a name wider than the plot is %q taking %.0f to %.0f px, want it cut with …", text, left, right)
@@ -374,14 +446,208 @@ func TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo(t *testing.
 	}
 }
 
-func TestColumnsStripsThatMeetStackInRows(t *testing.T) {
+// lanesOf is the lane each strip is drawn in, counted from the top, or -1 for
+// one that has none.
+func lanesOf(strips []strip) []int {
+	lanes := make([]int, len(strips))
+	for k, s := range strips {
+		lanes[k] = -1
+		if !s.Hidden {
+			lanes[k] = int((s.Y - laneBracketAt - laneTop) / laneHeight)
+		}
+	}
+	return lanes
+}
+
+func TestColumnsPutCampaignsInLanesByTheDayTheyBegin(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		spans []Span
+		want  []int
+	}{
+		{"none", nil, []int{}},
+		{"one", []Span{campaign("Tea week", 3, 5)}, []int{0}},
+		{"overlapping ones never share", []Span{campaign("First campaign", 3, 12), campaign("Second campaign", 5, 15)}, []int{0, 1}},
+		{"one that begins on the same day is below", []Span{campaign("First campaign", 3, 12), campaign("Second campaign", 3, 4)}, []int{0, 1}},
+		{"the order given does not matter", []Span{campaign("Second campaign", 5, 15), campaign("First campaign", 3, 12)}, []int{1, 0}},
+		{"one that begins after another ends takes its lane", []Span{campaign("Tea week", 0, 2), campaign("Autumn picks", 12, 20)}, []int{0, 0}},
+		{"a name that runs into the next campaign keeps it below", []Span{campaign("A long campaign name", 0, 1), campaign("Next", 4, 8)}, []int{0, 1}},
+		{"three at once", []Span{campaign("One", 1, 20), campaign("Two", 2, 20), campaign("Three", 3, 20)}, []int{0, 1, 2}},
+		{"a fourth at once has none", []Span{campaign("One", 1, 20), campaign("Two", 2, 20), campaign("Three", 3, 20), campaign("Four", 4, 20)}, []int{0, 1, 2, -1}},
+		{"a day alone", []Span{campaign("One day", 9, 9)}, []int{0}},
+		{"began before the chart", []Span{campaign("Long sale", -20, 4), campaign("Tea week", 2, 6)}, []int{0, 1}},
+		{"ends after the chart", []Span{campaign("Long sale", 25, 60), campaign("Tea week", 20, 26)}, []int{1, 0}},
+		{"outside the chart", []Span{campaign("Last month", -40, -20), campaign("Next month", 40, 50)}, []int{}},
+		{"back to back, names crowd the lanes before the days do", []Span{campaign("Tea week", 0, 1), campaign("Book week", 2, 3), campaign("Gift week", 4, 5), campaign("Home week", 6, 7)}, []int{0, 1, 2, -1}},
+	} {
+		p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
+		p.Spans = tc.spans
+		c := newColumns(t.Context(), p)
+		if got := lanesOf(c.Strips); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: lanes = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestColumnsOpenTheEndOfABracketThatIsOffTheChart(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		span Span
+		ends int
+	}{
+		{"within the chart", campaign("Tea week", 3, 5), 2},
+		{"began before the chart", campaign("Long sale", -20, 4), 1},
+		{"began before and goes on", campaign("Long sale", -20, 40), 0},
+	} {
+		p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
+		p.Spans = []Span{tc.span}
+		if n := strings.Count(renderColumns(t, i18n.En, p), `class="goen-chart__strip-end"`); n != tc.ends {
+			t.Errorf("%s: %d bracket ends, want %d", tc.name, n, tc.ends)
+		}
+	}
+}
+
+func TestColumnsMuteTheNameOfTheDaysBefore(t *testing.T) {
+	t.Parallel()
+
+	got := renderColumns(t, i18n.En, compared(true))
+	if !strings.Contains(got, `class="goen-chart__spanlabel goen-chart__spanlabel--window"`) {
+		t.Error("the name of the days before is drawn like a campaign's")
+	}
+	if n := strings.Count(got, `class="goen-chart__spanlabel"`); n != 1 {
+		t.Errorf("%d campaign names in the ink colour, want the campaign's alone", n)
+	}
+}
+
+func TestColumnsBringTheLanesDownToTheColumnsTheyMark(t *testing.T) {
+	t.Parallel()
+
+	// The axis of 20 leaves a bar of 20 no room under its top, so a value over it
+	// takes the whole of valueRoom; a lower one has room already.
+	for _, tc := range []struct {
+		highest int64
+		want    float64
+	}{
+		{20, valueRoom},
+		{19, 14.5},
+		{16, minValueRoom},
+	} {
+		at := map[int]int64{21: tc.highest, 29: 3}
+		for i := range 7 {
+			at[i*3] = int64(i + 1)
+		}
+		p := columnsProps(valued(30, at))
+		p.Spans = []Span{campaign("Tea week", 3, 5)}
+		c := newColumns(t.Context(), p)
+		if got, want := c.Baseline-columnsPlot, tc.want+laneTop+laneHeight; got != want {
+			t.Errorf("highest %d: the columns begin at y %.1f, want %.1f", tc.highest, got, want)
+		}
+	}
+}
+
+func TestColumnsKeepLanesApartFromEachOtherAndFromTheValues(t *testing.T) {
+	t.Parallel()
+
+	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 20, 29: 3}))
+	p.Spans = []Span{campaign("First campaign", 3, 12), campaign("Second campaign", 5, 15), campaign("Third campaign", 6, 40)}
+	c := newColumns(t.Context(), p)
+	if len(c.Strips) != 3 {
+		t.Fatalf("%d strips, want 3", len(c.Strips))
+	}
+	// A name is 12px text: about 10px above its baseline and 3 below. A bracket is
+	// its line and the ends that hang 5px under it, 1.5px thick.
+	const above, below, thick = 10, 3, 0.75
+	for _, a := range c.Strips {
+		for _, b := range c.Strips {
+			if a.Y == b.Y {
+				continue
+			}
+			if a.Y-thick < b.NameY+below && b.NameY-above < a.Y+5+thick {
+				t.Errorf("the bracket at y %.1f to %.1f runs through the name at y %.1f to %.1f", a.Y-thick, a.Y+5+thick, b.NameY-above, b.NameY+below)
+			}
+		}
+	}
+	for _, v := range c.Values {
+		for _, s := range c.Strips {
+			if v.Y-above < s.Y+5+thick {
+				t.Errorf("the value %s at y %.1f reaches up into the bracket ending at y %.1f", v.Text, v.Y-above, s.Y+5+thick)
+			}
+		}
+	}
+	if want := float64(valueRoom + laneTop + laneHeight*3); c.Baseline-columnsPlot != want {
+		t.Errorf("the columns begin at y %.0f, want %.0f: the lanes and the room for a value", c.Baseline-columnsPlot, want)
+	}
+	if plain := newColumns(t.Context(), columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))); plain.Baseline-columnsPlot != valueRoom {
+		t.Errorf("with no campaign the columns begin at y %.0f, want %d", plain.Baseline-columnsPlot, valueRoom)
+	}
+}
+
+func TestColumnsOfSevenDaysKeepBothSentencesUnderTheChart(t *testing.T) {
+	t.Parallel()
+
+	p := columnsProps(valued(90, map[int]int64{0: 1, 10: 2, 50: 3, 60: 1, 89: 4}))
+	p.Spans = []Span{campaign("One", 10, 80), campaign("Two", 11, 80), campaign("Three", 12, 80), campaign("Four", 13, 80)}
+	want := `<p class="goen-chart__note">The earliest stretch has 6 days. Counted up to 15:20. 1 more campaign is shaded without a name; the table names it.</p>`
+	if got := renderColumns(t, i18n.En, p); !strings.Contains(got, want) {
+		t.Errorf("the note under a chart of runs of seven days is not %s\n%s", want, got)
+	}
+
+	p.Note = ""
+	if got, want := newColumns(i18n.WithLocale(t.Context(), i18n.En), p).Note, "The earliest stretch has 6 days. 1 more campaign is shaded without a name; the table names it."; got != want {
+		t.Errorf("a chart with no note of its own says %q, want %q", got, want)
+	}
+}
+
+func TestColumnsNameTheCampaignsThatGotNoLane(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
-	p.Spans = []Span{campaign("First campaign", 3, 12), campaign("Second campaign", 5, 15)}
-	c := newColumns(t.Context(), p)
-	if len(c.Strips) != 2 || c.Strips[0].Y == c.Strips[1].Y {
-		t.Errorf("strips = %+v, want two on different rows, their names would run together", c.Strips)
+	p.Spans = []Span{
+		campaign("One", 1, 20), campaign("Two", 2, 20), campaign("Three", 3, 20),
+		campaign("Four", 4, 20), campaign("Five", 5, 20),
+	}
+	for _, tc := range []struct {
+		locale    i18n.Locale
+		separator string
+		want      string
+	}{
+		{i18n.En, ", ", "Counted up to 15:20. 2 more campaigns are shaded without names; the table names them."},
+		{i18n.ZhHant, "、", "另有 2 檔活動在圖上只有底色，名稱列在表格裡。"},
+	} {
+		got := renderColumns(t, tc.locale, p)
+		if !strings.Contains(got, tc.want) {
+			t.Errorf("%s: the note does not say %q\n%s", tc.locale, tc.want, got)
+		}
+		if strings.Contains(got, "at the same time") || strings.Contains(got, "同時進行") {
+			t.Errorf("%s: the note says the campaigns ran at once, but a fourth can be left out for want of room for its name", tc.locale)
+		}
+		if n := strings.Count(got, `class="goen-chart__strip"`); n != 3 {
+			t.Errorf("%s: %d brackets, want 3", tc.locale, n)
+		}
+		if n := strings.Count(got, `class="goen-chart__span"`); n != 5 {
+			t.Errorf("%s: %d grounds, want all 5: a campaign without a bracket still shades its days", tc.locale, n)
+		}
+		for _, name := range []string{">Four<", ">Five<"} {
+			if strings.Contains(got, name) {
+				t.Errorf("%s: %s is drawn over the chart", tc.locale, name)
+			}
+		}
+		if !strings.Contains(got, `<td class="goen-chart__spans">One`+tc.separator+`Two`+tc.separator+`Three`+tc.separator+`Four`+tc.separator+`Five</td>`) {
+			t.Errorf("%s: the table does not name the campaigns left out", tc.locale)
+		}
+	}
+
+	one := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
+	one.Spans = []Span{campaign("One", 1, 20), campaign("Two", 2, 20), campaign("Three", 3, 20), campaign("Four", 4, 20)}
+	if got := renderColumns(t, i18n.En, one); !strings.Contains(got, "1 more campaign is shaded without a name; the table names it.") {
+		t.Error("one campaign left out is not said in the singular")
+	}
+	if got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))); strings.Contains(got, "shaded without") {
+		t.Error("a chart that left nothing out says it did")
 	}
 }
 
@@ -411,18 +677,14 @@ func TestColumnsDrawTheDaysBeforeInTheirOwnColourUnderALine(t *testing.T) {
 	if n := strings.Count(got, `class="goen-chart__window"`); n != 1 {
 		t.Errorf("%d lines under the days before, want 1", n)
 	}
-	at := strings.Index(got, `class="goen-chart__window"`)
-	if at < 0 {
-		t.Fatal("no line under the days before")
-	}
-	if window, _, _ := strings.Cut(got[at:], `class="goen-chart__span"`); strings.Contains(window, "goen-chart__gap") {
-		t.Error("the line under the days before is cut into days like a bracket")
-	}
-	if n := strings.Count(got, `class="goen-chart__gap`); n == 0 {
-		t.Error("the campaign's bracket has no day gaps, so the check above proves nothing")
+	if c := newColumns(i18n.WithLocale(t.Context(), i18n.En), compared(true)); len(c.Strips) != 2 || c.Strips[0].Y != c.Strips[1].Y {
+		t.Errorf("strips = %+v, want the line under the days before and the campaign that starts where it stops in one lane", c.Strips)
 	}
 	if n := strings.Count(got, `class="goen-chart__strip"`); n != 1 {
 		t.Errorf("%d campaign brackets, want 1: the days before are not a stored period", n)
+	}
+	if n := strings.Count(got, `class="goen-chart__strip-end"`); n != 1 {
+		t.Errorf("%d bracket ends, want the campaign's start: the days before have none, and the campaign goes on", n)
 	}
 	if !strings.Contains(got, ">Before</text>") || !strings.Contains(got, ">Autumn picks, until Sep 30</text>") {
 		t.Error("the drawing does not name both parts")

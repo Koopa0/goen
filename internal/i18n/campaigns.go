@@ -9,6 +9,20 @@ var (
 
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
 
+	// What is left of a running campaign, said inside a sentence, so English starts in lower case.
+	KeyCampaignDaysLeft = countKey("campaign.daysleft", "剩\u00a0%d\u00a0天", "%d day left", "%d days left")
+
+	KeyCampaignEndsTomorrow = key("campaign.endstomorrow", Message{ZhHant: "明天結束", En: "ends tomorrow"})
+
+	KeyCampaignEndsTomorrowAt = key("campaign.endstomorrowat", Message{ZhHant: "明天 %s 結束", En: "ends tomorrow at %s"})
+
+	KeyCampaignEndsToday = key("campaign.endstoday", Message{ZhHant: "今天結束", En: "ends today"})
+
+	KeyCampaignEndsTodayAt = key("campaign.endstodayat", Message{ZhHant: "今天 %s 結束", En: "ends today at %s"})
+
+	// A day and the time of day on it, as one unit.
+	KeyCampaignDayAt = key("campaign.dayat", Message{ZhHant: "%s %s", En: "%s at %s"})
+
 	KeyCampaignEmpty = key("campaign.empty", Message{
 		ZhHant: "這個活動目前沒有可購買的商品",
 		En:     "Nothing in this promotion is available right now",
@@ -36,8 +50,12 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	// %s is the last day, after the product count on the offers page.
+	// %s is the last day: after the product count on the offers page.
 	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
+
+	// The notice's last day, followed in English by a pause a screen reader takes before the time left: the
+	// comma after the date is hidden on screen, where a dot already parts the two.
+	KeyCampaignNoticeUntil = key("campaign.notice.until", Message{ZhHant: "至 %s", En: "until %s,"})
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Campaign not found"})
 
@@ -144,7 +162,7 @@ var (
 	KeyAdminCampaignOutside = key("admin.campaign.outside", Message{ZhHant: "不在期間內", En: "Outside its window"})
 
 	KeyAdminCampaignHidden = key("admin.campaign.hidden", Message{
-		ZhHant: "商店上看不到：沒有可販售的商品",
+		ZhHant: "商店上看不到：沒有有庫存的優惠商品",
 		En:     "Not shown in the shop: no product on sale is in stock",
 	})
 

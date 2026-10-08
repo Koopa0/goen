@@ -68,8 +68,8 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 
 	assertEveryImageReservesItsBox(t, page)
 	for _, tag := range imageTags(page) {
-		if strings.Contains(tag, `class="goen-cat__photo"`) && strings.Contains(tag, `loading="lazy"`) {
-			t.Errorf("a department photograph, right under the hero, is lazy: %s", tag)
+		if strings.Contains(tag, `class="goen-cat__photo"`) && !strings.Contains(tag, `loading="lazy"`) {
+			t.Errorf("a department photograph, below the product row, is not lazy: %s", tag)
 		}
 	}
 	tiles := tileImages(page)

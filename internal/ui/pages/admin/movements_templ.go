@@ -138,7 +138,7 @@ func Movements(p layouts.Page, v *MovementsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.HasStockDays() {
+			if v.HasStockDays() && !v.Empty() {
 				if v.DrawsStockLine() {
 					templ_7745c5c3_Err = chart.StepLine(v.StockLine(ctx)).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -544,7 +544,7 @@ func receiveForm(v *MovementsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<input class=\"goen-input goen-admin__num\" id=\"receive-qty\" type=\"number\" name=\"quantity\" min=\"1\" step=\"1\" placeholder=\"10\" required></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<input class=\"goen-input goen-admin__num\" id=\"receive-qty\" type=\"number\" name=\"quantity\" min=\"1\" step=\"1\" required></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -563,7 +563,7 @@ func receiveForm(v *MovementsView) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminReceiveButton))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/movements.templ`, Line: 110, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/movements.templ`, Line: 109, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -585,7 +585,7 @@ func receiveForm(v *MovementsView) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminReceiveHint))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/movements.templ`, Line: 113, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/movements.templ`, Line: 112, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {

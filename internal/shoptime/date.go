@@ -18,7 +18,7 @@ func DateText(ctx context.Context, d Date) string {
 	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
 }
 
-// DateLabel is d the short way a day grid labels its ends: 10/30 or Oct 30.
+// DateLabel is d written short: 10/30 or Oct 30.
 func DateLabel(ctx context.Context, d Date) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDateLabel), d.Month.String()[:3], int(d.Month), d.Day)
 }
@@ -29,9 +29,6 @@ func (d Date) AddDays(n int) Date {
 	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day(), OtherYear: d.OtherYear}
 }
 
-// MonthLabel is the month of d the short way a month grid labels its ends: 2026/10.
-func MonthLabel(d Date) string { return fmt.Sprintf("%04d/%02d", d.Year, int(d.Month)) }
-
 // StampText is when something happened, the short way a history reads it: 10/3 14:02 or Oct 3 14:02.
 func StampText(ctx context.Context, t time.Time) string {
 	return DateLabel(ctx, DateOf(t, t)) + " " + ClockText(t)
@@ -39,18 +36,6 @@ func StampText(ctx context.Context, t time.Time) string {
 
 // ISOStamp is t as a time element's datetime reads it: 2026-10-03T14:02+08:00.
 func ISOStamp(t time.Time) string { return In(t).Format("2006-01-02T15:04-07:00") }
-
-// MonthsBetween is how many whole calendar months have passed from from to to; zero when to is not later.
-func MonthsBetween(from, to Date) int {
-	if DaysBetween(from, to) <= 0 {
-		return 0
-	}
-	months := (to.Year-from.Year)*12 + int(to.Month) - int(from.Month)
-	if to.Day < from.Day {
-		months--
-	}
-	return months
-}
 
 // DaysBetween is how many days lie from from to to: negative when to is the
 // earlier day.

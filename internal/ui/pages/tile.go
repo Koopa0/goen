@@ -23,7 +23,7 @@ type ProductTile struct {
 	// PriceVaries marks PriceCents as the cheapest of several: a "from" price.
 	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
-	// InCampaign reports that a running campaign with something to buy features the product; only then is CompareCents struck.
+	// InCampaign reports that a listed campaign (one with a deal) features the product; only then is CompareCents struck.
 	InCampaign  bool
 	Rating      float64
 	RatingCount int64

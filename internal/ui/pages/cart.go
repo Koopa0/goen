@@ -100,6 +100,17 @@ type FreeDelivery struct {
 	ShortfallCents int64
 	// ThresholdCents is zero where no method names an amount it turns free at.
 	ThresholdCents int64
+	// SurchargeZones are the zones some offered method charges extra to even once delivery is free.
+	SurchargeZones []string
+}
+
+// Word is what the cart says once delivery is free, with the zones it does not cover.
+func (f FreeDelivery) Word(ctx context.Context) string {
+	if len(f.SurchargeZones) == 0 {
+		return i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyFreeShippingExceptZones),
+		strings.Join(f.SurchargeZones, i18n.T(ctx, i18n.KeyListSeparator)))
 }
 
 // Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
@@ -112,7 +123,7 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
 		}
 	case FreeDeliveryReached:
-		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(i18n.T(ctx, i18n.KeyFreeShipping))}
+		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(f.Word(ctx))}
 		if f.ThresholdCents > 0 {
 			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
 		}
@@ -125,7 +136,7 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 // Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
 func (v CartView) Facts(ctx context.Context) []components.Stat {
 	return []components.Stat{
-		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyCartUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
 		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
 		v.FreeDelivery.Stat(ctx),
 	}
@@ -195,6 +206,8 @@ type ShippingChoice struct {
 	Free            bool
 	// FreeOverCents is zero for a method that is never free and for one that costs nothing at any subtotal.
 	FreeOverCents int64
+	// SurchargeZones are the zones this method charges extra to, which free delivery does not waive.
+	SurchargeZones []string
 }
 
 func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }
@@ -718,6 +731,8 @@ type OrderView struct {
 	PlacedAt     time.Time
 	// Now is the moment the page is read; the days left and the grids count from it.
 	Now time.Time
+	// HoldUntil is the earliest stored reservation expiry, zero without rows; Checkout Session expiry is bound to it.
+	HoldUntil time.Time
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
 	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
@@ -743,6 +758,8 @@ type OrderView struct {
 	PaymentRefreshURL string
 	// PaymentConfirmationPending preserves the return hint after checks stop; it never changes payment facts.
 	PaymentConfirmationPending bool
+	// PaymentReturnHint is untrusted; it only hides cancellation until the stored stock hold ends.
+	PaymentReturnHint bool
 	// The bounds behind that URL, quoted in the notice so the copy cannot drift from the handler.
 	PaymentRefreshSeconds, PaymentRefreshChecks int
 	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
@@ -815,6 +832,15 @@ func (v *OrderView) Owed() string { return twd(v.OwedCents) }
 
 func (v *OrderView) CanCancel() bool {
 	return v.Status == order.FulfillmentPending && !v.Committed
+}
+
+// ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
+func (v *OrderView) ShowCancel() bool {
+	return v.CanCancel() && v.PaymentRefreshURL == "" && !v.paymentReturnHoldsCancel()
+}
+
+func (v *OrderView) paymentReturnHoldsCancel() bool {
+	return v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now)
 }
 
 // CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:

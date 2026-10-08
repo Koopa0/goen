@@ -351,12 +351,8 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 
 const adminCampaign = `-- name: AdminCampaign :one
 SELECT c.title, localized_name(c.title, c.title_en, $1::text) AS label, c.starts_at, c.ends_at, c.is_active,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
-       EXISTS (
-           SELECT 1 FROM sale_campaign_products cp
-           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-           JOIN product_variants v ON v.product_id = p.id AND v.is_active
-           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
+       EXISTS (SELECT 1 FROM running_campaigns r WHERE r.id = c.id) AS is_running,
+       EXISTS (SELECT 1 FROM campaign_deals d WHERE d.campaign_id = c.id) AS is_sellable
 FROM sale_campaigns c
 WHERE c.slug = $2::text
 `
@@ -533,12 +529,8 @@ func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string)
 const adminCampaigns = `-- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
-       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running,
-       EXISTS (
-           SELECT 1 FROM sale_campaign_products cp
-           JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-           JOIN product_variants v ON v.product_id = p.id AND v.is_active
-           WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock) AS is_sellable
+       EXISTS (SELECT 1 FROM running_campaigns r WHERE r.id = c.id) AS is_running,
+       EXISTS (SELECT 1 FROM campaign_deals d WHERE d.campaign_id = c.id) AS is_sellable
 FROM sale_campaigns c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
        OR (c.is_active = $2::boolean AND c.ends_at < $3::timestamptz)
@@ -3298,13 +3290,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -3567,6 +3554,7 @@ SELECT
     NOT EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+          AND dv.stock_quantity > dv.safety_stock
     ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
@@ -3574,13 +3562,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -3638,7 +3621,7 @@ JOIN LATERAL (
               AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
              (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
-             price_cents
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -4514,13 +4497,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -5359,13 +5337,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -6826,13 +6799,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -6898,21 +6866,7 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents > dv.price_cents
-        AND dv.stock_quantity > dv.safety_stock)
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products fp
-      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-        AND EXISTS (
-            SELECT 1 FROM sale_campaign_products cp
-            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
-  )
+  AND EXISTS (SELECT 1 FROM campaign_deals d WHERE d.product_id = p.id)
 ORDER BY
     -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
@@ -6946,9 +6900,6 @@ type DealProductsRow struct {
 	ImageHeight         int32
 }
 
-// Products a running campaign with something to buy features, and that have a
-// discounted variant that can be bought: the rule of the in_campaign column of
-// the cards, and the variant the tile shows.
 // A DISCOUNTED variant that can be bought first, so the price the tile strikes
 // is one the shopper can add to the cart. The listing's LATERAL takes the
 // cheapest buyable one, which is a different variant whenever the discounted
@@ -6994,21 +6945,7 @@ const dealProductsCount = `-- name: DealProductsCount :one
 SELECT count(*)::bigint
 FROM products p
 WHERE p.status = 'active'
-  AND EXISTS (
-      SELECT 1 FROM product_variants dv
-      WHERE dv.product_id = p.id AND dv.is_active
-        AND dv.compare_at_price_cents > dv.price_cents
-        AND dv.stock_quantity > dv.safety_stock)
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products fp
-      JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-      WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-        AND EXISTS (
-            SELECT 1 FROM sale_campaign_products cp
-            JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-            JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-            WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
-  )
+  AND EXISTS (SELECT 1 FROM campaign_deals d WHERE d.product_id = p.id)
 `
 
 func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
@@ -7019,24 +6956,7 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 }
 
 const dealsHaveSomethingToBuy = `-- name: DealsHaveSomethingToBuy :one
-SELECT EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.status = 'active'
-      AND EXISTS (
-          SELECT 1 FROM product_variants dv
-          WHERE dv.product_id = p.id AND dv.is_active
-            AND dv.compare_at_price_cents > dv.price_cents
-            AND dv.stock_quantity > dv.safety_stock)
-      AND EXISTS (
-          SELECT 1 FROM sale_campaign_products fp
-          JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-          WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-            AND EXISTS (
-                SELECT 1 FROM sale_campaign_products cp
-                JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-                JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-                WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock))
-)::boolean AS offered
+SELECT EXISTS (SELECT 1 FROM campaign_deals)::boolean AS offered
 `
 
 // Whether /deals has anything to buy: a product DealProducts lists. The header
@@ -7343,13 +7263,10 @@ WITH RECURSIVE d AS (
 SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at
 FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND p.category_id IN (SELECT id FROM d)
-        AND v.stock_quantity > v.safety_stock)
+WHERE EXISTS (
+    SELECT 1 FROM campaign_deals cd
+    JOIN products p ON p.id = cd.product_id
+    WHERE cd.campaign_id = c.id AND p.category_id IN (SELECT id FROM d))
 ORDER BY c.ends_at, c.id
 LIMIT 1
 `
@@ -7366,8 +7283,8 @@ type DepartmentCampaignRow struct {
 	EndsAt   time.Time
 }
 
-// The first running campaign that features a product of the department which can be
-// bought: ListedCampaigns' test, narrowed to the department's own products.
+// Of the campaigns with a deal on a product of the department, the one that ends
+// first.
 func (q *Queries) DepartmentCampaign(ctx context.Context, arg DepartmentCampaignParams) (DepartmentCampaignRow, error) {
 	row := q.db.QueryRow(ctx, departmentCampaign, arg.Locale, arg.Slug)
 	var i DepartmentCampaignRow
@@ -7413,13 +7330,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     localized_name(v.value, v.value_en, $1::text) AS colour,
     v.swatch_hex::text AS swatch,
@@ -7550,37 +7462,6 @@ func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) 
 		return nil, err
 	}
 	return items, nil
-}
-
-const departmentFacts = `-- name: DepartmentFacts :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $1::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT
-    (SELECT count(*) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
-    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
-     WHERE r.slug = $1::text)::bigint AS categories,
-    (SELECT count(DISTINCT p.brand_id) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
-`
-
-type DepartmentFactsRow struct {
-	Products   int64
-	Categories int64
-	Brands     int64
-}
-
-// What a department says about itself under its head: the products it holds across
-// its whole subtree, the sub-categories directly under it, and the brands of those
-// products.
-func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
-	row := q.db.QueryRow(ctx, departmentFacts, slug)
-	var i DepartmentFactsRow
-	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
-	return i, err
 }
 
 const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
@@ -8402,23 +8283,24 @@ SELECT
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     coalesce(b.name, '') AS brand,
-    mv.price_cents AS min_price_cents,
+    mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's.
-    EXISTS (
+    -- rather than state one variant's price as the product's. On a campaign's row
+    -- the price can be a discounted variant's with a cheaper one that can be
+    -- bought beside it.
+    (EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AS price_varies,
+    ) AND ($2::uuid IS NULL OR NOT EXISTS (
+        SELECT 1 FROM product_variants cv
+        WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
+          AND cv.stock_quantity > cv.safety_stock
+    )))::boolean AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -8473,8 +8355,14 @@ JOIN LATERAL (
     FROM product_variants
     WHERE product_id = p.id AND is_active
     -- A buyable variant first: the price on a tile is a promise. Falls back to
-    -- the cheapest overall so a sold-out product still shows what it costs.
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    -- the cheapest overall so a sold-out product still shows what it costs. On a
+    -- campaign's row a discounted variant leads, as on the campaign's own page.
+    ORDER BY ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -8513,7 +8401,7 @@ type HomeTilesRow struct {
 	Name                string
 	Summary             string
 	Brand               string
-	MinPriceCents       int64
+	TilePriceCents      int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
@@ -8551,7 +8439,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
-			&i.MinPriceCents,
+			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
@@ -9241,6 +9129,42 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 	return result.RowsAffected(), nil
 }
 
+const listedCampaignOfProduct = `-- name: ListedCampaignOfProduct :one
+SELECT fc.slug, localized_name(fc.title, fc.title_en, $1::text) AS title,
+       fc.starts_at, fc.ends_at
+FROM sale_campaign_products fp
+JOIN listed_campaigns l ON l.id = fp.campaign_id
+JOIN sale_campaigns fc ON fc.id = fp.campaign_id
+WHERE fp.product_id = $2::uuid
+ORDER BY fc.ends_at, fc.id
+LIMIT 1
+`
+
+type ListedCampaignOfProductParams struct {
+	Locale    string
+	ProductID uuid.UUID
+}
+
+type ListedCampaignOfProductRow struct {
+	Slug     string
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// Of the listed campaigns featuring a product, the one that ends first.
+func (q *Queries) ListedCampaignOfProduct(ctx context.Context, arg ListedCampaignOfProductParams) (ListedCampaignOfProductRow, error) {
+	row := q.db.QueryRow(ctx, listedCampaignOfProduct, arg.Locale, arg.ProductID)
+	var i ListedCampaignOfProductRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+	)
+	return i, err
+}
+
 const listedCampaigns = `-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at, c.tone,
@@ -9251,13 +9175,8 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
         JOIN products p ON p.id = cp.product_id
         WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
+JOIN listed_campaigns l ON l.id = c.id
 LEFT JOIN media_objects m ON m.digest = c.image_key
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
 ORDER BY c.ends_at, c.id
 LIMIT $3::integer OFFSET $2::integer
 `
@@ -9281,8 +9200,8 @@ type ListedCampaignsRow struct {
 	Products   int64
 }
 
-// A campaign is listed only while a published featured product can be bought,
-// so the deals page and the home carousel never offer an empty shelf. Its page at /s/{slug} (CampaignBySlug) stays reachable by direct link.
+// A campaign left out keeps its page at /s/{slug} (CampaignBySlug), reachable by
+// a direct link.
 func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams) ([]ListedCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, listedCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -9315,16 +9234,9 @@ func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams
 }
 
 const listedCampaignsCount = `-- name: ListedCampaignsCount :one
-SELECT count(*)::bigint FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products p ON p.id = cp.product_id AND p.status = 'active'
-      JOIN product_variants v ON v.product_id = p.id AND v.is_active
-      WHERE cp.campaign_id = c.id AND v.stock_quantity > v.safety_stock)
+SELECT count(*)::bigint FROM listed_campaigns
 `
 
-// The same listing as ListedCampaigns, counted.
 func (q *Queries) ListedCampaignsCount(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, listedCampaignsCount)
 	var column_1 int64
@@ -10475,13 +10387,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -12557,6 +12464,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     localized_name(p.description, p.description_en, $2::text) AS description,
+    (p.description_en IS NOT NULL)::boolean AS description_translated,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
     coalesce(b.name, '') AS brand,
@@ -12583,26 +12491,27 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID                   uuid.UUID
-	Slug                 string
-	Name                 string
-	Summary              string
-	Description          string
-	WarrantyNote         pgtype.Text
-	WarrantyMonths       int32
-	Brand                string
-	BrandSlug            string
-	CategoryID           uuid.UUID
-	CategorySlug         string
-	CategoryName         string
-	CategoryParentID     uuid.NullUUID
-	Origin               string
-	DomesticPartyName    string
-	DomesticPartyPhone   string
-	DomesticPartyAddress string
-	NetQuantity          string
-	NetUnit              string
-	MinAgeMonths         pgtype.Int2
+	ID                    uuid.UUID
+	Slug                  string
+	Name                  string
+	Summary               string
+	Description           string
+	DescriptionTranslated bool
+	WarrantyNote          pgtype.Text
+	WarrantyMonths        int32
+	Brand                 string
+	BrandSlug             string
+	CategoryID            uuid.UUID
+	CategorySlug          string
+	CategoryName          string
+	CategoryParentID      uuid.NullUUID
+	Origin                string
+	DomesticPartyName     string
+	DomesticPartyPhone    string
+	DomesticPartyAddress  string
+	NetQuantity           string
+	NetUnit               string
+	MinAgeMonths          pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -12614,6 +12523,7 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.Name,
 		&i.Summary,
 		&i.Description,
+		&i.DescriptionTranslated,
 		&i.WarrantyNote,
 		&i.WarrantyMonths,
 		&i.Brand,
@@ -14226,13 +14136,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -15598,47 +15503,6 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 	return items, nil
 }
 
-const runningCampaignOfProduct = `-- name: RunningCampaignOfProduct :one
-SELECT fc.slug, localized_name(fc.title, fc.title_en, $1::text) AS title,
-       fc.starts_at, fc.ends_at
-FROM sale_campaign_products fp
-JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-WHERE fp.product_id = $2::uuid AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-  AND EXISTS (
-      SELECT 1 FROM sale_campaign_products cp
-      JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-      JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-      WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
-ORDER BY fc.ends_at, fc.id
-LIMIT 1
-`
-
-type RunningCampaignOfProductParams struct {
-	Locale    string
-	ProductID uuid.UUID
-}
-
-type RunningCampaignOfProductRow struct {
-	Slug     string
-	Title    string
-	StartsAt time.Time
-	EndsAt   time.Time
-}
-
-// The running campaign featuring a product, by the rule of the in_campaign
-// column of the cards; the one that ends first when several do.
-func (q *Queries) RunningCampaignOfProduct(ctx context.Context, arg RunningCampaignOfProductParams) (RunningCampaignOfProductRow, error) {
-	row := q.db.QueryRow(ctx, runningCampaignOfProduct, arg.Locale, arg.ProductID)
-	var i RunningCampaignOfProductRow
-	err := row.Scan(
-		&i.Slug,
-		&i.Title,
-		&i.StartsAt,
-		&i.EndsAt,
-	)
-	return i, err
-}
-
 const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
 UPDATE carts SET checkout_draft = $1::jsonb, checkout_draft_at = now()
 WHERE id = $2
@@ -15730,13 +15594,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -16763,7 +16622,14 @@ SELECT DISTINCT ON (sm.id)
     localized_name(v.name, v.name_en, $1::text) AS name,
     coalesce(localized_name(v.carrier, v.carrier_en, $1::text), '')::text AS carrier,
     v.fee_cents,
-    v.free_over_cents
+    v.free_over_cents,
+    coalesce(
+        (SELECT array_agg(localized_name(z.name, z.name_en, $1::text) ORDER BY z.position, z.id)
+         FROM shipping_version_zones vz
+         JOIN shipping_zones z ON z.id = vz.zone_id
+         WHERE vz.version_id = v.id),
+        ARRAY[]::text[]
+    )::text[] AS surcharge_zones
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
@@ -16794,6 +16660,7 @@ type ShippingChoicesRow struct {
 	Carrier         string
 	FeeCents        int64
 	FreeOverCents   pgtype.Int8
+	SurchargeZones  []string
 }
 
 // Each method's newest version, offered only for a cart its carrier will take.
@@ -16816,6 +16683,7 @@ func (q *Queries) ShippingChoices(ctx context.Context, arg ShippingChoicesParams
 			&i.Carrier,
 			&i.FeeCents,
 			&i.FreeOverCents,
+			&i.SurchargeZones,
 		); err != nil {
 			return nil, err
 		}
@@ -18658,13 +18526,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,

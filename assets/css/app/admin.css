@@ -136,7 +136,7 @@ h3 {
 
 .goen-btn:focus-visible,
 .goen-swatch:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -165,38 +165,29 @@ h3 {
 /* One filled control to a surface. Everything else is quieter on purpose: a
    row of equally weighted buttons makes the shopper choose before they act. */
 .goen-btn--primary {
-  background: var(--n-900);
-  border-color: var(--n-900);
+  background: var(--accent);
+  border-color: var(--accent);
   box-shadow: var(--sh-xs);
-  color: var(--n-0);
+  color: var(--on-accent);
 }
 
 .goen-btn--primary:hover {
-  background: #27272a;
-  border-color: #27272a;
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
 }
 
-/* The soft button: a grey ground, no outline. */
-.goen-btn--secondary {
-  background: var(--n-100);
-  border-color: transparent;
-  color: var(--n-900);
-}
-
-.goen-btn--secondary:hover {
-  background: var(--n-200);
-}
-
-/* The secondary button: white with a control border. */
+/* The secondary button, under either name: a blue tint and no outline. The
+   transparent border is what forced colours draws as its edge. */
+.goen-btn--secondary,
 .goen-btn--outline {
-  background: var(--n-0);
-  border-color: var(--n-300);
-  box-shadow: var(--sh-xs);
-  color: var(--n-700);
+  background: var(--accent-faint);
+  border-color: transparent;
+  color: var(--accent-deep);
 }
 
+.goen-btn--secondary:hover,
 .goen-btn--outline:hover {
-  background: var(--n-50);
+  background: var(--accent-muted);
 }
 
 .goen-btn--ghost {
@@ -207,6 +198,19 @@ h3 {
 
 .goen-btn--ghost:hover {
   background: var(--overlay);
+}
+
+/* A destructive action reads as one: it moves money or removes access, which a
+   soft blue "save" would not say. The transparent border is what forced colours
+   draws as its edge. */
+.goen-btn--danger {
+  background: var(--error-bg);
+  border-color: transparent;
+  color: var(--error);
+}
+
+.goen-btn--danger:hover {
+  background: var(--error-bg-hover);
 }
 
 /* A disabled control keeps its place and stops responding. It is not hidden: a
@@ -233,32 +237,42 @@ h3 {
 
 .goen-badge {
   align-items: center;
-  background: var(--elevated);
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  color: var(--fg);
+  background: var(--n-100);
+  border-radius: var(--r-full);
+  color: var(--muted);
   display: inline-flex;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 4px;
-  line-height: 1.4;
-  padding: 0.125rem 0.5rem;
+  line-height: 1.5;
+  outline: 1px solid transparent;
+  padding: 2px 10px;
   white-space: nowrap;
   width: fit-content;
 }
 
 .goen-badge--accent {
   background: var(--accent-muted);
-  color: var(--accent-text);
+  color: var(--accent-deep);
+}
+
+.goen-badge--progress {
+  background: var(--accent-faint);
+  color: var(--accent);
+}
+
+.goen-badge--done {
+  background: var(--success-tint);
+  color: var(--success);
 }
 
 .goen-badge--warn {
-  background: var(--warn-bg);
+  background: var(--warn-tint);
   color: var(--warn);
 }
 
 .goen-badge--danger {
-  background: var(--error-bg);
+  background: var(--error-tint);
   color: var(--error);
 }
 
@@ -273,7 +287,7 @@ h3 {
 
 .goen-notice {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -411,7 +425,7 @@ h3 {
 .goen-filters .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 
@@ -691,6 +705,14 @@ input.goen-check {
   gap: 8px;
 }
 
+.goen-adminbar__actions .goen-btn--ghost {
+  color: var(--fg-muted);
+}
+
+.goen-adminbar__actions .goen-btn--ghost:hover {
+  color: var(--fg);
+}
+
 /* The way out, and on a phone the rail's own last link is already it — so the
    bar drops this copy there and keeps its row to one line, which is what leaves
    room for the disclosure that opens the rail. */
@@ -716,7 +738,7 @@ input.goen-check {
   .goen-adminbar__tag {
     background: var(--accent-muted);
     border-radius: var(--r-sm);
-    color: var(--accent-text);
+    color: var(--accent-deep);
     display: inline-flex;
     font-size: var(--fs-12);
     font-weight: var(--fw-medium);
@@ -736,6 +758,7 @@ input.goen-check {
 }
 
 .goen-adminfoot__copyright {
+  box-sizing: border-box;
   color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
@@ -844,6 +867,7 @@ input.goen-check {
   border-radius: var(--r-md);
   min-width: 0;
   padding: 4px;
+  view-transition-name: rail;
 }
 
 .goen-admin__navlist {
@@ -859,7 +883,7 @@ input.goen-check {
   color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   min-height: 44px;
   padding: 0 12px;
   text-decoration: none;
@@ -877,9 +901,9 @@ input.goen-check {
 /* The screen being read, stated by the ARIA attribute the markup already
    carries. A state class beside it would be a second place to disagree. */
 .goen-admin__nav [aria-current='page'] {
-  background: var(--accent-muted);
-  color: var(--accent-text);
-  font-weight: var(--fw-semibold);
+  background: var(--accent-faint);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
 }
 
 .goen-admin__navback {
@@ -949,15 +973,14 @@ input.goen-check {
 }
 
 /* The page's own name, denser than the storefront's: this is a heading read
-   forty times a day, not one a visitor arrives at. */
+   forty times a day, not one a visitor arrives at. Space under it, not a rule. */
 .goen-admin .ui-page-head {
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 24px;
 }
 
 .goen-admin .ui-page-head__eyebrow {
@@ -1028,15 +1051,16 @@ input.goen-check {
   grid-column: 1 / -1;
 }
 
+/* A count is a wash face, not a framed card; the transparent outline is what
+   forced colours draws as its edge. */
 .goen-stat {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
+  background: var(--wash);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  outline: 1px solid transparent;
   padding: 16px;
 }
 
@@ -1051,7 +1075,7 @@ input.goen-check {
   color: var(--fg);
   font-size: var(--fs-ed-30);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -1149,6 +1173,23 @@ input.goen-check {
   line-height: var(--lh-normal);
 }
 
+.goen-admin__headcount {
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  margin: 8px 0 0;
+}
+
+/* Same name, other language, after it on the same line; drops the heading's weight and tracking. */
+.goen-admin__othername {
+  display: inline-block;
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  letter-spacing: normal;
+  margin-inline-start: 8px;
+}
+
 .goen-admin__note {
   margin: 0;
   padding: 10px 12px;
@@ -1187,6 +1228,72 @@ input.goen-check {
 .goen-admin__table {
   min-width: 640px;
   width: 100%;
+}
+
+/* Eight controls a row take the table's spare width, so the SKU and the product
+   name shrink to their shortest unbreakable piece unless they are held. The
+   table scrolls inside its frame; the SKU stays pinned on the left and, where
+   there is room, the stock adjustment on the right, so the one control that
+   writes stock is never off-screen. scroll-padding keeps a focused control out
+   from under a pinned column (WCAG 2.4.11). */
+.goen-admin__stock td:first-child a:first-child {
+  white-space: nowrap;
+}
+
+.goen-admin__stock td:nth-child(2) {
+  min-width: 9rem;
+}
+
+.goen-admin__stock :is(th, td):first-child {
+  box-shadow: 0.5rem 0 0.5rem -0.5rem var(--border-strong);
+  inset-inline-start: 0;
+  position: sticky;
+  z-index: 1;
+}
+
+.goen-admin__stock td:first-child {
+  background: var(--panel);
+}
+
+.goen-admin__stock .goen-admin__row--low td:first-child {
+  background: var(--warn-bg);
+}
+
+.goen-admin__tablewrap:has(.goen-admin__stock) {
+  scroll-padding-inline: 7rem 0;
+}
+
+@media (forced-colors: active) {
+  .goen-admin__stock :is(th, td):first-child {
+    border-inline-end: 1px solid CanvasText;
+  }
+}
+
+@media (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    box-shadow: -0.5rem 0 0.5rem -0.5rem var(--border-strong);
+    inset-inline-end: 0;
+    position: sticky;
+    z-index: 1;
+  }
+
+  .goen-admin__stock td:last-child {
+    background: var(--panel);
+  }
+
+  .goen-admin__stock .goen-admin__row--low td:last-child {
+    background: var(--warn-bg);
+  }
+
+  .goen-admin__tablewrap:has(.goen-admin__stock) {
+    scroll-padding-inline: 7rem 11rem;
+  }
+}
+
+@media (forced-colors: active) and (min-width: 64rem) {
+  .goen-admin__stock :is(th, td):last-child {
+    border-inline-start: 1px solid CanvasText;
+  }
 }
 
 /* Stock links are too close for the WCAG 2.5.8 spacing exception; each target
@@ -1273,6 +1380,17 @@ input.goen-check {
   color: var(--fg);
 }
 
+/* A link to another record is that record's name, so it keeps the text colour;
+   blue in a row is an action. The underline still marks it as a link where the
+   cell holds other words. */
+.goen-admin .ui-table tbody a[href^="/admin/"] {
+  color: var(--fg);
+}
+
+.goen-admin .ui-table tbody a[href^="/admin/"]:hover {
+  color: var(--accent);
+}
+
 .goen-admin__row--low td {
   background: var(--warn-bg);
 }
@@ -1312,8 +1430,14 @@ input.goen-check {
   min-height: 44px;
 }
 
+/* The price and arrival buttons may drop under their field so the stock table
+   fits a 1440 frame and nothing sits beneath the pinned column. */
+.goen-admin__stock td:is(:nth-child(4), :nth-child(5)) .goen-admin__inline {
+  flex-wrap: wrap;
+}
+
 .goen-admin__num {
-  width: 86px;
+  width: 9ch;
   min-height: 44px;
   box-sizing: border-box;
 }
@@ -1361,8 +1485,18 @@ input.goen-check {
 }
 
 .goen-admin__langopt:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .goen-admin__langopt {
+    border: 2px solid Canvas;
+  }
+
+  .goen-admin__langopt:has(input:checked) {
+    border-color: Highlight;
+  }
 }
 
 .goen-admin__langgroup {
@@ -1384,16 +1518,46 @@ input.goen-check {
 }
 
 .goen-admin__fields {
+  column-gap: 16px;
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
 }
 
 .goen-admin__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-content: start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 16px;
   min-width: 0;
+  row-gap: 6px;
+}
+
+.goen-admin__field > * {
+  grid-column: 1;
+}
+
+.goen-admin__hints {
+  display: grid;
+  row-gap: 6px;
+}
+
+.goen-admin__fields > .goen-admin__field {
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+}
+
+.goen-admin__fields > .goen-admin__field > label {
+  align-self: end;
+  line-height: 1.35;
+}
+
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint,
+.goen-admin__fields > .goen-admin__field > .goen-admin__hints {
+  grid-row: 4;
+}
+
+.goen-admin__surcharge {
+  max-width: min(100%, 12rem);
 }
 
 /* The one checkbox in the back office that authorises a resend. It sits in a
@@ -1422,6 +1586,12 @@ input.goen-check {
 
 .goen-admin .ui-dl__desc {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .goen-admin .ui-dl {
+    gap: 1rem;
+  }
 }
 
 .goen-admin__form .ui-textarea,
@@ -1460,6 +1630,7 @@ input.goen-check {
 .goen-admin__tabs .ui-filter {
   text-decoration: none;
   min-height: 44px;
+  font-weight: var(--fw-regular);
 }
 
 @media (min-width: 768px) {
@@ -1771,7 +1942,7 @@ input.goen-check {
 /* Money moved. The row is marked so a reader scanning for it does not read
    forty lines of catalogue edits first. */
 .goen-admin__auditrow.is-money {
-  border-left-color: var(--accent);
+  border-left-color: var(--accent-deep);
 }
 
 .goen-admin__audithead {
@@ -1910,7 +2081,7 @@ input.goen-check {
 }
 
 .goen-health__head {
-  align-items: center;
+  align-items: baseline;
   display: flex;
   gap: 8px;
   justify-content: space-between;
@@ -2036,8 +2207,19 @@ input.goen-check {
    the two disagree the first time one of them is forgotten. */
 .goen-admin__tabs [aria-current] {
   background: var(--accent-faint);
-  border-color: var(--accent);
-  color: var(--fg);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+/* Forced colours drop the tint and the blue, so the current item draws its edge
+   in Highlight; the focus ring still wins while it is focused. */
+@media (forced-colors: active) {
+  .goen-admin__nav [aria-current='page']:not(:focus-visible),
+  .goen-admin__tabs [aria-current]:not(:focus-visible) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
 }
 
 /* A button in a column of full-width fields is not a banner: it shrinks to its
@@ -2195,6 +2377,7 @@ input.goen-check {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2209,61 +2392,124 @@ input.goen-check {
 .goen-report__value {
   color: var(--fg);
   font-family: var(--font-display);
-  font-size: var(--fs-ed-24);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-size: clamp(var(--fs-ed-20), 15cqi, var(--fs-ed-24));
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
-/* The two lists under the figures. Not tables: every cell already carries its
-   own label, because the sentence is what internal/i18n holds. */
+@media (max-width: 420px) {
+  .goen-report__figure:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The lists under the figures. Not tables: every cell already carries its own
+   label, because the sentence is what internal/i18n holds. A row is what it is
+   on the left and its figure on the right; the rows share the two columns, so
+   the figures line up down the list. Below 40rem of its own width the figure
+   moves under the name. */
 .goen-report__rows {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  display: flex;
-  flex-direction: column;
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(min(14rem, 100%), 22rem);
   list-style: none;
   margin: 0;
   padding: 0 16px;
 }
 
 .goen-report__row {
-  align-items: baseline;
-  border-bottom: 1px solid var(--border-faint);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  padding: 12px 0;
+  align-items: start;
+  display: grid;
+  gap: 6px 32px;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  padding: 14px 0;
 }
 
-.goen-report__row:last-child {
-  border-bottom: 0;
+.goen-report__row + .goen-report__row {
+  border-top: 1px solid var(--line);
+}
+
+@container (max-width: 40rem) {
+  .goen-report__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.goen-report__what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .goen-report__name {
   color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  min-width: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
 }
 
-.goen-report__num {
+.goen-report__name:hover {
+  text-decoration: underline;
+}
+
+.goen-report__facts,
+.goen-report__aside {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
-.goen-report__bar {
-  flex: 1 0 100%;
+.goen-report__facts {
+  text-wrap: pretty;
 }
 
-/* The sentence beside a warned estimate; the triangle repeats it for a reader
-   who scans the column. */
-.goen-report__warn {
-  color: var(--warn);
-  font-size: var(--fs-13);
+.goen-report__plot {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.goen-report__state {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
+  gap: 2px 8px;
+  margin: 0;
+}
+
+.goen-report__figtext {
+  align-items: baseline;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
+  gap: 6px;
+}
+
+.goen-report__figtext--warn {
+  color: var(--warn);
+}
+
+.goen-report__tri {
+  fill: var(--warn-mark);
+  flex: none;
+  height: 0.7em;
+  width: 0.7em;
+}
+
+/* The money is the figure of a department row, so its column is as wide as an
+   amount, not as a count. */
+.goen-report__departments .goen-chartbar {
+  grid-template-columns: minmax(0, 1fr) 7rem;
 }
 
 @media (min-width: 1024px) {
@@ -2673,24 +2919,40 @@ input.goen-check {
   word-break: break-all;
 }
 
+.goen-admin__districts {
+  columns: 11rem;
+  column-gap: 24px;
+  list-style: none;
+  padding: 0;
+}
+
+.goen-admin__districts li {
+  break-inside: avoid;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.goen-admin__districts span {
+  color: var(--fg-muted);
+}
+
 @view-transition {
   navigation: auto;
 }
 
-/* Opacity only, at the base step: the old page stays on screen until the new
-   one has painted, so a longer fade is time the visitor waits on top of the
-   load. The pair carries the cross-fade. The group
-   carries the geometry, and its keyframes are what would move or resize a named
-   region when the two pages put it in different places: a page read halfway
-   down leaves its header above the viewport, and the browser would otherwise
-   slide the header back down into the new page. Dropping the name and keeping
-   the timing leaves the group where the new page puts it and lets the pair
-   fade there. The timing is set on the group as well because the user agent
-   puts its own 0.25s there and the pair inherits from it. */
+/* Tools wait on every page they open, so the dissolve takes the base step. The
+   bar and the rail are lifted out and stay put: a page read halfway down leaves
+   them above the viewport, and a group animation would slide them back down
+   into the new page. The timing is set on the group as well because the user
+   agent puts its own 0.25s there and the pair inherits from it. */
 ::view-transition-group(*) {
   animation-duration: var(--dur-base);
-  animation-name: none;
   animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-group(header),
+::view-transition-group(rail) {
+  animation-name: none;
 }
 
 ::view-transition-old(*),
@@ -2700,21 +2962,11 @@ input.goen-check {
 }
 
 /* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so the opt-out is spelled again. Taking the
-   transition out of the navigation leaves the plain document cut: the new page
-   is simply there, which is the state change reduced motion asks to keep. */
+   snapshots are not elements, so reduced motion is spelled again: nothing
+   moves, and the pages still dissolve at the base step. */
 @media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
-  }
-
-  /* A region swapped in place is not a navigation, so the opt-out above does
-     not reach it and the snapshots are named again here. Without the animation
-     the new content is simply there, which is the state change reduced motion
-     asks to keep. */
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none;
+  ::view-transition-group(*) {
+    animation-name: none;
   }
 }
 
@@ -2823,10 +3075,9 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
-/* A bar and its count. Thick over thin, like the day grid's filled and open
-   cells: 6px of hue for the value, a hairline for the rest of the scale. Every
-   row of a scale gets the same count column, so the tracks, and the bars drawn
-   on them, stay comparable. */
+/* A bar and its count: the value filled in hue on a pale track of the whole
+   scale. Every row of a scale gets the same count column, so the tracks, and
+   the bars drawn on them, stay comparable. */
 .goen-chartbar {
   align-items: center;
   display: grid;
@@ -2836,13 +3087,14 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chartbar svg {
+  border-radius: 4px;
   display: block;
+  outline: 1px solid transparent;
+  overflow: hidden;
 }
 
 .goen-chartbar__track {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-grid);
-  stroke-width: 1;
+  fill: var(--n-100);
 }
 
 .goen-chartbar__fill {
@@ -2916,32 +3168,39 @@ form[data-request-pending] [aria-disabled="true"] {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* A bar over its range. The 1.5px range and the ink reference line are the
-   annotation; the row's text says the same in words. */
+/* A bullet graph: the value is filled from the start, the pale stretch is as
+   far as it may reach and the short line is the warning line. The row's text
+   says the same in words. */
+.goen-chartrangebar {
+  border-radius: 4px;
+  outline: 1px solid transparent;
+  overflow: hidden;
+}
+
 .goen-chartrangebar svg {
   display: block;
 }
 
 .goen-chartrangebar__track {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-grid);
-  stroke-width: 1;
+  fill: var(--n-100);
 }
 
 .goen-chartrangebar__fill {
   fill: var(--chart-hue);
 }
 
-.goen-chartrangebar__range,
-.goen-chartrangebar__cap {
-  stroke: var(--chart-hue);
-  stroke-width: 1.5;
+.goen-chartrangebar__reach {
+  fill: var(--chart-hue);
+  fill-opacity: 0.3;
 }
 
 .goen-chartrangebar__mark {
-  shape-rendering: crispEdges;
-  stroke: var(--chart-annotation);
-  stroke-width: 1;
+  fill: var(--ink-2);
+}
+
+.goen-chartrangebar--urgent .goen-chartrangebar__fill,
+.goen-chartrangebar--urgent .goen-chartrangebar__reach {
+  fill: var(--warn-mark);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2953,8 +3212,10 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 /* The SVG names its own system colours rather than relying on which
-   properties a browser forces. A forced palette has one grey, so the
-   hairline steps aside; the count is HTML and is forced like any text. */
+   properties a browser forces. A track is Canvas, so what is drawn on it is
+   what shows; a reach is GrayText, the one grey a forced palette has, so the
+   fill and the line across it stay apart. The count is HTML and is forced like
+   any text. */
 @media (forced-colors: active) {
   .goen-chartbar svg {
     forced-color-adjust: none;
@@ -2965,7 +3226,7 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 
   .goen-chartbar__track {
-    stroke: transparent;
+    fill: Canvas;
   }
 
   .goen-chartmeter svg {
@@ -2990,16 +3251,27 @@ form[data-request-pending] [aria-disabled="true"] {
     forced-color-adjust: none;
   }
 
-  .goen-chartrangebar__fill,
-  .goen-chartrangebar__range,
-  .goen-chartrangebar__cap,
-  .goen-chartrangebar__mark {
-    fill: CanvasText;
-    stroke: CanvasText;
+  .goen-chartrangebar__track {
+    fill: Canvas;
   }
 
-  .goen-chartrangebar__track {
-    stroke: transparent;
+  .goen-chartrangebar__mark {
+    fill: CanvasText;
+  }
+
+  .goen-chartrangebar__fill,
+  .goen-chartrangebar--urgent .goen-chartrangebar__fill {
+    fill: CanvasText;
+  }
+
+  .goen-chartrangebar__reach,
+  .goen-chartrangebar--urgent .goen-chartrangebar__reach {
+    fill: GrayText;
+    fill-opacity: 0.5;
+  }
+
+  .goen-report__tri {
+    fill: CanvasText;
   }
 }
 
@@ -3104,7 +3376,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 .goen-chart__todaymark {
-  stroke: var(--mark, #26395a);
+  stroke: var(--ink-2);
   stroke-width: 2;
 }
 
@@ -3400,9 +3672,9 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 /* Columns: a bar a day, or a bar to seven days, on the same baseline as the
-   running totals. A campaign is a bracket above them, cut into days where a
-   column is a day, and a pale ground behind them; its colour is the time mark,
-   which is also today's, because both are dates. */
+   running totals. A campaign is a bracket above them in a lane of its own, open
+   at an end that is off the chart, and a pale ground behind them; the bracket
+   and today's mark are the ink colour, not the data's, because both are dates. */
 .goen-chart__frame--columns {
   grid-template-columns: 2.75rem minmax(0, 1fr);
 }
@@ -3433,18 +3705,10 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--n-100);
 }
 
-.goen-chart__strip {
-  fill: var(--mark, #26395a);
-}
-
-.goen-chart__gap {
-  shape-rendering: crispEdges;
-  stroke: var(--bg);
-  stroke-width: 2;
-}
-
-.goen-chart__gap--thin {
-  stroke-width: 1;
+.goen-chart__strip,
+.goen-chart__strip-end {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
 }
 
 /* A span's name is placed on the server, fitted to a 12px label (columns.go,
@@ -3452,8 +3716,14 @@ form[data-request-pending] [aria-disabled="true"] {
    room it was fitted to and runs off a phone at large text. Page zoom still
    scales it, and the data table under the chart names every span. */
 .goen-chart__spanlabel {
-  fill: var(--fg);
+  fill: var(--ink-2);
   font-size: 12px;
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__spanlabel--window {
+  fill: var(--chart-label);
+  font-weight: var(--fw-regular);
 }
 
 .goen-chart__value {
@@ -3480,9 +3750,13 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (forced-colors: active) {
-  .goen-chart__hue,
-  .goen-chart__strip {
+  .goen-chart__hue {
     fill: CanvasText;
+  }
+
+  .goen-chart__strip,
+  .goen-chart__strip-end {
+    stroke: CanvasText;
   }
 
   .goen-chart__open {
@@ -3497,10 +3771,6 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__span {
     fill: transparent;
-  }
-
-  .goen-chart__gap {
-    stroke: Canvas;
   }
 
   .goen-chart__spanlabel,

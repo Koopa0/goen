@@ -60,6 +60,11 @@ func (m Message) Waiting(ctx context.Context) string {
 	}
 }
 
+// OverdueText says "overdue" in words, so the badge does not rest on its colour alone.
+func (m Message) OverdueText(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMsgOverdue), m.Waiting(ctx))
+}
+
 func (m Message) Overdue() bool { return !m.Handled && m.WaitingDays >= 3 }
 
 func (m Message) Action() string {

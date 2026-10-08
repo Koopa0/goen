@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -31,7 +33,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColTier) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColThreshold) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
 							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColMembers) }</th>
 							<th class="goen-admin__cellactions" scope="col">
 								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
@@ -46,13 +48,13 @@ templ Tiers(p layouts.Page, v TiersView) {
 									<span class="goen-admin__meta">{ t.Code }</span>
 								</td>
 								<td class="goen-admin__cellnum">{ t.Threshold() }</td>
-								<td>{ t.Multiplier(ctx) }</td>
+								<td class="goen-admin__cellnum">{ t.Multiplier(ctx) }</td>
 								<td class="goen-admin__cellnum">{ t.MembersText() }</td>
 								<td class="goen-admin__cellactions">
 									<form method="post" action="/admin/tiers/delete">
 										<input type="hidden" name="tier" value={ t.ID }/>
 										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
+											ButtonStyle: components.ButtonStyleDanger,
 											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
@@ -85,10 +87,13 @@ templ Tiers(p layouts.Page, v TiersView) {
 						@components.Label(components.LabelProps{For: "tier-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
-						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30" placeholder="Silver"/>
-						<p class="goen-admin__hint">
-							{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
-						</p>
+						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30"/>
+						<div class="goen-admin__hints">
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
+							</p>
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Silver") }</p>
+						</div>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "tier-threshold"}) {

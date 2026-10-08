@@ -6,9 +6,9 @@ package chart
 templ Bar(p BarProps) {
 	<div class={ "goen-chartbar", templ.KV("goen-chartbar--wide", p.wide()) } aria-hidden="true">
 		<svg width="100%" height="8" aria-hidden="true" focusable="false">
-			<line class="goen-chartbar__track" x1="0" x2="100%" y1="7.5" y2="7.5"></line>
+			<rect class="goen-chartbar__track" x="0" y="0" width="100%" height="8"></rect>
 			if p.Value > 0 {
-				<rect class="goen-chartbar__fill" x="0" y="2" width={ p.width() } height="6"></rect>
+				<rect class="goen-chartbar__fill" x="0" y="0" width={ p.width() } height="8"></rect>
 			}
 		</svg>
 		<span class="goen-chartbar__label">{ p.Label }</span>

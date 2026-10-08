@@ -39,7 +39,7 @@ templ Compare(p layouts.Page, v CompareView) {
 					} else {
 						<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyCompareTooFew) }</p>
 						<p class="goen-empty__text">
-							{ i18n.T(ctx, i18n.KeyCompareTooFewHint) }<a href={ templ.SafeURL(v.StartHref()) }>{ i18n.T(ctx, i18n.KeyCompareTooFewLink) }</a>{ i18n.T(ctx, i18n.KeyCompareTooFewTail) }
+							{ i18n.T(ctx, i18n.KeyCompareTooFewHint) }<a href={ templ.SafeURL(v.StartHref()) }>{ i18n.T(ctx, i18n.KeyCompareTooFewLink) }</a>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareTooFewTail), MaxCompare) }
 						</p>
 					}
 				</div>

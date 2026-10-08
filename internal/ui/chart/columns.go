@@ -1,9 +1,11 @@
 package chart
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,10 +16,16 @@ const (
 	maxDailyColumns = 45  // beyond it, a column holds daysPerColumn days
 	daysPerColumn   = 7   // counted back from the last day
 	columnsPlot     = 150 // the value area of the columns, in pixels
-	stripRow        = 18  // the height of a row of campaign strips
+	laneHeight      = 26  // a campaign's lane: its name, then its bracket under it, in pixels
+	laneTop         = 4   // the room above the first lane
+	laneNameBase    = 12  // a lane's name baseline, from the top of the lane
+	laneBracketAt   = 18  // a lane's bracket line, from the top of the lane
+	minValueRoom    = 8   // the least of it, when the highest bar stops short of the top
+	valueRoom       = 22  // between the last lane and the columns, for the value over the highest
+	maxLanes        = 3   // a campaign that finds no free lane among them is shaded without a bracket or a name
 	narrowPlot      = 244 // the narrowest plot that draws the strips' names, in pixels at 12px text, which they are fitted to
 	desktopPlot     = 888 // the width of a plot at its widest, in pixels
-	thinGapsFrom    = 15  // from this many columns a gap between days is 1px, not 2px
+	widestMinorPlot = 476 // the widest plot that still hides minor ticks: a 519px frame less its 2.75rem value axis, in pixels
 )
 
 // Span is a stretch of days drawn behind the columns and bracketed above them,
@@ -107,16 +115,17 @@ type valueLabel struct {
 	Y       float64
 }
 
+// strip is a campaign over the columns: the ground behind them and, in a lane,
+// a bracket under its name. The bracket is open at an end that is not on the
+// chart: a campaign that began before the first day, or ends after the last.
 type strip struct {
-	GroundX, GroundWidth string
-	X, Width             string
-	Y                    float64
-	Gaps                 []string
-	Thin                 bool
-	Window               bool // a line under its name, not a bracket: it is not a stored period
-	TodayX               string
-	Name, NameX, Anchor  string
-	NameY                float64
+	X, Width, RightX    string
+	Y                   float64 // the bracket's line
+	Window              bool    // a line under its name, not a bracket: it is not a stored period
+	Hidden              bool    // no lane was free: the ground only, and the table names it
+	OpenLeft, OpenRight bool
+	Name, NameX, Anchor string
+	NameY               float64
 }
 
 type columnRow struct {
@@ -149,29 +158,12 @@ func dayIndex(from, to time.Time) int {
 	return int(math.Round(to.Sub(from).Hours() / 24))
 }
 
-// taken is the room a strip's name takes, in pixels, on one row of names.
-type taken struct {
-	left, right float64
-	row         int
-}
-
-// clashes is whether a name between left and right runs into one already placed
-// on row, with 8px to spare.
-func clashes(placed []taken, row int, left, right float64) bool {
-	for _, o := range placed {
-		if o.row == row && left < o.right+8 && o.left < right+8 {
-			return true
-		}
-	}
-	return false
-}
-
 // plan is a span in column units: a and b are where it begins and ends, as
-// fractions of a column where a column holds several days; end is where its
-// strip stops, which is the middle of the last day while the span runs on.
+// fractions of a column where a column holds several days.
 type plan struct {
-	a, b, end    float64
+	a, b         float64
 	first, last  time.Time // the days of it that are drawn
+	early        bool      // it began before the first day drawn
 	runs         bool      // it goes on after the last day drawn
 	label, short string
 	window       bool
@@ -204,12 +196,10 @@ func plans(ctx context.Context, cols []Column, first, last time.Time, spans []Sp
 		p := plan{
 			a:     float64(i0) + float64(dayIndex(cols[i0].Day, from))/float64(l0),
 			b:     float64(i1) + float64(dayIndex(cols[i1].Day, to)+1)/float64(l1),
-			first: from, last: to, runs: s.To.After(last),
+			first: from, last: to, early: s.From.Before(first), runs: s.To.After(last),
 			label: s.Label, short: s.Label,
 		}
-		p.end = p.b
 		if p.runs {
-			p.end = float64(i1) + (float64(dayIndex(cols[i1].Day, to))+0.5)/float64(l1)
 			p.label = fmt.Sprintf(i18n.T(ctx, i18n.KeyChartSpanUntil), s.Label, axisDay(ctx, s.To))
 		}
 		out = append(out, p)
@@ -232,9 +222,8 @@ func textWidth(s string) float64 {
 }
 
 // nameAt is where a strip's name goes so that it stays inside the plot at its
-// narrowest, and what it says. A name that is running ends at its strip's end;
-// any other starts at its strip, or ends at the strip's end when it would start
-// past 55% of the plot or cross the right edge, or, if that does not fit
+// narrowest, and what it says. A name starts at its strip, or ends at the
+// strip's end when it would cross the right edge, or, if that does not fit
 // either, starts at the plot's left edge. A name wider than the plot drops the
 // day it ends on, then is cut. It returns the text, the column it is placed at,
 // its anchor, and the left and right it takes, in pixels.
@@ -248,12 +237,12 @@ func nameAt(p plan, n int) (text string, at float64, anchor string, left, right 
 		text = string(r[:max(len(r)-2, 0)]) + "…"
 	}
 	w, col := textWidth(text), float64(narrowPlot)/float64(n)
-	a, e := p.a*col, p.end*col
+	a, e := p.a*col, p.b*col
 	switch {
-	case !p.runs && p.a/float64(n) <= 0.55 && a+w <= narrowPlot:
+	case a+w <= narrowPlot:
 		return text, p.a, "start", a, a + w
 	case w <= e:
-		return text, p.end, "end", e - w, e
+		return text, p.b, "end", e - w, e
 	}
 	return text, 0, "start", 0, w
 }
@@ -274,19 +263,19 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		window[0].window = true
 		pl = append(window, pl...)
 	}
-	rows, deepest := stripRows(pl, n)
+	lanes, used := assignLanes(pl, n)
 
 	r := columns{Plain: !full, HasSpans: len(pl) > 0}
-	top := 22.0 // room for a value above the highest bar
-	if len(pl) > 0 {
-		top = float64(34 + stripRow*deepest)
+	scale := columnsScale(cols, full)
+	top := float64(valueRoom)
+	if used > 0 {
+		top = valueGap(cols, scale) + float64(laneTop+laneHeight*used)
 	}
 	r.Baseline = top + columnsPlot
 	r.Height = int(r.Baseline) + axisBand
 	r.LabelY = r.Baseline + axisBand - 8
 
-	var scale int64
-	r.Grid, scale = columnsAxis(ctx, cols, full, r.Baseline)
+	r.Grid = columnsAxis(ctx, scale, full, r.Baseline)
 	previous := p.Previous
 	if grouped {
 		previous = 0
@@ -296,7 +285,7 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		lastDays := float64(cols[n-1].Days)
 		r.TodayX = percent((float64(n-1) + (lastDays-0.5)/lastDays) * band)
 	}
-	r.Strips = stripsOf(pl, rows, top, n, grouped, p.Series.Partial)
+	r.Strips = stripsOf(pl, lanes, n)
 	r.Ticks = columnTicks(ctx, cols, grouped, p.Series.Partial, band)
 	r.Rows = tableRows(ctx, p, cols, pl)
 	r.Hits = make([]hit, n)
@@ -304,45 +293,101 @@ func newColumns(ctx context.Context, p ColumnsProps) columns {
 		r.Hits[i] = hit{X: percent(float64(i) * band), Width: percent(band)}
 	}
 
-	r.Note = p.Note
+	sentences := make([]string, 0, 3)
 	if grouped && cols[0].Days != daysPerColumn {
-		short := i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days)
-		r.Note = strings.TrimSpace(short + " " + p.Note)
+		sentences = append(sentences, i18n.Count(ctx, i18n.KeyChartShortFirst, int64(cols[0].Days), cols[0].Days))
 	}
+	if p.Note != "" {
+		sentences = append(sentences, p.Note)
+	}
+	hidden := 0
+	for _, l := range lanes {
+		if l < 0 {
+			hidden++
+		}
+	}
+	if hidden > 0 {
+		sentences = append(sentences, i18n.Count(ctx, i18n.KeyChartSpansUnbracketed, int64(hidden), hidden))
+	}
+	r.Note = strings.TrimSpace(strings.Join(sentences, " "))
 	return r
 }
 
-// stripRows puts each strip's name on the lowest row where it does not run into
-// the names already placed, and returns the rows and the deepest one used.
-func stripRows(pl []plan, n int) (rows []int, deepest int) {
-	rows = make([]int, len(pl))
-	placed := make([]taken, 0, len(pl))
-	for k, sp := range pl {
-		_, _, _, left, right := nameAt(sp, n)
-		row := 0
-		for clashes(placed, row, left, right) {
-			row++
-		}
-		rows[k], deepest = row, max(deepest, row)
-		placed = append(placed, taken{left, right, row})
+// assignLanes puts each plan in the first lane, counting from the top, that is
+// free where it begins, and returns the lane of each, -1 for one that finds none
+// of the maxLanes, and how many lanes are used. Plans are taken by the day they
+// begin, so the lanes read top to bottom as the table's rows do. A lane is taken
+// from where a bracket or its name starts to where either ends, with 8px to
+// spare, so two plans that overlap in time never share one.
+func assignLanes(pl []plan, n int) (lanes []int, used int) {
+	order := make([]int, len(pl))
+	for k := range order {
+		order[k] = k
 	}
-	return rows, deepest
+	slices.SortStableFunc(order, func(x, y int) int { return cmp.Compare(pl[x].a, pl[y].a) })
+
+	col := float64(narrowPlot) / float64(n)
+	var ends [maxLanes]float64
+	for l := range ends {
+		ends[l] = math.Inf(-1)
+	}
+	lanes = make([]int, len(pl))
+	for _, k := range order {
+		_, _, _, nameLeft, nameRight := nameAt(pl[k], n)
+		left, right := min(pl[k].a*col, nameLeft), max(pl[k].b*col, nameRight)
+		if pl[k].window {
+			left, right = nameLeft, nameRight // its line has no ends, so a bracket may begin where it stops
+		}
+		lanes[k] = -1
+		for l := range ends {
+			if ends[l]+8 < left {
+				ends[l], lanes[k] = right, l
+				used = max(used, l+1)
+				break
+			}
+		}
+	}
+	return lanes, used
 }
 
-// columnsAxis is the lines of the value axis and the value its top stands for.
-// Fewer than seven days with values have the baseline alone, and the highest
-// bar fills the area.
-func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64) (grid []gridLine, scale int64) {
+// columnsScale is the value the top of the value axis stands for. Fewer than
+// seven days with values have the highest bar fill the area.
+func columnsScale(cols []Column, full bool) int64 {
+	var scale int64
 	for _, c := range cols {
 		scale = max(scale, c.Value)
 	}
 	if !full {
-		return []gridLine{{Y: baseline, Baseline: true}}, scale
+		return scale
+	}
+	step := axisStep(scale, MeasureCount)
+	return step * gridLines(scale, step)
+}
+
+// valueGap is the room between the last lane and the columns: enough for the
+// value over the highest bar, less what that bar already leaves under the top of
+// the area.
+func valueGap(cols []Column, scale int64) float64 {
+	if scale <= 0 {
+		return valueRoom
+	}
+	var highest int64
+	for _, c := range cols {
+		highest = max(highest, c.Value)
+	}
+	return max(minValueRoom, valueRoom-columnsPlot*(1-float64(highest)/float64(scale)))
+}
+
+// columnsAxis is the lines of the value axis, which tops out at scale. Fewer
+// than seven days with values have the baseline alone.
+func columnsAxis(ctx context.Context, scale int64, full bool, baseline float64) []gridLine {
+	if !full {
+		return []gridLine{{Y: baseline, Baseline: true}}
 	}
 	step := axisStep(scale, MeasureCount)
 	lines := gridLines(scale, step)
-	scale = step * lines
 	divisor, suffix := i18n.AxisUnit(ctx, scale)
+	grid := make([]gridLine, 0, lines+1)
 	for k := range lines + 1 {
 		v := k * step
 		grid = append(grid, gridLine{
@@ -350,7 +395,7 @@ func columnsAxis(ctx context.Context, cols []Column, full bool, baseline float64
 			Label: MeasureCount.axisText(v, divisor, suffix), Baseline: k == 0,
 		})
 	}
-	return grid, scale
+	return grid
 }
 
 // barsOf is a bar for each column with a value, and the value over it: over
@@ -385,25 +430,19 @@ func barsOf(cols []Column, scale int64, baseline float64, full, partial bool, pr
 	return bars, values
 }
 
-func stripsOf(pl []plan, rows []int, top float64, n int, grouped, partial bool) []strip {
+func stripsOf(pl []plan, lanes []int, n int) []strip {
 	band := 100 / float64(n)
 	strips := make([]strip, 0, len(pl))
 	for k, sp := range pl {
-		text, at, anchor, _, _ := nameAt(sp, n)
 		s := strip{
-			GroundX: percent(sp.a * band), GroundWidth: percent((sp.b - sp.a) * band),
-			X: percent(sp.a * band), Width: percent((sp.end - sp.a) * band),
-			Y: top - 12 - float64(stripRow*rows[k]), Thin: n >= thinGapsFrom,
-			Name: text, NameX: percent(at * band), Anchor: anchor, Window: sp.window,
+			X: percent(sp.a * band), Width: percent((sp.b - sp.a) * band), RightX: percent(sp.b * band),
+			Window: sp.window, Hidden: lanes[k] < 0, OpenLeft: sp.early, OpenRight: sp.runs,
 		}
-		s.NameY = s.Y - 6
-		if !grouped && !sp.window {
-			for i := int(sp.a) + 1; float64(i) < math.Ceil(sp.end); i++ {
-				s.Gaps = append(s.Gaps, percent(float64(i)*band))
-			}
-		}
-		if sp.runs && partial {
-			s.TodayX = percent(sp.end * band)
+		if !s.Hidden {
+			text, at, anchor, _, _ := nameAt(sp, n)
+			top := float64(laneTop + laneHeight*lanes[k])
+			s.Y, s.NameY = top+laneBracketAt, top+laneNameBase
+			s.Name, s.NameX, s.Anchor = text, percent(at*band), anchor
 		}
 		strips = append(strips, s)
 	}
@@ -466,9 +505,32 @@ func coveredDays(ctx context.Context, c Column, first, last time.Time) string {
 	return days
 }
 
+// minorTick is whether the tick of column i of n gives way on a narrow chart:
+// every third of a chart in runs, every other of a week.
+func minorTick(i, n int, grouped bool) bool {
+	switch {
+	case grouped:
+		return (n-1-i)%3 != 0
+	case n <= 7:
+		return (n-1-i)%2 == 1
+	}
+	return false
+}
+
+// nearToday says what becomes of the day tick of column i of n, labelled day,
+// when "Today" ends the axis: it is dropped when even the widest plot that hides
+// minor ticks leaves its label less than 4px from "Today", and it is minor, so a
+// narrow chart drops it, when the narrowest plot does.
+func nearToday(day, today string, i, n int) (drop, minor bool) {
+	need := textWidth(day)/2 + textWidth(today) + 4
+	left := 1 - (float64(i)+0.5)/float64(n)
+	return left*widestMinorPlot < need, left*narrowPlot < need
+}
+
 // columnTicks labels the axis: a long chart, drawn in runs, labels the day each
 // starts on; otherwise the days tickDays picks, and every day of a week, and
-// today at the end when the last day is still going.
+// today at the end when the last day is still going, which a day tick must not
+// meet.
 func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band float64) []dayTick {
 	n := len(cols)
 	picked := map[int]bool{}
@@ -488,21 +550,28 @@ func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band f
 			continue
 		}
 		t := dayTick{X: percent((float64(i) + 0.5) * band), Anchor: "middle", Label: axisDay(ctx, c.Day)}
-		switch {
-		case grouped:
-			t.Minor = (n-1-i)%3 != 0
-		case n <= 7:
-			t.Minor = (n-1-i)%2 == 1
+		t.Minor = minorTick(i, n, grouped)
+		if !grouped && today && n > 7 && i != n-1 {
+			var drop bool
+			if drop, t.Minor = nearToday(t.Label, i18n.T(ctx, i18n.KeyChartToday), i, n); drop {
+				continue
+			}
 		}
 		if i == n-1 {
-			if !grouped && today {
-				t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
-			}
-			if n > 7 {
-				t.X, t.Anchor = "100%", "end"
-			}
+			endTick(ctx, &t, n, !grouped && today)
 		}
 		ticks = append(ticks, t)
 	}
 	return ticks
+}
+
+// endTick makes t the last tick of an axis of n ticks: "Today" when the last
+// day is still going, and flush with the right edge when there are many.
+func endTick(ctx context.Context, t *dayTick, n int, today bool) {
+	if today {
+		t.Label, t.Today = i18n.T(ctx, i18n.KeyChartToday), true
+	}
+	if n > 7 {
+		t.X, t.Anchor = "100%", "end"
+	}
 }

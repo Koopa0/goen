@@ -134,6 +134,56 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 	}
 }
 
+func TestADepartmentWithNoListedProductIsNotInTheDirectory(t *testing.T) {
+	ctx := t.Context()
+	before, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(before.Categories) == 0 {
+		t.Fatal("the seed has no departments")
+	}
+	hidden := before.Categories[0].Slug
+
+	var ids []uuid.UUID
+	rows, err := pool.Query(ctx, `
+		WITH RECURSIVE tree AS (
+		    SELECT id FROM categories WHERE slug = $1
+		    UNION ALL
+		    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+		)
+		UPDATE products SET status = 'draft'
+		WHERE status = 'active' AND category_id IN (SELECT id FROM tree)
+		RETURNING id`, hidden)
+	if err != nil {
+		t.Fatalf("unlist the department's products: %v", err)
+	}
+	ids, err = pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		t.Fatalf("read the unlisted products: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, relistErr := pool.Exec(clean, `UPDATE products SET status = 'active' WHERE id = ANY($1)`, ids); relistErr != nil {
+			t.Errorf("list the products again: %v", relistErr)
+		}
+	})
+
+	after, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(after.Categories) != len(before.Categories)-1 {
+		t.Errorf("%d departments listed, want %d", len(after.Categories), len(before.Categories)-1)
+	}
+	for i := range after.Categories {
+		if after.Categories[i].Slug == hidden {
+			t.Errorf("%s has no listed product and is still in the directory", hidden)
+		}
+	}
+}
+
 func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
@@ -1179,6 +1229,47 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 		}
 		if got := view.Row.HasLead(); got != tt.lead {
 			t.Errorf("%s: lead tile = %t, want %t (first photograph %v wide)", tt.name, got, tt.lead, tt.width)
+		}
+	}
+}
+
+// The home page's band is a shelf of four products from a department that
+// holds at least four; it needs no photograph.
+func TestTheDepartmentBandHoldsFourProductsOfAFullDepartment(t *testing.T) {
+	view, err := home.NewStore(pool).Load(t.Context())
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if view.Band == nil {
+		t.Fatal("the seed has a department with four products and the home page drew no band")
+	}
+	if got := len(view.Band.Tiles); got != 4 {
+		t.Errorf("the band holds %d products, want 4", got)
+	}
+	if view.Band.Items < 4 {
+		t.Errorf("the band's department holds %d products, want at least 4", view.Band.Items)
+	}
+}
+
+// The shelf never repeats a product of the row above it, whichever department
+// the day selects.
+func TestTheDepartmentBandNeverRepeatsTheRowsProducts(t *testing.T) {
+	store := home.NewStore(pool)
+	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	for day := range 14 {
+		view, err := store.AtTime(start.AddDate(0, 0, day)).Load(t.Context())
+		if err != nil {
+			t.Fatalf("load on day %d: %v", day, err)
+		}
+		if view.Band == nil {
+			continue
+		}
+		for _, b := range view.Band.Tiles {
+			for _, r := range view.Row.Tiles {
+				if b.Slug == r.Slug {
+					t.Errorf("day %d: %q is on the row and on the %s shelf", day, b.Slug, view.Band.Name)
+				}
+			}
 		}
 	}
 }

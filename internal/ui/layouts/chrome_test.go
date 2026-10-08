@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func renderChrome(t *testing.T, locale i18n.Locale, items []layouts.NavItem) (header, footer string) {
@@ -192,6 +193,88 @@ func TestTheHeaderOffersDealsOnlyWhenThereIsSomethingToBuy(t *testing.T) {
 	}
 }
 
+func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		path        string
+		nav         string
+		deals       bool
+		wantCurrent string
+	}{
+		{name: "deals", path: "/deals", deals: true, wantCurrent: "/deals"},
+		{name: "deals pagination", path: "/deals?page=2", deals: true, wantCurrent: "/deals"},
+		{name: "home", path: "/", deals: true},
+		{name: "search query", path: "/search?q=/deals", deals: true},
+		{name: "department", path: "/c/phones", nav: "phones", deals: true, wantCurrent: "/c/phones"},
+		{name: "similar prefix", path: "/deals-extra", deals: true},
+		{name: "nested path", path: "/deals/offers", deals: true},
+		{name: "trailing slash", path: "/deals/", deals: true},
+		{name: "absent request path", deals: true},
+		{name: "no deals", path: "/deals", deals: false},
+		{name: "department without deals", path: "/c/phones", nav: "phones", deals: false, wantCurrent: "/c/phones"},
+	}
+	navs := regexp.MustCompile(`(?s)<nav class="(goen-header__drawer|goen-header__nav)"[^>]*>(.*?)</nav>`)
+	anchors := regexp.MustCompile(`<a\b[^>]*>`)
+	hrefs := regexp.MustCompile(`href="([^"]*)"`)
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, origin := range []string{"", "https://shop.example"} {
+			for _, tt := range tests {
+				t.Run(locale.Tag()+"/"+origin+"/"+tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), chromeNav), tt.deals)
+					ctx = web.WithRequestPath(ctx, tt.path)
+					if origin != "" {
+						ctx = layouts.WithRequestPath(layouts.WithSiteOrigin(ctx, origin), "/")
+					}
+					var b strings.Builder
+					if err := layouts.Header(layouts.Page{Nav: tt.nav}).Render(ctx, &b); err != nil {
+						t.Fatalf("render header: %v", err)
+					}
+					sets := navs.FindAllStringSubmatch(b.String(), -1)
+					if len(sets) != 2 {
+						t.Fatalf("navigation sets = %d, want drawer and desktop row", len(sets))
+					}
+					for _, set := range sets {
+						var current []string
+						dealLinks := 0
+						for _, anchor := range anchors.FindAllString(set[2], -1) {
+							href := hrefs.FindStringSubmatch(anchor)
+							if len(href) != 2 {
+								continue
+							}
+							if strings.Contains(anchor, `aria-current="page"`) {
+								current = append(current, href[1])
+							}
+							if href[1] == "/deals" {
+								dealLinks++
+								if !strings.Contains(set[2], anchor+i18n.T(ctx, i18n.KeyDeals)+"</a>") {
+									t.Errorf("%s: deals link lost its localized label", set[1])
+								}
+							}
+						}
+						wantLinks := 0
+						if tt.deals {
+							wantLinks = 1
+						}
+						if dealLinks != wantLinks {
+							t.Errorf("%s: deals links = %d, want %d", set[1], dealLinks, wantLinks)
+						}
+						if tt.wantCurrent == "" {
+							if len(current) != 0 {
+								t.Errorf("%s: current links = %v, want none", set[1], current)
+							}
+						} else if len(current) != 1 || current[0] != tt.wantCurrent {
+							t.Errorf("%s: current links = %v, want exactly [%s]", set[1], current, tt.wantCurrent)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
 // A shop with one department and nothing on offer has nothing to put in a
 // second row.
 func TestTheDepartmentRowIsAbsentForOneDepartmentAndNoDeals(t *testing.T) {
@@ -258,6 +341,9 @@ func TestTheMenuPrintsEachDepartmentsProductCount(t *testing.T) {
 	header := renderHeader(t, []layouts.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", ProductCount: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, layouts.Page{})
 	if !strings.Contains(header, "<small>12</small>") {
 		t.Error("the menu does not print a department's count")
+	}
+	if !strings.Contains(header, `<span class="goen-header__navname">甲</span> <small>12</small>`) {
+		t.Error("the menu's department name is not in its own element, so the current-page underline would run under the count")
 	}
 	if strings.Count(header, "<small>") != 1 {
 		t.Error("a department with no products prints a count of 0")
@@ -424,6 +510,39 @@ func TestTheDepartmentNavigationIsNamedDepartments(t *testing.T) {
 		if !strings.Contains(footer, `aria-label="`+name+`"`) ||
 			!strings.Contains(footer, `<span class="goen-footer__heading">`+name+`</span>`) {
 			t.Errorf("%s: the footer's department links are not named %q", locale, name)
+		}
+	}
+}
+
+func TestTheCartCountSitsBesideTheBagAndOnlyWhenThereIsSomethingInIt(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		count int
+		want  string
+	}{
+		{0, ""},
+		{1, `<span class="ui-badge--count" aria-hidden="true">1</span>`},
+		{12, `<span class="ui-badge--count" aria-hidden="true">12</span>`},
+	} {
+		ctx := web.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
+		var b strings.Builder
+		if err := layouts.Header(layouts.Page{}).Render(ctx, &b); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
+		cart, _, _ = strings.Cut(cart, "</a>")
+		if !strings.Contains(cart, `d="M9 10.5V7a3 3 0 0 1 6 0v3.5"`) {
+			t.Errorf("count %d: the cart link does not draw a bag", tc.count)
+		}
+		if tc.want == "" {
+			if strings.Contains(cart, "ui-badge--count") {
+				t.Errorf("count %d: an empty cart prints a count", tc.count)
+			}
+			continue
+		}
+		if !strings.Contains(cart, tc.want) {
+			t.Errorf("count %d: the cart link lacks %s", tc.count, tc.want)
 		}
 	}
 }

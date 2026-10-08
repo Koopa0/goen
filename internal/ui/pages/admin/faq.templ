@@ -104,8 +104,9 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							ID:    "faq-category-en",
 							Name:  "category_en",
 							Value: v.Draft.CategoryEn,
-							Attrs: templ.Attributes{"maxlength": "40", "placeholder": "Orders"},
+							Attrs: templ.Attributes{"maxlength": "40"},
 						})
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Orders") }</p>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "faq-question-en"}) {

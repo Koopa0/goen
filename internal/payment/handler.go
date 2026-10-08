@@ -131,7 +131,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		view.Closure = pages.PayOrderCancelled
 		hold = pages.PayHold{}
 		if !o.Hold.SweptAt.IsZero() {
-			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, StartBy: startBy(o.Hold.Until), CancelledAt: o.Hold.SweptAt}
+			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, CancelledAt: o.Hold.SweptAt}
 		}
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed

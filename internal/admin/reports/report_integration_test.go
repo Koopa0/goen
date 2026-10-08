@@ -482,8 +482,8 @@ func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 }
 
 func indexOf(view *admin.ReportView, sku string) (int, bool) {
-	for i, r := range view.AtRisk {
-		if r.SKU == sku {
+	for i := range view.AtRisk {
+		if view.AtRisk[i].SKU == sku {
 			return i, true
 		}
 	}

@@ -28,7 +28,15 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			{{ d := v.VersionValues(&m) }}
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">
-					{ m.Name }
+					{ m.DisplayName(ctx) }
+					if other := m.OtherName(ctx); other != "" {
+						<span class="goen-admin__othername" lang={ otherTag(ctx) }>{ other }</span>
+					}
+					if m.NameEn == "" {
+						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
+						}
+					}
 					if m.PickupUnavailable {
 						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipPickupNotOffered) }
@@ -41,7 +49,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				}
 				<p class="goen-admin__hint">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipCurrent), m.Fee(), m.FreeOver(ctx)) }
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipSince), m.EffectiveAt, m.VersionCountText()) }
+					{ i18n.Count(ctx, i18n.KeyAdminShipSince, m.VersionCount, m.EffectiveAt, m.VersionCount) }
 				</p>
 				<form class="goen-admin__form" method="post" action="/admin/shipping/version">
 					<input type="hidden" name="method" value={ m.MethodID }/>
@@ -88,7 +96,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								name="name_en"
 								value={ d.NameEn }
 								maxlength="60"
-								placeholder="Home delivery"
 							/>
 						</div>
 						<div class="goen-admin__field">
@@ -191,12 +198,12 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								<input type="hidden" name="version" value={ m.VersionID }/>
 								<input type="hidden" name="zone" value={ z.ID }/>
 								@components.Label(components.LabelProps{For: "sur-" + m.VersionID + "-" + z.ID}) {
-									{ z.Name }
-									<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipPrefixCount), z.PrefixCountText()) }</span>
+									{ z.DisplayName(ctx) }
+									<span class="goen-admin__meta">{ i18n.Count(ctx, i18n.KeyAdminShipPrefixCount, z.PrefixCount, z.PrefixCount) }</span>
 								}
 								<div class="goen-admin__inline">
 									<input
-										class="goen-input"
+										class="goen-input goen-admin__surcharge"
 										id={ "sur-" + m.VersionID + "-" + z.ID }
 										name="amount"
 										type={ dollarInputType(v.SurchargeValue(&m, z.ID)) }
@@ -246,7 +253,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							maxlength="30"
 							pattern="[a-z0-9_]+"
 							value={ v.MethodDraft.Code }
-							placeholder="express_delivery"
 							if v.HasErr("code") {
 								aria-invalid="true"
 								aria-describedby="m-code-error"
@@ -255,7 +261,10 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						if v.HasErr("code") {
 							<p class="ui-error-text" id="m-code-error">{ v.Err("code") }</p>
 						}
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
+						<div class="goen-admin__hints">
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "express_delivery") }</p>
+						</div>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "m-destination"}) {
@@ -356,7 +365,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							required
 							maxlength="60"
 							value={ v.MethodDraft.Name }
-							placeholder={ i18n.T(ctx, i18n.KeyAdminShipNamePlaceholder) }
 							if v.HasErr("name") {
 								aria-invalid="true"
 								aria-describedby="m-name-error"
@@ -370,7 +378,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						@components.Label(components.LabelProps{For: "m-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
-						<input class="goen-input" id="m-name-en" name="name_en" maxlength="60" value={ v.MethodDraft.NameEn } placeholder="Next-day delivery"/>
+						<input class="goen-input" id="m-name-en" name="name_en" maxlength="60" value={ v.MethodDraft.NameEn }/>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "m-carrier"}) {
@@ -442,7 +450,10 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						for _, z := range v.Zones {
 							<tr>
 								<td class="goen-admin__cellkey">
-									{ z.Name }
+									{ z.DisplayName(ctx) }
+									if other := z.OtherName(ctx); other != "" {
+										<span class="goen-admin__othername" lang={ otherTag(ctx) }>{ other }</span>
+									}
 									<span class="goen-admin__meta">{ z.Code }</span>
 									if z.NameEn == "" {
 										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
@@ -452,7 +463,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								</td>
 								<td class="goen-admin__prefixes">
 									<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
-										<label class="ui-label" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.Name) }</label>
+										<label class="ui-label" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.DisplayName(ctx)) }</label>
 										<textarea
 											class="ui-textarea goen-input--area"
 											id={ "pre-" + z.ID }
@@ -505,7 +516,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							maxlength="30"
 							pattern="[a-z0-9_]+"
 							value={ v.ZoneDraft.Code }
-							placeholder="offshore"
 							if v.HasErr("zone_code") {
 								aria-invalid="true"
 								aria-describedby="z-code-error"
@@ -514,6 +524,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						if v.HasErr("zone_code") {
 							<p class="ui-error-text" id="z-code-error">{ v.Err("zone_code") }</p>
 						}
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "mountain") }</p>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "z-name"}) {
@@ -526,7 +537,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							required
 							maxlength="60"
 							value={ v.ZoneDraft.Name }
-							placeholder={ i18n.T(ctx, i18n.KeyAdminShipZoneNamePlaceholder) }
 							if v.HasErr("zone_name") {
 								aria-invalid="true"
 								aria-describedby="z-name-error"
@@ -540,7 +550,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						@components.Label(components.LabelProps{For: "z-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
-						<input class="goen-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn } placeholder="Outlying islands"/>
+						<input class="goen-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn }/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipZoneNameEnHint) }</p>
 					</div>
 				</div>
@@ -554,7 +564,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						name="prefixes"
 						required
 						rows={ zonePrefixRows(v.ZoneDraft.Prefixes) }
-						placeholder="880 881 882 890 891"
 						if v.HasErr("prefixes") {
 							aria-invalid="true"
 							aria-describedby="z-prefixes-error"
@@ -567,6 +576,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					<p class="goen-admin__hint">
 						{ i18n.T(ctx, i18n.KeyAdminShipPrefixesHint) }
 					</p>
+					<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "313 546 556") }</p>
 				</div>
 				@components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
@@ -581,7 +591,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 
 templ zonePrefixDistricts(raw string) {
 	if entries := zonePrefixEntries(raw); len(entries) > 0 {
-		<ul class="goen-admin__hint">
+		<ul class="goen-admin__hint goen-admin__districts">
 			for _, entry := range entries {
 				<li>
 					{ entry.Prefix }

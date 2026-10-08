@@ -1,0 +1,20 @@
+package admin
+
+// ReportRow is one row of a report list: what it is on the left, with a line
+// of facts under it, and the plot, its figure and bar, passed as children, on
+// the right. The lists share it so they cannot drift apart.
+templ ReportRow(name, href, facts string) {
+	<li class="goen-report__row">
+		<div class="goen-report__what">
+			if href != "" {
+				<a class="goen-report__name" href={ templ.SafeURL(href) }>{ name }</a>
+			} else {
+				<span class="goen-report__name">{ name }</span>
+			}
+			if facts != "" {
+				<p class="goen-report__facts">{ facts }</p>
+			}
+		</div>
+		{ children... }
+	</li>
+}

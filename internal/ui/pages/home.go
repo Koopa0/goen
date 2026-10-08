@@ -50,9 +50,6 @@ type HomeCategory struct {
 	Name  string
 	Tone  Tone
 	Photo Photo
-	// Subs names the sub-categories in the order the department's page lists them.
-	Subs  string
-	Items int64
 }
 
 // Initial is the first character of the name, which a department without a
@@ -63,34 +60,6 @@ func (c HomeCategory) Initial() string {
 		return ""
 	}
 	return string(r)
-}
-
-// DirectoryLayout is how the home page lists its departments; the count decides.
-type DirectoryLayout string
-
-const (
-	// DirectoryNone: with one department the band is the department.
-	DirectoryNone    DirectoryLayout = ""
-	DirectoryTiles   DirectoryLayout = "tiles"
-	DirectoryRows    DirectoryLayout = "rows"
-	DirectoryColumns DirectoryLayout = "columns"
-)
-
-// directoryRowsMax is the most departments the rows with a stage beside them
-// hold: the stage is not taller than about seven rows.
-const directoryRowsMax = 7
-
-func directoryLayout(departments int) DirectoryLayout {
-	switch {
-	case departments < 2:
-		return DirectoryNone
-	case departments == 2:
-		return DirectoryTiles
-	case departments <= directoryRowsMax:
-		return DirectoryRows
-	default:
-		return DirectoryColumns
-	}
 }
 
 // ProductRow is the home page's one row of products: a running campaign's, or
@@ -142,7 +111,6 @@ type DepartmentBand struct {
 	Fact  string
 	Href  string
 	Tone  Tone
-	Photo Photo
 	Tiles []ProductTile
 }
 
@@ -154,11 +122,8 @@ type HomeView struct {
 	Rules      ShopRules
 }
 
-// Directory is the layout of the department list. With one department the band
-// is the department, unless no band is drawn: then it is the one tile.
-func (v *HomeView) Directory() DirectoryLayout {
-	if len(v.Categories) == 1 && v.Band == nil {
-		return DirectoryTiles
-	}
-	return directoryLayout(len(v.Categories))
+// ShowsDirectory reports whether the department list is drawn. With one
+// department the band is the department, unless no band is drawn.
+func (v *HomeView) ShowsDirectory() bool {
+	return len(v.Categories) > 1 || len(v.Categories) == 1 && v.Band == nil
 }

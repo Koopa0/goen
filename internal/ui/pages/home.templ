@@ -16,8 +16,10 @@ templ Home(p layouts.Page, v HomeView) {
 			@heroCarousel(v.Slides)
 		}
 		<div class="goen-home">
-			@departmentDirectory(v.Categories, v.Directory())
 			@productRow(v.Row)
+			if v.ShowsDirectory() {
+				@departmentDirectory(v.Categories)
+			}
 		</div>
 		if v.Band != nil {
 			@departmentBand(v.Band)
@@ -127,16 +129,18 @@ templ heroCarousel(slides []HeroSlide) {
 	</section>
 }
 
+// The band is one department's shelf: its tone, its name, its sub-categories
+// and four of its products. The department's photograph is the tile above and
+// the department page's head.
 templ departmentBand(b *DepartmentBand) {
-	{{ photo, onWell := bandPhoto(b.Photo, b.Tiles) }}
-	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
+	<section class="goen-band goen-band--shelf" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
 		<div class="goen-band__grid">
-			if photo.Shown() {
-				@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset}, onWell, "(min-width: 1024px) 42vw, 100vw", true)
-			}
 			<div class="goen-band__body">
-				<div class="goen-home__head">
-					@bandHeading("band-heading", b.Name, b.Fact)
+				<div class="goen-band__head">
+					<h2 id="band-heading" class="goen-band__name">{ b.Name }</h2>
+					if b.Fact != "" {
+						<p class="goen-band__fact">{ b.Fact }</p>
+					}
 					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, b.Items, b.Items), b.Href)
 				</div>
 				<ul class="goen-band__tiles" role="list">
@@ -149,25 +153,19 @@ templ departmentBand(b *DepartmentBand) {
 	</section>
 }
 
-templ departmentDirectory(cats []HomeCategory, layout DirectoryLayout) {
-	if layout != DirectoryNone {
-		<section class="goen-home__section" aria-labelledby="cats-heading">
-			<div class="goen-home__head">
-				@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
-			</div>
-			<ul class={ "goen-cats__grid", "goen-cats__grid--" + string(layout) } role="list">
-				for _, c := range cats {
-					<li>
-						if layout == DirectoryTiles {
-							@departmentTile(c)
-						} else {
-							@departmentRow(c, layout == DirectoryRows)
-						}
-					</li>
-				}
-			</ul>
-		</section>
-	}
+templ departmentDirectory(cats []HomeCategory) {
+	<section class="goen-home__section goen-cats" aria-labelledby="cats-heading">
+		<div class="goen-home__head">
+			@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
+		</div>
+		<ul class="goen-cats__grid" role="list">
+			for _, c := range cats {
+				<li>
+					@departmentTile(c)
+				</li>
+			}
+		</ul>
+	</section>
 }
 
 templ departmentTile(c HomeCategory) {
@@ -178,54 +176,18 @@ templ departmentTile(c HomeCategory) {
 					class="goen-cat__photo"
 					src={ c.Photo.URL }
 					srcset={ c.Photo.Srcset }
-					sizes="(min-width: 704px) 50vw, 100vw"
+					sizes="(min-width: 64rem) 15vw, (min-width: 48rem) 16vw, 45vw"
 					alt=""
 					width="800"
 					height="600"
+					loading="lazy"
 					decoding="async"
 				/>
 			} else {
 				<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
 			}
 		</span>
-		<span class="goen-cat__line">
-			<span class="goen-cat__name">{ c.Name }</span>
-			<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
-		</span>
-	</a>
-}
-
-// With a stage the photograph is both the row's thumbnail and, from 1024px, the
-// picture the list switches between, so no department is fetched twice.
-templ departmentRow(c HomeCategory, stage bool) {
-	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
-		if c.Photo.Shown() {
-			<img
-				class="goen-cat__photo"
-				src={ c.Photo.URL }
-				srcset={ c.Photo.Srcset }
-				if stage {
-					sizes="(min-width: 1024px) 40vw, 4rem"
-				} else {
-					sizes="5rem"
-				}
-				alt=""
-				width="800"
-				height="600"
-				decoding="async"
-			/>
-		} else {
-			<span class="goen-cat__mark" aria-hidden="true">{ c.Initial() }</span>
-			if stage {
-				<span class="goen-cat__stage" aria-hidden="true">{ c.Name }</span>
-			}
-		}
 		<span class="goen-cat__name">{ c.Name }</span>
-		if c.Subs != "" {
-			<span class="goen-cat__subs">{ c.Subs }</span>
-		}
-		<span class="goen-cat__count">{ i18n.Count(ctx, i18n.KeyUnitItems, c.Items, c.Items) }</span>
-		<span class="goen-cat__go" aria-hidden="true">→</span>
 	</a>
 }
 

@@ -230,6 +230,25 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	}
 }
 
+func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
+	body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
+	_, summary, ok := strings.Cut(body, `id="cart-summary"`)
+	if !ok {
+		t.Fatal("the cart has no summary")
+	}
+	shipping := strings.Index(summary, "<dt>"+i18n.T(ctx, i18n.KeyShippingFee)+"</dt>")
+	total := strings.Index(summary, `goen-summary__row--total"><dt>`+i18n.T(ctx, i18n.KeySubtotal)+"</dt>")
+	if shipping < 0 || total < 0 {
+		t.Fatalf("the summary lacks a row: shipping at %d, total at %d", shipping, total)
+	}
+	if total < shipping {
+		t.Error("the cart summary opens on its total, so the total's rule has nothing above it")
+	}
+}
+
 // TestTheApplyButtonAimsAtTheSectionItChanged holds the scripting-off half. The
 // answer is the whole form again, and a form that opens at its top has taken the
 // customer away from the control they just pressed.
@@ -1777,5 +1796,93 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 	html := b.String()
 	if !strings.Contains(html, "<dt>Items</dt><dd>2</dd>") || strings.Contains(html, "pcs") {
 		t.Errorf("English item count = %s, want the bare number under Items", html)
+	}
+}
+
+func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		can  bool
+		show bool
+	}{
+		{name: "unresolved return", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true},
+		{name: "plain", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "expired", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond)}, can: true, show: true},
+		{name: "equal deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now}, can: true, show: true},
+		{name: "unknown deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true}, can: true, show: true},
+		{name: "expired checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond), PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "no hold checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "equal deadline checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "checking without return marker", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "captured", view: OrderView{Status: order.FulfillmentPending, Committed: true, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "store credit funded", view: OrderView{Status: order.FulfillmentPending, OwedCents: 0, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "shipped", view: OrderView{Status: order.FulfillmentShipped, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.view.Now = now
+			if got := tt.view.CanCancel(); got != tt.can {
+				t.Errorf("CanCancel() = %v, want %v", got, tt.can)
+			}
+			if got := tt.view.ShowCancel(); got != tt.show {
+				t.Errorf("ShowCancel() = %v, want %v", got, tt.show)
+			}
+		})
+	}
+}
+
+func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
+	t.Parallel()
+	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		kind   FreeDeliveryKind
+		zones  []string
+		want   string
+		not    string
+	}{
+		{"reached with a surcharge zone zh", i18n.ZhHant, FreeDeliveryReached, []string{"離島", "外島"}, "免運（離島、外島另計）", "結帳時計算"},
+		{"reached with a surcharge zone en", i18n.En, FreeDeliveryReached, []string{"Outlying islands"}, "Free (Outlying islands extra)", "Calculated at checkout"},
+		{"reached zh", i18n.ZhHant, FreeDeliveryReached, nil, "免運", "結帳時計算"},
+		{"reached en", i18n.En, FreeDeliveryReached, nil, ">Free<", "Calculated at checkout"},
+		{"short zh", i18n.ZhHant, FreeDeliveryShort, nil, "結帳時計算", ">免運<"},
+		{"short en", i18n.En, FreeDeliveryShort, nil, "Calculated at checkout", ">Free<"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		v := CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
+			FreeDelivery: FreeDelivery{Kind: tt.kind, ShortfallCents: 1, ThresholdCents: 300000, SurchargeZones: tt.zones}}
+		var b strings.Builder
+		if err := Cart(CartMeta(ctx), v).Render(ctx, &b); err != nil {
+			t.Fatalf("%s: render: %v", tt.name, err)
+		}
+		html := b.String()
+		if tt.kind == FreeDeliveryReached {
+			facts := html[strings.Index(html, `id="cart-count"`):strings.Index(html, `id="cart-notices"`)]
+			if !strings.Contains(facts, tt.want) {
+				t.Errorf("%s: fact line lacks %q: %s", tt.name, tt.want, facts)
+			}
+		}
+		at := strings.Index(html, `id="cart-summary"`)
+		if at < 0 {
+			t.Fatalf("%s: no cart summary: %s", tt.name, html)
+		}
+		html = html[at:]
+		if end := strings.Index(html, "</dl>"); end > 0 {
+			html = html[:end]
+		}
+		if !strings.Contains(html, tt.want) {
+			t.Errorf("%s: summary lacks %q: %s", tt.name, tt.want, html)
+		}
+		if strings.Contains(html, tt.not) {
+			t.Errorf("%s: summary holds %q: %s", tt.name, tt.not, html)
+		}
+		if len(tt.zones) == 0 && (strings.Contains(html, "另計") || strings.Contains(html, " extra)")) {
+			t.Errorf("%s: summary names a surcharge zone where there is none: %s", tt.name, html)
+		}
 	}
 }

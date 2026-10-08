@@ -5679,6 +5679,49 @@ BEGIN
 END
 $$;
 
+-- What the storefront says about a campaign
+--
+-- Views rather than functions so the planner inlines them into the query asking.
+-- security_invoker, so a reader still needs its own SELECT on every table
+-- beneath. Created below both blanket grants, so only the roles that read them
+-- are granted.
+
+CREATE VIEW running_campaigns WITH (security_invoker = true) AS
+    SELECT c.id
+    FROM sale_campaigns c
+    WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now();
+
+COMMENT ON VIEW running_campaigns IS
+    'Campaigns switched on and inside their window.';
+
+CREATE VIEW campaign_deals WITH (security_invoker = true) AS
+    SELECT cp.campaign_id, cp.product_id
+    FROM sale_campaign_products cp
+    JOIN running_campaigns r ON r.id = cp.campaign_id
+    JOIN products p ON p.id = cp.product_id
+    WHERE p.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM product_variants v
+          WHERE v.product_id = p.id AND v.is_active
+            AND v.stock_quantity > v.safety_stock
+            AND v.compare_at_price_cents > v.price_cents);
+
+COMMENT ON VIEW campaign_deals IS
+    'A product a running campaign features that can be bought at its discount: '
+    'published, with an active variant in stock priced below its compare-at '
+    'price. Stock at full price is no deal. What /deals lists.';
+
+CREATE VIEW listed_campaigns WITH (security_invoker = true) AS
+    SELECT c.id
+    FROM sale_campaigns c
+    WHERE EXISTS (SELECT 1 FROM campaign_deals d WHERE d.campaign_id = c.id);
+
+COMMENT ON VIEW listed_campaigns IS
+    'Running campaigns with a deal: the ones the storefront lists, and the only '
+    'ones whose products a card shows at a struck-through price.';
+
+GRANT SELECT ON running_campaigns, campaign_deals, listed_campaigns TO store, admin;
+
 -- Invoice persistence doors
 --
 -- The admin role may ask ECPay to file a document, but it may not write tax

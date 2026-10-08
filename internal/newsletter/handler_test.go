@@ -393,7 +393,8 @@ func newsletterRefusal(t *testing.T, body string) newsletterRefusalFacts {
 		}
 	}
 	got.OwnMessage = form != nil && input != nil && message != nil &&
-		input.Parent == form && message.Parent == form && attr(input, "id") == "newsletter-email"
+		input.Parent.Parent == form && attr(input.Parent, "class") == "goen-footer__field" &&
+		message.Parent == form && attr(input, "id") == "newsletter-email"
 	got.OwnNotice = form != nil && notice != nil && notice.Parent == form
 	return got
 }

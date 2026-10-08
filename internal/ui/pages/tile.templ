@@ -21,7 +21,7 @@ templ compareForm(offered bool) {
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
-				<span class="goen-compare-pick__note">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
+				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 			</div>
 		</form>
 	} else {

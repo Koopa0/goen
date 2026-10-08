@@ -12,14 +12,19 @@
      lg = 1024px  the full desktop header fits on one row
    ============================================================ */
 
+/* The blue is 2.4:1 against the body ink, short of the 3:1 that lets colour
+   alone mark a link inside a sentence (WCAG 1.4.1), so a link keeps a light
+   underline unless its component stands it apart from any sentence. */
 a {
   color: var(--accent-text);
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
 a:hover {
   color: var(--accent-text-hover);
+  text-decoration-color: currentcolor;
 }
 
 /* An author display (a flex or grid class) must not undo hidden: a control
@@ -235,8 +240,8 @@ a:hover {
   }
 }
 
-/* A heading is the body face at 600 with the tracking pulled in. The display
-   family and its separate weights are gone with the second typeface. */
+/* A heading is the body face. The display family and its separate weights are
+   gone with the second typeface. */
 h1,
 h2,
 h3,
@@ -248,19 +253,17 @@ h4,
   letter-spacing: 0;
 }
 
-/* Three weights only: the browser's bold is 700 and the face is set at 600. */
+/* Emphasis is 500, never the browser's 700: a large title is light (350) on
+   its own class, and 600 is the wordmark's alone. */
 h1,
 h2,
+h3,
 h4,
 h5,
 h6,
 strong,
 b,
 th {
-  font-weight: var(--fw-semibold);
-}
-
-h3 {
   font-weight: var(--fw-medium);
 }
 
@@ -341,6 +344,13 @@ h3 {
   width: 2.75rem;
 }
 
+.goen-pdp__links .goen-btn svg,
+.goen-pdp__add svg,
+.goen-buybar__btn svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .goen-btn--block {
   display: flex;
   width: 100%;
@@ -349,40 +359,29 @@ h3 {
 /* One filled control to a surface. Everything else is quieter on purpose: a
    row of equally weighted buttons makes the shopper choose before they act. */
 .goen-btn--primary {
-  background: var(--n-900);
-  border-color: var(--n-900);
+  background: var(--accent);
+  border-color: var(--accent);
   box-shadow: var(--sh-xs);
-  color: var(--n-0);
+  color: var(--on-accent);
 }
 
 .goen-btn--primary:hover {
-  background: #27272a;
-  border-color: #27272a;
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
 }
 
-/* The soft button: a grey ground, no outline. */
-.goen-btn--secondary {
-  background: var(--n-100);
-  border-color: transparent;
-  color: var(--n-900);
-}
-
-.goen-btn--secondary:hover {
-  background: var(--n-200);
-}
-
-/* The secondary button: white, its border drawn from its own text colour so it
-   shows on any ground a text colour does. */
+/* The secondary button, under either name: a blue tint and no outline. The
+   transparent border is what forced colours draws as its edge. */
+.goen-btn--secondary,
 .goen-btn--outline {
-  background: var(--n-0);
-  border-color: color-mix(in srgb, currentcolor 30%, transparent);
-  box-shadow: var(--sh-xs);
-  color: var(--n-700);
+  background: var(--accent-faint);
+  border-color: transparent;
+  color: var(--accent-deep);
 }
 
+.goen-btn--secondary:hover,
 .goen-btn--outline:hover {
-  background: var(--n-50);
-  border-color: currentcolor;
+  background: var(--accent-muted);
 }
 
 .goen-btn--ghost {
@@ -419,21 +418,21 @@ h3 {
   align-items: center;
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-full);
   color: var(--fg);
   display: inline-flex;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 4px;
   line-height: 1.4;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.625rem;
   white-space: nowrap;
   width: fit-content;
 }
 
 .goen-badge--accent {
   background: var(--accent-muted);
-  color: var(--accent-text);
+  color: var(--accent-deep);
 }
 
 .goen-badge--warn {
@@ -457,7 +456,7 @@ h3 {
 
 .goen-notice {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -468,7 +467,24 @@ h3 {
 .goen-notice--accent {
   background: var(--accent-faint);
   border-color: transparent;
-  color: var(--fg);
+  color: var(--accent-deep);
+}
+
+/* A soft button on a blue notice would vanish into it: it takes the white ground. */
+.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled) {
+  background: var(--n-0);
+}
+
+.goen-notice--accent :is(.goen-btn--outline, .goen-btn--secondary):not(:disabled):hover {
+  background: var(--accent-muted);
+}
+
+/* With payments off the pay page's notice is a plain sentence under the total, not a blue panel. */
+.goen-pay__summary .goen-notice--accent {
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  padding: 0;
 }
 
 .goen-notice--warn {
@@ -486,6 +502,20 @@ h3 {
 @media (forced-colors: active) {
   .goen-notice--danger {
     border: 2px solid CanvasText;
+  }
+}
+
+/* Forced colours drop the tint and the inset edge that mark the current item,
+   so it draws its edge in Highlight; the focus ring still wins while focused. */
+@media (forced-colors: active) {
+  .goen-pagehead__chip[aria-current='page']:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .goen-account__navitem[aria-current='page']:not(:focus-visible) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
   }
 }
 
@@ -598,6 +628,7 @@ h3 {
 .goen-input:focus-visible,
 .goen-filters .ui-input:focus-visible,
 .goen-filters .ui-select:focus-visible,
+.goen-search-sort .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
   border-color: var(--ink);
@@ -753,6 +784,7 @@ h3 {
   column-gap: 12px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   margin: 0 auto;
   max-width: var(--page-width);
   min-height: 4rem;
@@ -795,7 +827,6 @@ h3 {
    underlined as text, not boxed: a border would show on every link in forced
    colours. */
 .goen-header__nav {
-  border-top: 1px solid var(--n-200);
   column-gap: clamp(1.25rem, 2vw, 1.75rem);
   display: flex;
   flex-wrap: wrap;
@@ -827,6 +858,7 @@ h3 {
 .goen-header__nav .ui-navitem[aria-current='page'] {
   background: none;
   color: var(--n-900);
+  text-decoration-color: var(--accent);
   text-decoration-line: underline;
 }
 
@@ -1070,8 +1102,14 @@ h3 {
 }
 
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  border-left: 1px solid var(--n-200);
-  padding-left: clamp(1.25rem, 2vw, 1.75rem);
+  padding-left: 0;
+}
+
+/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
+   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
+   at the row's edge. */
+.goen-header__nav > :has(+ .goen-header__navitem--deal) {
+  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {
@@ -1083,24 +1121,35 @@ h3 {
 .goen-header__searchicon {
   align-items: center;
   bottom: 0;
-  color: var(--n-500);
+  color: var(--ink-2);
   display: flex;
   left: 0;
-  padding-left: 12px;
   pointer-events: none;
   position: absolute;
   top: 0;
 }
 
 .goen-header__searchicon svg {
-  height: 16px;
-  width: 16px;
+  height: 1rem;
+  width: 1rem;
 }
 
+/* Page chrome, not a form: the field is its line. The line is the control's
+   boundary (1.4.11, 3.66:1) and focus draws the shared ring around the whole
+   field on top of it. */
 .goen-header .goen-header__field {
   background: none;
   border-radius: 0;
-  padding-left: 40px;
+  border-width: 0 0 1px;
+  padding-left: 1.75rem;
+}
+
+.goen-header .goen-header__field:hover {
+  border-bottom-color: var(--ink-2);
+}
+
+.goen-header .goen-header__field:focus-visible {
+  outline-offset: 4px;
 }
 
 .goen-header__actions {
@@ -1109,69 +1158,77 @@ h3 {
   gap: 4px;
 }
 
-.goen-header__actions svg {
-  height: 1.5rem;
-  width: 1.5rem;
+.goen-header__actions svg,
+.goen-header__menu > summary svg {
+  height: 1.25rem;
+  width: 1.25rem;
 }
 
 .goen-header__actions .goen-btn,
-.goen-header__actions .ui-btn {
-  color: var(--n-700);
+.goen-header__actions .ui-btn,
+.goen-header__menu > summary {
+  color: var(--ink-2);
 }
 
 .goen-header__actions .goen-btn:hover,
-.goen-header__actions .ui-btn:hover {
+.goen-header__actions .ui-btn:hover,
+.goen-header__menu > summary:hover {
   background: var(--n-100);
-  color: var(--n-900);
+  color: var(--ink);
 }
 
-/* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the shared button spelling because `backoffice_test.go:112` asserts the
-   whole class attribute, so the ghost-icon recipe is written out again here
-   rather than taken from `.goen-btn`. */
-.goen-header__action--wide {
+/* The wishlist heart and, for staff, the words "Back office" before the language
+   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
+   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
+.goen-header__action--wide,
+.goen-header__backoffice {
   align-items: center;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
   cursor: pointer;
   display: none;
   height: 44px;
   justify-content: center;
-  padding: 0;
   text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__action--wide {
+  padding: 0;
   width: 44px;
 }
 
-.goen-header__cart {
-  position: relative;
+.goen-header__backoffice {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
-/* The count pill, beside the glyph and not over it. `check-layout.mjs:2570`
+.goen-header__actions .goen-header__cart {
+  gap: 4px;
+  min-width: 2.75rem;
+  padding-inline: 0.625rem;
+  width: auto;
+}
+
+/* The count is a number beside the bag, not a badge on it. `check-layout.mjs`
    reads its text through this exact pair of names after an add to cart, so the
-   spelling stays and the declarations are goen's. The button is 44px with a
-   24px glyph centred in it, so the pill starts at the glyph's right edge. */
+   spelling stays and the declarations are goen's. */
 .goen-header__cart .ui-badge--count {
-  align-items: center;
-  background: var(--n-900);
+  background: none;
   border: none;
-  border-radius: var(--r-full);
-  box-sizing: border-box;
-  color: var(--n-0);
-  display: flex;
+  color: var(--ink);
   font-family: inherit;
-  font-size: var(--fs-11);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
-  height: 18px;
-  justify-content: center;
-  left: calc(50% + 13px);
+  height: auto;
   line-height: 1;
-  min-width: 18px;
-  padding: 0 5px;
-  position: absolute;
-  top: 2px;
+  min-width: 0;
+  padding: 0;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1203,6 +1260,7 @@ h3 {
 .goen-lang__item[aria-pressed='true'] {
   color: var(--n-900);
   text-decoration: underline;
+  text-decoration-color: var(--accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
 }
@@ -1239,6 +1297,18 @@ h3 {
   display: none;
 }
 
+.goen-header__actions .goen-langmenu > summary {
+  box-sizing: border-box;
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-header__actions .goen-langmenu > summary:hover,
+.goen-header__actions .goen-langmenu[open] > summary {
+  color: var(--ink);
+}
+
 .goen-langmenu > summary:hover,
 .goen-langmenu[open] > summary {
   background: var(--n-100);
@@ -1252,8 +1322,8 @@ h3 {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1rem;
+  width: 1rem;
 }
 
 .goen-header .goen-langmenu__current {
@@ -1306,7 +1376,7 @@ h3 {
 
 .goen-langmenu__item[aria-pressed='true'] {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
 }
 
 /* The disclosure menu: a native <details>, no script involved in opening it. */
@@ -1385,8 +1455,16 @@ h3 {
 }
 
 .goen-header__drawer .ui-navitem[aria-current='page'] {
-  background: var(--n-100);
+  background: none;
   color: var(--n-900);
+  font-weight: var(--fw-medium);
+}
+
+/* The name only: the count beside it is not part of what is current. */
+.goen-header__drawer .ui-navitem[aria-current='page'] .goen-header__navname,
+.goen-header__drawer .goen-header__navitem--deal[aria-current='page'] {
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 0.45em;
 }
 
 /* The way out of the drawer, and what the phone's bar has no room for. The
@@ -1437,14 +1515,15 @@ h3 {
   }
 }
 
-/* English department names out-measure the zh-Hant ones, so the desktop row
-   gives up the wishlist icon below 1280 before it lets the search field fall
-   under the width `check-layout.mjs` calls usable; the account page carries
-   the wishlist link at every width. */
 @media (min-width: 1024px) {
   .goen-header__bar {
     column-gap: 1.25rem;
     padding: 0 var(--page-gutter);
+  }
+
+  .goen-header__action--wide,
+  .goen-header__backoffice {
+    display: inline-flex;
   }
 
   .goen-header__menu {
@@ -1455,11 +1534,23 @@ h3 {
     margin-right: 0;
   }
 
+  .goen-header .goen-header__field {
+    font-size: var(--fs-14);
+  }
+
   .goen-header__search {
     flex: 1 1 8.75rem;
     margin-left: auto;
-    max-width: 22rem;
+    max-width: 15.5rem;
     min-width: 8.75rem;
+    order: 0;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .goen-header__search {
+    flex: 1 1 12rem;
+    max-width: 24rem;
     order: 0;
   }
 }
@@ -1471,18 +1562,6 @@ h3 {
 
   .goen-header__actions {
     gap: 0;
-  }
-
-  /* The mark is the brand where the row is this tight; the word stays in the
-     link's accessible name. */
-  .goen-header__wordmark {
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
   }
 
   .goen-header__search {
@@ -1500,9 +1579,17 @@ h3 {
     position: static;
     width: auto;
   }
+}
 
-  .goen-header__action--wide {
-    display: inline-flex;
+/* Forced colours replace the greys, so the glyphs and the count take the
+   button colour the system chose for controls. */
+@media (forced-colors: active) {
+  .goen-header__actions .goen-btn,
+  .goen-header__actions .ui-btn,
+  .goen-header__actions .goen-langmenu > summary,
+  .goen-header__menu > summary,
+  .goen-header__cart .ui-badge--count {
+    color: ButtonText;
   }
 }
 
@@ -1516,7 +1603,7 @@ h3 {
 
 .goen-footer {
   background: var(--n-50);
-  border-top: 1px solid var(--n-200);
+  border-top: 1px solid var(--line);
 }
 
 .goen-footer__grid {
@@ -1607,9 +1694,85 @@ h3 {
   flex: 0 0 100%;
 }
 
-.goen-footer__signup .goen-input {
-  flex: 1 1 8rem;
+/* One shape: the field's own box, with the button set inside it 4px from every
+   edge. The field reserves the button's width, so typed text never runs under
+   it. */
+.goen-footer__field {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
+}
+
+.goen-footer__field > .goen-input {
+  border-radius: var(--r-lg);
+  grid-area: 1 / 1 / 2 / 3;
+  height: 3.25rem;
+  padding-right: 8.5rem;
+}
+
+.goen-footer__field > .goen-btn {
+  border-radius: var(--r-md);
+  grid-area: 1 / 2;
+  margin: 4px;
+  min-height: 2.75rem;
+  z-index: 1;
+}
+
+.goen-footer__field > .goen-btn:focus-visible {
+  outline-offset: -2px;
+}
+
+/* A column too narrow for the field and the action side by side puts the
+   action under the field. */
+.goen-footer__signup {
+  container-type: inline-size;
+}
+
+@container (max-width: 17rem) {
+  .goen-footer__field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-footer__field > .goen-input {
+    grid-area: auto;
+    padding-right: 0.75rem;
+  }
+
+  .goen-footer__field > .goen-btn {
+    grid-area: auto;
+    justify-self: start;
+    margin: 0.25rem 0 0;
+  }
+}
+
+.goen-footer__field > .goen-btn--ghost {
+  background: none;
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+  gap: 0.375rem;
+  padding-inline: 0.75rem 1rem;
+}
+
+.goen-footer__field > .goen-btn--ghost:hover {
+  background: none;
+  color: var(--accent-deep);
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}
+
+.goen-footer__field > .goen-btn--ghost > [aria-hidden] {
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
+    transform: none;
+  }
 }
 
 .goen-footer__signup-done {
@@ -1621,10 +1784,6 @@ h3 {
 .goen-footer__signup-error {
   flex: 0 0 100%;
   margin: 0;
-}
-
-.goen-footer__bottom {
-  border-top: 1px solid var(--n-200);
 }
 
 .goen-footer__bottominner {
@@ -1701,42 +1860,27 @@ h3 {
 .goen-home__head {
   align-items: baseline;
   display: flex;
-  gap: 1rem;
+  container-type: inline-size;
+  flex-wrap: wrap;
+  gap: 0 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
 
 .goen-home__heading {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
-  line-height: 1.35;
+  font-size: var(--t-32);
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   margin: 0;
 }
 
-/* The continuation after a section's name: same line, same size, grey. On a
-   phone the pair does not fit one line beside the link, and wrapping would split
-   a count from its unit ("8 / 件商品"), so there the continuation is its own
-   line at the body size and its separator is left to a screen reader. */
-.goen-home__aside {
-  color: var(--n-500);
-  font-weight: var(--fw-regular);
-}
-
-@media (max-width: 39.99rem) {
-  .goen-home__aside {
-    display: block;
-    font-size: var(--fs-16);
-    line-height: 1.5;
-    margin-top: 0.25rem;
-  }
-
-  .goen-home__sep {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
+/* A phone at 200% text leaves a head under 16rem, where "Departments" at its
+   own size is wider than the line. */
+@container (width < 16rem) {
+  .goen-home__heading {
+    font-size: min(var(--t-24), 14cqi);
+    overflow-wrap: anywhere;
   }
 }
 
@@ -1756,6 +1900,17 @@ h3 {
   color: var(--accent-text-hover);
   text-decoration: underline;
   text-underline-offset: 0.25em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-home__more > span {
+    display: inline-block;
+    transition: transform var(--dur-base) var(--ease-standard);
+  }
+
+  .goen-home__more:hover > span {
+    transform: translateX(3px);
+  }
 }
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
@@ -1825,7 +1980,7 @@ h3 {
 
 .goen-hero__title {
   font-size: var(--fs-ed-38);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.25;
   margin: 0;
   text-wrap: balance;
@@ -1850,14 +2005,10 @@ h3 {
   word-break: keep-all;
 }
 
-/* The slide's ink and rules come from its tone, so a statline and a period read
-   on every ground, the dark one included. */
+/* The slide's ink comes from its tone, so a statline and a period read on every
+   ground, the dark one included. */
 .goen-hero__slide {
   color: var(--tone-text);
-}
-
-.goen-hero .ui-statline > div {
-  border-top-color: var(--tone-text);
 }
 
 .goen-hero .ui-statline dt,
@@ -1868,26 +2019,25 @@ h3 {
 
 .goen-hero__slide[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
+/* On ink the fill is --on-ink-accent, so the track is a tint of that blue. */
 .goen-hero__slide[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-label: var(--tone-text);
-  --period-note: var(--tone-muted);
+  --period-track: var(--period-track-on-ink);
+}
+
+/* The track belongs to the facts above it, so it sits closer to them than to the button. */
+.goen-hero__inner > .ui-period {
+  margin-bottom: var(--s-2);
+  margin-top: 0;
 }
 
 .goen-pagehead[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
 .goen-pagehead[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-label: var(--tone-text);
-  --period-note: var(--tone-muted);
+  --period-track: var(--period-track-on-ink);
 }
 
 .goen-hero__actions {
@@ -1902,6 +2052,18 @@ h3 {
   white-space: normal;
 }
 
+/* The blue is 2.5:1 on the ink tone; the light blue with dark text is 9.6:1. */
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary {
+  background: var(--on-ink-accent);
+  border-color: var(--on-ink-accent);
+  color: var(--n-900);
+}
+
+.goen-hero__slide[data-tone="ink"] .goen-btn--primary:hover {
+  background: var(--n-0);
+  border-color: var(--n-0);
+}
+
 .goen-hero__controls {
   align-items: center;
   display: flex;
@@ -1913,9 +2075,13 @@ h3 {
 
 .goen-hero__tabs {
   display: flex;
-  gap: var(--s-6);
+  gap: var(--s-1);
+  margin-inline-start: calc(var(--s-4) * -1);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
+  /* The fade lands on this room, not on the last tab's words, when the tabs fit. */
+  padding-inline-end: 1.5rem;
   scrollbar-width: none;
 }
 
@@ -1928,13 +2094,15 @@ h3 {
 }
 
 .goen-hero__tabs a {
-  border-top: 2px solid var(--n-200);
+  border-radius: var(--r-full);
+  text-decoration: none;
   color: var(--fg-muted);
   flex: none;
   font-size: var(--t-14);
+  line-height: 1.5rem;
   max-width: 14em;
   overflow: hidden;
-  padding: var(--s-2) 0;
+  padding: 0.625rem var(--s-4);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1943,9 +2111,25 @@ h3 {
   color: var(--fg);
 }
 
+@media (max-width: 47.99rem) {
+  .goen-hero__tabs {
+    margin-inline-start: 0;
+  }
+}
+
+/* The current tab is told apart by its weight and its fill, so colour is not
+   the only cue; forced colours drop the fill and draw the edge instead. */
 .goen-hero__tabs a[aria-current="true"] {
-  border-top-color: var(--n-900);
-  color: var(--fg);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+@media (forced-colors: active) {
+  .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 .goen-hero__nav {
@@ -1976,9 +2160,37 @@ h3 {
   width: 1.25rem;
 }
 
-/* A slide with no photograph is colour and type, as tall as its text. */
+/* A slide with no photograph is colour and type. */
 .goen-hero__slide--text .goen-hero__body {
   padding-block: 2rem 2.5rem;
+}
+
+/* Beside photo slides the track makes it as tall as they are, so under 1024px
+   it is a poster: the name at the top, the facts and the button at the foot,
+   instead of the copy in the corner of a tall field of tone. */
+@media (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__body {
+    display: flex;
+  }
+
+  .goen-hero__slide--text .goen-hero__inner {
+    flex: 1;
+    max-width: none;
+  }
+
+  .goen-hero__slide--text .goen-hero__title {
+    margin-block-end: auto;
+  }
+}
+
+@media (min-width: 40rem) and (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__title {
+    font-size: 3rem;
+  }
+
+  .goen-hero__slide--text .goen-hero__title--long {
+    font-size: var(--fs-ed-38);
+  }
 }
 
 @media (max-width: 50rem) {
@@ -1998,186 +2210,117 @@ h3 {
   }
 }
 
-/* ----- Departments. Two: tiles. Three to seven: rows, with a stage beside
-   them from 1024px that shows the photograph (or the tone and the big name) of
-   the row in reach. Eight or more: two columns of rows with a thumbnail each, and
-   no stage. The photograph is both a row's thumbnail and the stage's picture. ----- */
+/* ----- Departments: one square photograph each, the name under it. The
+   columns follow the section's own width in rem, so larger text folds them
+   sooner. ----- */
+
+.goen-cats {
+  container: cats / inline-size;
+}
 
 .goen-cats__grid {
-  --dir-gap: clamp(2rem, 5vw, 5rem);
+  --cols: 3;
   display: grid;
-  gap: var(--s-4);
-  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem 1rem;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+@container cats (inline-size < 40rem) {
+  .goen-cats__grid:not(:has(> li:nth-child(3))),
+  .goen-cats__grid:has(> li:nth-child(4):last-child) {
+    --cols: 2;
+  }
+}
+
+@container cats (inline-size < 17rem) {
+  .goen-cats__grid {
+    --cols: 2;
+  }
+}
+
+@container cats (inline-size >= 40rem) {
+  .goen-cats__grid {
+    --cols: 6;
+    column-gap: 1.5rem;
+  }
+}
+
 .goen-cat {
   color: var(--n-900);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  min-height: 44px;
+  gap: 0.5rem;
   text-decoration: none;
 }
 
-/* The tone is the card; the photograph keeps goen's white along its right and
-   bottom edge, so it never touches the tone. */
 .goen-cat__well {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
+  aspect-ratio: 1;
+  background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
   overflow: hidden;
 }
 
 .goen-cat__photo {
-  border: 0 solid var(--n-0);
-  border-width: 0 var(--col-gap) var(--col-gap) 0;
-  box-sizing: border-box;
   display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
 }
 
-.goen-cat__well .goen-cat__mark {
-  border-radius: 0;
+.goen-cat__mark {
+  background: var(--tone-ground);
+  color: var(--tone-text);
+  display: grid;
+  font-size: 32cqi;
+  font-weight: var(--fw-display);
   height: 100%;
-  width: 100%;
-}
-
-.goen-cat__line {
-  align-items: baseline;
-  display: flex;
-  gap: var(--s-4);
-  justify-content: space-between;
+  line-height: 1;
+  place-items: center;
 }
 
 .goen-cat__name {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  hyphens: auto;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
-.goen-cat__line .goen-cat__name {
-  font-size: var(--t-20);
-}
-
-.goen-cat__count {
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.goen-cat:hover .goen-cat__photo {
+  opacity: 0.85;
 }
 
 .goen-cat:hover .goen-cat__name {
   text-decoration: underline;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 3px;
 }
 
-.goen-cat:hover .goen-cat__photo {
-  opacity: 0.9;
+.goen-cat:focus-visible {
+  outline: none;
 }
 
-.goen-cats__grid--rows,
-.goen-cats__grid--columns {
-  container-type: inline-size;
-  gap: 0;
+.goen-cat:focus-visible .goen-cat__well {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
-.goen-cats__grid--rows .goen-cat,
-.goen-cats__grid--columns .goen-cat {
-  align-items: center;
-  border-bottom: 1px solid var(--n-200);
-  column-gap: var(--s-4);
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) auto;
-  padding: var(--s-3) 0;
-  row-gap: 2px;
-}
-
-.goen-cats__grid--rows .goen-cat__photo,
-.goen-cats__grid--columns .goen-cat__photo,
-.goen-cat__mark {
-  border: 0;
-  border-radius: var(--r-md);
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  height: 4rem;
-  width: 4rem;
-}
-
-.goen-cat__mark {
-  background: var(--tone-ground);
-  color: var(--tone-text);
-  display: grid;
-  font-size: 1.75rem;
-  line-height: 1;
-  place-items: center;
-}
-
-.goen-cats__grid--rows .goen-cat__name,
-.goen-cats__grid--columns .goen-cat__name {
-  align-self: end;
-  font-size: var(--t-20);
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.goen-cat__subs {
-  align-self: start;
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  grid-column: 2;
-  grid-row: 2;
-  word-break: keep-all;
-}
-
-.goen-cats__grid--rows .goen-cat__count,
-.goen-cats__grid--columns .goen-cat__count {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.goen-cat__go,
-.goen-cat__stage {
-  display: none;
-}
-
-@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .goen-cats__grid--rows .goen-cat__photo,
-  .goen-cats__grid--rows .goen-cat__stage {
-    transition: opacity 0.4s var(--ease-standard);
-  }
-}
-
-/* A column under 16rem is a phone at 150 to 200% text: the count goes under
-   the name and the sub-categories take the row's width below. */
-@container (width < 16rem) {
-  .goen-cats__grid--rows .goen-cat,
-  .goen-cats__grid--columns .goen-cat {
-    grid-template-columns: 4rem minmax(0, 1fr);
+@container cats (inline-size >= 56rem) {
+  .goen-cats__grid {
+    row-gap: 2rem;
   }
 
-  .goen-cats__grid--rows .goen-cat__name,
-  .goen-cats__grid--columns .goen-cat__name {
-    hyphens: auto;
-    overflow-wrap: anywhere;
+  .goen-cat {
+    gap: 0.75rem;
   }
 
-  .goen-cats__grid--rows .goen-cat__count,
-  .goen-cats__grid--columns .goen-cat__count {
-    align-self: start;
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .goen-cat__subs {
-    grid-column: 1 / -1;
-    grid-row: 3;
-    margin-top: var(--s-1);
+  .goen-cat__name {
+    font-size: var(--fs-15);
   }
 }
 
@@ -2225,21 +2368,6 @@ h3 {
   padding: var(--s-6) var(--page-gutter) var(--s-8);
 }
 
-.goen-band .goen-home__heading {
-  color: var(--tone-text);
-  font-size: var(--fs-ed-30);
-}
-
-.goen-band .goen-home__heading:lang(zh) {
-  font-family: var(--font-editorial);
-  font-weight: 500;
-}
-
-.goen-band .goen-home__aside {
-  font-family: var(--font-sans);
-  font-weight: var(--fw-regular);
-}
-
 .goen-band .goen-band__name--long {
   font-size: var(--fs-ed-24);
 }
@@ -2253,7 +2381,7 @@ h3 {
   color: var(--tone-text);
 }
 
-.goen-band .goen-home__aside,
+.goen-band .goen-band__fact,
 .goen-band .goen-tile__brand,
 .goen-band .goen-tile__was,
 .goen-band .goen-tile__state,
@@ -2261,7 +2389,7 @@ h3 {
   color: var(--tone-muted);
 }
 
-/* Below 768px the three products scroll sideways rather than stacking. */
+/* The four products scroll sideways until the shelf's container reaches 48rem. */
 .goen-band__tiles {
   display: grid;
   gap: 1rem;
@@ -2301,25 +2429,9 @@ h3 {
   }
 }
 
-@media (min-width: 44rem) {
-  .goen-cats__grid--tiles {
-    gap: var(--col-gap);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
-  }
-
-  .goen-band__tiles {
-    gap: 1.5rem;
-    grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
   }
 }
 
@@ -2373,115 +2485,6 @@ h3 {
     font-size: 1.0625rem;
   }
 
-  .goen-cats__grid--rows {
-    padding-right: calc((100% - var(--dir-gap)) * 5 / 12 + var(--dir-gap));
-    position: relative;
-  }
-
-  .goen-cats__grid--rows .goen-cat {
-    align-items: baseline;
-    grid-template-columns: minmax(max-content, 1.1fr) minmax(0, 1.4fr) auto 1.25rem;
-    padding: 1.25rem 0 1.125rem;
-  }
-
-  .goen-cats__grid--rows .goen-cat__mark {
-    display: none;
-  }
-
-  .goen-cats__grid--rows .goen-cat__name {
-    align-self: baseline;
-    font-size: var(--t-32);
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__subs {
-    align-self: baseline;
-    color: var(--n-700);
-    font-size: var(--fs-14);
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__count {
-    align-self: baseline;
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__go {
-    color: var(--n-500);
-    display: block;
-    grid-column: 4;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat:hover .goen-cat__go,
-  .goen-cats__grid--rows .goen-cat:focus-visible .goen-cat__go {
-    color: var(--n-900);
-  }
-
-  .goen-cats__grid--rows .goen-cat__photo,
-  .goen-cats__grid--rows .goen-cat__stage {
-    border-radius: var(--r-lg);
-    display: block;
-    grid-column: auto;
-    grid-row: auto;
-    height: min(100%, 35rem);
-    object-fit: cover;
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: calc((100% - var(--dir-gap)) * 5 / 12);
-  }
-
-  .goen-cats__grid--rows .goen-cat__stage {
-    align-content: end;
-    background: var(--tone-ground);
-    color: var(--tone-text);
-    display: grid;
-    font-size: clamp(2.5rem, 1.6rem + 2.4vw, 4rem);
-    line-height: 1.05;
-    padding: var(--s-6) var(--s-5);
-  }
-
-  .goen-cats__grid--rows li:first-child :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 1;
-  }
-
-  .goen-cats__grid--rows:has(.goen-cat:is(:hover, :focus-visible)) li:first-child:not(:has(.goen-cat:is(:hover, :focus-visible))) :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 0;
-  }
-
-  .goen-cats__grid--rows li:has(.goen-cat:is(:hover, :focus-visible)) :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 1;
-  }
-
-  .goen-cats__grid--columns {
-    column-gap: var(--dir-gap);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .goen-cats__grid--columns .goen-cat {
-    grid-template-columns: 5rem minmax(0, 1fr) auto 1.25rem;
-    padding: var(--s-4) 0;
-  }
-
-  .goen-cats__grid--columns .goen-cat__photo,
-  .goen-cats__grid--columns .goen-cat__mark {
-    height: 5rem;
-    width: 5rem;
-  }
-
-  .goen-cats__grid--columns .goen-cat__go {
-    color: var(--n-500);
-    display: block;
-    grid-column: 4;
-    grid-row: 1 / span 2;
-  }
-
   .goen-band {
     --lift: 4rem;
   }
@@ -2514,11 +2517,157 @@ h3 {
   --lift: 0px;
 }
 
-/* The head is a listing's first screen, not a section: its photograph keeps a
-   fixed column so the first row of products still shows above the fold. */
-@media (min-width: 64rem) {
+/* The home page's band is the department's shelf: no photograph, because the
+   tile above shows it. From 60rem it shares the tiles' six columns and their
+   1.5rem gap, the name in two and the four products under tiles 3 to 6. The
+   department page's head is built from .goen-band too and takes none of this. */
+.goen-band--shelf {
+  background: var(--tone-ground);
+  container: band / inline-size;
+}
+
+.goen-band--shelf .goen-band__body {
+  display: grid;
+  gap: var(--s-5) var(--col-gap);
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--s-6) var(--page-edge) var(--s-7);
+}
+
+.goen-band--shelf .goen-band__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.goen-band--shelf .goen-band__name {
+  font-family: var(--font-sans);
+  font-size: var(--t-32);
+  font-weight: var(--fw-display);
+  hyphens: auto;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.goen-band--shelf .goen-band__name:lang(zh) {
+  font-family: var(--font-editorial);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.goen-band--shelf .goen-band__fact {
+  font-size: var(--t-15);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.goen-band--shelf .goen-band__fact:lang(zh) {
+  word-break: keep-all;
+}
+
+.goen-band--shelf .goen-home__more {
+  align-self: flex-start;
+  margin-top: var(--s-2);
+}
+
+.goen-band--shelf .goen-band__tiles {
+  grid-auto-columns: max(42%, 8rem);
+}
+
+@container band (width >= 48rem) {
+  .goen-band--shelf .goen-band__tiles {
+    gap: var(--col-gap);
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+@container band (width >= 60rem) {
+  .goen-band--shelf .goen-band__body {
+    column-gap: 1.5rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding-block: var(--s-7);
+  }
+
+  .goen-band--shelf .goen-band__head {
+    grid-column: 1 / 3;
+    padding-right: var(--s-5);
+  }
+
+  .goen-band--shelf .goen-band__tiles {
+    gap: 1.5rem;
+    grid-column: 3 / -1;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band--shelf {
+    border-block: 1px solid CanvasText;
+  }
+}
+
+/* The head is a listing's first screen. The copy sets its height and the
+   photograph fills it, seven parts to the copy's five, at least 9:4: the floor
+   is a pseudo-element's padding because a grid item with an aspect-ratio that is
+   stretched taller widens with it. The room a short copy leaves goes between the
+   crumbs and the name, not under the sub-categories. */
+@media (min-width: 48rem) {
+  .goen-pagehead .goen-band {
+    --lift: 2rem;
+  }
+
   .goen-pagehead .goen-band__grid {
-    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
+    align-items: stretch;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .goen-pagehead .goen-band__media {
+    margin: 0 0 var(--lift);
+    position: relative;
+  }
+
+  .goen-pagehead .goen-band__media::before {
+    content: "";
+    display: block;
+    padding-top: calc(100% * 4 / 9);
+  }
+
+  .goen-pagehead .goen-band__media img {
+    aspect-ratio: auto;
+    height: calc(100% - var(--col-gap));
+    inset: 0 auto auto 0;
+    object-fit: cover;
+    position: absolute;
+    width: calc(100% - var(--col-gap));
+  }
+
+  .goen-pagehead .goen-band__media--well img {
+    object-fit: contain;
+  }
+
+  .goen-pagehead .goen-band__body {
+    gap: var(--s-3);
+    justify-content: flex-end;
+    padding: calc(var(--lift) + var(--s-5)) var(--page-edge) var(--s-5) clamp(1.5rem, 4vw, 4rem);
+  }
+
+  .goen-pagehead .goen-band__body > .ui-crumbs {
+    margin-bottom: auto;
+  }
+
+  .goen-pagehead .goen-band:has(> .goen-deptnotice) .goen-band__media {
+    margin-bottom: 0;
+  }
+
+  .goen-pagehead .goen-band__body:first-child {
+    grid-column: 1 / -1;
+    padding-left: var(--page-edge);
   }
 }
 
@@ -2531,11 +2680,12 @@ h3 {
    ------------------------------------------------------------------------ */
 
 .goen-tiles__grid {
+  --tiles-gap-x: 1rem;
   display: grid;
-  gap: 2.5rem 1rem;
+  gap: 2.5rem var(--tiles-gap-x);
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2777,7 +2927,7 @@ input.goen-check {
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 2.5rem 1.5rem;
+    --tiles-gap-x: 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -2834,10 +2984,6 @@ input.goen-check {
   padding: var(--s-4) var(--s-5);
 }
 
-.goen-rowcard .ui-statline > div {
-  border-top-color: var(--tone-text);
-}
-
 .goen-rowcard .ui-statline dt,
 .goen-rowcard .ui-statline dd small,
 .goen-rowcard .ui-statline__note {
@@ -2846,22 +2992,20 @@ input.goen-check {
 
 .goen-tiles__grid--lead[data-tone] .ui-period {
   --period-fill: var(--tone-mark);
-  --period-line: var(--tone-edge);
 }
 
 .goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-fill: var(--tone-text);
-  --period-label: var(--tone-text);
-  --period-line: var(--tone-muted);
-  --period-note: var(--tone-muted);
+  --period-track: var(--period-track-on-ink);
+}
+
+.goen-rowcard > .ui-period {
+  margin-top: var(--s-2);
 }
 
 .goen-rowcard .goen-home__more {
   align-self: flex-start;
-  color: var(--tone-text);
+  color: var(--tone-mark);
   margin-top: auto;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
   white-space: normal;
 }
 
@@ -2914,9 +3058,11 @@ input.goen-check {
 }
 
 .goen-listing__filters {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 0 12px;
   min-width: 0;
 }
 
@@ -2939,8 +3085,18 @@ input.goen-check {
 }
 
 .goen-filters__shell {
-  border-bottom: 1px solid var(--n-200);
-  border-top: 1px solid var(--n-200);
+  min-width: 0;
+}
+
+.goen-listing__filters .goen-listing__count {
+  margin-inline-start: auto;
+}
+
+/* An open sheet takes the row; the count goes under it, not beside it. */
+@media (max-width: 63.99rem) {
+  .goen-filters__shell[open] {
+    flex: 1 1 100%;
+  }
 }
 
 .goen-filters__shell-summary {
@@ -2949,7 +3105,7 @@ input.goen-check {
   display: flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
 }
@@ -2958,18 +3114,19 @@ input.goen-check {
   display: none;
 }
 
-.goen-filters__shell-summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
+.goen-filters__shell-summary::after,
+.goen-filters__summary::after {
+  background: var(--chevron) center / 1.15em no-repeat;
   content: '';
-  height: 8px;
-  transform: rotate(45deg);
+  flex: none;
+  height: 1.15em;
   transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
+  width: 1.15em;
 }
 
-.goen-filters__shell[open] > .goen-filters__shell-summary::after {
-  transform: rotate(-135deg);
+.goen-filters__shell[open] > .goen-filters__shell-summary::after,
+.goen-filters__group[open] > .goen-filters__summary::after {
+  transform: rotate(180deg);
 }
 
 /* A closed disclosure hides its form outright. Chrome keeps the layout of the
@@ -2992,7 +3149,7 @@ input.goen-check {
   border: 0;
   clip-path: inset(50%);
   font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   height: 1px;
   margin: -1px;
   overflow: hidden;
@@ -3010,19 +3167,24 @@ input.goen-check {
 }
 
 .goen-filters__group {
-  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
 .goen-filters__summary {
   align-items: center;
   cursor: pointer;
+  color: var(--ink-2);
   display: flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
+}
+
+.goen-filters__summary:hover,
+.goen-filters__group[open] > .goen-filters__summary {
+  color: var(--ink);
 }
 
 .goen-filters__summary::-webkit-details-marker {
@@ -3030,17 +3192,7 @@ input.goen-check {
 }
 
 .goen-filters__summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
-  content: '';
-  height: 8px;
-  transform: rotate(45deg);
-  transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
-}
-
-.goen-filters__group[open] > .goen-filters__summary::after {
-  transform: rotate(-135deg);
+  margin-inline-start: auto;
 }
 
 .goen-filters__options {
@@ -3078,6 +3230,28 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
 }
 
+/* How many of a group's options are on. Empty when none, and then not drawn;
+   the element stays so a swap has somewhere to put the number. */
+.goen-filters__selected {
+  align-items: center;
+  background: var(--accent-faint);
+  border-radius: var(--r-full);
+  color: var(--accent-deep);
+  display: inline-flex;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  justify-content: center;
+  line-height: 1;
+  min-height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.375rem;
+}
+
+.goen-filters__selected:empty {
+  display: none;
+}
+
 .goen-filters__prices {
   align-items: center;
   display: flex;
@@ -3091,17 +3265,20 @@ input.goen-check {
 }
 
 .goen-filters__field {
+  align-items: center;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+.goen-filters__field > .goen-label {
+  color: var(--fg-muted);
+  font-weight: var(--fw-regular);
 }
 
 /* The price pair and the sort control keep the shared names: the shell probe
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
-.goen-filters .ui-input,
-.goen-filters .ui-select,
-.goen-search-sort .ui-select {
+.goen-filters .ui-input {
   background: var(--bg);
   border: 0;
   border-radius: var(--r-md);
@@ -3117,11 +3294,32 @@ input.goen-check {
   width: 100%;
 }
 
+/* The sort is words and an arrow, not a box. The arrow is its cue (1.4.11,
+   5.70:1 on white) and the target stays 44px tall. */
 .goen-filters .ui-select,
 .goen-search-sort .ui-select {
   appearance: none;
-  background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
-  padding-right: 2.5rem;
+  background: transparent var(--chevron) no-repeat right 0.25rem center / 1.15em;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  cursor: pointer;
+  field-sizing: content;
+  font-family: inherit;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  min-width: 0;
+  outline: 0;
+  padding: 0 1.75em 0 0.25rem;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .goen-filters .ui-select,
+  .goen-search-sort .ui-select {
+    font-size: var(--fs-14);
+  }
 }
 
 .goen-filters__apply {
@@ -3140,26 +3338,21 @@ input.goen-check {
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
-  align-items: flex-end;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 0 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
-}
-
-.goen-search-sort .ui-select {
-  width: auto;
 }
 
 .goen-search-sort .goen-listing__count {
   align-items: center;
   display: flex;
+  margin-inline-end: auto;
   min-height: 44px;
-}
-
-.goen-search-sort .goen-filters__field {
-  min-width: min(100%, 16rem);
+  order: -1;
 }
 
 .goen-search-sort .goen-filters__field > label {
@@ -3328,17 +3521,12 @@ input.goen-check {
 }
 
 /* The department head is the band: its grid, photograph and body are the
-   band's. Below 1024 the photograph and the lift are dropped so the first
-   product still starts inside a phone's first screen. */
+   band's. */
 .goen-pagehead__text {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
-}
-
-.goen-pagehead .goen-band__media {
-  display: none;
 }
 
 .goen-pagehead[data-tone] .ui-crumbs,
@@ -3375,6 +3563,15 @@ input.goen-check {
   scrollbar-width: none;
 }
 
+@media (min-width: 48rem) {
+  .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
 .goen-pagehead__chip {
   align-items: center;
   background: var(--n-0);
@@ -3396,21 +3593,59 @@ input.goen-check {
   color: var(--n-900);
 }
 
-.goen-pagehead__chip[aria-current='page'] {
-  background: var(--n-900);
-  border-color: var(--n-900);
-  color: var(--n-0);
+/* The department head's sub-categories are words on the tone, each a pill-sized
+   target on hover; only the current one is filled. They do not scroll as a
+   boxed button row: the empty search's shortcuts above keep the box. */
+.goen-listing__head .goen-pagehead__chips {
+  gap: 0;
+  margin-top: var(--s-2);
+  padding-inline-start: var(--page-gutter);
 }
 
-[data-tone='ink'] .goen-pagehead__chip {
-  background: var(--tone-rule);
-  border-color: var(--tone-rule);
+@media (min-width: 48rem) {
+  .goen-listing__head .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: calc(var(--s-4) * -1) 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+.goen-listing__head .goen-pagehead__chip {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-regular);
+  min-height: 2.75rem;
+  padding: 0 var(--s-4);
+}
+
+.goen-listing__head .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.62);
   color: var(--tone-text);
 }
 
-[data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
-  background: var(--tone-text);
-  color: var(--n-900);
+.goen-listing__head .goen-pagehead__chip[aria-current='page'] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip {
+  color: var(--tone-text);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
+  background: rgb(255 255 255 / 0.1);
+  border-color: var(--tone-text);
+  color: var(--on-ink-accent);
 }
 
 .goen-empty__links {
@@ -3441,7 +3676,7 @@ input.goen-check {
 
 .goen-campaigns__heading {
   font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -3511,7 +3746,7 @@ input.goen-check {
   border-bottom: 1px solid var(--border);
   min-width: 160px;
   padding: 12px;
-  text-align: center;
+  text-align: left;
   vertical-align: top;
 }
 
@@ -3536,7 +3771,7 @@ input.goen-check {
 .goen-compare__image {
   border-radius: var(--r-md);
   height: 96px;
-  margin: 0 auto;
+  margin: 0;
   object-fit: cover;
   width: 96px;
 }
@@ -3563,13 +3798,11 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: 8px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .goen-compare__price {
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
 }
 
 /* A row only some products state is a footnote, not a comparison. It reads
@@ -3588,15 +3821,10 @@ input.goen-check {
   color: var(--n-900);
 }
 
-/* Under a department's head: the fact line on the tone's ground, the running campaign's
-   notice, and the one editorial the data chose. */
+/* A fact line on a head laid on a tone's ground takes the tone's text colours. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
   color: var(--tone-text);
-}
-
-.goen-pagehead[data-tone] .ui-statline > div {
-  border-top-color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-statline dd {
@@ -3609,27 +3837,22 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-.goen-deptnotice {
-  border-block: 1px solid var(--border);
+/* The band's last row, on the tone and with no wash of its own. */
+.goen-band > .goen-deptnotice {
+  padding: var(--s-3) var(--page-edge) var(--s-4);
 }
 
-.goen-deptnotice__in {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3) var(--s-6);
-  padding-block: var(--s-3);
-}
-
+/* The whole line is the link, read as words: the campaign's name and the arrow
+   take the tone's link colour, the rest the tone's text. */
 .goen-deptnotice__name {
-  align-items: baseline;
-  color: var(--fg);
-  display: flex;
-  flex: 1 1 16rem;
-  flex-wrap: wrap;
+  color: var(--tone-text);
   font-size: var(--fs-14);
-  gap: 4px var(--s-3);
   text-decoration: none;
+}
+
+.goen-deptnotice__name b {
+  color: var(--tone-mark);
+  font-weight: var(--fw-medium);
 }
 
 .goen-deptnotice__name:hover b {
@@ -3638,21 +3861,29 @@ input.goen-check {
 }
 
 .goen-deptnotice__eyebrow {
-  color: var(--fg-muted);
+  color: var(--tone-muted);
   font-size: var(--fs-12);
+  margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice .ui-statline {
-  --stat-min: 8rem;
+.goen-deptnotice__until {
+  color: var(--tone-muted);
+  white-space: nowrap;
 }
 
-.goen-deptnotice .ui-statline dd {
-  font-size: var(--fs-16);
+.goen-deptnotice__name > [aria-hidden="true"],
+.goen-deptnotice__until > [aria-hidden="true"] {
+  color: var(--tone-muted);
+  margin-inline: 0.25em;
 }
 
-.goen-deptnotice .ui-period {
-  flex: 1 1 16rem;
-  max-width: 26rem;
+.goen-deptnotice__left {
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
+}
+
+.goen-deptnotice__left > [aria-hidden] {
+  color: var(--tone-mark);
 }
 
 .goen-deptcompare__head {
@@ -3665,7 +3896,7 @@ input.goen-check {
 
 .goen-deptcompare__title {
   font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   margin: 0;
 }
 
@@ -3676,8 +3907,9 @@ input.goen-check {
 }
 
 .goen-deptcompare__more {
-  color: var(--fg);
+  color: var(--accent-text);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin-left: auto;
   text-underline-offset: 3px;
 }
@@ -3718,9 +3950,11 @@ input.goen-check {
 }
 
 .goen-story__link {
-  color: var(--fg);
+  color: var(--accent-text);
   display: inline-block;
+  font-weight: var(--fw-medium);
   margin-top: var(--s-4);
+  text-decoration: none;
   text-underline-offset: 3px;
 }
 
@@ -3788,15 +4022,6 @@ input.goen-check {
   }
 }
 
-/* For the same reason a phone's campaign notice drops its end line where the day grid
-   stands beside it, whose last label is the end date. A campaign too long for a grid
-   keeps the line. */
-@media (max-width: 767px) {
-  .goen-deptnotice__in:has(> .ui-period) > .ui-statline {
-    display: none;
-  }
-}
-
 /* Where products are put side by side, a row holds five and a card says what it is under
    its name. */
 .goen-tile__specs {
@@ -3836,7 +4061,7 @@ input.goen-check {
 .goen-compare__suggesthead {
   color: var(--n-900);
   font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.35;
   margin: 0;
 }
@@ -3923,6 +4148,22 @@ input.goen-check {
   margin: 0;
 }
 
+.goen-wish__remove {
+  align-self: flex-start;
+}
+
+.goen-wish__remove .goen-btn {
+  background: none;
+  color: var(--fg-muted);
+  padding-inline: 0;
+  width: auto;
+}
+
+.goen-wish__remove .goen-btn:hover {
+  background: none;
+  color: var(--fg);
+}
+
 .goen-wish__stock {
   color: var(--fg-muted);
   font-size: var(--fs-13);
@@ -3956,17 +4197,6 @@ input.goen-check {
     padding: 32px var(--page-gutter) 56px;
   }
 
-  .goen-pagehead .goen-band__media {
-    display: block;
-  }
-
-  .goen-pagehead__chips {
-    flex-wrap: wrap;
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
-  }
-
   .goen-campaigns__list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3982,16 +4212,11 @@ input.goen-check {
      are guarded: where ::details-content does not exist the toolbar stays behind
      its summary, which works. */
   .goen-listing__filters {
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: wrap;
     gap: 8px 24px;
   }
 
   .goen-filters__shell {
-    border: none;
     flex: 1 1 auto;
-    min-width: 0;
   }
 
   @supports selector(details::details-content) {
@@ -4021,7 +4246,7 @@ input.goen-check {
     align-items: center;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px 12px;
+    gap: 8px 24px;
   }
 
   .goen-filters__end {
@@ -4035,15 +4260,12 @@ input.goen-check {
   }
 
   .goen-filters__summary {
-    border: 1px solid var(--n-300);
-    border-radius: var(--r-full);
-    gap: 10px;
-    padding: 0 16px;
+    gap: 6px;
+    padding: 0 4px 0 0;
   }
 
-  .goen-filters__summary:hover,
-  .goen-filters__group[open] > .goen-filters__summary {
-    border-color: var(--n-900);
+  .goen-filters__summary::after {
+    margin-inline-start: 0;
   }
 
   .goen-filters__options,
@@ -4057,18 +4279,8 @@ input.goen-check {
     min-width: 15rem;
     padding: 12px;
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 0.75rem);
     z-index: 4;
-  }
-
-  .goen-filters__field {
-    align-items: center;
-    flex-direction: row;
-    gap: 8px;
-  }
-
-  .goen-filters__end .ui-select {
-    width: auto;
   }
 
   .goen-filters__end .goen-filters__apply {
@@ -4128,7 +4340,7 @@ input.goen-check {
 .goen-pdp__sectiontitle {
   color: var(--n-900);
   font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.35;
   margin: 0;
 }
@@ -4206,7 +4418,7 @@ input.goen-check {
 }
 
 .goen-pdp__pick:checked ~ .goen-pdp__thumb {
-  border-bottom-color: var(--n-900);
+  border-bottom-color: var(--accent);
 }
 
 .goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
@@ -4258,7 +4470,7 @@ input.goen-check {
 .goen-pdp__title {
   color: var(--n-900);
   font-size: 1.75rem;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.3;
   margin: 0;
   text-wrap: balance;
@@ -4349,6 +4561,7 @@ input.goen-check {
 
 .goen-pdp__pricebox {
   align-items: baseline;
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
@@ -4360,6 +4573,15 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   line-height: 1.3;
+}
+
+/* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
+   size is wider than the line. */
+@container (width < 20rem) {
+  .goen-pdp__price {
+    font-size: min(var(--fs-ed-30), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-pdp__was {
@@ -4374,15 +4596,10 @@ input.goen-check {
   margin: 0.125rem 0 0;
 }
 
-.goen-pdp__source a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
-.goen-pdp__source + .ui-period {
-  margin-top: 0.5rem;
-  max-width: 26rem;
+.goen-pdp__left {
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
@@ -4454,6 +4671,20 @@ input.goen-check {
   border-color: var(--n-900);
   outline: 2px solid var(--n-900);
   outline-offset: 1px;
+}
+
+/* A text option is chosen in the accent, drawn inside its own edge: an outline
+   would read as focus. Colour discs keep the ink ring, which a blue ring would
+   blur into a blue disc. */
+.goen-swatch--on:not(.goen-swatch--dot) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
+}
+
+.goen-swatch--on:not(.goen-swatch--dot):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .goen-swatch__note {
@@ -4589,9 +4820,10 @@ input.goen-check {
     border-top: 1px solid var(--n-200);
     bottom: 0;
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
     left: 0;
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    padding: 0.75rem var(--page-gutter) calc(0.75rem + env(safe-area-inset-bottom));
     position: fixed;
     right: 0;
     transform: translateY(100%);
@@ -4625,8 +4857,10 @@ input.goen-check {
   }
 
   .goen-buybar__btn {
-    flex: 1 1 auto;
-    height: 3rem;
+    flex: 1 1 9rem;
+    height: auto;
+    min-height: 3rem;
+    text-wrap: balance;
   }
 
   /* The menu drawer belongs to the header, which this later fixed block would
@@ -4636,8 +4870,8 @@ input.goen-check {
     visibility: hidden;
   }
 
-  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) .goen-footer {
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -4889,7 +5123,7 @@ input.goen-check {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
 }
 
 .goen-pdp__reviewlayout {
@@ -4908,7 +5142,7 @@ input.goen-check {
   color: var(--n-900);
   font-size: var(--fs-ed-38);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.1;
   margin: 0;
 }
@@ -5313,13 +5547,13 @@ input.goen-check {
 .goen-pagehead__title {
   color: var(--fg);
   font-size: var(--fs-ed-30);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   margin: 0;
 }
 
 .goen-order .goen-pagehead__eyebrow,
 .goen-pay .goen-pagehead__eyebrow {
-  color: var(--accent-text);
+  color: var(--accent-deep);
   font-size: var(--fs-14);
 }
 
@@ -5329,6 +5563,53 @@ input.goen-check {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+/* The stock hold in words. While a payment can start it sits on the blue that
+   marks a period running for the customer; once none can, on the neutral wash.
+   The transparent outline draws the panel's edge in forced colours, which drop
+   the background. */
+.goen-pay__window {
+  background: var(--accent-faint);
+  border-radius: var(--r-lg);
+  margin-top: var(--s-6);
+  outline: 1px solid transparent;
+  padding: 1.25rem 1.5rem;
+}
+
+.goen-pay__window--closed {
+  background: var(--wash);
+}
+
+.goen-pay__deadline {
+  color: var(--accent-deep);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-medium);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.goen-pay__window--closed .goen-pay__deadline {
+  color: var(--fg);
+}
+
+.goen-pay__hold {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  margin: 0.125rem 0 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+.goen-pagehead > .goen-pay__window + .ui-statline {
+  margin-top: var(--s-5);
+}
+
+@media (max-width: 30rem) {
+  .goen-pay__window {
+    padding: 1rem;
+  }
 }
 
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
@@ -5398,7 +5679,7 @@ input.goen-check {
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
   --tone-edge: #8e8e96;
-  --tone-mark: #c7d2e8;
+  --tone-mark: var(--on-ink-accent);
 }
 
 .goen-pagehead[data-tone] {
@@ -5420,18 +5701,56 @@ input.goen-check {
 .goen-listing__head .goen-pagehead[data-tone] {
   background: none;
   border-radius: 0;
-  margin-top: 24px;
+  margin-top: 0;
   padding: 0;
 }
 
-@media (max-width: 63.99rem) {
+/* A phone's photograph is a 5:2 strip above the copy, goen's white between it and
+   the tone; the head's first row of products still starts inside the first
+   screen. A crumb whose only step is home repeats the logo. */
+@media (max-width: 47.99rem) {
   .goen-pagehead .goen-band {
-    --lift: 0px;
+    background: none;
+  }
+
+  .goen-pagehead .goen-band__media {
+    margin: 0;
+    padding: 0 0 var(--col-gap);
+  }
+
+  .goen-pagehead .goen-band__body,
+  .goen-pagehead .goen-band > .goen-deptnotice {
+    background: var(--tone-ground);
+  }
+
+  .goen-pagehead .goen-band__media img {
+    aspect-ratio: 5 / 2;
   }
 
   .goen-pagehead .goen-band__body {
-    padding-block: var(--s-5);
+    gap: var(--s-2);
+    padding-block: var(--s-4);
   }
+
+  .goen-listing__head .ui-crumbs:not(:has(.ui-crumbs__link ~ .ui-crumbs__link)) {
+    display: none;
+  }
+
+  .goen-listing {
+    padding-top: var(--s-4);
+  }
+}
+
+.goen-listing__head .goen-pagehead__title {
+  font-size: clamp(2.75rem, 1.7rem + 3.4vw, 5.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.goen-listing__head .goen-pagehead__title.goen-band__name--long {
+  font-size: clamp(2rem, 1.2rem + 2.2vw, 3.25rem);
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {
@@ -5453,29 +5772,31 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The line list. Hairlines between rows and no box around them: a cart is one
-   list of one thing. */
+/* The line list. No rule and no box: each line's photograph is its shape, and
+   the space between lines parts them. The one column is the list's width, not
+   its widest line's: a long price at large text wraps inside the line instead
+   of widening the page. */
 .goen-cart__lines,
 .goen-order .goen-order__lines,
 .goen-pay__lines {
-  border-top: 1px solid var(--n-200);
-  display: block;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   min-width: 0;
   padding: 0;
 }
 
-.goen-line {
-  border-bottom: 1px solid var(--n-200);
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  padding: 1.25rem 0;
+.goen-cart__lines {
+  container: cartlines / inline-size;
 }
 
-.goen-line:last-child {
-  border-bottom: 0;
+.goen-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
 }
 
 /* A line the catalogue can no longer honour: its photograph dimmed, the line not
@@ -5504,7 +5825,7 @@ input.goen-check {
 }
 
 /* The cart's totals sit under the title as a fact line; the sentence that says
-   what blocks checkout comes first, set apart by a rule so it is not read as a figure. */
+   what blocks checkout comes first, on its own ground so it is not read as a figure. */
 .goen-cart__facts {
   display: flex;
   flex-direction: column;
@@ -5513,11 +5834,13 @@ input.goen-check {
 }
 
 .goen-cart__alert {
-  background: var(--wash);
-  border-left: 2px solid var(--fg);
+  background: var(--warn-bg);
+  border-radius: var(--r-md);
+  color: var(--warn);
   font-size: var(--fs-14);
   margin: 0;
   max-width: 44rem;
+  outline: 1px solid transparent;
   padding: 0.75rem 1rem;
 }
 
@@ -5562,17 +5885,20 @@ input.goen-check {
    things a line offers. The box stays 44px tall, which is the target. */
 .goen-line__remove {
   background: transparent;
-  color: var(--n-700);
-  font-size: var(--fs-14);
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  justify-content: flex-start;
   min-width: 2.75rem;
-  padding: 0 0.5rem;
-  text-decoration: underline;
+  padding: 0;
+  text-decoration: none;
   text-underline-offset: 3px;
 }
 
 .goen-line__remove:hover {
   background: transparent;
   color: var(--n-900);
+  text-decoration: underline;
 }
 
 /* The 更新 button is the way to apply a quantity with scripting off. With it
@@ -5588,7 +5914,7 @@ input.goen-check {
 .goen-line__body {
   align-items: flex-start;
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 10rem;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
@@ -5672,12 +5998,24 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The checkout's summary is the one white card on its grey page: a hairline and
-   the single shadow the system allows, on a box that carries no tint. */
+/* The checkout's summary is a white face on the grey page, as the form beside
+   it is. The transparent border is what forced colours draws as its edge. */
 .goen-checkout__summary {
   background: var(--n-0);
-  border: 1px solid var(--n-200);
-  box-shadow: var(--sh-xs);
+  border: 1px solid transparent;
+}
+
+.goen-checkout__summary .goen-summary {
+  margin-block-end: 0.5rem;
+}
+
+/* The other money panels are wash faces; the transparent outline is what forced
+   colours draws as their edge. */
+.goen-cart__summary,
+.goen-order__summary,
+.goen-pay__summary {
+  background: var(--wash);
+  outline: 1px solid transparent;
 }
 
 /* With scripting off the 更新 button answers with the whole form again and its
@@ -5710,45 +6048,82 @@ input.goen-check {
   gap: 0.75rem;
 }
 
-/* The money rows are a description list, one hairline between rows. */
+/* The money rows are a description list. The two columns part the rows; the
+   one rule sits over the total and says the rows above add up to it. */
 .goen-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   margin: 0;
 }
 
 .goen-summary__row {
   align-items: baseline;
-  border-top: 1px solid var(--n-200);
   color: var(--fg-muted);
   display: flex;
+  flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 1rem;
+  gap: 0.25rem 1rem;
   justify-content: space-between;
-  padding: 0.75rem 0;
 }
 
-.goen-summary__row:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.goen-summary__row:last-child {
-  padding-bottom: 0;
-}
-
-.goen-summary__row dt,
-.goen-summary__row dd {
+.goen-summary__row dt {
   margin: 0;
+}
+
+.goen-summary__row dd {
+  margin: 0 0 0 auto;
+}
+
+/* A label stays whole while the row can wrap it onto its own line; one longer than the panel
+   (a shop-entered discount reason at 200% text) still breaks rather than spilling. */
+.goen-summary__row :is(dt, dd) {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .goen-summary__value {
   color: var(--fg);
   font-variant-numeric: tabular-nums;
+  margin-left: auto;
 }
 
 .goen-summary__row--total {
+  border-top: 1px solid var(--line-2);
   color: var(--fg);
-  font-size: var(--fs-18);
+  flex-wrap: wrap;
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
+  margin-top: 0.375rem;
+  padding-top: 1rem;
+}
+
+.goen-summary__row--total .goen-summary__value {
+  font-size: 1.625rem;
+  font-weight: var(--fw-display);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+/* The payment state under the total is a note on it, not a money row. */
+.goen-summary__row--total + .goen-summary__row {
+  font-size: var(--fs-13);
+  margin-top: 0.25rem;
+}
+
+/* A panel narrower than the large figure (a phone at 200% text) sets it at the
+   row's earlier size, so the total stays inside its panel. Sized in rem, so the
+   query follows the text, which a viewport query cannot see. */
+.goen-checkout__summary,
+.goen-order__summary,
+.goen-pay__summary {
+  container: summary / inline-size;
+}
+
+@container summary (max-width: 10rem) {
+  .goen-summary__row--total .goen-summary__value {
+    font-size: var(--fs-18);
+  }
 }
 
 /* The browse screens join this rule rather than declare a second one. They
@@ -5797,7 +6172,7 @@ input.goen-check {
 .goen-empty__title {
   color: var(--n-900);
   font-size: 1rem;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 0;
 }
@@ -5814,7 +6189,7 @@ input.goen-check {
 .goen-order__panels {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 3rem;
   min-width: 0;
 }
 
@@ -5827,8 +6202,13 @@ input.goen-check {
   clip-path: inset(0 -100vmax);
 }
 
-/* The sections are one white block, divided by hairlines rather than boxed
-   one by one. */
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
+}
+
+/* The sections are one white block, parted by the space between them rather
+   than boxed or ruled one by one. */
 .goen-checkout__main {
   background: var(--n-0);
   border-radius: var(--r-lg);
@@ -5843,10 +6223,6 @@ input.goen-check {
   background: transparent;
   border-radius: 0;
   padding: 1.5rem 1.25rem;
-}
-
-.goen-checkout__section + .goen-checkout__section {
-  border-top: 1px solid var(--n-200);
 }
 
 /* One option in a chooser. The card is the tap target — the radio inside it is
@@ -5875,11 +6251,11 @@ input.goen-check {
   background: var(--n-50);
 }
 
-/* The one source for "this is the chosen one": ink, not the accent. The extra
-   pixel makes the outline two without moving the content. */
+/* The one source for "this is the chosen one": the accent, where a shopper chooses.
+   The extra pixel makes the outline two without moving the content. */
 .goen-checkout__ship:has(input:checked) {
-  border-color: var(--n-900);
-  box-shadow: 0 0 0 1px var(--n-900);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* The card shows the focus its hidden radio has, or a keyboard user moving
@@ -5950,10 +6326,11 @@ input.goen-check {
    to choose one. The store's name and address are what the shopper reads
    before paying, and that reading is the only check goen has that the store
    reported back is the store they picked — so they are ordinary page text at
-   the body size, not a quiet caption. */
+   the body size, not a quiet caption. The ground is its shape; the transparent
+   border is what forced colours draws. */
 .goen-pickup {
   background: var(--elevated);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
@@ -6056,8 +6433,14 @@ input.goen-check {
   color: var(--n-700);
   display: flex;
   font-size: var(--fs-14);
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
   justify-content: space-between;
+}
+
+.goen-checkout__lines li > :first-child {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 /* The coupon sits under the totals, not above them: a shopper reads the total
@@ -6065,10 +6448,12 @@ input.goen-check {
    ordinary .goen-field; only the row holding the input and its button is new. */
 .goen-checkout__couponrow {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .goen-checkout__couponrow .goen-input {
+  flex: 1 1 10rem;
   min-width: 0;
 }
 
@@ -6123,12 +6508,16 @@ input.goen-check {
 }
 
 .goen-order__dot {
-  background: var(--accent);
+  background: var(--n-300);
   border-radius: var(--r-full);
   flex: none;
-  height: 16px;
-  margin-top: 4px;
-  width: 16px;
+  height: 10px;
+  margin-top: 7px;
+  width: 10px;
+}
+
+.goen-order__step:last-child .goen-order__dot {
+  background: var(--accent);
 }
 
 .goen-order__connector {
@@ -6151,7 +6540,7 @@ input.goen-check {
 .goen-order__shipments {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 1rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -6159,11 +6548,9 @@ input.goen-check {
 
 .goen-order__shipment {
   align-items: flex-start;
-  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.75rem 0 0;
 }
 
 .goen-order__cancel {
@@ -6178,10 +6565,10 @@ input.goen-check {
   margin-top: var(--s-6);
 }
 
-/* Each parcel is counted on its own, so each is set apart from the one before. */
+/* Each parcel is counted on its own, so its heading starts after a wider space
+   than the one between sections. */
 .goen-order__parcel + .goen-order__parcel {
-  border-top: 1px solid var(--border);
-  padding-top: var(--s-6);
+  padding-top: 1rem;
 }
 
 .goen-line--order {
@@ -6196,32 +6583,28 @@ input.goen-check {
   width: auto;
 }
 
-.goen-line--order .ui-statline,
-.goen-line--order .ui-period {
+.goen-line--order .ui-statline {
   align-self: stretch;
+  margin-top: var(--s-2);
   max-width: 26rem;
 }
 
-.goen-line--order .ui-statline {
-  margin-top: var(--s-2);
-}
-
-/* Beside a thumbnail, at large text, a grid can be narrower than its two end labels side by side: the last
-   label drops one label line, and its cell's margin grows the grid to hold it. */
-@container period (width < 8rem) {
-  .goen-line--order .ui-period > i:last-child {
-    margin-block-end: calc(1.3 * var(--t-12));
-  }
-
-  .goen-line--order .ui-period > i:last-child small {
-    top: calc(8px + 0.125rem + 1.3 * var(--t-12));
-  }
+/* The parcel's flex gap already parts the facts from the track, so it adds only
+   what sets the track 16px under them. */
+.goen-order__parcel > .ui-period {
+  margin-top: 0;
 }
 
 .goen-line__act {
   color: var(--accent);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
   text-underline-offset: 3px;
+}
+
+.goen-line__act:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 30rem) {
@@ -6249,7 +6632,7 @@ input.goen-check {
 .goen-returns__subhead {
   color: var(--fg);
   font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin: 0;
   padding: 0;
 }
@@ -6264,7 +6647,6 @@ input.goen-check {
 
 .goen-returns__line {
   align-items: center;
-  border-top: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -6274,15 +6656,10 @@ input.goen-check {
 
 .goen-returns__record {
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 12px;
   justify-content: space-between;
   padding: 12px 0;
-}
-
-.goen-returns__record:last-child {
-  border-bottom: 0;
 }
 
 .goen-returns__recordbody {
@@ -6310,7 +6687,7 @@ input.goen-check {
 .goen-findorder__title {
   color: var(--fg);
   font-size: var(--fs-ed-20);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -6333,12 +6710,40 @@ input.goen-check {
   .goen-checkout .goen-pagehead__title,
   .goen-order .goen-pagehead__title,
   .goen-pay .goen-pagehead__title {
-    font-size: 2.25rem;
+    font-size: var(--t-44);
   }
 
   .goen-line--cart {
     column-gap: 1.5rem;
     grid-template-columns: 8rem minmax(0, 1fr) auto;
+  }
+}
+
+/* Sized in rem so it follows the text: at 200% the line is narrow in the
+   same way a small screen is, and the viewport cannot say so. */
+@container cartlines (max-width: 28rem) {
+  .goen-line--cart {
+    grid-template-areas:
+      'thumb body'
+      'thumb controls'
+      'thumb money';
+    grid-template-columns: min(4.5rem, 24%) minmax(0, 1fr);
+  }
+
+  .goen-line--cart .goen-line__money {
+    align-items: flex-start;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* Below this the stepper and the remove button no longer fit beside the photo. */
+@container cartlines (max-width: 17.5rem) {
+  .goen-line--cart {
+    grid-template-areas:
+      'thumb body'
+      'controls controls'
+      'money money';
   }
 }
 
@@ -6374,13 +6779,14 @@ input.goen-check {
     align-items: center;
     background: var(--n-0);
     border-radius: 0;
-    border-top: 1px solid var(--n-200);
+    border-top: 1px solid var(--line);
     bottom: 0;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     justify-content: space-between;
     margin-inline: calc(-1 * var(--page-gutter));
+    outline: 0;
     padding: 0.75rem var(--page-gutter);
     position: sticky;
     z-index: 5;
@@ -6415,9 +6821,15 @@ input.goen-check {
 
   .goen-cart__summary .goen-summary__row--total {
     align-items: flex-start;
+    border-top: 0;
     flex-direction: column;
     gap: 0;
+    margin-top: 0;
     padding: 0;
+  }
+
+  .goen-cart__summary .goen-summary__row--total .goen-summary__value {
+    margin-left: 0;
   }
 
   .goen-cart__summary .goen-summary__row--total dt {
@@ -6433,6 +6845,20 @@ input.goen-check {
   .goen-cart__summary .goen-btn--block {
     display: inline-flex;
     width: auto;
+  }
+}
+
+/* The fixed cart bar and buy bar must not hide a focused control (WCAG 2.4.11):
+   the browser scrolls a focused element clear of this much of the bottom edge. */
+@media (max-width: 1023.98px) {
+  :root:has(.goen-cart__summary) {
+    scroll-padding-block-end: 9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root[data-buybar='out'] {
+    scroll-padding-block-end: 8rem;
   }
 }
 
@@ -6529,7 +6955,7 @@ input.goen-check {
 
 .goen-auth__title {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   margin: 0;
 }
 
@@ -6612,7 +7038,7 @@ input.goen-check {
 .goen-auth__demotitle {
   color: var(--fg);
   font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -6674,7 +7100,6 @@ input.goen-check {
    handle and the appearance is decided in this file. */
 .goen-account__head {
   align-items: flex-end;
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -6736,7 +7161,8 @@ input.goen-check {
 .goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
 .goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
 .goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
-  background: var(--n-200);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
 }
 
 .goen-account__navname {
@@ -6767,30 +7193,28 @@ input.goen-check {
   min-width: 0;
 }
 
-/* A section is parted from the one above by a hairline and 2rem, not boxed.
-   The .goen-card on the markup is a panel recipe this page does not want, so
-   the pair of classes cancels it. */
+/* A section is parted from the one above by 3rem, not boxed or ruled. The
+   .goen-card on the markup is a panel recipe this page does not want, so the
+   pair of classes cancels it. */
 .goen-account__section.goen-card {
   background: none;
   border-radius: 0;
-  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
-  padding: 2rem 0;
+  padding: 1.5rem 0;
   scroll-margin-top: 1.5rem;
 }
 
 .goen-account__section.goen-card:first-child {
-  border-top: 0;
   padding-top: 0;
 }
 
 /* Deleting an account is irreversible, so its section reads as the exception it
-   is: the rule above it takes the error outline. */
-.goen-account__section--danger.goen-card {
-  border-top-color: var(--error-outline);
+   is: the control that opens the form takes the error colour. */
+.goen-account__section--danger .goen-account__summary {
+  color: var(--error);
 }
 
 /* The nav's anchors aim at these headings, so the margin that keeps a jumped-to
@@ -6865,7 +7289,7 @@ input.goen-check {
 }
 
 .goen-account__orders th {
-  border-bottom: 1px solid var(--n-200);
+  border-bottom: 1px solid var(--line);
   color: var(--n-500);
   font-size: 0.8125rem;
   font-weight: var(--fw-medium);
@@ -6874,7 +7298,7 @@ input.goen-check {
 }
 
 .goen-account__orders td {
-  border-bottom: 1px solid var(--n-200);
+  border-bottom: 1px solid var(--line);
   padding: 0.75rem 0.5rem 0.75rem 0;
   vertical-align: top;
 }
@@ -6899,6 +7323,11 @@ input.goen-check {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   margin-inline-start: 0.5rem;
+  text-decoration: none;
+}
+
+.goen-account__orderpay:hover {
+  text-decoration: underline;
 }
 
 .goen-account__ordermeta {
@@ -6942,7 +7371,7 @@ input.goen-check {
   margin: 0;
 }
 
-/* Saved addresses are rows parted by hairlines. */
+/* Saved addresses are rows parted by space. */
 .goen-account__addresses {
   display: flex;
   flex-direction: column;
@@ -6952,7 +7381,6 @@ input.goen-check {
 }
 
 .goen-account__address {
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -6961,6 +7389,10 @@ input.goen-check {
 
 .goen-account__address:first-child {
   padding-top: 0;
+}
+
+.goen-account__address:last-child {
+  padding-bottom: 0;
 }
 
 .goen-account__addrbody {
@@ -6990,7 +7422,7 @@ input.goen-check {
    unused; collapsing them keeps the page readable without hiding anything from
    a visitor with scripting off. */
 .goen-account__disclosure {
-  padding-top: 0.5rem;
+  padding-top: 0;
 }
 
 .goen-account__summary {
@@ -7076,7 +7508,7 @@ input.goen-check {
   color: var(--n-900);
   font-size: 1.5rem;
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   letter-spacing: -0.02em;
 }
 
@@ -7254,7 +7686,7 @@ input.goen-check {
   color: var(--n-900);
   font-family: var(--font-sans);
   font-size: 1rem;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 0;
 }
@@ -7286,16 +7718,17 @@ input.goen-check {
   gap: 0.5rem;
 }
 
-/* The eyebrow is a sentence-case line in the link ink, not a small-caps label. */
+/* The eyebrow is a sentence-case line in the blue ink, not a small-caps label:
+   a label, so not the blue a link wears. */
 .goen-doc__head .goen-pagehead__eyebrow {
-  color: var(--accent-text);
+  color: var(--accent-deep);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
 }
 
 .goen-doc__head .goen-pagehead__title {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
 }
 
 .goen-doc__head .goen-pagehead__sub {
@@ -7366,7 +7799,7 @@ input.goen-check {
 .goen-doc__section h2 {
   color: var(--n-900);
   font-size: 1.5rem;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.35;
   margin: 0;
 }
@@ -7443,15 +7876,10 @@ input.goen-check {
 
 .goen-doc__method {
   align-items: baseline;
-  border-bottom: 1px solid var(--n-200);
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
   padding: 0.75rem 0;
-}
-
-.goen-doc__method:last-child {
-  border-bottom: 0;
 }
 
 .goen-doc__methodname {
@@ -7528,9 +7956,19 @@ input.goen-check {
   fill-opacity: 0.6;
 }
 
+@media (forced-colors: active) {
+  .about__ring {
+    stroke: CanvasText;
+  }
+
+  .about__lens {
+    fill: none;
+  }
+}
+
 .about__title {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   margin: 0;
 }
 
@@ -7566,7 +8004,7 @@ input.goen-check {
 .about__valuetitle {
   color: var(--n-900);
   font-size: 1.5rem;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   line-height: 1.35;
   margin: 0;
 }
@@ -7601,7 +8039,7 @@ input.goen-check {
 
 .contact .goen-pagehead__title {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
 }
 
 .contact .goen-pagehead__sub {
@@ -7753,9 +8191,9 @@ input.goen-check {
   width: 100%;
 }
 
-/* A sentence-case line above the heading, in the link ink. */
+/* A sentence-case line above the heading, in the blue ink a label wears. */
 .notice__code {
-  color: var(--accent-text);
+  color: var(--accent-deep);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
@@ -7764,7 +8202,7 @@ input.goen-check {
 
 .notice__title {
   color: var(--n-900);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-display);
   margin: 0;
   text-wrap: balance;
 }
@@ -7794,9 +8232,7 @@ input.goen-check {
 }
 
 .notice__departments {
-  border-top: 1px solid var(--n-200);
-  margin-top: 2.5rem;
-  padding-top: 2rem;
+  margin-top: 3.5rem;
   width: 100%;
 }
 
@@ -7978,7 +8414,8 @@ input.goen-check {
   .goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
   .goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
   .goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
-    background: var(--n-100);
+    background: var(--accent-faint);
+    color: var(--accent-deep);
   }
 
   .goen-account__navhint {
@@ -8062,7 +8499,7 @@ input.goen-check {
   cursor: pointer;
   display: flex;
   font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   gap: 6px;
   justify-content: space-between;
   list-style: none;
@@ -8134,10 +8571,10 @@ input.goen-check {
 /* ---------- Motion ----------
 
    Page to page. Every link stays a plain <a href> and every navigation stays a
-   full document load; what changes is that the browser now cross-fades the two
-   documents instead of cutting between them. That is the whole mechanism — no
-   script, no polyfill, no router — and a browser without it navigates exactly
-   as it did before.
+   full document load; what changes is that the browser cross-fades the two
+   documents instead of cutting between them, and carries a clicked photo across
+   to where it lands. No router, and a browser without it navigates exactly as
+   it did before.
 
    The chrome both documents share is named, so the browser lifts it out of the
    root snapshot and paints it once instead of fading it out and back in. That
@@ -8148,6 +8585,7 @@ input.goen-check {
 
 @view-transition {
   navigation: auto;
+  types: page;
 }
 
 .goen-header {
@@ -8169,44 +8607,87 @@ input.goen-check {
   view-transition-name: buybox;
 }
 
-/* Opacity only, at the base step: the old page stays on screen until the new
-   one has painted, so a longer fade is time the visitor waits on top of the
-   load. The pair carries the cross-fade. The group
-   carries the geometry, and its keyframes are what would move or resize a named
-   region when the two pages put it in different places: a page read halfway
-   down leaves its header above the viewport, and the browser would otherwise
-   slide the header back down into the new page. Dropping the name and keeping
-   the timing leaves the group where the new page puts it and lets the pair
-   fade there. The timing is set on the group as well because the user agent
-   puts its own 0.25s there and the pair inherits from it. */
-::view-transition-group(*) {
-  animation-duration: var(--dur-base);
-  animation-name: none;
-  animation-timing-function: var(--ease-standard);
-}
+/* The group carries the geometry, and its keyframes are what would move or
+   resize a named region when the two pages put it in different places: a page
+   read halfway down leaves its header above the viewport, and the browser
+   would otherwise slide the header back down into the new page. So the regions
+   that must stay put have no group animation, and the photos, which are meant
+   to travel, keep it. The timing is set on the group as well because the user
+   agent puts its own 0.25s there and the pair inherits from it.
 
+   A region swapped in place shares these snapshots and keeps the base step: the
+   old content stays on screen for the length of the fade, and a swap the
+   visitor is waiting on should not be slower than the request. */
+::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
   animation-duration: var(--dur-base);
   animation-timing-function: var(--ease-standard);
 }
 
+::view-transition-group(header),
+::view-transition-group(footer),
+::view-transition-group(gallery),
+::view-transition-group(buybox) {
+  animation-name: none;
+}
+
+/* A navigation replaces the whole page, and a page that arrives with a new
+   layout and new photographs reads as a cut when it dissolves as fast as a
+   swapped region does, so only navigations take the slow step. */
+html:active-view-transition-type(page)::view-transition-group(*),
+html:active-view-transition-type(page)::view-transition-old(*),
+html:active-view-transition-type(page)::view-transition-new(*) {
+  animation-duration: var(--dur-slow);
+}
+
+/* A photo that leaves one page and arrives on the next travels as one image:
+   assets/js/transitions.js names the clicked photo on the way out and the shown
+   one on the way in, and only for that navigation. The old photo stays opaque the whole way
+   and the new one fades in on top of it, so there is no half-transparent dip
+   in the middle; an unmatched old photo just fades out. */
+::view-transition-group(*.photo),
+html:active-view-transition-type(page)::view-transition-group(*.photo) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-move);
+}
+
+::view-transition-old(*.photo),
+::view-transition-new(*.photo) {
+  block-size: 100%;
+  mix-blend-mode: normal;
+  object-fit: cover;
+}
+
+::view-transition-old(*.photo) {
+  animation: none;
+}
+
+::view-transition-old(*.photo):only-child {
+  animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
+}
+
+@keyframes goen-photo-out {
+  to { opacity: 0; }
+}
+
 /* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so the opt-out is spelled again. Taking the
-   transition out of the navigation leaves the plain document cut: the new page
-   is simply there, which is the state change reduced motion asks to keep. */
+   snapshots are not elements, so reduced motion is spelled again. Motion that
+   moves, scales or resizes is dropped and the two pages dissolve at the base
+   step: a hard cut between two very different layouts reads as more of a jump
+   than the dissolve does. The same rules cover a region swapped in place. */
 @media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
+  ::view-transition-group(*) {
+    animation-name: none;
   }
 
-  /* A region swapped in place is not a navigation, so the opt-out above does
-     not reach it and the snapshots are named again here. Without the animation
-     the new content is simply there, which is the state change reduced motion
-     asks to keep. */
+  ::view-transition-group(*),
   ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none;
+  ::view-transition-new(*),
+  html:active-view-transition-type(page)::view-transition-group(*),
+  html:active-view-transition-type(page)::view-transition-old(*),
+  html:active-view-transition-type(page)::view-transition-new(*) {
+    animation-duration: var(--dur-base);
   }
 }
 
@@ -8267,7 +8748,7 @@ form[data-request-pending] [aria-disabled="true"] {
 .goen-cart__adjustment-content { flex: 1; min-width: 0; }
 .goen-cart__adjustment-message { margin: 0; }
 .goen-cart__adjustment-action { margin: 0.75rem 0 0; }
-.goen-cart__adjustment-action a { font-weight: var(--fw-semibold); white-space: nowrap; }
+.goen-cart__adjustment-action a { font-weight: var(--fw-medium); white-space: nowrap; }
 @media (min-width: 48rem) {
   .goen-cart__adjustment-content { display: flex; justify-content: space-between; gap: 1.5rem; }
   .goen-cart__adjustment-action { margin: 0; }
@@ -8392,7 +8873,7 @@ form[data-request-pending] [aria-disabled="true"] {
 
 @media (forced-colors: active) {
   .goen-band__media img,
-  .goen-cat__photo,
+  .goen-cat__well,
   .goen-campaign__header {
     outline: 1px solid CanvasText;
   }

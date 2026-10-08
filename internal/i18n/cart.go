@@ -2,7 +2,6 @@ package i18n
 
 var (
 	KeyCartFactItems = key("cart.fact.items", Message{ZhHant: "商品", En: "Items"})
-	KeyCartUnitItems = zhOnly("cart.fact.items.unit", "件")
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西？",

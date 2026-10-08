@@ -456,3 +456,30 @@ func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
 		}
 	}
 }
+
+// A letter that asks for payment says the items are held only for a time, which
+// is what the later "not paid in time" cancellation relies on; one with nothing
+// owed says nothing of a hold.
+func TestAPlacedLetterSaysTheItemsAreHeldOnlyWhenPaymentIsDue(t *testing.T) {
+	t.Parallel()
+	for _, owed := range []int64{99900, 0} {
+		for _, locale := range []string{"en", "zh-Hant"} {
+			n, sink := notifier(t)
+			if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+				Locale: locale, Email: "a@b.co", Name: "Alex",
+				OrderNumber: "GO-260101-000001", TotalCents: 199900, OwedCents: centsPtr(owed),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string][]string{
+				"en":      {"held for a limited time", "cancelled automatically"},
+				"zh-Hant": {"商品只保留一段時間", "逾時訂單會自動取消"},
+			}[locale]
+			for _, phrase := range want {
+				if got := strings.Contains(sink.msg.Body, phrase); got != (owed > 0) {
+					t.Errorf("%s owed=%d: contains %q = %t:\n%s", locale, owed, phrase, got, sink.msg.Body)
+				}
+			}
+		}
+	}
+}

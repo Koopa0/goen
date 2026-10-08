@@ -47,8 +47,8 @@ var (
 	})
 
 	KeyCompareTooFewHint = key("compare.toofew.hint", Message{
-		ZhHant: "到",
-		En:     "Add them from a product page — up to four. Start from the ",
+		ZhHant: "在",
+		En:     "Tick Compare on products in the ",
 	})
 
 	KeyCompareTooFewLink = key("compare.toofew.link", Message{
@@ -56,9 +56,11 @@ var (
 		En:     "product list",
 	})
 
+	// KeyCompareTooFewTail ends the sentence KeyCompareTooFewHint and the link
+	// begin; %d is the most products a comparison holds.
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
-		ZhHant: "裡從商品頁加入比較，最多五個。",
-		En:     ".",
+		ZhHant: "勾選商品上的「比較」，最多 %d 件。",
+		En:     ", up to %d.",
 	})
 
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
@@ -73,8 +75,8 @@ var (
 	// KeyCompareLimit is on the form rather than only in the empty state: ticking
 	// six and being shown four is a cap that never said so.
 	KeyCompareLimit = key("compare.limit", Message{
-		ZhHant: "最多比較五個",
-		En:     "Up to five at a time",
+		ZhHant: "最多比較 %d 件",
+		En:     "Up to %d at a time",
 	})
 
 	KeyCompareFull = key("compare.full", Message{

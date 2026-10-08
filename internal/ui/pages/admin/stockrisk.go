@@ -7,9 +7,11 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 )
 
@@ -53,6 +55,9 @@ type StockRisk struct {
 	// SoldOutAt is when the SKU last ran out within the window; zero when it
 	// was already out at its start.
 	SoldOutAt time.Time
+	// ReadAt is when the row was read: it decides whether a day is told with
+	// its year.
+	ReadAt time.Time
 }
 
 // CoverState says what can be said of a SKU's days cover.
@@ -112,7 +117,9 @@ func chiSquareQuantile(z, dof float64) float64 {
 	return dof * c * c * c
 }
 
-// Urgent reports whether the row is marked ▲.
+// Urgent reports whether the row is one to act on: sold out, or an estimate
+// under the warning line. A sold out row shows its badge and an estimated one
+// the ▲.
 func (c DaysCover) Urgent() bool {
 	return c.State == CoverSoldOut || c.State == CoverEstimated && c.Days < coverWarnDays
 }
@@ -120,10 +127,10 @@ func (c DaysCover) Urgent() bool {
 // Beyond reports whether the estimate is past the end of the scale.
 func (c DaysCover) Beyond() bool { return c.Days > coverMaxDays }
 
-// Bar is the estimate and its range drawn on the one scale of every row, with
-// the warning line at the days that mark ▲.
+// Bar is the estimate and how far it may reach, drawn on the one scale of every
+// row, with a line at the days under which an estimate is marked ▲.
 func (c DaysCover) Bar() chart.RangeBarProps {
-	return chart.RangeBarProps{Value: int64(c.Days), Low: int64(c.Low), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays}
+	return chart.RangeBarProps{Value: int64(c.Days), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays, Urgent: c.Urgent()}
 }
 
 // Figure is the estimate as it heads the row.
@@ -155,8 +162,9 @@ func (c DaysCover) Range(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepRange, int64(c.High), c.High, strconv.Itoa(c.Low), high)
 }
 
-// Warning is the sentence the ▲ stands for. It follows the range: the words are
-// stronger when even the slowest end of it runs out within the line.
+// Warning is the sentence the ▲ stands for, which is its text alternative. It
+// follows the range: the words are stronger when even the slowest end of it runs
+// out within the line.
 func (c DaysCover) Warning(ctx context.Context) string {
 	if c.State != CoverEstimated || !c.Urgent() {
 		return ""
@@ -168,6 +176,32 @@ func (c DaysCover) Warning(ctx context.Context) string {
 }
 
 func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
+
+// Facts is the line under the name: the SKU, what can be sold and what was. A
+// sold out SKU has only its code: the badge and the day say the rest.
+func (r StockRisk) Facts(ctx context.Context, days int) string {
+	if r.Sellable <= 0 {
+		return r.SKU
+	}
+	return strings.Join([]string{
+		r.SKU,
+		fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), r.SellableText()),
+		r.SoldText(ctx, days),
+	}, " · ")
+}
+
+// SoldOutSince is the day it ran out, empty when it was out before the window.
+func (r StockRisk) SoldOutSince(ctx context.Context) string {
+	if r.SoldOutAt.IsZero() {
+		return ""
+	}
+	day := shoptime.DateOf(r.SoldOutAt, r.ReadAt)
+	text := shoptime.DateLabel(ctx, day)
+	if day.OtherYear {
+		text = shoptime.DateText(ctx, day)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSoldOutSince), text)
+}
 
 // SoldText says what was sold over the window, in units and in orders.
 func (r StockRisk) SoldText(ctx context.Context, days int) string {
@@ -184,11 +218,11 @@ func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
 // many sold out SKUs it left off.
 func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 	var soldOut, rest []StockRisk
-	for _, r := range rows {
-		if r.Estimate().State == CoverSoldOut {
-			soldOut = append(soldOut, r)
+	for i := range rows {
+		if rows[i].Estimate().State == CoverSoldOut {
+			soldOut = append(soldOut, rows[i])
 		} else {
-			rest = append(rest, r)
+			rest = append(rest, rows[i])
 		}
 	}
 	slices.SortStableFunc(soldOut, func(a, b StockRisk) int {
@@ -214,18 +248,45 @@ func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.
 const dashboardRunwayRows = 5
 
-// DashboardRunway keeps the first rows of a ranked days cover list that are not
-// sold out: the sold-out task row already counts those and links to them. cut
-// reports that rows were left off.
-func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool) {
-	for _, r := range listed {
-		if r.Estimate().State == CoverSoldOut {
+// RunwayBasis says what an empty dashboard runway can truthfully say.
+type RunwayBasis uint8
+
+const (
+	// RunwayTooFewSales: no SKU in stock could be estimated yet.
+	RunwayTooFewSales RunwayBasis = iota
+	// RunwayEstimated: some SKU was estimated.
+	RunwayEstimated
+	// RunwayNothingInStock: every SKU that sold in the window is sold out.
+	RunwayNothingInStock
+)
+
+// DashboardRunway keeps the first rows of a ranked days cover list that run out
+// within the warning line: the sold-out task row already counts the sold out
+// ones and links to them, and an estimate past the line is not what the
+// section's title promises. cut reports that rows were left off; basis tells an
+// empty list apart: nothing is running out, nothing can be estimated yet, or
+// nothing that sold in the window is left in stock.
+func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool, basis RunwayBasis) {
+	inStock := false
+	for i := range listed {
+		cover := listed[i].Estimate()
+		if cover.State != CoverSoldOut {
+			inStock = true
+		}
+		if cover.State != CoverEstimated {
+			continue
+		}
+		basis = RunwayEstimated
+		if !cover.Urgent() {
 			continue
 		}
 		if len(kept) == dashboardRunwayRows {
-			return kept, true
+			return kept, true, basis
 		}
-		kept = append(kept, r)
+		kept = append(kept, listed[i])
 	}
-	return kept, false
+	if basis == RunwayTooFewSales && len(listed) > 0 && !inStock {
+		basis = RunwayNothingInStock
+	}
+	return kept, false, basis
 }

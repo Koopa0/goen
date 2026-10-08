@@ -58,7 +58,7 @@ templ adminBar() {
 				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
 				@languageMenu("goen-adminbar__lang", false)
 				<form method="post" action="/signout">
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }
 					}
 				</form>

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -100,7 +101,7 @@ func TestMovementsPageDrawsTheStockLineOnlyWhenTheDaysWereRead(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := func(days []StockDay) string {
 		return renderComponent(t, ctx, Movements(layouts.Page{Title: "Stock"}, &MovementsView{
-			SKU: "SKU-1", ProductName: "Thing", Slug: "thing", Stock: 6, Safety: 2, FormID: "f", Days: days,
+			SKU: "SKU-1", ProductName: "Thing", Slug: "thing", Stock: 6, Safety: 2, FormID: "f", Days: days, Rows: []Movement{{Delta: 2, Reason: inventory.ReasonReceipt}},
 		}))
 	}
 	if got := view(stockDays([]int32{2, 2, 36, 6}, map[int]int32{0: 2, 2: 34})); !strings.Contains(got, `class="goen-chart"`) {

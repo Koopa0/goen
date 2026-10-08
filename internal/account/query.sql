@@ -288,13 +288,8 @@ SELECT
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
-        JOIN sale_campaigns fc ON fc.id = fp.campaign_id
-        WHERE fp.product_id = p.id AND fc.is_active AND fc.starts_at <= now() AND fc.ends_at > now()
-          AND EXISTS (
-              SELECT 1 FROM sale_campaign_products cp
-              JOIN products cprod ON cprod.id = cp.product_id AND cprod.status = 'active'
-              JOIN product_variants v ON v.product_id = cprod.id AND v.is_active
-              WHERE cp.campaign_id = fc.id AND v.stock_quantity > v.safety_stock)
+        JOIN listed_campaigns l ON l.id = fp.campaign_id
+        WHERE fp.product_id = p.id
     ) AS in_campaign,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,

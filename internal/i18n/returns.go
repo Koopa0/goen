@@ -104,6 +104,14 @@ var (
 		En:     "Cancelled and refunded",
 	})
 
+	KeyAdminReturnRefundFailed = key("admin.return.refundfailed", Message{ZhHant: "退款失敗", En: "Refund failed"})
+
+	KeyAdminReturnRefundToResend = key("admin.return.refundtoresend", Message{ZhHant: "待重新退款", En: "Refund to resend"})
+
+	KeyAdminReturnReadyToClose = key("admin.return.readytoclose", Message{ZhHant: "待結案", En: "Ready to close"})
+
+	KeyAdminReturnOnItsWay = key("admin.return.onitsway", Message{ZhHant: "退回中", En: "On its way back"})
+
 	// Consumer Protection Act §19's seven days, a right §19 V makes unwaivable —
 	// so the English says "right to cancel" and never "trial period".
 	KeyAdminReturnWindowWithin = key("admin.return.window.within", Message{

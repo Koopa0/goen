@@ -15,8 +15,8 @@ var (
 		En:     "Order %s received",
 	})
 	KeyMailPlacedBody = key("mail.placed.body", Message{
-		ZhHant: "我們已經收到你的訂單 %s。\n\n應付金額：%s\n\n查看訂單與付款：\n%s",
-		En:     "We have your order %s.\n\nAmount due: %s\n\nView it and pay:\n%s",
+		ZhHant: "我們已經收到你的訂單 %s。還沒付款的話，請盡快完成；商品只保留一段時間，逾時訂單會自動取消。\n\n應付金額：%s\n\n查看訂單與付款：\n%s",
+		En:     "We have your order %s. If you have not paid yet, please do so soon: the items are held for a limited time, and an unpaid order is then cancelled automatically.\n\nAmount due: %s\n\nView it and pay:\n%s",
 	})
 	// KeyMailPlacedFundedBody is the confirmation when store credit or a
 	// coupon has already brought the amount owed to zero. The pay CTA would

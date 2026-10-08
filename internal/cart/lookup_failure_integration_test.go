@@ -5,6 +5,7 @@ package cart_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
@@ -195,7 +197,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			}
 			requestCtx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			trace.disconnect(cancel)
+			trace.disconnect("CartByToken", cancel)
 			form := url.Values{"variant": {variant.String()}, "quantity": {"1"}}
 			req := httptest.NewRequestWithContext(requestCtx, tt.method, tt.path, strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -214,12 +216,97 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			}
 		})
 	}
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, tt := range []struct {
+			name          string
+			failCount     bool
+			cancelRequest bool
+			wantCount     int
+		}{
+			{name: "disconnect", failCount: true, cancelRequest: true},
+			{name: "query failure", failCount: true},
+			{name: "success", wantCount: 1},
+		} {
+			t.Run("count/"+locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				id, token := newCartSession(t, s)
+				if addErr := s.Add(ctx, id, variant, 1); addErr != nil {
+					t.Fatal(addErr)
+				}
+				before := cartLookupRows(t, owner, id, variant)
+				var diagnostics bytes.Buffer
+				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
+				h := cart.NewHandler(s, orderaccess.NewStore(app, false), logger, false, testLimiter(), nil, nil)
+				requestCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				trace.set("")
+				if tt.cancelRequest {
+					trace.disconnect("CartItemCount", cancel)
+				} else if tt.failCount {
+					trace.set("CartItemCount")
+				}
+				continued, count := 0, -1
+				var nextErr error
+				route := h.WithCount(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					continued++
+					count, nextErr = web.CartCount(r.Context()), r.Context().Err()
+					w.WriteHeader(http.StatusNoContent)
+				}))
+				req := httptest.NewRequestWithContext(requestCtx, http.MethodGet, "/cart", http.NoBody)
+				req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cookie under test
+				res := httptest.NewRecorder()
+				route.ServeHTTP(res, req)
+				witness := trace.countWitness()
+				trace.set("")
+				if !witness.lookupSucceeded || !witness.countStarted || !witness.countAfterLookup || !witness.countFinished {
+					t.Fatalf("item-count query did not follow a successful cart lookup: %+v", witness)
+				}
+				if tt.failCount && !errors.Is(witness.countErr, context.Canceled) {
+					t.Fatalf("item-count injection did not fail the actual query: %v", witness.countErr)
+				}
+				if !tt.failCount && witness.countErr != nil {
+					t.Fatalf("successful item-count query failed: %v", witness.countErr)
+				}
+				if tt.cancelRequest && !errors.Is(requestCtx.Err(), context.Canceled) {
+					t.Fatalf("item-count disconnect did not cancel the parent request: %v", requestCtx.Err())
+				}
+				if !tt.cancelRequest && requestCtx.Err() != nil {
+					t.Fatalf("query-local failure cancelled the parent request: %v", requestCtx.Err())
+				}
+				switch {
+				case tt.cancelRequest:
+					if diagnostics.Len() != 0 {
+						t.Errorf("cancelled item-count request logged an error: %s", diagnostics.String())
+					}
+				case tt.failCount:
+					if !strings.Contains(diagnostics.String(), `"level":"ERROR"`) || !strings.Contains(diagnostics.String(), `"msg":"count cart items"`) {
+						t.Errorf("live request lost the item-count error diagnostic: %s", diagnostics.String())
+					}
+				case diagnostics.Len() != 0:
+					t.Errorf("successful item count logged a diagnostic: %s", diagnostics.String())
+				}
+				if continued != 1 || count != tt.wantCount || res.Code != http.StatusNoContent || errors.Is(nextErr, context.Canceled) != tt.cancelRequest {
+					t.Errorf("item-count next: calls=%d count=%d status=%d context=%v, want 1, %d, 204, cancelled=%v", continued, count, res.Code, nextErr, tt.wantCount, tt.cancelRequest)
+				}
+				if res.Body.Len() != 0 || len(res.Header()) != 0 {
+					t.Errorf("item-count middleware wrote a response or cookie: body=%q headers=%v", res.Body.String(), res.Header())
+				}
+				if diff := cmp.Diff(before, cartLookupRows(t, owner, id, variant)); diff != "" {
+					t.Errorf("cart rows after item count (-want +got):\n%s", diff)
+				}
+				if got, lookupErr := s.ByToken(ctx, token, uuid.NullUUID{}); lookupErr != nil || got != id {
+					t.Errorf("preserved count token = %s, error %v, want %s", got, lookupErr, id)
+				}
+			})
+		}
+	}
 }
 
 type failCartLookup struct {
 	mu     sync.Mutex
 	query  string
 	cancel context.CancelFunc
+	count  cartCountWitness
 }
 
 func (tr *failCartLookup) set(query string) {
@@ -227,17 +314,33 @@ func (tr *failCartLookup) set(query string) {
 	defer tr.mu.Unlock()
 	tr.query = query
 	tr.cancel = nil
+	tr.count = cartCountWitness{}
 }
 
-func (tr *failCartLookup) disconnect(cancel context.CancelFunc) {
+func (tr *failCartLookup) disconnect(query string, cancel context.CancelFunc) {
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
-	tr.query, tr.cancel = "CartByToken", cancel
+	tr.query, tr.cancel = query, cancel
+	tr.count = cartCountWitness{}
 }
 
 func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	name := ""
+	for _, candidate := range []string{"CartByToken", "CartItemCount"} {
+		if strings.HasPrefix(data.SQL, "-- name: "+candidate+" :one") {
+			name = candidate
+			break
+		}
+	}
+	if name != "" {
+		ctx = context.WithValue(ctx, cartCountQueryKey{}, name)
+	}
 	tr.mu.Lock()
 	query, cancelRequest := tr.query, tr.cancel
+	if name == "CartItemCount" {
+		tr.count.countStarted = true
+		tr.count.countAfterLookup = tr.count.lookupSucceeded
+	}
 	tr.mu.Unlock()
 	if query != "" && strings.HasPrefix(data.SQL, "-- name: "+query+" :one") {
 		if cancelRequest != nil {
@@ -251,7 +354,33 @@ func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data
 	return ctx
 }
 
-func (*failCartLookup) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+type cartCountQueryKey struct{}
+
+type cartCountWitness struct {
+	lookupSucceeded  bool
+	countStarted     bool
+	countAfterLookup bool
+	countFinished    bool
+	countErr         error
+}
+
+func (tr *failCartLookup) countWitness() cartCountWitness {
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	return tr.count
+}
+
+func (tr *failCartLookup) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	name, _ := ctx.Value(cartCountQueryKey{}).(string)
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	switch name {
+	case "CartByToken":
+		tr.count.lookupSucceeded = data.Err == nil
+	case "CartItemCount":
+		tr.count.countFinished, tr.count.countErr = true, data.Err
+	}
+}
 
 func cartLookupRows(t *testing.T, p *pgxpool.Pool, id, variant uuid.UUID) []string {
 	t.Helper()

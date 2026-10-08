@@ -4,12 +4,14 @@ package cart_test
 
 import (
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
@@ -56,6 +58,7 @@ func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t 
 		if fetchSite != "" {
 			req.Header.Set("Sec-Fetch-Site", fetchSite)
 		}
+		req.Header.Set("Sec-Fetch-Mode", "navigate")
 		if signedIn {
 			req = req.WithContext(user.NewContext(req.Context(), user.User{
 				ID: owner.String(), Role: user.RoleCustomer,
@@ -75,7 +78,7 @@ func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t 
 			for _, signedIn := range []bool{true, false} {
 				for _, granted := range []bool{true, false} {
 					res := get(route.serve, number, route.suffix, fetchSite, signedIn, granted)
-					reloaded := res.Header().Get("Refresh") == "0; url="+target
+					reloaded := strings.Contains(res.Body.String(), `<meta http-equiv="refresh" content="0; url=`+html.EscapeString(target)+`">`)
 					where := fmt.Sprintf("%s, Sec-Fetch-Site %q, owner signed in %v, grant held %v",
 						route.name, fetchSite, signedIn, granted)
 					switch {
@@ -85,12 +88,15 @@ func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t 
 						}
 					case fetchSite == "cross-site":
 						if res.Code != http.StatusOK || !reloaded {
-							t.Errorf("%s: status %d, Refresh %q; want it loaded again", where, res.Code, res.Header().Get("Refresh"))
+							t.Errorf("%s: status %d, loaded again %v; want it loaded again", where, res.Code, reloaded)
 						}
 					default:
-						if res.Code != http.StatusNotFound || res.Header().Get("Refresh") != "" {
-							t.Errorf("%s: status %d, Refresh %q; want 404", where, res.Code, res.Header().Get("Refresh"))
+						if res.Code != http.StatusNotFound || reloaded {
+							t.Errorf("%s: status %d, loaded again %v; want 404", where, res.Code, reloaded)
 						}
+					}
+					if n := strings.Count(res.Body.String(), "<html"); n != 1 {
+						t.Errorf("%s: body has %d <html elements, want 1", where, n)
 					}
 				}
 			}
@@ -106,11 +112,16 @@ func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t 
 		if absent.Code != existing.Code {
 			t.Errorf("%s: status %d for a missing order, %d for an existing one", route.name, absent.Code, existing.Code)
 		}
-		for _, name := range []string{"Refresh", "Cache-Control", "Vary", "X-Robots-Tag", "Content-Type"} {
-			got := strings.ReplaceAll(strings.Join(absent.Header().Values(name), ", "), missing, number)
-			if want := strings.Join(existing.Header().Values(name), ", "); got != want {
-				t.Errorf("%s: %s is %q for a missing order, %q for an existing one", route.name, name, got, want)
+		wantHeader := existing.Header()
+		gotHeader := absent.Header().Clone()
+		for name, values := range gotHeader {
+			for i, v := range values {
+				values[i] = strings.ReplaceAll(v, missing, number)
 			}
+			gotHeader[name] = values
+		}
+		if diff := cmp.Diff(wantHeader, gotHeader); diff != "" {
+			t.Errorf("%s: headers differ for an order that does not exist (-existing +missing):\n%s", route.name, diff)
 		}
 	}
 }
@@ -123,7 +134,7 @@ func placeOwnedOrder(t *testing.T, s *cart.Store) (owner uuid.UUID, number strin
 		t.Fatalf("create user: %v", err)
 	}
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "owned-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID

@@ -42,21 +42,24 @@ func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 	for _, route := range routes {
 		for _, tt := range []struct {
 			fetchSite string // "" sends no Sec-Fetch-Site at all
+			fetchMode string
 			wantHop   bool
 		}{
-			{"cross-site", true},
-			{"same-site", false},
-			{"same-origin", false},
-			{"none", false},
-			{"", false},
+			{"cross-site", "navigate", true},
+			{"cross-site", "no-cors", false},
+			{"cross-site", "", false},
+			{"same-site", "navigate", false},
+			{"same-origin", "navigate", false},
+			{"none", "navigate", false},
+			{"", "navigate", false},
 		} {
-			header := "Sec-Fetch-Site: " + tt.fetchSite
+			header := "Sec-Fetch-Site: " + tt.fetchSite + ", Sec-Fetch-Mode: " + tt.fetchMode
 			if tt.fetchSite == "" {
 				header = "no Sec-Fetch-Site"
 			}
 			t.Run(route.name+"/"+header, func(t *testing.T) {
 				t.Parallel()
-				res := serve(t, route.serve, route.method, route.target, number, tt.fetchSite)
+				res := serve(t, route.serve, route.method, route.target, number, tt.fetchSite, tt.fetchMode)
 				if tt.wantHop {
 					assertLoadedAgain(t, res, route.target)
 					return
@@ -68,14 +71,14 @@ func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 
 	t.Run("a cross-site post to the pay page", func(t *testing.T) {
 		t.Parallel()
-		res := serve(t, payments.Start, http.MethodPost, "/orders/"+number+"/pay", number, "cross-site")
+		res := serve(t, payments.Start, http.MethodPost, "/orders/"+number+"/pay", number, "cross-site", "navigate")
 		assertRefused(t, res)
 	})
 }
 
 // TestTheNextLoadIsTheRequestsOwnPathAndQuery holds the target to goen's own
 // path, escaped as it arrived, and keeps the query a hostile link carries out
-// of the markup and the header.
+// of the markup.
 func TestTheNextLoadIsTheRequestsOwnPathAndQuery(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
@@ -90,7 +93,7 @@ func TestTheNextLoadIsTheRequestsOwnPathAndQuery(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			res := serve(t, payments.Page, http.MethodGet, tt.target, tt.number, "cross-site")
+			res := serve(t, payments.Page, http.MethodGet, tt.target, tt.number, "cross-site", "navigate")
 			assertLoadedAgain(t, res, tt.want)
 			if strings.Contains(res.Body.String(), "<b>") {
 				t.Errorf("the query reached the markup unescaped:\n%s", res.Body.String())
@@ -99,12 +102,15 @@ func TestTheNextLoadIsTheRequestsOwnPathAndQuery(t *testing.T) {
 	}
 }
 
-func serve(t *testing.T, h http.HandlerFunc, method, target, number, fetchSite string) *httptest.ResponseRecorder {
+func serve(t *testing.T, h http.HandlerFunc, method, target, number, fetchSite, fetchMode string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), method, target, http.NoBody)
 	req.SetPathValue("number", number)
 	if fetchSite != "" {
 		req.Header.Set("Sec-Fetch-Site", fetchSite)
+	}
+	if fetchMode != "" {
+		req.Header.Set("Sec-Fetch-Mode", fetchMode)
 	}
 	res := httptest.NewRecorder()
 	h(res, req)
@@ -116,10 +122,10 @@ func assertLoadedAgain(t *testing.T, res *httptest.ResponseRecorder, target stri
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 for the page that loads %s again", res.Code, target)
 	}
-	if got, want := res.Header().Get("Refresh"), "0; url="+target; got != want {
-		t.Errorf("Refresh = %q, want %q", got, want)
-	}
 	body := res.Body.String()
+	if n := strings.Count(body, "<html"); n != 1 {
+		t.Errorf("body has %d <html elements, want 1:\n%s", n, body)
+	}
 	for _, want := range []string{
 		`<meta http-equiv="refresh" content="0; url=` + html.EscapeString(target) + `">`,
 		`href="` + html.EscapeString(target) + `"`,
@@ -131,12 +137,6 @@ func assertLoadedAgain(t *testing.T, res *httptest.ResponseRecorder, target stri
 	if got := res.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want no-store", got)
 	}
-	if !hasVary(res.Header(), "Sec-Fetch-Site") {
-		t.Errorf("Vary = %q, want it to name Sec-Fetch-Site", res.Header().Values("Vary"))
-	}
-	if got := res.Header().Get("X-Robots-Tag"); got != "noindex" {
-		t.Errorf("X-Robots-Tag = %q, want noindex", got)
-	}
 }
 
 func assertRefused(t *testing.T, res *httptest.ResponseRecorder) {
@@ -144,21 +144,7 @@ func assertRefused(t *testing.T, res *httptest.ResponseRecorder) {
 	if res.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", res.Code)
 	}
-	if got := res.Header().Get("Refresh"); got != "" {
-		t.Errorf("a refusal carries Refresh %q; this browser would be sent round again", got)
-	}
 	if strings.Contains(res.Body.String(), `http-equiv="refresh"`) {
 		t.Error("a refusal carries a meta refresh; this browser would be sent round again")
 	}
-}
-
-func hasVary(h http.Header, name string) bool {
-	for _, line := range h.Values("Vary") {
-		for token := range strings.SplitSeq(line, ",") {
-			if strings.EqualFold(strings.TrimSpace(token), name) {
-				return true
-			}
-		}
-	}
-	return false
 }

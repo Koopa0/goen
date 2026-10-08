@@ -416,6 +416,7 @@ func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed 
 			Sold:     r.UnitsSold, Orders: r.OrdersSold,
 			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, from, now, moves[r.VariantID]),
 			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, now, moves[r.VariantID]),
+			ReadAt:    now,
 		})
 	}
 	listed, moreSoldOut = admin.RankStockRisk(risk)

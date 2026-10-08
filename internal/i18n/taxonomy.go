@@ -133,8 +133,6 @@ var (
 
 	KeyAdminTaxNameEnOf = key("admin.tax.nameenof", Message{ZhHant: "%s 的英文名稱", En: "English name of %s"})
 
-	KeyAdminTaxRename = key("admin.tax.rename", Message{ZhHant: "更名", En: "Rename"})
-
 	KeyAdminTaxUnder = key("admin.tax.under", Message{ZhHant: "· 在 %s 之下", En: "· under %s"})
 
 	KeyAdminTaxonomyBoth = key("admin.taxonomy.both", Message{

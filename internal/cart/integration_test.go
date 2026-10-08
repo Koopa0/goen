@@ -1448,7 +1448,7 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "empties-cart"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -1478,7 +1478,7 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "fabricated-shipping-version"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &order.Delivery{
@@ -2102,7 +2102,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "confirmation-enumeration"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
@@ -2162,7 +2162,7 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 	}
 
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "attached-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
@@ -5857,7 +5857,7 @@ func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 	ctx := t.Context()
 
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, variantOf(t, "pixelight-9", true), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "unpaid-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID

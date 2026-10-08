@@ -282,8 +282,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	if err != nil {
-		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		h.respondToUploadError(w, r, f, err)
 		return
 	}
 	if upload != nil {
@@ -296,8 +295,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	if upload != nil {
 		obj, storeErr := upload.Store(r.Context())
 		if storeErr != nil {
-			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(storeErr))})
+			h.respondToUploadError(w, r, f, storeErr)
 			return
 		}
 		f.ImageKey = obj.Digest
@@ -312,6 +310,19 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		h.rejectHeroSlide(w, r, f, errs)
 	default:
 		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
+	}
+}
+
+func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, f *HeroForm, err error) {
+	switch {
+	case errors.Is(err, web.ErrFormText):
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case media.IsRefusal(err):
+		h.log.WarnContext(r.Context(), "hero image", "error", err)
+		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+	default:
+		h.log.ErrorContext(r.Context(), "hero image", "error", err)
+		access.ServerError(w, r, h.log)
 	}
 }
 

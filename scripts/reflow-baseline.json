@@ -4,9 +4,6 @@
     "/admin/credit": [
       "scroll-200"
     ],
-    "/admin/health": [
-      "scroll-200"
-    ],
     "/admin/messages": [
       "scroll-200",
       "text-200:span.goen-admin__meta"
@@ -44,46 +41,9 @@
     "/admin/taxonomy": [
       "scroll-200"
     ],
-    "/cart": [
-      "scroll-200",
-      "text-200:a.goen-line__name",
-      "text-200:span.goen-line__brand",
-      "text-200:span.goen-line__meta",
-      "text-200:span.goen-line__total"
-    ],
-    "/checkout": [
-      "scroll-200",
-      "text-200:dd.goen-summary__value",
-      "text-200:span.goen-summary__value"
-    ],
-    "/checkout?ship={id}": [
-      "scroll-200",
-      "text-200:dd.goen-summary__value",
-      "text-200:span.goen-summary__value"
-    ],
     "/contact": [
       "scroll-200",
       "text-200:span.contact-method__value"
-    ],
-    "/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD": [
-      "text-200:span."
-    ],
-    "/p/pixelight-9": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D": [
-      "scroll-200",
-      "text-200:span.",
-      "text-200:span.goen-pdp__price"
     ],
     "/privacy": [
       "scroll-200",

@@ -120,7 +120,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayCut = admin.DashboardRunway(listed)
+	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(listed)
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }
@@ -145,13 +145,13 @@ const DashboardRows = 8
 func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	return admin.OrderRow{
-		Number:     o.OrderNumber,
-		Status:     fulfillment,
-		StatusText: admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-		PlacedAt:   shoptime.Minute(o.PlacedAt),
-		Recipient:  o.Recipient,
-		TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
-		Committed:  o.Committed,
+		Number:       o.OrderNumber,
+		Status:       fulfillment,
+		StatusText:   admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusIntent: admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+		PlacedAt:     shoptime.Minute(o.PlacedAt),
+		Recipient:    o.Recipient,
+		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 	}
 }
 
@@ -257,6 +257,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	view := admin.OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
 		StatusText:    admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusIntent:  admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,

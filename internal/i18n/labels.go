@@ -15,7 +15,9 @@ var (
 var (
 	KeyAdminUntranslated = key("admin.untranslated", Message{ZhHant: "未翻譯", En: "No English"})
 
-	KeyAdminAltText = key("admin.alttext", Message{ZhHant: "圖片說明文字", En: "Alt text"})
+	KeyAdminAltText = key("admin.alttext", Message{ZhHant: "替代文字", En: "Alt text"})
+
+	KeyAdminExample = key("admin.example", Message{ZhHant: "例如 %s。", En: "For example, %s."})
 )
 
 var (
