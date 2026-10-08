@@ -3687,6 +3687,40 @@ await provePdpColourPhoto('pdp colour photo 375 off', true);
 await provePdpColourPhoto('pdp colour photo 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
+// The product page's related products are two across below 1024, wherever the
+// grid's gap changes. A card narrower than 40% of the row, or a second card on
+// a line of its own, is the single column the track width falls to when it
+// halves a gap the grid no longer has.
+const RELATED_ROW_PROBE = `(() => {
+  const grid = document.querySelector('.goen-pdp__related .goen-tiles__grid');
+  if (!grid) return { ok: false, why: 'the product page has no related products to measure' };
+  const cards = [...grid.children].map((c) => c.getBoundingClientRect());
+  if (cards.length < 2) return { ok: false, why: 'fewer than two related cards' };
+  return { ok: true, row: grid.getBoundingClientRect().width, a: cards[0], b: cards[1] };
+})()`;
+
+for (const width of [768, 1023]) {
+  const label = `related ${width}`;
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 1024, deviceScaleFactor: 1, mobile: false });
+  const target = ORIGIN + '/p/' + (process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const got = await evalPage(RELATED_ROW_PROBE);
+  if (got.threw || !got.ok) {
+    fail(label, `the probe did not run: ${got.why}`);
+    continue;
+  }
+  if (Math.abs(got.a.top - got.b.top) > 1) {
+    fail(label, `the second related card starts ${Math.round(got.b.top - got.a.top)}px below the first, want one row of two`);
+  }
+  for (const [name, card] of [['first', got.a], ['second', got.b]]) {
+    if (card.width <= got.row * 0.4) {
+      fail(label, `the ${name} related card is ${Math.round(card.width)}px of a ${Math.round(got.row)}px row, want more than 40%`);
+    }
+  }
+  console.log(`${label.padEnd(24)} cards=${Math.round(got.a.width)}+${Math.round(got.b.width)} of ${Math.round(got.row)}px`);
+}
+
 // axe-core, once per route.
 //
 // A separate pass rather than a call inside settled(), and that is deliberate:
