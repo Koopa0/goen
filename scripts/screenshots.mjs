@@ -31,9 +31,12 @@
 // cannot be shot, answers 400 or above, or needs a session and ends outside its
 // visitor path or the same order's canonical path (a lapsed session lands on
 // /signin).
+// The manifest's reflow observations include body width, actual window scroll,
+// viewport and root font size. They do not decide whether a capture passes.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { screenshotRouteMatches } from './screenshot-route.mjs';
+import { screenshotReflow } from './screenshot-reflow.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700').replace(/\/$/, '');
@@ -206,7 +209,13 @@ async function shoot(entry, file) {
   })`);
   const { data } = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(`${outDir}/${file}`, Buffer.from(data, 'base64'));
-  const result = { ...facts, height: shotHeight, capped: shotHeight === CAP };
+  let reflow;
+  try {
+    reflow = await evaluate(`(${screenshotReflow.toString()})()`, true);
+  } catch (e) {
+    reflow = { error: e.message };
+  }
+  const result = { ...facts, reflow, height: shotHeight, capped: shotHeight === CAP };
   if (facts.status >= 400) result.error = `answered ${facts.status}`;
   else if (visitor && !screenshotRouteMatches(entry.path, facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
   return result;
