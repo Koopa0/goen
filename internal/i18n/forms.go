@@ -7,17 +7,17 @@ var (
 	})
 
 	KeyEmailRequired = key("field.email.required", Message{
-		ZhHant: "請填寫 Email",
+		ZhHant: "請填寫電子郵件",
 		En:     "Enter an email address",
 	})
 
 	KeyEmailMalformed = key("field.email.malformed", Message{
-		ZhHant: "Email 格式看起來不正確",
+		ZhHant: "電子郵件格式看起來不正確",
 		En:     "That does not look like an email address",
 	})
 
 	KeyEmailTooLong = key("field.email.toolong", Message{
-		ZhHant: "Email 請控制在 %d 個字元以內",
+		ZhHant: "電子郵件請在 %d 個字元以內",
 		En:     "Keep the email address under %d characters",
 	})
 

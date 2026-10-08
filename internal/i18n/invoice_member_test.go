@@ -8,7 +8,7 @@ import (
 func TestDefaultInvoiceMemberExplainsEmailOwnership(t *testing.T) {
 	for _, locale := range Locales() {
 		text := T(WithLocale(t.Context(), locale), KeyInvoiceMember)
-		words := []string{"綠界", "結帳 Email", "留存", "通知"}
+		words := []string{"綠界", "結帳時填的電子郵件", "存在", "通知"}
 		if locale == En {
 			words = []string{"ECPay", "checkout email", "stored", "notified"}
 		}

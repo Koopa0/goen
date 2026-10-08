@@ -220,7 +220,7 @@ var (
 	})
 
 	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
-		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。從這個時間點的次日起算七天猶豫期。",
+		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。從這個時間點的次日起算七日猶豫期。",
 		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +
 			"the store. The seven days count from the day after that moment.",
 	})

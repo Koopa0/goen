@@ -10217,7 +10217,7 @@ const myWarranties = `-- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
-       ol.product_name, ol.variant_label, o.order_number,
+       ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,
        coalesce(p.slug, '') AS product_slug
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
@@ -10236,6 +10236,7 @@ type MyWarrantiesRow struct {
 	InForce      bool
 	ProductName  string
 	VariantLabel pgtype.Text
+	OrderID      uuid.UUID
 	OrderNumber  string
 	ProductSlug  string
 }
@@ -10259,6 +10260,7 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.InForce,
 			&i.ProductName,
 			&i.VariantLabel,
+			&i.OrderID,
 			&i.OrderNumber,
 			&i.ProductSlug,
 		); err != nil {
@@ -11522,27 +11524,6 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 	return items, nil
 }
 
-const orderReturnedUnits = `-- name: OrderReturnedUnits :one
-SELECT
-    coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
-    coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
-              JOIN return_requests rr ON rr.id = rl.return_request_id
-              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units
-`
-
-type OrderReturnedUnitsRow struct {
-	OrderedUnits  int64
-	ReturnedUnits int64
-}
-
-// Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
-func (q *Queries) OrderReturnedUnits(ctx context.Context, orderID uuid.UUID) (OrderReturnedUnitsRow, error) {
-	row := q.db.QueryRow(ctx, orderReturnedUnits, orderID)
-	var i OrderReturnedUnitsRow
-	err := row.Scan(&i.OrderedUnits, &i.ReturnedUnits)
-	return i, err
-}
-
 const orderReturns = `-- name: OrderReturns :many
 SELECT coalesce(
            greatest((SELECT max(rf.succeeded_at) FROM refunds rf
@@ -11552,7 +11533,7 @@ SELECT coalesce(
            rr.decided_at)::timestamptz AS paid_out_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
-WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+WHERE rr.order_id = $1 AND rr.status IN ('approved', 'completed') AND NOT rr.before_shipment
 ORDER BY paid_out_at, rr.id
 `
 
@@ -11561,8 +11542,8 @@ type OrderReturnsRow struct {
 	RefundCents int64
 }
 
-// The completed returns, with the money each sent back and the day it was paid out: the later of the card
-// refund and the credit posting, or the decision for a return that sent nothing back.
+// The returns that sent money back, with the day each was paid out: the later of the card refund and the
+// credit posting, or the decision for a return that sent nothing back.
 func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturnsRow, error) {
 	rows, err := q.db.Query(ctx, orderReturns, orderID)
 	if err != nil {
@@ -15176,6 +15157,43 @@ func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]Ret
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const returnedOrders = `-- name: ReturnedOrders :many
+SELECT o.id
+FROM orders o
+WHERE o.id = ANY($1::uuid[])
+  AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM order_lines ol
+      WHERE ol.order_id = o.id
+        AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                    JOIN return_requests rr ON rr.id = rl.return_request_id
+                                    WHERE rl.order_line_id = ol.id
+                                      AND rr.status IN ('approved', 'completed')
+                                      AND NOT rr.before_shipment), 0))
+`
+
+// The orders among @order_ids whose every unit is in a return the shop has approved or completed. The refund
+// is paid at approval, so the order is returned from then on; a refund before shipment returns nothing.
+func (q *Queries) ReturnedOrders(ctx context.Context, orderIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, returnedOrders, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -71,7 +71,7 @@ var (
 	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
 
 	KeyPayWindowClosedTitle = key("pay.windowclosed.title", Message{ZhHant: "付款期限已過", En: "The payment window has closed"})
-	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開始付款，會在商品保留結束時自動取消，不會收取任何款項；若有使用購物金，取消時會退回你的帳戶。", En: "This order can no longer be paid. It is cancelled automatically when the hold on the items ends: nothing is charged, and any store credit you applied goes back to your account."})
+	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開始付款，會在商品保留結束時自動取消，不會收取任何款項；若有使用購物金，取消時會退回你的購物金餘額。", En: "This order can no longer be paid. It is cancelled automatically when the hold on the items ends: nothing is charged, and any store credit you applied goes back to your store credit balance."})
 
 	// The stock hold in two lines: the deadline to start paying and then the hold's end, or the hold's end alone
 	// once no deadline is named.

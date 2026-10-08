@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -113,17 +114,27 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 	if err != nil {
 		return nil, fmt.Errorf("read warranties: %w", err)
 	}
+	orderIDs := make([]uuid.UUID, len(rows))
+	for i := range rows {
+		orderIDs[i] = rows[i].OrderID
+	}
+	returned, err := s.q.ReturnedOrders(ctx, orderIDs)
+	if err != nil {
+		return nil, fmt.Errorf("read returned orders: %w", err)
+	}
 	now := time.Now()
 	out := make([]pages.Warranty, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		gone := slices.Contains(returned, r.OrderID)
 		out = append(out, pages.Warranty{
 			Name: r.ProductName, Label: r.VariantLabel.String,
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
 			RegisteredAt: shoptime.DateText(ctx, shoptime.DateOf(r.RegisteredAt, now)),
 			ExpiresOn:    shoptime.DateOf(r.ExpiresOn, now),
-			InForce:      r.InForce,
+			InForce:      r.InForce && !gone,
+			Returned:     gone,
 		})
 	}
 	return out, nil
