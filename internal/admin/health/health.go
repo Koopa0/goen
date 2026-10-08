@@ -157,6 +157,9 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 }
 
 func (s *Store) StaffTaskCount(ctx context.Context) (int64, error) {
+	if _, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts); err != nil {
+		return 0, fmt.Errorf("read worker health: %w", err)
+	}
 	view, err := s.staffTaskCounts(ctx)
 	if err != nil {
 		return 0, err
