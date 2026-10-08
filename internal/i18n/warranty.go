@@ -78,7 +78,7 @@ var (
 	})
 
 	KeyWarrantyNotDelivered = key("warranty.notdelivered", Message{
-		ZhHant: "這項商品還沒送達，送達後就可以登錄 —— 保固是從送達那天起算的。",
+		ZhHant: "商品送達後就可以登錄，保固從送達那天起算。",
 		En:     "This has not arrived yet. Registration opens on delivery, which is when the cover starts.",
 	})
 
@@ -109,7 +109,7 @@ var (
 	KeyWarrantySerialTooLong = key("warranty.serial.toolong", Message{ZhHant: "序號請控制在 %d 個字元以內。", En: "Keep the serial number within %d characters."})
 
 	KeyWarrantyRefused = key("warranty.notice.refused", Message{
-		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達，或已經登錄過了。",
+		ZhHant: "這個項目目前無法登錄，可能還沒送達，或已經登錄過了。",
 		En:     "That cannot be registered — it may not have been delivered, or it is registered already.",
 	})
 

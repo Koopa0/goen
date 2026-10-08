@@ -205,7 +205,7 @@ func (s *Store) processAllowance(ctx context.Context, op *operation, owner uuid.
 		return s.processAllowanceCandidate(ctx, op, owner, in, &unknown[0])
 	default:
 		cause := fmt.Errorf("%w: multiple unknown provider allowances", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, "allowance_multiple_unknown_candidates", cause)
+		return Document{}, s.alarm(ctx, op, owner, CategoryMultipleCandidates, cause)
 	}
 }
 
@@ -390,6 +390,10 @@ const ecpayAmountHeld = 2000034
 
 // CategoryAmountStillHeld is the attention an allowance enters on that answer.
 const CategoryAmountStillHeld = "allowance_amount_still_held"
+
+// CategoryMultipleCandidates is the attention an allowance enters when ECPay
+// lists more than one allowance that could be the one goen sent.
+const CategoryMultipleCandidates = "allowance_multiple_unknown_candidates"
 
 // CategorySuccessMismatch is the attention an allowance enters when ECPay's
 // success reply names another document.

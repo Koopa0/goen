@@ -89,6 +89,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	}
 
 	o := &Order{
+		ID:                row.ID,
 		Number:            row.OrderNumber,
 		TotalCents:        row.TotalCents,
 		Email:             row.Email,
