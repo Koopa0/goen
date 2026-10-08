@@ -458,14 +458,18 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 }
 
 type healthCountTracer struct {
-	reads       atomic.Int64
-	cancelQuery string
-	triggered   atomic.Bool
-	cancelled   atomic.Bool
+	reads             atomic.Int64
+	workerHealthReads atomic.Int64
+	cancelQuery       string
+	triggered         atomic.Bool
+	cancelled         atomic.Bool
 }
 
 func (f *healthCountTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	countQuery := strings.HasPrefix(data.SQL, "-- name: WorkerHealth :one") ||
+	if strings.HasPrefix(data.SQL, "-- name: WorkerHealth :one") {
+		f.workerHealthReads.Add(1)
+	}
+	countQuery := strings.HasPrefix(data.SQL, "-- name: UnreconciledPaymentCount :one") ||
 		strings.HasPrefix(data.SQL, "-- name: StrandedInvoiceClaims :many") ||
 		strings.HasPrefix(data.SQL, "-- name: UninvoicedOrders :many")
 	if !countQuery {
@@ -536,6 +540,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	serve := func(token string) *httptest.ResponseRecorder {
 		t.Helper()
 		trace.reads.Store(0)
+		trace.workerHealthReads.Store(0)
 		trace.triggered.Store(false)
 		trace.cancelled.Store(false)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products", http.NoBody)
@@ -573,7 +578,10 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	if res.Code != http.StatusOK || trace.reads.Load() != 3 || !strings.Contains(res.Body.String(), want) {
 		t.Fatalf("verified staff status=%d count reads=%d known count %q present=%v", res.Code, trace.reads.Load(), want, strings.Contains(res.Body.String(), want))
 	}
-	for index, query := range []string{"WorkerHealth", "StrandedInvoiceClaims", "UninvoicedOrders"} {
+	if got := trace.workerHealthReads.Load(); got != 0 {
+		t.Errorf("verified staff navigation executed %d engineering WorkerHealth queries, want 0", got)
+	}
+	for index, query := range []string{"UnreconciledPaymentCount", "StrandedInvoiceClaims", "UninvoicedOrders"} {
 		trace.cancelQuery = query
 		res = serve(token)
 		if !trace.triggered.Load() || !trace.cancelled.Load() || trace.reads.Load() != int64(index+1) {
