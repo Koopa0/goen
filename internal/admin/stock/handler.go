@@ -190,8 +190,7 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 	view.DraftQuantity = r.PostFormValue("quantity")
 	view.QuantityError = i18n.T(r.Context(), key)
 	view.ReceiptKey = r.PostFormValue("idempotency")
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Movements(
-		layouts.Page{Title: view.SKU}, view))
+	http.Redirect(w, r, "/admin/stock/"+url.PathEscape(view.SKU)+"?refused=1", http.StatusSeeOther)
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
