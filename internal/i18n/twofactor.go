@@ -21,8 +21,8 @@ var (
 	})
 
 	KeyTOTPNoKeyNotice = key("twofactor.nokey.notice", Message{
-		ZhHant: "GOEN_TOTP_KEY 沒有設定，兩階段驗證目前無法啟用。",
-		En:     "GOEN_TOTP_KEY is not set, so two-factor cannot be enabled here.",
+		ZhHant: "這個網站還沒設定兩階段驗證，設定方式見部署說明。",
+		En:     "Two-factor is not set up for this site yet. The deployment notes say how.",
 	})
 
 	KeyTOTPAlreadyEnrolled = key("twofactor.enrolled", Message{
@@ -49,9 +49,8 @@ var (
 	})
 
 	KeyTwoFAOffBody = key("admin.2fa.off.body", Message{
-		ZhHant: "兩階段驗證需要設定加密金鑰（GOEN_TOTP_KEY）才能使用。祕密不會以明文存進資料庫。",
-		En: "Two-factor needs an encryption key (GOEN_TOTP_KEY) before it can be used at all. Secrets " +
-			"are never stored in the database in the clear.",
+		ZhHant: "兩階段驗證需要先設定加密金鑰才能使用，設定方式見部署說明。",
+		En:     "Two-factor needs an encryption key before it can be used. The deployment notes say how to set one.",
 	})
 
 	KeyTwoFAEnrolHeading = key("admin.2fa.enrol.heading", Message{
