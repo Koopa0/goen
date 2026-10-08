@@ -3694,7 +3694,10 @@ await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 const RELATED_ROW_PROBE = `(() => {
   const grid = document.querySelector('.goen-pdp__related .goen-tiles__grid');
   if (!grid) return { ok: false, why: 'the product page has no related products to measure' };
-  const cards = [...grid.children].map((c) => c.getBoundingClientRect());
+  const cards = [...grid.children].map((c) => {
+    const r = c.getBoundingClientRect();
+    return { top: r.top, width: r.width };
+  });
   if (cards.length < 2) return { ok: false, why: 'fewer than two related cards' };
   return { ok: true, row: grid.getBoundingClientRect().width, a: cards[0], b: cards[1] };
 })()`;
@@ -3708,6 +3711,10 @@ for (const width of [375, 768, 1023]) {
   const got = await evalPage(RELATED_ROW_PROBE);
   if (got.threw || !got.ok) {
     fail(label, `the probe did not run: ${got.why}`);
+    continue;
+  }
+  if (![got.row, got.a.top, got.a.width, got.b.top, got.b.width].every(Number.isFinite)) {
+    fail(label, 'the related cards were not measured');
     continue;
   }
   if (Math.abs(got.a.top - got.b.top) > 1) {
