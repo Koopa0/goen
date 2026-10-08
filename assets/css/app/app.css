@@ -2680,11 +2680,12 @@ th {
    ------------------------------------------------------------------------ */
 
 .goen-tiles__grid {
+  --tiles-gap-x: 1rem;
   display: grid;
-  gap: 2.5rem 1rem;
+  gap: 2.5rem var(--tiles-gap-x);
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2926,7 +2927,7 @@ input.goen-check {
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 2.5rem 1.5rem;
+    --tiles-gap-x: 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -3745,7 +3746,7 @@ input.goen-check {
   border-bottom: 1px solid var(--border);
   min-width: 160px;
   padding: 12px;
-  text-align: center;
+  text-align: left;
   vertical-align: top;
 }
 
@@ -3770,7 +3771,7 @@ input.goen-check {
 .goen-compare__image {
   border-radius: var(--r-md);
   height: 96px;
-  margin: 0 auto;
+  margin: 0;
   object-fit: cover;
   width: 96px;
 }
@@ -3797,8 +3798,6 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: 8px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .goen-compare__price {
@@ -4147,6 +4146,22 @@ input.goen-check {
 .goen-wish__remove,
 .goen-wish__add {
   margin: 0;
+}
+
+.goen-wish__remove {
+  align-self: flex-start;
+}
+
+.goen-wish__remove .goen-btn {
+  background: none;
+  color: var(--fg-muted);
+  padding-inline: 0;
+  width: auto;
+}
+
+.goen-wish__remove .goen-btn:hover {
+  background: none;
+  color: var(--fg);
 }
 
 .goen-wish__stock {
@@ -4546,6 +4561,7 @@ input.goen-check {
 
 .goen-pdp__pricebox {
   align-items: baseline;
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
@@ -4557,6 +4573,15 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   line-height: 1.3;
+}
+
+/* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
+   size is wider than the line. */
+@container (width < 20rem) {
+  .goen-pdp__price {
+    font-size: min(var(--fs-ed-30), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-pdp__was {
@@ -5098,7 +5123,7 @@ input.goen-check {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
 }
 
 .goen-pdp__reviewlayout {
@@ -6175,6 +6200,11 @@ input.goen-check {
   background: var(--n-50);
   box-shadow: 0 0 0 100vmax var(--n-50);
   clip-path: inset(0 -100vmax);
+}
+
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
 }
 
 /* The sections are one white block, parted by the space between them rather
@@ -7916,7 +7946,7 @@ input.goen-check {
 }
 
 .about__ring--accent {
-  stroke: var(--accent-deep);
+  stroke: var(--accent);
 }
 
 /* Where the two rings meet is lighter than the paper around it, not darker:
@@ -7924,6 +7954,16 @@ input.goen-check {
 .about__lens {
   fill: var(--n-0);
   fill-opacity: 0.6;
+}
+
+@media (forced-colors: active) {
+  .about__ring {
+    stroke: CanvasText;
+  }
+
+  .about__lens {
+    fill: none;
+  }
 }
 
 .about__title {
