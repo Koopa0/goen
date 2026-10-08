@@ -1,0 +1,156 @@
+name: probe-satisfaction
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: probe-satisfaction-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  probe-satisfaction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    env:
+      GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
+      GOEN_URL: http://127.0.0.1:9700
+      GOEN_ECPAY_MERCHANT_ID: "2000132"
+      GOEN_ECPAY_HASH_KEY: ejCk326UnaZWKisg
+      GOEN_ECPAY_HASH_IV: q9jcZX8Ib9LM8wYk
+      GOEN_ECPAY_LOGISTICS: b2c
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Start PostgreSQL
+        run: make db-up
+
+      - name: Migrate, seed, ninety days of history and fixtures
+        run: |
+          set -euo pipefail
+          make migrate-up
+          make db-seed
+          psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 <<'SQL'
+          SET ROLE admin;
+          SELECT upsert_staff('layout-check@goen.invalid', '', 'admin')
+          WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = 'layout-check@goen.invalid');
+          SQL
+          psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=goen -f seed/demo_history.sql
+          psql "$GOEN_DATABASE_URL" -X -A -t -c "SELECT sku, stock_quantity, safety_stock FROM product_variants WHERE sku = 'PXL-9-1-1'"
+          psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
+          set -a; . ./fixtures.env; set +a
+          q() { psql "$GOEN_DATABASE_URL" -X -A -t -c "$1"; }
+          # What the pages need beyond the layout fixtures: a second cart line, more
+          # wishlist items, and the slugs and numbers the capture points at.
+          psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v cart="$CART_TOKEN" -v cust="$CUSTOMER_ID" <<'SQL'
+          INSERT INTO cart_items (cart_id, variant_id, quantity)
+          SELECT c.id, v.id, 1
+          FROM carts c
+          CROSS JOIN LATERAL (
+              SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id
+              WHERE p.status = 'active' AND v.is_active AND v.stock_quantity > v.safety_stock + 5
+                AND v.id NOT IN (SELECT variant_id FROM cart_items WHERE cart_id = c.id)
+              ORDER BY p.slug, v.sku OFFSET 7 LIMIT 1
+          ) v
+          WHERE c.token_hash = sha256(convert_to(:'cart', 'UTF8'));
+          INSERT INTO wishlist_items (user_id, product_id)
+          SELECT :'cust', id FROM products WHERE status = 'active' ORDER BY slug OFFSET 3 LIMIT 5
+          ON CONFLICT DO NOTHING;
+          SQL
+          {
+            echo "MULTI_VARIANT_SLUG=$(q "SELECT p.slug FROM products p JOIN product_variants v ON v.product_id = p.id AND v.is_active WHERE p.status = 'active' GROUP BY p.id HAVING count(*) > 1 AND bool_or(v.stock_quantity > v.safety_stock) ORDER BY p.slug LIMIT 1")"
+            echo "CAMPAIGN_PRODUCT=$(q "SELECT p.slug FROM sale_campaign_products cp JOIN sale_campaigns c ON c.id = cp.campaign_id JOIN products p ON p.id = cp.product_id WHERE c.slug = 'layout-campaign' ORDER BY cp.position LIMIT 1")"
+            echo "COMPARE_SLUG_C=$(q "SELECT slug FROM products WHERE status = 'active' ORDER BY slug OFFSET 2 LIMIT 1")"
+            echo "SEARCH_TERM=$(q "SELECT left(name, 2) FROM products WHERE slug = '$PRODUCT_SLUG'")"
+            echo "HOME_SHIP=$(q "SELECT v.id FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.code = 'home_delivery' AND sm.is_active AND v.effective_at <= now() ORDER BY v.effective_at DESC LIMIT 1")"
+            echo "PICKING_ORDER=$(q "SELECT o.order_number FROM orders o JOIN users u ON u.id = o.user_id WHERE lower(u.email) = 'layout-cust@goen.invalid' AND o.fulfillment_status = 'picking' ORDER BY o.placed_at LIMIT 1")"
+          } >> fixtures.env
+          sed -E 's/(TOKEN[A-Z_]*)=.*/\1=<hidden>/' fixtures.env
+
+      - name: Build
+        run: make build
+
+      - name: Capture
+        run: |
+          set -euo pipefail
+          chrome=$(scripts/resolve-chrome.sh)
+          "$chrome" --version
+          profile=$(mktemp -d)
+          nice -n 10 "$chrome" --headless --disable-gpu --no-first-run --lang=zh-TW \
+            --remote-debugging-port=9333 --user-data-dir="$profile" about:blank > chrome-shots.log 2>&1 &
+          chrome_pid=$!
+          trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
+          sleep 3
+          set -a; . ./fixtures.env; set +a
+          status=0
+
+          serve() {
+            (GOEN_INSECURE_COOKIES=1 exec ./bin/goen >> "server-$1.log" 2>&1) &
+            server_pid=$!
+            for _ in $(seq 1 60); do
+              if curl -sf -o /dev/null "$GOEN_URL/readyz"; then return 0; fi
+              if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            echo "the $1 server never answered /readyz" >&2
+            tail -50 "server-$1.log" >&2
+            return 1
+          }
+          stop() {
+            kill "$server_pid"
+            while kill -0 "$server_pid" 2>/dev/null; do sleep 0.5; done
+          }
+
+          serve payments-off || exit 1
+          for m in storefront flows admin; do
+            echo "::group::$m"
+            CDP_PORT=9333 node scripts/probe-satisfaction.mjs "$m" shots || status=$?
+            echo '::endgroup::'
+          done
+          echo '::group::pay off'
+          PAY_STATE=off CDP_PORT=9333 node scripts/probe-satisfaction.mjs pay shots || status=$?
+          echo '::endgroup::'
+          stop
+
+          # Payments on: a test-shaped key is enough to draw the page; nothing calls Stripe before a shopper presses pay.
+          export GOEN_STRIPE_API_KEY=sk_test_satisfaction_preview GOEN_STRIPE_WEBHOOK_SECRET=whsec_satisfaction_preview
+          if serve payments-on; then
+            echo '::group::pay on'
+            PAY_STATE=on CDP_PORT=9333 node scripts/probe-satisfaction.mjs pay shots || status=$?
+            echo '::endgroup::'
+            stop
+          else
+            status=1
+          fi
+
+          ls shots | wc -l
+          exit "$status"
+
+      - name: Keep the shots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: satisfaction-shots
+          path: |
+            shots/
+            server-*.log
+            chrome-shots.log
+          if-no-files-found: warn
