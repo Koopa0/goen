@@ -123,8 +123,8 @@ func TestPointsRuleNamesTheNumericMinimumAndStep(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{i18n.ZhHant, "最少 100 點，而且要是 10 的倍數。"},
-		{i18n.En, "At least 100 points, in whole multiples of 10."},
+		{i18n.ZhHant, "最少 100 點，每次以 10 點為單位兌換；換不完的點數會留著。"},
+		{i18n.En, "At least 100 points, in whole multiples of 10 points. Whatever is left over stays on your account."},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()

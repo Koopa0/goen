@@ -7579,6 +7579,10 @@ input.goen-check {
    thing to do with it. */
 .goen-points__submit {
   align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .goen-points__ledger {
