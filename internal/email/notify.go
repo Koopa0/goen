@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -75,7 +76,8 @@ type OrderPlaced struct {
 	// OwedCents is what is still payable after store credit. A missing
 	// field (already-queued rows) falls back to TotalCents so an in-flight
 	// letter does not flip to the funded copy.
-	OwedCents *int64 `json:"owed_cents,omitempty"`
+	OwedCents *int64          `json:"owed_cents,omitempty"`
+	Snapshot  *PlacedSnapshot `json:"snapshot,omitempty"`
 }
 
 func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
@@ -91,6 +93,9 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 		owed = *p.OwedCents
 	}
 	body := placedLetterBody(ctx, p.OrderNumber, owed, n.orderURL(p.OrderNumber))
+	if p.Snapshot != nil {
+		body = n.placedConfirmation(ctx, p, owed, time.Now())
+	}
 	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedSubject), p.OrderNumber),

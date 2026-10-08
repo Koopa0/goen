@@ -841,7 +841,7 @@ func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 			// The zone NAMES stay as the shop typed them.
 			name:   "English says it in English around the shop's own words",
 			locale: i18n.En,
-			want:   "離島 costs NT$200 extra, 澎湖 costs NT$150 extra",
+			want:   "離島: NT$200 extra, 澎湖: NT$150 extra",
 		},
 	}
 	for _, tt := range tests {
