@@ -58,6 +58,9 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, m *OrderTerminal, to Te
 		}
 	case TerminalCancelledByStaff:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderStaffCancelledBody
+		if m.Refunded {
+			body = i18n.KeyMailOrderStaffCancelledRefundBody
+		}
 	case TerminalCancelledByPaymentDeadline:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderDeadlineCancelledBody
 		if m.Refunded {

@@ -35,3 +35,23 @@ func (g *FacetGroup) CountID(position int) string {
 	sum := sha256.Sum256([]byte(g.Name))
 	return fmt.Sprintf("option-count-%x-%s", sum[:8], strconv.Itoa(position))
 }
+
+// SelectedCount is how many of the group's options are on.
+func (g *FacetGroup) SelectedCount() int64 {
+	var n int64
+	for _, option := range g.Options {
+		if option.Selected {
+			n++
+		}
+	}
+	return n
+}
+
+// SelectedID is the id of the group's selected-count badge.
+func (g *FacetGroup) SelectedID() string {
+	if g.Kind == FacetBrand {
+		return "brand-selected"
+	}
+	sum := sha256.Sum256([]byte(g.Name))
+	return fmt.Sprintf("option-selected-%x", sum[:8])
+}

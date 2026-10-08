@@ -81,7 +81,13 @@ templ Cart(p layouts.Page, v CartView) {
 						<dl class="goen-summary">
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
-								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
+								<dd class="goen-summary__value">
+									if v.FreeDelivery.Kind == FreeDeliveryReached {
+										{ v.FreeDelivery.Word(ctx) }
+									} else {
+										{ i18n.T(ctx, i18n.KeyShippingLater) }
+									}
+								</dd>
 							</div>
 							<div class="goen-summary__row goen-summary__row--total">
 								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
@@ -423,6 +429,17 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									// opens, and that form is built on the server.
 									<div class="goen-field goen-checkout__wide" id="pickup_chain">
 										<p class="goen-label" id="pickup_chain-label">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</p>
+										if v.PickupRefused {
+											// The message says a store could not be confirmed and repeats NONE of what
+											// arrived: that text came from a cross-site post. It sits here because the
+											// next step is the choice below: with no chain chosen there is no map button.
+											@components.Notice(components.NoticeProps{
+												Intent: components.IntentDanger,
+												Class:  "ui-alert--error",
+											}) {
+												{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
+											}
+										}
 										<div
 											class="goen-checkout__choices"
 											{ checkoutChoiceSwap("pickup_chain")... }
@@ -751,18 +768,8 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 // cannot be checked by any means goen has. The shopper reading the name AND the
 // address before paying is the only check. Do not reduce it to the name.
 templ pickupStore(v *CheckoutView) {
-	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
+	if v.OffersTheStoreMap() || v.HasPickupStore() {
 		<div class="goen-pickup">
-			if v.PickupRefused {
-				// The message says a store could not be confirmed and repeats NONE of what
-				// arrived: that text came from a cross-site post.
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentDanger,
-					Class:  "ui-alert--error",
-				}) {
-					{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
-				}
-			}
 			if v.HasPickupStore() {
 				// Carried back so the order can be placed from this page. The ADDRESS is not among
 				// them: it is read from the URL for the summary above, never posted, never stored.
@@ -937,13 +944,13 @@ templ Order(p layouts.Page, v *OrderView) {
 						</section>
 					}
 					if v.SimpleLines() {
-						@orderLines(v, v.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", false, !v.IsCancelled() && v.Returned == nil, OrderShipment{})
+						@orderLines(v, v.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", false, !v.IsCancelled() && v.Returned == nil)
 					} else {
 						for i, sh := range v.Shipments {
 							@orderParcel(v, sh, i)
 						}
 						if len(v.Unshipped) > 0 {
-							@orderLines(v, v.Unshipped, i18n.T(ctx, i18n.KeyOrderNotShipped), "unshipped-heading", false, true, OrderShipment{})
+							@orderLines(v, v.Unshipped, i18n.T(ctx, i18n.KeyOrderNotShipped), "unshipped-heading", false, true)
 						}
 					}
 					if len(v.Timeline) > 0 {
@@ -1118,27 +1125,27 @@ templ orderParcel(v *OrderView, sh OrderShipment, i int) {
 			<p class="goen-order__meta">{ v.ReturnPending(ctx) }</p>
 		}
 		if v.SeveralParcels() {
-			@orderLines(v, sh.Lines, "", "", sh.Delivered(), true, sh)
+			@orderLines(v, sh.Lines, "", "", sh.Delivered(), true)
 		}
 	</section>
 	if !v.SeveralParcels() {
-		@orderLines(v, sh.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", sh.Delivered(), true, sh)
+		@orderLines(v, sh.Lines, i18n.T(ctx, i18n.KeyOrderItems), "lines-heading", sh.Delivered(), true)
 	}
 }
 
 // A list of lines keeps the markers the layout gate and the tests read. Without a heading it sits inside its parcel.
-templ orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool, sh OrderShipment) {
+templ orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool) {
 	if headingID != "" {
 		<section class="goen-order__items" aria-labelledby={ headingID }>
 			<h2 id={ headingID } class="goen-order__subhead">{ heading }</h2>
-			@orderLineList(v, lines, delivered, warranty, sh)
+			@orderLineList(v, lines, delivered, warranty)
 		</section>
 	} else {
-		@orderLineList(v, lines, delivered, warranty, sh)
+		@orderLineList(v, lines, delivered, warranty)
 	}
 }
 
-templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool, sh OrderShipment) {
+templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool) {
 	<ul class="goen-order__lines" role="list">
 		for _, l := range lines {
 			<li class="goen-line goen-line--order">
@@ -1167,9 +1174,6 @@ templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool, s
 					<span class="goen-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
 					if warranty && l.WarrantyMonths > 0 {
 						@components.StatLine(v.WarrantyFacts(ctx, l, delivered), components.StatLineSmall)
-						if grid, ok := v.WarrantyGrid(ctx, l, sh); ok {
-							@components.Period(grid)
-						}
 						if v.CanRegister(l, delivered) {
 							<a class="goen-line__act" href={ templ.SafeURL(v.WarrantyLink()) }>{ i18n.T(ctx, i18n.KeyOrderWarrantyRegister) }</a>
 						}

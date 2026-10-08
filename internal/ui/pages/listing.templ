@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
@@ -18,9 +19,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							// Low priority: the stylesheet drops the photograph below 1024, where an eager
-							// image is still fetched and must not compete with the tiles.
-							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 1024px) 25rem, 1px", false)
+							@bandMedia("goen-pagehead__photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@components.Breadcrumb(components.BreadcrumbProps{
@@ -28,10 +27,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 								Crumbs: v.Trail(ctx),
 							})
 							<h1 class={ "goen-pagehead__title", templ.KV("goen-band__name--long", bandNameLong(v.Name)) }>{ v.Name }</h1>
-							if head != nil {
-								@departmentFacts(head)
-							}
-							if len(v.Children()) > 0 {
+							if len(v.Children()) > 1 {
 								<nav class="goen-pagehead__chips" aria-label={ i18n.T(ctx, i18n.KeySubcategories) }>
 									for _, c := range v.Children() {
 										if c.Slug == v.Slug {
@@ -44,14 +40,14 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 							}
 						</div>
 					</div>
+					if head != nil && head.Notice != nil {
+						@departmentNotice(head.Notice)
+					}
 				</div>
 			</div>
 		</div>
 		<div class="goen-listing" data-comparable={ v.Theme.ComparableAttr() }>
 			if head != nil {
-				if head.Notice != nil {
-					@departmentNotice(head.Notice)
-				}
 				@departmentSlot(head)
 			}
 			<div class="goen-listing__layout">
@@ -97,7 +93,16 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 					for position, option := range group.Options {
 						<span class="goen-filters__count" id={ group.CountID(position) } hx-swap-oob="true">{ option.CountText() }</span>
 					}
+					<span class="goen-filters__selected" id={ group.SelectedID() } hx-swap-oob="true">
+						@selectedCount(group.SelectedCount())
+					</span>
 				}
+				<span class="goen-filters__selected" id={ stockSelectedID } hx-swap-oob="true">
+					@selectedCount(v.StockSelected())
+				</span>
+				<span class="goen-filters__selected" id={ priceSelectedID } hx-swap-oob="true">
+					@selectedCount(v.PriceSelected())
+				</span>
 			}
 		</div>
 	}
@@ -131,7 +136,10 @@ templ listingFilters(v ListingView) {
 				<div class="goen-filters__menus">
 					for _, group := range v.Facets {
 						<details class="goen-filters__group" name="filters" data-popover>
-							<summary class="goen-filters__summary">{ group.Label }</summary>
+							<summary class="goen-filters__summary">
+								{ group.Label }
+								@selectedBadge(group.SelectedID(), group.SelectedCount())
+							</summary>
 							<div class="goen-filters__options">
 								for position, option := range group.Options {
 									<label class="goen-filters__option">
@@ -144,7 +152,10 @@ templ listingFilters(v ListingView) {
 						</details>
 					}
 					<details class="goen-filters__group" name="filters" data-popover>
-						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
+						<summary class="goen-filters__summary">
+							{ i18n.T(ctx, i18n.KeyFacetStock) }
+							@selectedBadge(stockSelectedID, v.StockSelected())
+						</summary>
 						<div class="goen-filters__options">
 							<label class="goen-filters__option">
 								<input type="checkbox" name="in_stock" value="1" class="goen-check" checked?={ v.InStockOnly }/>
@@ -153,7 +164,10 @@ templ listingFilters(v ListingView) {
 						</div>
 					</details>
 					<details class="goen-filters__group" name="filters" data-popover>
-						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
+						<summary class="goen-filters__summary">
+							{ i18n.T(ctx, i18n.KeyFacetPrice) }
+							@selectedBadge(priceSelectedID, v.PriceSelected())
+						</summary>
 						<div class="goen-filters__prices">
 							<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
 							// ui-input is what check-layout.mjs measures in its tap sweep; app.css writes the recipe.
@@ -210,6 +224,21 @@ templ listingFilters(v ListingView) {
 		// replaced, so focus is left where it is.
 		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 	</div>
+}
+
+// How many of a group's options are on, beside its name. The element is always
+// drawn so a swapped response has a place to put the number.
+templ selectedBadge(id string, n int64) {
+	<span class="goen-filters__selected" id={ id }>
+		@selectedCount(n)
+	</span>
+}
+
+templ selectedCount(n int64) {
+	if n > 0 {
+		<span aria-hidden="true">{ strconv.FormatInt(n, 10) }</span>
+		<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFiltersSelected), n) }</span>
+	}
 }
 
 // Its own swap target: replaced by id beside the results.

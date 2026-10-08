@@ -781,6 +781,7 @@ SELECT
     NOT EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+          AND dv.stock_quantity > dv.safety_stock
     ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
@@ -847,7 +848,7 @@ JOIN LATERAL (
               AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
              (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
-             price_cents
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -1041,23 +1042,6 @@ JOIN product_option_values axis_value ON axis_value.option_id = axis.id
 WHERE p.status = 'active' AND p.category_id = ANY(@category_ids::uuid[])
 GROUP BY axis.name, axis_value.value
 ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value;
-
--- What a department says about itself under its head: the products it holds across
--- its whole subtree, the sub-categories directly under it, and the brands of those
--- products.
--- name: DepartmentFacts :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = @slug::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT
-    (SELECT count(*) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
-    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
-     WHERE r.slug = @slug::text)::bigint AS categories,
-    (SELECT count(DISTINCT p.brand_id) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands;
 
 -- Of the campaigns with a deal on a product of the department, the one that ends
 -- first.

@@ -237,16 +237,16 @@ h3 {
 
 .goen-badge {
   align-items: center;
-  background: var(--elevated);
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  color: var(--fg);
+  background: var(--n-100);
+  border-radius: var(--r-full);
+  color: var(--muted);
   display: inline-flex;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 4px;
-  line-height: 1.4;
-  padding: 0.125rem 0.5rem;
+  line-height: 1.5;
+  outline: 1px solid transparent;
+  padding: 2px 10px;
   white-space: nowrap;
   width: fit-content;
 }
@@ -256,13 +256,23 @@ h3 {
   color: var(--accent-deep);
 }
 
+.goen-badge--progress {
+  background: var(--accent-faint);
+  color: var(--accent);
+}
+
+.goen-badge--done {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
 .goen-badge--warn {
-  background: var(--warn-bg);
+  background: var(--warn-tint);
   color: var(--warn);
 }
 
 .goen-badge--danger {
-  background: var(--error-bg);
+  background: var(--error-tint);
   color: var(--error);
 }
 
@@ -1162,6 +1172,13 @@ input.goen-check {
   line-height: var(--lh-normal);
 }
 
+.goen-admin__headcount {
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  margin: 8px 0 0;
+}
+
 /* Same name, other language, after it on the same line; drops the heading's weight and tracking. */
 .goen-admin__othername {
   display: inline-block;
@@ -1412,6 +1429,12 @@ input.goen-check {
   min-height: 44px;
 }
 
+/* The price and arrival buttons may drop under their field so the stock table
+   fits a 1440 frame and nothing sits beneath the pinned column. */
+.goen-admin__stock td:is(:nth-child(4), :nth-child(5)) .goen-admin__inline {
+  flex-wrap: wrap;
+}
+
 .goen-admin__num {
   width: 9ch;
   min-height: 44px;
@@ -1508,6 +1531,15 @@ input.goen-check {
   row-gap: 6px;
 }
 
+.goen-admin__field > * {
+  grid-column: 1;
+}
+
+.goen-admin__hints {
+  display: grid;
+  row-gap: 6px;
+}
+
 .goen-admin__fields > .goen-admin__field {
   grid-row: span 4;
   grid-template-rows: subgrid;
@@ -1518,7 +1550,8 @@ input.goen-check {
   line-height: 1.35;
 }
 
-.goen-admin__fields > .goen-admin__field > .goen-admin__hint {
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint,
+.goen-admin__fields > .goen-admin__field > .goen-admin__hints {
   grid-row: 4;
 }
 
@@ -2047,7 +2080,7 @@ input.goen-check {
 }
 
 .goen-health__head {
-  align-items: center;
+  align-items: baseline;
   display: flex;
   gap: 8px;
   justify-content: space-between;

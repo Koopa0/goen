@@ -607,29 +607,28 @@ func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
 
 // ProductCampaign is the running campaign that features a product, or the zero value.
 type ProductCampaign struct {
-	Slug      string
-	Title     string
-	EndsOn    string
-	Period    components.PeriodSpec
-	HasPeriod bool
+	Slug  string
+	Title string
+	End   CampaignEnd
 }
 
-func NewProductCampaign(ctx context.Context, slug, title string, startsAt, endsAt, now time.Time) ProductCampaign {
-	period, ok := components.DayPeriod(ctx, title, startsAt, endsAt, now)
-	return ProductCampaign{
-		Slug: slug, Title: title,
-		EndsOn: shoptime.DateText(ctx, shoptime.LastDay(endsAt, now)),
-		Period: period, HasPeriod: ok,
-	}
+func NewProductCampaign(slug, title string, endsAt, now time.Time) ProductCampaign {
+	return ProductCampaign{Slug: slug, Title: title, End: NewCampaignEnd(endsAt, now)}
 }
 
 func (c ProductCampaign) Running() bool { return c.Slug != "" }
 
 func (c ProductCampaign) Href() string { return "/s/" + c.Slug }
 
-// Source splits the sentence naming the campaign around its title, which the page links.
-func (c ProductCampaign) Source(ctx context.Context) (before, after string) {
-	const mark = "\x00"
-	before, after, _ = strings.Cut(fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignPrice), mark, c.EndsOn), mark)
-	return before, after
+// Source splits the sentence naming the campaign around its title, which the page links, and what is left of
+// it, which the page sets apart.
+func (c ProductCampaign) Source(ctx context.Context) (before, middle, after string) {
+	const title, left = "\x00", "\x01"
+	key := i18n.KeyCampaignPriceDaysLeft
+	if c.End.EndsByTomorrow() {
+		key = i18n.KeyCampaignPriceToday
+	}
+	before, rest, _ := strings.Cut(fmt.Sprintf(i18n.T(ctx, key), title, left, c.End.Day(ctx)), title)
+	middle, after, _ = strings.Cut(rest, left)
+	return before, middle, after
 }

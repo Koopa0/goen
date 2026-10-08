@@ -108,6 +108,7 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 		{Kind: TerminalCancelledByCustomer},
 		{Kind: TerminalCancelledByCustomer, Refunded: true},
 		{Kind: TerminalCancelledByStaff},
+		{Kind: TerminalCancelledByStaff, Refunded: true},
 		{Kind: TerminalCancelledByPaymentDeadline},
 		{Kind: TerminalCancelledByPaymentDeadline, Refunded: true},
 		{Kind: TerminalCollected},

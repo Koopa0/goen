@@ -3,7 +3,11 @@
 package cart_test
 
 import (
+	"context"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -120,4 +124,52 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAMethodWithAZoneSurchargeNamesTheZoneInTheCartsChoices(t *testing.T) {
+	ctx := t.Context()
+	var zoneID, methodID, versionID uuid.UUID
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_zones (code, name, name_en) VALUES ('z' || $1::text, '離島乙', 'Outlying islands B') RETURNING id`,
+		suffix).Scan(&zoneID); err != nil {
+		t.Fatalf("create zone: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_methods (code, destination_kind) VALUES ('zone' || $1::text, 'address') RETURNING id`,
+		suffix).Scan(&methodID); err != nil {
+		t.Fatalf("create method: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `UPDATE shipping_methods SET is_active = false WHERE id = $1`, methodID); err != nil {
+			t.Errorf("withdraw method: %v", err)
+		}
+	})
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_method_versions (method_id, name, fee_cents, free_over_cents)
+		VALUES ($1, '測試運送', 100, 300000) RETURNING id`, methodID).Scan(&versionID); err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents) VALUES ($1, $2, 20000)`,
+		versionID, zoneID); err != nil {
+		t.Fatalf("create surcharge: %v", err)
+	}
+
+	choices, err := cart.NewStore(pool).ShippingChoices(ctx, uuid.New(), 300000)
+	if err != nil {
+		t.Fatalf("ShippingChoices: %v", err)
+	}
+	for _, c := range choices {
+		if c.VersionID != versionID.String() {
+			continue
+		}
+		if want := []string{"離島乙"}; !slices.Equal(c.SurchargeZones, want) {
+			t.Errorf("ShippingChoices: SurchargeZones = %v, want %v", c.SurchargeZones, want)
+		}
+		return
+	}
+	t.Errorf("ShippingChoices did not offer the new method: %v", choices)
 }

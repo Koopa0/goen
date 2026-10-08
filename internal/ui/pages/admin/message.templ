@@ -23,12 +23,10 @@ templ Messages(p layouts.Page, v MessagesView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminMessagesLead) }
 				</p>
-			</div>
-			if !v.Empty() {
-				@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }
+				if !v.Empty() {
+					<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }</p>
 				}
-			}
+			</div>
 		</div>
 		@Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
@@ -51,10 +49,11 @@ templ Messages(p layouts.Page, v MessagesView) {
 									}
 								} else if m.Overdue() {
 									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-										{ m.Waiting(ctx) }
+										<span aria-hidden="true">▲</span>
+										{ m.OverdueText(ctx) }
 									}
 								} else {
-									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 										{ m.Waiting(ctx) }
 									}
 								}

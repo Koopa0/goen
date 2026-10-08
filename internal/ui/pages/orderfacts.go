@@ -151,15 +151,6 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 	return facts
 }
 
-// WarrantyGrid draws the months of a registered warranty; ok is false beyond what a grid can hold.
-func (v *OrderView) WarrantyGrid(ctx context.Context, l OrderLine, s OrderShipment) (components.PeriodSpec, bool) {
-	if l.Registered == 0 {
-		return components.PeriodSpec{}, false
-	}
-	now := v.now()
-	return components.MonthPeriod(ctx, shoptime.DateOf(s.DeliveredAt, now), shoptime.DateOf(l.WarrantyUntil, now), shoptime.DateOf(now, now), l.WarrantyMonths)
-}
-
 // CanRegister is offered from delivery on, to the account that owns the order, while a unit of the share is unregistered.
 func (v *OrderView) CanRegister(l OrderLine, delivered bool) bool {
 	return v.ShowWarrantyLink && delivered && l.Registered < int(l.Quantity)

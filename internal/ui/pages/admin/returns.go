@@ -73,6 +73,49 @@ func (r *Return) AwaitingGoods() bool {
 	return false
 }
 
+// standing is a return's status as the queue shows it: the word and the colour
+// group from one switch, so they cannot disagree. An empty key means the word the
+// store gave StatusText. An open request, an approval the staff can close or whose
+// money is owed needs the staff; a payout that must be repaired is an error; an
+// approval still coming back is in progress; a refund before shipment is a
+// cancellation, grey like a cancelled order.
+func (r *Return) standing() (i18n.Key, components.Intent) {
+	switch r.Status {
+	case returns.StatusRequested:
+		return "", components.IntentWarn
+	case returns.StatusApproved:
+		switch {
+		case r.PayoutStranded():
+			return i18n.KeyAdminReturnRefundFailed, components.IntentDanger
+		case r.CanRetryPayout():
+			return i18n.KeyAdminReturnRefundToResend, components.IntentWarn
+		case r.CanComplete():
+			return i18n.KeyAdminReturnReadyToClose, components.IntentWarn
+		default:
+			return i18n.KeyAdminReturnOnItsWay, components.IntentProgress
+		}
+	case returns.StatusCompleted:
+		if r.BeforeShipment {
+			return "", components.IntentNeutral
+		}
+		return "", components.IntentDone
+	default:
+		return "", components.IntentNeutral
+	}
+}
+
+func (r *Return) StatusIntent() components.Intent {
+	_, intent := r.standing()
+	return intent
+}
+
+func (r *Return) StatusLabel(ctx context.Context) string {
+	if key, _ := r.standing(); key != "" {
+		return i18n.T(ctx, key)
+	}
+	return r.StatusText
+}
+
 func (r *Return) CanComplete() bool {
 	if r.Status != returns.StatusApproved || len(r.Lines) == 0 || r.BeforeShipment {
 		return false

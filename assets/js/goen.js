@@ -378,7 +378,9 @@
   function requestFeedback() {
     const pending = new Map();
     const requests = new WeakMap();
-    const filters = new WeakMap();
+    const reads = new WeakMap();
+    const replacesRead = (form, ctx) => form instanceof HTMLFormElement && ctx?.request?.method === "GET"
+      && form.getAttribute("hx-sync") === "this:replace";
     const restoreAttribute = (element, name, value) => {
       if (value === null) element.removeAttribute(name);
       else element.setAttribute(name, value);
@@ -404,14 +406,23 @@
       if (pending.has(event.target)) event.preventDefault();
       else begin(event.target);
     });
+    document.addEventListener("htmx:config:request", (event) => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form?.matches(".goen-filters")) ctx.transition = false;
+    });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
-      // The filter form lets the latest change replace the one in flight
-      // (hx-sync), which this guard would cancel as a repeated press.
-      if (form.matches(".goen-filters")) {
-        filters.set(form, ctx);
+      // htmx's replaced request can release its queue after the next one
+      // starts. Keep ownership here so a third change still aborts the second.
+      if (form.matches(".goen-filters") || replacesRead(form, ctx)) {
+        reads.get(form)?.request?.abort?.();
+        reads.set(form, ctx);
+        if (!form.matches(".goen-filters")) {
+          if (!pending.has(form)) begin(form);
+          requests.set(ctx, form);
+        }
         return;
       }
       // Do not delete the isConnected clause: a second press queues behind the
@@ -423,22 +434,37 @@
       begin(form);
       requests.set(ctx, form);
     });
+    document.addEventListener("htmx:after:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if ((form?.matches(".goen-filters") || replacesRead(form, ctx)) && reads.get(form) !== ctx) event.preventDefault();
+    });
+    document.addEventListener("htmx:before:history:update", (event) => {
+      const { sourceElement, response } = event.detail || {};
+      const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
+      // DropEmptyParams may leave HX-Push-Url on an error response.
+      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
+    });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
       // A timeout and a replaced request both abort without a response. Only
       // the latest request may change the feedback beside the filters.
-      const filter = ctx?.request?.form;
-      if (filter && filters.get(filter) === ctx) {
-        filters.delete(filter);
-        const note = document.querySelector(".goen-filters__error");
-        const raw = ctx.response?.raw;
-        if (note) note.hidden = raw?.ok === true;
+      const requestForm = ctx?.request?.form;
+      const ownsRead = requestForm && reads.get(requestForm) === ctx;
+      if (ownsRead) {
+        reads.delete(requestForm);
+        if (requestForm.matches(".goen-filters")) {
+          const note = document.querySelector(".goen-filters__error");
+          const raw = ctx.response?.raw;
+          if (note) note.hidden = raw?.ok === true;
+        }
       }
       const form = requests.get(ctx);
       if (!form) return;
       requests.delete(ctx);
+      if (replacesRead(form, ctx) && !ownsRead) return;
       finish(form);
     });
     document.addEventListener("reset", (event) => finish(event.target));

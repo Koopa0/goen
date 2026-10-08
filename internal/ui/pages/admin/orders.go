@@ -52,13 +52,13 @@ func (v *Variant) SellableText() string {
 func (v *Variant) Low() bool { return v.Stock <= v.Safety }
 
 type OrderRow struct {
-	Number     string
-	Status     order.FulfillmentStatus
-	StatusText string
-	PlacedAt   string
-	Recipient  string
-	TotalCents int64
-	Committed  bool
+	Number       string
+	Status       order.FulfillmentStatus
+	StatusText   string
+	StatusIntent components.Intent
+	PlacedAt     string
+	Recipient    string
+	TotalCents   int64
 }
 
 func (o OrderRow) Total() string { return money.TWD(o.TotalCents) }
@@ -214,6 +214,7 @@ type OrderView struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
+	StatusIntent components.Intent
 	PlacedAt     string
 	ShippingName string
 	Lines        []pages.OrderLine

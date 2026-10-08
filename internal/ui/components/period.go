@@ -13,15 +13,6 @@ import (
 // dates only.
 const maxPeriodCells = 60
 
-// PeriodUnit is what one cell of a period stands for.
-type PeriodUnit string
-
-const (
-	PeriodMinute PeriodUnit = "minute"
-	PeriodDay    PeriodUnit = "day"
-	PeriodMonth  PeriodUnit = "month"
-)
-
 // CellState says where a cell lies against the present.
 type CellState string
 
@@ -33,18 +24,17 @@ const (
 
 type PeriodCell struct {
 	State CellState
-	// Mark is the cell where an action must have started; Extra cells come
-	// after it and are drawn as the span the mark leaves open.
+	// Mark ends the first of two spans and Extra cells make up the second: a
+	// return window's statutory days, then the days goen adds.
 	Mark  bool
 	Extra bool
 	// Label is the text under the cell; most cells carry none.
 	Label string
 }
 
-// PeriodSpec draws a stored start and end to scale, one cell per unit. The cell
+// PeriodSpec draws a stored start and end to scale, one cell a day. The cell
 // count is the data, so the markup carries no width.
 type PeriodSpec struct {
-	Unit  PeriodUnit
 	Cells []PeriodCell
 	// Description is the one sentence a screen reader gets in place of the cells.
 	Description string
@@ -53,13 +43,6 @@ type PeriodSpec struct {
 	// TodayAtStart says today is the day before the first cell, so the cells all lie ahead and
 	// the tick stands at the start.
 	TodayAtStart bool
-}
-
-func (p PeriodSpec) unitAttr() string {
-	if p.Unit == PeriodDay {
-		return ""
-	}
-	return string(p.Unit)
 }
 
 // DayPeriod is a period of shop days from startsAt's day to the last day before
@@ -104,7 +87,6 @@ func DayPeriod(ctx context.Context, title string, startsAt, endsAt, now time.Tim
 		description = i18n.Count(ctx, i18n.KeyPeriodEndsToday, n, title, from, to, total, at, today+1)
 	}
 	return PeriodSpec{
-		Unit:        PeriodDay,
 		Cells:       cells,
 		Description: description,
 		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),
@@ -158,86 +140,9 @@ func ReturnPeriod(ctx context.Context, received, lastDay, goodwillEnd, today sho
 		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnOver), got, last, end)
 	}
 	return PeriodSpec{
-		Unit:         PeriodDay,
 		Cells:        cells,
 		Description:  description,
 		TodayLabel:   i18n.T(ctx, i18n.KeyPeriodToday),
 		TodayAtStart: at < 0,
 	}, true
-}
-
-// MonthPeriod is a warranty drawn from the month of the parcel's receipt to the month it ends, one cell a month.
-// months is the promise the order line copied; the end is the registered expiry. ok is false when the promise has
-// no months or more than a grid can draw.
-func MonthPeriod(ctx context.Context, received, until, today shoptime.Date, months int) (PeriodSpec, bool) {
-	if months < 1 || months > maxPeriodCells {
-		return PeriodSpec{}, false
-	}
-	at := shoptime.MonthsBetween(received, today)
-	cells := make([]PeriodCell, months)
-	for i := range cells {
-		switch {
-		case i < at:
-			cells[i].State = CellPast
-		case i == at:
-			cells[i].State = CellToday
-		}
-	}
-	cells[0].Label = shoptime.MonthLabel(received)
-	cells[months-1].Label = shoptime.MonthLabel(until)
-
-	from, to, now := shoptime.DateText(ctx, received), shoptime.DateText(ctx, until), shoptime.DateText(ctx, today)
-	n := int64(months)
-	var description string
-	if at >= months {
-		description = i18n.Count(ctx, i18n.KeyPeriodWarrantyEnded, n, from, to, months)
-	} else {
-		description = i18n.Count(ctx, i18n.KeyPeriodWarrantyRunning, n, from, to, months, now, at+1)
-	}
-	return PeriodSpec{
-		Unit:        PeriodMonth,
-		Cells:       cells,
-		Description: description,
-		TodayLabel:  i18n.T(ctx, i18n.KeyPeriodToday),
-	}, true
-}
-
-// MinutePeriod is a stock hold drawn from placedAt to until, one cell per minute.
-// startBy is the minute payment must have started by; it is zero when the page
-// shows no such deadline, and the cells after it are the extra span. lapsed
-// fills every cell: the hold has ended. ok is false when the hold is longer
-// than a grid can draw or shorter than one minute.
-func MinutePeriod(ctx context.Context, placedAt, startBy, until time.Time, lapsed bool) (PeriodSpec, bool) {
-	total := int(until.Sub(placedAt) / time.Minute)
-	if total < 1 || total > maxPeriodCells {
-		return PeriodSpec{}, false
-	}
-	cells := make([]PeriodCell, total)
-	if lapsed {
-		for i := range cells {
-			cells[i].State = CellPast
-		}
-	}
-	placed, deadline, end := shoptime.ClockText(placedAt), shoptime.ClockText(startBy), shoptime.ClockText(until)
-	cells[0].Label = placed
-	cells[total-1].Label = end
-	// The cell i covers [placedAt+i, placedAt+i+1) minutes and the tick is on its right edge, so the cell
-	// before the deadline's minute carries it.
-	if mark := int(startBy.Sub(placedAt)/time.Minute) - 1; !startBy.IsZero() && mark > 0 && mark < total-1 {
-		cells[mark].Mark = true
-		cells[mark].Label = deadline
-		for i := mark + 1; i < total; i++ {
-			cells[i].Extra = true
-		}
-	}
-	var description string
-	switch {
-	case lapsed:
-		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldLapsed), placed, end)
-	case startBy.IsZero():
-		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldResumed), placed, end)
-	default:
-		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodHoldOpen), placed, deadline, end)
-	}
-	return PeriodSpec{Unit: PeriodMinute, Cells: cells, Description: description}, true
 }

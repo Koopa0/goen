@@ -86,89 +86,119 @@ func TestTheComparisonPreviewLeavesOutWhatIsNotASpecification(t *testing.T) {
 	}
 }
 
-func TestADepartmentHeadSaysOnlyTheCountsItHolds(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books"}
-	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4, Categories: 2}))
-	for _, want := range []string{"<dt>商品</dt>", "<dt>分類</dt>"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("head omits %s", want)
-		}
-	}
-	if strings.Contains(got, "<dt>品牌</dt>") {
-		t.Error("head states a brand count of zero")
-	}
-	none := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{}))
-	if strings.Contains(none, "ui-statline") {
-		t.Error("a department holding nothing draws a fact line")
-	}
-}
-
 func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books"}
-	without := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 1}))
+	without := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{}))
 	if strings.Contains(without, "goen-deptnotice") {
 		t.Error("a department with no campaign draws a notice")
 	}
-	grid := components.PeriodSpec{Description: "秋日選物", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday}, {}}}
-	notice := &DepartmentNotice{
-		Title: "秋日選物", Href: "/s/autumn",
-		Ends:   components.Stat{Label: "結束", Value: components.StatDate("10 月 30 日", "").WithDatetime("2026-10-30")},
-		Period: &grid,
-	}
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	ends := time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC)
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(ends, now)}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
-	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, "<dt>結束</dt>", `class="ui-period"`, `datetime="2026-10-30"`} {
+	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, `<time datetime="2026-10-30">`} {
 		if !strings.Contains(with, want) {
 			t.Errorf("notice omits %s", want)
 		}
 	}
 }
 
-// The period's track carries no dates, so the end line is drawn at every width,
-// with or without a track beside it; a campaign too long for one has the line alone.
-func TestACampaignNoticeKeepsItsEndLineWhereThereIsNoGrid(t *testing.T) {
+// The notice is one line of words: its last day and what is left are said, and
+// nothing is drawn. The arrow keeps to the last words with a no-break space.
+func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	now := start.AddDate(0, 0, 5)
+	cst := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, cst)
 	for _, tt := range []struct {
-		name     string
-		days     int
-		wantGrid bool
+		name   string
+		locale i18n.Locale
+		ends   time.Time
+		until  string
+		left   string
+		time   string
 	}{
-		{name: "a month", days: 30, wantGrid: true},
-		{name: "a season, too long for a grid", days: 90, wantGrid: false},
+		{"nine days left", i18n.ZhHant, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "至 10\u00a0月 18\u00a0日", "剩\u00a09\u00a0天", "2026-10-18"},
+		{"nine days left", i18n.En, time.Date(2026, 10, 19, 0, 0, 0, 0, cst), "until Oct\u00a018,", "9\u00a0days left", "2026-10-18"},
+		{"ends tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "明天結束", "2026-10-10"},
+		{"ends tomorrow", i18n.En, time.Date(2026, 10, 11, 0, 0, 0, 0, cst), "", "ends tomorrow", "2026-10-10"},
+		{"ends today", i18n.ZhHant, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "", "今天結束", "2026-10-09"},
+		{"ends today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst), "", "ends today", "2026-10-09"},
+		{"ends today at six", i18n.ZhHant, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "今天 18:00 結束", "2026-10-09T18:00"},
+		{"ends today at six", i18n.En, time.Date(2026, 10, 9, 18, 0, 0, 0, cst), "", "ends today at 18:00", "2026-10-09T18:00"},
+		{"three days left ending at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "至 10\u00a0月 12\u00a0日 18:00", "剩\u00a03\u00a0天", "2026-10-12T18:00"},
+		{"three days left ending at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst), "until Oct\u00a012 at 18:00,", "3\u00a0days left", "2026-10-12T18:00"},
+		{"tomorrow ending at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "明天 18:00 結束", "2026-10-10T18:00"},
+		{"tomorrow ending at six", i18n.En, time.Date(2026, 10, 10, 18, 0, 0, 0, cst), "", "ends tomorrow at 18:00", "2026-10-10T18:00"},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" "+string(tt.locale), func(t *testing.T) {
 			t.Parallel()
-			ends := start.AddDate(0, 0, tt.days)
-			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", Ends: CampaignEndStat(ctx, ends, now)}
-			if period, ok := components.DayPeriod(ctx, notice.Title, start, ends, now); ok {
-				notice.Period = &period
-			}
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(tt.ends, now)}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
 			if err != nil {
 				t.Fatal(err)
 			}
-			in := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__in") })
-			if in == nil {
-				t.Fatal("departmentNotice draws no goen-deptnotice__in")
+			link := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__name") })
+			if link == nil {
+				t.Fatal("departmentNotice draws no goen-deptnotice__name")
 			}
-			var line, grid bool
-			for c := in.FirstChild; c != nil; c = c.NextSibling {
-				line = line || hasClass(c, "ui-statline")
-				grid = grid || hasClass(c, "ui-period")
+			eyebrow := i18n.T(ctx, i18n.KeyCampaignEyebrow)
+			want := eyebrow + " " + notice.Title + "\u00a0· "
+			if tt.until != "" {
+				want += tt.until + "\u00a0· "
 			}
-			if !line {
-				t.Errorf("%d days: the end line is not a child of goen-deptnotice__in", tt.days)
+			want += tt.left + "\u00a0\u2192"
+			if got := nodeText(link); got != want {
+				t.Errorf("the notice reads %q, want %q", got, want)
 			}
-			if grid != tt.wantGrid {
-				t.Errorf("%d days: day grid as a child of goen-deptnotice__in = %v, want %v", tt.days, grid, tt.wantGrid)
+			day := findDescendant(link, func(n *html.Node) bool { return n.Data == "time" })
+			if day == nil || attrValue(day, "datetime") != tt.time {
+				t.Errorf("the notice's time element reads datetime %q, want %q", attrValue(day, "datetime"), tt.time)
+			}
+			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__left") })
+			if left == nil || nodeText(left) != tt.left+"\u00a0\u2192" {
+				t.Error("the notice does not set apart what is left, with the arrow kept to it")
+			}
+			for n := range link.Descendants() {
+				if n.Type == html.TextNode && strings.TrimSpace(n.Data) == "·" && attrValue(n.Parent, "aria-hidden") != "true" {
+					t.Error("a dot between the notice's parts is read aloud")
+				}
+			}
+			if drawn := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "ui-period") || hasClass(n, "ui-statline") }); drawn != nil {
+				t.Errorf("the notice draws %s; it says its end in words", attrValue(drawn, "class"))
 			}
 		})
+	}
+}
+
+// The notice is the band's last row, on the department's tone, not a strip under it.
+func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	band := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-band") })
+	if band == nil {
+		t.Fatal("the department head draws no band")
+	}
+	var last *html.Node
+	for c := band.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode {
+			last = c
+		}
+	}
+	if last == nil || !hasClass(last, "goen-deptnotice") {
+		t.Error("the campaign notice is not the band's last row")
+	}
+	if got := nodeText(last); !strings.Contains(got, notice.Title) {
+		t.Errorf("the notice does not name the campaign %q: %q", notice.Title, got)
 	}
 }
 
@@ -212,17 +242,6 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 		if want := `data-comparable="` + strconv.FormatBool(offered) + `"`; !strings.Contains(got, want) {
 			t.Errorf("Comparable %v: page omits %s", offered, want)
 		}
-	}
-}
-
-func TestTheFactLineFollowsTheTitleAndPrecedesTheSubCategories(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Children: []Crumb{{Slug: "a", Name: "Novels"}}}}
-	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4}))
-	title, facts, chips := strings.Index(got, "<h1"), strings.Index(got, "ui-statline"), strings.Index(got, "goen-pagehead__chips")
-	if title < 0 || facts < 0 || chips < 0 || title >= facts || facts >= chips {
-		t.Errorf("order title=%d facts=%d chips=%d, want title < facts < chips", title, facts, chips)
 	}
 }
 

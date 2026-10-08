@@ -13,39 +13,47 @@ import (
 func departmentsOf(n int) []HomeCategory {
 	cats := make([]HomeCategory, n)
 	for i := range cats {
-		cats[i] = HomeCategory{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i), Items: 4, Subs: "甲 · 乙"}
+		cats[i] = HomeCategory{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i)}
 	}
 	return cats
 }
 
-func TestTheDirectoryFollowsTheNumberOfDepartments(t *testing.T) {
+func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
+		name        string
 		departments int
-		want        DirectoryLayout
-		stage       bool
+		band        bool
+		want        bool
 	}{
-		{0, DirectoryNone, false},
-		{1, DirectoryNone, false}, // the band is the department
-		{2, DirectoryTiles, false},
-		{3, DirectoryRows, true},
-		{7, DirectoryRows, true},
-		{8, DirectoryColumns, false},
-		{12, DirectoryColumns, false},
+		{"none", 0, true, false},
+		{"none, no band", 0, false, false},
+		{"one with the band: the band is the department", 1, true, false},
+		{"one with no band", 1, false, true},
+		{"two", 2, true, true},
+		{"six", 6, true, true},
+		{"ten", 10, true, true},
 	} {
-		band := &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(3)}
-		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(tt.departments), Band: band}))
-		if got := (&HomeView{Categories: departmentsOf(tt.departments), Band: band}).Directory(); got != tt.want {
-			t.Errorf("%d departments: layout %q, want %q", tt.departments, got, tt.want)
+		view := HomeView{Categories: departmentsOf(tt.departments)}
+		if tt.band {
+			view.Band = &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)}
 		}
-		if got := strings.Contains(page, "goen-cats__grid"); got != (tt.want != DirectoryNone) {
-			t.Errorf("%d departments: directory drawn = %t", tt.departments, got)
+		if got := view.ShowsDirectory(); got != tt.want {
+			t.Errorf("%s: ShowsDirectory() = %t, want %t", tt.name, got, tt.want)
 		}
-		if tt.want != DirectoryNone && !strings.Contains(page, "goen-cats__grid--"+string(tt.want)) {
-			t.Errorf("%d departments: no %s list", tt.departments, tt.want)
+		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, view))
+		if got := strings.Contains(page, "goen-cats__grid"); got != tt.want {
+			t.Errorf("%s: directory drawn = %t, want %t", tt.name, got, tt.want)
 		}
-		if got := strings.Contains(page, "goen-cat__stage"); got != tt.stage {
-			t.Errorf("%d departments: stage drawn = %t, want %t", tt.departments, got, tt.stage)
+		if tt.want {
+			if got := strings.Count(page, `class="goen-cat"`); got != tt.departments {
+				t.Errorf("%s: %d tiles, want one per department (%d)", tt.name, got, tt.departments)
+			}
+		}
+		for _, not := range []string{"goen-cat__stage", "goen-cat__subs", "goen-cat__count", "goen-cat__line", "goen-cats__grid--"} {
+			if strings.Contains(page, not) {
+				t.Errorf("%s: the page still draws %s", tt.name, not)
+			}
 		}
 	}
 }
@@ -55,8 +63,19 @@ func TestTheDirectoryFollowsTheNumberOfDepartments(t *testing.T) {
 func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(1)}))
-	if !strings.Contains(page, "goen-cats__grid--tiles") || !strings.Contains(page, `href="/c/d0"`) {
+	if !strings.Contains(page, "goen-cats__grid") || !strings.Contains(page, `href="/c/d0"`) {
 		t.Error("the only department is not drawn as a tile")
+	}
+}
+
+// A tile is the department's name and nothing else: no number of products, no
+// sub-categories.
+func TestADepartmentTileHoldsOnlyItsPictureAndName(t *testing.T) {
+	t.Parallel()
+	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(2)}))
+	want := `<a class="goen-cat" data-tone="stone" href="/c/d0"><span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">館</span></span> <span class="goen-cat__name">館0</span></a>`
+	if !strings.Contains(page, want) {
+		t.Errorf("the tile is not its picture and name; want %s", want)
 	}
 }
 
@@ -66,7 +85,7 @@ func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
 func TestADepartmentWithoutAPhotographIsItsToneAndFirstCharacter(t *testing.T) {
 	t.Parallel()
 	cats := departmentsOf(3)
-	cats[1] = HomeCategory{Slug: "wood", Name: "棲木家居", Items: 2}
+	cats[1] = HomeCategory{Slug: "wood", Name: "棲木家居"}
 	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: cats}))
 	if !strings.Contains(page, `<span class="goen-cat__mark" aria-hidden="true">棲</span>`) {
 		t.Error("the department with no photograph lost its first-character square")
@@ -94,7 +113,7 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 			Tone: ToneSage, Items: 6,
 			Facts:     []components.Stat{{Label: "商品", Value: components.StatCount(6, "件")}},
 			CardFacts: []components.Stat{{Label: "結束", Value: components.StatCount(3, "天")}},
-			Period:    &components.PeriodSpec{Unit: components.PeriodDay, Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
+			Period:    &components.PeriodSpec{Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
 		},
 	}
 }
@@ -189,7 +208,7 @@ func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "看全部 20 件", i18n.En: "See all 20 items"} {
 		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Band: &DepartmentBand{
-			Name: "Tech", Items: 20, Href: "/c/tech", Tiles: tiledShelf(3),
+			Name: "Tech", Items: 20, Href: "/c/tech", Tiles: tiledShelf(4),
 		}}))
 		if !strings.Contains(page, want) {
 			t.Errorf("%s: the band link is not %q", locale, want)

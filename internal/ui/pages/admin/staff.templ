@@ -59,7 +59,7 @@ templ Staff(p layouts.Page, v StaffView) {
 							<td>{ RoleLabel(ctx, r.Role) }</td>
 							<td>
 								if r.Enrolled {
-									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 										{ r.State(ctx) }
 									}
 								} else {

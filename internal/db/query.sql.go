@@ -3554,6 +3554,7 @@ SELECT
     NOT EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+          AND dv.stock_quantity > dv.safety_stock
     ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
@@ -3620,7 +3621,7 @@ JOIN LATERAL (
               AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
              (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
-             price_cents
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -7463,37 +7464,6 @@ func (q *Queries) DepartmentCompareCandidates(ctx context.Context, slug string) 
 	return items, nil
 }
 
-const departmentFacts = `-- name: DepartmentFacts :one
-WITH RECURSIVE d AS (
-    SELECT c.id FROM categories c WHERE c.slug = $1::text
-    UNION ALL
-    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
-)
-SELECT
-    (SELECT count(*) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS products,
-    (SELECT count(*) FROM categories k JOIN categories r ON r.id = k.parent_id
-     WHERE r.slug = $1::text)::bigint AS categories,
-    (SELECT count(DISTINCT p.brand_id) FROM products p
-     WHERE p.status = 'active' AND p.category_id IN (SELECT id FROM d))::bigint AS brands
-`
-
-type DepartmentFactsRow struct {
-	Products   int64
-	Categories int64
-	Brands     int64
-}
-
-// What a department says about itself under its head: the products it holds across
-// its whole subtree, the sub-categories directly under it, and the brands of those
-// products.
-func (q *Queries) DepartmentFacts(ctx context.Context, slug string) (DepartmentFactsRow, error) {
-	row := q.db.QueryRow(ctx, departmentFacts, slug)
-	var i DepartmentFactsRow
-	err := row.Scan(&i.Products, &i.Categories, &i.Brands)
-	return i, err
-}
-
 const departmentSalesBetween = `-- name: DepartmentSalesBetween :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root_id FROM categories WHERE parent_id IS NULL
@@ -8313,13 +8283,19 @@ SELECT
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     coalesce(b.name, '') AS brand,
-    mv.price_cents AS min_price_cents,
+    mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's.
-    EXISTS (
+    -- rather than state one variant's price as the product's. On a campaign's row
+    -- the price can be a discounted variant's with a cheaper one that can be
+    -- bought beside it.
+    (EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AS price_varies,
+    ) AND ($2::uuid IS NULL OR NOT EXISTS (
+        SELECT 1 FROM product_variants cv
+        WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
+          AND cv.stock_quantity > cv.safety_stock
+    )))::boolean AS price_varies,
     mv.compare_at_price_cents,
     EXISTS (
         SELECT 1 FROM sale_campaign_products fp
@@ -8379,8 +8355,14 @@ JOIN LATERAL (
     FROM product_variants
     WHERE product_id = p.id AND is_active
     -- A buyable variant first: the price on a tile is a promise. Falls back to
-    -- the cheapest overall so a sold-out product still shows what it costs.
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    -- the cheapest overall so a sold-out product still shows what it costs. On a
+    -- campaign's row a discounted variant leads, as on the campaign's own page.
+    ORDER BY ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             ($2::uuid IS NOT NULL AND compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -8419,7 +8401,7 @@ type HomeTilesRow struct {
 	Name                string
 	Summary             string
 	Brand               string
-	MinPriceCents       int64
+	TilePriceCents      int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	InCampaign          bool
@@ -8457,7 +8439,7 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
-			&i.MinPriceCents,
+			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.InCampaign,
@@ -16640,7 +16622,14 @@ SELECT DISTINCT ON (sm.id)
     localized_name(v.name, v.name_en, $1::text) AS name,
     coalesce(localized_name(v.carrier, v.carrier_en, $1::text), '')::text AS carrier,
     v.fee_cents,
-    v.free_over_cents
+    v.free_over_cents,
+    coalesce(
+        (SELECT array_agg(localized_name(z.name, z.name_en, $1::text) ORDER BY z.position, z.id)
+         FROM shipping_version_zones vz
+         JOIN shipping_zones z ON z.id = vz.zone_id
+         WHERE vz.version_id = v.id),
+        ARRAY[]::text[]
+    )::text[] AS surcharge_zones
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
@@ -16671,6 +16660,7 @@ type ShippingChoicesRow struct {
 	Carrier         string
 	FeeCents        int64
 	FreeOverCents   pgtype.Int8
+	SurchargeZones  []string
 }
 
 // Each method's newest version, offered only for a cart its carrier will take.
@@ -16693,6 +16683,7 @@ func (q *Queries) ShippingChoices(ctx context.Context, arg ShippingChoicesParams
 			&i.Carrier,
 			&i.FeeCents,
 			&i.FreeOverCents,
+			&i.SurchargeZones,
 		); err != nil {
 			return nil, err
 		}

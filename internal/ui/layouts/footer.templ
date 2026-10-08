@@ -90,23 +90,26 @@ templ NewsletterForm(s NewsletterState) {
 			<p class="goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
 		} else {
 			<label class="goen-label goen-footer__signuplabel" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
-			@components.Input(components.FieldProps{
-				ID:        "newsletter-email",
-				Name:      "email",
-				Type:      "email",
-				Value:     s.Email,
-				Invalid:   s.FieldRefusal != "",
-				Describes: "newsletter-error",
-				Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
-					"placeholder":  "you@example.com",
-					"required":     true,
-					"autocomplete": "email",
-					"maxlength":    "254",
-				}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
-			})
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
-				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
-			}
+			<div class="goen-footer__field">
+				@components.Input(components.FieldProps{
+					ID:        "newsletter-email",
+					Name:      "email",
+					Type:      "email",
+					Value:     s.Email,
+					Invalid:   s.FieldRefusal != "",
+					Describes: "newsletter-error",
+					Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+						"placeholder":  "you@example.com",
+						"required":     true,
+						"autocomplete": "email",
+						"maxlength":    "254",
+					}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
+				})
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
+					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
+					<span aria-hidden="true">→</span>
+				}
+			</div>
 			if s.Notice != "" {
 				<p class="ui-error-text goen-footer__signup-error" id="newsletter-notice" role="alert">{ s.Notice }</p>
 			}

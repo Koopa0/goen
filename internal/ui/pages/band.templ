@@ -1,16 +1,5 @@
 package pages
 
-import "github.com/koopa0/goen/internal/i18n"
-
-templ bandHeading(id, name, rest string) {
-	<h2 id={ id } class={ "goen-home__heading", templ.KV("goen-band__name--long", bandNameLong(name)) }>
-		{ name }
-		if rest != "" {
-			<span class="goen-home__aside"><span class="goen-home__sep">{ i18n.T(ctx, i18n.KeyHomeAside) }</span>{ rest }</span>
-		}
-	</h2>
-}
-
 // bandMedia is the band's first grid item: the photograph on goen's white,
 // never on the tone. A first-screen photograph is eager; the others are lazy.
 templ bandMedia(imgClass string, p Photo, onWell bool, sizes string, lazy bool) {
@@ -25,8 +14,6 @@ templ bandMedia(imgClass string, p Photo, onWell bool, sizes string, lazy bool) 
 			height="600"
 			if lazy {
 				loading="lazy"
-			} else {
-				fetchpriority="low"
 			}
 			decoding="async"
 		/>

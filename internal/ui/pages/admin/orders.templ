@@ -77,13 +77,8 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 									</td>
 									<td>
 										<div class="goen-admin__cellbadges">
-											@components.Badge(components.BadgeProps{}) {
+											@components.Badge(components.BadgeProps{Intent: o.StatusIntent}) {
 												{ o.StatusText }
-											}
-											if o.Committed {
-												@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
-													{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
-												}
 											}
 										</div>
 									</td>
@@ -209,13 +204,8 @@ templ Orders(p layouts.Page, v OrdersView) {
 								</td>
 								<td>
 									<div class="goen-admin__cellbadges">
-										@components.Badge(components.BadgeProps{}) {
+										@components.Badge(components.BadgeProps{Intent: o.StatusIntent}) {
 											{ o.StatusText }
-										}
-										if o.Committed {
-											@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
-												{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
-											}
 										}
 									</div>
 								</td>
@@ -250,11 +240,11 @@ templ Order(p layouts.Page, v *OrderView) {
 				<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
 			</div>
 			<div class="ui-page-head__actions">
-				@components.Badge(components.BadgeProps{}) {
+				@components.Badge(components.BadgeProps{Intent: v.StatusIntent}) {
 					{ v.StatusText }
 				}
 				if v.Committed {
-					@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 						{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 					}
 				}

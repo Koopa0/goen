@@ -1,27 +1,24 @@
 package pages
 
-import (
-	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
-)
+import "github.com/koopa0/goen/internal/i18n"
 
-templ departmentFacts(h *DepartmentHead) {
-	@components.StatLine(h.Facts(ctx), components.StatLinePlain)
-}
-
-// The row says which campaign runs here and when it ends; the grid draws the whole period.
+// One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
+// Each part wraps whole, a dot stays with the words before it and the arrow with the last words, so a wrapped
+// line never starts on a dot or an arrow.
 templ departmentNotice(n *DepartmentNotice) {
+	{{ before, after := n.End.Until(ctx) }}
 	<section class="goen-deptnotice" aria-label={ i18n.T(ctx, i18n.KeyCampaignEyebrow) }>
 		<div class="goen-deptnotice__in">
 			<a class="goen-deptnotice__name" href={ templ.URL(n.Href) }>
 				<span class="goen-deptnotice__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</span>
-				<b>{ n.Title }</b>
-				<span aria-hidden="true">&rarr;</span>
+				<b>{ n.Title }</b>&nbsp;<span aria-hidden="true">·</span>
+				if n.End.EndsByTomorrow() {
+					<span class="goen-deptnotice__left"><time datetime={ n.End.Datetime() }>{ n.End.Left(ctx) }</time>&nbsp;<span aria-hidden="true">&rarr;</span></span>
+				} else {
+					<span class="goen-deptnotice__until">{ before }<time datetime={ n.End.Datetime() }>{ n.End.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span aria-hidden="true">·</span></span>
+					<span class="goen-deptnotice__left">{ n.End.Left(ctx) }&nbsp;<span aria-hidden="true">&rarr;</span></span>
+				}
 			</a>
-			@components.StatLine([]components.Stat{n.Ends}, components.StatLinePlain)
-			if n.Period != nil {
-				@components.Period(*n.Period)
-			}
 		</div>
 	</section>
 }

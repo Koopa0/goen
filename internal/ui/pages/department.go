@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 )
 
 const (
@@ -19,25 +18,9 @@ const (
 // DepartmentHead is what a department page says under its band. Notice, Preview and Story
 // are nil where the department has nothing to say.
 type DepartmentHead struct {
-	Products, Categories, Brands int64
-	Notice                       *DepartmentNotice
-	Preview                      *ComparePreview
-	Story                        *ColourStory
-}
-
-// Facts leaves out a count that is zero: a department with no brands says nothing about them.
-func (h *DepartmentHead) Facts(ctx context.Context) []components.Stat {
-	var out []components.Stat
-	if h.Products > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(h.Products, i18n.T(ctx, i18n.KeyFactUnitItems))})
-	}
-	if h.Categories > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: components.StatCount(h.Categories, i18n.T(ctx, i18n.KeyFactUnitCategories))})
-	}
-	if h.Brands > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeyDeptBrands), Value: components.StatCount(h.Brands, i18n.T(ctx, i18n.KeyFactUnitBrands))})
-	}
-	return out
+	Notice  *DepartmentNotice
+	Preview *ComparePreview
+	Story   *ColourStory
 }
 
 // EditorialSlot is the one piece of editorial under the head.
@@ -63,10 +46,9 @@ func (h *DepartmentHead) Slot() EditorialSlot {
 
 // DepartmentNotice is the running campaign that features products of the department.
 type DepartmentNotice struct {
-	Title  string
-	Href   string
-	Ends   components.Stat
-	Period *components.PeriodSpec
+	Title string
+	Href  string
+	End   CampaignEnd
 }
 
 // ComparePreview is the comparison a comparable department offers: the same table as /compare,

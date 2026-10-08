@@ -38,7 +38,7 @@ const (
 // PayHold is the stored span of the order's stock hold, which the page reads and
 // never computes. StartBy is zero where the page names no payment deadline,
 // because a session is already open or the window has closed. A zero PlacedAt
-// means no hold is drawn.
+// means no hold is stated.
 type PayHold struct {
 	PlacedAt, StartBy, Until time.Time
 	// CancelledAt is when the hold sweeper cancelled the order unpaid; it is
@@ -66,51 +66,56 @@ type PayView struct {
 	CreditCents    int64
 }
 
-// Facts is when the order was placed, the deadline, the stock hold and the
-// amount, or for a lapsed hold what became of the order.
+// Facts is when the order was placed and the amount due, or for a lapsed hold what became of the order.
 func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat {
-	switch {
-	case h.PlacedAt.IsZero():
+	if h.PlacedAt.IsZero() {
 		return nil
-	case h.Lapsed():
+	}
+	placed := components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)}
+	if h.Lapsed() {
 		return []components.Stat{
-			{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)},
+			placed,
 			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.CancelledAt), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
 			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
 		}
 	}
-	facts := []components.Stat{{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)}}
-	if !h.StartBy.IsZero() {
-		facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactStartBy), Value: payClock(h.StartBy), Note: i18n.T(ctx, i18n.KeyPayFactTimeZone)})
-	}
-	return append(facts,
-		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactHeldUntil), Value: payClock(h.Until), Note: i18n.T(ctx, i18n.KeyPayFactUnpaid)},
-		components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(totalCents)},
-	)
+	return []components.Stat{placed, {Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(totalCents)}}
 }
 
-// Period is the minute grid of the hold; ok is false when no hold is drawn.
-func (h PayHold) Period(ctx context.Context) (components.PeriodSpec, bool) {
-	if h.PlacedAt.IsZero() {
-		return components.PeriodSpec{}, false
+// Window is the hold in words while it runs: the deadline to start paying and then when the hold ends, or the
+// hold's end first where no deadline is named. ok is false with no stored hold, or once it has lapsed.
+func (h PayHold) Window(ctx context.Context) (lead, note string, ok bool) {
+	if h.PlacedAt.IsZero() || h.Lapsed() {
+		return "", "", false
 	}
-	return components.MinutePeriod(ctx, h.PlacedAt, h.StartBy, h.Until, h.Lapsed())
+	until := shoptime.ClockText(h.Until)
+	if h.StartBy.IsZero() {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPayReserved), until), i18n.T(ctx, i18n.KeyPayReservedTail), true
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPayDeadline), shoptime.ClockText(h.StartBy)), fmt.Sprintf(i18n.T(ctx, i18n.KeyPayReservedNote), until), true
 }
 
-// StartByText is the clock time payment must start by.
-func (h PayHold) StartByText() string { return shoptime.ClockText(h.StartBy) }
-
-// EyebrowKey says 完成付款 only while a payment can start or resume.
+// EyebrowKey names the order's status; an unpaid order is 待付款 whether or not a payment can start, because
+// 完成付款 above an order that is not paid reads as already paid.
 func (v *PayView) EyebrowKey() i18n.Key {
-	switch {
-	case v.Closure == PayOrderCancelled:
+	if v.Closure == PayOrderCancelled {
 		return i18n.KeyStatusCancelled
-	case v.Closed() || !v.Enabled:
-		return i18n.KeyStatusAwaitingPayment
-	default:
-		return i18n.KeyPayEyebrow
 	}
+	return i18n.KeyStatusAwaitingPayment
 }
+
+// HoldWindow is the hold in words as this page can keep it: a deadline to start paying is named only while a
+// payment can start, so with payments off the page leads with when the items are released.
+func (v *PayView) HoldWindow(ctx context.Context) (lead, note string, ok bool) {
+	h := v.Hold
+	if !v.Payable() {
+		h.StartBy = time.Time{}
+	}
+	return h.Window(ctx)
+}
+
+// Payable is true while a payment can start or resume here.
+func (v *PayView) Payable() bool { return !v.Closed() && v.Enabled }
 
 func (v *PayView) Closed() bool { return v.Closure != PayOpen }
 

@@ -75,9 +75,6 @@ var (
 
 	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
 
-	// What joins a section's name to its grey continuation on the same line.
-	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
-
 	// A day said the short way. The arguments are the English month name, the
 	// month number, the day and the year, picked by index; the year forms are
 	// for a day outside the shop's current year.
@@ -107,13 +104,9 @@ var (
 
 	KeySlideDaysLeft = key("home.slide.days_left", Message{ZhHant: "剩餘", En: "Days left"})
 
-	// The number is a count and its unit is read with it.
-	KeyUnitItems = countKey("unit.items", "%d\u00a0件", "%d\u00a0item", "%d\u00a0items")
-
 	// A fact's label already names what is counted, so English writes the bare figure and only zh-Hant adds a counter.
 	KeyFactUnitItems      = zhOnly("fact.unit.items", "件")
 	KeyFactUnitCategories = zhOnly("fact.unit.categories", "類")
-	KeyFactUnitBrands     = zhOnly("fact.unit.brands", "個")
 	KeyFactUnitDays       = zhOnly("fact.unit.days", "天")
 
 	KeyEndsTomorrow = key("home.slide.ends_tomorrow", Message{ZhHant: "明天結束", En: "Ends tomorrow"})

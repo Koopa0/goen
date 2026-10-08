@@ -344,7 +344,7 @@ body {
      how far a period has run. 7.15:1 on white, so it is the link text as well
      as the ring and the fill; a price is never blue, or it reads as a link.
      --mark marks a stretch of time on the storefront; a chart's dates are drawn
-     in --ink-2. 藍墨 (ink blue) is the same hue pressed:
+     in --ink-2. The second ring of the goen mark is this blue too. 藍墨 (ink blue) is the same hue pressed:
      hover, text on a blue tint, and a label that is not an action. The tints
      are opaque so text on them is measured against one colour. */
   --accent: #2a56a0;
@@ -393,6 +393,9 @@ body {
   --success-bg: #f0fdf4;
   --warn: #92400e;
   --warn-bg: #fffbeb;
+  --error-tint: #fee2e2;
+  --success-tint: #dcfce7;
+  --warn-tint: #fef3c7;
   /* The warning as a mark with no text on it: the triangle and the bar. 3:1 on
      the white and grey grounds a bar is drawn on. */
   --warn-mark: #b45309;
@@ -506,12 +509,11 @@ body {
 }
 
 /* ---------- Period ----------
-   A stored start and end drawn to scale as one quiet track, a cell per day,
-   month or minute. A cell has no width of its own: the count of cells is the
-   data. Elapsed cells are the fill and the cells to come the track; a mark
-   breaks the track with a 4px gap, and the span after it (the days goen adds
-   to the statutory return window, the minutes after payment must have
-   started) is dashed. Today's cell is half filled, so a last day does not read
+   A stored start and end drawn to scale as one quiet track, a cell per day. A
+   cell has no width of its own: the count of cells is the data. Elapsed cells
+   are the fill and the cells to come the track; a mark breaks the track with a
+   4px gap, and the span after it (the days goen adds to the statutory return
+   window) is dashed. Today's cell is half filled, so a last day does not read
    as over. The track carries no words: the facts above it state the end and
    what is left, and aria-label holds the whole sentence, so the cells' labels
    are not drawn. Nothing animates and nothing is red. */
@@ -616,5 +618,15 @@ body {
 
   .ui-period > i[data-span="extra"][data-cell="today"] {
     mask: linear-gradient(90deg, #000 60%, transparent 0) 0 0 / 8px 100% round border-box;
+  }
+}
+
+/* An SVG keeps the colours it was drawn in, so on a dark Canvas the near-black
+   ring vanishes; below 1024px the mark is the only thing left of the home link. */
+@media (forced-colors: active) {
+  .goen-header__mark circle,
+  .goen-footer__mark circle,
+  .goen-adminbar__mark circle {
+    stroke: CanvasText;
   }
 }
