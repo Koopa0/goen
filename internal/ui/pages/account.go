@@ -23,6 +23,8 @@ type AccountOrder struct {
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
+	// Returned is every unit of the order in an approved or completed return.
+	Returned bool
 	// OneLastDay is true when the whole order has a single last day to cancel; LastDay means nothing otherwise.
 	OneLastDay bool
 	LastDay    shoptime.Date
@@ -55,6 +57,9 @@ func (o AccountOrder) AwaitingPayment() bool {
 }
 
 func (o AccountOrder) StatusText(ctx context.Context) string {
+	if o.Returned {
+		return i18n.T(ctx, i18n.KeyStatusRefunded)
+	}
 	switch o.Status {
 	case order.FulfillmentPending:
 		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {

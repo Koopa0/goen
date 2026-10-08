@@ -641,6 +641,14 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	}
 }
 
+func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	row := AccountOrder{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
+	if got := row.StatusText(ctx); got != "已退款" {
+		t.Errorf("AccountOrder{delivered, Returned}.StatusText = %q, want 已退款", got)
+	}
+}
+
 // TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount holds the same fact on
 // both signed-in surfaces: the history badge and the detail page's notice.
 func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
@@ -1566,6 +1574,9 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 		{"cancelled before paying", OrderView{Status: order.FulfillmentCancelled, OwedCents: 100}, PaymentNone},
 		{"cancelled and refunded", OrderView{
 			Status: order.FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
+		}, PaymentRefunded},
+		{"delivered and returned in full", OrderView{
+			Status: order.FulfillmentDelivered, Committed: true, Returned: &OrderReturned{RefundCents: 100},
 		}, PaymentRefunded},
 		{"delivered with a partial refund", OrderView{
 			Status: order.FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
