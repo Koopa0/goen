@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,7 +80,8 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		token := encodeRedemptionConfirmation(h.confirmationKey, u.ID, redemptionConfirmation{OperationID: operationID, Points: points, CreditCents: cents, IssuedAt: time.Now().Unix()})
-		http.Redirect(w, r, "/account/points?redeemed="+token, http.StatusSeeOther)
+		confirmation, _, _ := strings.Cut(token, ".")
+		http.Redirect(w, r, "/account/points?redeemed="+confirmation, http.StatusSeeOther)
 	case errors.Is(err, ErrTooSmall):
 		h.renderFormRefusal(w, r, u.ID, operationID, pointsAmountReason(r))
 	case errors.Is(err, ErrInvalidOperation):
