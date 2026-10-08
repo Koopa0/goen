@@ -2061,6 +2061,8 @@ th {
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
+  /* The fade lands on this room, not on the last tab's words, when the tabs fit. */
+  padding-inline-end: 1.5rem;
   scrollbar-width: none;
 }
 

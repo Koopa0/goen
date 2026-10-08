@@ -64,7 +64,7 @@ export function measureControlBoundary(selectors, contrast, focused = false) {
       let arrowContrast = 1;
       const image = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/.exec(style.backgroundImage);
       const stroke = image && /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(image[1]));
-      if (bordersNone && stroke && stroke[1] !== 'none') {
+      if (el.tagName === 'SELECT' && bordersNone && stroke && stroke[1] !== 'none') {
         arrowContrast = contrast(over(rgba(stroke[1]), fill), fill);
       }
       return {
