@@ -342,6 +342,9 @@ func TestTheMenuPrintsEachDepartmentsProductCount(t *testing.T) {
 	if !strings.Contains(header, "<small>12</small>") {
 		t.Error("the menu does not print a department's count")
 	}
+	if !strings.Contains(header, `<span class="goen-header__navname">甲</span> <small>12</small>`) {
+		t.Error("the menu's department name is not in its own element, so the current-page underline would run under the count")
+	}
 	if strings.Count(header, "<small>") != 1 {
 		t.Error("a department with no products prints a count of 0")
 	}
@@ -507,6 +510,39 @@ func TestTheDepartmentNavigationIsNamedDepartments(t *testing.T) {
 		if !strings.Contains(footer, `aria-label="`+name+`"`) ||
 			!strings.Contains(footer, `<span class="goen-footer__heading">`+name+`</span>`) {
 			t.Errorf("%s: the footer's department links are not named %q", locale, name)
+		}
+	}
+}
+
+func TestTheCartCountSitsBesideTheBagAndOnlyWhenThereIsSomethingInIt(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		count int
+		want  string
+	}{
+		{0, ""},
+		{1, `<span class="ui-badge--count" aria-hidden="true">1</span>`},
+		{12, `<span class="ui-badge--count" aria-hidden="true">12</span>`},
+	} {
+		ctx := web.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
+		var b strings.Builder
+		if err := layouts.Header(layouts.Page{}).Render(ctx, &b); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		_, cart, _ := strings.Cut(b.String(), `id="cart-link"`)
+		cart, _, _ = strings.Cut(cart, "</a>")
+		if !strings.Contains(cart, `d="M9 10.5V7a3 3 0 0 1 6 0v3.5"`) {
+			t.Errorf("count %d: the cart link does not draw a bag", tc.count)
+		}
+		if tc.want == "" {
+			if strings.Contains(cart, "ui-badge--count") {
+				t.Errorf("count %d: an empty cart prints a count", tc.count)
+			}
+			continue
+		}
+		if !strings.Contains(cart, tc.want) {
+			t.Errorf("count %d: the cart link lacks %s", tc.count, tc.want)
 		}
 	}
 }

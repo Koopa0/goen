@@ -214,6 +214,9 @@ const HEADER_EN = [
   { label: 'header en 1440', width: 1440, height: 900, path: '/' },
   { label: 'listing header en 1024', width: 1024, height: 900, path: '/c/phones' },
   { label: 'listing header en 1440', width: 1440, height: 900, path: '/c/phones' },
+  // Staff have the widest bar: the wordmark, the heart and "Back office" all show from 1024.
+  { label: 'header en staff 1024', width: 1024, height: 900, path: '/', staff: true },
+  { label: 'header en staff 1440', width: 1440, height: 900, path: '/', staff: true },
 ];
 
 // The back office. Needs a staff session, which scripts/check-layout.sql
@@ -1810,9 +1813,20 @@ const HEADER_EN_PROBE = `(() => {
 
 await send(ws, 'Network.enable');
 for (const want of HEADER_EN) {
+  if (want.staff && !process.env.ADMIN_TOKEN) {
+    console.log(`${want.label.padEnd(24)} skipped (no ADMIN_TOKEN)`);
+    continue;
+  }
   await send(ws, 'Network.setCookie', {
     name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/',
   });
+  if (want.staff) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/',
+    });
+  } else {
+    await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  }
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: false,
   });
@@ -1852,6 +1866,7 @@ for (const want of HEADER_EN) {
 await send(ws, 'Network.deleteCookies', {
   name: 'goen_locale', domain: '127.0.0.1', path: '/',
 });
+await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
 
 // The cart pages. Their probe measures the CONTROLS: a cart is a page of
 // buttons and number inputs, and the defect this caught on its first run was a
