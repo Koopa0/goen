@@ -136,7 +136,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
 	case !hasSession:
-		hold.StartBy = startBy(o.Hold.Until)
+		hold.StartBy = StartBy(o.Hold.Until)
 	}
 	view.Hold = hold
 	for i := range o.Lines {
