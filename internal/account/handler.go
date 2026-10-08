@@ -130,18 +130,30 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	// next can be a live link back to /verify; never compress it.
 	web.NoCompress(w)
 	view := h.signInView(pages.AuthView{
-		Next:         web.SitePathOr(r.URL.Query().Get("next"), "/account"),
-		GoogleSignIn: h.google.Enabled(),
+		Next:          web.SitePathOr(r.URL.Query().Get("next"), "/account"),
+		ReturnMessage: signInReturnMessage(r.Context(), r.URL.Query().Get("next")),
+		GoogleSignIn:  h.google.Enabled(),
 	})
 	switch {
-	case r.URL.Query().Get("registered") == "1":
-		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
 	case r.URL.Query().Get("reauth") == "erase":
 		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
+		view.HideRegister = true
 	default:
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
+		switch r.URL.Query().Get("oauth") {
+		case "collision":
+			view.Recovery = pages.SignInResetPassword
+		case "unverified":
+			view.Recovery = pages.SignInRegister
+		}
+	}
+	purpose, address := h.takeSignInContext(w, r)
+	if purpose == signInAfterReset && r.URL.Query().Get("reset") == "1" ||
+		purpose == signInBeforeErasure && r.URL.Query().Get("reauth") == "erase" {
+		view.Email = address
+		view.PasswordFocus = view.Email != ""
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.SignIn(pages.SignInMeta(r.Context()), view))
 }
@@ -200,10 +212,89 @@ func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, nex
 	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), h.signInView(pages.AuthView{
-			Email: addr, Next: next,
+			Email: addr, Next: next, ReturnMessage: signInReturnMessage(r.Context(), r.PostFormValue("next")),
+			HideRegister: r.PostFormValue("reauth") == "erase", PasswordFocus: true,
 			GoogleSignIn: h.google.Enabled(),
 			Errors:       map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
 		})))
+}
+
+type signInPurpose string
+
+const (
+	signInAfterReset    signInPurpose = "reset"
+	signInBeforeErasure signInPurpose = "erase"
+)
+
+func (h *Handler) signInContextCookie() string {
+	if h.secure {
+		return "__Host-goen_signin_context"
+	}
+	return "goen_signin_context"
+}
+
+// This cookie carries a short-lived input suggestion, never sign-in authority.
+func (h *Handler) writeSignInContext(w http.ResponseWriter, purpose signInPurpose, address string) {
+	address = email.Clean(address)
+	if len(address) > email.Max || !email.Valid(address) {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: development-only secure opt-out follows the session cookie.
+		Name: h.signInContextCookie(), Value: string(purpose) + ":" + base64.RawURLEncoding.EncodeToString([]byte(address)),
+		Path: "/", MaxAge: 120, HttpOnly: true, Secure: h.secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (purpose signInPurpose, address string) {
+	cookie, err := r.Cookie(h.signInContextCookie())
+	if err != nil {
+		return "", ""
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: clear with the same attributes that created it.
+		Name: h.signInContextCookie(), Path: "/", MaxAge: -1,
+		HttpOnly: true, Secure: h.secure, SameSite: http.SameSiteLaxMode,
+	})
+	if len(cookie.Value) > 512 {
+		return "", ""
+	}
+	kind, encoded, ok := strings.Cut(cookie.Value, ":")
+	purpose = signInPurpose(kind)
+	if !ok || purpose != signInAfterReset && purpose != signInBeforeErasure {
+		return "", ""
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil || len(decoded) > email.Max || !email.Valid(string(decoded)) {
+		return "", ""
+	}
+	return purpose, string(decoded)
+}
+
+func signInReturnMessage(ctx context.Context, next string) string {
+	target, ok := web.SitePath(next)
+	if !ok {
+		return ""
+	}
+	path, err := url.Parse(target)
+	if err != nil {
+		return ""
+	}
+	key := i18n.KeySignInReturnPage
+	switch {
+	case path.Path == "/account/wishlist":
+		key = i18n.KeySignInReturnWishlist
+	case path.Path == "/checkout":
+		key = i18n.KeySignInReturnCheckout
+	case path.Path == "/cart":
+		key = i18n.KeySignInReturnCart
+	case path.Path == "/account":
+		key = i18n.KeySignInReturnAccount
+	case strings.HasPrefix(path.Path, "/p/"):
+		if path.Fragment == "wishlist" {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeySignInReturnProductWishlist), i18n.T(ctx, i18n.KeyWishlistAdd))
+		}
+		key = i18n.KeySignInReturnProduct
+	}
+	return i18n.T(ctx, key)
 }
 
 func (h *Handler) signInView(v pages.AuthView) pages.AuthView {
@@ -382,6 +473,10 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 		view.EmailVerified, view.PendingEmail = state.Verified, state.PendingEmail
 	}
 	view.Notice = accountNotice(r)
+	if r.URL.Query().Get("welcome") == "1" {
+		view.ReturnAfterWelcome, _ = web.SitePath(r.URL.Query().Get("next"))
+		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
+	}
 	view.PaymentsEnabled = h.carts != nil && h.carts.TakesPayment()
 	if refused != nil {
 		refused(&view)
@@ -393,6 +488,8 @@ func accountNotice(r *http.Request) string {
 	ctx := r.Context()
 	q := r.URL.Query()
 	switch {
+	case q.Get("welcome") == "1":
+		return i18n.T(ctx, i18n.KeyAccountWelcome)
 	case q.Get("saved") == "1":
 		return i18n.T(ctx, i18n.KeyProfileSaved)
 	case q.Get("profile") == "invalid":
@@ -431,9 +528,10 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
 	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
 		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
-			Next:   next,
-			Notice: i18n.T(r.Context(), i18n.KeyCartMergeFailed),
-			Retry:  i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Next:    next,
+			Welcome: r.URL.Query().Get("welcome") == "1",
+			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
 		}))
 }
 
@@ -525,6 +623,23 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	}
 	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
 	return cartAdoptionFailed
+}
+
+func registrationLanding(next string, outcome cartAdoption) string {
+	next = web.SitePathOr(next, "/account")
+	query := url.Values{"welcome": {"1"}}
+	if outcome == cartAdoptionAdjusted {
+		next = appendCartAdjustNotice(next)
+		query.Set("adjusted", "1")
+	}
+	if next != "/account" {
+		query.Set("next", next)
+	}
+	welcome := "/account?" + query.Encode()
+	if outcome == cartAdoptionFailed {
+		return cartRecoveryLanding(welcome) + "&welcome=1"
+	}
+	return welcome
 }
 
 func cartAdoptionLanding(next string, outcome cartAdoption) string {
@@ -746,6 +861,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
 		}
 		h.forgetSession(w, r)
+		h.writeSignInContext(w, signInBeforeErasure, u.Email)
 		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
@@ -1015,7 +1131,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		clearPendingRegistration(w, h.secure)
-		http.Redirect(w, r, cartAdoptionLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther)
 	case errors.Is(err, ErrBadCredentials):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
 			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{
@@ -1054,11 +1170,11 @@ func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 	case "collision":
 		key = i18n.KeyOAuthCollision
 	case "demo":
-		key = i18n.KeyDemoAccountFixed
+		key = i18n.KeyDemoSignInPassword
 	default:
 		return nil
 	}
-	return map[string]string{"form": i18n.T(ctx, key)}
+	return map[string]string{"oauth": i18n.T(ctx, key)}
 }
 
 func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {

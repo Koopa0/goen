@@ -25,7 +25,7 @@ func TestCompareLayoutRowsMeasureTheTableNotTheEmptyState(t *testing.T) {
 		if strings.Count(row, "p=") < 2 {
 			t.Errorf("%s names fewer than two products:\n%s", label, row)
 		}
-		if !strings.Contains(row, "p=PRODUCT_SLUG") || !strings.Contains(row, "p=COMPARE_SLUG_B") {
+		if !strings.Contains(row, "p=PRODUCT_SLUG") || !strings.Contains(row, "p=COMPARE_SLUG") {
 			t.Errorf("%s does not name two seed slugs:\n%s", label, row)
 		}
 		if !strings.Contains(row, `marker: '.goen-compare__table'`) {
@@ -36,11 +36,11 @@ func TestCompareLayoutRowsMeasureTheTableNotTheEmptyState(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(fixture, "COMPARE_SLUG_B=") {
+	if !strings.Contains(fixture, "COMPARE_SLUG=") {
 		t.Fatal("check-layout does not supply a second compare product")
 	}
-	if !strings.Contains(body, "COMPARE_SLUG_B") {
-		t.Fatal("check-layout never substitutes COMPARE_SLUG_B")
+	if !strings.Contains(body, "COMPARE_SLUG") {
+		t.Fatal("check-layout never substitutes COMPARE_SLUG")
 	}
 }
 

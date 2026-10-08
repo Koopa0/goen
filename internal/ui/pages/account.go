@@ -114,6 +114,9 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 }
 
 type AccountView struct {
+	ReturnAfterWelcome string
+	CartAdjusted       bool
+
 	EmailVerified   bool
 	PendingEmail    string
 	Email           string
@@ -192,7 +195,46 @@ func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
 
 func (v *AccountView) HasNotice() bool { return v.Notice != "" }
 
+type SignInRecovery uint8
+
+const (
+	SignInNoRecovery SignInRecovery = iota
+	SignInResetPassword
+	SignInRegister
+)
+
+func (r SignInRecovery) Href() string {
+	switch r {
+	case SignInNoRecovery:
+		return ""
+	case SignInResetPassword:
+		return "/forgot"
+	case SignInRegister:
+		return "/register"
+	default:
+		panic(fmt.Sprintf("sign-in: unknown recovery %d", r))
+	}
+}
+
+func (r SignInRecovery) Label(ctx context.Context) string {
+	switch r {
+	case SignInNoRecovery:
+		return ""
+	case SignInResetPassword:
+		return i18n.T(ctx, i18n.KeyForgotPassword)
+	case SignInRegister:
+		return i18n.T(ctx, i18n.KeyRegister)
+	default:
+		panic(fmt.Sprintf("sign-in: unknown recovery %d", r))
+	}
+}
+
 type AuthView struct {
+	ReturnMessage string
+	HideRegister  bool
+	PasswordFocus bool
+	Recovery      SignInRecovery
+
 	Email        string
 	Name         string
 	Next         string
@@ -269,9 +311,10 @@ func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
 type CartRecoveryView struct {
-	Next   string
-	Notice string
-	Retry  string
+	Welcome bool
+	Next    string
+	Notice  string
+	Retry   string
 }
 
 func CartRecoveryMeta(ctx context.Context) layouts.Page {

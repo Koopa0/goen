@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
@@ -134,7 +136,8 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if diff := cmp.Diff(baseline, persisted); diff != "" {
+				// Cut is recomputed from the read's clock, not saved editor state.
+				if diff := cmp.Diff(baseline, persisted, cmpopts.IgnoreFields(admin.ProductSales{}, "Cut")); diff != "" {
 					t.Errorf("refusal changed persisted editor state (-want +got):\n%s", diff)
 				}
 			})

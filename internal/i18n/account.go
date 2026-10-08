@@ -1,6 +1,9 @@
 package i18n
 
 var (
+	KeyAccountWelcome = key("account.welcome", Message{ZhHant: "帳號已建立，歡迎加入。", En: "Your account is created. Welcome."})
+	KeyWelcomeReturn  = key("account.welcome.return", Message{ZhHant: "繼續原本的操作", En: "Continue where you left off"})
+
 	KeyAccountTitle = key("account.title", Message{ZhHant: "會員中心", En: "Your account"})
 
 	KeySignOut = key("account.signout", Message{ZhHant: "登出", En: "Sign out"})
