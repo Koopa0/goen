@@ -82,9 +82,9 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					}
 					quote := checkoutQuote(t, s, id, owner, shipID, addr, couponCode)
 					attempt := checkoutAttemptKey("placed-contract-" + uuid.NewString())
-					number, err := s.PlaceOrder(ctx, id, owner, shipID, addr, nil, couponCode, quote, attempt)
-					if err != nil {
-						t.Fatalf("PlaceOrder(): %v", err)
+					number, placeErr := s.PlaceOrder(ctx, id, owner, shipID, addr, nil, couponCode, quote, attempt)
+					if placeErr != nil {
+						t.Fatalf("PlaceOrder(): %v", placeErr)
 					}
 					payload, total, owed := placedOrderPayload(t, number)
 					if total != funding.total || owed != funding.owed {
