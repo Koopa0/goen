@@ -6192,6 +6192,11 @@ input.goen-check {
   clip-path: inset(0 -100vmax);
 }
 
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
+}
+
 /* The sections are one white block, parted by the space between them rather
    than boxed or ruled one by one. */
 .goen-checkout__main {
