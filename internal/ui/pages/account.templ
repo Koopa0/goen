@@ -438,15 +438,15 @@ templ Account(p layouts.Page, v *AccountView) {
 						if v.HasOrders() {
 							<table class="goen-account__orders">
 								<thead>
-									<tr>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
-										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+									<tr role="row">
+										<th scope="col" role="columnheader">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+										<th scope="col" role="columnheader">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
 									</tr>
 								</thead>
 								<tbody>
 									for _, o := range v.Orders {
-										<tr>
-											<td>
+										<tr role="row">
+											<td role="cell">
 												<a class="goen-account__number" href={ templ.SafeURL("/orders/" + o.Number) }>
 													{ o.Number }
 												</a>
@@ -455,7 +455,7 @@ templ Account(p layouts.Page, v *AccountView) {
 												</span>
 												@components.StatLine(o.Facts(ctx), components.StatLineSmall)
 											</td>
-											<td>
+											<td role="cell">
 												@components.Badge(components.BadgeProps{Intent: o.BadgeIntent()}) {
 													{ o.StatusText(ctx) }
 												}
