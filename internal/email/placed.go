@@ -51,22 +51,27 @@ func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed i
 			line.SKU, strconv.FormatInt(int64(line.Quantity), 10), twd(line.UnitCents), twd(line.UnitCents*int64(line.Quantity))))
 	}
 	blocks = append(blocks, strings.Join(lines, "\n"))
-	amounts := make([]string, 1, 8)
-	amounts[0] = i18n.T(ctx, i18n.KeyMailPlacedTotals)
-	for _, row := range []struct {
-		key   i18n.Key
-		cents int64
-	}{
-		{i18n.KeySubtotal, s.SubtotalCents}, {i18n.KeyShippingFee, s.ShippingCents},
-		{i18n.KeyDiscount, s.DiscountCents}, {i18n.KeyMailPlacedTax, s.TaxCents},
-		{i18n.KeyTotal, p.TotalCents}, {i18n.KeyOrderCreditApplied, s.CreditCents},
-		{i18n.KeyOrderAmountDue, owed},
-	} {
-		label := i18n.T(ctx, row.key)
-		if row.key == i18n.KeyDiscount && s.DiscountReason != "" {
+	shipping := twd(s.ShippingCents)
+	if s.ShippingCents == 0 {
+		shipping = i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	amounts := make([]string, 0, 6)
+	amounts = append(amounts, i18n.T(ctx, i18n.KeyMailPlacedTotals),
+		fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeySubtotal), twd(s.SubtotalCents)),
+		fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), s.ShippingName), shipping))
+	if s.DiscountCents > 0 {
+		label := i18n.T(ctx, i18n.KeyDiscount)
+		if s.DiscountReason != "" {
 			label = fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), s.DiscountReason)
 		}
-		amounts = append(amounts, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), label, twd(row.cents)))
+		amounts = append(amounts, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), label, "-"+twd(s.DiscountCents)))
+	}
+	if s.CreditCents > 0 {
+		amounts = append(amounts,
+			fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyOrderCreditApplied), "-"+twd(s.CreditCents)),
+			fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyOrderAmountDue), twd(owed)))
+	} else {
+		amounts = append(amounts, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyOrderGrandTotal), twd(p.TotalCents)))
 	}
 	blocks = append(blocks, strings.Join(amounts, "\n"), strings.Join([]string{
 		i18n.T(ctx, i18n.KeyMailPlacedDelivery), s.ShippingName,
@@ -75,7 +80,7 @@ func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed i
 		s.DeliveryTo,
 	}, "\n"))
 	if s.DeliveryNote != "" {
-		blocks = append(blocks, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyAdminQueueCustomerNote), s.DeliveryNote))
+		blocks = append(blocks, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyMailPlacedNote), s.DeliveryNote))
 	}
 	var funding string
 	switch {
@@ -91,7 +96,7 @@ func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed i
 	blocks = append(blocks, i18n.T(ctx, i18n.KeyMailPlacedFunding)+"\n"+funding)
 	if owed > 0 {
 		key := i18n.KeyMailPlacedDeadline
-		if !now.Before(s.StartBy) {
+		if now.After(s.StartBy) {
 			key = i18n.KeyMailPlacedExpired
 		}
 		blocks = append(blocks, fmt.Sprintf(i18n.T(ctx, key), shoptime.Minute(s.StartBy), shoptime.Minute(s.HoldUntil)))

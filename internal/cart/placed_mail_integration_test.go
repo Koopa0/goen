@@ -165,7 +165,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 								t.Errorf("queued confirmation missing actual deadline %q: %s", deadline, sink.message.Body)
 							}
 						}
-					} else if strings.Contains(sink.message.Body, "開始付款") || strings.Contains(sink.message.Body, "Begin payment") {
+					} else if strings.Contains(sink.message.Body, "開始付款") || strings.Contains(sink.message.Body, "Start paying") {
 						t.Errorf("funded confirmation asks to begin payment: %s", sink.message.Body)
 					}
 				})

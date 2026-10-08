@@ -30,15 +30,15 @@ var (
 	KeyMailPlacedLine     = key("mail.placed.line", Message{ZhHant: "商品編號：%s；%s × %s = %s", En: "SKU: %s; %s × %s = %s"})
 	KeyMailPlacedTotals   = key("mail.placed.totals", Message{ZhHant: "下單時的金額：", En: "Amounts at placement:"})
 	KeyMailPlacedFact     = key("mail.placed.fact", Message{ZhHant: "%s：%s", En: "%s: %s"})
-	KeyMailPlacedTax      = key("mail.placed.tax", Message{ZhHant: "稅額", En: "Tax"})
+	KeyMailPlacedNote     = key("mail.placed.note", Message{ZhHant: "備註", En: "Your note"})
 	KeyMailPlacedDelivery = key("mail.placed.delivery", Message{ZhHant: "下單時的配送資料：", En: "Delivery details at placement:"})
 	KeyMailPlacedFunding  = key("mail.placed.funding", Message{ZhHant: "下單時的付款方式：", En: "Payment arrangement at placement:"})
 	KeyMailPlacedCard     = key("mail.placed.card", Message{ZhHant: "信用卡：尚須支付 %s。", En: "Credit card: %s remains payable."})
 	KeyMailPlacedMixed    = key("mail.placed.mixed", Message{ZhHant: "購物金已折抵 %s；信用卡尚須支付 %s。", En: "Store credit applied: %s. Credit card: %s remains payable."})
 	KeyMailPlacedCredit   = key("mail.placed.credit", Message{ZhHant: "已使用購物金支付 %s。", En: "Paid with store credit: %s."})
 	KeyMailPlacedZero     = key("mail.placed.zero", Message{ZhHant: "無須付款。", En: "No payment required."})
-	KeyMailPlacedDeadline = key("mail.placed.deadline", Message{ZhHant: "請在 %s（台北時間）前開始付款。商品保留至 %s（台北時間）；屆時仍未付款的訂單會自動取消。", En: "Begin payment before %s (Taipei time). Items are reserved until %s (Taipei time); an order still unpaid then will be cancelled automatically."})
-	KeyMailPlacedExpired  = key("mail.placed.expired", Message{ZhHant: "開始付款的期限已過，請先查看訂單的目前狀態，再確認能否付款。原開始付款期限：%s（台北時間）；原商品保留期限：%s（台北時間）。", En: "The deadline to begin payment has passed. Check the order's current status before attempting payment. Original payment-start deadline: %s (Taipei time); original stock hold deadline: %s (Taipei time)."})
+	KeyMailPlacedDeadline = key("mail.placed.deadline", Message{ZhHant: "請在 %s 前開始付款。商品保留到 %s，逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "Start paying by %s. Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyMailPlacedExpired  = key("mail.placed.expired", Message{ZhHant: "開始付款的期限已過，請先查看訂單的目前狀態，再確認能否付款。原開始付款期限：%s；原商品保留期限：%s。時間以台灣時間為準。", En: "The deadline to start paying has passed. Check the order's current status before attempting payment. Original deadline to start paying: %s; your items were reserved until %s. Times are Taiwan time."})
 	KeyMailPlacedCurrent  = key("mail.placed.current", Message{ZhHant: "查看訂單的目前狀態：\n%s", En: "Check the order's current status:\n%s"})
 
 	// KeyMailStatutoryDisclosure carries Consumer Protection Act §18's disclosure.
