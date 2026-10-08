@@ -62,6 +62,7 @@ function page() {
   const start = (form = filters) => {
     const controller = new AbortController();
     const ctx = { sourceElement: form, request: { form, signal: controller.signal, abort: () => controller.abort() } };
+    document.dispatch('htmx:config:request', { ctx });
     const event = document.dispatch('htmx:before:request', { ctx });
     return { ctx, event };
   };
@@ -162,4 +163,54 @@ test('reset and pageshow restore the original request attributes', () => {
       assert.equal(form.hasAttribute('data-request-pending'), false);
     }
   }
+});
+
+test('three filter changes abort both superseded requests and cancel the late second response', () => {
+  const view = page();
+  const first = view.start().ctx;
+  const second = view.start().ctx;
+  view.finish(first);
+  const third = view.start().ctx;
+  assert.equal(second.request.signal.aborted, true, 'the third change must abort the second after the first finishes');
+  assert.equal(first.request.signal.aborted, true, 'the second change must abort the first');
+  assert.equal(third.request.signal.aborted, false);
+  assert.equal(view.document.dispatch('htmx:after:request', { ctx: second }).defaultPrevented, true,
+    'a late second response must not swap or push history');
+  assert.equal(view.document.dispatch('htmx:after:request', { ctx: third }).defaultPrevented, false,
+    'the third response must remain accepted');
+});
+
+test('a failed filter response cannot push its canonical URL and a successful recovery can', () => {
+  const view = page();
+  const headers = new Headers({ 'HX-Push-Url': '/c/audio?in_stock=1' });
+  const failed = view.start().ctx;
+  failed.response = { status: 500, raw: { ok: false, headers } };
+  assert.equal(view.document.dispatch('htmx:before:history:update', {
+    sourceElement: view.filters, response: failed.response, history: { type: 'push', path: headers.get('HX-Push-Url') },
+  }).defaultPrevented, true, 'a 500 carrying HX-Push-Url must keep the accepted URL');
+  view.finish(failed);
+  const recovery = view.start().ctx;
+  recovery.response = { status: 200, raw: { ok: true, headers } };
+  assert.equal(view.document.dispatch('htmx:after:request', { ctx: recovery }).defaultPrevented, false);
+  assert.equal(view.document.dispatch('htmx:before:history:update', {
+    sourceElement: view.filters, response: recovery.response, history: { type: 'push', path: headers.get('HX-Push-Url') },
+  }).defaultPrevented, false, 'a 200 recovery must be allowed to update history');
+  view.finish(recovery);
+  assert.equal(view.note.hidden, true);
+});
+
+test('only filter requests disable queued view transitions', () => {
+  const view = page();
+  assert.equal(view.start().ctx.transition, false, 'filter content must swap without a queued transition');
+  assert.equal(view.start(new Form()).ctx.transition, undefined);
+});
+
+test('unrelated forms retain their response and history handling', () => {
+  const view = page();
+  const form = new Form();
+  const { ctx } = view.start(form);
+  assert.equal(view.document.dispatch('htmx:after:request', { ctx }).defaultPrevented, false);
+  assert.equal(view.document.dispatch('htmx:before:history:update', {
+    sourceElement: form, response: { status: 422 }, history: { type: 'push', path: '/cart' },
+  }).defaultPrevented, false);
 });
