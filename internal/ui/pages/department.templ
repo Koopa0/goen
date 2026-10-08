@@ -1,13 +1,6 @@
 package pages
 
-import (
-	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
-)
-
-templ departmentFacts(h *DepartmentHead) {
-	@components.StatLine(h.Facts(ctx), components.StatLinePlain)
-}
+import "github.com/koopa0/goen/internal/i18n"
 
 // One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
 // Each part wraps whole, a dot stays with the words before it and the arrow with the last words, so a wrapped

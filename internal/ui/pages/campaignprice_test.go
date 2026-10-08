@@ -62,7 +62,7 @@ func TestTheSourceLineNamesTheCampaignWhatIsLeftAndItsLastDay(t *testing.T) {
 		want   string
 	}{
 		{"days left", i18n.ZhHant, time.Date(2026, 10, 31, 0, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">秋日選物</a>活動價，<span class=\"goen-pdp__left\">剩 21\u00a0天</span>，至 10\u00a0月 30\u00a0日</p>"},
+			"<a href=\"/s/autumn-picks\">秋日選物</a>活動價，<span class=\"goen-pdp__left\">剩\u00a021\u00a0天</span>，至 10\u00a0月 30\u00a0日</p>"},
 		{"days left", i18n.En, time.Date(2026, 10, 31, 0, 0, 0, 0, cst),
 			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">21\u00a0days left</span>, until Oct\u00a030</p>"},
 		{"tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, cst),
@@ -74,7 +74,7 @@ func TestTheSourceLineNamesTheCampaignWhatIsLeftAndItsLastDay(t *testing.T) {
 		{"today", i18n.En, time.Date(2026, 10, 10, 0, 0, 0, 0, cst),
 			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">ends today</span></p>"},
 		{"days left at six", i18n.ZhHant, time.Date(2026, 10, 12, 18, 0, 0, 0, cst),
-			"<a href=\"/s/autumn-picks\">秋日選物</a>活動價，<span class=\"goen-pdp__left\">剩 3\u00a0天</span>，至 10\u00a0月 12\u00a0日 18:00</p>"},
+			"<a href=\"/s/autumn-picks\">秋日選物</a>活動價，<span class=\"goen-pdp__left\">剩\u00a03\u00a0天</span>，至 10\u00a0月 12\u00a0日 18:00</p>"},
 		{"days left at six", i18n.En, time.Date(2026, 10, 12, 18, 0, 0, 0, cst),
 			"<a href=\"/s/autumn-picks\">Autumn picks</a> price, <span class=\"goen-pdp__left\">3\u00a0days left</span>, until Oct\u00a012 at 18:00</p>"},
 		{"tomorrow at six", i18n.ZhHant, time.Date(2026, 10, 10, 18, 0, 0, 0, cst),

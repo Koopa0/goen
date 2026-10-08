@@ -50,7 +50,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentProgress}) {
 											{ c.State(ctx) }
 										}
 									} else {

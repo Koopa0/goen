@@ -126,13 +126,14 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	}
 	for i := range src.cats {
 		c := &src.cats[i]
+		if src.held[c.ID] == 0 {
+			continue
+		}
 		view.Categories = append(view.Categories, pages.HomeCategory{
 			Slug:  c.Slug,
 			Name:  c.Name,
 			Tone:  pages.ResolveTone(c.Tone),
 			Photo: departmentPhoto(c),
-			Subs:  strings.Join(src.subs[c.ID], " · "),
-			Items: src.held[c.ID],
 		})
 	}
 	return view, nil
@@ -226,7 +227,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			Name:         t.Name,
 			Summary:      t.Summary,
 			Brand:        t.Brand,
-			PriceCents:   t.MinPriceCents,
+			PriceCents:   t.TilePriceCents,
 			PriceVaries:  t.PriceVaries,
 			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
 			InCampaign:   t.InCampaign,

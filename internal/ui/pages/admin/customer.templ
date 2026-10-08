@@ -168,7 +168,7 @@ templ Customer(p layouts.Page, v *CustomerView) {
 									<a href={ templ.SafeURL("/admin/orders/" + o.Number) }>{ o.Number }</a>
 								</td>
 								<td>
-									@components.Badge(components.BadgeProps{}) {
+									@components.Badge(components.BadgeProps{Intent: o.StatusIntent}) {
 										{ o.StatusText }
 									}
 								</td>

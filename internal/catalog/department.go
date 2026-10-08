@@ -19,14 +19,11 @@ import (
 // of filtered results is not the department's front. compared is whether the department
 // puts its products side by side.
 func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool, offers map[uuid.UUID]bool) (*pages.DepartmentHead, error) {
-	facts, err := s.q.DepartmentFacts(ctx, slug)
-	if err != nil {
-		return nil, fmt.Errorf("read facts of %q: %w", slug, err)
-	}
-	head := &pages.DepartmentHead{Products: facts.Products, Categories: facts.Categories, Brands: facts.Brands}
+	head := &pages.DepartmentHead{}
 	if !slots {
 		return head, nil
 	}
+	var err error
 	if head.Notice, err = s.departmentNotice(ctx, slug); err != nil {
 		return nil, err
 	}

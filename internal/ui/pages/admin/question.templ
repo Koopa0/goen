@@ -24,14 +24,12 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				<p class="ui-page-head__sub">
 					{ i18n.T(ctx, i18n.KeyAdminQuestionsLead) }
 				</p>
+				if v.Waiting() > 0 {
+					<p class="goen-admin__headcount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }</p>
+				}
 			</div>
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL(v.OtherQueueHref())) {
 				{ v.OtherQueueLabel(ctx) }
-			}
-			if v.Waiting() > 0 {
-				@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }
-				}
 			}
 		</div>
 		@Announce(v.Notice)
@@ -52,7 +50,7 @@ templ Questions(p layouts.Page, v QuestionsView) {
 									<a href={ templ.SafeURL(q.ProductHref()) }>{ q.ProductName }</a>
 								</p>
 								if q.Waiting() {
-									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 										{ q.State(ctx) }
 									}
 								} else {
