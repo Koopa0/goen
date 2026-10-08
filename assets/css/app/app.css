@@ -3746,7 +3746,7 @@ input.goen-check {
   border-bottom: 1px solid var(--border);
   min-width: 160px;
   padding: 12px;
-  text-align: center;
+  text-align: left;
   vertical-align: top;
 }
 
@@ -3771,7 +3771,7 @@ input.goen-check {
 .goen-compare__image {
   border-radius: var(--r-md);
   height: 96px;
-  margin: 0 auto;
+  margin: 0;
   object-fit: cover;
   width: 96px;
 }
@@ -3798,8 +3798,6 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: 8px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .goen-compare__price {
@@ -4148,6 +4146,22 @@ input.goen-check {
 .goen-wish__remove,
 .goen-wish__add {
   margin: 0;
+}
+
+.goen-wish__remove {
+  align-self: flex-start;
+}
+
+.goen-wish__remove .goen-btn {
+  background: none;
+  color: var(--fg-muted);
+  padding-inline: 0;
+  width: auto;
+}
+
+.goen-wish__remove .goen-btn:hover {
+  background: none;
+  color: var(--fg);
 }
 
 .goen-wish__stock {
