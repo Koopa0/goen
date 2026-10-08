@@ -107,9 +107,6 @@ var (
 
 	KeySlideDaysLeft = key("home.slide.days_left", Message{ZhHant: "剩餘", En: "Days left"})
 
-	// The number is a count and its unit is read with it.
-	KeyUnitItems = countKey("unit.items", "%d\u00a0件", "%d\u00a0item", "%d\u00a0items")
-
 	// A fact's label already names what is counted, so English writes the bare figure and only zh-Hant adds a counter.
 	KeyFactUnitItems      = zhOnly("fact.unit.items", "件")
 	KeyFactUnitCategories = zhOnly("fact.unit.categories", "類")

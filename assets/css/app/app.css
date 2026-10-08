@@ -2039,189 +2039,117 @@ th {
   }
 }
 
-/* ----- Departments. Two: tiles. Three to seven: rows, with a stage beside
-   them from 1024px that shows the photograph (or the tone and the big name) of
-   the row in reach. Eight or more: two columns of rows with a thumbnail each, and
-   no stage. The photograph is both a row's thumbnail and the stage's picture. ----- */
+/* ----- Departments: one square photograph each, the name under it. The
+   columns follow the section's own width in rem, so larger text folds them
+   sooner. ----- */
+
+.goen-cats {
+  container: cats / inline-size;
+}
 
 .goen-cats__grid {
-  --dir-gap: clamp(2rem, 5vw, 5rem);
+  --cols: 3;
   display: grid;
-  gap: var(--s-4);
-  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem 1rem;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+@container cats (inline-size < 40rem) {
+  .goen-cats__grid:not(:has(> li:nth-child(3))),
+  .goen-cats__grid:has(> li:nth-child(4):last-child) {
+    --cols: 2;
+  }
+}
+
+@container cats (inline-size < 17rem) {
+  .goen-cats__grid {
+    --cols: 2;
+  }
+}
+
+@container cats (inline-size >= 40rem) {
+  .goen-cats__grid {
+    --cols: 6;
+    column-gap: 1.5rem;
+  }
+}
+
 .goen-cat {
   color: var(--n-900);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  min-height: 44px;
+  gap: 0.5rem;
   text-decoration: none;
 }
 
-/* The tone is the card; the photograph keeps goen's white along its right and
-   bottom edge, so it never touches the tone. */
 .goen-cat__well {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
+  aspect-ratio: 1;
+  background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
   overflow: hidden;
 }
 
 .goen-cat__photo {
-  border: 0 solid var(--n-0);
-  border-width: 0 var(--col-gap) var(--col-gap) 0;
-  box-sizing: border-box;
   display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
 }
 
-.goen-cat__well .goen-cat__mark {
-  border-radius: 0;
+.goen-cat__mark {
+  background: var(--tone-ground);
+  color: var(--tone-text);
+  display: grid;
+  font-size: 32cqi;
+  font-weight: var(--fw-display);
   height: 100%;
-  width: 100%;
-}
-
-.goen-cat__line {
-  align-items: baseline;
-  display: flex;
-  gap: var(--s-4);
-  justify-content: space-between;
+  line-height: 1;
+  place-items: center;
 }
 
 .goen-cat__name {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  hyphens: auto;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
-.goen-cat__line .goen-cat__name {
-  font-size: var(--t-20);
-}
-
-.goen-cat__count {
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.goen-cat:hover .goen-cat__photo {
+  opacity: 0.85;
 }
 
 .goen-cat:hover .goen-cat__name {
   text-decoration: underline;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 3px;
 }
 
-.goen-cat:hover .goen-cat__photo {
-  opacity: 0.9;
+.goen-cat:focus-visible {
+  outline: none;
 }
 
-.goen-cats__grid--rows,
-.goen-cats__grid--columns {
-  container-type: inline-size;
-  gap: 0;
+.goen-cat:focus-visible .goen-cat__well {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
-.goen-cats__grid--rows .goen-cat,
-.goen-cats__grid--columns .goen-cat {
-  align-items: center;
-  column-gap: var(--s-4);
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) auto;
-  padding: var(--s-3) 0;
-  row-gap: 2px;
-}
-
-.goen-cats__grid--rows .goen-cat__photo,
-.goen-cats__grid--columns .goen-cat__photo,
-.goen-cat__mark {
-  border: 0;
-  border-radius: var(--r-md);
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  height: 4rem;
-  width: 4rem;
-}
-
-.goen-cat__mark {
-  background: var(--tone-ground);
-  color: var(--tone-text);
-  display: grid;
-  font-size: 1.75rem;
-  line-height: 1;
-  place-items: center;
-}
-
-.goen-cats__grid--rows .goen-cat__name,
-.goen-cats__grid--columns .goen-cat__name {
-  align-self: end;
-  font-size: var(--t-20);
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.goen-cats__grid--rows .goen-cat__name {
-  font-weight: var(--fw-regular);
-}
-
-.goen-cat__subs {
-  align-self: start;
-  color: var(--n-500);
-  font-size: var(--fs-13);
-  grid-column: 2;
-  grid-row: 2;
-  word-break: keep-all;
-}
-
-.goen-cats__grid--rows .goen-cat__count,
-.goen-cats__grid--columns .goen-cat__count {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.goen-cat__go,
-.goen-cat__stage {
-  display: none;
-}
-
-@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .goen-cats__grid--rows .goen-cat__photo,
-  .goen-cats__grid--rows .goen-cat__stage {
-    transition: opacity 0.4s var(--ease-standard);
-  }
-}
-
-/* A column under 16rem is a phone at 150 to 200% text: the count goes under
-   the name and the sub-categories take the row's width below. */
-@container (width < 16rem) {
-  .goen-cats__grid--rows .goen-cat,
-  .goen-cats__grid--columns .goen-cat {
-    grid-template-columns: 4rem minmax(0, 1fr);
+@container cats (inline-size >= 56rem) {
+  .goen-cats__grid {
+    row-gap: 2rem;
   }
 
-  .goen-cats__grid--rows .goen-cat__name,
-  .goen-cats__grid--columns .goen-cat__name {
-    hyphens: auto;
-    overflow-wrap: anywhere;
+  .goen-cat {
+    gap: 0.75rem;
   }
 
-  .goen-cats__grid--rows .goen-cat__count,
-  .goen-cats__grid--columns .goen-cat__count {
-    align-self: start;
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .goen-cat__subs {
-    grid-column: 1 / -1;
-    grid-row: 3;
-    margin-top: var(--s-1);
+  .goen-cat__name {
+    font-size: var(--fs-15);
   }
 }
 
@@ -2345,13 +2273,6 @@ th {
   }
 }
 
-@media (min-width: 44rem) {
-  .goen-cats__grid--tiles {
-    gap: var(--col-gap);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
@@ -2415,120 +2336,6 @@ th {
 
   .goen-hero__lede {
     font-size: 1.0625rem;
-  }
-
-  .goen-cats__grid--rows {
-    padding-right: calc((100% - var(--dir-gap)) * 5 / 12 + var(--dir-gap));
-    position: relative;
-  }
-
-  .goen-cats__grid--rows li + li > .goen-cat {
-    border-top: 1px solid var(--line);
-  }
-
-  .goen-cats__grid--rows .goen-cat {
-    align-items: baseline;
-    grid-template-columns: minmax(max-content, 1.1fr) minmax(0, 1.4fr) auto 1.25rem;
-    padding: 1.25rem 0 1.125rem;
-  }
-
-  .goen-cats__grid--rows .goen-cat__mark {
-    display: none;
-  }
-
-  .goen-cats__grid--rows .goen-cat__name {
-    align-self: baseline;
-    font-size: var(--t-32);
-    font-weight: var(--fw-display);
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__subs {
-    align-self: baseline;
-    color: var(--n-700);
-    font-size: var(--fs-14);
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__count {
-    align-self: baseline;
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat__go {
-    color: var(--n-500);
-    display: block;
-    grid-column: 4;
-    grid-row: 1;
-  }
-
-  .goen-cats__grid--rows .goen-cat:hover .goen-cat__go,
-  .goen-cats__grid--rows .goen-cat:focus-visible .goen-cat__go {
-    color: var(--n-900);
-  }
-
-  .goen-cats__grid--rows .goen-cat__photo,
-  .goen-cats__grid--rows .goen-cat__stage {
-    border-radius: var(--r-lg);
-    display: block;
-    grid-column: auto;
-    grid-row: auto;
-    height: min(100%, 35rem);
-    object-fit: cover;
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: calc((100% - var(--dir-gap)) * 5 / 12);
-  }
-
-  .goen-cats__grid--rows .goen-cat__stage {
-    align-content: end;
-    background: var(--tone-ground);
-    color: var(--tone-text);
-    display: grid;
-    font-size: clamp(2.5rem, 1.6rem + 2.4vw, 4rem);
-    line-height: 1.05;
-    padding: var(--s-6) var(--s-5);
-  }
-
-  .goen-cats__grid--rows li:first-child :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 1;
-  }
-
-  .goen-cats__grid--rows:has(.goen-cat:is(:hover, :focus-visible)) li:first-child:not(:has(.goen-cat:is(:hover, :focus-visible))) :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 0;
-  }
-
-  .goen-cats__grid--rows li:has(.goen-cat:is(:hover, :focus-visible)) :is(.goen-cat__photo, .goen-cat__stage) {
-    opacity: 1;
-  }
-
-  .goen-cats__grid--columns {
-    column-gap: var(--dir-gap);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .goen-cats__grid--columns .goen-cat {
-    grid-template-columns: 5rem minmax(0, 1fr) auto 1.25rem;
-    padding: var(--s-4) 0;
-  }
-
-  .goen-cats__grid--columns .goen-cat__photo,
-  .goen-cats__grid--columns .goen-cat__mark {
-    height: 5rem;
-    width: 5rem;
-  }
-
-  .goen-cats__grid--columns .goen-cat__go {
-    color: var(--n-500);
-    display: block;
-    grid-column: 4;
-    grid-row: 1 / span 2;
   }
 
   .goen-band {
@@ -8673,7 +8480,7 @@ form[data-request-pending] [aria-disabled="true"] {
 
 @media (forced-colors: active) {
   .goen-band__media img,
-  .goen-cat__photo,
+  .goen-cat__well,
   .goen-campaign__header {
     outline: 1px solid CanvasText;
   }
