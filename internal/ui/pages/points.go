@@ -122,42 +122,42 @@ func (v *PointsView) RedeemableText() string { return strconv.FormatInt(v.Redeem
 
 func (v *PointsView) Credit() string { return twd(v.CreditCents) }
 
-func (v PointsView) CanRedeem() bool { return v.Redeemable > 0 }
+func (v *PointsView) CanRedeem() bool { return v.Redeemable > 0 }
 
-func (v PointsView) ShowRedemptionForm() bool { return v.CanRedeem() || v.DraftPoints != nil }
+func (v *PointsView) ShowRedemptionForm() bool { return v.CanRedeem() || v.DraftPoints != nil }
 
-func (v PointsView) MinimumText() string { return strconv.FormatInt(v.Minimum, 10) }
+func (v *PointsView) MinimumText() string { return strconv.FormatInt(v.Minimum, 10) }
 
-func (v PointsView) RateText(ctx context.Context) string {
+func (v *PointsView) RateText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRate), strconv.FormatInt(v.PerCredit, 10))
 }
 
-func (v PointsView) Expiring() bool { return v.ExpiringPoints > 0 && v.ExpiringOn != "" }
+func (v *PointsView) Expiring() bool { return v.ExpiringPoints > 0 && v.ExpiringOn != "" }
 
-func (v PointsView) ExpiringText(ctx context.Context) string {
+func (v *PointsView) ExpiringText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpiring),
 		strconv.FormatInt(v.ExpiringPoints, 10), v.ExpiringOn)
 }
 
-func (v PointsView) Empty() bool { return len(v.Entries) == 0 }
+func (v *PointsView) Empty() bool { return len(v.Entries) == 0 }
 
-func (v PointsView) StepText() string { return strconv.FormatInt(v.PerCredit, 10) }
+func (v *PointsView) StepText() string { return strconv.FormatInt(v.PerCredit, 10) }
 
-func (v PointsView) PointsValue() string {
+func (v *PointsView) PointsValue() string {
 	if v.DraftPoints != nil {
 		return *v.DraftPoints
 	}
 	return v.RedeemableText()
 }
 
-func (v PointsView) PointsDescribedBy() string {
+func (v *PointsView) PointsDescribedBy() string {
 	if v.FieldError != "" {
 		return "points-rule points-error"
 	}
 	return "points-rule"
 }
 
-func (v PointsView) pointsFieldAttrs() templ.Attributes {
+func (v *PointsView) pointsFieldAttrs() templ.Attributes {
 	attrs := templ.Attributes{
 		"inputmode": "numeric", "max": v.RedeemableText(), "min": v.MinimumText(), "required": true, "step": v.StepText(),
 	}
@@ -167,11 +167,11 @@ func (v PointsView) pointsFieldAttrs() templ.Attributes {
 	return attrs
 }
 
-func (v PointsView) Multiplier(ctx context.Context) string {
+func (v *PointsView) Multiplier(ctx context.Context) string {
 	return (MemberStanding{MultiplierBP: v.MultiplierBP}).Multiplier(ctx)
 }
 
-func (v PointsView) MemberRate(ctx context.Context) string {
+func (v *PointsView) MemberRate(ctx context.Context) string {
 	rate := v.Multiplier(ctx)
 	if v.TierName != "" {
 		return v.TierName + " " + rate
