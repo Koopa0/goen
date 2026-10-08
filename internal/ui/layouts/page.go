@@ -26,6 +26,31 @@ type Page struct {
 	Newsletter NewsletterState
 	// Share's zero value keeps the default preview picture.
 	Share ShareImage
+	// Await is the element the first paint waits for, so the script that names
+	// a photo for the page transition finds it at the reveal.
+	Await Await
+}
+
+// Await names an element a page holds its first paint for.
+type Await uint8
+
+const (
+	AwaitNone Await = iota
+	AwaitGallery
+	AwaitPageheadPhoto
+)
+
+// ID is the element's id, or "" for AwaitNone.
+func (a Await) ID() string {
+	switch a {
+	case AwaitNone:
+		return ""
+	case AwaitGallery:
+		return "gallery"
+	case AwaitPageheadPhoto:
+		return "pagehead-photo"
+	}
+	return ""
 }
 
 // ShareImage has a site-relative Path because the head prefixes the configured origin,

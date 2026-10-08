@@ -58,6 +58,7 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 		assets.AdminCSS,
 		assets.HTMXJS,
 		assets.AppJS,
+		assets.TransitionsJS,
 		assets.MarkSVG,
 		assets.HomeHeroImage,
 		assets.HomeHeroImage720,
@@ -430,11 +431,13 @@ func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
 	// The opt-in, then each name that keeps a shared region from repainting
 	// between the two documents.
 	for _, rule := range []string{
-		"@view-transition {\n  navigation: auto;\n}",
+		"@view-transition {\n  navigation: auto;\n  types: page;\n}",
 		"view-transition-name: header;",
 		"view-transition-name: footer;",
 		"view-transition-name: gallery;",
 		"view-transition-name: buybox;",
+		"html:active-view-transition-type(page)::view-transition-group(*.photo) {\n  animation-duration: var(--dur-move);",
+		"html:active-view-transition-type(page)::view-transition-new(*) {\n  animation-duration: var(--dur-slow);",
 	} {
 		if !strings.Contains(sheet, rule) {
 			t.Errorf("served %s does not contain %q", assets.AppCSS, rule)

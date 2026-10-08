@@ -13,7 +13,7 @@ import (
 )
 
 templ Product(p layouts.Page, v *ProductView) {
-	@layouts.Base(p) {
+	@layouts.Base(awaiting(p, layouts.AwaitGallery)) {
 		<div class="goen-pdp">
 			<div class="goen-pdp__intro">
 				@components.Breadcrumb(components.BreadcrumbProps{
@@ -189,7 +189,7 @@ templ productBand(v *ProductView) {
 		<section class={ "goen-band goen-band--product", templ.KV("goen-band--text", !hasPhoto) } data-tone={ v.Tone.Attr() } aria-labelledby="desc-heading">
 			<div class="goen-band__grid">
 				if hasPhoto {
-					@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
+					@bandMedia("goen-band__photo", "", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
 				}
 				<div class="goen-band__body goen-pdp__desc">
 					if v.Brand != "" {
@@ -419,7 +419,7 @@ templ productLinks(v *ProductView) {
 				}
 			</form>
 		} else {
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug)) {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")) {
 				@icons.Heart()
 				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
 			}

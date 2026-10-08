@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -492,7 +493,7 @@ func TestChangingPasswordInvalidatesPriorResetTokens(t *testing.T) {
 	if err := s.ChangePassword(ctx, u.ID, "an entirely different password"); err != nil {
 		t.Fatalf("change password: %v", err)
 	}
-	if err := s.CompleteReset(ctx, token, "password the stale link tried to set"); !errors.Is(err, account.ErrResetInvalid) {
+	if _, err := s.CompleteReset(ctx, token, "password the stale link tried to set"); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("a reset token issued before the password change still works: %v", err)
 	}
 	if _, err := s.Authenticate(ctx, email, "password the stale link tried to set"); err == nil {
@@ -2767,8 +2768,9 @@ func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
 	eraseStore := account.NewStore(accountStorePool(t, eraseName))
 	completeDone, eraseDone := make(chan error, 1), make(chan error, 1)
 	go func() {
-		completeDone <- completeStore.CompleteReset(
+		_, err := completeStore.CompleteReset(
 			context.WithoutCancel(ctx), token, "completed before erasure")
+		completeDone <- err
 	}()
 	waitForAccountLock(t, completeName, completeDone)
 	go func() { eraseDone <- eraseStore.Erase(context.WithoutCancel(ctx), u.ID) }()
@@ -2814,7 +2816,8 @@ func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			// A different password per racer, so the survivor is identifiable.
-			results <- s.CompleteReset(ctx, token, "racer password number "+strconv.Itoa(i))
+			_, err := s.CompleteReset(ctx, token, "racer password number "+strconv.Itoa(i))
+			results <- err
 		})
 	}
 	close(start)
@@ -2860,7 +2863,7 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 
 	// Distinct from the password register() sets, or the second assertion proves nothing.
 	const attempted = "the password an expired link tried to set"
-	if err := s.CompleteReset(ctx, token, attempted); !errors.Is(err, account.ErrResetInvalid) {
+	if _, err := s.CompleteReset(ctx, token, attempted); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("an expired token was accepted: %v", err)
 	}
 	if _, err := s.Authenticate(ctx, "expiredreset@example.com", attempted); err == nil {
@@ -2892,13 +2895,13 @@ func TestAReplacementResetLinkInvalidatesTheEarlierToken(t *testing.T) {
 	}
 
 	const attempted = "password the replaced link must not set"
-	if err := s.CompleteReset(ctx, first, attempted); !errors.Is(err, account.ErrResetInvalid) {
+	if _, err := s.CompleteReset(ctx, first, attempted); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("the replaced link still works: %v", err)
 	}
 	if _, err := s.Authenticate(ctx, email, attempted); err == nil {
 		t.Error("the replaced link changed the password anyway")
 	}
-	if err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
+	if _, err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
 		t.Fatalf("the latest link failed: %v", err)
 	}
 	if _, err := s.Authenticate(ctx, email, "the newly chosen password"); err != nil {
@@ -2921,11 +2924,11 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 		t.Fatal("two planted tokens collided")
 	}
 
-	if err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
+	if _, err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
 		t.Fatalf("complete reset: %v", err)
 	}
 
-	if err := s.CompleteReset(ctx, first, "yet another password"); !errors.Is(err, account.ErrResetInvalid) {
+	if _, err := s.CompleteReset(ctx, first, "yet another password"); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("the older link still works: %v", err)
 	}
 	if _, err := s.SessionUser(ctx, stolen); !errors.Is(err, account.ErrNotFound) {
@@ -3013,7 +3016,7 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 
 	var accepted int
 	for i, token := range issued {
-		err = s.CompleteReset(ctx, token, fmt.Sprintf("concurrent reset password %d", i))
+		_, err = s.CompleteReset(ctx, token, fmt.Sprintf("concurrent reset password %d", i))
 		switch {
 		case err == nil:
 			accepted++
@@ -3054,8 +3057,14 @@ func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
 	const firstPassword = "first sibling reset password"
 	const secondPassword = "second sibling reset password"
-	go func() { firstDone <- firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword) }()
-	go func() { secondDone <- secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword) }()
+	go func() {
+		_, resetErr := firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword)
+		firstDone <- resetErr
+	}()
+	go func() {
+		_, resetErr := secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword)
+		secondDone <- resetErr
+	}()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
@@ -3135,10 +3144,10 @@ func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 	register(t, s, "weakreset@example.com")
 
 	token := beginReset(t, s, "weakreset@example.com")
-	if err := s.CompleteReset(ctx, token, "short"); !errors.Is(err, account.ErrInvalidPassword) {
+	if _, err := s.CompleteReset(ctx, token, "short"); !errors.Is(err, account.ErrInvalidPassword) {
 		t.Fatalf("a short password was not refused as such: %v", err)
 	}
-	if err := s.CompleteReset(ctx, token, "a sufficiently long password"); err != nil {
+	if _, err := s.CompleteReset(ctx, token, "a sufficiently long password"); err != nil {
 		t.Errorf("the token was burnt by the refused attempt: %v", err)
 	}
 }
@@ -3526,7 +3535,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	if _, err := s.ConfirmVerification(ctx, verification, u.ID); err != nil {
 		t.Fatalf("confirm address change: %v", err)
 	}
-	if err := s.CompleteReset(ctx, oldMailboxToken, "password chosen by old mailbox"); !errors.Is(err, account.ErrResetInvalid) {
+	if _, err := s.CompleteReset(ctx, oldMailboxToken, "password chosen by old mailbox"); !errors.Is(err, account.ErrResetInvalid) {
 		t.Fatalf("old-mailbox reset after address change = %v, want ErrResetInvalid", err)
 	}
 	var oldMailboxMessages int
@@ -4322,8 +4331,13 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		lctx := i18n.WithLocale(ctx, locale)
 		page := httptest.NewRecorder()
-		h.SignInPage(page, httptest.NewRequestWithContext(lctx, http.MethodGet,
-			out.Header().Get("Location"), http.NoBody))
+		request := httptest.NewRequestWithContext(lctx, http.MethodGet,
+			out.Header().Get("Location"), http.NoBody)
+		for _, cookie := range out.Result().Cookies() {
+			request.AddCookie(cookie)
+		}
+		h.SignInPage(page, request)
+		assertSignInPrefill(t, page.Body.String(), stale.Email, true)
 		if want := html.EscapeString(i18n.T(lctx, i18n.KeyEraseNeedsRecentSignIn)); !strings.Contains(page.Body.String(), want) {
 			t.Errorf("%s sign-in page after the redirect lacks %q", locale, want)
 		}
@@ -4350,6 +4364,74 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 	}
 }
 
+func assertSignInPrefill(t *testing.T, body, address string, erasure bool) {
+	t.Helper()
+	doc, err := xhtml.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var emailValue string
+	var emailFocus, passwordFocus, registerLink bool
+	for node := range doc.Descendants() {
+		attrs := map[string]string{}
+		for _, attr := range node.Attr {
+			attrs[attr.Key] = attr.Val
+		}
+		switch {
+		case node.Data == "input" && attrs["id"] == "email":
+			emailValue = attrs["value"]
+			_, emailFocus = attrs["autofocus"]
+		case node.Data == "input" && attrs["id"] == "password":
+			_, passwordFocus = attrs["autofocus"]
+		case node.Data == "a" && attrs["href"] == "/register":
+			registerLink = true
+		}
+	}
+	if emailValue != address || emailFocus || !passwordFocus || registerLink == erasure {
+		t.Errorf("returned sign-in form: email=%q email focus=%t password focus=%t register=%t; want email=%q password focus and register=%t",
+			emailValue, emailFocus, passwordFocus, registerLink, address, !erasure)
+	}
+}
+
+func TestSuccessfulResetReturnsToThePrivatePrefilledSignIn(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(accountStorePool(t, "reset-prefill-"+uuid.NewString()))
+	u := registerProved(t, s, "reset-prefill-"+uuid.NewString()+"@example.com")
+	token := beginReset(t, s, u.Email)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	const password = "the newly reset long password"
+	reset := func() *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		h.Reset(response, cartForm(ctx, "/reset", url.Values{
+			"token": {token}, "password": {password}, "confirm": {password},
+		}))
+		return response
+	}
+	response := reset()
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/signin?reset=1" {
+		t.Fatalf("successful reset = %d Location %q, want 303 /signin?reset=1", response.Code, response.Header().Get("Location"))
+	}
+	for _, locale := range i18n.Locales() {
+		request := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, response.Header().Get("Location"), http.NoBody)
+		for _, cookie := range response.Result().Cookies() {
+			request.AddCookie(cookie)
+		}
+		page := httptest.NewRecorder()
+		h.SignInPage(page, request)
+		assertSignInPrefill(t, page.Body.String(), u.Email, false)
+	}
+	if _, err := s.Authenticate(ctx, u.Email, password); err != nil {
+		t.Errorf("reset password cannot authenticate: %v", err)
+	}
+	if _, err := s.Authenticate(ctx, u.Email, "a sufficiently long password"); !errors.Is(err, account.ErrBadCredentials) {
+		t.Errorf("old password after reset = %v, want ErrBadCredentials", err)
+	}
+	spent := reset()
+	if spent.Code != http.StatusUnprocessableEntity || len(spent.Result().Cookies()) != 0 {
+		t.Errorf("spent reset = %d cookies=%v, want 422 without a prefill cookie", spent.Code, spent.Result().Cookies())
+	}
+}
+
 func TestDeadResetLinksOfferRecovery(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, state := range []string{"expired", "spent"} {
@@ -4364,7 +4446,7 @@ func TestDeadResetLinksOfferRecovery(t *testing.T) {
 					    WHERE token_hash = $1`, account.HashToken(token)); err != nil {
 						t.Fatal(err)
 					}
-				} else if err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
+				} else if _, err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
 					t.Fatal(err)
 				}
 				h := account.NewHandler(account.NewStore(accountStorePool(t, "reset-recovery")), nil, slog.New(slog.DiscardHandler), false, nil)

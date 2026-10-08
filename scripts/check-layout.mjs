@@ -146,15 +146,15 @@ const PAGES = [
 // The comparison TABLE. Enough() needs two columns; one p= is the too-few
 // empty state, and .goen-compare wraps that state too. A marker on the
 // wrapper measures chrome and calls the table covered.
-// COMPARE_SLUG_B is a second active seed product. table: true is what says
+// COMPARE_SLUG is a second active seed product. table: true is what says
 // this row measured columns, the sticky first cell, and (at 375) overflow
 // inside the scroll box — not merely that a marker existed.
 //
 // The one-product empty state is a different page. It cannot stand in for
 // the table.
 const COMPARE = [
-  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
-  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
+  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
+  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
   { label: 'compare one 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
   { label: 'compare one 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
 ];
@@ -676,6 +676,16 @@ const routeOf = (url) => {
   return route;
 };
 
+const DUPLICATE_TRANSITION_NAMES = `(() => {
+  const count = new Map();
+  for (const e of document.querySelectorAll('*')) {
+    const name = getComputedStyle(e).viewTransitionName;
+    if (!name || name === 'none' || name === 'match-element' || !e.getClientRects().length) continue;
+    count.set(name, (count.get(name) || 0) + 1);
+  }
+  return [...count].filter(([, n]) => n > 1).map(([name, n]) => name + ' x' + n);
+})()`;
+
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -691,6 +701,13 @@ const settled = async (ws, label, url) => {
       // One frame more, so layout and web fonts have applied before anything is
       // measured — the geometry assertions are the reason this check exists.
       await new Promise((r) => setTimeout(r, 250));
+      // A view-transition-name used twice on one page makes the browser skip
+      // the whole transition without a word, so a duplicate is a failure here
+      // on every page this run opens, at whatever width it opened it.
+      const dup = await send(ws, 'Runtime.evaluate', { expression: DUPLICATE_TRANSITION_NAMES, returnByValue: true });
+      if (Array.isArray(dup.result?.value) && dup.result.value.length) {
+        fail(label, `view-transition-name used more than once on ${routeOf(url)}: ${dup.result.value.join(', ')}`);
+      }
       const route = routeOf(url);
       if (!visited.has(route)) visited.set(route, url);
       return;
@@ -2255,13 +2272,23 @@ for (const motion of ['no-preference', 'reduce']) {
     if (!document.startViewTransition) return { ok: true, supported: false, duration };
     const transition = document.startViewTransition(() => { document.body.dataset.motionProbe = 'changed'; });
     await transition.ready;
-    const animation = getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName;
+    const root = document.documentElement;
+    const animation = getComputedStyle(root, '::view-transition-new(root)').animationName;
+    const group = getComputedStyle(root, '::view-transition-group(root)').animationName;
+    const seconds = parseFloat(getComputedStyle(root, '::view-transition-new(root)').animationDuration);
     transition.skipTransition();
     await transition.finished;
-    return { ok: true, supported: true, animation, duration };
+    return { ok: true, supported: true, animation, group, seconds, duration };
   })()`);
   if (!checked.ok) fail('motion ' + motion, JSON.stringify(checked));
-  if (checked.supported && (motion === 'reduce' ? checked.animation !== 'none' : checked.animation === 'none')) fail('motion ' + motion, 'transition animation = ' + checked.animation);
+  // Reduced motion keeps a plain dissolve of the base step: a hard cut between
+  // two different layouts reads as more of a jump than the fade does. What it
+  // may not keep is any group animation, which is what moves or resizes.
+  if (checked.supported && checked.animation === 'none') fail('motion ' + motion, 'the page dissolve is switched off');
+  if (checked.supported && motion === 'reduce') {
+    if (checked.group !== 'none') fail('motion reduce', 'the root group still animates: ' + checked.group);
+    if (!(checked.seconds <= 0.1201)) fail('motion reduce', 'the dissolve takes ' + checked.seconds + 's, want at most 0.12s');
+  }
   if (motion === 'reduce' && checked.duration !== '0s') fail('motion reduce', 'menu still transitions: ' + checked.duration);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
@@ -2269,6 +2296,133 @@ for (const motion of ['no-preference', 'reduce']) {
   if (closed !== true) fail('motion ' + motion, 'Escape did not close the menu and return focus');
 }
 await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
+
+// A photo clicked on one page is the same photo on the next. The new page's
+// recorder is injected into every document the probe opens, because a
+// cross-document transition can only be observed from inside the two pages:
+// what each page named, whether the transition ran or was skipped, and which
+// groups animated.
+const TRANSITION_RECORDER = `(() => {
+  const rec = (patch) => {
+    try { sessionStorage.vt = JSON.stringify({ ...JSON.parse(sessionStorage.vt || '{}'), ...patch }); } catch {}
+  };
+  const named = () => [...document.querySelectorAll('*')].map((e) => e.style.viewTransitionName).filter(Boolean);
+  const pseudo = (a) => String((a.effect && a.effect.pseudoElement) || '');
+  addEventListener('pagereveal', (e) => {
+    rec({ revealed: !!e.viewTransition, kind: navigation.activation && navigation.activation.navigationType, ready: null });
+    if (!e.viewTransition) return;
+    e.viewTransition.ready.then(() => {
+      const running = document.getAnimations().filter((a) => pseudo(a).startsWith('::view-transition'));
+      const moving = running.filter((a) => a.effect.getKeyframes().some((k) =>
+        ['transform', 'translate', 'scale', 'rotate', 'width', 'height', 'inlineSize', 'blockSize', 'top', 'left'].some((p) => p in k)));
+      rec({
+        ready: 'resolved',
+        newNames: named(),
+        groups: running.map(pseudo).filter((p) => p.startsWith('::view-transition-group(')),
+        durations: Object.fromEntries(running.map((a) => [pseudo(a), a.effect.getTiming().duration])),
+        moving: moving.map(pseudo),
+      });
+    }, () => rec({ ready: 'rejected' }));
+  });
+  addEventListener('pageshow', (e) => rec({ persisted: e.persisted }));
+  // After the transitions script's own listener, so the names it set are the ones read.
+  document.addEventListener('DOMContentLoaded', () => addEventListener('pageswap', (e) => {
+    if (e.viewTransition) rec({ oldNames: named(), swapped: true });
+  }));
+})()`;
+
+const proveMorph = async (label, { from, link, name, viewport, reduce = false, back = null }) => {
+  await send(ws, 'Emulation.setEmulatedMedia', { features: reduce ? [{ name: 'prefers-reduced-motion', value: 'reduce' }] : [] });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: viewport.width < 768 });
+  await send(ws, 'Page.navigate', { url: ORIGIN + from });
+  await settled(ws, label, ORIGIN + from);
+  const href = await evalPage(`(() => {
+    const withPhoto = [...document.querySelectorAll(${JSON.stringify(link)})].filter((x) => x.querySelector('img'));
+    const a = ${back === 'hidden'} ? withPhoto.at(-1) : withPhoto[0];
+    if (!a) return null;
+    sessionStorage.vt = '{}';
+    if (${back === 'visible'}) a.scrollIntoView({ block: 'center' });
+    window.__morphLink = a;
+    return a.getAttribute('href');
+  })()`);
+  if (typeof href !== 'string') { fail(label, `no ${link} with a photo on ${from}, so no navigation was made`); return; }
+  if (back === 'hidden') {
+    const where = await evalPage(`(() => { const r = window.__morphLink.querySelector('img').getBoundingClientRect(); return r.top >= innerHeight || r.bottom <= 0; })()`);
+    if (where !== true) { fail(label, 'the card is inside the viewport, so this proved nothing about a card outside it'); return; }
+  }
+  await send(ws, 'Runtime.evaluate', { expression: 'window.__morphLink.click()' });
+  await settled(ws, label, ORIGIN + href);
+  const read = async (want) => {
+    for (let i = 0; i < 30; i++) {
+      const v = await evalPage(`JSON.parse(sessionStorage.vt || '{}')`);
+      if (v && v.ready && (!want || v.kind === want)) return v;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return await evalPage(`JSON.parse(sessionStorage.vt || '{}')`);
+  };
+  let got = await read('push');
+  if (!got.revealed) { fail(label, 'the arriving page had no view transition: ' + JSON.stringify(got)); return; }
+  if (got.ready !== 'resolved') { fail(label, 'the transition was skipped: ' + JSON.stringify(got)); return; }
+  if (got.swapped !== true) fail(label, 'the page being left never saw its own pageswap: ' + JSON.stringify(got));
+  const photoGroups = (got.groups || []).filter((g) => /^::view-transition-group\((product|department)-photo\)$/.test(g));
+  // The step each group takes is part of the design: the photo travels in the
+  // move step, the page dissolves in the slow one, and reduced motion in the base one.
+  const takes = (group, ms) => {
+    const at = (got.durations || {})[group];
+    if (at !== ms) fail(label, `${group} runs for ${at}ms, want ${ms}ms`);
+  };
+  takes('::view-transition-new(root)', reduce ? 120 : 200);
+  if (!reduce) for (const g of photoGroups) takes(g, 280);
+  if (reduce) {
+    if (photoGroups.length || (got.oldNames || []).length || (got.newNames || []).length) fail(label, 'reduced motion still named a photo: ' + JSON.stringify(got));
+    if ((got.moving || []).length) fail(label, 'reduced motion still runs animations that move, scale or resize: ' + got.moving.join(', '));
+  } else {
+    const want = JSON.stringify([name]);
+    if (JSON.stringify(got.oldNames || []) !== want) fail(label, `the clicked page named ${JSON.stringify(got.oldNames)}, want only ${want}`);
+    if (JSON.stringify(got.newNames || []) !== want) fail(label, `the arriving page named ${JSON.stringify(got.newNames)}, want only ${want}`);
+    if (!photoGroups.length) fail(label, `no ::view-transition-group(${name}) animated: ` + JSON.stringify(got.groups));
+  }
+  let persisted;
+  await new Promise((r) => setTimeout(r, 400));
+  const left = await evalPage(`[...document.querySelectorAll('*')].filter((e) => e.style.viewTransitionName || e.style.viewTransitionClass).length`);
+  if (left !== 0) fail(label, `${left} element(s) still carry a view-transition-name after the transition`);
+
+  if (back) {
+    await evalPage(`sessionStorage.vt = '{}'; true`);
+    await send(ws, 'Runtime.evaluate', { expression: 'history.back()' });
+    await settled(ws, label + ' back', ORIGIN + from);
+    const returned = await read('traverse');
+    if (returned.ready !== 'resolved') { fail(label + ' back', 'the way back had no completed transition: ' + JSON.stringify(returned)); return; }
+    const backGroups = (returned.groups || []).filter((g) => /-photo\)$/.test(g));
+    if (back === 'visible') {
+      if (JSON.stringify(returned.newNames || []) !== JSON.stringify([name])) fail(label + ' back', `the card in view was not named ${name}: ` + JSON.stringify(returned));
+      if (!backGroups.length) fail(label + ' back', 'the photo did not travel back to the card: ' + JSON.stringify(returned.groups));
+    } else if ((returned.newNames || []).length || backGroups.length) {
+      fail(label + ' back', 'a photo was sent to a card outside the viewport: ' + JSON.stringify(returned));
+    }
+    await new Promise((r) => setTimeout(r, 400));
+    const after = await evalPage(`[...document.querySelectorAll('*')].filter((e) => e.style.viewTransitionName).length`);
+    if (after !== 0) fail(label + ' back', `${after} element(s) still carry a view-transition-name after the way back`);
+    persisted = (await evalPage(`JSON.parse(sessionStorage.vt || '{}')`)).persisted;
+  }
+  const how = persisted === undefined ? '' : persisted ? ' (restored from bfcache)' : ' (reloaded, not bfcache)';
+  console.log(`${label.padEnd(24)} ${reduce ? 'reduced: dissolve only' : 'named ' + name + ', ran, cleared'}${back ? ', back ' + back + how : ''} ok`);
+};
+
+{
+  const recorder = await send(ws, 'Page.addScriptToEvaluateOnNewDocument', { source: TRANSITION_RECORDER });
+  const desk = { width: 1440, height: 900 };
+  const tile = 'a.goen-tile[href^="/p/"]';
+  await proveMorph('morph tile 1440', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk });
+  await proveMorph('morph tile 375', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 375, height: 812 } });
+  await proveMorph('morph department 1440', { from: '/', link: 'a.goen-cat[href^="/c/"]', name: 'department-photo', viewport: desk });
+  await proveMorph('morph related 1440', { from: '/p/' + process.env.PRODUCT_SLUG, link: '.goen-pdp__related ' + tile, name: 'product-photo', viewport: desk });
+  await proveMorph('morph back visible', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk, back: 'visible' });
+  await proveMorph('morph back hidden', { from: '/c/phones', link: tile, name: 'product-photo', viewport: { width: 1440, height: 400 }, back: 'hidden' });
+  await proveMorph('morph tile reduced', { from: '/c/phones', link: tile, name: 'product-photo', viewport: desk, reduce: true });
+  await send(ws, 'Page.removeScriptToEvaluateOnNewDocument', { identifier: recorder.identifier });
+  await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
+}
 
 // The comparison table. CART_PROBE's marker-only check is not enough: the
 // wrapper is present on the empty state, and the table's job is to scroll
@@ -2307,7 +2461,7 @@ for (const want of COMPARE) {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
   });
   const target = ORIGIN + want.path
-    .replace('COMPARE_SLUG_B', process.env.COMPARE_SLUG_B || '')
+    .replace('COMPARE_SLUG', process.env.COMPARE_SLUG || '')
     .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target);

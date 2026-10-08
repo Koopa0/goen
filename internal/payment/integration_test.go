@@ -3017,7 +3017,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			newReads := remote.newReads
 			remote.mu.Unlock()
 			if diff := cmp.Diff(
-				[]string{payment.SessionKey(number, currentAmount, 1)}, keys,
+				[]string{payment.SessionKey(orderID, currentAmount, 1)}, keys,
 			); diff != "" {
 				t.Errorf("fresh generation key (-want +got):\n%s", diff)
 			}
@@ -3446,7 +3446,7 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	firstKeys := append([]string(nil), state.keys...)
 	expireCalls, retrieveOld := state.expireCalls, state.retrieveOld
 	state.mu.Unlock()
-	if diff := cmp.Diff([]string{payment.SessionKey(number, amount, 0)}, firstKeys); diff != "" {
+	if diff := cmp.Diff([]string{payment.SessionKey(orderID, amount, 0)}, firstKeys); diff != "" {
 		t.Errorf("first create keys (-want +got):\n%s", diff)
 	}
 	if expireCalls != 1 || retrieveOld != 1 {
@@ -3472,8 +3472,8 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	retrieveNext := state.retrieveNext
 	state.mu.Unlock()
 	wantKeys := []string{
-		payment.SessionKey(number, amount, 0),
-		payment.SessionKey(number, amount, 1),
+		payment.SessionKey(orderID, amount, 0),
+		payment.SessionKey(orderID, amount, 1),
 	}
 	if diff := cmp.Diff(wantKeys, keys); diff != "" {
 		t.Errorf("create generations (-want +got):\n%s", diff)
@@ -3681,7 +3681,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	if markerErr != nil {
 		t.Fatalf("install concurrent reconciliation marker: %v", markerErr)
 	}
-	if diff := cmp.Diff([]string{payment.SessionKey(number, amount, 1)}, firstKeys); diff != "" {
+	if diff := cmp.Diff([]string{payment.SessionKey(orderID, amount, 1)}, firstKeys); diff != "" {
 		t.Errorf("first create keys (-want +got):\n%s", diff)
 	}
 	var firstRows int
@@ -3721,9 +3721,9 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	keys := append([]string(nil), remote.createKeys...)
 	remote.mu.Unlock()
 	wantKeys := []string{
-		payment.SessionKey(number, amount, 1),
-		payment.SessionKey(number, amount, 1),
-		payment.SessionKey(number, amount, 2),
+		payment.SessionKey(orderID, amount, 1),
+		payment.SessionKey(orderID, amount, 1),
+		payment.SessionKey(orderID, amount, 2),
 	}
 	if diff := cmp.Diff(wantKeys, keys); diff != "" {
 		t.Errorf("create idempotency generations (-want +got):\n%s", diff)
@@ -3873,7 +3873,7 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	if expireCalls != 1 {
 		t.Errorf("Stripe expire calls = %d, want 1; retry should consume known expired state", expireCalls)
 	}
-	if diff := cmp.Diff([]string{payment.SessionKey(number, 130000, 1)}, createKeys); diff != "" {
+	if diff := cmp.Diff([]string{payment.SessionKey(orderID, 130000, 1)}, createKeys); diff != "" {
 		t.Errorf("replacement create keys (-want +got):\n%s", diff)
 	}
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -127,6 +128,131 @@ func neverTold(t *testing.T) func(context.Context, *email.AccountExists) error {
 	return func(_ context.Context, p *email.AccountExists) error {
 		t.Errorf("%s was told it already has an account", p.Email)
 		return nil
+	}
+}
+
+func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
+	for _, next := range []string{"https://elsewhere.invalid/checkout", "//elsewhere.invalid/checkout", "/%zzelsewhere.invalid"} {
+		t.Run(next, func(t *testing.T) {
+			s := account.NewStore(pool)
+			h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+			addr := "register-unsafe-next-" + uuid.NewString() + "@example.com"
+			h.Register(httptest.NewRecorder(), registrationForm(t.Context(), addr, cartOwnerPassword, next))
+			followed := followRegistrationLink(t, s, addr, func(request *http.Request) *httptest.ResponseRecorder {
+				response := httptest.NewRecorder()
+				h.CompleteRegistration(response, request)
+				return response
+			})
+			if got := followed.Header().Get("Location"); got != "/account?welcome=1" {
+				t.Errorf("unsafe registration return = %q, want /account?welcome=1", got)
+			}
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account?welcome=1&next="+url.QueryEscape(next), http.NoBody)
+			request.AddCookie(sessionCookie(t, followed))
+			page := httptest.NewRecorder()
+			h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(page, request)
+			if page.Code != http.StatusOK || strings.Contains(page.Body.String(), "elsewhere.invalid") {
+				t.Errorf("welcome page exposes unsafe return: status=%d", page.Code)
+			}
+		})
+	}
+}
+
+func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
+	ctx := t.Context()
+	statements := &statementLog{}
+	appPool := tracedStorePool(t, statements)
+	if _, err := appPool.Exec(ctx, `SET lock_timeout = '100ms'`); err != nil {
+		t.Fatal(err)
+	}
+	var role string
+	if err := appPool.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "store" {
+		t.Fatalf("registration composition role=%q error=%v, want store", role, err)
+	}
+	s := account.NewStore(appPool)
+	addr := "register-cart-recovery-" + uuid.NewString() + "@example.com"
+	guestToken := "registration-guest-" + uuid.NewString()
+	variant := sellableVariant(t, ctx)
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`, cart.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`, guestCart, variant); err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
+		t.Fatal(err)
+	}
+	carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := account.NewHandler(s, carts, slog.New(slog.DiscardHandler), false, nil)
+	h.Register(httptest.NewRecorder(), registrationForm(ctx, addr, cartOwnerPassword, "/checkout"))
+	statements.takeErrors()
+	guestCookie := &http.Cookie{Name: "goen_cart", Value: guestToken} //nolint:gosec // G124: the browser's guest-cart request cookie.
+	completed := followRegistrationLink(t, s, addr, func(request *http.Request) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		h.CompleteRegistration(response, request.WithContext(ctx))
+		return response
+	}, guestCookie)
+	faults := statements.takeErrors()
+	if len(faults) != 1 {
+		t.Fatalf("adoption faults=%v, want one actual lock failure", faults)
+	}
+	lockFault, ok := errors.AsType[*pgconn.PgError](faults[0])
+	if !ok || lockFault.Code != "55P03" || ctx.Err() != nil {
+		t.Fatalf("adoption fault=%v parent=%v, want one SQLSTATE 55P03 with live request", faults, ctx.Err())
+	}
+	const welcome = "/account?next=%2Fcheckout&welcome=1"
+	wantRecovery := "/account/cart-recovery?next=" + url.QueryEscape(welcome) + "&welcome=1"
+	if got := completed.Header().Get("Location"); got != wantRecovery {
+		t.Errorf("registration adoption failure = %q, want %q", got, wantRecovery)
+	}
+	if quantity := cartItemQuantity(t, guestCart, variant); quantity != 2 {
+		t.Errorf("failed registration adoption changed guest quantity: %d, want 2", quantity)
+	}
+	var stillGuest bool
+	if err := pool.QueryRow(ctx, `SELECT user_id IS NULL FROM carts WHERE id = $1`, guestCart).Scan(&stillGuest); err != nil || !stillGuest {
+		t.Fatalf("failed registration adoption changed guest ownership: guest=%t error=%v", stillGuest, err)
+	}
+	if _, err := s.Authenticate(ctx, addr, cartOwnerPassword); err != nil {
+		t.Errorf("registration did not commit before the adoption fault: %v", err)
+	}
+	var liveRegistrationTokens int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM email_verifications t JOIN users u ON u.id = t.user_id
+	    WHERE u.email = $1`, addr).Scan(&liveRegistrationTokens); err != nil || liveRegistrationTokens != 0 {
+		t.Errorf("completed registration left live token count=%d error=%v", liveRegistrationTokens, err)
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionCookie(t, completed)
+	request := httptest.NewRequestWithContext(ctx, http.MethodGet, completed.Header().Get("Location"), http.NoBody)
+	request.AddCookie(session)
+	request.AddCookie(guestCookie)
+	page := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.CartRecoveryPage)).ServeHTTP(page, request)
+	if !strings.Contains(page.Body.String(), `name="next" value="`+html.EscapeString(welcome)+`"`) {
+		t.Error("registration recovery form lost the welcome continuation")
+	}
+	for _, key := range []i18n.Key{i18n.KeyAccountWelcome, i18n.KeyCartMergeFailed, i18n.KeyCartMergeRetry} {
+		if !strings.Contains(page.Body.String(), html.EscapeString(i18n.T(ctx, key))) {
+			t.Errorf("registration cart recovery omits %s", key)
+		}
+	}
+	retry := cartForm(ctx, "/account/cart/retry", url.Values{"next": {welcome}})
+	retry.AddCookie(session)
+	retry.AddCookie(guestCookie)
+	response := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.RetryCartAdoption)).ServeHTTP(response, retry)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != welcome {
+		t.Errorf("registration cart retry = %d Location %q, want 303 %q", response.Code, response.Header().Get("Location"), welcome)
+	}
+	if quantity := cartItemQuantity(t, guestCart, variant); quantity != 2 {
+		t.Errorf("registration retry lost guest quantity: %d, want 2", quantity)
 	}
 }
 
@@ -252,10 +378,21 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	if followed.Code != http.StatusSeeOther {
 		t.Fatalf("following the link answered %d, want 303; body=%s", followed.Code, followed.Body.String())
 	}
-	if loc := followed.Header().Get("Location"); loc != "/cart" {
-		t.Errorf("following the link lands at %q, want /cart", loc)
+	if loc := followed.Header().Get("Location"); loc != "/account?next=%2Fcart&welcome=1" {
+		t.Errorf("following the link lands at %q, want /account?next=%%2Fcart&welcome=1", loc)
 	}
-	sessionCookie(t, followed)
+	session := sessionCookie(t, followed)
+	for _, locale := range i18n.Locales() {
+		lctx := i18n.WithLocale(ctx, locale)
+		request := httptest.NewRequestWithContext(lctx, http.MethodGet, followed.Header().Get("Location"), http.NoBody)
+		request.AddCookie(session)
+		welcome := httptest.NewRecorder()
+		h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(welcome, request)
+		if welcome.Code != http.StatusOK || !strings.Contains(welcome.Body.String(), html.EscapeString(i18n.T(lctx, i18n.KeyAccountWelcome))) ||
+			!strings.Contains(welcome.Body.String(), `href="/cart"`) || !strings.Contains(welcome.Body.String(), html.EscapeString(i18n.T(lctx, i18n.KeyWelcomeReturn))) {
+			t.Errorf("registration welcome = %d without welcome copy or original cart action", welcome.Code)
+		}
+	}
 
 	var owner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
@@ -445,7 +582,7 @@ func TestAResetProvesTheAddressItWasMailedTo(t *testing.T) {
 	u := register(t, s, addr)
 
 	token := beginReset(t, s, addr)
-	if err := s.CompleteReset(ctx, token, "the password chosen by reset"); err != nil {
+	if _, err := s.CompleteReset(ctx, token, "the password chosen by reset"); err != nil {
 		t.Fatalf("CompleteReset: %v", err)
 	}
 	state, err := s.EmailVerification(ctx, u.ID)

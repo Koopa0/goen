@@ -194,7 +194,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 		params.CustomerEmail = stripe.String(o.Email)
 	}
 
-	params.SetIdempotencyKey(SessionKey(o.Number, o.TotalCents, attempt))
+	params.SetIdempotencyKey(SessionKey(o.ID, o.TotalCents, attempt))
 
 	sess, err := g.client.V1CheckoutSessions.Create(ctx, params)
 	if err != nil {

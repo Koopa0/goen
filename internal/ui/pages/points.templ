@@ -69,7 +69,7 @@ templ Points(p layouts.Page, v PointsView) {
 							},
 						})
 						<p class="goen-points__rule" id="points-rule">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.RateText(ctx)) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepAmountText(ctx)) }
 						</p>
 					</div>
 					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
