@@ -31,7 +31,7 @@ templ Audit(p layouts.Page, v AuditView) {
 						<div class="goen-admin__audithead">
 							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
 							if e.Money() {
-								@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+								@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 									{ i18n.T(ctx, i18n.KeyAuditMoneyTag) }
 								}
 							}

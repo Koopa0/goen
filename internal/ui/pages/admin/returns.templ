@@ -32,8 +32,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 						<div class="goen-admin__returninfo">
 							<p class="goen-admin__returnorder"><a href={ templ.SafeURL(r.OrderAction()) }>{ r.OrderNumber }</a></p>
 							<div class="goen-admin__cellbadges">
-								@components.Badge(components.BadgeProps{}) {
-									{ r.StatusText }
+								@components.Badge(components.BadgeProps{Intent: r.StatusIntent()}) {
+									{ r.StatusLabel(ctx) }
 								}
 							</div>
 							<span class="goen-admin__meta">{ r.CreatedAt }</span>

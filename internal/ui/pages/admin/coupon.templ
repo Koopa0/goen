@@ -76,7 +76,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentProgress}) {
 											{ c.State(ctx) }
 										}
 									} else {
