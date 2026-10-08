@@ -32,18 +32,29 @@ func TestWarrantyTermIsStatedInMonths(t *testing.T) {
 	}
 }
 
-func TestAShippedEventHidesItsNote(t *testing.T) {
+func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	t.Parallel()
-	for kind, want := range map[order.EventKind]bool{
-		order.EventShipped:   false,
-		order.EventCancelled: true,
-	} {
-		if got := (OrderEvent{Kind: kind, Note: "黑貓宅急便 T1"}).ShowsNote(); got != want {
-			t.Errorf("%s with a note: ShowsNote() = %v, want %v", kind, got, want)
-		}
+	page := renderToString(t, Order(layouts.Page{Title: "o"}, &OrderView{
+		Status: order.FulfillmentCancelled,
+		Timeline: []OrderEvent{
+			{Kind: order.EventShipped, Note: "shipped-note-text"},
+			{Kind: order.EventCancelled, Note: "cancelled-note-text"},
+		},
+	}))
+	if strings.Contains(page, "shipped-note-text") {
+		t.Error("the order history prints the shipped event's note")
 	}
-	if (OrderEvent{Kind: order.EventCancelled}).ShowsNote() {
-		t.Error("an event with no note shows one")
+	if !strings.Contains(page, "cancelled-note-text") {
+		t.Error("the order history dropped another event's note")
+	}
+}
+
+func TestSeveralDeliverySurchargesReadAsOneList(t *testing.T) {
+	t.Parallel()
+	m := ShippingMethod{Surcharges: []ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}, {Name: "Green Island", Cents: 8000}}}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	if got, want := m.SurchargeText(ctx), "Outlying islands: NT$100 extra, Green Island: NT$80 extra"; got != want {
+		t.Errorf("SurchargeText = %q, want %q", got, want)
 	}
 }
 

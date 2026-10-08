@@ -4,8 +4,8 @@ var (
 	KeyOrderPlaced = key("order.placed", Message{ZhHant: "訂單已送出", En: "Order placed"})
 
 	KeyOrderEmailNotice = key("order.email", Message{
-		ZhHant: "確認信已寄至 %s",
-		En:     "We sent the confirmation to %s",
+		ZhHant: "確認信將寄至 %s",
+		En:     "A confirmation is on its way to %s",
 	})
 
 	KeyOrderCancelled = key("order.cancelled.notice", Message{

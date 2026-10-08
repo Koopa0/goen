@@ -3,7 +3,7 @@ package i18n
 var (
 	KeyOrderHistory2 = key("account.orders", Message{ZhHant: "訂單紀錄", En: "Your orders"})
 
-	KeyOrderLineCount = countKey("account.orders.lines", "%s 件", "%s item", "%s items")
+	KeyOrderLineCount = countKey("account.orders.lines", "%s 項", "%s item", "%s items")
 
 	KeyNoOrdersYet = key("account.orders.none", Message{ZhHant: "還沒有訂單。", En: "No orders yet."})
 

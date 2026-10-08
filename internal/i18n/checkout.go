@@ -129,7 +129,7 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: memberInvoiceCarrierZhHant + "（寄到結帳時填的電子郵件）",
+		ZhHant: memberInvoiceCarrierZhHant + "（存在綠界會員載具，通知寄到結帳時填的電子郵件）",
 		En:     memberInvoiceCarrierEn + " (stored and notified using your checkout email)",
 	})
 
@@ -146,7 +146,7 @@ var (
 	// Issue sends the company invoice with the member carrier (issue.go), which
 	// ECPay holds against the checkout email.
 	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
-		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，寄到結帳時填的電子郵件，可在綠界的載具中查詢。",
+		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，通知寄到結帳時填的電子郵件，可在綠界的載具中查詢。",
 		En:     "A company tax ID invoice is stored in the " + memberInvoiceCarrierEn + ", tied to your checkout email, and can be retrieved there.",
 	})
 

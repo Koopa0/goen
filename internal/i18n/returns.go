@@ -5,7 +5,7 @@ var (
 
 	KeyReturnSub = key("returns.sub", Message{
 		ZhHant: "已經出貨、還沒申請退貨的商品，都可以在這裡申請。",
-		En:     "Anything that has shipped and is not already in a return can be returned here.",
+		En:     "You can request a return here for anything that has shipped and is not already in a return.",
 	})
 
 	KeyReturnHistory = key("returns.history", Message{ZhHant: "申請紀錄", En: "Previous requests"})
