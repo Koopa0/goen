@@ -1,13 +1,10 @@
 name: screenshots
 
-# Run by hand: gh workflow run screenshots.yml -f ref=<branch or sha> -f pages=<entries>
+# Run by hand, on the branch to shoot: gh workflow run screenshots.yml --ref <branch> -f pages=<entries>
 # The entry syntax is in scripts/screenshots.mjs.
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Branch, tag or commit to build and shoot
-        default: main
       pages:
         description: 'Entries path@width[@en][@text200][@forced], one per line or separated by commas'
         default: |
@@ -56,19 +53,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      # The shooter comes from the revision this workflow runs from, so a ref
-      # that predates it can still be shot.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: shooter
-          sparse-checkout: scripts/screenshots.mjs
-          persist-credentials: false
-
-      # No cache is read or written: this run builds an arbitrary ref, and a cache it
-      # wrote would be read by workflows on main.
+      # No cache is read or written: the run's token could write the cache that
+      # workflows on main read.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -146,7 +134,7 @@ jobs:
           trap 'kill "$chrome_pid" 2>/dev/null || true' EXIT
           sleep 3
           set -a; . ./fixtures.env; set +a
-          node shooter/scripts/screenshots.mjs shots
+          node scripts/screenshots.mjs shots
 
       - name: Keep the shots
         if: always()
