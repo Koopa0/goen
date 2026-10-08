@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestTheParcelCarriesTheDatabasesLastDays holds that the grid's two ends are the ones the return decision
@@ -114,16 +115,26 @@ func returnOf(t *testing.T, number, status string, beforeShipment bool) string {
 	return id
 }
 
-// TestOnlyACompletedReturnAfterShipmentMakesAnOrderReturned holds what the order page calls fully returned: a
-// return that was approved has not been received or paid, and a refund before shipment returned nothing.
-func TestOnlyACompletedReturnAfterShipmentMakesAnOrderReturned(t *testing.T) {
+// TestOnlyAnApprovedOrCompletedReturnAfterShipmentMakesAnOrderReturned holds what the order page calls fully
+// returned: the refund is paid when the return is approved, and a refund before shipment returned nothing.
+func TestOnlyAnApprovedOrCompletedReturnAfterShipmentMakesAnOrderReturned(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := cart.NewStore(pool)
 
 	approved := placeUnpaidOrderFor(t, s, "approved@example.com")
 	returnOf(t, approved, "approved", false)
-	if view, err := s.Order(ctx, approved); err != nil || view.Returned != nil {
-		t.Errorf("an approved return: Returned = %+v, err %v; want nil", view.Returned, err)
+	view, err := s.Order(ctx, approved)
+	if err != nil || view.Returned == nil {
+		t.Fatalf("an approved return: Returned = %+v, err %v; want one", view.Returned, err)
+	}
+	if got, want := view.StateKey(), i18n.KeyStatusRefunded; got != want {
+		t.Errorf("an approved return: StateKey = %q, want %q", got, want)
+	}
+	if got := view.PaymentState(); got != pages.PaymentRefunded {
+		t.Errorf("an approved return: PaymentState = %q, want %q", got, pages.PaymentRefunded)
+	}
+	if view.CanRequestReturn() {
+		t.Error("an approved return of every unit still offers a return")
 	}
 
 	cancelled := placeUnpaidOrderFor(t, s, "cancelled@example.com")
@@ -133,7 +144,7 @@ func TestOnlyACompletedReturnAfterShipmentMakesAnOrderReturned(t *testing.T) {
 	}
 
 	paid := placeUnpaidOrderFor(t, s, "paid@example.com")
-	view, err := s.Order(ctx, paid)
+	view, err = s.Order(ctx, paid)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}

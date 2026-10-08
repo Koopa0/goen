@@ -141,9 +141,14 @@ type Warranty struct {
 	RegisteredAt string
 	ExpiresOn    shoptime.Date
 	InForce      bool
+	// Returned is every unit of its order in an approved or completed return, so there is no cover left to state.
+	Returned bool
 }
 
 func (w Warranty) State(ctx context.Context) string {
+	if w.Returned {
+		return i18n.T(ctx, i18n.KeyWarrantyReturned)
+	}
 	if w.InForce {
 		return i18n.T(ctx, i18n.KeyWarrantyActive)
 	}

@@ -771,7 +771,7 @@ type OrderView struct {
 	PaymentsEnabled bool
 }
 
-// OrderReturned is an order whose every unit is in a completed return. At is the day the last of them was paid out.
+// OrderReturned is an order whose every unit is in an approved or completed return. At is the day the last of them was paid out.
 type OrderReturned struct {
 	At          time.Time
 	RefundCents int64
@@ -790,6 +790,8 @@ const (
 // a refund is on its timeline, and a partial refund on a delivered order leaves it paid.
 func (v *OrderView) PaymentState() PaymentState {
 	switch {
+	case v.Returned != nil:
+		return PaymentRefunded
 	case v.Status == order.FulfillmentCancelled:
 		for _, e := range v.Timeline {
 			if e.Kind == order.EventRefunded {
@@ -817,6 +819,9 @@ func (s PaymentState) Key() i18n.Key {
 
 // StateKey leaves paying to its own row, so a placed order stays 訂單已送出 until it moves.
 func (v *OrderView) StateKey() i18n.Key {
+	if v.Returned != nil {
+		return i18n.KeyStatusRefunded
+	}
 	switch v.Status {
 	case order.FulfillmentPicking:
 		return i18n.KeyStatusPicking
