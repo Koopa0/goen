@@ -2,7 +2,6 @@ package pages
 
 import (
 	"context"
-	"fmt"
 
 	"strconv"
 
@@ -65,10 +64,7 @@ func (l WarrantyLine) TermText(ctx context.Context) string {
 	if !l.HasTerm {
 		return ""
 	}
-	if l.Months%12 == 0 {
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyYears), l.Months/12)
-	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyMonths), l.Months)
+	return i18n.Count(ctx, i18n.KeyUnitMonths, int64(l.Months), int64(l.Months))
 }
 
 func (l WarrantyLine) Why(ctx context.Context) string {

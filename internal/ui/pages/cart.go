@@ -627,6 +627,11 @@ type OrderEvent struct {
 	At   time.Time
 }
 
+// ShowsNote reports whether the note belongs on the customer's history. A shipped event's note is the
+// carrier's name and tracking number written in the shop's language, which the parcel already states in the
+// reader's own.
+func (e OrderEvent) ShowsNote() bool { return e.Note != "" && e.Kind != order.EventShipped }
+
 // LabelKey is the short word the order's own history uses for the event.
 func (e OrderEvent) LabelKey() i18n.Key {
 	switch e.Kind {
