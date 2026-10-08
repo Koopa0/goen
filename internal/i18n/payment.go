@@ -76,9 +76,9 @@ var (
 	// The stock hold in two lines: the deadline to start paying and then the hold's end, or the hold's end alone
 	// once no deadline is named.
 	KeyPayDeadline     = key("pay.deadline", Message{ZhHant: "請在 %s 前開始付款", En: "Start paying by %s"})
-	KeyPayReservedNote = key("pay.reserved.note", Message{ZhHant: "商品保留到 %s，逾時未付款會自動取消訂單。時間以台灣時間為準。", En: "Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyPayReservedNote = key("pay.reserved.note", Message{ZhHant: "商品保留到 %s，逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
 	KeyPayReserved     = key("pay.reserved", Message{ZhHant: "商品保留到 %s", En: "Your items are reserved until %s"})
-	KeyPayReservedTail = key("pay.reserved.tail", Message{ZhHant: "逾時未付款會自動取消訂單。時間以台灣時間為準。", En: "The order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyPayReservedTail = key("pay.reserved.tail", Message{ZhHant: "逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "The order is cancelled if it is still unpaid then. Times are Taiwan time."})
 
 	KeyPayFactAmountDue = key("pay.fact.amountdue", Message{ZhHant: "應付金額", En: "Amount due"})
 	KeyPayFactPlaced    = key("pay.fact.placed", Message{ZhHant: "送出", En: "Placed"})
