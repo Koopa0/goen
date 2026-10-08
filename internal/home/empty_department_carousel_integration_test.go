@@ -31,7 +31,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				`UPDATE sale_campaigns SET is_active = false`,
 				`UPDATE categories SET image_key = NULL`,
 			} {
-				if _, err := tx.Exec(ctx, q); err != nil {
+				if _, err = tx.Exec(ctx, q); err != nil {
 					t.Fatalf("isolate carousel: %v", err)
 				}
 			}
@@ -57,7 +57,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 					image = "department-tech.webp"
 				}
 				var categoryID uuid.UUID
-				if err := tx.QueryRow(ctx, `
+				if err = tx.QueryRow(ctx, `
 					INSERT INTO categories (slug, name, image_key, image_alt, position)
 					VALUES ($1, $1, $2, 'Department photograph',
 					    (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NULL))
@@ -66,7 +66,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				}
 				if root.child {
 					subtree = categoryID
-					if err := tx.QueryRow(ctx, `
+					if err = tx.QueryRow(ctx, `
 						INSERT INTO categories (slug, name, parent_id, position)
 						VALUES ('carousel-child', 'Carousel child', $1, 0)
 						RETURNING id`, categoryID).Scan(&categoryID); err != nil {
@@ -80,7 +80,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				if root.slug == "carousel-sold-out" {
 					stock = 0
 				}
-				if _, err := tx.Exec(ctx, `
+				if _, err = tx.Exec(ctx, `
 					WITH p AS (
 					    INSERT INTO products (category_id, slug, name, status, published_at)
 					    VALUES ($1, $2, $2, $3, now()) RETURNING id
@@ -91,7 +91,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 					t.Fatalf("insert %s product: %v", root.slug, err)
 				}
 			}
-			if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
+			if _, err = tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
 				t.Fatalf("validate catalogue fixture: %v", err)
 			}
 
@@ -116,7 +116,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				t.Errorf("Carousel() department links mismatch (-want +got):\n%s", diff)
 			}
 
-			if _, err := tx.Exec(ctx, `
+			if _, err = tx.Exec(ctx, `
 				WITH RECURSIVE tree AS (
 				    SELECT id FROM categories WHERE id = $1
 				    UNION ALL
