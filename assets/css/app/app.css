@@ -6192,10 +6192,7 @@ input.goen-check {
   clip-path: inset(0 -100vmax);
 }
 
-/* A choice swaps this region by putting the new copy in before taking the old
-   one out, and the focused radio leaving with the old copy makes the browser lay
-   the page out in between. Scroll anchoring then held a node of the old copy
-   still, which scrolled the page down by the new copy's height. */
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
 #checkout-region {
   overflow-anchor: none;
 }
