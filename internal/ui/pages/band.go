@@ -32,13 +32,12 @@ func awaiting(p layouts.Page, a layouts.Await) layouts.Page {
 	return p
 }
 
-// awaitingHeadPhoto holds the first paint for the department head's photo,
-// when it has one.
-func awaitingHeadPhoto(p layouts.Page, photo Photo) layouts.Page {
-	if photo.Shown() {
-		return awaiting(p, layouts.AwaitPageheadPhoto)
+// awaitingIf is awaiting when the element is drawn, and p unchanged when it is not.
+func awaitingIf(p layouts.Page, drawn bool, a layouts.Await) layouts.Page {
+	if !drawn {
+		return p
 	}
-	return p
+	return awaiting(p, a)
 }
 
 func bandNameLong(name string) bool {
