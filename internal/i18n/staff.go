@@ -43,7 +43,7 @@ var (
 	})
 
 	KeyStaffNeeds = key("staff.needs", Message{
-		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的 Email 與姓名。",
+		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的電子郵件與姓名。",
 		En:     "Something is missing, or that is not a usable staff account. Enter a valid email and a name.",
 	})
 
