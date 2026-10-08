@@ -41,9 +41,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHe
 		}
 		ctx = templ.ClearChildren(ctx)
 		photo, onWell := bandPhoto(v.Theme.Image(), v.Products)
-		if photo.Shown() {
-			p = awaiting(p, layouts.AwaitPageheadPhoto)
-		}
+		p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
