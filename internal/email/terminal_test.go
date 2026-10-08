@@ -186,9 +186,9 @@ func TestAShopCancellationNamesTheRefundOnlyWhenOneWasMade(t *testing.T) {
 				t.Fatal(err)
 			}
 			body := sink.msg.Body
-			want, returned, unpromised := "has been refunded to the card you used", "any store credit you applied", "payment and refund status"
+			want, returned, unpromised := "has been or will be refunded in full", "any store credit you applied", "payment and refund status"
 			if locale == "zh-Hant" {
-				want, returned, unpromised = "已退還到原本的卡片", "若有使用購物金", "付款及退款狀態"
+				want, returned, unpromised = "已經或將會全額退還", "若有使用購物金", "付款及退款狀態"
 			}
 			if got := strings.Contains(body, want); got != refunded {
 				t.Errorf("%s refunded=%t: names the refund = %t:\n%s", locale, refunded, got, body)
