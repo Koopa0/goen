@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // fulfillmentLabels is the fulfillment lifecycle, in the order the queue shows it.
@@ -44,8 +45,29 @@ func FulfillmentLabel(ctx context.Context, s order.FulfillmentStatus) string {
 // due. Either is enough here: a card capture sets the first, and store credit or
 // a full discount sets the second.
 func FundedFulfillmentLabel(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64) string {
-	if status == order.FulfillmentPending && (committed || owedCents <= 0) {
+	if readyToPick(status, committed, owedCents) {
 		return i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)
 	}
 	return FulfillmentLabel(ctx, status)
+}
+
+func readyToPick(status order.FulfillmentStatus, committed bool, owedCents int64) bool {
+	return status == order.FulfillmentPending && (committed || owedCents <= 0)
+}
+
+// FundedFulfillmentIntent is the colour group of the word FundedFulfillmentLabel
+// gives the same arguments: an order waiting for the customer is neutral, one
+// waiting for the shop to pick it needs the staff, picking and shipping are under
+// way, and delivered or completed is finished.
+func FundedFulfillmentIntent(status order.FulfillmentStatus, committed bool, owedCents int64) components.Intent {
+	switch {
+	case readyToPick(status, committed, owedCents):
+		return components.IntentWarn
+	case status == order.FulfillmentPicking, status == order.FulfillmentShipped:
+		return components.IntentProgress
+	case status == order.FulfillmentDelivered, status == order.FulfillmentCompleted:
+		return components.IntentDone
+	default:
+		return components.IntentNeutral
+	}
 }

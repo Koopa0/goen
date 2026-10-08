@@ -137,6 +137,8 @@ var (
 
 	KeyAdminMsgDays = key("admin.message.days", Message{ZhHant: "等了 %d 天", En: "Waiting %d days"})
 
+	KeyAdminMsgOverdue = key("admin.message.overdue", Message{ZhHant: "逾時 · %s", En: "Overdue · %s"})
+
 	KeyAdminMsgReopen = key("admin.message.reopen", Message{ZhHant: "重新開啟", En: "Reopen"})
 
 	KeyAdminMsgHandle = key("admin.message.handle", Message{ZhHant: "標記已處理", En: "Mark handled"})

@@ -95,16 +95,13 @@ func (h PayHold) Window(ctx context.Context) (lead, note string, ok bool) {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPayDeadline), shoptime.ClockText(h.StartBy)), fmt.Sprintf(i18n.T(ctx, i18n.KeyPayReservedNote), until), true
 }
 
-// EyebrowKey says 完成付款 only while a payment can start or resume.
+// EyebrowKey names the order's status; an unpaid order is 待付款 whether or not a payment can start, because
+// 完成付款 above an order that is not paid reads as already paid.
 func (v *PayView) EyebrowKey() i18n.Key {
-	switch {
-	case v.Closure == PayOrderCancelled:
+	if v.Closure == PayOrderCancelled {
 		return i18n.KeyStatusCancelled
-	case !v.Payable():
-		return i18n.KeyStatusAwaitingPayment
-	default:
-		return i18n.KeyPayEyebrow
 	}
+	return i18n.KeyStatusAwaitingPayment
 }
 
 // HoldWindow is the hold in words as this page can keep it: a deadline to start paying is named only while a

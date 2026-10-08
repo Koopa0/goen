@@ -6,8 +6,6 @@ var (
 		En:     "This is a Stripe test payment; no real money is charged. Do not enter a real card. Use test card 4242 4242 4242 4242, any future expiry date and any three-digit CVC.",
 	})
 
-	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
-
 	KeyPayBody = key("pay.body", Message{
 		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會立即安排出貨。",
 		En: "The order is placed and the stock is held for you. We pack it as soon as the " +
@@ -78,9 +76,9 @@ var (
 	// The stock hold in two lines: the deadline to start paying and then the hold's end, or the hold's end alone
 	// once no deadline is named.
 	KeyPayDeadline     = key("pay.deadline", Message{ZhHant: "請在 %s 前開始付款", En: "Start paying by %s"})
-	KeyPayReservedNote = key("pay.reserved.note", Message{ZhHant: "商品保留到 %s，逾時未付款會自動取消訂單。時間以台灣時間為準。", En: "Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyPayReservedNote = key("pay.reserved.note", Message{ZhHant: "商品保留到 %s，逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
 	KeyPayReserved     = key("pay.reserved", Message{ZhHant: "商品保留到 %s", En: "Your items are reserved until %s"})
-	KeyPayReservedTail = key("pay.reserved.tail", Message{ZhHant: "逾時未付款會自動取消訂單。時間以台灣時間為準。", En: "The order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyPayReservedTail = key("pay.reserved.tail", Message{ZhHant: "逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "The order is cancelled if it is still unpaid then. Times are Taiwan time."})
 
 	KeyPayFactAmountDue = key("pay.fact.amountdue", Message{ZhHant: "應付金額", En: "Amount due"})
 	KeyPayFactPlaced    = key("pay.fact.placed", Message{ZhHant: "送出", En: "Placed"})

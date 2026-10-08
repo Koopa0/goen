@@ -137,14 +137,19 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {
-		o := &orders[i]
-		fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-		view.Recent = append(view.Recent, admin.OrderRow{
-			Number: o.OrderNumber, Status: fulfillment,
-			StatusText: admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-			PlacedAt:   shoptime.Minute(o.PlacedAt),
-			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
-		})
+		view.Recent = append(view.Recent, recentOrderRow(ctx, &orders[i]))
 	}
 	return view, nil
+}
+
+func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow) admin.OrderRow {
+	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
+	return admin.OrderRow{
+		Number:       o.OrderNumber,
+		Status:       fulfillment,
+		StatusText:   admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusIntent: admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+		PlacedAt:     shoptime.Minute(o.PlacedAt),
+		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+	}
 }

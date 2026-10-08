@@ -5307,6 +5307,8 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0.125rem 0 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
   text-wrap: pretty;
 }
 
