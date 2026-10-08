@@ -100,6 +100,17 @@ type FreeDelivery struct {
 	ShortfallCents int64
 	// ThresholdCents is zero where no method names an amount it turns free at.
 	ThresholdCents int64
+	// SurchargeZones are the zones some offered method charges extra to even once delivery is free.
+	SurchargeZones []string
+}
+
+// Word is what the cart says once delivery is free, with the zones it does not cover.
+func (f FreeDelivery) Word(ctx context.Context) string {
+	if len(f.SurchargeZones) == 0 {
+		return i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyFreeShippingExceptZones),
+		strings.Join(f.SurchargeZones, i18n.T(ctx, i18n.KeyListSeparator)))
 }
 
 // Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
@@ -112,7 +123,7 @@ func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
 			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
 		}
 	case FreeDeliveryReached:
-		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(i18n.T(ctx, i18n.KeyFreeShipping))}
+		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(f.Word(ctx))}
 		if f.ThresholdCents > 0 {
 			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
 		}
@@ -195,6 +206,8 @@ type ShippingChoice struct {
 	Free            bool
 	// FreeOverCents is zero for a method that is never free and for one that costs nothing at any subtotal.
 	FreeOverCents int64
+	// SurchargeZones are the zones this method charges extra to, which free delivery does not waive.
+	SurchargeZones []string
 }
 
 func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }

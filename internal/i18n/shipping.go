@@ -30,6 +30,12 @@ var (
 		En:     "%s (not covered by free delivery)",
 	})
 
+	// KeyFreeShippingExceptZones names the zones a free-delivery claim leaves out; %s is their names.
+	KeyFreeShippingExceptZones = key("shipping.freeexcept", Message{
+		ZhHant: "免運（%s另計）",
+		En:     "Free (%s extra)",
+	})
+
 	KeyShippingZoneSurcharge = key("shipping.zonesurcharge", Message{
 		ZhHant: "%s 另加 %s",
 		En:     "%s costs %s extra",
