@@ -21,8 +21,8 @@ var (
 	})
 
 	KeyTOTPNoKeyNotice = key("twofactor.nokey.notice", Message{
-		ZhHant: "這個網站還沒設定兩階段驗證，設定方式見部署說明。",
-		En:     "Two-factor is not set up for this site yet. The deployment notes say how.",
+		ZhHant: "這個網站還沒設定兩階段驗證，設定方式見 .env.example。",
+		En:     "Two-factor is not set up for this site yet. .env.example says how.",
 	})
 
 	KeyTOTPAlreadyEnrolled = key("twofactor.enrolled", Message{
@@ -49,8 +49,8 @@ var (
 	})
 
 	KeyTwoFAOffBody = key("admin.2fa.off.body", Message{
-		ZhHant: "兩階段驗證需要先設定加密金鑰才能使用，設定方式見部署說明。",
-		En:     "Two-factor needs an encryption key before it can be used. The deployment notes say how to set one.",
+		ZhHant: "兩階段驗證需要先設定加密金鑰才能使用，設定方式見 .env.example。",
+		En:     "Two-factor needs an encryption key before it can be used. .env.example says how to set one.",
 	})
 
 	KeyTwoFAEnrolHeading = key("admin.2fa.enrol.heading", Message{
