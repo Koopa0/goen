@@ -4,18 +4,19 @@
 //
 // SHOT_PAGES lists the entries, one per line or separated by commas:
 //
-//   path@width[@lang][@text200][@forced][@member]
+//   path@width[@lang][@text200][@forced][@member][@noscript]
 //
 //   /p/{PRODUCT_SLUG}@375@en@text200
 //
 // lang is zh or en (default zh). text200 doubles the root font size, the way a
 // reader who zooms text to 200% sees the page (WCAG 1.4.4). forced emulates
 // forced-colors. member makes the visitor the signed-in customer (CUST_TOKEN)
-// whatever the path, and the capture must end on the requested path. {NAME}
-// is replaced by the environment variable NAME, so an entry can point at the
-// slugs and order numbers scripts/check-layout.sql writes to its env file
-// (names ending _SLUG or _ORDER, PICKUP_SHIP, CUSTOMER_ID, LAYOUT_SERIAL;
-// never a token).
+// whatever the path, and the capture must end on the requested path. noscript
+// loads the page with JavaScript off, as a visitor without scripting gets it;
+// the runner's own measurements still run. {NAME} is replaced by the
+// environment variable NAME, so an entry can point at the slugs and order
+// numbers scripts/check-layout.sql writes to its env file (names ending _SLUG
+// or _ORDER, PICKUP_SHIP, CUSTOMER_ID, LAYOUT_SERIAL; never a token).
 // A comma inside a path needs the one-entry-per-line form.
 //
 // Who is looking follows from the path: /admin is staff (ADMIN_TOKEN), /account
@@ -61,6 +62,7 @@ function slug(index, entry) {
   if (entry.text200) parts.push('text200');
   if (entry.forced) parts.push('forced');
   if (entry.member) parts.push('member');
+  if (entry.noscript) parts.push('noscript');
   return parts.join('-') + '.png';
 }
 
@@ -154,6 +156,7 @@ async function shoot(entry, file) {
     ],
   });
 
+  await send('Emulation.setScriptExecutionDisabled', { value: entry.noscript });
   await device(height);
   await navigate(ORIGIN + entry.path);
   if (entry.text200) {
@@ -214,7 +217,7 @@ for (const [index, text] of entries.entries()) {
   try {
     const entry = parseEntry(text, process.env);
     record.file = slug(index, entry);
-    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, member: entry.member, view: VIEW });
+    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, member: entry.member, noscript: entry.noscript, view: VIEW });
     Object.assign(record, await shoot(entry, record.file));
     if (record.error) {
       failed++;

@@ -65,7 +65,7 @@ templ Points(p layouts.Page, v PointsView) {
 							Attrs: v.pointsFieldAttrs(),
 						})
 						<p class="goen-points__rule" id="points-rule">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepText()) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepAmountText(ctx)) }
 						</p>
 						if v.FieldError != "" {
 							<p class="ui-error-text" id="points-error" role="alert">{ v.FieldError }</p>

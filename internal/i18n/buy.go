@@ -25,7 +25,7 @@ var (
 	KeySoldOut = key("buy.soldout", Message{ZhHant: "已售完", En: "Sold out"})
 
 	KeyChooseOptions = key("buy.choose", Message{
-		ZhHant: "請選擇規格",
+		ZhHant: "請選擇款式",
 		En:     "Choose options",
 	})
 

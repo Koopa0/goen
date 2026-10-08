@@ -1118,13 +1118,13 @@ func cutParcels(
 	return parcels, unshipped
 }
 
-// orderReturned is nil until every unit the order sold is in a completed return.
+// orderReturned is nil until every unit the order sold is in an approved or completed return.
 func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.OrderReturned, error) {
-	units, err := s.q.OrderReturnedUnits(ctx, orderID)
+	returned, err := s.q.ReturnedOrders(ctx, []uuid.UUID{orderID})
 	if err != nil {
-		return nil, fmt.Errorf("read returned units: %w", err)
+		return nil, fmt.Errorf("read returned order: %w", err)
 	}
-	if units.ReturnedUnits < units.OrderedUnits || units.OrderedUnits == 0 {
+	if len(returned) == 0 {
 		return nil, nil //nolint:nilnil // an order not returned in full is not an error
 	}
 	returns, err := s.q.OrderReturns(ctx, orderID)

@@ -1,6 +1,9 @@
 package i18n
 
 var (
+	KeyAccountWelcome = key("account.welcome", Message{ZhHant: "帳號已建立，歡迎加入。", En: "Your account is created. Welcome."})
+	KeyWelcomeReturn  = key("account.welcome.return", Message{ZhHant: "繼續原本的操作", En: "Continue where you left off"})
+
 	KeyAccountTitle = key("account.title", Message{ZhHant: "會員中心", En: "Your account"})
 
 	KeySignOut = key("account.signout", Message{ZhHant: "登出", En: "Sign out"})
@@ -52,9 +55,9 @@ var (
 	})
 
 	KeyCartMergeFailed = key("account.notice.cart.mergefailed", Message{
-		ZhHant: "登入後購物車未能合併。此瀏覽器目前顯示的是訪客購物車；你帳戶中的購物車仍保留原有品項。",
-		En: "Your carts could not be merged after sign-in. This browser is still showing your guest cart; " +
-			"your account cart still holds its existing items.",
+		ZhHant: "登入後沒能把兩個購物車合在一起。這裡是登入前的購物車，你帳號裡原本的商品都還在。",
+		En: "We could not combine your carts after you signed in. This is the cart from before you signed in; " +
+			"the items saved in your account are still there.",
 	})
 
 	KeyCartMergeRetry = key("account.cart.merge.retry", Message{
