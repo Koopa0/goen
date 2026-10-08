@@ -378,7 +378,9 @@
   function requestFeedback() {
     const pending = new Map();
     const requests = new WeakMap();
-    const filters = new WeakMap();
+    const reads = new WeakMap();
+    const replacesRead = (form, ctx) => form instanceof HTMLFormElement && ctx?.request?.method === "GET"
+      && form.getAttribute("hx-sync") === "this:replace";
     const restoreAttribute = (element, name, value) => {
       if (value === null) element.removeAttribute(name);
       else element.setAttribute(name, value);
@@ -414,9 +416,13 @@
       if (!(form instanceof HTMLFormElement)) return;
       // htmx's replaced request can release its queue after the next one
       // starts. Keep ownership here so a third change still aborts the second.
-      if (form.matches(".goen-filters")) {
-        filters.get(form)?.request?.abort?.();
-        filters.set(form, ctx);
+      if (form.matches(".goen-filters") || replacesRead(form, ctx)) {
+        reads.get(form)?.request?.abort?.();
+        reads.set(form, ctx);
+        if (!form.matches(".goen-filters")) {
+          if (!pending.has(form)) begin(form);
+          requests.set(ctx, form);
+        }
         return;
       }
       // Do not delete the isConnected clause: a second press queues behind the
@@ -431,7 +437,7 @@
     document.addEventListener("htmx:after:request", (event) => {
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
-      if (form?.matches(".goen-filters") && filters.get(form) !== ctx) event.preventDefault();
+      if ((form?.matches(".goen-filters") || replacesRead(form, ctx)) && reads.get(form) !== ctx) event.preventDefault();
     });
     document.addEventListener("htmx:before:history:update", (event) => {
       const { sourceElement, response } = event.detail || {};
@@ -445,16 +451,20 @@
       const ctx = event.detail?.ctx;
       // A timeout and a replaced request both abort without a response. Only
       // the latest request may change the feedback beside the filters.
-      const filter = ctx?.request?.form;
-      if (filter && filters.get(filter) === ctx) {
-        filters.delete(filter);
-        const note = document.querySelector(".goen-filters__error");
-        const raw = ctx.response?.raw;
-        if (note) note.hidden = raw?.ok === true;
+      const requestForm = ctx?.request?.form;
+      const ownsRead = requestForm && reads.get(requestForm) === ctx;
+      if (ownsRead) {
+        reads.delete(requestForm);
+        if (requestForm.matches(".goen-filters")) {
+          const note = document.querySelector(".goen-filters__error");
+          const raw = ctx.response?.raw;
+          if (note) note.hidden = raw?.ok === true;
+        }
       }
       const form = requests.get(ctx);
       if (!form) return;
       requests.delete(ctx);
+      if (replacesRead(form, ctx) && !ownsRead) return;
       finish(form);
     });
     document.addEventListener("reset", (event) => finish(event.target));
