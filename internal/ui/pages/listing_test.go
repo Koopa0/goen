@@ -540,6 +540,11 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
 		t.Error("a head with no photograph or children draws them anyway")
 	}
+
+	only := ListingView{Slug: "tea", Name: "Tea", Theme: &Theme{Children: []Crumb{{Slug: "tea", Name: "Tea"}}}}
+	if h := renderToString(t, Listing(ListingMeta(ctx, only), only, nil, nil)); strings.Contains(h, "goen-pagehead__chips") {
+		t.Error("a head with a single sub-category draws it as a choice")
+	}
 }
 
 // A search that finds nothing sends the shopper to the departments, which the

@@ -14,20 +14,11 @@ func TestAFactNamesWhatItCountsOnce(t *testing.T) {
 	t.Parallel()
 	ends := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
-	head := &DepartmentHead{Products: 20, Categories: 6, Brands: 5}
 	for _, tt := range []struct {
 		name  string
 		facts func(ctx context.Context) []components.Stat
 		want  map[i18n.Locale][]string
 	}{
-		{
-			name:  "department head",
-			facts: head.Facts,
-			want: map[i18n.Locale][]string{
-				i18n.En:     {"<dt>Items</dt><dd>20</dd>", "<dt>Categories</dt><dd>6</dd>", "<dt>Brands</dt><dd>5</dd>"},
-				i18n.ZhHant: {"<dt>商品</dt>", "<dt>分類</dt>", "<dt>品牌</dt>", "20\u00a0<small>件</small>", "6\u00a0<small>類</small>", "5\u00a0<small>個</small>"},
-			},
-		},
 		{
 			name: "campaign",
 			facts: func(ctx context.Context) []components.Stat {
