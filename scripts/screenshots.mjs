@@ -11,10 +11,11 @@
 // lang is zh or en (default zh). text200 doubles the root font size, the way a
 // reader who zooms text to 200% sees the page (WCAG 1.4.4). forced emulates
 // forced-colors. member makes the visitor the signed-in customer (CUST_TOKEN)
-// whatever the path, and the capture must end on the requested path. {NAME} is replaced by the environment variable NAME, so an
-// entry can point at the slugs and order numbers scripts/check-layout.sql
-// writes to its env file (names ending _SLUG or _ORDER, PICKUP_SHIP,
-// CUSTOMER_ID, LAYOUT_SERIAL; never a token).
+// whatever the path, and the capture must end on the requested path. {NAME}
+// is replaced by the environment variable NAME, so an entry can point at the
+// slugs and order numbers scripts/check-layout.sql writes to its env file
+// (names ending _SLUG or _ORDER, PICKUP_SHIP, CUSTOMER_ID, LAYOUT_SERIAL;
+// never a token).
 // A comma inside a path needs the one-entry-per-line form.
 //
 // Who is looking follows from the path: /admin is staff (ADMIN_TOKEN), /account
