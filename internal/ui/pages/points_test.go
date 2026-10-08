@@ -99,7 +99,7 @@ func TestPointsRowsNameTheirOrderDatesAndCredit(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			doc := pointsDocument(t, tt.locale, PointsView{Entries: []PointsEntry{tt.entry}})
+			doc := pointsDocument(t, tt.locale, &PointsView{Entries: []PointsEntry{tt.entry}})
 			row := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-points__item") })
 			if row == nil {
 				t.Fatal("Points() has no ledger row")
@@ -126,7 +126,7 @@ func TestPointsRuleNamesTheNumericMinimumAndStep(t *testing.T) {
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			doc := pointsDocument(t, tt.locale, PointsView{Redeemable: 200, Minimum: 100, PerCredit: 10})
+			doc := pointsDocument(t, tt.locale, &PointsView{Redeemable: 200, Minimum: 100, PerCredit: 10})
 			rule := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == "points-rule" })
 			field := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == "points" })
 			got := map[string]string{"rule": pointsText(rule), "described by": attrValue(field, "aria-describedby")}
@@ -138,9 +138,9 @@ func TestPointsRuleNamesTheNumericMinimumAndStep(t *testing.T) {
 	}
 }
 
-func pointsDocument(t *testing.T, locale i18n.Locale, view PointsView) *html.Node {
+func pointsDocument(t *testing.T, locale i18n.Locale, view *PointsView) *html.Node {
 	t.Helper()
-	doc, err := html.Parse(strings.NewReader(renderIn(t, locale, Points(layouts.Page{}, view))))
+	doc, err := html.Parse(strings.NewReader(renderIn(t, locale, Points(layouts.Page{}, *view))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestPointsLeadUsesTheCurrentExactMemberMultiplier(t *testing.T) {
 	} {
 		t.Run(tt.locale.Tag()+" "+tt.want, func(t *testing.T) {
 			t.Parallel()
-			doc := pointsDocument(t, tt.locale, PointsView{PerCredit: 10, MultiplierBP: tt.rate, TierName: tt.tier})
+			doc := pointsDocument(t, tt.locale, &PointsView{PerCredit: 10, MultiplierBP: tt.rate, TierName: tt.tier})
 			lead := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-pagehead__sub") })
 			if got := pointsText(lead); got != tt.want {
 				t.Errorf("Points() lead = %q, want %q", got, tt.want)
@@ -228,7 +228,7 @@ func TestPointsFormRefusalPreservesTheAmountAndOperation(t *testing.T) {
 			view := PointsView{Redeemable: 200, Minimum: 100, PerCredit: 10, DraftPoints: &draft, FieldError: tt.reason, OperationID: "240cc90f-2f42-485c-9cf5-52d21ba4bf75"}
 			for _, available := range []int64{200, 0} {
 				view.Redeemable = available
-				doc := pointsDocument(t, tt.locale, view)
+				doc := pointsDocument(t, tt.locale, &view)
 				field := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == "points" })
 				operation := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "name") == "operation_id" })
 				reason := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == "points-error" })
