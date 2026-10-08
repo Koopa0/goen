@@ -1531,6 +1531,15 @@ input.goen-check {
   row-gap: 6px;
 }
 
+.goen-admin__field > * {
+  grid-column: 1;
+}
+
+.goen-admin__hints {
+  display: grid;
+  row-gap: 6px;
+}
+
 .goen-admin__fields > .goen-admin__field {
   grid-row: span 4;
   grid-template-rows: subgrid;
@@ -1541,7 +1550,8 @@ input.goen-check {
   line-height: 1.35;
 }
 
-.goen-admin__fields > .goen-admin__field > .goen-admin__hint {
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint,
+.goen-admin__fields > .goen-admin__field > .goen-admin__hints {
   grid-row: 4;
 }
 

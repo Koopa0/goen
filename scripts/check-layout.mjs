@@ -2301,6 +2301,22 @@ const ADMIN_PROBE = `(() => {
   // Nav links, buttons and inputs. Table cells are not targets.
   const taps = [...document.querySelectorAll('.goen-admin .ui-navitem, .goen-admin button, .goen-admin input, .goen-admin .ui-filter')]
     .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  // A field is one column: its label is not squeezed beside the control, and no
+  // child starts away from the field's left edge or sits on a sibling.
+  const fieldFaults = [];
+  for (const field of document.querySelectorAll('.goen-admin__field')) {
+    const box = field.getBoundingClientRect();
+    if (box.width === 0) continue;
+    const kids = [...field.children].map((el) => ({ el, r: el.getBoundingClientRect() })).filter((k) => k.r.width > 0 && k.r.height > 0);
+    const name = (el) => el.tagName.toLowerCase() + '.' + String(el.className || '').split(' ')[0];
+    for (const [i, k] of kids.entries()) {
+      if (Math.abs(k.r.left - box.left) > 1) fieldFaults.push(name(k.el) + ' starts ' + (k.r.left - box.left).toFixed(1) + 'px from the field left edge');
+      if (k.el.tagName === 'LABEL' && k.r.width < box.width / 2) fieldFaults.push('label ' + k.r.width.toFixed(1) + 'px of a ' + box.width.toFixed(1) + 'px field');
+      for (const o of kids.slice(i + 1)) {
+        if (k.r.left < o.r.right - 1 && o.r.left < k.r.right - 1 && k.r.top < o.r.bottom - 1 && o.r.top < k.r.bottom - 1) fieldFaults.push(name(k.el) + ' overlaps ' + name(o.el));
+      }
+    }
+  }
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
@@ -2308,6 +2324,7 @@ const ADMIN_PROBE = `(() => {
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    fieldFaults: fieldFaults.slice(0, 4),
     controls: taps.length,
     ${ACCESSIBILITY}
   };
@@ -2765,6 +2782,7 @@ if (process.env.ADMIN_TOKEN) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
     }
+    if (got.fieldFaults.length) fail(at, `form field laid out wrong: ${got.fieldFaults.join("; ")}`);
     if (got.controls === 0) {
       fail(at, 'no controls found — the probe measured nothing');
     } else if (got.minTap < MIN_TAP) {
