@@ -9,7 +9,7 @@ var (
 	})
 
 	KeyQuestionRefused = key("pdp.qa.refused", Message{
-		ZhHant: "問題沒有送出 —— 請確認內容不是空的，而且在 300 字以內。",
+		ZhHant: "問題沒有送出。請確認內容不是空的，並在 300 字以內。",
 		En:     "That question was not posted — check it is not empty and under 300 characters.",
 	})
 

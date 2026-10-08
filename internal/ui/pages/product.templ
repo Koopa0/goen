@@ -419,7 +419,7 @@ templ productLinks(v *ProductView) {
 				}
 			</form>
 		} else {
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug)) {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")) {
 				@icons.Heart()
 				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
 			}

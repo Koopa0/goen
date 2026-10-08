@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -82,6 +83,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 // anOrder owes more than its lines, so the remainder line is always exercised.
 func anOrder() *Order {
 	return &Order{
+		ID:     uuid.MustParse("5c2e8a41-9d3b-4f6e-8a1c-2b7d9e4f6a03"),
 		Number: "GO-260806-000007",
 		Email:  "someone@example.test",
 		Lines: []Line{
@@ -238,8 +240,35 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 		t.Error("no Idempotency-Key header — two POSTs that both read \"no live " +
 			"session\" would open two checkouts for one order")
 	}
-	if sent.idempotency != SessionKey("GO-260806-000007", 299780, 0) {
-		t.Errorf("Idempotency-Key = %q, want the key SessionKey derives", sent.idempotency)
+	if want := "goen-pay:5c2e8a41-9d3b-4f6e-8a1c-2b7d9e4f6a03:299780:0"; sent.idempotency != want {
+		t.Errorf("Idempotency-Key = %q, want %q", sent.idempotency, want)
+	}
+}
+
+// TestAReusedOrderNumberGetsItsOwnSessionKey: order numbers restart with the
+// day's sequence after a database rebuild or the demo's nightly reset, while
+// Stripe keeps a key for 24 hours and refuses it for different parameters.
+func TestAReusedOrderNumberGetsItsOwnSessionKey(t *testing.T) {
+	g, log := stripeAt(t, func(*call) (int, string) {
+		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
+	})
+
+	before := anOrder()
+	after := anOrder()
+	after.ID = uuid.MustParse("e4a7c1d9-3f2b-4c8e-b6a5-9d0f1e2c3b48")
+	for _, o := range []*Order{before, after} {
+		if _, err := g.StartSession(t.Context(), o, 0); err != nil {
+			t.Fatalf("StartSession(%s) error = %v", o.ID, err)
+		}
+	}
+
+	if len(*log) != 2 {
+		t.Fatalf("made %d requests, want 2", len(*log))
+	}
+	if first, second := (*log)[0].idempotency, (*log)[1].idempotency; first == second {
+		t.Errorf("two orders numbered %s with ids %s and %s both sent Idempotency-Key %q; "+
+			"Stripe refuses the second with idempotency_error",
+			before.Number, before.ID, after.ID, first)
 	}
 }
 

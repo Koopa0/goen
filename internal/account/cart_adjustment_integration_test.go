@@ -152,6 +152,11 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					if locationErr != nil {
 						t.Fatal(locationErr)
 					}
+					if mode == "register" {
+						welcomeRequest := httptest.NewRequestWithContext(ctx, http.MethodGet, location.RequestURI(), http.NoBody)
+						welcomeRequest.AddCookie(session)
+						location = assertAdjustedRegistrationWelcome(t, h, welcomeRequest, location)
+					}
 					if location.Path != "/cart" {
 						t.Fatalf("adjustment lands at %s, want cart", location)
 					}
@@ -197,4 +202,26 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 			}
 		}
 	}
+}
+
+func assertAdjustedRegistrationWelcome(t *testing.T, h *account.Handler, request *http.Request, location *url.URL) *url.URL {
+	t.Helper()
+	if location.Path != "/account" || location.Query().Get("welcome") != "1" || location.Query().Get("adjusted") != "1" {
+		t.Fatalf("adjusted registration loses welcome or adjustment: %s", location)
+	}
+	welcome := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.Overview)).ServeHTTP(welcome, request)
+	ctx := request.Context()
+	if welcome.Code != http.StatusOK || !strings.Contains(welcome.Body.String(), i18n.T(ctx, i18n.KeyAccountWelcome)) ||
+		!strings.Contains(welcome.Body.String(), i18n.T(ctx, i18n.KeyCartQuantityAdjusted)) {
+		t.Fatalf("adjusted registration welcome = %d: %s", welcome.Code, welcome.Body.String())
+	}
+	if !strings.Contains(welcome.Body.String(), `href="`+html.EscapeString(location.Query().Get("next"))+`"`) {
+		t.Fatal("adjusted registration welcome omits its cart-review action")
+	}
+	next, err := url.Parse(location.Query().Get("next"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return next
 }

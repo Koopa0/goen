@@ -411,7 +411,7 @@ func TestPartialSelectionOffersNoButton(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "請選擇規格") {
+	if !strings.Contains(body, "請選擇款式") {
 		t.Error("a partial selection does not ask for the rest")
 	}
 	if !strings.Contains(body, `type="submit" disabled`) {
