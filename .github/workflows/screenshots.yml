@@ -55,8 +55,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # No cache is read or written: the run's token could write the cache that
-      # workflows on main read.
+      # No cache is read or written: a run's token writes its branch's cache, and on
+      # main that is the cache every workflow reads.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod

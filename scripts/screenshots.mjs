@@ -11,7 +11,9 @@
 // lang is zh or en (default zh). text200 doubles the root font size, the way a
 // reader who zooms text to 200% sees the page (WCAG 1.4.4). forced emulates
 // forced-colors. {NAME} is replaced by the environment variable NAME, so an
-// entry can point at the slugs scripts/check-layout.sql writes to its env file.
+// entry can point at the slugs and order numbers scripts/check-layout.sql
+// writes to its env file (names ending _SLUG or _ORDER, PICKUP_SHIP,
+// CUSTOMER_ID, LAYOUT_SERIAL; never a token).
 // A comma inside a path needs the one-entry-per-line form.
 //
 // Who is looking follows from the path: /admin is staff (ADMIN_TOKEN), /account
@@ -23,7 +25,9 @@
 // first screen). Device emulation sets the width, so media and container
 // queries and touch input see the device, which --window-size does not do.
 // CDP_PORT and GOEN_URL name Chrome and the shop. The PNGs and manifest.json
-// are written to <outdir>; the exit status is 1 when any entry failed.
+// are written to <outdir>. An entry fails, and the exit status is 1, when it
+// cannot be shot, answers 400 or above, or needs a session and ends outside its
+// own path (a lapsed session lands on /signin).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
@@ -41,6 +45,10 @@ if (!outDir || !['full', 'viewport'].includes(VIEW)) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The names scripts/check-layout.sql writes that are not session tokens, so an
+// entry cannot copy a token into the artifact.
+const fixtureName = /^(\w+_SLUG|\w+_ORDER|PICKUP_SHIP|CUSTOMER_ID|LAYOUT_SERIAL)$/;
+
 function parseEntry(text) {
   const [path, width, ...flags] = text.split('@');
   const entry = { text, path, width: Number(width), lang: 'zh-Hant', text200: false, forced: false };
@@ -55,6 +63,7 @@ function parseEntry(text) {
     else throw new Error(`unknown flag ${JSON.stringify(flag)}`);
   }
   entry.path = path.replace(/\{(\w+)\}/g, (_, name) => {
+    if (!fixtureName.test(name)) throw new Error(`{${name}} is not a fixture name`);
     if (!process.env[name]) throw new Error(`${name} is not set`);
     return encodeURIComponent(process.env[name]);
   });
@@ -69,6 +78,8 @@ const visitors = [
   { prefix: '/checkout', cookie: 'goen_cart', token: 'CART_TOKEN' },
   { prefix: '/orders', cookie: 'goen_placed', token: 'PLACED_TOKEN' },
 ];
+
+const within = (path, prefix) => path === prefix || ['/', '?'].some((c) => path.startsWith(prefix + c));
 
 function slug(index, entry) {
   const name = entry.path.replace(/^\//, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/-$/, '') || 'home';
@@ -193,7 +204,10 @@ async function shoot(entry, file) {
   })`);
   const { data } = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(`${outDir}/${file}`, Buffer.from(data, 'base64'));
-  return { ...facts, height: shotHeight, capped: shotHeight === CAP };
+  const result = { ...facts, height: shotHeight, capped: shotHeight === CAP };
+  if (facts.status >= 400) result.error = `answered ${facts.status}`;
+  else if (visitor && !within(facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
+  return result;
 }
 
 const list = process.env.SHOT_PAGES || '';
@@ -221,6 +235,10 @@ for (const [index, text] of entries.entries()) {
     record.file = slug(index, entry);
     Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, view: VIEW });
     Object.assign(record, await shoot(entry, record.file));
+    if (record.error) {
+      failed++;
+      console.error(`${record.file}: ${record.error}`);
+    }
     console.log(`${record.file} ${record.status} ${record.finalPath} h1=${JSON.stringify(record.h1)} scrollWidth=${record.scrollWidth} height=${record.height}`);
   } catch (e) {
     record.error = e.message;
