@@ -382,8 +382,11 @@ JOIN order_lines ol ON ol.id = w.order_line_id
 WHERE ol.order_id = $1
 ORDER BY w.order_line_id, w.unit_no;
 
--- The orders among @order_ids whose every unit is in a return the shop has approved or completed. The refund
--- is paid at approval, so the order is returned from then on; a refund before shipment returns nothing.
+-- The orders among @order_ids whose every unit is in a return whose refund has settled; a refund before shipment
+-- returns nothing. Approval only starts the payout: a card refund can fail or wait and a credit posting can fail,
+-- leaving the return approved with the money not sent. So a return counts once it is completed, or approved with
+-- nothing to send back, or approved with its refunded event written, which the payout writes only after every
+-- source has landed. The completed-status trigger holds the same definition of settled.
 -- name: ReturnedOrders :many
 SELECT o.id
 FROM orders o
@@ -395,22 +398,31 @@ WHERE o.id = ANY(@order_ids::uuid[])
         AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
                                     JOIN return_requests rr ON rr.id = rl.return_request_id
                                     WHERE rl.order_line_id = ol.id
-                                      AND rr.status IN ('approved', 'completed')
-                                      AND NOT rr.before_shipment), 0));
+                                      AND NOT rr.before_shipment
+                                      AND (rr.status = 'completed'
+                                           OR (rr.status = 'approved'
+                                               AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                                                    OR EXISTS (SELECT 1 FROM order_events e
+                                                               WHERE e.return_request_id = rr.id
+                                                                 AND e.kind = 'refunded'))))), 0));
 
--- The returns that sent money back, with the day each was paid out: the later of the card refund and the
--- credit posting, or the decision for a return that sent nothing back.
+-- The returns whose refund has settled, as ReturnedOrders counts them, with the money each sent back and the
+-- day it was refunded: the refunded event the payout wrote once every source landed, or the decision for a
+-- return that sent nothing back.
 -- name: OrderReturns :many
-SELECT coalesce(
-           greatest((SELECT max(rf.succeeded_at) FROM refunds rf
-                     WHERE rf.return_request_id = rr.id AND rf.status = 'succeeded'),
-                    (SELECT max(e.created_at) FROM store_credit_entries e
-                     WHERE e.idempotency_key = 'return-credit:' || rr.id::text)),
-           rr.decided_at)::timestamptz AS paid_out_at,
+SELECT coalesce((SELECT e.occurred_at FROM order_events e
+                 WHERE e.return_request_id = rr.id AND e.kind = 'refunded'),
+                rr.decided_at)::timestamptz AS refunded_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
-WHERE rr.order_id = $1 AND rr.status IN ('approved', 'completed') AND NOT rr.before_shipment
-ORDER BY paid_out_at, rr.id;
+WHERE rr.order_id = $1
+  AND NOT rr.before_shipment
+  AND (rr.status = 'completed'
+       OR (rr.status = 'approved'
+           AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                OR EXISTS (SELECT 1 FROM order_events e
+                           WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+ORDER BY refunded_at, rr.id;
 
 -- name: RecordCheckoutAttempt :exec
 INSERT INTO checkout_attempts (idempotency_key, cart_id, order_id)

@@ -23,7 +23,7 @@ type AccountOrder struct {
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
-	// Returned is every unit of the order in an approved or completed return.
+	// Returned is every unit of the order in a return whose refund has settled.
 	Returned bool
 	// OneLastDay is true when the whole order has a single last day to cancel; LastDay means nothing otherwise.
 	OneLastDay bool
