@@ -74,18 +74,18 @@ try {
 }
 const reflowBaseline = reflowBaselineFile.routes || {};
 
-// What the two artboards fold into. The seeded six departments are rows,
-// one per line, with the stage beside them from 1024; the
+// What the two artboards fold into. The seeded six departments are square
+// photographs, three to a line on a phone and six from 768; the
 // seeded campaign has four products and a wide first photograph, so its row is
 // the lead tile (a full row under 1024, then 2 + 1 beside it) and the campaign
 // card. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
 // stops applying is caught rather than a rule that stops existing.
 const EXPECTED = [
-  { label: '375 (artboard)', width: 375, height: 812, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
-  { label: '768 (md)', width: 768, height: 1024, cats: 1, stage: false, tiles: 1, hero: 'stacked' },
-  { label: '1024 (lg)', width: 1024, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
-  { label: '1440 (artboard)', width: 1440, height: 900, cats: 1, stage: true, tiles: 3, hero: 'side-by-side' },
+  { label: '375 (artboard)', width: 375, height: 812, cats: 3, tiles: 1, hero: 'stacked' },
+  { label: '768 (md)', width: 768, height: 1024, cats: 6, tiles: 1, hero: 'stacked' },
+  { label: '1024 (lg)', width: 1024, height: 900, cats: 6, tiles: 3, hero: 'side-by-side' },
+  { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 3, hero: 'side-by-side' },
 ];
 
 // Every page that renders a document, at a phone width and at the artboard.
@@ -633,10 +633,6 @@ const PROBE = `(() => {
     overflowing,
     heroSplit: Math.abs(body.y - media.y) < 2 ? 'side-by-side' : 'stacked',
     cats: cols('.goen-cats__grid > li'),
-    stage: (() => {
-      const e = document.querySelector('.goen-cats__grid--rows li:first-child .goen-cat__photo, .goen-cats__grid--rows li:first-child .goen-cat__stage');
-      return !!e && getComputedStyle(e).position === 'absolute' && getComputedStyle(e).opacity === '1';
-    })(),
     tiles: cols('.goen-tiles__grid > li'),
     header: edges('.goen-header__bar'),
     main: edges('.goen-home'),
@@ -875,7 +871,6 @@ for (const want of EXPECTED) {
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
   if (got.cats !== want.cats) fail(at, `category grid has ${got.cats} columns, want ${want.cats}`);
-  if (got.stage !== want.stage) fail(at, `the department stage is ${got.stage ? 'shown' : 'hidden'}, want ${want.stage ? 'shown' : 'hidden'}`);
   if (got.tiles !== want.tiles) fail(at, `product grid has ${got.tiles} columns, want ${want.tiles}`);
   if (got.heroSplit !== want.hero) fail(at, `hero is ${got.heroSplit}, want ${want.hero}`);
   if (got.minTap < MIN_TAP) fail(at, `smallest tap target is ${got.minTap}px, want >= ${MIN_TAP}`);
@@ -1513,6 +1508,9 @@ const proveListingDesktopResize = async (label, locale) => {
     const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
+    // An open filter panel overlays the applied row by design; close it so the
+    // link's own target is what is measured.
+    document.querySelectorAll('.goen-filters__group[open]').forEach((group) => group.removeAttribute('open'));
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
     const missed = [];
     if (remove) {
@@ -3017,8 +3015,8 @@ try {
             fail(label, boundary.selector + ': ' + boundary.error);
             continue;
           }
-          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
-            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast, boundary.underlineContrast, boundary.arrowContrast) < 3) {
+            fail(label, boundary.selector + ': boundary, underline, arrow and fill all below 3:1');
           }
           const focused = await controlFocus(boundary.selector);
           console.log(label + ' focus ' + JSON.stringify(focused));

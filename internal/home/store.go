@@ -126,13 +126,14 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	}
 	for i := range src.cats {
 		c := &src.cats[i]
+		if src.held[c.ID] == 0 {
+			continue
+		}
 		view.Categories = append(view.Categories, pages.HomeCategory{
 			Slug:  c.Slug,
 			Name:  c.Name,
 			Tone:  pages.ResolveTone(c.Tone),
 			Photo: departmentPhoto(c),
-			Subs:  strings.Join(src.subs[c.ID], " · "),
-			Items: src.held[c.ID],
 		})
 	}
 	return view, nil

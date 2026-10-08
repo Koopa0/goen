@@ -51,12 +51,28 @@ export function measureControlBoundary(selectors, contrast, focused = false) {
         if (style['border' + side + 'Style'] === 'none' || parseFloat(style['border' + side + 'Width']) === 0) return 1;
         return contrast(over(rgba(style['border' + side + 'Color']), surrounding), surrounding);
       });
+      // A transparent border draws nothing in normal colours (it is there so forced
+      // colours show an edge), so it identifies nothing.
+      const none = (side) => style['border' + side + 'Style'] === 'none' || parseFloat(style['border' + side + 'Width']) === 0
+        || rgba(style['border' + side + 'Color'])[3] === 0;
+      const bordersNone = ['Top', 'Right', 'Bottom', 'Left'].every(none);
+      // A field drawn as a line is identified by that line (1.4.11).
+      const underlineContrast = none('Top') && none('Left') && none('Right') && !none('Bottom')
+        ? contrast(over(rgba(style.borderBottomColor), surrounding), surrounding) : 1;
+      // A select drawn as text and an arrow is identified by the arrow, whose
+      // stroke is read from the stylesheet's own image.
+      let arrowContrast = 1;
+      const image = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/.exec(style.backgroundImage);
+      const stroke = image && /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(image[1]));
+      if (el.tagName === 'SELECT' && bordersNone && stroke && stroke[1] !== 'none') {
+        arrowContrast = contrast(over(rgba(stroke[1]), fill), fill);
+      }
       return {
         selector, outline: style.outline, offset: style.outlineOffset,
         outlineWidth, active: document.activeElement === el,
         focusVisible: el.matches(':focus-visible'),
         fill, surrounding, outlineContrast, borderContrast: Math.min(...borders),
-        fillContrast: contrast(fill, surrounding), shadow: style.boxShadow,
+        fillContrast: contrast(fill, surrounding), underlineContrast, arrowContrast, shadow: style.boxShadow,
       };
     } catch (err) {
       return { selector, error: err.message };

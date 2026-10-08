@@ -134,6 +134,56 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 	}
 }
 
+func TestADepartmentWithNoListedProductIsNotInTheDirectory(t *testing.T) {
+	ctx := t.Context()
+	before, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(before.Categories) == 0 {
+		t.Fatal("the seed has no departments")
+	}
+	hidden := before.Categories[0].Slug
+
+	var ids []uuid.UUID
+	rows, err := pool.Query(ctx, `
+		WITH RECURSIVE tree AS (
+		    SELECT id FROM categories WHERE slug = $1
+		    UNION ALL
+		    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+		)
+		UPDATE products SET status = 'draft'
+		WHERE status = 'active' AND category_id IN (SELECT id FROM tree)
+		RETURNING id`, hidden)
+	if err != nil {
+		t.Fatalf("unlist the department's products: %v", err)
+	}
+	ids, err = pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		t.Fatalf("read the unlisted products: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, relistErr := pool.Exec(clean, `UPDATE products SET status = 'active' WHERE id = ANY($1)`, ids); relistErr != nil {
+			t.Errorf("list the products again: %v", relistErr)
+		}
+	})
+
+	after, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(after.Categories) != len(before.Categories)-1 {
+		t.Errorf("%d departments listed, want %d", len(after.Categories), len(before.Categories)-1)
+	}
+	for i := range after.Categories {
+		if after.Categories[i].Slug == hidden {
+			t.Errorf("%s has no listed product and is still in the directory", hidden)
+		}
+	}
+}
+
 func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
