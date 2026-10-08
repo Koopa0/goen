@@ -32,6 +32,15 @@ func awaiting(p layouts.Page, a layouts.Await) layouts.Page {
 	return p
 }
 
+// awaitingHeadPhoto holds the first paint for the department head's photo,
+// when it has one.
+func awaitingHeadPhoto(p layouts.Page, photo Photo) layouts.Page {
+	if photo.Shown() {
+		return awaiting(p, layouts.AwaitPageheadPhoto)
+	}
+	return p
+}
+
 func bandNameLong(name string) bool {
 	limit := bandNameMaxOther
 	for _, r := range name {
