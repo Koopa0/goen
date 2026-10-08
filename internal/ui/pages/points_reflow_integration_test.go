@@ -17,11 +17,11 @@ func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
 	if testing.Short() {
 		t.Skip("needs Chrome and Node")
 	}
-	chrome, err := exec.Command("../../../scripts/resolve-chrome.sh").Output()
+	chrome, err := exec.CommandContext(t.Context(), "../../../scripts/resolve-chrome.sh").Output()
 	if err != nil {
 		t.Skip("Chrome unavailable")
 	}
-	if _, err := exec.LookPath("node"); err != nil {
+	if _, lookErr := exec.LookPath("node"); lookErr != nil {
 		t.Skip("Node unavailable")
 	}
 	fixtures := make(map[string]string)
@@ -29,8 +29,8 @@ func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
 		var rendered bytes.Buffer
 		view := PointsView{Redeemable: 200, Minimum: 100, PerCredit: 10}
 		ctx := i18n.WithLocale(t.Context(), locale)
-		if err := Points(layouts.Page{}, view).Render(ctx, &rendered); err != nil {
-			t.Fatal(err)
+		if renderErr := Points(layouts.Page{}, view).Render(ctx, &rendered); renderErr != nil {
+			t.Fatal(renderErr)
 		}
 		fixtures[locale.Tag()] = rendered.String()
 	}

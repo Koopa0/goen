@@ -23,13 +23,20 @@ const (
 	PointsClawedBack PointsEntryKind = "clawback"
 )
 
+type PointsReversalReason string
+
+const (
+	ReversedForReturn       PointsReversalReason = "return"
+	ReversedForCancellation PointsReversalReason = "cancelled"
+)
+
 type PointsEntry struct {
 	Points          int64
 	CreditCents     int64
 	RequestedPoints int64
 	ShortfallPoints int64
 	Kind            PointsEntryKind
-	Reason          string
+	Reason          PointsReversalReason
 	Order           string
 	At              string
 	ExpiresOn       string
@@ -68,7 +75,7 @@ func (e PointsEntry) What(ctx context.Context) string {
 	case PointsSpent:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSpent), money.TWD(e.CreditCents))
 	case PointsClawedBack:
-		if e.Reason == "cancelled" {
+		if e.Reason == ReversedForCancellation {
 			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsCancellationOrder), e.Order)
 		}
 		if e.Order != "" {
