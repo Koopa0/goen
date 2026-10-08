@@ -6192,6 +6192,13 @@ input.goen-check {
   clip-path: inset(0 -100vmax);
 }
 
+/* A choice swaps this region by putting the new copy in before taking the old
+   one out. Scroll anchoring held a node of the old copy still across that, which
+   scrolled the page down by the region's height. */
+#checkout-region {
+  overflow-anchor: none;
+}
+
 /* The sections are one white block, parted by the space between them rather
    than boxed or ruled one by one. */
 .goen-checkout__main {
