@@ -116,11 +116,11 @@ type PointsView struct {
 	OperationID string
 }
 
-func (v PointsView) BalanceText() string { return strconv.FormatInt(v.Balance, 10) }
+func (v *PointsView) BalanceText() string { return strconv.FormatInt(v.Balance, 10) }
 
-func (v PointsView) RedeemableText() string { return strconv.FormatInt(v.Redeemable, 10) }
+func (v *PointsView) RedeemableText() string { return strconv.FormatInt(v.Redeemable, 10) }
 
-func (v PointsView) Credit() string { return twd(v.CreditCents) }
+func (v *PointsView) Credit() string { return twd(v.CreditCents) }
 
 func (v PointsView) CanRedeem() bool { return v.Redeemable > 0 }
 
