@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const fixtures = JSON.parse(await readFile(process.argv[2], 'utf8'));
 const htmx = await readFile(new URL('../assets/js/vendor/htmx.min.js', import.meta.url));
+const goen = await readFile(new URL('../assets/js/goen.js', import.meta.url));
 let requests = [];
 let submitted;
 const server = createServer(async (request, response) => {
@@ -15,6 +16,9 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/htmx.js') {
     response.setHeader('Content-Type', 'text/javascript');
     response.end(htmx);
+  } else if (url.pathname === '/goen.js') {
+    response.setHeader('Content-Type', 'text/javascript');
+    response.end(goen);
   } else if (url.pathname === '/p/two-colours') {
     const choice = url.searchParams.get('colour') || 'blue';
     assert.ok(fixtures[choice], `unknown choice ${choice}`);

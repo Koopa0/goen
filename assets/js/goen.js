@@ -379,6 +379,9 @@
     const pending = new Map();
     const requests = new WeakMap();
     const reads = new WeakMap();
+    // The buy box is replaced by each choice; ownership must survive its DOM node.
+    let productChoice = null;
+    const isProductChoice = (ctx) => ctx?.sourceElement?.matches("a.goen-swatch[hx-get]");
     const replacesRead = (form, ctx) => form instanceof HTMLFormElement && ctx?.request?.method === "GET"
       && form.getAttribute("hx-sync") === "this:replace";
     const restoreAttribute = (element, name, value) => {
@@ -412,6 +415,11 @@
     });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (isProductChoice(ctx)) {
+        productChoice?.request?.abort?.();
+        productChoice = ctx;
+        return;
+      }
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
       // htmx's replaced request can release its queue after the next one
@@ -436,6 +444,7 @@
     });
     document.addEventListener("htmx:after:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (isProductChoice(ctx) && productChoice !== ctx) event.preventDefault();
       const form = ctx?.request?.form;
       if ((form?.matches(".goen-filters") || replacesRead(form, ctx)) && reads.get(form) !== ctx) event.preventDefault();
     });
@@ -449,6 +458,7 @@
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (productChoice === ctx) productChoice = null;
       // A timeout and a replaced request both abort without a response. Only
       // the latest request may change the feedback beside the filters.
       const requestForm = ctx?.request?.form;

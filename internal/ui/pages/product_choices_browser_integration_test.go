@@ -31,7 +31,7 @@ func TestCompetingProductChoicesKeepThePurchaseTogether(t *testing.T) {
 			}}},
 		}
 		var body strings.Builder
-		body.WriteString(`<!doctype html><html><head><script src="/htmx.js" defer></script></head><body>`)
+		body.WriteString(`<!doctype html><html><head><script src="/htmx.js" defer></script><script src="/goen.js" defer></script></head><body>`)
 		for _, component := range []templ.Component{productGallery(&view), productBuy(&view), productBuyBar(&view)} {
 			if err := component.Render(t.Context(), &body); err != nil {
 				t.Fatal(err)
@@ -45,10 +45,15 @@ func TestCompetingProductChoicesKeepThePurchaseTogether(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "choices.json")
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
-	cmd := exec.CommandContext(t.Context(), "node", "../../../scripts/product-choice-check.mjs", path)
+	node, lookupErr := exec.LookPath("node")
+	if lookupErr != nil {
+		t.Fatal(lookupErr)
+	}
+	//nolint:gosec // G204: node is resolved on PATH and the script path and fixture are test-owned
+	cmd := exec.CommandContext(t.Context(), node, "../../../scripts/product-choice-check.mjs", path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("product choice browser regression: %v\n%s", err, output)
