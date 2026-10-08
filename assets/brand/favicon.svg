@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="goen">
   <title>goen</title>
-  <style>@media (prefers-color-scheme: dark) { .ring-ink { stroke: #f4f4ee; } .ring-mark { stroke: #c7d2e8; } }</style>
+  <style>@media (prefers-color-scheme: dark) { .ring-ink { stroke: #f4f4ee; } .ring-mark { stroke: #a9c0ea; } }</style>
   <circle class="ring-ink" cx="15" cy="15" r="9" stroke="#1b1b15" stroke-width="2.5"/>
-  <circle class="ring-mark" cx="25" cy="25" r="9" stroke="#26395a" stroke-width="2.5"/>
+  <circle class="ring-mark" cx="25" cy="25" r="9" stroke="#2a56a0" stroke-width="2.5"/>
 </svg>
