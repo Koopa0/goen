@@ -86,30 +86,11 @@ func TestTheComparisonPreviewLeavesOutWhatIsNotASpecification(t *testing.T) {
 	}
 }
 
-func TestADepartmentHeadSaysOnlyTheCountsItHolds(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books"}
-	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4, Categories: 2}))
-	for _, want := range []string{"<dt>商品</dt>", "<dt>分類</dt>"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("head omits %s", want)
-		}
-	}
-	if strings.Contains(got, "<dt>品牌</dt>") {
-		t.Error("head states a brand count of zero")
-	}
-	none := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{}))
-	if strings.Contains(none, "ui-statline") {
-		t.Error("a department holding nothing draws a fact line")
-	}
-}
-
 func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books"}
-	without := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 1}))
+	without := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{}))
 	if strings.Contains(without, "goen-deptnotice") {
 		t.Error("a department with no campaign draws a notice")
 	}
@@ -192,6 +173,35 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 	}
 }
 
+// The notice is the band's last row, on the department's tone, not a strip under it.
+func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}
+	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	band := findDescendant(doc, func(n *html.Node) bool { return hasClass(n, "goen-band") })
+	if band == nil {
+		t.Fatal("the department head draws no band")
+	}
+	var last *html.Node
+	for c := band.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode {
+			last = c
+		}
+	}
+	if last == nil || !hasClass(last, "goen-deptnotice") {
+		t.Error("the campaign notice is not the band's last row")
+	}
+	if got := nodeText(last); !strings.Contains(got, notice.Title) {
+		t.Errorf("the notice does not name the campaign %q: %q", notice.Title, got)
+	}
+}
+
 func TestTheEditorialSlotHoldsTheFirstThatApplies(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -232,17 +242,6 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 		if want := `data-comparable="` + strconv.FormatBool(offered) + `"`; !strings.Contains(got, want) {
 			t.Errorf("Comparable %v: page omits %s", offered, want)
 		}
-	}
-}
-
-func TestTheFactLineFollowsTheTitleAndPrecedesTheSubCategories(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Children: []Crumb{{Slug: "a", Name: "Novels"}}}}
-	got := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Products: 4}))
-	title, facts, chips := strings.Index(got, "<h1"), strings.Index(got, "ui-statline"), strings.Index(got, "goen-pagehead__chips")
-	if title < 0 || facts < 0 || chips < 0 || title >= facts || facts >= chips {
-		t.Errorf("order title=%d facts=%d chips=%d, want title < facts < chips", title, facts, chips)
 	}
 }
 

@@ -1723,16 +1723,28 @@ th {
 .goen-home__head {
   align-items: baseline;
   display: flex;
-  gap: 1rem;
+  container-type: inline-size;
+  flex-wrap: wrap;
+  gap: 0 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
 
 .goen-home__heading {
-  font-size: var(--fs-ed-24);
+  font-size: var(--t-32);
   font-weight: var(--fw-display);
-  line-height: 1.35;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   margin: 0;
+}
+
+/* A phone at 200% text leaves a head under 16rem, where "Departments" at its
+   own size is wider than the line. */
+@container (width < 16rem) {
+  .goen-home__heading {
+    font-size: min(var(--t-24), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-home__more {
@@ -2402,11 +2414,62 @@ th {
   }
 }
 
-/* The head is a listing's first screen, not a section: its photograph keeps a
-   fixed column so the first row of products still shows above the fold. */
-@media (min-width: 64rem) {
+/* The head is a listing's first screen. The copy sets its height and the
+   photograph fills it, seven parts to the copy's five, at least 9:4: the floor
+   is a pseudo-element's padding because a grid item with an aspect-ratio that is
+   stretched taller widens with it. The room a short copy leaves goes between the
+   crumbs and the name, not under the sub-categories. */
+@media (min-width: 48rem) {
+  .goen-pagehead .goen-band {
+    --lift: 2rem;
+  }
+
   .goen-pagehead .goen-band__grid {
-    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
+    align-items: stretch;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .goen-pagehead .goen-band__media {
+    margin: 0 0 var(--lift);
+    position: relative;
+  }
+
+  .goen-pagehead .goen-band__media::before {
+    content: "";
+    display: block;
+    padding-top: calc(100% * 4 / 9);
+  }
+
+  .goen-pagehead .goen-band__media img {
+    aspect-ratio: auto;
+    height: calc(100% - var(--col-gap));
+    inset: 0 auto auto 0;
+    object-fit: cover;
+    position: absolute;
+    width: calc(100% - var(--col-gap));
+  }
+
+  .goen-pagehead .goen-band__media--well img {
+    object-fit: contain;
+  }
+
+  .goen-pagehead .goen-band__body {
+    gap: var(--s-3);
+    justify-content: flex-end;
+    padding: calc(var(--lift) + var(--s-5)) var(--page-edge) var(--s-5) clamp(1.5rem, 4vw, 4rem);
+  }
+
+  .goen-pagehead .goen-band__body > .ui-crumbs {
+    margin-bottom: auto;
+  }
+
+  .goen-pagehead .goen-band:has(> .goen-deptnotice) .goen-band__media {
+    margin-bottom: 0;
+  }
+
+  .goen-pagehead .goen-band__body:first-child {
+    grid-column: 1 / -1;
+    padding-left: var(--page-edge);
   }
 }
 
@@ -3210,17 +3273,12 @@ input.goen-check {
 }
 
 /* The department head is the band: its grid, photograph and body are the
-   band's. Below 1024 the photograph and the lift are dropped so the first
-   product still starts inside a phone's first screen. */
+   band's. */
 .goen-pagehead__text {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
-}
-
-.goen-pagehead .goen-band__media {
-  display: none;
 }
 
 .goen-pagehead[data-tone] .ui-crumbs,
@@ -3255,6 +3313,15 @@ input.goen-check {
   overflow-x: auto;
   padding-inline: var(--page-gutter);
   scrollbar-width: none;
+}
+
+@media (min-width: 48rem) {
+  .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
 }
 
 .goen-pagehead__chip {
@@ -3472,8 +3539,7 @@ input.goen-check {
   color: var(--n-900);
 }
 
-/* Under a department's head: the fact line on the tone's ground, the running campaign's
-   notice, and the one editorial the data chose. */
+/* A fact line on a head laid on a tone's ground takes the tone's text colours. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
   color: var(--tone-text);
@@ -3489,29 +3555,21 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-.goen-deptnotice {
-  border-block: 1px solid var(--border);
+/* The band's last row, on the tone and with no wash of its own. */
+.goen-band > .goen-deptnotice {
+  padding: var(--s-3) var(--page-edge) var(--s-4);
 }
 
-.goen-deptnotice__in {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3) var(--s-6);
-  padding-block: var(--s-3);
-}
-
-/* The whole line is the link, read as words: the campaign's name takes the link
-   colour and what is left of it the blue of a running period. */
+/* The whole line is the link, read as words: the campaign's name and the arrow
+   take the tone's link colour, the rest the tone's text. */
 .goen-deptnotice__name {
-  color: var(--n-700);
-  flex: 0 1 auto;
+  color: var(--tone-text);
   font-size: var(--fs-14);
   text-decoration: none;
 }
 
 .goen-deptnotice__name b {
-  color: var(--accent-text);
+  color: var(--tone-mark);
   font-weight: var(--fw-medium);
 }
 
@@ -3521,29 +3579,29 @@ input.goen-check {
 }
 
 .goen-deptnotice__eyebrow {
-  color: var(--fg-muted);
+  color: var(--tone-muted);
   font-size: var(--fs-12);
   margin-inline-end: var(--s-2);
 }
 
 .goen-deptnotice__until {
+  color: var(--tone-muted);
   white-space: nowrap;
 }
 
 .goen-deptnotice__name > [aria-hidden="true"],
 .goen-deptnotice__until > [aria-hidden="true"] {
-  color: var(--fg-muted);
+  color: var(--tone-muted);
   margin-inline: 0.25em;
 }
 
 .goen-deptnotice__left {
-  color: var(--accent-deep);
   font-weight: var(--fw-medium);
   word-break: keep-all;
 }
 
 .goen-deptnotice__left > [aria-hidden] {
-  color: var(--accent);
+  color: var(--tone-mark);
 }
 
 .goen-deptcompare__head {
@@ -3839,17 +3897,6 @@ input.goen-check {
   .goen-listing {
     gap: 32px;
     padding: 32px var(--page-gutter) 56px;
-  }
-
-  .goen-pagehead .goen-band__media {
-    display: block;
-  }
-
-  .goen-pagehead__chips {
-    flex-wrap: wrap;
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
   }
 
   .goen-campaigns__list {
@@ -5362,18 +5409,56 @@ input.goen-check {
 .goen-listing__head .goen-pagehead[data-tone] {
   background: none;
   border-radius: 0;
-  margin-top: 24px;
+  margin-top: 0;
   padding: 0;
 }
 
-@media (max-width: 63.99rem) {
+/* A phone's photograph is a 5:2 strip above the copy, goen's white between it and
+   the tone; the head's first row of products still starts inside the first
+   screen. A crumb whose only step is home repeats the logo. */
+@media (max-width: 47.99rem) {
   .goen-pagehead .goen-band {
-    --lift: 0px;
+    background: none;
+  }
+
+  .goen-pagehead .goen-band__media {
+    margin: 0;
+    padding: 0 0 var(--col-gap);
+  }
+
+  .goen-pagehead .goen-band__body,
+  .goen-pagehead .goen-band > .goen-deptnotice {
+    background: var(--tone-ground);
+  }
+
+  .goen-pagehead .goen-band__media img {
+    aspect-ratio: 5 / 2;
   }
 
   .goen-pagehead .goen-band__body {
-    padding-block: var(--s-5);
+    gap: var(--s-2);
+    padding-block: var(--s-4);
   }
+
+  .goen-listing__head .ui-crumbs:not(:has(.ui-crumbs__link ~ .ui-crumbs__link)) {
+    display: none;
+  }
+
+  .goen-listing {
+    padding-top: var(--s-4);
+  }
+}
+
+.goen-listing__head .goen-pagehead__title {
+  font-size: clamp(2.75rem, 1.7rem + 3.4vw, 5.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.goen-listing__head .goen-pagehead__title.goen-band__name--long {
+  font-size: clamp(2rem, 1.2rem + 2.2vw, 3.25rem);
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {
