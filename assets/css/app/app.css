@@ -3746,7 +3746,7 @@ input.goen-check {
   border-bottom: 1px solid var(--border);
   min-width: 160px;
   padding: 12px;
-  text-align: center;
+  text-align: left;
   vertical-align: top;
 }
 
@@ -3771,7 +3771,7 @@ input.goen-check {
 .goen-compare__image {
   border-radius: var(--r-md);
   height: 96px;
-  margin: 0 auto;
+  margin: 0;
   object-fit: cover;
   width: 96px;
 }
@@ -3798,8 +3798,6 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: 8px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .goen-compare__price {
@@ -4148,6 +4146,22 @@ input.goen-check {
 .goen-wish__remove,
 .goen-wish__add {
   margin: 0;
+}
+
+.goen-wish__remove {
+  align-self: flex-start;
+}
+
+.goen-wish__remove .goen-btn {
+  background: none;
+  color: var(--fg-muted);
+  padding-inline: 0;
+  width: auto;
+}
+
+.goen-wish__remove .goen-btn:hover {
+  background: none;
+  color: var(--fg);
 }
 
 .goen-wish__stock {
@@ -4547,6 +4561,7 @@ input.goen-check {
 
 .goen-pdp__pricebox {
   align-items: baseline;
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
@@ -4558,6 +4573,15 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   line-height: 1.3;
+}
+
+/* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
+   size is wider than the line. */
+@container (width < 20rem) {
+  .goen-pdp__price {
+    font-size: min(var(--fs-ed-30), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-pdp__was {
@@ -6176,6 +6200,11 @@ input.goen-check {
   background: var(--n-50);
   box-shadow: 0 0 0 100vmax var(--n-50);
   clip-path: inset(0 -100vmax);
+}
+
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
 }
 
 /* The sections are one white block, parted by the space between them rather
@@ -7917,7 +7946,7 @@ input.goen-check {
 }
 
 .about__ring--accent {
-  stroke: var(--accent-deep);
+  stroke: var(--accent);
 }
 
 /* Where the two rings meet is lighter than the paper around it, not darker:
@@ -7925,6 +7954,16 @@ input.goen-check {
 .about__lens {
   fill: var(--n-0);
   fill-opacity: 0.6;
+}
+
+@media (forced-colors: active) {
+  .about__ring {
+    stroke: CanvasText;
+  }
+
+  .about__lens {
+    fill: none;
+  }
 }
 
 .about__title {

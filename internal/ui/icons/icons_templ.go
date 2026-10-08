@@ -47,7 +47,7 @@ func Mark(class string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" viewBox=\"0 0 40 40\" fill=\"none\" aria-hidden=\"true\"><circle cx=\"15\" cy=\"15\" r=\"9\" stroke=\"var(--fg)\" stroke-width=\"2.5\"></circle> <circle cx=\"25\" cy=\"25\" r=\"9\" stroke=\"var(--accent-deep)\" stroke-width=\"2.5\"></circle></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" viewBox=\"0 0 40 40\" fill=\"none\" aria-hidden=\"true\"><circle cx=\"15\" cy=\"15\" r=\"9\" stroke=\"var(--fg)\" stroke-width=\"2.5\"></circle> <circle cx=\"25\" cy=\"25\" r=\"9\" stroke=\"var(--accent)\" stroke-width=\"2.5\"></circle></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -1429,6 +1429,12 @@ input.goen-check {
   min-height: 44px;
 }
 
+/* The price and arrival buttons may drop under their field so the stock table
+   fits a 1440 frame and nothing sits beneath the pinned column. */
+.goen-admin__stock td:is(:nth-child(4), :nth-child(5)) .goen-admin__inline {
+  flex-wrap: wrap;
+}
+
 .goen-admin__num {
   width: 9ch;
   min-height: 44px;
@@ -1525,6 +1531,15 @@ input.goen-check {
   row-gap: 6px;
 }
 
+.goen-admin__field > * {
+  grid-column: 1;
+}
+
+.goen-admin__hints {
+  display: grid;
+  row-gap: 6px;
+}
+
 .goen-admin__fields > .goen-admin__field {
   grid-row: span 4;
   grid-template-rows: subgrid;
@@ -1535,7 +1550,8 @@ input.goen-check {
   line-height: 1.35;
 }
 
-.goen-admin__fields > .goen-admin__field > .goen-admin__hint {
+.goen-admin__fields > .goen-admin__field > .goen-admin__hint,
+.goen-admin__fields > .goen-admin__field > .goen-admin__hints {
   grid-row: 4;
 }
 

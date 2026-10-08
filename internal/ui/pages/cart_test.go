@@ -1921,3 +1921,55 @@ func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
 		})
 	}
 }
+
+func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
+	t.Parallel()
+	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		kind   FreeDeliveryKind
+		zones  []string
+		want   string
+		not    string
+	}{
+		{"reached with a surcharge zone zh", i18n.ZhHant, FreeDeliveryReached, []string{"離島", "外島"}, "免運（離島、外島另計）", "結帳時計算"},
+		{"reached with a surcharge zone en", i18n.En, FreeDeliveryReached, []string{"Outlying islands"}, "Free (Outlying islands extra)", "Calculated at checkout"},
+		{"reached zh", i18n.ZhHant, FreeDeliveryReached, nil, "免運", "結帳時計算"},
+		{"reached en", i18n.En, FreeDeliveryReached, nil, ">Free<", "Calculated at checkout"},
+		{"short zh", i18n.ZhHant, FreeDeliveryShort, nil, "結帳時計算", ">免運<"},
+		{"short en", i18n.En, FreeDeliveryShort, nil, "Calculated at checkout", ">Free<"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		v := CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
+			FreeDelivery: FreeDelivery{Kind: tt.kind, ShortfallCents: 1, ThresholdCents: 300000, SurchargeZones: tt.zones}}
+		var b strings.Builder
+		if err := Cart(CartMeta(ctx), v).Render(ctx, &b); err != nil {
+			t.Fatalf("%s: render: %v", tt.name, err)
+		}
+		html := b.String()
+		if tt.kind == FreeDeliveryReached {
+			facts := html[strings.Index(html, `id="cart-count"`):strings.Index(html, `id="cart-notices"`)]
+			if !strings.Contains(facts, tt.want) {
+				t.Errorf("%s: fact line lacks %q: %s", tt.name, tt.want, facts)
+			}
+		}
+		at := strings.Index(html, `id="cart-summary"`)
+		if at < 0 {
+			t.Fatalf("%s: no cart summary: %s", tt.name, html)
+		}
+		html = html[at:]
+		if end := strings.Index(html, "</dl>"); end > 0 {
+			html = html[:end]
+		}
+		if !strings.Contains(html, tt.want) {
+			t.Errorf("%s: summary lacks %q: %s", tt.name, tt.want, html)
+		}
+		if strings.Contains(html, tt.not) {
+			t.Errorf("%s: summary holds %q: %s", tt.name, tt.not, html)
+		}
+		if len(tt.zones) == 0 && (strings.Contains(html, "另計") || strings.Contains(html, " extra)")) {
+			t.Errorf("%s: summary names a surcharge zone where there is none: %s", tt.name, html)
+		}
+	}
+}

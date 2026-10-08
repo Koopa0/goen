@@ -10,9 +10,9 @@ A complete e-commerce shop built with Go — from browsing to checkout, after-sa
 
 **Live demo: [goen.koopa0.dev](https://goen.koopa0.dev)**
 
-![The English storefront: a campaign slide with its dates and day grid, and the departments below it](assets/readme/storefront.en.png)
+![The English storefront: a campaign slide with its photograph, its end date and the days left, above the slides to choose from](assets/readme/storefront.en.png)
 
-![The English back-office overview: the work waiting, the last 7 days of revenue and paid orders, and the latest orders](assets/readme/backoffice.en.png)
+![The English back-office overview: the work waiting, the last 7 days of revenue and paid orders against the 7 before, and the latest orders](assets/readme/backoffice.en.png)
 
 ## Features
 

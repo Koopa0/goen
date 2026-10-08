@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
+import { fieldFaults } from './field-faults.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
@@ -1956,6 +1957,75 @@ async function proveCheckoutRequestFeedback(label) {
   if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
 }
 
+// A choice re-renders the checkout's form under a customer who is half way down
+// it, and the page has to stay where they were looking. The choice is centred,
+// pressed as a tap presses it, and the position read once the swap and its
+// cross-fade are over. value picks the option; without it, any unchosen one.
+async function proveChoiceKeepsScroll(label, name, value) {
+  const tolerance = 4;
+  const input = `input[name="${name}"]` + (value ? `[value="${value}"]` : ':not(:checked)');
+  const at = await evalPage(`(async () => {
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const idle = async () => {
+      if (document.activeViewTransition) await document.activeViewTransition.finished.catch(() => {});
+      await Promise.all(document.getAnimations()
+        .filter((a) => String((a.effect && a.effect.pseudoElement) || '').startsWith('::view-transition'))
+        .map((a) => a.finished.catch(() => {})));
+      await frames();
+    };
+    const choice = document.querySelector(${JSON.stringify(input)});
+    const tile = choice && choice.closest('label');
+    const region = document.getElementById('checkout-region');
+    if (!tile || !region) return { ok: false };
+    await idle();
+    tile.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await frames();
+    window.__choiceSwap = {
+      region, frames, idle,
+      swapped: new Promise((resolve) => document.addEventListener('htmx:after:settle', resolve, { once: true })),
+    };
+    const box = tile.getBoundingClientRect();
+    return {
+      ok: true, value: choice.value, x: box.left + box.width / 2, y: box.top + box.height / 2,
+      start: scrollY, bottom: document.documentElement.scrollHeight - innerHeight,
+    };
+  })()`);
+  if (at.threw || !at.ok) {
+    fail(label, `no ${name} choice to press`);
+    return;
+  }
+  if (at.start <= tolerance || at.bottom - at.start <= tolerance) {
+    fail(label, `the ${name} choice cannot be held half way down the page (scrollY ${at.start} of ${at.bottom}), so its position proves nothing`);
+    return;
+  }
+  for (const type of ['mousePressed', 'mouseReleased']) {
+    await send(ws, 'Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
+  }
+  const got = await evalPage(`(async () => {
+    const watch = window.__choiceSwap;
+    const late = new Promise((r) => setTimeout(r, 10000, 'late'));
+    if (await Promise.race([watch.swapped, late]) === 'late') return { ok: false, why: 'nothing swapped within 10s' };
+    // The swap runs inside the view transition's update; its cross-fade starts after.
+    await watch.frames();
+    await watch.idle();
+    const region = document.getElementById('checkout-region');
+    if (!region || region === watch.region) return { ok: false, why: 'the region was not replaced' };
+    if (!region.querySelector(${JSON.stringify(`input[name="${name}"][value="${at.value}"]:checked`)})) {
+      return { ok: false, why: 'the new region does not hold the choice' };
+    }
+    return { ok: true, end: scrollY, bottom: document.documentElement.scrollHeight - innerHeight };
+  })()`);
+  if (got.threw || !got.ok) {
+    fail(label, `choosing ${name}=${at.value} did not swap the checkout: ${got.why}`);
+    return;
+  }
+  console.log(`${label.padEnd(16)} ${name}=${at.value} scrollY ${at.start} -> ${got.end} (bottom ${got.bottom})`);
+  if (Math.abs(got.end - at.start) > tolerance) {
+    fail(label, `choosing ${name}=${at.value} moved the page from scrollY ${at.start} to ${got.end} ` +
+      `(bottom ${got.bottom}), want it within ${tolerance}px of where it was`);
+  }
+}
+
 // Exercise the checkout's actual inputs: native validity and the blur feedback
 // must agree before an order can leave this form.
 async function checkoutConstraintFeedback(label) {
@@ -2040,6 +2110,8 @@ for (const want of [...CART, ...PAGES]) {
     `controls=${got.controls} tap=${got.minTap}`);
   if (want.path === '/checkout') await checkoutConstraintFeedback(at);
   if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
+  if (want.path === '/checkout') await proveChoiceKeepsScroll(at, 'invoice_type');
+  if (want.marker === 'input[name=pickup_chain]') await proveChoiceKeepsScroll(at, 'pickup_chain', 'seven_eleven');
 }
 
 // Stepping to a bound must leave keyboard focus on the button that was pressed:
@@ -2301,6 +2373,9 @@ const ADMIN_PROBE = `(() => {
   // Nav links, buttons and inputs. Table cells are not targets.
   const taps = [...document.querySelectorAll('.goen-admin .ui-navitem, .goen-admin button, .goen-admin input, .goen-admin .ui-filter')]
     .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  // A field is one column: its label is not squeezed beside the control, and no
+  // child starts away from the field's left edge or sits on a sibling.
+  const fieldFaults = (${fieldFaults.toString()})(document.querySelectorAll('.goen-admin__field'));
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
@@ -2308,6 +2383,7 @@ const ADMIN_PROBE = `(() => {
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    fieldFaults: fieldFaults.slice(0, 4),
     controls: taps.length,
     ${ACCESSIBILITY}
   };
@@ -2765,6 +2841,7 @@ if (process.env.ADMIN_TOKEN) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
     }
+    if (got.fieldFaults.length) fail(at, `form field laid out wrong: ${got.fieldFaults.join("; ")}`);
     if (got.controls === 0) {
       fail(at, 'no controls found — the probe measured nothing');
     } else if (got.minTap < MIN_TAP) {
