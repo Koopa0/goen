@@ -69,22 +69,23 @@ func TestProductsReturnedMostRateKeepsTheCountsToo(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostDrawsBarsOnOneScale(t *testing.T) {
+func TestProductsReturnedMostBarIsTheRate(t *testing.T) {
 	t.Parallel()
 
 	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport(
-		ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 8, Sold: 30},
-		ReturnedProduct{Slug: "b", Name: "Beta", Returned: 2, Sold: 9},
+		ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 250, Sold: 1000},
+		ReturnedProduct{Slug: "b", Name: "Beta", Returned: 1, Sold: 4},
+		ReturnedProduct{Slug: "c", Name: "Gamma", Returned: 5, Sold: 20},
 	)))
 	_, section, _ := strings.Cut(html, "Products returned most")
 	if got := strings.Count(section, `class="goen-chartbar__fill"`); got != 2 {
-		t.Fatalf("section draws %d bars, want 2", got)
+		t.Fatalf("section draws %d bars, want 2: the one with 4 sold shows a count, not a rate", got)
 	}
-	if !strings.Contains(section, `width="100.00%"`) || !strings.Contains(section, `width="25.00%"`) {
-		t.Error("section does not draw 2 returned at a quarter of 8")
+	if got := strings.Count(section, `width="25.00%"`); got != 2 {
+		t.Errorf("section draws %d bars at 25%%, want 2: 250 of 1000 and 5 of 20", got)
 	}
-	if got := strings.Count(section, `<span class="goen-chartbar__label"></span>`); got != 2 {
-		t.Errorf("section keeps %d empty count columns, want 2: the count is already in each row's figure", got)
+	if !strings.Contains(section, `<span class="goen-chartbar__label"></span>`) {
+		t.Error("section lost the empty count column: the count is already in each row's figure")
 	}
 }
 

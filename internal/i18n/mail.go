@@ -89,7 +89,7 @@ var (
 	// otherwise only name the parent, and the recipient could not tell
 	// which requested variant is back.
 	KeyMailRestockBody = key("mail.restock.body", Message{
-		ZhHant: "你關注的商品「%s」（%s）補貨了。\n\n%s\n\n數量有限，先買到的先出貨 —— 這封通知不會為你保留庫存。",
+		ZhHant: "你關注的商品「%s」（%s）補貨了。\n\n%s\n\n數量有限，先買到的先出貨，這封通知不會為你保留庫存。",
 		En: "%s (%s), which you asked about, is back in stock.\n\n%s\n\nQuantities are limited " +
 			"and it is first come, first served — this notice does not reserve one for you.",
 	})
@@ -101,7 +101,7 @@ var (
 		En:     "Reset your goen password",
 	})
 	KeyMailResetBody = key("mail.reset.body", Message{
-		ZhHant: "你要求重設 goen 的密碼。\n\n點下面的連結設定新密碼，一小時內有效：\n%s\n\n設定完成後，其他裝置上的登入都會結束 —— 包含目前正在使用的。\n\n如果這不是你要求的，不用理會這封信，密碼不會有任何改變。",
+		ZhHant: "你要求重設 goen 的密碼。\n\n點下面的連結設定新密碼，一小時內有效：\n%s\n\n設定完成後，其他裝置上的登入都會結束，包含目前正在使用的。\n\n如果這不是你要求的，不用理會這封信，密碼不會有任何改變。",
 		En: "You asked to reset your goen password.\n\nFollow this link to set a new one. " +
 			"It works for one hour:\n%s\n\nSetting it will end every other signed-in " +
 			"session, including the one you are using now.\n\nIf you did not ask for this, " +
@@ -113,7 +113,7 @@ var (
 		En:     "You already have a goen account",
 	})
 	KeyMailAccountExistsBody = key("mail.exists.body", Message{
-		ZhHant: "有人用這個信箱在 goen 註冊，但這個信箱已經有帳號了，所以沒有建立新的帳號。\n\n如果是你，直接登入就可以：\n%s\n\n忘記密碼的話，在這裡重設：\n%s\n\n如果這不是你，不用理會這封信 —— 你的帳號沒有任何改變。",
+		ZhHant: "有人用這個信箱在 goen 註冊，但這個信箱已經有帳號了，所以沒有建立新的帳號。\n\n如果是你，直接登入就可以：\n%s\n\n忘記密碼的話，在這裡重設：\n%s\n\n如果這不是你，不用理會這封信，你的帳號沒有任何改變。",
 		En: "Somebody tried to create a goen account with this address. It already has " +
 			"one, so no new account was made.\n\nIf that was you, sign in here:\n%s\n\n" +
 			"If you have forgotten the password, reset it here:\n%s\n\nIf it was not " +
@@ -124,7 +124,7 @@ var (
 		En:     "Somebody asked to use your goen address",
 	})
 	KeyMailAddressInUseBody = key("mail.inuse.body", Message{
-		ZhHant: "有人要求把另一個 goen 帳號的信箱改成這個信箱。這個信箱已經屬於你的帳號，所以沒有任何帳號被改動。\n\n如果是你，直接用這個信箱登入就可以：\n%s\n\n忘記密碼的話，在這裡重設：\n%s\n\n如果這不是你，不用理會這封信 —— 你的帳號沒有任何改變。",
+		ZhHant: "有人要求把另一個 goen 帳號的信箱改成這個信箱。這個信箱已經屬於你的帳號，所以沒有任何帳號被改動。\n\n如果是你，直接用這個信箱登入就可以：\n%s\n\n忘記密碼的話，在這裡重設：\n%s\n\n如果這不是你，不用理會這封信，你的帳號沒有任何改變。",
 		En: "Somebody asked to move another goen account to this address. It already " +
 			"belongs to your account, so no account was changed.\n\nIf that was you, sign " +
 			"in with this address here:\n%s\n\nIf you have forgotten the password, reset " +
@@ -137,7 +137,7 @@ var (
 		En:     "Confirm your goen newsletter subscription",
 	})
 	KeyMailNewsConfirmBody = key("mail.news.confirm.body", Message{
-		ZhHant: "有人用這個信箱訂閱了 goen 電子報。\n\n如果是你，請點下面的連結完成訂閱，兩天內有效：\n%s\n\n如果不是你，不用理會這封信 —— 沒有點下連結，這個信箱就不會收到電子報。",
+		ZhHant: "有人用這個信箱訂閱了 goen 電子報。\n\n如果是你，請點下面的連結完成訂閱，兩天內有效：\n%s\n\n如果不是你，不用理會這封信。沒有點下連結，這個信箱就不會收到電子報。",
 		En: "Somebody used this address to subscribe to the goen newsletter.\n\nIf that was " +
 			"you, follow this link to finish. It works for two days:\n%s\n\nIf it was not, " +
 			"ignore this message — without that link, this address gets nothing.",
@@ -164,7 +164,7 @@ var (
 		En:     "Finish creating your goen account",
 	})
 	KeyMailRegisterBody = key("mail.register.body", Message{
-		ZhHant: "有人用這個信箱在 goen 註冊了帳號。\n\n如果是你，點下面的連結，輸入你註冊時設定的密碼，就完成註冊，兩天內有效：\n%s\n\n如果不是你，不用理會這封信 —— 沒有那組密碼，這個帳號就無法完成註冊。想用這個信箱在 goen 購物，請用「忘記密碼」重新設定一組，帳號就是你的。",
+		ZhHant: "有人用這個信箱在 goen 註冊了帳號。\n\n如果是你，點下面的連結，輸入你註冊時設定的密碼，就完成註冊，兩天內有效：\n%s\n\n如果不是你，不用理會這封信。沒有那組密碼，這個帳號就無法完成註冊。想用這個信箱在 goen 購物，請用「忘記密碼」重新設定一組，帳號就是你的。",
 		En: "Somebody registered a goen account with this address.\n\nIf that was you, " +
 			"follow this link and enter the password you chose to finish. It works for " +
 			"two days:\n%s\n\nIf it was not you, ignore this message — without that " +
@@ -178,7 +178,7 @@ var (
 		En:     "Did you ask to use this address for your goen account?",
 	})
 	KeyMailVerifyBody = key("mail.verify.body", Message{
-		ZhHant: "有人要求把一個 goen 帳號的信箱改成 %s。\n\n如果是你，請先登入提出要求的那個帳號，再點下面的連結確認，兩天內有效：\n%s\n\n如果不是你，請不要點這個連結，直接忽略這封信 —— 只有提出要求的帳號登入後確認，信箱才會改變；你自己的帳號不會有任何改變。",
+		ZhHant: "有人要求把一個 goen 帳號的信箱改成 %s。\n\n如果是你，請先登入提出要求的那個帳號，再點下面的連結確認，兩天內有效：\n%s\n\n如果不是你，請不要點這個連結，直接忽略這封信。只有提出要求的帳號登入後確認，信箱才會改變；你自己的帳號不會有任何改變。",
 		En: "Somebody asked to move a goen account to %s.\n\nIf that was you, sign in to " +
 			"that account and follow this link to confirm. It works for two days:\n%s\n\n" +
 			"If it was not you, do not follow the link; ignore this message. The address " +

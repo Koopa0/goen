@@ -22,3 +22,20 @@ func TestWarrantyRowListsCoverEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestWarrantyRowOfAReturnedOrderStatesNoCover(t *testing.T) {
+	t.Parallel()
+	view := WarrantyListView{Rows: []Warranty{{
+		Name: "Buds", Order: "GO-261001-000001", Returned: true,
+		ExpiresOn: shoptime.Date{Year: 2027, Month: time.October, Day: 6},
+	}}}
+	html := renderToString(t, WarrantyList(layouts.Page{Title: "Warranty"}, view))
+	for _, banned := range []string{"保固中", "保固至", "ui-statline--s"} {
+		if strings.Contains(html, banned) {
+			t.Errorf("a returned order's warranty row still says %q", banned)
+		}
+	}
+	if !strings.Contains(html, "這項商品已辦理退貨") {
+		t.Error("a returned order's warranty row does not say it was returned")
+	}
+}
