@@ -18,7 +18,6 @@ templ returnedProducts(v *ReportView) {
 			<p>{ v.ReturnedOne(ctx) }</p>
 		} else {
 			<ul class="goen-report__rows goen-report__rows--returned" role="list">
-				{{ top := v.TopReturned() }}
 				for _, item := range v.Returned {
 					@ReportRow(item.Name, item.Href(), item.Brand) {
 						<div class="goen-report__plot">
@@ -28,7 +27,9 @@ templ returnedProducts(v *ReportView) {
 									<span class="goen-report__aside">{ item.Counts(ctx) }</span>
 								}
 							</p>
-							@chart.Bar(chart.BarProps{Value: item.Returned, Max: top})
+							if item.ShowsRate() {
+								@chart.Bar(chart.BarProps{Value: item.Returned, Max: item.Sold})
+							}
 						</div>
 					}
 				}
