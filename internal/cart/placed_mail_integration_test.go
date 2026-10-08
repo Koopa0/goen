@@ -50,6 +50,13 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if err := pool.QueryRow(ctx, `INSERT INTO shipping_methods (code, destination_kind) VALUES ($1, $2) RETURNING id`, "mail"+uuid.NewString()[:8], string(kind)).Scan(&methodID); err != nil {
 						t.Fatalf("create delivery method: %v", err)
 					}
+					t.Cleanup(func() {
+						clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+						defer cancel()
+						if _, err := pool.Exec(clean, `UPDATE shipping_methods SET is_active = false WHERE id = $1`, methodID); err != nil {
+							t.Errorf("withdraw delivery fixture: %v", err)
+						}
+					})
 					if err := pool.QueryRow(ctx, `INSERT INTO shipping_method_versions (method_id, name, name_en, fee_cents) VALUES ($1, '確認信配送', 'Confirmation delivery', $2) RETURNING id`, methodID, funding.shipping).Scan(&shipID); err != nil {
 						t.Fatalf("create delivery version: %v", err)
 					}
