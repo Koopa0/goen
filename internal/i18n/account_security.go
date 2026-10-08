@@ -51,7 +51,7 @@ var (
 	})
 
 	KeyGoogleLastMethod = key("account.notice.lastmethod", Message{
-		ZhHant: "沒辦法取消 —— 那是目前唯一的登入方式。先設定密碼再試一次。",
+		ZhHant: "這是目前唯一的登入方式，不能取消。請先設定密碼再試一次。",
 		En:     "We cannot unlink that: it is the only way into this account. Set a password first.",
 	})
 

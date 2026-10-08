@@ -747,8 +747,15 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			term:   "whether opening the box forfeits the right",
 			cite:   "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opening the parcel to inspect the goods is on none of them",
 			doc:    "returns",
-			want:   []string{"拆開包裹檢查商品都不會讓七天的解除權結束"},
+			want:   []string{"拆開包裹檢查商品都不會讓七日的解除權結束"},
 			wantEn: []string{"opening the parcel to inspect the goods does not end your seven days"},
+		},
+		{
+			term:   "whether a request inside the window can be declined",
+			cite:   "消保法 §19 I — 無須說明理由, and §19 IV ends the contract on dispatch; returns.Evaluate refuses a decline on any statutory line",
+			doc:    "returns",
+			want:   []string{"在猶豫期內提出的申請，我們不會拒絕"},
+			wantEn: []string{"A request made within your seven-day right to cancel is never declined"},
 		},
 	}
 
@@ -787,6 +794,20 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestReturnsCountsTheStatutoryWindowInTheStatutesWord holds /returns to 七日,
+// the word §19 I uses, so one page does not call the same right two names.
+func TestReturnsCountsTheStatutoryWindowInTheStatutesWord(t *testing.T) {
+	t.Parallel()
+
+	for _, sec := range policies["returns"].Sections {
+		for _, text := range append([]string{sec.Heading}, sec.Body...) {
+			if strings.Contains(text, "七天") {
+				t.Errorf("/returns says 七天 where §19 I says 七日: %q", text)
+			}
+		}
 	}
 }
 

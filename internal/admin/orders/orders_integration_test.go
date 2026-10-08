@@ -1831,3 +1831,46 @@ func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 		t.Errorf("refund = %+v, want its amount, time, reason and staff member", r)
 	}
 }
+
+// TestTheBackOfficeSaysRefundedOnceEveryUnitIsInAnApprovedReturn holds that the order's header and the queue's row
+// read the fact the shopper's pages do, and that a return of part of the order leaves the delivery word.
+func TestTheBackOfficeSaysRefundedOnceEveryUnitIsInAnApprovedReturn(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+
+	for _, tc := range []struct {
+		name     string
+		returned int32
+		wantKey  i18n.Key
+	}{
+		{"one unit of two", 1, i18n.KeyAdminStatusShipped},
+		{"both units", 2, i18n.KeyStatusRefunded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := i18n.T(ctx, tc.wantKey)
+			returnID, number := admintest.ReturnedOrder(t, pool, tc.returned)
+			if _, err := pool.Exec(ctx, `
+				UPDATE return_requests
+				SET status = 'approved', decided_at = now(), goods_refund_cents = 0, card_refund_cents = 0,
+				    credit_refund_cents = 0
+				WHERE id = $1`, returnID); err != nil {
+				t.Fatalf("approve return: %v", err)
+			}
+
+			view, err := s.Order(ctx, number)
+			if err != nil {
+				t.Fatalf("Order: %v", err)
+			}
+			if view.StatusText != want {
+				t.Errorf("Order(%s).StatusText = %q, want %q", tc.name, view.StatusText, want)
+			}
+			queue, err := s.List(ctx, admin.QueueAll, number)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(queue.Orders) != 1 || queue.Orders[0].StatusText != want {
+				t.Errorf("the queue row for %s = %+v, want StatusText %q", tc.name, queue.Orders, want)
+			}
+		})
+	}
+}

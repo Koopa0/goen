@@ -27,19 +27,6 @@ const (
 )
 
 var (
-	invoiceOperationLabels = map[string]i18n.Key{
-		"issue":     i18n.KeyAuditInvoiceIssue,
-		"allowance": i18n.KeyAuditInvoiceAllowance,
-		"void":      i18n.KeyAuditInvoiceVoid,
-	}
-	invoiceOperationStatuses = map[string]i18n.Key{
-		"pending":        i18n.KeyAdminTimelineInvoicePending,
-		"not_sent":       i18n.KeyAdminTimelineInvoiceNotSent,
-		"awaiting_buyer": i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
-		"attention":      i18n.KeyAdminTimelineInvoiceAttention,
-		"succeeded":      i18n.KeyAdminTimelineInvoiceSucceeded,
-		"rejected":       i18n.KeyAdminTimelineInvoiceRejected,
-	}
 	// orderMailLabels holds every topic the timeline lists. invoice.due and
 	// invoice.void_due name the order too, but they only start an invoice
 	// operation, which is listed in its own right.
@@ -77,7 +64,7 @@ func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 		e.Label = i18n.KeyAdminTimelineProvider
 		return e
 	case timelineInvoice:
-		labels, statuses = invoiceOperationLabels, invoiceOperationStatuses
+		labels, statuses = admin.InvoiceOperationLabels, admin.InvoiceOperationStatuses
 	case timelineMail:
 		labels, statuses = orderMailLabels, mailStatuses
 	}
