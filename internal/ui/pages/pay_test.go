@@ -72,8 +72,8 @@ func TestThePayPageNamesStoreCreditAndFreeDelivery(t *testing.T) {
 	}
 }
 
-// 完成付款 is an instruction; where no payment can start it is not true.
-func TestThePayEyebrowSaysWhatTheShopperCanDo(t *testing.T) {
+// An unpaid order is 待付款 whether or not a payment can start; 完成付款 above it reads as already paid.
+func TestThePayEyebrowNamesTheOrdersStatus(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -81,7 +81,7 @@ func TestThePayEyebrowSaysWhatTheShopperCanDo(t *testing.T) {
 		view PayView
 		want i18n.Key
 	}{
-		{"open", PayView{Enabled: true}, i18n.KeyPayEyebrow},
+		{"open", PayView{Enabled: true}, i18n.KeyStatusAwaitingPayment},
 		{"payments off", PayView{}, i18n.KeyStatusAwaitingPayment},
 		{"window closed", PayView{Enabled: true, Closure: PayWindowClosed}, i18n.KeyStatusAwaitingPayment},
 		{"cancelled", PayView{Enabled: true, Closure: PayOrderCancelled}, i18n.KeyStatusCancelled},
