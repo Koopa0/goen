@@ -40,6 +40,7 @@ var pluralOnlyOnPurpose = map[Key]string{
 	"cart.reorder.partial":   "two counts decide the verb and the noun together; it needs its own wording",
 	"admin.taxonomy.both":    "two counts in one sentence; it needs its own wording",
 	"shipping.hold.body":     "a configured payment window in minutes, long enough that it is never 1",
+	"checkout.submit.note":   "the fixed payment-start window is 29 minutes, never 1",
 	"order.payment.checking": "the page's fixed refresh interval and retry cap, never 1",
 	"admin.message.days":     "the caller words one day and today separately, so it is never 1",
 }
