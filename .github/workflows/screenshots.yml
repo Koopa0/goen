@@ -67,14 +67,18 @@ jobs:
           sparse-checkout: scripts/screenshots.mjs
           persist-credentials: false
 
+      # No cache is read or written: this run builds an arbitrary ref, and a cache it
+      # wrote would be read by workflows on main.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           check-latest: false
+          cache: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
+          package-manager-cache: false
 
       - name: Start PostgreSQL
         run: make db-up
