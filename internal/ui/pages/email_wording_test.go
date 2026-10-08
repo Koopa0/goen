@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/i18n"
 	"golang.org/x/net/html"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestRefusedEmailFormsKeepTheChineseFieldName(t *testing.T) {
@@ -20,6 +21,7 @@ func TestRefusedEmailFormsKeepTheChineseFieldName(t *testing.T) {
 		{"malformed", i18n.KeyEmailMalformed, "電子郵件格式看起來不正確"},
 	} {
 		t.Run("checkout/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			view := couponTestView()
 			view.Address.Email = "invalid"
 			view.Errors = map[string]string{"email": i18n.T(ctx, tc.key)}
