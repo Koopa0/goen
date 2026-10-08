@@ -45,22 +45,6 @@
       "scroll-200",
       "text-200:span.contact-method__value"
     ],
-    "/p/pixelight-9": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
-    "/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D": [
-      "scroll-200",
-      "text-200:span.goen-pdp__price"
-    ],
     "/privacy": [
       "scroll-200",
       "text-200:p."

@@ -56,6 +56,11 @@
   --dur-base: 120ms;
   --dur-slow: 200ms;
 
+  /* Position and size, where the easing has to read as a sheet being set down
+     rather than a colour changing. */
+  --ease-move: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-move: 280ms;
+
   /* Form controls, scrollbars and the canvas a page has not painted all
      follow this, and goen draws one ground. */
   color-scheme: light;

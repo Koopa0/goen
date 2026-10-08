@@ -4561,6 +4561,7 @@ input.goen-check {
 
 .goen-pdp__pricebox {
   align-items: baseline;
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
@@ -4572,6 +4573,15 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   line-height: 1.3;
+}
+
+/* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
+   size is wider than the line. */
+@container (width < 20rem) {
+  .goen-pdp__price {
+    font-size: min(var(--fs-ed-30), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-pdp__was {
@@ -6190,6 +6200,11 @@ input.goen-check {
   background: var(--n-50);
   box-shadow: 0 0 0 100vmax var(--n-50);
   clip-path: inset(0 -100vmax);
+}
+
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
 }
 
 /* The sections are one white block, parted by the space between them rather
@@ -8556,10 +8571,10 @@ input.goen-check {
 /* ---------- Motion ----------
 
    Page to page. Every link stays a plain <a href> and every navigation stays a
-   full document load; what changes is that the browser now cross-fades the two
-   documents instead of cutting between them. That is the whole mechanism — no
-   script, no polyfill, no router — and a browser without it navigates exactly
-   as it did before.
+   full document load; what changes is that the browser cross-fades the two
+   documents instead of cutting between them, and carries a clicked photo across
+   to where it lands. No router, and a browser without it navigates exactly as
+   it did before.
 
    The chrome both documents share is named, so the browser lifts it out of the
    root snapshot and paints it once instead of fading it out and back in. That
@@ -8570,6 +8585,7 @@ input.goen-check {
 
 @view-transition {
   navigation: auto;
+  types: page;
 }
 
 .goen-header {
@@ -8591,44 +8607,87 @@ input.goen-check {
   view-transition-name: buybox;
 }
 
-/* Opacity only, at the base step: the old page stays on screen until the new
-   one has painted, so a longer fade is time the visitor waits on top of the
-   load. The pair carries the cross-fade. The group
-   carries the geometry, and its keyframes are what would move or resize a named
-   region when the two pages put it in different places: a page read halfway
-   down leaves its header above the viewport, and the browser would otherwise
-   slide the header back down into the new page. Dropping the name and keeping
-   the timing leaves the group where the new page puts it and lets the pair
-   fade there. The timing is set on the group as well because the user agent
-   puts its own 0.25s there and the pair inherits from it. */
-::view-transition-group(*) {
-  animation-duration: var(--dur-base);
-  animation-name: none;
-  animation-timing-function: var(--ease-standard);
-}
+/* The group carries the geometry, and its keyframes are what would move or
+   resize a named region when the two pages put it in different places: a page
+   read halfway down leaves its header above the viewport, and the browser
+   would otherwise slide the header back down into the new page. So the regions
+   that must stay put have no group animation, and the photos, which are meant
+   to travel, keep it. The timing is set on the group as well because the user
+   agent puts its own 0.25s there and the pair inherits from it.
 
+   A region swapped in place shares these snapshots and keeps the base step: the
+   old content stays on screen for the length of the fade, and a swap the
+   visitor is waiting on should not be slower than the request. */
+::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
   animation-duration: var(--dur-base);
   animation-timing-function: var(--ease-standard);
 }
 
+::view-transition-group(header),
+::view-transition-group(footer),
+::view-transition-group(gallery),
+::view-transition-group(buybox) {
+  animation-name: none;
+}
+
+/* A navigation replaces the whole page, and a page that arrives with a new
+   layout and new photographs reads as a cut when it dissolves as fast as a
+   swapped region does, so only navigations take the slow step. */
+html:active-view-transition-type(page)::view-transition-group(*),
+html:active-view-transition-type(page)::view-transition-old(*),
+html:active-view-transition-type(page)::view-transition-new(*) {
+  animation-duration: var(--dur-slow);
+}
+
+/* A photo that leaves one page and arrives on the next travels as one image:
+   assets/js/transitions.js names the clicked photo on the way out and the shown
+   one on the way in, and only for that navigation. The old photo stays opaque the whole way
+   and the new one fades in on top of it, so there is no half-transparent dip
+   in the middle; an unmatched old photo just fades out. */
+::view-transition-group(*.photo),
+html:active-view-transition-type(page)::view-transition-group(*.photo) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-move);
+}
+
+::view-transition-old(*.photo),
+::view-transition-new(*.photo) {
+  block-size: 100%;
+  mix-blend-mode: normal;
+  object-fit: cover;
+}
+
+::view-transition-old(*.photo) {
+  animation: none;
+}
+
+::view-transition-old(*.photo):only-child {
+  animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
+}
+
+@keyframes goen-photo-out {
+  to { opacity: 0; }
+}
+
 /* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so the opt-out is spelled again. Taking the
-   transition out of the navigation leaves the plain document cut: the new page
-   is simply there, which is the state change reduced motion asks to keep. */
+   snapshots are not elements, so reduced motion is spelled again. Motion that
+   moves, scales or resizes is dropped and the two pages dissolve at the base
+   step: a hard cut between two very different layouts reads as more of a jump
+   than the dissolve does. The same rules cover a region swapped in place. */
 @media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
+  ::view-transition-group(*) {
+    animation-name: none;
   }
 
-  /* A region swapped in place is not a navigation, so the opt-out above does
-     not reach it and the snapshots are named again here. Without the animation
-     the new content is simply there, which is the state change reduced motion
-     asks to keep. */
+  ::view-transition-group(*),
   ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none;
+  ::view-transition-new(*),
+  html:active-view-transition-type(page)::view-transition-group(*),
+  html:active-view-transition-type(page)::view-transition-old(*),
+  html:active-view-transition-type(page)::view-transition-new(*) {
+    animation-duration: var(--dur-base);
   }
 }
 
