@@ -11526,7 +11526,7 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 
 const orderReturns = `-- name: OrderReturns :many
 SELECT coalesce((SELECT e.occurred_at FROM order_events e
-                 WHERE e.return_request_id = rr.id AND e.kind = 'refunded'),
+                 WHERE e.order_id = rr.order_id AND e.kind = 'refunded'),
                 rr.decided_at)::timestamptz AS refunded_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
@@ -11536,7 +11536,7 @@ WHERE rr.order_id = $1
        OR (rr.status = 'approved'
            AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
                 OR EXISTS (SELECT 1 FROM order_events e
-                           WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+                           WHERE e.order_id = rr.order_id AND e.kind = 'refunded'))))
 ORDER BY refunded_at, rr.id
 `
 
@@ -15184,7 +15184,7 @@ WHERE o.id = ANY($1::uuid[])
                                            OR (rr.status = 'approved'
                                                AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
                                                     OR EXISTS (SELECT 1 FROM order_events e
-                                                               WHERE e.return_request_id = rr.id
+                                                               WHERE e.order_id = rr.order_id
                                                                  AND e.kind = 'refunded'))))), 0))
 `
 
