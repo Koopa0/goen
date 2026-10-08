@@ -881,3 +881,22 @@ func TestVerificationInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
 		})
 	}
 }
+
+func TestRegistrationLandingKeepsTheNextStepAfterWelcome(t *testing.T) {
+	for _, tt := range []struct {
+		name, next, want string
+		adoption         cartAdoption
+	}{
+		{name: "default", next: "/account", want: "/account?welcome=1"},
+		{name: "cart", next: "/cart", want: "/account?next=%2Fcart&welcome=1"},
+		{name: "external", next: "https://example.com/checkout", want: "/account?welcome=1"},
+		{name: "adjusted", next: "/checkout", adoption: cartAdoptionAdjusted, want: "/account?adjusted=1&next=%2Fcart%3Fnext%3D%252Fcheckout%26qty%3Dadjusted&welcome=1"},
+		{name: "failed", next: "/checkout", adoption: cartAdoptionFailed, want: "/account/cart-recovery?next=%2Faccount%3Fnext%3D%252Fcheckout%26welcome%3D1&welcome=1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := registrationLanding(tt.next, tt.adoption); got != tt.want {
+				t.Errorf("registration landing = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

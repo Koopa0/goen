@@ -2,7 +2,6 @@ package pages
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -64,14 +63,10 @@ func (p *CompareProduct) RatingText() string {
 }
 
 func (p *CompareProduct) Warranty(ctx context.Context) string {
-	switch {
-	case p.WarrantyMonths == 0:
+	if p.WarrantyMonths == 0 {
 		return "—"
-	case p.WarrantyMonths%12 == 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyYears), p.WarrantyMonths/12)
-	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyMonths), p.WarrantyMonths)
 	}
+	return i18n.Count(ctx, i18n.KeyUnitMonths, int64(p.WarrantyMonths), int64(p.WarrantyMonths))
 }
 
 type CompareRow struct {

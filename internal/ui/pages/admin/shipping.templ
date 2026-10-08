@@ -436,7 +436,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipZones) }</h2>
 			<div class="goen-admin__tablewrap">
-				<table class="ui-table goen-admin__table">
+				<table class="ui-table goen-admin__table goen-admin__zones">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminShipColZone) }</th>

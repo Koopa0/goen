@@ -26,17 +26,13 @@ var (
 		En:     "Put the specifications side by side instead of flipping between two tabs.",
 	})
 
-	KeyWarrantyYears = key("compare.warranty.years", Message{ZhHant: "%d 年", En: "%d years"})
-
-	KeyWarrantyMonths = key("compare.warranty.months", Message{ZhHant: "%d 個月", En: "%d months"})
-
 	KeyCompareHeading = key("compare.heading", Message{
 		ZhHant: "把規格擺在一起",
 		En:     "Specifications, side by side",
 	})
 
 	KeyCompareSub = key("compare.sub", Message{
-		ZhHant: "每個商品都有的規格排在前面 —— 那些才是真的能比的。",
+		ZhHant: "每個商品都有標示的規格排在前面，這些最能直接比較。",
 		En: "The specifications every product states come first — those are the ones " +
 			"that actually compare.",
 	})
@@ -124,5 +120,5 @@ var (
 
 	KeyCompareRowWarranty = key("compare.row.warranty", Message{ZhHant: "保固", En: "Warranty"})
 
-	KeyCompareRowCategory = key("compare.row.category", Message{ZhHant: "分類", En: "Category"})
+	KeyCompareRowCategory = key("compare.row.category", Message{ZhHant: "館別", En: "Department"})
 )

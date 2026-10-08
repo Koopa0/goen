@@ -92,14 +92,17 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 			{category: invoice.CategoryBuyerUnconfirmed, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)},
 			{category: invoice.CategoryAmountStillHeld, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)},
 			{category: invoice.CategorySuccessMismatch, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)},
-			{category: "allowance_lookup_mismatch",
-				want: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention), "allowance_lookup_mismatch")},
+			{category: invoice.CategoryMultipleCandidates, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)},
+			{category: "allowance_lookup_mismatch", want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention)},
 		} {
 			attention := refunded()
 			attention.AllowanceAttention = tt.category
 			got := render(attention)
 			if !strings.Contains(got, html.EscapeString(tt.want)) {
 				t.Errorf("%v: an allowance in attention as %s does not say %q", loc, tt.category, tt.want)
+			}
+			if strings.Contains(got, tt.category) {
+				t.Errorf("%v: an allowance in attention as %s prints the code", loc, tt.category)
 			}
 			sent, _, _ := strings.Cut(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), "%s")
 			if strings.Contains(got, html.EscapeString(sent)) {

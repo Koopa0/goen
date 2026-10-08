@@ -2,7 +2,7 @@ package pages
 
 // bandMedia is the band's first grid item: the photograph on goen's white,
 // never on the tone. A first-screen photograph is eager; the others are lazy.
-templ bandMedia(imgClass string, p Photo, onWell bool, sizes string, lazy bool) {
+templ bandMedia(imgClass, id string, p Photo, onWell bool, sizes string, lazy bool) {
 	<div class={ "goen-band__media", templ.KV("goen-band__media--well", onWell) }>
 		<img
 			class={ imgClass }
@@ -16,6 +16,9 @@ templ bandMedia(imgClass string, p Photo, onWell bool, sizes string, lazy bool) 
 				loading="lazy"
 			}
 			decoding="async"
+			if id != "" {
+				id={ id }
+			}
 		/>
 	</div>
 }
