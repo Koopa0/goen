@@ -344,6 +344,13 @@ th {
   width: 2.75rem;
 }
 
+.goen-pdp__links .goen-btn svg,
+.goen-pdp__add svg,
+.goen-buybar__btn svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .goen-btn--block {
   display: flex;
   width: 100%;
@@ -1094,10 +1101,15 @@ th {
   }
 }
 
-/* Deals is not a department, so a 2.5rem space, the row's gap and this padding
-   together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
+  padding-left: 0;
+}
+
+/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
+   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
+   at the row's edge. */
+.goen-header__nav > :has(+ .goen-header__navitem--deal) {
+  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {
@@ -1146,69 +1158,77 @@ th {
   gap: 4px;
 }
 
-.goen-header__actions svg {
-  height: 1.5rem;
-  width: 1.5rem;
+.goen-header__actions svg,
+.goen-header__menu > summary svg {
+  height: 1.25rem;
+  width: 1.25rem;
 }
 
 .goen-header__actions .goen-btn,
-.goen-header__actions .ui-btn {
-  color: var(--n-700);
+.goen-header__actions .ui-btn,
+.goen-header__menu > summary {
+  color: var(--ink-2);
 }
 
 .goen-header__actions .goen-btn:hover,
-.goen-header__actions .ui-btn:hover {
+.goen-header__actions .ui-btn:hover,
+.goen-header__menu > summary:hover {
   background: var(--n-100);
-  color: var(--n-900);
+  color: var(--ink);
 }
 
-/* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the shared button spelling because `backoffice_test.go:112` asserts the
-   whole class attribute, so the ghost-icon recipe is written out again here
-   rather than taken from `.goen-btn`. */
-.goen-header__action--wide {
+/* The wishlist heart and, for staff, the words "Back office" before the language
+   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
+   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
+.goen-header__action--wide,
+.goen-header__backoffice {
   align-items: center;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
   cursor: pointer;
   display: none;
   height: 44px;
   justify-content: center;
-  padding: 0;
   text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__action--wide {
+  padding: 0;
   width: 44px;
 }
 
-.goen-header__cart {
-  position: relative;
+.goen-header__backoffice {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
-/* The count pill, beside the glyph and not over it. `check-layout.mjs:2570`
+.goen-header__actions .goen-header__cart {
+  gap: 4px;
+  min-width: 2.75rem;
+  padding-inline: 0.625rem;
+  width: auto;
+}
+
+/* The count is a number beside the bag, not a badge on it. `check-layout.mjs`
    reads its text through this exact pair of names after an add to cart, so the
-   spelling stays and the declarations are goen's. The button is 44px with a
-   24px glyph centred in it, so the pill starts at the glyph's right edge. */
+   spelling stays and the declarations are goen's. */
 .goen-header__cart .ui-badge--count {
-  align-items: center;
-  background: var(--n-900);
+  background: none;
   border: none;
-  border-radius: var(--r-full);
-  box-sizing: border-box;
-  color: var(--n-0);
-  display: flex;
+  color: var(--ink);
   font-family: inherit;
-  font-size: var(--fs-11);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
-  height: 18px;
-  justify-content: center;
-  left: calc(50% + 13px);
+  height: auto;
   line-height: 1;
-  min-width: 18px;
-  padding: 0 5px;
-  position: absolute;
-  top: 2px;
+  min-width: 0;
+  padding: 0;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1277,6 +1297,18 @@ th {
   display: none;
 }
 
+.goen-header__actions .goen-langmenu > summary {
+  box-sizing: border-box;
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-header__actions .goen-langmenu > summary:hover,
+.goen-header__actions .goen-langmenu[open] > summary {
+  color: var(--ink);
+}
+
 .goen-langmenu > summary:hover,
 .goen-langmenu[open] > summary {
   background: var(--n-100);
@@ -1290,8 +1322,8 @@ th {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1rem;
+  width: 1rem;
 }
 
 .goen-header .goen-langmenu__current {
@@ -1426,6 +1458,11 @@ th {
   background: none;
   color: var(--n-900);
   font-weight: var(--fw-medium);
+}
+
+/* The name only: the count beside it is not part of what is current. */
+.goen-header__drawer .ui-navitem[aria-current='page'] .goen-header__navname,
+.goen-header__drawer .goen-header__navitem--deal[aria-current='page'] {
   text-decoration: underline 2px var(--accent);
   text-underline-offset: 0.45em;
 }
@@ -1478,14 +1515,15 @@ th {
   }
 }
 
-/* English department names out-measure the zh-Hant ones, so the desktop row
-   gives up the wishlist icon below 1280 before it lets the search field fall
-   under the width `check-layout.mjs` calls usable; the account page carries
-   the wishlist link at every width. */
 @media (min-width: 1024px) {
   .goen-header__bar {
     column-gap: 1.25rem;
     padding: 0 var(--page-gutter);
+  }
+
+  .goen-header__action--wide,
+  .goen-header__backoffice {
+    display: inline-flex;
   }
 
   .goen-header__menu {
@@ -1526,18 +1564,6 @@ th {
     gap: 0;
   }
 
-  /* The mark is the brand where the row is this tight; the word stays in the
-     link's accessible name. */
-  .goen-header__wordmark {
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-
   .goen-header__search {
     flex-basis: 7.5rem;
     min-width: 7.5rem;
@@ -1553,9 +1579,17 @@ th {
     position: static;
     width: auto;
   }
+}
 
-  .goen-header__action--wide {
-    display: inline-flex;
+/* Forced colours replace the greys, so the glyphs and the count take the
+   button colour the system chose for controls. */
+@media (forced-colors: active) {
+  .goen-header__actions .goen-btn,
+  .goen-header__actions .ui-btn,
+  .goen-header__actions .goen-langmenu > summary,
+  .goen-header__menu > summary,
+  .goen-header__cart .ui-badge--count {
+    color: ButtonText;
   }
 }
 
