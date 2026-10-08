@@ -268,11 +268,11 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					"不將你的個人資料出售或提供給第三方作行銷用途。",
 					// The cookie list claims completeness, in both locales.
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、你選擇的語言、你關閉過的網站公告、挑選超商取貨門市時暫存的選擇，以及用 Google 登入時暫存幾分鐘的驗證資料。",
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、你選擇的語言、你關閉過的網站公告、挑選超商取貨門市時暫存的選擇、重設密碼後或刪除帳號前重新登入時用於預填電子郵件地址的資料（最多保留兩分鐘，開啟登入頁後即清除），以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
-					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, which site notice you have dismissed, what you chose while picking a convenience store to collect from, and — for a few minutes while you sign in with Google — what that sign-in belongs to.",
+					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, which site notice you have dismissed, what you chose while picking a convenience store to collect from, the email address used to prefill sign-in after a password reset or before account-deletion reauthentication (kept for up to two minutes and cleared when you open the sign-in page), and — for a few minutes while you sign in with Google — what that sign-in belongs to.",
 				},
 			},
 			{

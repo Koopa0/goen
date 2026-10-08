@@ -116,56 +116,60 @@ func (s *Store) DeliverPasswordReset(ctx context.Context, p *mailmsg.PasswordRes
 	return send(ctx, p)
 }
 
-func (s *Store) CompleteReset(ctx context.Context, token, password string) error {
+func (s *Store) CompleteReset(ctx context.Context, token, password string) (string, error) {
 	if why := PasswordError(password); why != "" {
-		return fmt.Errorf("%w: %s", ErrInvalidPassword, why)
+		return "", fmt.Errorf("%w: %s", ErrInvalidPassword, why)
 	}
 	digest := sha256.Sum256([]byte(token))
 
 	userID, err := s.q.PasswordResetToken(ctx, digest[:])
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrResetInvalid
+			return "", ErrResetInvalid
 		}
-		return fmt.Errorf("read reset token: %w", err)
+		return "", fmt.Errorf("read reset token: %w", err)
 	}
 
 	hash, err := HashPassword(password)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return "", fmt.Errorf("hash password: %w", err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin reset: %w", err)
+		return "", fmt.Errorf("begin reset: %w", err)
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if _, lockErr := q.LockUserForPasswordReset(ctx, userID); lockErr != nil {
 		if errors.Is(lockErr, pgx.ErrNoRows) {
-			return ErrResetInvalid
+			return "", ErrResetInvalid
 		}
-		return fmt.Errorf("lock reset account: %w", lockErr)
+		return "", fmt.Errorf("lock reset account: %w", lockErr)
+	}
+	resetAccount, err := q.UserByID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("read reset account: %w", err)
 	}
 	spentUserID, err := q.SpendPasswordResetToken(ctx, digest[:])
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrResetInvalid
+			return "", ErrResetInvalid
 		}
-		return fmt.Errorf("spend reset token: %w", err)
+		return "", fmt.Errorf("spend reset token: %w", err)
 	}
 	if spentUserID != userID {
-		return errors.New("account: reset token changed owner")
+		return "", errors.New("account: reset token changed owner")
 	}
 
 	if err := applyReset(ctx, q, userID, hash); err != nil {
-		return err
+		return "", err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit reset: %w", err)
+		return "", fmt.Errorf("commit reset: %w", err)
 	}
-	return nil
+	return resetAccount.Email, nil
 }
 
 func applyReset(ctx context.Context, q *db.Queries, userID uuid.UUID, hash string) error {
