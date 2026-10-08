@@ -384,6 +384,7 @@ templ Search(p layouts.Page, v SearchView) {
 					}
 					<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
 				</form>
+				<p id="goen-search-sort-error" class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 				<div id="search-results">
 					@compareForm(AnyComparable(v.Products)) {
 						<ul class="goen-tiles__grid" role="list">
