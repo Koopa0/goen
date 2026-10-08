@@ -173,6 +173,8 @@ var (
 
 	KeyAdminHPColAttempts = key("admin.hp.col.attempts", Message{ZhHant: "次數", En: "Attempts"})
 
+	KeyAdminTechnicalDetails = key("admin.hp.technicaldetails", Message{ZhHant: "技術細節", En: "Technical details"})
+
 	KeyAdminHPColLastError = key("admin.hp.col.lasterror", Message{
 		ZhHant: "最後一次的錯誤",
 		En:     "Last error",

@@ -12,6 +12,21 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+func TestSignInKeepsTheEmailRuleWithoutAttributingGoogleFailureToIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	body := renderComponent(t, ctx, SignIn(SignInMeta(ctx), AuthView{Errors: map[string]string{"oauth": "Google sign-in failed"}}))
+	input := regexp.MustCompile(`<input[^>]*id="email"[^>]*>`).FindString(body)
+	for _, want := range []string{`type="email"`, `data-rule="email"`, `autocomplete="email"`, `required`} {
+		if !strings.Contains(input, want) {
+			t.Errorf("sign-in email field omits %q: %s", want, input)
+		}
+	}
+	if strings.Contains(input, `aria-invalid="true"`) || strings.Contains(input, `aria-describedby="signin-google-error"`) {
+		t.Errorf("Google failure was attributed to the email field: %s", input)
+	}
+}
+
 // A customer-facing email input takes its pattern, keyboard and message from
 // internal/fieldrule, so the browser says what the server would. The back
 // office is exempt: its forms are not part of the shopper's checkout.

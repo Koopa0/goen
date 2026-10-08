@@ -115,8 +115,8 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	completedB := followRegistrationLink(t, account.NewStore(appPool), bEmail,
 		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) },
 		browserCart(aToken))
-	if loc := completedB.Header().Get("Location"); loc != "/account" {
-		t.Errorf("B's registration link lands at %q, want /account: there was no cart of B's to adopt", loc)
+	if loc := completedB.Header().Get("Location"); loc != "/account?welcome=1" {
+		t.Errorf("B's registration link lands at %q, want account welcome: there was no cart of B's to adopt", loc)
 	}
 	bSession := sessionCookie(t, completedB)
 

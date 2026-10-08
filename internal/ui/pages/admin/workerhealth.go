@@ -369,36 +369,18 @@ type StrandedClaim struct {
 	CanAuthorizeResend bool
 }
 
-func (c StrandedClaim) KindText(ctx context.Context) string {
-	var key i18n.Key
-	switch c.Kind {
-	case "issue":
-		key = i18n.KeyAuditInvoiceIssue
-	case "void":
-		key = i18n.KeyAuditInvoiceVoid
-	case "allowance":
-		key = i18n.KeyAuditInvoiceAllowance
-	default:
-		key = i18n.KeyAdminHPInvoiceKindUnknown
+func (c StrandedClaim) ExplainedKindText(ctx context.Context) string {
+	if key, known := InvoiceOperationLabels[c.Kind]; known {
+		return i18n.T(ctx, key)
 	}
-	return i18n.T(ctx, key)
+	return i18n.T(ctx, i18n.KeyAdminHPInvoiceKindUnknown)
 }
 
-func (c StrandedClaim) StatusText(ctx context.Context) string {
-	var key i18n.Key
-	switch c.Status {
-	case "pending":
-		key = i18n.KeyAdminTimelineInvoicePending
-	case "attention":
-		key = i18n.KeyAdminTimelineInvoiceAttention
-	case "succeeded":
-		key = i18n.KeyAdminTimelineInvoiceSucceeded
-	case "rejected":
-		key = i18n.KeyAdminTimelineInvoiceRejected
-	default:
-		key = i18n.KeyAdminHPInvoiceStatusUnknown
+func (c StrandedClaim) ExplainedStatusText(ctx context.Context) string {
+	if key, known := InvoiceOperationStatuses[c.Status]; known {
+		return i18n.T(ctx, key)
 	}
-	return i18n.T(ctx, key)
+	return i18n.T(ctx, i18n.KeyAdminHPInvoiceStatusUnknown)
 }
 
 var invoiceReasonLabels = map[string]i18n.Key{

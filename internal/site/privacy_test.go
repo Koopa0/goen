@@ -44,9 +44,9 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 				t.Fatal(err)
 			}
 			body := out.String()
-			disclosures := []string{"訂閱電子報時", "Email、語言、確認與退訂狀態", "IP 位址", "User-Agent", "公司統一編號", "手機條碼", "捐贈碼", "顧客姓名", "綠界電子發票平台", "字型由 goen 本站提供", "不可變更的發票快照會保留", "保固登錄與商品序號會保留", "未驗證信箱的訂閱不會隨刪帳移除", "退訂連結停止寄送"}
+			disclosures := []string{"訂閱電子報時", "電子郵件、語言、確認與退訂狀態", "IP 位址", "瀏覽器與裝置資訊", "公司統一編號", "手機條碼", "捐贈碼", "顧客姓名", "綠界電子發票平台", "字型由 goen 自己提供", "不會連到 Google 的伺服器", "不可變更的發票快照會保留", "保固登錄與商品序號會保留", "未驗證信箱的訂閱不會隨刪帳移除", "退訂連結停止寄送"}
 			if locale == i18n.En {
-				disclosures = []string{"subscribe to the newsletter", "email, language, confirmation and unsubscribe status", "IP address", "User-Agent", "company tax ID", "mobile barcode", "donation code", "customer name", "ECPay", "goen serves the website fonts itself", "immutable invoice snapshots remain", "Warranty registrations and product serial numbers remain", "Subscriptions for an unverified email are not removed", "unsubscribe link in a newsletter to stop delivery"}
+				disclosures = []string{"subscribe to the newsletter", "email, language, confirmation and unsubscribe status", "IP address", "browser and device details", "company tax ID", "mobile barcode", "donation code", "customer name", "ECPay", "goen serves the website fonts itself", "loading them sends nothing to Google", "immutable invoice snapshots remain", "Warranty registrations and product serial numbers remain", "Subscriptions for an unverified email are not removed", "unsubscribe link in a newsletter to stop delivery"}
 			}
 			for _, disclosure := range disclosures {
 				if !strings.Contains(body, disclosure) {
@@ -54,9 +54,6 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 				}
 			}
 			for _, host := range []string{"fonts.googleapis.com", "fonts.gstatic.com"} {
-				if !strings.Contains(body, host) {
-					t.Errorf("privacy omits the self-hosted font boundary %q", host)
-				}
 				if strings.Contains(body, `href="https://`+host) {
 					t.Errorf("privacy claims self-hosted fonts but renders a request to %q", host)
 				}

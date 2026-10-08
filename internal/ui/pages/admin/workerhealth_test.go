@@ -486,7 +486,7 @@ func TestStaffTaskBadgeDoesNotInventAnAnchorWhenRowsDisappear(t *testing.T) {
 	}
 }
 
-func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) {
+func TestHealthExplainsKnownAndUnknownCodesBeforeTechnicalDetails(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -511,11 +511,11 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeSmallDiagnostics(t *testing.T) 
 			codes := []string{"checkout.session.completed", "cancelled_order_capture: detail", "allowance", "attention", "allowance_multiple_unknown_candidates", "new.event", "new_operation", "new_status", "new_reason", "new_error"}
 			labelIndexes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 8}
 			for index, code := range codes {
-				if !strings.Contains(html, `<small class="goen-admin__meta">`+code+`</small>`) {
-					t.Errorf("code %s is not retained as a small diagnostic", code)
+				if !strings.Contains(html, `<code>`+code+`</code>`) {
+					t.Errorf("code %s is not retained inside technical details", code)
 				}
 				label := tt.labels[labelIndexes[index]]
-				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(code) + `</small>\s*</td>`)
+				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary><code>` + regexp.QuoteMeta(code) + `</code></details>\s*</td>`)
 				if !cell.MatchString(html) {
 					t.Errorf("code %q lacks its localized explanation %q in the same cell", code, label)
 				}
@@ -576,10 +576,54 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{"issue_provider_rejected_2000006", tt.rejected},
 			{"allowance_provider_rejected_3100010", tt.rejected},
 		} {
-			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<small class="goen-admin__meta">` + regexp.QuoteMeta(pair[0]) + `</small>\s*</td>`)
+			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary><code>` + regexp.QuoteMeta(pair[0]) + `</code></details>\s*</td>`)
 			if !cell.MatchString(html) {
 				t.Errorf("reason %s is not explained as %q in its diagnostic cell", pair[0], pair[1])
 			}
+		}
+	}
+}
+
+// TestHealthKeepsMachineCodesInsideTechnicalDetails: the claim's kind and
+// status read in the page's language, and the raw error category and event
+// reason appear only inside a closed <details>, for whoever matches the log.
+func TestHealthKeepsMachineCodesInsideTechnicalDetails(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := &WorkerHealthView{
+		StrandedClaims: []StrandedClaim{{
+			Operation: "0199aaaa-0000-7000-8000-000000000001", OrderNumber: "GO-261004-000001",
+			Kind: "allowance", Status: "attention", LastError: "allowance_multiple_unknown_candidates",
+		}},
+		UnreconciledEvents: []UnreconciledEvent{{
+			EventID: "evt_1", Type: "checkout.session.completed", Ref: "cs_test_1",
+			Reason: "cancelled_order_capture: money arrived",
+		}},
+	}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	outside := html
+	for {
+		before, rest, found := strings.Cut(outside, "<details")
+		if !found {
+			break
+		}
+		_, after, _ := strings.Cut(rest, "</details>")
+		outside = before + after
+	}
+	for _, code := range []string{"allowance_multiple_unknown_candidates", "cancelled_order_capture", ">allowance<", ">attention<"} {
+		if strings.Contains(outside, code) {
+			t.Errorf("Health prints %q outside a technical-details disclosure", code)
+		}
+		if strings.HasPrefix(code, ">") {
+			continue
+		}
+		if !strings.Contains(html, "<code>"+code) {
+			t.Errorf("Health does not keep %q for the developer inside the disclosure", code)
+		}
+	}
+	for _, key := range []i18n.Key{i18n.KeyAuditInvoiceAllowance, i18n.KeyAdminTimelineInvoiceAttention} {
+		if !strings.Contains(outside, i18n.T(ctx, key)) {
+			t.Errorf("Health does not say %q in the claim's row", i18n.T(ctx, key))
 		}
 	}
 }

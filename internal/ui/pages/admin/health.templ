@@ -68,16 +68,17 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									for _, u := range v.UnreconciledEvents {
 										<tr>
 											<td class="goen-admin__cellkey">{ u.EventID }</td>
-											<td>{ u.TypeText(ctx) }<small class="goen-admin__meta">{ u.Type }</small></td>
+											<td>{ u.TypeText(ctx) }@technicalDetail(u.Type)
+</td>
 											<td>{ u.Ref }</td>
 											<td>
 												if u.RefundOrderNumber != "" {
 													<a href={ templ.SafeURL("/admin/orders/" + u.RefundOrderNumber) }>{ u.RefundOrderNumber }</a> · { u.RefundAmount() }
 													<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe) }</span>
-													<small class="goen-admin__meta">{ u.Reason }</small>
+													@technicalDetail(u.Reason)
 												} else {
 													{ u.ReasonText(ctx) }
-													<small class="goen-admin__meta">{ u.Reason }</small>
+													@technicalDetail(u.Reason)
 												}
 											</td>
 											<td>{ u.Since }</td>
@@ -228,14 +229,16 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td>
 										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
 									</td>
-									<td>{ c.KindText(ctx) }<small class="goen-admin__meta">{ c.Kind }</small></td>
+									<td>{ c.ExplainedKindText(ctx) }@technicalDetail(c.Kind)
+</td>
 									<td class="goen-admin__cellnum">{ c.Amount() }</td>
-									<td>{ c.StatusText(ctx) }<small class="goen-admin__meta">{ c.Status }</small></td>
+									<td>{ c.ExplainedStatusText(ctx) }@technicalDetail(c.Status)
+</td>
 									<td class="goen-admin__cellnum">{ c.AttemptsText() }</td>
 									<td>
 										{ c.ReasonText(ctx) }
 										if c.LastError != "" {
-											<small class="goen-admin__meta">{ c.LastError }</small>
+											@technicalDetail(c.LastError)
 										}
 									</td>
 									<td>{ c.Since }</td>
@@ -474,4 +477,13 @@ templ healthItem(healthy bool, name, state, note string) {
 		<span class="goen-health__state">{ state }</span>
 		<span class="goen-admin__meta">{ note }</span>
 	</li>
+}
+
+templ technicalDetail(raw string) {
+	if raw != "" {
+		<details class="goen-admin__rawdetail">
+			<summary>{ i18n.T(ctx, i18n.KeyAdminTechnicalDetails) }</summary>
+			<code>{ raw }</code>
+		</details>
+	}
 }

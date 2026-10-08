@@ -6,7 +6,7 @@ var (
 	KeySearch = key("nav.search", Message{ZhHant: "搜尋", En: "Search"})
 
 	KeySearchHint = key("nav.search.hint", Message{
-		ZhHant: "搜尋商品、品牌或規格",
+		ZhHant: "搜尋商品或品牌",
 		En:     "Search products",
 	})
 
@@ -71,8 +71,8 @@ var (
 	KeyTermsPolicy = key("footer.terms", Message{ZhHant: "服務條款", En: "Terms"})
 
 	KeyContentNotice = key("notice.content", Message{
-		ZhHant: "商品說明與政策條文以繁體中文撰寫。",
-		En:     "Product descriptions and policy documents are written in Traditional Chinese.",
+		ZhHant: "部分商品說明只有繁體中文。",
+		En:     "Some product descriptions are in Traditional Chinese only.",
 	})
 )
 

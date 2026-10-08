@@ -532,6 +532,57 @@ func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 	}
 }
 
+// TestMineStatesNoCoverForAnOrderReturnedInFull holds that cover registered before a return is not listed as in
+// force once every unit of the order is in an approved return, and that a part of the order in one leaves it.
+func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
+	ctx := t.Context()
+	s := warranty.NewStore(pool)
+
+	for _, tc := range []struct {
+		name     string
+		ordered  int
+		returned int
+		want     bool
+	}{
+		{"every unit", 1, 1, true},
+		{"one unit of two", 2, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, tc.ordered, 12, parcel{units: tc.ordered, arrived: true})
+			if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+				t.Fatalf("register: %v", err)
+			}
+			var orderID, returnID uuid.UUID
+			if err := pool.QueryRow(ctx, `SELECT order_id FROM order_lines WHERE id = $1`, f.lineID).Scan(&orderID); err != nil {
+				t.Fatalf("read order: %v", err)
+			}
+			if err := pool.QueryRow(ctx, `INSERT INTO return_requests (order_id, reason) VALUES ($1, '') RETURNING id`,
+				orderID).Scan(&returnID); err != nil {
+				t.Fatalf("return request: %v", err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+				VALUES ($1, $2, $3, $4)`, orderID, returnID, f.lineID, tc.returned); err != nil {
+				t.Fatalf("return line: %v", err)
+			}
+			if _, err := pool.Exec(ctx, `
+				UPDATE return_requests SET status = 'approved', decided_at = now(), goods_refund_cents = 0,
+				    card_refund_cents = 0, credit_refund_cents = 0 WHERE id = $1`, returnID); err != nil {
+				t.Fatalf("approve return: %v", err)
+			}
+
+			rows, err := s.Mine(ctx, f.userID)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("Mine = %d rows, err %v; want 1", len(rows), err)
+			}
+			if rows[0].Returned != tc.want || rows[0].InForce == tc.want {
+				t.Errorf("Returned = %v, InForce = %v; want Returned %v and InForce %v",
+					rows[0].Returned, rows[0].InForce, tc.want, !tc.want)
+			}
+		})
+	}
+}
+
 // TestEachUnitsCoverStartsWhenItsOwnParcelArrived: with the line split across
 // two parcels, unit 2 is in the second box and must not take the first box's
 // earlier date.
