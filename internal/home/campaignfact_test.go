@@ -27,8 +27,8 @@ func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
 		endsAt time.Time
 		want   []string
 	}{
-		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"剩餘3\u00a0天", "結束10月12日\u00a018:00"}},
-		{"last day", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"結束10月9日今天結束"}},
+		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"剩餘3\u00a0天", "結束10\u00a0月12\u00a0日\u00a018:00"}},
+		{"last day", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"結束10\u00a0月9\u00a0日今天結束"}},
 	} {
 		schedule := s.campaignSchedule(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
 		stats := schedule.CardFacts()
@@ -60,10 +60,10 @@ func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
 		endsAt time.Time
 		want   []string
 	}{
-		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月12日\u00a018:00", "剩餘3\u00a0天"}},
-		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月10日明天結束"}},
-		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日今天結束"}},
-		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10月9日\u00a018:00今天結束"}},
+		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10\u00a0月12\u00a0日\u00a018:00", "剩餘3\u00a0天"}},
+		{"midnight end, last day tomorrow", time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10\u00a0月10\u00a0日明天結束"}},
+		{"midnight end, last day today", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10\u00a0月9\u00a0日今天結束"}},
+		{"today at 18:00", time.Date(2026, 10, 9, 18, 0, 0, 0, taipei), []string{"商品6\u00a0件", "結束10\u00a0月9\u00a0日\u00a018:00今天結束"}},
 	} {
 		stats := s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
 		got := make([]string, 0, len(stats))
