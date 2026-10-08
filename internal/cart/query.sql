@@ -382,16 +382,24 @@ JOIN order_lines ol ON ol.id = w.order_line_id
 WHERE ol.order_id = $1
 ORDER BY w.order_line_id, w.unit_no;
 
--- Units bought, and units in a return that has been received and paid out; a refund before shipment returns nothing.
--- name: OrderReturnedUnits :one
-SELECT
-    coalesce((SELECT sum(ol.quantity) FROM order_lines ol WHERE ol.order_id = $1), 0)::bigint AS ordered_units,
-    coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
-              JOIN return_requests rr ON rr.id = rl.return_request_id
-              WHERE rl.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment), 0)::bigint AS returned_units;
+-- The orders among @order_ids whose every unit is in a return the shop has approved or completed. The refund
+-- is paid at approval, so the order is returned from then on; a refund before shipment returns nothing.
+-- name: ReturnedOrders :many
+SELECT o.id
+FROM orders o
+WHERE o.id = ANY(@order_ids::uuid[])
+  AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM order_lines ol
+      WHERE ol.order_id = o.id
+        AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                    JOIN return_requests rr ON rr.id = rl.return_request_id
+                                    WHERE rl.order_line_id = ol.id
+                                      AND rr.status IN ('approved', 'completed')
+                                      AND NOT rr.before_shipment), 0));
 
--- The completed returns, with the money each sent back and the day it was paid out: the later of the card
--- refund and the credit posting, or the decision for a return that sent nothing back.
+-- The returns that sent money back, with the day each was paid out: the later of the card refund and the
+-- credit posting, or the decision for a return that sent nothing back.
 -- name: OrderReturns :many
 SELECT coalesce(
            greatest((SELECT max(rf.succeeded_at) FROM refunds rf
@@ -401,7 +409,7 @@ SELECT coalesce(
            rr.decided_at)::timestamptz AS paid_out_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
-WHERE rr.order_id = $1 AND rr.status = 'completed' AND NOT rr.before_shipment
+WHERE rr.order_id = $1 AND rr.status IN ('approved', 'completed') AND NOT rr.before_shipment
 ORDER BY paid_out_at, rr.id;
 
 -- name: RecordCheckoutAttempt :exec

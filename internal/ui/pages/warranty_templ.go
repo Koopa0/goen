@@ -302,14 +302,16 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span> ")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = components.StatLine(item.Facts(ctx), components.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
+					if !item.Returned {
+						templ_7745c5c3_Err = components.StatLine(item.Facts(ctx), components.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
 					}
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<span class=\"goen-warranty__meta\">")
 					if templ_7745c5c3_Err != nil {
@@ -318,7 +320,7 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 55, Col: 125}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 57, Col: 125}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -336,7 +338,7 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), item.Serial))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 57, Col: 110}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 59, Col: 110}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -426,7 +428,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 79, Col: 92}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 81, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -452,7 +454,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(v.Refusal)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 83, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 85, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -481,7 +483,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 88, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 90, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -502,7 +504,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWarrantyNothingHere))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 93, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 95, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -520,7 +522,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var29 string
 					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(v.EmptyHint(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 95, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 97, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 					if templ_7745c5c3_Err != nil {
@@ -548,7 +550,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(line.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 103, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 105, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -574,7 +576,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 						var templ_7745c5c3_Var32 string
 						templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), line.TermText(ctx)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 106, Col: 77}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 108, Col: 77}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 						if templ_7745c5c3_Err != nil {
@@ -599,7 +601,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var33 string
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(line.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 111, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 113, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -618,7 +620,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(line.Note)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 114, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 116, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -637,7 +639,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var35 templ.SafeURL
 					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.Action()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 117, Col: 89}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 119, Col: 89}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 					if templ_7745c5c3_Err != nil {
@@ -650,7 +652,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var36 string
 					templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 118, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 120, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 					if templ_7745c5c3_Err != nil {
@@ -663,7 +665,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var37 string
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.NextUnit())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 119, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 121, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 					if templ_7745c5c3_Err != nil {
@@ -688,7 +690,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 						var templ_7745c5c3_Var39 string
 						templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldSerialOpt))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 122, Col: 47}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 124, Col: 47}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 						if templ_7745c5c3_Err != nil {
@@ -712,7 +714,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 						var templ_7745c5c3_Var40 string
 						templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue("serial-" + line.ID + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 126, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 128, Col: 70}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 						if templ_7745c5c3_Err != nil {
@@ -725,7 +727,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 						var templ_7745c5c3_Var41 string
 						templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(line.SerialRefusal)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 126, Col: 106}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 128, Col: 106}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 						if templ_7745c5c3_Err != nil {
@@ -743,7 +745,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("serial-hint-" + line.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 128, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 130, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 					if templ_7745c5c3_Err != nil {
@@ -756,7 +758,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var43 string
 					templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySerialHint))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 129, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 131, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 					if templ_7745c5c3_Err != nil {
@@ -781,7 +783,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 						var templ_7745c5c3_Var45 string
 						templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWarrantyRegister))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 133, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 135, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 						if templ_7745c5c3_Err != nil {
@@ -805,7 +807,7 @@ func WarrantyOrder(p layouts.Page, v WarrantyOrderView) templ.Component {
 					var templ_7745c5c3_Var46 string
 					templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(line.Why(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 137, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/warranty.templ`, Line: 139, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 					if templ_7745c5c3_Err != nil {
