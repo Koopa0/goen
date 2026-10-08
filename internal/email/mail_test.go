@@ -259,7 +259,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if strings.Contains(body, "NT$1,999") {
 			t.Errorf("a partly funded letter quotes the order total instead of what is owed:\n%s", body)
 		}
-		if !strings.Contains(body, "查看訂單與付款") {
+		if !strings.Contains(body, "前往付款") {
 			t.Errorf("a partly funded letter dropped the pay CTA:\n%s", body)
 		}
 
@@ -277,7 +277,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if strings.Contains(en, "NT$1,999") {
 			t.Errorf("the English letter quotes the order total instead of what is owed:\n%s", en)
 		}
-		if !strings.Contains(en, "View it and pay") {
+		if !strings.Contains(en, "Go to payment") {
 			t.Errorf("the English letter dropped the pay CTA:\n%s", en)
 		}
 	})
@@ -295,7 +295,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if !strings.Contains(sink.msg.Body, "NT$1,999") {
 			t.Errorf("an already-queued letter did not fall back to the total:\n%s", sink.msg.Body)
 		}
-		if !strings.Contains(sink.msg.Body, "View it and pay") {
+		if !strings.Contains(sink.msg.Body, "Go to payment") {
 			t.Errorf("an already-queued letter dropped the pay CTA:\n%s", sink.msg.Body)
 		}
 	})
@@ -453,6 +453,33 @@ func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
 		}
 		if !strings.Contains(sink.msg.Body, "/orders/GO-260101-000001\n\n───") {
 			t.Errorf("%s: the divider follows the link directly:\n%s", locale, sink.msg.Body)
+		}
+	}
+}
+
+// A letter that asks for payment says the items are held only for a time, which
+// is what the later "not paid in time" cancellation relies on; one with nothing
+// owed says nothing of a hold.
+func TestAPlacedLetterSaysTheItemsAreHeldOnlyWhenPaymentIsDue(t *testing.T) {
+	t.Parallel()
+	for _, owed := range []int64{99900, 0} {
+		for _, locale := range []string{"en", "zh-Hant"} {
+			n, sink := notifier(t)
+			if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+				Locale: locale, Email: "a@b.co", Name: "Alex",
+				OrderNumber: "GO-260101-000001", TotalCents: 199900, OwedCents: centsPtr(owed),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string][]string{
+				"en":      {"held for a limited time", "cancelled automatically"},
+				"zh-Hant": {"商品只保留一段時間", "逾時訂單會自動取消"},
+			}[locale]
+			for _, phrase := range want {
+				if got := strings.Contains(sink.msg.Body, phrase); got != (owed > 0) {
+					t.Errorf("%s owed=%d: contains %q = %t:\n%s", locale, owed, phrase, got, sink.msg.Body)
+				}
+			}
 		}
 	}
 }
