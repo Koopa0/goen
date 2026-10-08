@@ -79,6 +79,10 @@ var (
 		ZhHant: "退貨扣回，訂單 %s", En: "Reversed for a return, order %s",
 	})
 
+	KeyPointsCancellationOrder = key("points.reason.cancelled.order", Message{
+		ZhHant: "訂單取消扣回，訂單 %s", En: "Reversed for a cancelled order, order %s",
+	})
+
 	KeyPointsEarnedOn = key("points.earnedon", Message{ZhHant: "%s 獲得", En: "earned %s"})
 
 	KeyPointsClawbackDetail = key("points.reason.clawback.detail", Message{
@@ -92,8 +96,8 @@ var (
 	})
 
 	KeyPointsBadAmount = key("points.notice.amount", Message{
-		ZhHant: "至少要兌換 %s 點，而且要是 %s 的倍數，最多 %s 點。",
-		En:     "Redeem at least %s points, in whole multiples of %s, up to %s points.",
+		ZhHant: "至少要兌換 %s 點，而且要是 %s 的倍數。",
+		En:     "Redeem at least %s points, in whole multiples of %s.",
 	})
 
 	KeyPointsBadForm = key("points.notice.badform", Message{

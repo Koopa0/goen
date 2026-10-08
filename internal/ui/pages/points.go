@@ -29,6 +29,7 @@ type PointsEntry struct {
 	RequestedPoints int64
 	ShortfallPoints int64
 	Kind            PointsEntryKind
+	Reason          string
 	Order           string
 	At              string
 	ExpiresOn       string
@@ -67,6 +68,9 @@ func (e PointsEntry) What(ctx context.Context) string {
 	case PointsSpent:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSpent), money.TWD(e.CreditCents))
 	case PointsClawedBack:
+		if e.Reason == "cancelled" {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsCancellationOrder), e.Order)
+		}
 		if e.Order != "" {
 			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackOrder), e.Order)
 		}

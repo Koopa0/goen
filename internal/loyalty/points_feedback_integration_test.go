@@ -234,9 +234,9 @@ func TestPointsFormRefusalsKeepTheDraftWithoutAnyMoneyEffectAndRecover(t *testin
 				body := refused.Body.String()
 				field := pointsElement(t, body, "id", "points")
 				reason := pointsContent(pointsElement(t, body, "id", "points-error"))
-				wantReason := "Redeem at least 100 points, in whole multiples of 10, up to 1000000000 points."
+				wantReason := "Redeem at least 100 points, in whole multiples of 10."
 				if locale == i18n.ZhHant {
-					wantReason = "至少要兌換 100 點，而且要是 10 的倍數，最多 1000000000 點。"
+					wantReason = "至少要兌換 100 點，而且要是 10 的倍數。"
 				}
 				if tt.missing {
 					wantReason = "This redemption was not submitted. No points were deducted. Please press Redeem again."

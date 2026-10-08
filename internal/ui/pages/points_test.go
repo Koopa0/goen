@@ -84,12 +84,14 @@ func TestPointsRowsNameTheirOrderDatesAndCredit(t *testing.T) {
 		entry  PointsEntry
 		want   map[string]string
 	}{
-		{name: "full reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "2026-10-05"}},
-		{name: "full reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "2026-10-05"}},
-		{name: "short reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 60 點 · 2026-10-05"}},
-		{name: "short reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 60 could not be reversed · 2026-10-05"}},
-		{name: "zero reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 75 點 · 2026-10-05"}},
-		{name: "zero reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 75 could not be reversed · 2026-10-05"}},
+		{name: "full reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "2026-10-05"}},
+		{name: "full reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "2026-10-05"}},
+		{name: "short reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 60 點 · 2026-10-05"}},
+		{name: "short reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 60 could not be reversed · 2026-10-05"}},
+		{name: "zero reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 75 點 · 2026-10-05"}},
+		{name: "zero reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 75 could not be reversed · 2026-10-05"}},
+		{name: "cancelled reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "cancelled", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "訂單取消扣回，訂單 GO-20261005-000003", "metadata": "2026-10-05"}},
+		{name: "cancelled reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "cancelled", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "Reversed for a cancelled order, order GO-20261005-000003", "metadata": "2026-10-05"}},
 		{name: "earned zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsAwarded, Points: 284, Order: "GO-20261005-000003", At: "2026-10-05", ExpiresOn: "2027-10-05"}, want: map[string]string{"amount": "+284", "what": "訂單 GO-20261005-000003", "metadata": "2026-10-05 獲得 · 2027-10-05 到期"}},
 		{name: "earned en", locale: i18n.En, entry: PointsEntry{Kind: PointsAwarded, Points: 284, Order: "GO-20261005-000003", At: "2026-10-05", ExpiresOn: "2027-10-05"}, want: map[string]string{"amount": "+284", "what": "Order GO-20261005-000003", "metadata": "earned 2026-10-05 · expires 2027-10-05"}},
 		{name: "expired zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsAwarded, Points: 284, At: "2025-10-05", ExpiresOn: "2026-10-05", Expired: true}, want: map[string]string{"amount": "+284", "what": "購物回饋", "metadata": "2025-10-05 獲得 · 已於 2026-10-05 到期"}},
@@ -219,8 +221,8 @@ func TestPointsFormRefusalPreservesTheAmountAndOperation(t *testing.T) {
 		locale i18n.Locale
 		reason string
 	}{
-		{i18n.ZhHant, "至少要兌換 100 點，而且要是 10 的倍數，最多 1000000000 點。"},
-		{i18n.En, "Redeem at least 100 points, in whole multiples of 10, up to 1000000000 points."},
+		{i18n.ZhHant, "至少要兌換 100 點，而且要是 10 的倍數。"},
+		{i18n.En, "Redeem at least 100 points, in whole multiples of 10."},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()

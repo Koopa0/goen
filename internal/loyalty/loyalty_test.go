@@ -9,9 +9,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -90,7 +92,7 @@ func TestQueryFlagsCannotClaimARedemptionOrNoDebit(t *testing.T) {
 	t.Parallel()
 	h := &Handler{confirmationKey: "test-key"}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		for _, flag := range []string{"ok=1", "badform=1", "redeemed=forged"} {
+		for _, flag := range []string{"ok=1", "badform=1", "redeemed=forged", "small=1"} {
 			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/account/points?"+flag, http.NoBody)
 			if got := h.noticeFor(req, "owner"); got != "" {
 				t.Errorf("noticeFor(%s, %s) = %q, want no assertion", locale, flag, got)
@@ -129,5 +131,48 @@ func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
 		if readHistoryCursor("owner", token).Valid {
 			t.Errorf("%s: a token that is not the reader's was accepted", name)
 		}
+	}
+}
+
+func TestPointsHistoryKeepsTheReversalReason(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		reason string
+		want   string
+	}{
+		{name: "return zh", locale: i18n.ZhHant, reason: "return", want: "退貨扣回，訂單 GO-20261005-000003"},
+		{name: "return en", locale: i18n.En, reason: "return", want: "Reversed for a return, order GO-20261005-000003"},
+		{name: "cancelled zh", locale: i18n.ZhHant, reason: "cancelled", want: "訂單取消扣回，訂單 GO-20261005-000003"},
+		{name: "cancelled en", locale: i18n.En, reason: "cancelled", want: "Reversed for a cancelled order, order GO-20261005-000003"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			entry := pointsHistoryEntry(ctx, db.PointsHistoryRow{Kind: "clawback", Reason: tt.reason, Points: -284, RequestedPoints: 284, OrderNumber: "GO-20261005-000003"}, time.Now())
+			if got := entry.What(ctx); got != tt.want {
+				t.Errorf("pointsHistoryEntry().What() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPointsAmountRefusalNamesThePublishedRule(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.ZhHant, "至少要兌換 100 點，而且要是 10 的倍數。"},
+		{i18n.En, "Redeem at least 100 points, in whole multiples of 10."},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), tt.locale), http.MethodPost, "/account/points", http.NoBody)
+			if got := pointsAmountReason(req); got != tt.want {
+				t.Errorf("pointsAmountReason() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

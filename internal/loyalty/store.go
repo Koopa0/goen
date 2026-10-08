@@ -183,7 +183,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 func pointsHistoryEntry(ctx context.Context, r db.PointsHistoryRow, now time.Time) pages.PointsEntry {
 	kind := pages.PointsEntryKind(r.Kind)
 	entry := pages.PointsEntry{
-		Points: r.Points, Kind: kind, Order: r.OrderNumber,
+		Points: r.Points, Kind: kind, Reason: r.Reason, Order: r.OrderNumber,
 		At: shoptime.DateText(ctx, shoptime.DateOf(r.CreatedAt, now)), Expired: r.Expired.Bool,
 	}
 	switch kind {
