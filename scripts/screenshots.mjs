@@ -20,6 +20,8 @@
 // the signed-in customer (CUST_TOKEN), /cart and /checkout the cart's owner
 // (CART_TOKEN), /orders the placer of an unpaid order (PLACED_TOKEN). Any other
 // path is a guest. A page asked for as a user whose token is not set fails.
+// /account/orders/{NUMBER} keeps the customer session when it redirects to
+// /orders/{the same NUMBER}.
 //
 // SHOT_VIEW is full (the whole page, at most CAP pixels tall) or viewport (the
 // first screen). Device emulation sets the width, so media and container
@@ -27,9 +29,11 @@
 // CDP_PORT and GOEN_URL name Chrome and the shop. The PNGs and manifest.json
 // are written to <outdir>. An entry fails, and the exit status is 1, when it
 // cannot be shot, answers 400 or above, or needs a session and ends outside its
-// own path (a lapsed session lands on /signin).
+// visitor path or the same order's canonical path (a lapsed session lands on
+// /signin).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { screenshotRouteMatches } from './screenshot-route.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700').replace(/\/$/, '');
@@ -78,8 +82,6 @@ const visitors = [
   { prefix: '/checkout', cookie: 'goen_cart', token: 'CART_TOKEN' },
   { prefix: '/orders', cookie: 'goen_placed', token: 'PLACED_TOKEN' },
 ];
-
-const within = (path, prefix) => path === prefix || ['/', '?'].some((c) => path.startsWith(prefix + c));
 
 function slug(index, entry) {
   const name = entry.path.replace(/^\//, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/-$/, '') || 'home';
@@ -206,7 +208,7 @@ async function shoot(entry, file) {
   writeFileSync(`${outDir}/${file}`, Buffer.from(data, 'base64'));
   const result = { ...facts, height: shotHeight, capped: shotHeight === CAP };
   if (facts.status >= 400) result.error = `answered ${facts.status}`;
-  else if (visitor && !within(facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
+  else if (visitor && !screenshotRouteMatches(entry.path, facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
   return result;
 }
 
