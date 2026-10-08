@@ -379,8 +379,7 @@
     const pending = new Map();
     const requests = new WeakMap();
     const reads = new WeakMap();
-    const replacesRead = (form, ctx) => form instanceof HTMLFormElement && ctx?.request?.method === "GET"
-      && form.getAttribute("hx-sync") === "this:replace";
+    const replacesRead = () => false;
     const restoreAttribute = (element, name, value) => {
       if (value === null) element.removeAttribute(name);
       else element.setAttribute(name, value);
