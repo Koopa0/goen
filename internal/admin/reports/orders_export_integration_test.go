@@ -39,20 +39,20 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 	}
 	want := map[string][]string{}
 	for _, fixture := range fixtures {
-		_, number := exportOrder(t, p, fixture.order)
+		number := exportOrder(t, p, fixture.order)
 		want[number] = append([]string{number}, fixture.row...)
 	}
 	// More than the report's top-ten limit: the monthly ledger must be complete.
 	for i := range 11 {
 		placed := fmt.Sprintf("2024-02-10 10:00:%02d", i)
-		_, number := exportOrder(t, p, exportOrderFixture{placed: placed, paid: placed, subtotal: 100, committed: true})
+		number := exportOrder(t, p, exportOrderFixture{placed: placed, paid: placed, subtotal: 100, committed: true})
 		want[number] = []string{number, placed, placed, "100", "0", "0", "0", "100", ""}
 	}
 	for _, placed := range []string{"2024-01-31 23:59:59", "2024-03-01 00:00:00"} {
 		exportOrder(t, p, exportOrderFixture{placed: placed, paid: placed, subtotal: 777, committed: true})
 	}
 	exportOrder(t, p, exportOrderFixture{placed: "2024-02-10 11:00:00", subtotal: 888})
-	_, refunded := exportOrder(t, p, exportOrderFixture{placed: "2024-02-11 11:00:00", paid: "2024-02-11 11:01:00", subtotal: 999, committed: true})
+	refunded := exportOrder(t, p, exportOrderFixture{placed: "2024-02-11 11:00:00", paid: "2024-02-11 11:01:00", subtotal: 999, committed: true})
 	if _, err := p.Exec(ctx, `SELECT open_refund_before_shipment($1, 'export fixture', $2, $3)`, refunded, staff, "export-refund-"+refunded); err != nil {
 		t.Fatalf("refund before shipment: %v", err)
 	}
@@ -137,7 +137,7 @@ type exportOrderFixture struct {
 	invoice                              string
 }
 
-func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (id uuid.UUID, number string) {
+func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (number string) {
 	t.Helper()
 	ctx := t.Context()
 	var buyer uuid.NullUUID
@@ -153,6 +153,7 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (id uuid.U
 		t.Fatal(err)
 	}
 	defer pgtx.Rollback(ctx, tx)
+	var id uuid.UUID
 	if err := tx.QueryRow(ctx, `
   INSERT INTO orders (order_number,user_id,shipping_version_id,shipping_method_code,shipping_method_name,shipping_cents,discount_cents,placed_at,customer_note)
   SELECT next_order_number(),$1,v.id,sm.code,v.name,$2,$3,$4,'PRIVATE-EXPORT-NOTE'
@@ -189,7 +190,7 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (id uuid.U
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit export fixture: %v", err)
 	}
-	return id, number
+	return number
 }
 
 func fundExportOrder(t *testing.T, tx pgx.Tx, id uuid.UUID, f exportOrderFixture) {
@@ -209,8 +210,8 @@ func fundExportOrder(t *testing.T, tx pgx.Tx, id uuid.UUID, f exportOrderFixture
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO payments (order_id,provider_ref,status,intended_amount_cents,captured_amount_cents,paid_at) VALUES ($1,$2,'succeeded',$3,$3,$4)`, id, "export_"+id.String(), total-f.credit, paid); err != nil {
-		t.Fatalf("record export payment: %v", err)
+	if _, paymentErr := tx.Exec(ctx, `INSERT INTO payments (order_id,provider_ref,status,intended_amount_cents,captured_amount_cents,paid_at) VALUES ($1,$2,'succeeded',$3,$3,$4)`, id, "export_"+id.String(), total-f.credit, paid); paymentErr != nil {
+		t.Fatalf("record export payment: %v", paymentErr)
 	}
 	if f.paidEvent == "" {
 		return
@@ -219,7 +220,7 @@ func fundExportOrder(t *testing.T, tx pgx.Tx, id uuid.UUID, f exportOrderFixture
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO order_events (order_id,kind,occurred_at) VALUES ($1,'paid',$2)`, id, paidEvent); err != nil {
-		t.Fatalf("record export paid event: %v", err)
+	if _, eventErr := tx.Exec(ctx, `INSERT INTO order_events (order_id,kind,occurred_at) VALUES ($1,'paid',$2)`, id, paidEvent); eventErr != nil {
+		t.Fatalf("record export paid event: %v", eventErr)
 	}
 }
