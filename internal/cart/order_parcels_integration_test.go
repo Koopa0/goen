@@ -139,8 +139,8 @@ func TestOnlyAnApprovedOrCompletedReturnAfterShipmentMakesAnOrderReturned(t *tes
 
 	cancelled := placeUnpaidOrderFor(t, s, "cancelled@example.com")
 	returnOf(t, cancelled, "completed", true)
-	if view, err := s.Order(ctx, cancelled); err != nil || view.Returned != nil {
-		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", view.Returned, err)
+	if refunded, refundedErr := s.Order(ctx, cancelled); refundedErr != nil || refunded.Returned != nil {
+		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", refunded.Returned, refundedErr)
 	}
 
 	paid := placeUnpaidOrderFor(t, s, "paid@example.com")
