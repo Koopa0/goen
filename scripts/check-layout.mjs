@@ -560,7 +560,7 @@ const ACCESSIBILITY = `
     // the rules it had just broken, with the refusal itself never spoken.
     unexplainedInvalids: [...document.querySelectorAll('[aria-invalid="true"]')]
       .filter((e) => {
-        const ids = (e.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        const ids = (e.getAttribute('aria-describedby') || '').split(/\\s+/).filter(Boolean);
         return !ids.some((id) => {
           const t = document.getElementById(id);
           return t && (t.getAttribute('role') === 'alert' ||

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AXE_OPTIONS, WCAG_TAGS, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import './layout-accessibility.test.mjs';
 
 test('new WCAG criteria fail at serious and critical impact', () => {
   assert.equal(gatesAccessibility({ impact: 'serious', tags: ['wcag22aa', 'wcag258'] }), true);
