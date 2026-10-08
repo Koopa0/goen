@@ -175,6 +175,12 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (number st
 	fundExportOrder(t, tx, id, f)
 	if f.invoice != "" {
 		if _, err := tx.Exec(ctx, `
+  INSERT INTO refunds (payment_id,request_key,provider_ref,status,amount_cents,succeeded_at)
+  SELECT id,$2,$3,'succeeded',1000,'2024-03-01 00:04:00+08'
+  FROM payments WHERE order_id=$1 AND status='succeeded'`, id, "export-refund-"+id.String(), "re_export_"+id.String()); err != nil {
+			t.Fatalf("record export invoice refund: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
   WITH voided_invoice AS (
     INSERT INTO invoice_documents (order_id,kind,number,amount_cents,status,issued_at,voided_at)
     VALUES ($1,'invoice','CD12345678',$3,'voided','2024-03-01 00:01:00+08','2024-03-01 00:02:00+08')
