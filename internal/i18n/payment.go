@@ -6,8 +6,6 @@ var (
 		En:     "This is a Stripe test payment; no real money is charged. Do not enter a real card. Use test card 4242 4242 4242 4242, any future expiry date and any three-digit CVC.",
 	})
 
-	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
-
 	KeyPayBody = key("pay.body", Message{
 		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會立即安排出貨。",
 		En: "The order is placed and the stock is held for you. We pack it as soon as the " +
@@ -25,9 +23,8 @@ var (
 	})
 
 	KeyPayDisabled = key("pay.disabled", Message{
-		ZhHant: "這個環境尚未啟用線上付款。訂單已經保留，稍後可以再回到這個頁面。",
-		En: "Online payment is not enabled in this environment. The order is held; come " +
-			"back to this page later.",
+		ZhHant: "這個環境尚未啟用線上付款，稍後可以再回到這個頁面付款。",
+		En:     "Online payment is not enabled in this environment; come back to this page later to pay.",
 	})
 
 	KeyPayOffTitle = key("pay.off.title", Message{
@@ -73,32 +70,21 @@ var (
 
 	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
 
-	KeyPayStartBy           = key("pay.startby", Message{ZhHant: "請在 %s（台灣時間）前開始付款。", En: "Start the payment before %s, Taiwan time."})
 	KeyPayWindowClosedTitle = key("pay.windowclosed.title", Message{ZhHant: "付款期限已過", En: "The payment window has closed"})
-	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開始付款，會在庫存保留結束時自動取消，不會收取任何款項；若有使用購物金，取消時會退回你的帳戶。", En: "This order can no longer be paid. It is cancelled automatically when its stock hold ends: nothing is charged, and any store credit you applied goes back to your account."})
+	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開始付款，會在商品保留結束時自動取消，不會收取任何款項；若有使用購物金，取消時會退回你的帳戶。", En: "This order can no longer be paid. It is cancelled automatically when the hold on the items ends: nothing is charged, and any store credit you applied goes back to your account."})
 
-	KeyPayFactStartBy   = key("pay.fact.startby", Message{ZhHant: "開始付款期限", En: "Start paying by"})
-	KeyPayFactTimeZone  = key("pay.fact.timezone", Message{ZhHant: "台灣時間", En: "Taiwan time"})
-	KeyPayFactHeldUntil = key("pay.fact.helduntil", Message{ZhHant: "庫存保留至", En: "Stock reserved until"})
-	KeyPayFactUnpaid    = key("pay.fact.unpaid", Message{ZhHant: "逾時未付款自動取消", En: "Cancelled after that if unpaid"})
+	// The stock hold in two lines: the deadline to start paying and then the hold's end, or the hold's end alone
+	// once no deadline is named.
+	KeyPayDeadline     = key("pay.deadline", Message{ZhHant: "請在 %s 前開始付款", En: "Start paying by %s"})
+	KeyPayReservedNote = key("pay.reserved.note", Message{ZhHant: "商品保留到 %s，逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyPayReserved     = key("pay.reserved", Message{ZhHant: "商品保留到 %s", En: "Your items are reserved until %s"})
+	KeyPayReservedTail = key("pay.reserved.tail", Message{ZhHant: "逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "The order is cancelled if it is still unpaid then. Times are Taiwan time."})
+
 	KeyPayFactAmountDue = key("pay.fact.amountdue", Message{ZhHant: "應付金額", En: "Amount due"})
 	KeyPayFactPlaced    = key("pay.fact.placed", Message{ZhHant: "送出", En: "Placed"})
 	KeyPayFactCancelled = key("pay.fact.cancelled", Message{ZhHant: "自動取消", En: "Cancelled automatically"})
 	KeyPayFactLapsed    = key("pay.fact.lapsed", Message{ZhHant: "庫存保留結束時仍未付款", En: "Still unpaid when the reservation ended"})
 	KeyPayFactCharged   = key("pay.fact.charged", Message{ZhHant: "收取金額", En: "Amount charged"})
-
-	KeyPeriodHoldOpen = key("period.hold.open", Message{
-		ZhHant: "%s 送出訂單；請在 %s 前開始付款；庫存保留到 %s。",
-		En:     "Order placed %s; start the payment before %s; the stock is reserved until %s.",
-	})
-	KeyPeriodHoldResumed = key("period.hold.resumed", Message{
-		ZhHant: "%s 送出訂單；庫存保留到 %s。",
-		En:     "Order placed %s; the stock is reserved until %s.",
-	})
-	KeyPeriodHoldLapsed = key("period.hold.lapsed", Message{
-		ZhHant: "%s 送出訂單；到 %s 庫存保留結束時仍未付款，訂單自動取消，沒有收取任何款項。",
-		En:     "Order placed %s; still unpaid when the reservation ended at %s, so the order was cancelled automatically, with nothing charged.",
-	})
 
 	KeyPayMeta = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
 

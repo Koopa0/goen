@@ -182,8 +182,15 @@ func (m *ShippingMethod) DestinationText(ctx context.Context) string {
 	}
 }
 
-func (m *ShippingMethod) VersionCountText() string {
-	return strconv.FormatInt(m.VersionCount, 10)
+// DisplayName is the method's name in the reader's language, falling back to
+// the Chinese name while there is no English one.
+func (m *ShippingMethod) DisplayName(ctx context.Context) string {
+	return displayName(ctx, m.Name, m.NameEn)
+}
+
+// OtherName is the name in the other language, empty when there is none.
+func (m *ShippingMethod) OtherName(ctx context.Context) string {
+	return otherName(ctx, m.Name, m.NameEn)
 }
 
 // Zoned is false for pickup, which has no postal code to match a zone on.
@@ -198,8 +205,29 @@ func (m *ShippingMethod) SurchargeDollars(zoneID string) string {
 	return ""
 }
 
-func (z ShippingZone) PrefixCountText() string {
-	return strconv.FormatInt(z.PrefixCount, 10)
+func (z ShippingZone) DisplayName(ctx context.Context) string {
+	return displayName(ctx, z.Name, z.NameEn)
+}
+
+func (z ShippingZone) OtherName(ctx context.Context) string {
+	return otherName(ctx, z.Name, z.NameEn)
+}
+
+func displayName(ctx context.Context, zh, en string) string {
+	if i18n.FromContext(ctx) == i18n.En && en != "" {
+		return en
+	}
+	return zh
+}
+
+func otherName(ctx context.Context, zh, en string) string {
+	if i18n.FromContext(ctx) == i18n.En {
+		if en == "" {
+			return ""
+		}
+		return zh
+	}
+	return en
 }
 
 type zonePrefixEntry struct {
@@ -222,9 +250,17 @@ func zonePrefixEntries(raw string) []zonePrefixEntry {
 }
 
 func zonePrefixRows(raw string) string {
-	return strconv.Itoa(max(3, len(postcode.Fields(raw)), strings.Count(raw, "\n")+1))
+	return strconv.Itoa(max(3, strings.Count(raw, "\n")+2))
 }
 
 // HTML discards the first newline after a textarea opens; supply it separately
 // so a refused draft that starts with a newline keeps that newline in the control.
 func zonePrefixTextareaText(raw string) string { return "\n" + raw }
+
+// otherTag marks a name in the language the page is not in.
+func otherTag(ctx context.Context) string {
+	if i18n.FromContext(ctx) == i18n.En {
+		return i18n.ZhHant.Tag()
+	}
+	return i18n.En.Tag()
+}

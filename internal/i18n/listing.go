@@ -9,10 +9,6 @@ var (
 
 	KeyHome = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
-	KeyDeptBrands = key("dept.brands", Message{ZhHant: "品牌", En: "Brands"})
-
-	KeyUnitBrands = countKey("unit.brands", "%d\u00a0個", "%d\u00a0brand", "%d\u00a0brands")
-
 	KeyDeptCompareTitle = key("dept.compare.title", Message{ZhHant: "把規格擺在一起", En: "Specifications, side by side"})
 
 	// The colours' names joined into the story's title.
@@ -45,6 +41,11 @@ var (
 	KeyFiltersActive = key("listing.filters.active", Message{
 		ZhHant: "已套用篩選",
 		En:     "Active filters",
+	})
+
+	KeyFiltersSelected = key("listing.filters.selected", Message{
+		ZhHant: "已選 %d 項",
+		En:     "%d selected",
 	})
 
 	KeyPriceRangeChip = key("listing.filters.chip.price.range", Message{

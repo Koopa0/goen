@@ -977,6 +977,11 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		return pages.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
+	hold, err := s.q.OrderHoldSpan(ctx, o.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return pages.OrderView{}, fmt.Errorf("read order stock hold: %w", err)
+	}
+
 	now := time.Now()
 	view := pages.OrderView{
 		Number:       o.OrderNumber,
@@ -997,6 +1002,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		TaxCents:    o.TaxCents,
 		PlacedAt:    o.PlacedAt,
 		Now:         now,
+		HoldUntil:   hold.HeldUntil,
 		Pickup:      o.PickupChain != "",
 	}
 	ids := make([]uuid.UUID, 0, len(lines))

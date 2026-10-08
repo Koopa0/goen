@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 )
 
 const (
@@ -16,35 +15,12 @@ const (
 	StoryColours = 3
 )
 
-// StatCountOf is a count with the unit k writes for it, kept together as one stat value.
-// The unit follows the number after a no-break space, which Count writes.
-func StatCountOf(ctx context.Context, k i18n.Key, n int64) components.StatValue {
-	_, unit, _ := strings.Cut(i18n.Count(ctx, k, n, n), "\u00a0")
-	return components.StatCount(n, unit)
-}
-
 // DepartmentHead is what a department page says under its band. Notice, Preview and Story
 // are nil where the department has nothing to say.
 type DepartmentHead struct {
-	Products, Categories, Brands int64
-	Notice                       *DepartmentNotice
-	Preview                      *ComparePreview
-	Story                        *ColourStory
-}
-
-// Facts leaves out a count that is zero: a department with no brands says nothing about them.
-func (h *DepartmentHead) Facts(ctx context.Context) []components.Stat {
-	var out []components.Stat
-	if h.Products > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: StatCountOf(ctx, i18n.KeyUnitItems, h.Products)})
-	}
-	if h.Categories > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: StatCountOf(ctx, i18n.KeyUnitCategories, h.Categories)})
-	}
-	if h.Brands > 0 {
-		out = append(out, components.Stat{Label: i18n.T(ctx, i18n.KeyDeptBrands), Value: StatCountOf(ctx, i18n.KeyUnitBrands, h.Brands)})
-	}
-	return out
+	Notice  *DepartmentNotice
+	Preview *ComparePreview
+	Story   *ColourStory
 }
 
 // EditorialSlot is the one piece of editorial under the head.
@@ -70,10 +46,9 @@ func (h *DepartmentHead) Slot() EditorialSlot {
 
 // DepartmentNotice is the running campaign that features products of the department.
 type DepartmentNotice struct {
-	Title  string
-	Href   string
-	Ends   components.Stat
-	Period *components.PeriodSpec
+	Title string
+	Href  string
+	End   CampaignEnd
 }
 
 // ComparePreview is the comparison a comparable department offers: the same table as /compare,

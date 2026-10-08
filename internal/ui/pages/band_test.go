@@ -102,9 +102,10 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	if band < 0 || band >= grid || grid >= media || media >= body {
 		t.Errorf("the head is not band, grid, media (the photograph first), body in that order:\n%s", page)
 	}
-	// Below 1024px the photograph is hidden but still fetched; 1px keeps that
-	// fetch to the smallest candidate.
-	if want := `sizes="(min-width: 1024px) 25rem, 1px"`; !strings.Contains(page, want) {
+	if want := `sizes="(min-width: 48rem) 57vw, 100vw"`; !strings.Contains(page, want) {
 		t.Errorf("the head photograph does not carry %s:\n%s", want, page)
+	}
+	if strings.Contains(page, `fetchpriority="low"`) {
+		t.Errorf("the head photograph is the first screen's largest image and must not be fetched at low priority:\n%s", page)
 	}
 }

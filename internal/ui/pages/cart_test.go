@@ -230,6 +230,25 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	}
 }
 
+func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
+	body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
+	_, summary, ok := strings.Cut(body, `id="cart-summary"`)
+	if !ok {
+		t.Fatal("the cart has no summary")
+	}
+	shipping := strings.Index(summary, "<dt>"+i18n.T(ctx, i18n.KeyShippingFee)+"</dt>")
+	total := strings.Index(summary, `goen-summary__row--total"><dt>`+i18n.T(ctx, i18n.KeySubtotal)+"</dt>")
+	if shipping < 0 || total < 0 {
+		t.Fatalf("the summary lacks a row: shipping at %d, total at %d", shipping, total)
+	}
+	if total < shipping {
+		t.Error("the cart summary opens on its total, so the total's rule has nothing above it")
+	}
+}
+
 // TestTheApplyButtonAimsAtTheSectionItChanged holds the scripting-off half. The
 // answer is the whole form again, and a form that opens at its top has taken the
 // customer away from the control they just pressed.
@@ -1777,5 +1796,41 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 	html := b.String()
 	if !strings.Contains(html, "<dt>Items</dt><dd>2</dd>") || strings.Contains(html, "pcs") {
 		t.Errorf("English item count = %s, want the bare number under Items", html)
+	}
+}
+
+func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		can  bool
+		show bool
+	}{
+		{name: "unresolved return", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true},
+		{name: "plain", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "expired", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond)}, can: true, show: true},
+		{name: "equal deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now}, can: true, show: true},
+		{name: "unknown deadline", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true}, can: true, show: true},
+		{name: "expired checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(-time.Nanosecond), PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "no hold checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "equal deadline checking", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "checking without return marker", view: OrderView{Status: order.FulfillmentPending, OwedCents: 100, PaymentRefreshURL: "/orders/ORD-1?paid=1&confirmation=1"}, can: true},
+		{name: "captured", view: OrderView{Status: order.FulfillmentPending, Committed: true, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "store credit funded", view: OrderView{Status: order.FulfillmentPending, OwedCents: 0, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}, can: true, show: true},
+		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+		{name: "shipped", view: OrderView{Status: order.FulfillmentShipped, OwedCents: 100, PaymentReturnHint: true, HoldUntil: now.Add(time.Minute)}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.view.Now = now
+			if got := tt.view.CanCancel(); got != tt.can {
+				t.Errorf("CanCancel() = %v, want %v", got, tt.can)
+			}
+			if got := tt.view.ShowCancel(); got != tt.show {
+				t.Errorf("ShowCancel() = %v, want %v", got, tt.show)
+			}
+		})
 	}
 }

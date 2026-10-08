@@ -62,7 +62,7 @@ templ Products(p layouts.Page, v ProductsView) {
 									// stop lining up.
 									<div class="goen-admin__cellbadges">
 										if row.Sellable() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 												{ row.StatusText }
 											}
 										} else {
@@ -110,7 +110,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 		@Announce(v.Notice)
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
-				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdName) }</a>
+				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>
 				<a href="#sec-label">{ i18n.T(ctx, i18n.KeyProductLabel) }</a>
 				<a href="#sec-invoice">{ i18n.T(ctx,i18n.KeyProductInvoiceLine) }</a>
 				<a href="#sec-images">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</a>
@@ -135,7 +135,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 
 templ productDetails(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
-		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdName) }</h2>
+		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</h2>
 		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action()) }>
 			<div class="goen-admin__field">
 				@components.Label(components.LabelProps{For: "p-name"}) {
@@ -168,7 +168,6 @@ templ productDetails(v ProductView) {
 						name="slug"
 						required
 						maxlength="120"
-						placeholder="ceramic-mug"
 						value={ v.Slug }
 						if v.HasErr("slug") {
 							aria-invalid="true"
@@ -176,6 +175,7 @@ templ productDetails(v ProductView) {
 						}
 					/>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdSlugHint) }</p>
+					<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "ceramic-mug") }</p>
 					if v.HasErr("slug") {
 						<p class="ui-error-text" id="p-slug-error">{ v.Err("slug") }</p>
 					}

@@ -52,12 +52,14 @@ templ Staff(p layouts.Page, v StaffView) {
 						<tr>
 							<td class="goen-admin__cellkey">
 								{ r.DisplayName() }
-								<span class="goen-admin__meta">{ r.Email }</span>
+								if r.Name != "" {
+									<span class="goen-admin__meta">{ r.Email }</span>
+								}
 							</td>
 							<td>{ RoleLabel(ctx, r.Role) }</td>
 							<td>
 								if r.Enrolled {
-									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
 										{ r.State(ctx) }
 									}
 								} else {
@@ -74,7 +76,7 @@ templ Staff(p layouts.Page, v StaffView) {
 										<form method="post" action="/admin/staff/factor">
 											<input type="hidden" name="user" value={ r.ID }/>
 											@components.Button(components.ButtonProps{
-												ButtonStyle: components.ButtonStyleOutline,
+												ButtonStyle: components.ButtonStyleDanger,
 												Size:        components.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }
@@ -84,7 +86,7 @@ templ Staff(p layouts.Page, v StaffView) {
 									<form method="post" action="/admin/staff/revoke">
 										<input type="hidden" name="user" value={ r.ID }/>
 										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
+											ButtonStyle: components.ButtonStyleDanger,
 											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }

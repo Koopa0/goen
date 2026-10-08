@@ -173,16 +173,6 @@ var (
 
 	KeyOrderWarrantyRegister = key("order.warranty.register", Message{ZhHant: "登錄保固", En: "Register the warranty"})
 
-	KeyPeriodWarrantyRunning = countKey("period.warranty.running",
-		"保固：%s至 %s，共 %d 個月；今天 %s在第 %d 個月。",
-		"Warranty: %s to %s, %d month; today, %s, is in month %d.",
-		"Warranty: %s to %s, %d months; today, %s, is in month %d.")
-
-	KeyPeriodWarrantyEnded = countKey("period.warranty.ended",
-		"保固：%s至 %s，共 %d 個月；已結束。",
-		"Warranty: %s to %s, %d month; ended.",
-		"Warranty: %s to %s, %d months; ended.")
-
 	KeyEventPlaced = key("order.event.placed", Message{ZhHant: "送出訂單", En: "Order placed"})
 
 	KeyEventPicking = key("order.event.picking", Message{ZhHant: "開始備貨", En: "Packing started"})
@@ -253,7 +243,7 @@ var (
 
 	KeyOrderOpening = key("order.opening", Message{ZhHant: "正在開啟你的訂單…", En: "Opening your order…"})
 
-	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "繼續", En: "Continue"})
+	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "開啟訂單", En: "Open your order"})
 
 	KeyCancelRefusedTitle = key("order.cancel.refused", Message{
 		ZhHant: "這筆訂單無法取消",

@@ -6,7 +6,7 @@ package components
 import "github.com/a-h/templ"
 
 // ButtonStyle is a button's weight: one surface shows one primary; the rest are outline or ghost, which
-// stops a page reading as a row of equals.
+// stops a page reading as a row of equals. Danger marks an action that moves money or removes access.
 type ButtonStyle string
 
 const (
@@ -14,6 +14,7 @@ const (
 	ButtonStyleSecondary ButtonStyle = "secondary"
 	ButtonStyleOutline   ButtonStyle = "outline"
 	ButtonStyleGhost     ButtonStyle = "ghost"
+	ButtonStyleDanger    ButtonStyle = "danger"
 )
 
 func (v ButtonStyle) class() string {
@@ -24,6 +25,8 @@ func (v ButtonStyle) class() string {
 		return "goen-btn--outline"
 	case ButtonStyleGhost:
 		return "goen-btn--ghost"
+	case ButtonStyleDanger:
+		return "goen-btn--danger"
 	default:
 		return "goen-btn--primary"
 	}
@@ -50,20 +53,28 @@ func (s Size) class() string {
 }
 
 // Intent is what a badge or notice says. Neutral states the fact, accent marks the shop's own offer, warn is a limit the
-// visitor can still act inside, and danger is a refusal or an absence.
+// visitor can still act inside or a state waiting on the staff, and danger is a refusal or an absence. Progress and Done
+// are back-office badge states only, for something under way and something finished; the storefront stylesheet has no
+// class for them.
 type Intent string
 
 const (
-	IntentNeutral Intent = "neutral"
-	IntentAccent  Intent = "accent"
-	IntentWarn    Intent = "warn"
-	IntentDanger  Intent = "danger"
+	IntentNeutral  Intent = "neutral"
+	IntentAccent   Intent = "accent"
+	IntentProgress Intent = "progress"
+	IntentDone     Intent = "done"
+	IntentWarn     Intent = "warn"
+	IntentDanger   Intent = "danger"
 )
 
 func (t Intent) badgeClass() string {
 	switch t {
 	case IntentAccent:
 		return "goen-badge--accent"
+	case IntentProgress:
+		return "goen-badge--progress"
+	case IntentDone:
+		return "goen-badge--done"
 	case IntentWarn:
 		return "goen-badge--warn"
 	case IntentDanger:

@@ -540,6 +540,11 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare, nil, nil)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
 		t.Error("a head with no photograph or children draws them anyway")
 	}
+
+	only := ListingView{Slug: "tea", Name: "Tea", Theme: &Theme{Children: []Crumb{{Slug: "tea", Name: "Tea"}}}}
+	if h := renderToString(t, Listing(ListingMeta(ctx, only), only, nil, nil)); strings.Contains(h, "goen-pagehead__chips") {
+		t.Error("a head with a single sub-category draws it as a choice")
+	}
 }
 
 // A search that finds nothing sends the shopper to the departments, which the
@@ -687,5 +692,51 @@ func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
 	}
 	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil)); strings.Contains(html, "hx-swap-oob") {
 		t.Error("a whole-page listing carries out-of-band counts")
+	}
+}
+
+// A group's name carries how many of its options are on, so a shopper who has
+// closed the group still sees that it filters.
+func TestEachFilterGroupSaysHowManyOfItsOptionsAreOn(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Filtered: true, InStockOnly: true,
+		Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{
+			{Value: "aurora", Label: "Aurora", Selected: true},
+			{Value: "nimbus", Label: "Nimbus", Selected: true},
+			{Value: "orbit", Label: "Orbit"},
+		}}},
+	}
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, nil))
+	for id, want := range map[string]string{
+		"brand-selected": `<span aria-hidden="true">2</span> <span class="goen-sr-only">2 selected</span>`,
+		"stock-selected": `<span aria-hidden="true">1</span> <span class="goen-sr-only">1 selected</span>`,
+		"price-selected": ``,
+	} {
+		got := `<span class="goen-filters__selected" id="` + id + `">` + want + `</span>`
+		if !strings.Contains(html, got) {
+			t.Errorf("no %s with %q in the rail:\n%s", id, want, html)
+		}
+	}
+}
+
+// The rail is not swapped, so a swapped response carries each badge on its own.
+func TestAPartialListingCarriesTheSelectedCountsForTheRail(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Filtered: true, MinPrice: 1000,
+		Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{{Value: "aurora", Label: "Aurora", Selected: true}}}},
+	}
+	html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view, nil, nil))
+	for _, want := range []string{
+		`<span class="goen-filters__selected" id="brand-selected" hx-swap-oob="true"><span aria-hidden="true">1</span>`,
+		`<span class="goen-filters__selected" id="stock-selected" hx-swap-oob="true"></span>`,
+		`<span class="goen-filters__selected" id="price-selected" hx-swap-oob="true"><span aria-hidden="true">1</span>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("a partial listing lacks %s", want)
+		}
 	}
 }

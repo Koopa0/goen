@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/carrier"
@@ -12,9 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 )
 
-// auditField is how one recorded key reads to staff. A key the table does not
-// name prints as stored: the row is a record, and an unlabelled field must not
-// be hidden.
+// auditField describes a recorded field's staff-facing label and value format.
 type auditField struct {
 	label i18n.Key
 	// text renders one recorded value; nil prints it as stored.
@@ -45,6 +44,97 @@ var auditFields = map[string]auditField{
 	"coupons.kind":                     {i18n.KeyAdminCoupKind, couponKindText, nil},
 	"coupons.value":                    {i18n.KeyAuditFieldCouponValue, couponValueText, couponValueIsAmount},
 	"user_id":                          {i18n.KeyAdminActorCustomer, customerText, nil},
+	"active":                           {i18n.KeyAuditFieldActive, nil, nil},
+	"allowance":                        {i18n.KeyAdminDocAllowance, nil, nil},
+	"alt":                              {i18n.KeyAuditFieldImageAlt, nil, nil},
+	"assessment_version":               {i18n.KeyAuditFieldAssessmentVersion, nil, nil},
+	"attempt_no":                       {i18n.KeyAuditFieldRefundAttempt, nil, nil},
+	"brand_id":                         {i18n.KeyAdminProdBrand, nil, nil},
+	"campaign":                         {i18n.KeyAdminRepCampaign, nil, nil},
+	"carrier_en":                       {i18n.KeyAdminShipCarrierEn, nil, nil},
+	"category":                         {i18n.KeyAdminColCategory, nil, nil},
+	"category_id":                      {i18n.KeyAdminColCategory, nil, nil},
+	"code":                             {i18n.KeyAdminColCode, nil, nil},
+	"comparable":                       {i18n.KeyAdminColComparable, nil, nil},
+	"cta":                              {i18n.KeyAdminHomeBannerCTAHref, nil, nil},
+	"days":                             {i18n.KeyAdminCampDays, nil, nil},
+	"delta":                            {i18n.KeyAuditFieldStockChange, nil, nil},
+	"destination":                      {i18n.KeyAdminQueueDelivery, nil, nil},
+	"destination_kind":                 {i18n.KeyAuditFieldDestinationKind, nil, nil},
+	"digest":                           {i18n.KeyAuditFieldImageDigest, nil, nil},
+	"domestic_party_address":           {i18n.KeyProductLabelDomesticPartyAddress, nil, nil},
+	"domestic_party_name":              {i18n.KeyProductLabelDomesticPartyName, nil, nil},
+	"domestic_party_phone":             {i18n.KeyProductLabelDomesticPartyPhone, nil, nil},
+	"email":                            {i18n.KeyFieldEmail, nil, nil},
+	"ends_at":                          {i18n.KeyAdminCampEnds, nil, nil},
+	"event":                            {i18n.KeyAdminHPColEvent, nil, nil},
+	"evidence":                         {i18n.KeyAuditFieldRefundEvidence, nil, nil},
+	"handled":                          {i18n.KeyAuditFieldHandled, nil, nil},
+	"headline":                         {i18n.KeyAdminHomeHeadline, nil, nil},
+	"hidden":                           {i18n.KeyAuditFieldHidden, nil, nil},
+	"icon_key":                         {i18n.KeyAdminColIcon, nil, nil},
+	"id":                               {i18n.KeyAuditFieldRecordID, nil, nil},
+	"invoice":                          {i18n.KeyAdminDocInvoice, nil, nil},
+	"invoice_documents.order":          {i18n.KeyFieldOrderNumber, nil, nil},
+	"invoice_unit":                     {i18n.KeyInvoiceUnit, nil, nil},
+	"issue_id":                         {i18n.KeyAuditFieldNewsletterID, nil, nil},
+	"label":                            {i18n.KeyAdminProdSpecLabel, nil, nil},
+	"length":                           {i18n.KeyAuditFieldAnswerLength, nil, nil},
+	"lines":                            {i18n.KeyAuditFieldInspectedLines, nil, nil},
+	"message":                          {i18n.KeyFieldMessage, nil, nil},
+	"message_id":                       {i18n.KeyAuditFieldMessageID, nil, nil},
+	"method_id":                        {i18n.KeyAuditFieldDeliveryMethodID, nil, nil},
+	"min_age_months":                   {i18n.KeyProductLabelMinAge, nil, nil},
+	"move":                             {i18n.KeyAuditFieldImageMove, nil, nil},
+	"multiplier_bp":                    {i18n.KeyAuditFieldPointsRate, nil, nil},
+	"name":                             {i18n.KeyAdminColName, nil, nil},
+	"name_en":                          {i18n.KeyAdminColNameEn, nil, nil},
+	"net_quantity":                     {i18n.KeyProductLabelNetQuantity, nil, nil},
+	"net_unit":                         {i18n.KeyProductLabelNetUnit, nil, nil},
+	"note":                             {i18n.KeyAdminQueueStaffNote, nil, nil},
+	"number":                           {i18n.KeyFieldOrderNumber, nil, nil},
+	"operation":                        {i18n.KeyAuditFieldInvoiceOperation, nil, nil},
+	"option_value":                     {i18n.KeyAuditFieldImageOption, nil, nil},
+	"order_number":                     {i18n.KeyFieldOrderNumber, nil, nil},
+	"origin":                           {i18n.KeyProductLabelOrigin, nil, nil},
+	"origin_en":                        {i18n.KeyProductLabelOriginEn, nil, nil},
+	"parent":                           {i18n.KeyAuditFieldParentCategory, nil, nil},
+	"prefixes":                         {i18n.KeyAuditFieldPostalCodeCount, nil, nil},
+	"preorder_release_on":              {i18n.KeyAuditFieldExpectedArrival, nil, nil},
+	"previous_refund_id":               {i18n.KeyAuditFieldPreviousRefund, nil, nil},
+	"product":                          {i18n.KeyAdminColProduct, nil, nil},
+	"product_images.order":             {i18n.KeyAuditFieldImageOrder, nil, nil},
+	"product_option_values.value":      {i18n.KeyAuditFieldOptionValue, nil, nil},
+	"provider_ref":                     {i18n.KeyAdminHPColProviderRef, nil, nil},
+	"provider_status":                  {i18n.KeyAuditFieldProviderStatus, nil, nil},
+	"question":                         {i18n.KeyAdminFaqpQuestion, nil, nil},
+	"question_id":                      {i18n.KeyAuditFieldQuestionID, nil, nil},
+	"reason":                           {i18n.KeyAdminColReason, nil, nil},
+	"received":                         {i18n.KeyAuditFieldReceivedQuantity, nil, nil},
+	"recipients":                       {i18n.KeyAuditFieldNewsletterRecipients, nil, nil},
+	"replacement_operation":            {i18n.KeyAuditFieldReplacementOperation, nil, nil},
+	"request_key":                      {i18n.KeyAuditFieldRefundRequest, nil, nil},
+	"resend_authorizations":            {i18n.KeyAuditFieldResendAuthorizations, nil, nil},
+	"resolution":                       {i18n.KeyAuditFieldResolution, nil, nil},
+	"restocked":                        {i18n.KeyAuditFieldRestockedLines, nil, nil},
+	"return_request_id":                {i18n.KeyAuditFieldReturnRequest, nil, nil},
+	"return_requests.resolution":       {i18n.KeyAdminRetResolution, nil, nil},
+	"review_id":                        {i18n.KeyAuditFieldReviewID, nil, nil},
+	"role":                             {i18n.KeyAdminColRole, nil, nil},
+	"sku":                              {i18n.KeyAuditFieldSKU, nil, nil},
+	"slug":                             {i18n.KeyAdminColSlug, nil, nil},
+	"starts_at":                        {i18n.KeyAdminCampStarts, nil, nil},
+	"status":                           {i18n.KeyAdminColStatus, nil, nil},
+	"stock":                            {i18n.KeyAdminQueueStock, nil, nil},
+	"subject":                          {i18n.KeyAdminNewsSubject, nil, nil},
+	"tax_type":                         {i18n.KeyInvoiceTaxType, nil, nil},
+	"title":                            {i18n.KeyAdminCampTitle, nil, nil},
+	"title_en":                         {i18n.KeyAuditFieldCampaignTitleEn, nil, nil},
+	"tone":                             {i18n.KeyAdminColTone, nil, nil},
+	"tracking":                         {i18n.KeyAdminQueueTracking, nil, nil},
+	"version_id":                       {i18n.KeyAuditFieldDeliveryVersionID, nil, nil},
+	"warranty_months":                  {i18n.KeyAdminProdWarrantyMonths, nil, nil},
+	"zone_id":                          {i18n.KeyAuditFieldDeliveryZoneID, nil, nil},
 }
 
 func (e AuditEntry) field(key string) (auditField, bool) {
@@ -69,7 +159,12 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 	for _, c := range e.Changes {
 		f, ok := e.field(c.Field)
 		if !ok {
-			rows = append(rows, ReadableChange{Label: c.Field, Text: c.Text()})
+			// Staff need the exact unknown key to find its producer.
+			label := i18n.T(ctx, i18n.KeyAuditFieldDetails)
+			if c.Field != "" {
+				label = fmt.Sprintf(i18n.T(ctx, i18n.KeyAuditFieldUnknown), c.Field)
+			}
+			rows = append(rows, ReadableChange{Label: label, Text: c.Text()})
 			continue
 		}
 		row := ReadableChange{Label: i18n.T(ctx, f.label)}
