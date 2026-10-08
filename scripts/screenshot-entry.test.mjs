@@ -37,3 +37,20 @@ test('member on a path outside /account keeps the query out of the guarded prefi
   assert.equal(screenshotVisitor(parseEntry('/orders/GO-1?x=1@375@member', env)).prefix, '/orders/GO-1');
   assert.equal(screenshotVisitor(parseEntry('/account/orders/GO-1@375@member', env)).prefix, '/account');
 });
+
+
+test('delivery refusal requires the exact layout order and its staff visitor', () => {
+  const fixtures = { PLACED_ORDER: 'GO-1' };
+  const entry = parseEntry('/admin/orders/{PLACED_ORDER}@320@en@text200@delivery-refused', fixtures);
+  assert.equal(entry.deliveryRefused, true);
+  assert.equal(entry.lang, 'en');
+  assert.equal(entry.text200, true);
+  assert.equal(screenshotVisitor(entry).token, 'ADMIN_TOKEN');
+  assert.equal(parseEntry('/admin/orders/{PLACED_ORDER}@1440', fixtures).deliveryRefused, false);
+  for (const text of ['/admin/orders/other@320@delivery-refused',
+    '/admin/orders/GO-1/delivery@320@delivery-refused',
+    '/admin/orders/GO-1@320@delivery-refused@member']) {
+    assert.throws(() => parseEntry(text, fixtures));
+  }
+  assert.throws(() => parseEntry('/admin/orders/GO-1@320@delivery-refused', {}));
+});

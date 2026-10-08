@@ -25,6 +25,21 @@ var (
 		ZhHant: "我們已經收到你的訂單 %s。\n\n查看訂單：\n%s",
 		En:     "We have your order %s.\n\nView the order:\n%s",
 	})
+	KeyMailPlacedReceived = key("mail.placed.received", Message{ZhHant: "我們已經收到你的訂單 %s。", En: "We have your order %s."})
+	KeyMailPlacedLines    = key("mail.placed.lines", Message{ZhHant: "下單時的訂單內容：", En: "Order details at placement:"})
+	KeyMailPlacedLine     = key("mail.placed.line", Message{ZhHant: "商品編號：%s；%s × %s = %s", En: "SKU: %s; %s × %s = %s"})
+	KeyMailPlacedTotals   = key("mail.placed.totals", Message{ZhHant: "下單時的金額：", En: "Amounts at placement:"})
+	KeyMailPlacedFact     = key("mail.placed.fact", Message{ZhHant: "%s：%s", En: "%s: %s"})
+	KeyMailPlacedNote     = key("mail.placed.note", Message{ZhHant: "備註", En: "Your note"})
+	KeyMailPlacedDelivery = key("mail.placed.delivery", Message{ZhHant: "下單時的配送資料：", En: "Delivery details at placement:"})
+	KeyMailPlacedFunding  = key("mail.placed.funding", Message{ZhHant: "下單時的付款方式：", En: "Payment arrangement at placement:"})
+	KeyMailPlacedCard     = key("mail.placed.card", Message{ZhHant: "信用卡：尚須支付 %s。", En: "Credit card: %s remains payable."})
+	KeyMailPlacedMixed    = key("mail.placed.mixed", Message{ZhHant: "購物金已折抵 %s；信用卡尚須支付 %s。", En: "Store credit applied: %s. Credit card: %s remains payable."})
+	KeyMailPlacedCredit   = key("mail.placed.credit", Message{ZhHant: "已使用購物金支付 %s。", En: "Paid with store credit: %s."})
+	KeyMailPlacedZero     = key("mail.placed.zero", Message{ZhHant: "無須付款。", En: "No payment required."})
+	KeyMailPlacedDeadline = key("mail.placed.deadline", Message{ZhHant: "請在 %s 前開始付款。商品保留到 %s，逾時未付款，會自動取消訂單。時間以台灣時間為準。", En: "Start paying by %s. Your items are reserved until %s and the order is cancelled if it is still unpaid then. Times are Taiwan time."})
+	KeyMailPlacedExpired  = key("mail.placed.expired", Message{ZhHant: "開始付款的期限已過，請先查看訂單的目前狀態，再確認能否付款。原開始付款期限：%s；原商品保留期限：%s。時間以台灣時間為準。", En: "The deadline to start paying has passed. Check the order's current status before attempting payment. Original deadline to start paying: %s; your items were reserved until %s. Times are Taiwan time."})
+	KeyMailPlacedCurrent  = key("mail.placed.current", Message{ZhHant: "查看訂單的目前狀態：\n%s", En: "Check the order's current status:\n%s"})
 
 	// KeyMailStatutoryDisclosure carries Consumer Protection Act §18's disclosure.
 	// Under §19 III the seven-day window runs from the day after it is finally

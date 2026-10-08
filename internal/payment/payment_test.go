@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/payment"
@@ -19,6 +20,14 @@ const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec //
 // Event payloads keep the version they were created with, even after the
 // account and this binary move to a newer version.
 const legacyWebhookAPIVersion = "2022-11-15"
+
+func TestStartByUsesTheExistingStripeAdmissionWindow(t *testing.T) {
+	until := time.Date(2099, 1, 1, 1, 0, 0, 0, time.UTC)
+	want := time.Date(2099, 1, 1, 0, 29, 0, 0, time.UTC)
+	if got := payment.StartBy(until); !got.Equal(want) {
+		t.Errorf("StartBy(%s) = %s, want %s", until, got, want)
+	}
+}
 
 // signed produces a webhook body and header exactly as Stripe would sign them.
 func signed(t *testing.T, body any) (payload []byte, header string) {
@@ -532,26 +541,28 @@ func TestACompletedButUnpaidSessionIsReportedRatherThanIgnored(t *testing.T) {
 // defence against one order being charged twice: the same three inputs must
 // produce the same string, and the string must move when any of them does.
 func TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt(t *testing.T) {
+	order := uuid.MustParse("0b9d6f3e-2c4a-4e58-9a71-5d3f8e2b1c07")
+	other := uuid.MustParse("7f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0")
 	tests := []struct {
 		name    string
-		number  string
+		orderID uuid.UUID
 		owed    int64
 		attempt int32
 		want    string
 	}{
-		{"first attempt", "GO-20260804-0007", 199900, 0, "goen-pay:GO-20260804-0007:199900:0"},
-		{"another order", "GO-20260804-0008", 199900, 0, "goen-pay:GO-20260804-0008:199900:0"},
-		{"the order owes less", "GO-20260804-0007", 169900, 0, "goen-pay:GO-20260804-0007:169900:0"},
-		{"a second attempt", "GO-20260804-0007", 199900, 1, "goen-pay:GO-20260804-0007:199900:1"},
+		{"first attempt", order, 199900, 0, "goen-pay:0b9d6f3e-2c4a-4e58-9a71-5d3f8e2b1c07:199900:0"},
+		{"another order", other, 199900, 0, "goen-pay:7f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0:199900:0"},
+		{"the order owes less", order, 169900, 0, "goen-pay:0b9d6f3e-2c4a-4e58-9a71-5d3f8e2b1c07:169900:0"},
+		{"a second attempt", order, 199900, 1, "goen-pay:0b9d6f3e-2c4a-4e58-9a71-5d3f8e2b1c07:199900:1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := payment.SessionKey(tt.number, tt.owed, tt.attempt)
+			got := payment.SessionKey(tt.orderID, tt.owed, tt.attempt)
 			if got != tt.want {
-				t.Errorf("SessionKey(%q, %d, %d) = %q, want %q",
-					tt.number, tt.owed, tt.attempt, got, tt.want)
+				t.Errorf("SessionKey(%s, %d, %d) = %q, want %q",
+					tt.orderID, tt.owed, tt.attempt, got, tt.want)
 			}
-			if again := payment.SessionKey(tt.number, tt.owed, tt.attempt); again != got {
+			if again := payment.SessionKey(tt.orderID, tt.owed, tt.attempt); again != got {
 				t.Errorf("SessionKey is not stable: %q then %q — an idempotency key "+
 					"that changes per call idempotes nothing", got, again)
 			}
