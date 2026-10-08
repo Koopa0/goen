@@ -75,6 +75,7 @@ jobs:
           SELECT :'cust', id FROM products WHERE status = 'active' ORDER BY slug OFFSET 3 LIMIT 5
           ON CONFLICT DO NOTHING;
           SQL
+          psql "$GOEN_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "UPDATE sale_campaigns SET is_active = false WHERE slug = 'layout-campaign'"
           {
             echo "MULTI_VARIANT_SLUG=$(q "SELECT p.slug FROM products p JOIN product_variants v ON v.product_id = p.id AND v.is_active WHERE p.status = 'active' GROUP BY p.id HAVING count(*) > 1 AND bool_or(v.stock_quantity > v.safety_stock) ORDER BY p.slug LIMIT 1")"
             echo "CAMPAIGN_PRODUCT=$(q "SELECT p.slug FROM sale_campaign_products cp JOIN sale_campaigns c ON c.id = cp.campaign_id JOIN products p ON p.id = cp.product_id WHERE c.slug = 'layout-campaign' ORDER BY cp.position LIMIT 1")"
@@ -120,7 +121,7 @@ jobs:
           }
 
           serve payments-off || exit 1
-          CDP_PORT=9333 node scripts/probe-satisfaction.mjs admin shots || status=$?
+          CDP_PORT=9333 node scripts/probe-satisfaction.mjs compare-wish shots || status=$?
           stop
 
           ls shots | wc -l

@@ -284,6 +284,13 @@ async function admin() {
   }
 }
 
+async function compareWish() {
+  const compare = [env.PRODUCT_SLUG, env.COMPARE_SLUG_B, env.COMPARE_SLUG_C].filter(Boolean).map((s) => 'p=' + encodeURIComponent(s)).join('&');
+  await shot({ name: 'home-photographed', path: '/', state: 'a campaign with a photograph leads' });
+  await shot({ name: 'compare-three', path: `/compare?${compare}` });
+  await shot({ name: 'wishlist', path: '/account/wishlist', who: 'customer', state: 'with items' });
+}
+
 const key = (type, k, code, vk) => send('Input.dispatchKeyEvent', { type, key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
 
 async function flows() {
@@ -336,6 +343,7 @@ async function flows() {
 await open();
 if (mode === 'storefront') await storefront();
 else if (mode === 'admin') await admin();
+else if (mode === 'compare-wish') await compareWish();
 else if (mode === 'flows') await flows();
 else if (mode === 'pay') await pay();
 else throw new Error(`unknown mode ${mode}`);
