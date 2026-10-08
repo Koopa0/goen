@@ -19,7 +19,7 @@ func TestRecentOrderRowCarriesTheColourOfItsWord(t *testing.T) {
 		{"delivered", db.AdminCustomerOrdersRow{FulfillmentStatus: string(order.FulfillmentDelivered), Committed: true}, components.IntentDone},
 		{"waiting for payment", db.AdminCustomerOrdersRow{FulfillmentStatus: string(order.FulfillmentPending), OwedCents: 100}, components.IntentNeutral},
 	} {
-		if got := recentOrderRow(t.Context(), &tt.row).StatusIntent; got != tt.want {
+		if got := recentOrderRow(t.Context(), &tt.row, false).StatusIntent; got != tt.want {
 			t.Errorf("%s: intent %q, want %q", tt.name, got, tt.want)
 		}
 	}

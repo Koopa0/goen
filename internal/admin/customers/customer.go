@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -117,6 +119,15 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
+	numbers := make([]string, len(orders))
+	for i := range orders {
+		numbers[i] = orders[i].OrderNumber
+	}
+	returned, err := returnedOrderNumbers(ctx, q, numbers)
+	if err != nil {
+		return admin.CustomerView{}, fmt.Errorf("read returned customer orders: %v", err)
+	}
+
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
 	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(uid),
@@ -137,19 +148,54 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {
-		view.Recent = append(view.Recent, recentOrderRow(ctx, &orders[i]))
+		view.Recent = append(view.Recent, recentOrderRow(ctx, &orders[i], returned[orders[i].OrderNumber]))
 	}
 	return view, nil
 }
 
-func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow) admin.OrderRow {
+func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned bool) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
+	text := admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents)
+	intent := admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents)
+	if returned {
+		text, intent = i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
+	}
 	return admin.OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
-		StatusText:   admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-		StatusIntent: admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+		StatusText:   text,
+		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 	}
+}
+
+func returnedOrderNumbers(ctx context.Context, q *db.Queries, numbers []string) (map[string]bool, error) {
+	idsByNumber := make(map[string]uuid.UUID, len(numbers))
+	ids := make([]uuid.UUID, 0, len(numbers))
+	for _, number := range numbers {
+		if _, known := idsByNumber[number]; known {
+			continue
+		}
+		row, err := q.OrderIDByNumber(ctx, number)
+		if err != nil {
+			return nil, err
+		}
+		idsByNumber[number] = row.ID
+		ids = append(ids, row.ID)
+	}
+	out := make(map[string]bool)
+	if len(ids) == 0 {
+		return out, nil
+	}
+	returned, err := q.ReturnedOrders(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for number, id := range idsByNumber {
+		if slices.Contains(returned, id) {
+			out[number] = true
+		}
+	}
+	return out, nil
 }
