@@ -4,8 +4,8 @@ var (
 	KeyOrderPlaced = key("order.placed", Message{ZhHant: "訂單已送出", En: "Order placed"})
 
 	KeyOrderEmailNotice = key("order.email", Message{
-		ZhHant: "確認信將寄至 %s",
-		En:     "A confirmation is on its way to %s",
+		ZhHant: "確認信已寄至 %s",
+		En:     "We sent the confirmation to %s",
 	})
 
 	KeyOrderCancelled = key("order.cancelled.notice", Message{
@@ -199,7 +199,7 @@ var (
 
 	KeyStatusPaid = key("order.status.paid", Message{ZhHant: "付款完成", En: "Paid"})
 
-	KeyStatusPicking = key("order.status.picking", Message{ZhHant: "備貨中", En: "Being packed"})
+	KeyStatusPicking = key("order.status.picking", Message{ZhHant: "備貨中", En: "Packing"})
 
 	KeyStatusShipped = key("order.status.shipped", Message{ZhHant: "已出貨", En: "Dispatched"})
 
@@ -262,7 +262,7 @@ var (
 	})
 
 	KeyFindOrderSub = key("order.find.sub", Message{
-		ZhHant: "用訂單編號和下單時填的 Email 查詢。編號在確認信裡。",
+		ZhHant: "用訂單編號和下單時填的電子郵件查詢。編號在確認信裡。",
 		En: "Use the order number and the email address you gave at checkout. The number " +
 			"is in your confirmation email.",
 	})
@@ -277,7 +277,7 @@ var (
 	})
 
 	KeyFindOrderRefused = key("order.find.refused", Message{
-		ZhHant: "查不到符合的訂單。請確認訂單編號和 Email 都和確認信上的一樣。",
+		ZhHant: "查不到符合的訂單。請確認訂單編號和電子郵件都和確認信上的一樣。",
 		En: "No order matches those details. Check that the number and the address are " +
 			"both exactly as they appear in your confirmation email.",
 	})
@@ -288,7 +288,7 @@ var (
 	})
 
 	KeyPlacementGrantFailedBody = key("order.placement.grantfailed.body", Message{
-		ZhHant: "我們已收到這筆訂單，但無法在這個瀏覽器上完成存取。請勿再次下單。用確認信裡的訂單編號與 Email 到「查詢訂單」完成存取。",
+		ZhHant: "我們已收到這筆訂單，但無法在這個瀏覽器上完成存取。請勿再次下單。用確認信裡的訂單編號與電子郵件到「查詢訂單」完成存取。",
 		En: "We received your order, but could not set up access in this browser. Do not place " +
 			"another order. Use the order number and email from your confirmation to find it.",
 	})

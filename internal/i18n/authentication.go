@@ -14,7 +14,7 @@ var (
 	})
 
 	KeyOAuthState = key("auth.google.state", Message{
-		ZhHant: "這次登入和這個瀏覽器對不起來 —— 可能是等太久了。請重新開始。",
+		ZhHant: "登入等待太久，已經失效。請重新開始。",
 		En:     "That sign-in does not match this browser, which usually means it sat too long. Start again.",
 	})
 

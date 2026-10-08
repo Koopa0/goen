@@ -4,8 +4,8 @@ var (
 	KeyReturnTitle = key("returns.title", Message{ZhHant: "退貨申請", En: "Return request"})
 
 	KeyReturnSub = key("returns.sub", Message{
-		ZhHant: "可退貨的數量是「已出貨」的數量，扣掉先前已經申請過的部分。",
-		En:     "What can be returned is what SHIPPED, less anything already requested.",
+		ZhHant: "已經出貨、還沒申請退貨的商品，都可以在這裡申請。",
+		En:     "Anything that has shipped and is not already in a return can be returned here.",
 	})
 
 	KeyReturnHistory = key("returns.history", Message{ZhHant: "申請紀錄", En: "Previous requests"})

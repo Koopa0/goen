@@ -55,9 +55,8 @@ var (
 	})
 
 	KeyEmailUnverifiedHint = key("account.email.unverified.hint", Message{
-		ZhHant: "沒有確認過的信箱，我們無法確定通知信寄得到 —— 打錯一個字，你就什麼都收不到。",
-		En: "Without a confirmed address we cannot tell whether anything reaches you. One " +
-			"mistyped letter and nothing does.",
+		ZhHant: "確認過的電子郵件，才確定收得到訂單與出貨通知。",
+		En:     "Confirm your address so order and delivery emails are sure to reach you.",
 	})
 
 	KeyEmailResend = key("account.email.resend", Message{ZhHant: "重新寄確認信", En: "Send it again"})
