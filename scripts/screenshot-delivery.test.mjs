@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
-import { captureDeliveryRefusal, deliveryRefusalForm, deliveryRefusalPage, deliveryRefusalTarget, requireDeliveryRefusal } from './screenshot-delivery.mjs';
+import { captureDeliveryRefusal, deliveryRefusalForm, deliveryRefusalPage, deliveryRefusalTarget, requireDeliveryRefusal, deliveryRecoveryPage, recoverDeliveryBaseline } from './screenshot-delivery.mjs';
 
 const origin = 'http://127.0.0.1:9700';
 const path = '/admin/orders/GO-20261008-1234';
 const target = path + '/delivery';
 const order = 'GO-20261008-1234';
-const before = { draft: [{ name: 'recipient', value: ' Proposed <recipient> ' }], summary: ['Saved recipient'] };
+const before = { savedDraft: [{ name: 'recipient', value: 'Saved recipient' }], draft: [{ name: 'recipient', value: ' Proposed <recipient> ' }], summary: ['Saved recipient'] };
 const response = { method: 'POST', path: target, status: 422 };
 const page = (lang = 'en') => ({
   ...structuredClone(before), origin, finalPath: target, lang, visible: true, oppositeControl: false,
@@ -81,7 +81,9 @@ test('serialized browser recipe submits the real form with exactly one invalid o
   assert.equal(browser.submitted(), 1);
   assert.deepEqual(browser.appended, [{ type: 'hidden', name: 'pickup_store_code', value: '\x01' }]);
   assert.equal(submitted.draft.find((f) => f.name === 'recipient').value, ' Proposed <recipient> ');
-  assert.equal(JSON.stringify(submitted), JSON.stringify(baseline));
+  assert.equal(JSON.stringify(submitted.draft), JSON.stringify(baseline.draft));
+  assert.equal(JSON.stringify(submitted.summary), JSON.stringify(baseline.summary));
+  assert.equal(baseline.savedDraft.find((f) => f.name === 'recipient').value, 'saved recipient');
 });
 
 test('the browser recipe refuses the wrong baseline, pickup destination, invalid form or different action before submission', () => {
@@ -135,7 +137,7 @@ test('canonical CDP recipe binds the actual POST response and cleans up its obse
     return page();
   };
   const got = await captureDeliveryRefusal({ entry: { path, lang: 'en' }, placedOrder: order, origin, ws, evaluate });
-  assert.deepEqual(got, { state: 'delivery-refused', ...response, lead: page().lead, alert: page().alert });
+  assert.deepEqual(got, { state: 'delivery-refused', ...response, lead: page().lead, alert: page().alert, baseline: before });
   assert.equal(calls, 3);
   assert.equal(listeners, 0);
 });
@@ -168,4 +170,60 @@ test('the canonical observer rejects POST 303 to GET 422 even when Chrome retain
   };
   await assert.rejects(captureDeliveryRefusal({ entry: { path, lang: 'en' }, placedOrder: order, origin, ws, evaluate }), /redirected or changed/);
   assert.equal(calls, 2);
+});
+
+
+test('post-capture recovery reads the actual order GET and requires unchanged saved fields', async () => {
+  const recovered = { origin, path, status: 200, draft: before.savedDraft, summary: before.summary };
+  const navigated = [];
+  const navigate = async (url) => { navigated.push(url); };
+  const got = await recoverDeliveryBaseline({ entry: { path }, origin, baseline: before, navigate,
+    evaluate: async () => recovered });
+  assert.deepEqual(navigated, [origin + path]);
+  assert.deepEqual(got, { method: 'GET', path, status: 200, savedDeliveryUnchanged: true });
+  for (const delta of [{ path: '/signin' }, { origin: 'https://elsewhere.invalid' }, { status: 422 },
+    { draft: before.draft }, { summary: ['Proposed recipient'] }]) {
+    await assert.rejects(recoverDeliveryBaseline({ entry: { path }, origin, baseline: before, navigate,
+      evaluate: async () => ({ ...recovered, ...delta }) }), /unchanged saved delivery/);
+  }
+});
+
+
+test('missing production alert fails while preserving the actual POST status for the manifest', async () => {
+  const ws = new EventTarget();
+  let calls = 0;
+  const message = (method, params) => ws.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ method, params }) }));
+  await assert.rejects(captureDeliveryRefusal({ entry: { path, lang: 'en' }, placedOrder: order, origin, ws,
+    evaluate: async () => {
+      if (++calls === 1) return before;
+      if (calls === 2) {
+        message('Network.requestWillBeSent', { type: 'Document', requestId: 'actual', request: { method: 'POST', url: origin + target } });
+        message('Network.responseReceived', { type: 'Document', requestId: 'actual', response: { url: origin + target, status: 422 } });
+        message('Page.loadEventFired', {});
+        return before;
+      }
+      return { ...page(), lead: '', alert: '' };
+    } }), (error) => {
+      assert.match(error.message, /localized refusal/);
+      assert.deepEqual(error.capture, { status: 422, finalPath: target, refusal: { state: 'delivery-refused', ...response } });
+      return true;
+    });
+});
+
+
+test('serialized recovery reads saved controls without modifying or submitting them', () => {
+  let submitted = false;
+  const form = { method: 'post', action: origin + target,
+    elements: { namedItem: (name) => ({ value: 'saved ' + name }) },
+    requestSubmit: () => { submitted = true; } };
+  const document = { querySelectorAll: (selector) => selector === 'form' ? [form] : [{ textContent: 'Saved recipient' }] };
+  const after = vm.runInNewContext(`(${deliveryRecoveryPage.toString()})()`, {
+    document, location: { origin, href: origin + path, pathname: path, search: '' },
+    performance: { getEntriesByType: () => [{ responseStatus: 200 }] },
+  });
+  assert.equal(after.status, 200);
+  assert.equal(after.path, path);
+  assert.equal(after.draft[0].value, 'saved recipient');
+  assert.equal(after.draft.length, 7);
+  assert.equal(submitted, false);
 });

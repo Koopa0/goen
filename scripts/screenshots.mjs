@@ -42,7 +42,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { screenshotRouteMatches } from './screenshot-route.mjs';
 import { screenshotReflow } from './screenshot-reflow.mjs';
-import { captureDeliveryRefusal } from './screenshot-delivery.mjs';
+import { captureDeliveryRefusal, recoverDeliveryBaseline } from './screenshot-delivery.mjs';
 import { parseEntry, screenshotVisitor } from './screenshot-entry.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -58,7 +58,6 @@ if (!outDir || !['full', 'viewport'].includes(VIEW)) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 
 function slug(index, entry) {
   const name = entry.path.replace(/^\//, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/-$/, '') || 'home';
@@ -196,8 +195,16 @@ async function shoot(entry, file) {
   }
   const result = { ...facts, reflow, height: shotHeight, capped: shotHeight === CAP };
   if (refusal) {
-    result.refusal = refusal;
+    const { baseline, ...observed } = refusal;
+    result.refusal = observed;
     if (facts.status !== 422 || facts.finalPath !== refusal.path) result.error = 'delivery refusal document changed before capture';
+    else {
+      try {
+        result.refusal.recovery = await recoverDeliveryBaseline({ entry, origin: ORIGIN, baseline, navigate, evaluate });
+      } catch (e) {
+        result.error = e.message;
+      }
+    }
   } else if (facts.status >= 400) result.error = `answered ${facts.status}`;
   else if (visitor && !screenshotRouteMatches(entry.path, facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
   return result;
@@ -235,6 +242,7 @@ for (const [index, text] of entries.entries()) {
     }
     console.log(`${record.file} ${record.status} ${record.finalPath} h1=${JSON.stringify(record.h1)} scrollWidth=${record.scrollWidth} height=${record.height}`);
   } catch (e) {
+    if (e.capture) Object.assign(record, e.capture);
     record.error = e.message;
     failed++;
     console.error(`${text}: ${e.message}`);

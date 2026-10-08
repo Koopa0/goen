@@ -21,6 +21,7 @@ export function deliveryRefusalForm(path, submit = false) {
   }
   const summary = [...document.querySelectorAll('dd.ui-dl__desc')].map((e) => e.textContent.trim());
   if (!summary.length) throw new Error('the order has no saved delivery summary');
+  const savedDraft = names.map((name) => ({ name, value: form.elements.namedItem(name).value }));
   form.elements.namedItem('recipient').value = ' Proposed <recipient> ';
   if (!form.checkValidity()) throw new Error('the layout delivery form has another invalid control');
   const draft = names.map((name) => ({ name, value: form.elements.namedItem(name).value }));
@@ -32,7 +33,7 @@ export function deliveryRefusalForm(path, submit = false) {
     form.append(field);
     form.requestSubmit();
   }
-  return { draft, summary };
+  return { draft, savedDraft, summary };
 }
 
 export function deliveryRefusalPage() {
@@ -73,7 +74,7 @@ export function requireDeliveryRefusal(before, after, response, target, lang, or
 export async function captureDeliveryRefusal({ entry, placedOrder, origin, ws, evaluate }) {
   const target = deliveryRefusalTarget(entry.path, placedOrder);
   const before = await evaluate(`(${deliveryRefusalForm.toString()})(${JSON.stringify(entry.path)})`);
-  let requestID = '', loaded = false, response = null, observe, timer;
+  let requestID = '', loaded = false, response = null, observed = null, after = null, observe, timer;
   let resolve, reject;
   const completed = new Promise((yes, no) => { resolve = yes; reject = no; });
   // An evaluation can fail while the navigation deadline is still pending.
@@ -100,12 +101,42 @@ export async function captureDeliveryRefusal({ entry, placedOrder, origin, ws, e
   timer = setTimeout(() => reject(new Error('delivery-refused POST did not finish')), 15000);
   try {
     await evaluate(`(${deliveryRefusalForm.toString()})(${JSON.stringify(entry.path)}, true)`);
-    const observed = await completed;
-    const after = await evaluate(`(${deliveryRefusalPage.toString()})()`);
+    observed = await completed;
+    after = await evaluate(`(${deliveryRefusalPage.toString()})()`);
     requireDeliveryRefusal(before, after, observed, target, entry.lang, origin);
-    return { state: 'delivery-refused', ...observed, lead: after.lead, alert: after.alert };
+    return { state: 'delivery-refused', ...observed, lead: after.lead, alert: after.alert, baseline: before };
+  } catch (error) {
+    if (observed) error.capture = {
+      status: observed.status, finalPath: after?.finalPath || observed.path,
+      refusal: { state: 'delivery-refused', ...observed },
+    };
+    throw error;
   } finally {
     clearTimeout(timer);
     ws.removeEventListener('message', observe);
   }
+}
+
+export function deliveryRecoveryPage() {
+  const form = [...document.querySelectorAll('form')].find((f) =>
+    f.method.toLowerCase() === 'post' && f.action === location.href + '/delivery');
+  const names = ['recipient', 'phone', 'email', 'postal_code', 'city', 'district', 'street'];
+  return {
+    origin: location.origin,
+    path: location.pathname + location.search,
+    status: performance.getEntriesByType('navigation')[0]?.responseStatus || 0,
+    draft: names.map((name) => ({ name, value: form?.elements.namedItem(name)?.value ?? null })),
+    summary: [...document.querySelectorAll('dd.ui-dl__desc')].map((e) => e.textContent.trim()),
+  };
+}
+
+export async function recoverDeliveryBaseline({ entry, origin, baseline, navigate, evaluate }) {
+  await navigate(origin + entry.path);
+  const after = await evaluate(`(${deliveryRecoveryPage.toString()})()`);
+  if (after.origin !== origin || after.path !== entry.path || after.status !== 200 ||
+      JSON.stringify(after.draft) !== JSON.stringify(baseline.savedDraft) ||
+      JSON.stringify(after.summary) !== JSON.stringify(baseline.summary)) {
+    throw new Error('delivery-refused recovery did not restore the unchanged saved delivery');
+  }
+  return { method: 'GET', path: after.path, status: after.status, savedDeliveryUnchanged: true };
 }
