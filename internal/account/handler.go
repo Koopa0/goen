@@ -137,10 +137,9 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
-		view.PasswordFocus = true
 	case r.URL.Query().Get("reauth") == "erase":
 		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
-		view.HideRegister, view.PasswordFocus = true, true
+		view.HideRegister = true
 	default:
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 		switch r.URL.Query().Get("oauth") {
@@ -154,6 +153,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	if purpose == signInAfterReset && r.URL.Query().Get("reset") == "1" ||
 		purpose == signInBeforeErasure && r.URL.Query().Get("reauth") == "erase" {
 		view.Email = address
+		view.PasswordFocus = view.Email != ""
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.SignIn(pages.SignInMeta(r.Context()), view))
 }
@@ -289,7 +289,10 @@ func signInReturnMessage(ctx context.Context, next string) string {
 	case path.Path == "/account":
 		key = i18n.KeySignInReturnAccount
 	case strings.HasPrefix(path.Path, "/p/"):
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeySignInReturnProduct), i18n.T(ctx, i18n.KeyWishlistAdd))
+		if path.Fragment == "wishlist" {
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeySignInReturnProductWishlist), i18n.T(ctx, i18n.KeyWishlistAdd))
+		}
+		key = i18n.KeySignInReturnProduct
 	}
 	return i18n.T(ctx, key)
 }

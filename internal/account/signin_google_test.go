@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,21 +14,129 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-func TestSignInProductReturnDoesNotClaimTheHeartWasSaved(t *testing.T) {
+func TestSignInProductReturnNamesOnlyTheRequestedAction(t *testing.T) {
+	t.Parallel()
 	for _, locale := range i18n.Locales() {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		want := "To save it, press"
-		if locale == i18n.ZhHant {
-			want = "\u82e5\u8981\u52a0\u5165\u9858\u671b\u6e05\u55ae\uff0c\u8acb\u518d\u6309"
-		}
-		if got := signInReturnMessage(ctx, "/p/a-product?option=one"); !strings.Contains(got, want) || !strings.Contains(got, i18n.T(ctx, i18n.KeyWishlistAdd)) {
-			t.Errorf("product return omits the explicit wishlist action: %q", got)
-		}
-		if got := signInReturnMessage(ctx, "https://elsewhere.invalid/private-token"); got != "" {
-			t.Errorf("unsafe return exposes context: %q", got)
-		}
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			plain := "Please sign in. You will return to the product after signing in."
+			wishlist := "To save it, press"
+			if locale == i18n.ZhHant {
+				plain = "\u8acb\u5148\u767b\u5165\uff0c\u767b\u5165\u5f8c\u6703\u56de\u5230\u5546\u54c1\u9801\u3002"
+				wishlist = "\u82e5\u8981\u52a0\u5165\u9858\u671b\u6e05\u55ae\uff0c\u8acb\u518d\u6309"
+			}
+			for _, next := range []string{"/p/a-product", "/p/a-product?option=one", "/p/a-product#questions", "/p/a-product#reviews", "/p/a-product?intent=wishlist"} {
+				if got := signInReturnMessage(ctx, next); got != plain {
+					t.Errorf("signInReturnMessage(%q) = %q, want %q", next, got, plain)
+				}
+			}
+			for _, next := range []string{"/p/a-product#wishlist", "/p/a-product?option=one#wishlist"} {
+				if got := signInReturnMessage(ctx, next); !strings.Contains(got, wishlist) || !strings.Contains(got, i18n.T(ctx, i18n.KeyWishlistAdd)) {
+					t.Errorf("signInReturnMessage(%q) = %q, want the explicit wishlist action", next, got)
+				}
+			}
+			for _, next := range []string{"https://elsewhere.invalid/p/a-product#wishlist", "//elsewhere.invalid/p/a-product#wishlist"} {
+				if got := signInReturnMessage(ctx, next); got != "" {
+					t.Errorf("unsafe return exposes context: %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestProductSignInLinksPreserveTheirDistinctIntent(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			view := pages.ProductView{Slug: "a-product", Name: "Product", ReviewStanding: pages.ReviewSignedOut}
+			var body strings.Builder
+			if err := pages.Product(pages.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := html.Parse(strings.NewReader(body.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var targets []string
+			for node := range doc.Descendants() {
+				if node.Type != html.ElementNode || node.Data != "a" {
+					continue
+				}
+				for _, attr := range node.Attr {
+					if attr.Key != "href" || !strings.HasPrefix(attr.Val, "/signin?") {
+						continue
+					}
+					link, parseErr := url.Parse(attr.Val)
+					if parseErr != nil {
+						t.Fatal(parseErr)
+					}
+					next := link.Query().Get("next")
+					if !strings.HasPrefix(next, "/p/a-product") {
+						continue
+					}
+					targets = append(targets, next)
+					h := rateLimitedAccountHandler(deadAccountStore(t))
+					response := httptest.NewRecorder()
+					h.SignInPage(response, httptest.NewRequestWithContext(ctx, http.MethodGet, attr.Val, http.NoBody))
+					message := "Please sign in. You will return to the product after signing in."
+					if locale == i18n.ZhHant {
+						message = "\u8acb\u5148\u767b\u5165\uff0c\u767b\u5165\u5f8c\u6703\u56de\u5230\u5546\u54c1\u9801\u3002"
+					}
+					if strings.HasSuffix(next, "#wishlist") {
+						message = "To save it, press"
+						if locale == i18n.ZhHant {
+							message = "\u82e5\u8981\u52a0\u5165\u9858\u671b\u6e05\u55ae\uff0c\u8acb\u518d\u6309"
+						}
+					}
+					if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), message) {
+						t.Errorf("sign-in from %q did not render its return message", attr.Val)
+					}
+				}
+			}
+			slices.Sort(targets)
+			want := []string{"/p/a-product", "/p/a-product#questions", "/p/a-product#wishlist"}
+			if diff := cmp.Diff(want, targets); diff != "" {
+				t.Errorf("product sign-in destinations (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSignInWithoutAPrefillFocusesTheEmail(t *testing.T) {
+	t.Parallel()
+	for _, target := range []string{"/signin?reset=1", "/signin?reauth=erase"} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			h := rateLimitedAccountHandler(deadAccountStore(t))
+			response := httptest.NewRecorder()
+			h.SignInPage(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))
+			doc, err := html.Parse(strings.NewReader(response.Body.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var focused []string
+			for node := range doc.Descendants() {
+				if node.Type != html.ElementNode || node.Data != "input" {
+					continue
+				}
+				attrs := make(map[string]string)
+				for _, attr := range node.Attr {
+					attrs[attr.Key] = attr.Val
+				}
+				if _, ok := attrs["autofocus"]; ok {
+					focused = append(focused, attrs["id"])
+				}
+			}
+			if diff := cmp.Diff([]string{"email"}, focused); diff != "" {
+				t.Errorf("unprefilled sign-in focus (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
