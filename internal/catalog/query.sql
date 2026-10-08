@@ -781,6 +781,7 @@ SELECT
     NOT EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+          AND dv.stock_quantity > dv.safety_stock
     ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
@@ -847,7 +848,7 @@ JOIN LATERAL (
               AND stock_quantity > safety_stock) DESC,
              (stock_quantity > safety_stock) DESC,
              (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
-             price_cents
+             price_cents, id
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
