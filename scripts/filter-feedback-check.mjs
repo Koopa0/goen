@@ -655,7 +655,7 @@ async function searchSortJourney(connection, locale, width) {
       const actual = await state(index);
       const expectedLinks = await evaluate(`(async () => {
         const p = searchSortFeedbackCheck;
-        const response = await p.originalFetch('/search?q=pixelight&sort=price_asc');
+        const response = await p.originalFetch.call(window, '/search?q=pixelight&sort=price_asc');
         if (!response.ok) throw new Error('sort recovery reference failed: ' + response.status);
         return p.links(new DOMParser().parseFromString(await response.text(), 'text/html'));
       })()`);
@@ -683,7 +683,7 @@ async function searchSortJourney(connection, locale, width) {
       htmx.config.defaultTimeout = 15000;
       p.delayNext = true;
       window.fetch = (...args) => {
-        const outcome = p.originalFetch(...args).then(value => ({ value }), error => ({ error }));
+        const outcome = p.originalFetch.call(window, ...args).then(value => ({ value }), error => ({ error }));
         if (!p.delayNext) return outcome.then(result => { if (result.error) throw result.error; return result.value; });
         p.delayNext = false;
         return new Promise(resolve => { p.releaseOlder = resolve; }).then(async () => {
