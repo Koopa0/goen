@@ -3676,18 +3676,10 @@ input.goen-check {
   color: var(--n-900);
 }
 
-/* Under a department's head: the fact line on the tone's ground, the running campaign's
-   notice, and the one editorial the data chose. */
+/* A fact line on a head laid on a tone's ground takes the tone's text colours. */
 .goen-pagehead[data-tone] .ui-statline {
   margin-top: var(--s-3);
   color: var(--tone-text);
-}
-
-.goen-listing__head .ui-statline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3) var(--s-7);
-  margin-top: var(--s-2);
 }
 
 .goen-pagehead[data-tone] .ui-statline dd {
