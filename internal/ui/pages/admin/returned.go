@@ -53,15 +53,6 @@ func (p ReturnedProduct) Figure(ctx context.Context) string {
 	return p.Counts(ctx)
 }
 
-// TopReturned is the longest bar's scale.
-func (v *ReportView) TopReturned() int64 {
-	var top int64
-	for _, p := range v.Returned {
-		top = max(top, p.Returned)
-	}
-	return top
-}
-
 // ReturnedOne is the sentence that stands where a single product's bar would.
 func (v *ReportView) ReturnedOne(ctx context.Context) string {
 	p := v.Returned[0]

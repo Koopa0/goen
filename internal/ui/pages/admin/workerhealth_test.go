@@ -371,3 +371,47 @@ func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
 		})
 	}
 }
+
+// TestHealthKeepsMachineCodesInsideTechnicalDetails: the claim's kind and
+// status read in the page's language, and the raw error category and event
+// reason appear only inside a closed <details>, for whoever matches the log.
+func TestHealthKeepsMachineCodesInsideTechnicalDetails(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := &WorkerHealthView{
+		StrandedClaims: []StrandedClaim{{
+			Operation: "0199aaaa-0000-7000-8000-000000000001", OrderNumber: "GO-261004-000001",
+			Kind: "allowance", Status: "attention", LastError: "allowance_multiple_unknown_candidates",
+		}},
+		UnreconciledEvents: []UnreconciledEvent{{
+			EventID: "evt_1", Type: "checkout.session.completed", Ref: "cs_test_1",
+			Reason: "cancelled_order_capture: money arrived",
+		}},
+	}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	outside := html
+	for {
+		before, rest, found := strings.Cut(outside, "<details")
+		if !found {
+			break
+		}
+		_, after, _ := strings.Cut(rest, "</details>")
+		outside = before + after
+	}
+	for _, code := range []string{"allowance_multiple_unknown_candidates", "cancelled_order_capture", ">allowance<", ">attention<"} {
+		if strings.Contains(outside, code) {
+			t.Errorf("Health prints %q outside a technical-details disclosure", code)
+		}
+		if strings.HasPrefix(code, ">") {
+			continue
+		}
+		if !strings.Contains(html, "<code>"+code) {
+			t.Errorf("Health does not keep %q for the developer inside the disclosure", code)
+		}
+	}
+	for _, key := range []i18n.Key{i18n.KeyAuditInvoiceAllowance, i18n.KeyAdminTimelineInvoiceAttention} {
+		if !strings.Contains(outside, i18n.T(ctx, key)) {
+			t.Errorf("Health does not say %q in the claim's row", i18n.T(ctx, key))
+		}
+	}
+}

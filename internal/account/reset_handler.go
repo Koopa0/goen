@@ -20,7 +20,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1"}
 	if r.URL.Query().Get("demo") == "fixed" {
-		view.Notice = i18n.T(r.Context(), i18n.KeyDemoAccountFixed)
+		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Forgot(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
@@ -83,9 +83,10 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.CompleteReset(r.Context(), token, password)
+	address, err := h.store.CompleteReset(r.Context(), token, password)
 	switch {
 	case err == nil:
+		h.writeSignInContext(w, signInAfterReset, address)
 		http.Redirect(w, r, "/signin?reset=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidPassword):
 		errs := FieldMessages(r.Context(), []web.FieldRefusal{

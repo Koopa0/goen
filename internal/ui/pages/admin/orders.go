@@ -578,8 +578,10 @@ func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)
 	case invoice.CategorySuccessMismatch:
 		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)
+	case invoice.CategoryMultipleCandidates:
+		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention), v.AllowanceAttention)
+	return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention)
 }
 
 // AllowanceAmount is display only; no amount is posted back to the server.

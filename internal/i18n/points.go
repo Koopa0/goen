@@ -34,7 +34,7 @@ var (
 	})
 
 	KeyPointsRule = key("points.rule", Message{
-		ZhHant: "最少 %s 點，而且要是 %s 的整數倍 —— 換不完的點數會留著。",
+		ZhHant: "最少 %s 點，每次以 %s為單位兌換；換不完的點數會留著。",
 		En: "At least %s points, in whole multiples of %s. Whatever is left over stays " +
 			"on your account.",
 	})
@@ -50,6 +50,8 @@ var (
 		ZhHant: "還沒有任何點數紀錄。完成一筆訂單就會開始累積。",
 		En:     "No points yet. They start accumulating with your first completed order.",
 	})
+
+	KeyPointsAmount = key("points.amount", Message{ZhHant: "%s 點", En: "%s points"})
 
 	KeyPointsRate = key("points.rate", Message{ZhHant: "%s 點 = NT$1", En: "%s points = NT$1"})
 
@@ -103,7 +105,7 @@ var (
 	})
 
 	KeyPointsShort = key("points.notice.short", Message{
-		ZhHant: "點數不夠 —— 可能剛剛有一筆到期了。",
+		ZhHant: "點數不夠，可能剛好有點數到期了。",
 		En:     "Not enough points — some may have just expired.",
 	})
 )
