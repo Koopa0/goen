@@ -14,22 +14,18 @@ var (
 	})
 
 	KeyOAuthState = key("auth.google.state", Message{
-		ZhHant: "這次登入和這個瀏覽器對不起來 —— 可能是等太久了。請重新開始。",
+		ZhHant: "這次登入和這個瀏覽器對不上，通常是等太久了。請重新開始。",
 		En:     "That sign-in does not match this browser, which usually means it sat too long. Start again.",
 	})
 
 	KeyOAuthUnverified = key("auth.google.unverified", Message{
-		ZhHant: "Google 沒有驗證這個帳號的信箱，所以我們無法用它來登入。請用密碼註冊或登入。",
-		En: "Google has not verified that account's email address, so we cannot sign you in with it. " +
-			"Register or sign in with a password instead.",
+		ZhHant: "Google 還沒有驗證這個電子郵件地址，請改用密碼註冊。",
+		En:     "Google has not verified this email address. Create an account with a password instead.",
 	})
 
 	KeyOAuthCollision = key("auth.google.collision", Message{
-		ZhHant: "這個信箱已經有一個 goen 帳號，而且還沒完成信箱驗證，所以不能直接綁定 Google。" +
-			"請用「忘記密碼」收信重設，設定完成後就可以再綁定。",
-		En: "That address already has a goen account which has not been verified, so we cannot link " +
-			"Google to it yet. Use \u0022forgot password\u0022 — the mail goes to the address you just " +
-			"proved you read — and link Google afterwards.",
+		ZhHant: "這個電子郵件地址的 goen 帳號還沒完成驗證，請先重設密碼，再連結 Google。",
+		En:     "The goen account at this address is not verified. Reset its password before linking Google.",
 	})
 
 	KeyRegister = key("auth.register", Message{ZhHant: "註冊", En: "Register"})
@@ -71,9 +67,9 @@ var (
 		En:     "At least 10 characters. Changing it signs you out everywhere.",
 	})
 
-	KeyNoAccountYet = key("auth.noaccount", Message{ZhHant: "還沒有帳號？", En: "No account yet?"})
+	KeyNoAccountYet = key("auth.noaccount", Message{ZhHant: "還沒有帳號？", En: "New here?"})
 
-	KeyNoAccountLink = key("auth.noaccount.link", Message{ZhHant: "建立一個", En: "Create one"})
+	KeyNoAccountLink = key("auth.noaccount.link", Message{ZhHant: "註冊", En: "Create an account"})
 
 	KeyHaveAccount = key("auth.haveaccount", Message{ZhHant: "已經有帳號了？", En: "Already registered?"})
 
@@ -202,11 +198,6 @@ var (
 		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
 	})
 
-	KeyAccountCreated = key("auth.created", Message{
-		ZhHant: "帳號已建立，請登入。",
-		En:     "Your account is created. Sign in to continue.",
-	})
-
 	KeyPasswordReset = key("auth.reset.done", Message{
 		ZhHant: "密碼已重設，請用新密碼登入。",
 		En:     "Your password is reset. Sign in with the new one.",
@@ -228,4 +219,13 @@ var (
 		ZhHant: "為了保護你的帳號，刪除帳號前請重新登入。",
 		En:     "To protect your account, sign in again before deleting it.",
 	})
+	KeySignInReturnWishlist        = key("auth.return.wishlist", Message{ZhHant: "請先登入，登入後會回到願望清單。", En: "Please sign in. You will return to your wishlist after signing in."})
+	KeySignInReturnAccount         = key("auth.return.account", Message{ZhHant: "請先登入，登入後會回到會員中心。", En: "Please sign in. You will return to your account after signing in."})
+	KeySignInReturnCheckout        = key("auth.return.checkout", Message{ZhHant: "請先登入，登入後會回到結帳。", En: "Please sign in. You will return to checkout after signing in."})
+	KeySignInReturnCart            = key("auth.return.cart", Message{ZhHant: "請先登入，登入後會回到購物車。", En: "Please sign in. You will return to your cart after signing in."})
+	KeySignInReturnProduct         = key("auth.return.product", Message{ZhHant: "請先登入，登入後會回到商品頁。", En: "Please sign in. You will return to the product after signing in."})
+	KeySignInReturnProductWishlist = key("auth.return.product.wishlist", Message{ZhHant: "請先登入，登入後會回到商品頁。若要加入願望清單，請再按「%s」。", En: "Please sign in to return to the product. To save it, press “%s” afterwards."})
+	KeySignInReturnPage            = key("auth.return.page", Message{ZhHant: "請先登入，登入後會回到你剛剛開啟的頁面。", En: "Please sign in. You will return to the page you opened after signing in."})
+	KeyDemoSignInPassword          = key("auth.demo.password", Message{ZhHant: "示範帳號只能用帳號密碼登入。", En: "Sign in to the demo account with its email address and password."})
+	KeyDemoPasswordNoReset         = key("auth.demo.reset", Message{ZhHant: "示範帳號的密碼不能重設。", En: "The demo account password cannot be reset."})
 )

@@ -38,7 +38,7 @@ var (
 
 	KeyShippingZoneSurcharge = key("shipping.zonesurcharge", Message{
 		ZhHant: "%s 另加 %s",
-		En:     "%s costs %s extra",
+		En:     "%s: %s extra",
 	})
 
 	KeyListSeparator = key("common.listseparator", Message{

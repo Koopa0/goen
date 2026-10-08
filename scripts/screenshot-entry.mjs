@@ -6,7 +6,7 @@ const fixtureName = /^(\w+_SLUG|\w+_ORDER|PICKUP_SHIP|CUSTOMER_ID|LAYOUT_SERIAL)
 
 export function parseEntry(text, env) {
   const [path, width, ...flags] = text.split('@');
-  const entry = { text, path, width: Number(width), lang: 'zh-Hant', text200: false, forced: false, member: false, deliveryRefused: false };
+  const entry = { text, path, width: Number(width), lang: 'zh-Hant', text200: false, forced: false, member: false, deliveryRefused: false, noscript: false };
   if (!path.startsWith('/') || !(entry.width >= 200 && entry.width <= 4000)) {
     throw new Error('want path@width, e.g. /deals@375');
   }
@@ -17,6 +17,7 @@ export function parseEntry(text, env) {
     else if (flag === 'forced') entry.forced = true;
     else if (flag === 'member') entry.member = true;
     else if (flag === 'delivery-refused') entry.deliveryRefused = true;
+    else if (flag === 'noscript') entry.noscript = true;
     else throw new Error(`unknown flag ${JSON.stringify(flag)}`);
   }
   entry.path = path.replace(/\{(\w+)\}/g, (_, name) => {

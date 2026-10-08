@@ -19,6 +19,12 @@ test('member is a flag and is off by default', () => {
   assert.equal(parseEntry('/orders/{RETURN_FORM_ORDER}@375', env).member, false);
 });
 
+test('noscript is a flag and is off by default', () => {
+  assert.equal(parseEntry('/cart@375@noscript', env).noscript, true);
+  assert.equal(parseEntry('/cart@375@en@member@noscript', env).noscript, true);
+  assert.equal(parseEntry('/cart@375', env).noscript, false);
+});
+
 test('a guest placer cookie is the default for /orders and the customer session with member', () => {
   const guest = screenshotVisitor(parseEntry('/orders/GO-1/return@375', env));
   assert.deepEqual([guest.cookie, guest.token], ['goen_placed', 'PLACED_TOKEN']);

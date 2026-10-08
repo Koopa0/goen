@@ -135,7 +135,7 @@ func TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor(t *tes
 	}
 	page := httptest.NewRecorder()
 	h.ForgotPage(page, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/forgot?demo=fixed", http.NoBody))
-	if want := i18n.T(t.Context(), i18n.KeyDemoAccountFixed); !strings.Contains(page.Body.String(), want) {
+	if want := i18n.T(t.Context(), i18n.KeyDemoPasswordNoReset); !strings.Contains(page.Body.String(), want) {
 		t.Errorf("the forgot page after a refusal does not say %q", want)
 	}
 }
@@ -177,7 +177,7 @@ func TestGoogleIsNeverLinkedToTheDemoAccount(t *testing.T) {
 	if loc := res.Header().Get("Location"); loc != "/signin?oauth=demo" {
 		t.Fatalf("a Google sign-in at the demo address lands at %q, want /signin?oauth=demo", loc)
 	}
-	if got, want := oauthOutcome(t.Context(), "demo")["form"], i18n.T(t.Context(), i18n.KeyDemoAccountFixed); got != want {
+	if got, want := oauthOutcome(t.Context(), "demo")["oauth"], i18n.T(t.Context(), i18n.KeyDemoSignInPassword); got != want {
 		t.Errorf("the sign-in page says %q, want %q", got, want)
 	}
 }

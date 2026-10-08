@@ -44,8 +44,13 @@ var (
 	})
 
 	KeyAdminQueueAllowanceAttention = key("admin.queue.allowance.attention", Message{
-		ZhHant: "這筆折讓需要人工確認（%s）。",
-		En:     "This credit note needs a person (%s).",
+		ZhHant: "這筆折讓需要人工確認。",
+		En:     "This credit note needs a person to check it.",
+	})
+
+	KeyAdminQueueAllowanceCandidates = key("admin.queue.allowance.candidates", Message{
+		ZhHant: "這筆折讓有不只一筆可能對應的紀錄，請到綠界確認。",
+		En:     "More than one record at ECPay could be this credit note. Please check it there.",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{

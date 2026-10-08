@@ -970,7 +970,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										<div class="goen-order__stepbody">
 											<p class="goen-order__steplabel">{ i18n.T(ctx, e.LabelKey()) }</p>
 											<p class="goen-order__meta"><time datetime={ e.Datetime() }>{ e.Stamp(ctx) }</time></p>
-											if e.Note != "" {
+											if e.ShowsNote() {
 												<p class="goen-order__meta">{ e.Note }</p>
 											}
 										</div>
