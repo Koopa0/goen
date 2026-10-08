@@ -9,8 +9,6 @@ var (
 
 	KeyHome = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
-	KeyDeptBrands = key("dept.brands", Message{ZhHant: "品牌", En: "Brands"})
-
 	KeyDeptCompareTitle = key("dept.compare.title", Message{ZhHant: "把規格擺在一起", En: "Specifications, side by side"})
 
 	// The colours' names joined into the story's title.
