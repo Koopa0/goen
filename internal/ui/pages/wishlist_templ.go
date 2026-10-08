@@ -382,7 +382,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -414,7 +414,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

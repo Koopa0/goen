@@ -367,12 +367,156 @@ async function journey(connection, locale, width) {
   }
 }
 
+async function searchSortJourney(connection, locale, width) {
+  const { browserContextId } = await connection.send('Target.createBrowserContext', { disposeOnDetach: true });
+  let targetId;
+  try {
+    ({ targetId } = await connection.send('Target.createTarget', { url: 'about:blank', browserContextId }));
+    const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
+    const send = (method, params) => connection.send(method, params, sessionId);
+    const evaluate = async (expression) => {
+      const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+      return result.result.value;
+    };
+    await send('Page.enable');
+    await send('Network.enable');
+    await send('Network.setCacheDisabled', { cacheDisabled: true });
+    await send('Network.setCookie', { name: 'goen_locale', value: locale, url: origin + '/' });
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    for (const changes of [2, 3]) {
+      await send('Page.navigate', { url: origin + '/search?q=pixelight' });
+      const deadline = Date.now() + 15000;
+      while (!await evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-search-sort')?._htmx?.initialized`)) {
+        if (Date.now() >= deadline) throw new Error('search sort did not initialize');
+        await delay(20);
+      }
+      assert.equal(await evaluate('document.documentElement.lang'), locale);
+      const result = await evaluate(`(async () => {
+        const form = document.querySelector('.goen-search-sort');
+        const select = form.querySelector('select[name=sort]');
+        const before = document.getElementById('search-results');
+        if (!select || !before) throw new Error('search sort landmarks missing');
+        const originalFetch = window.fetch;
+        const links = root => [...root.querySelectorAll('#search-results a.goen-tile')].map(a => a.getAttribute('href'));
+        const reference = async sort => {
+          const response = await originalFetch('/search?q=pixelight&sort=' + sort);
+          if (!response.ok) throw new Error('sort reference returned ' + response.status);
+          return links(new DOMParser().parseFromString(await response.text(), 'text/html'));
+        };
+        const ascending = await reference('price_asc');
+        const descending = await reference('price_desc');
+        if (ascending.length < 2 || JSON.stringify(ascending) === JSON.stringify(descending)) {
+          throw new Error('search fixture must distinguish price ordering');
+        }
+        const contexts = [], fetched = [], finished = new Set();
+        let staleApplied = false;
+        const belongs = event => event.detail?.ctx?.request?.form === form;
+        const started = event => { if (belongs(event)) contexts.push(event.detail.ctx); };
+        const ended = event => { if (belongs(event)) finished.add(event.detail.ctx); };
+        const applied = event => {
+          if (belongs(event) && event.detail.ctx !== contexts[${changes - 1}] && !event.defaultPrevented) staleApplied = true;
+        };
+        document.addEventListener('htmx:before:request', started);
+        document.addEventListener('htmx:finally:request', ended);
+        document.addEventListener('htmx:after:request', applied);
+        // Hold response delivery, including abort rejection, until the next
+        // request owns the queue. Network responses still come from the server.
+        window.fetch = (...args) => {
+          let release;
+          const gate = new Promise(resolve => { release = resolve; });
+          const outcome = originalFetch(...args).then(value => ({ value }), error => ({ error }));
+          const signal = args[1].signal;
+          fetched.push({ ctx: contexts.at(-1), signal, release });
+          return gate.then(async () => {
+            const response = await outcome;
+            if (signal.aborted) throw new DOMException('Superseded sort', 'AbortError');
+            if (response.error) throw response.error;
+            return response.value;
+          });
+        };
+        const waitFor = async (predicate, why) => {
+          const deadline = Date.now() + 15000;
+          while (!predicate()) {
+            if (Date.now() >= deadline) throw new Error(why);
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        };
+        const change = async value => {
+          const index = contexts.length;
+          select.value = value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          await waitFor(() => contexts.length > index, 'sort request did not reach before-request');
+          await new Promise(resolve => setTimeout(resolve, 0));
+          return contexts[index];
+        };
+        try {
+          const first = await change('price_asc');
+          const second = await change('price_desc');
+          if (fetched.length !== 2) return { fetchedCount: fetched.length, expectedFetches: ${changes} };
+          fetched[0].release();
+          await waitFor(() => finished.has(first), 'superseded first sort did not finish');
+          if (${changes} === 3) await change('price_asc');
+          if (fetched.length !== ${changes}) return { fetchedCount: fetched.length, expectedFetches: ${changes} };
+          const pendingBeforeLatest = form.getAttribute('aria-busy') === 'true';
+          const latest = contexts.at(-1);
+          fetched.at(-1).release();
+          await waitFor(() => finished.has(latest), 'latest sort did not finish');
+          // Releasing B after C exposes any late swap or history update.
+          if (${changes} === 3) {
+            fetched[1].release();
+            await waitFor(() => finished.has(second), 'superseded second sort did not finish');
+          }
+          const expected = ${changes} === 3 ? ascending : descending;
+          const sort = ${changes} === 3 ? 'price_asc' : 'price_desc';
+          const url = new URL(location.href);
+          const actual = links(document);
+          return {
+            fetchedCount: fetched.length, expectedFetches: ${changes},
+            supersededAborted: fetched.slice(0, -1).every(request => request.signal.aborted),
+            staleApplied, pendingBeforeLatest,
+            resultOrdering: JSON.stringify(actual) === JSON.stringify(expected),
+            urlAndSelection: url.searchParams.get('q') === 'pixelight' && url.searchParams.get('sort') === sort && select.value === sort,
+            replaced: document.getElementById('search-results') !== before,
+            cleared: !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') !== 'true' && !form.querySelector('[aria-disabled="true"]'),
+            actual, expected, href: location.href,
+          };
+        } finally {
+          for (const request of fetched) request.release();
+          window.fetch = originalFetch;
+          document.removeEventListener('htmx:before:request', started);
+          document.removeEventListener('htmx:finally:request', ended);
+          document.removeEventListener('htmx:after:request', applied);
+        }
+      })()`);
+      const expected = { fetchedCount: changes, supersededAborted: true, staleApplied: false, pendingBeforeLatest: true, resultOrdering: true, urlAndSelection: true, replaced: true, cleared: true };
+      const differences = Object.entries(expected).filter(([key, value]) => result[key] !== value)
+        .map(([key, value]) => key + ' = ' + JSON.stringify(result[key]) + ', want ' + JSON.stringify(value));
+      const label = `search sort / ${locale} / ${width} / ${changes} changes`;
+      if (differences.length) {
+        const failure = label + ': ' + differences.join('; ') + '; state = ' + JSON.stringify(result);
+        failures.push(failure);
+        console.error('FAIL ' + failure);
+      } else console.log('PASS ' + label + ': ' + JSON.stringify(result));
+    }
+  } finally {
+    try {
+      if (targetId) await connection.send('Target.closeTarget', { targetId });
+    } finally {
+      await connection.send('Target.disposeBrowserContext', { browserContextId });
+    }
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const version = await waitForDebuggingEndpoint(debugging + '/json/version');
   const connection = await Connection.open(version.webSocketDebuggerUrl);
   try {
     for (const locale of ['zh-Hant', 'en']) {
-      for (const width of [375, 1440]) await journey(connection, locale, width);
+      for (const width of [375, 1440]) {
+        await journey(connection, locale, width);
+        await searchSortJourney(connection, locale, width);
+      }
     }
   } finally {
     connection.close();

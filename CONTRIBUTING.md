@@ -80,6 +80,12 @@ newer, `curl`, `openssl`, network access to fetch axe-core, Chrome or Chromium
 (set `CHROME` when it is not found) and a running server: `make run` in one
 shell, `make check-layout` in another. CI runs it as the `layout` job.
 
+To look at pages rather than measure them, run the `screenshots` workflow by
+hand: `gh workflow run screenshots.yml --ref <branch> -f pages='/deals@375'`
+shoots that branch, which has to contain the workflow (merge `main` into an older
+one). The entry syntax is at the top of `scripts/screenshots.mjs`; fetch the
+result with `gh run download <run id> -n screenshots`.
+
 goen targets WCAG 2.2 level AA. The pinned axe rules select `wcag2a`, `wcag2aa`,
 `wcag21a`, `wcag21aa` and `wcag22aa`; serious or critical WCAG findings gate,
 while best-practice findings remain advisory. `scripts/axe-baseline.json`

@@ -16622,7 +16622,14 @@ SELECT DISTINCT ON (sm.id)
     localized_name(v.name, v.name_en, $1::text) AS name,
     coalesce(localized_name(v.carrier, v.carrier_en, $1::text), '')::text AS carrier,
     v.fee_cents,
-    v.free_over_cents
+    v.free_over_cents,
+    coalesce(
+        (SELECT array_agg(localized_name(z.name, z.name_en, $1::text) ORDER BY z.position, z.id)
+         FROM shipping_version_zones vz
+         JOIN shipping_zones z ON z.id = vz.zone_id
+         WHERE vz.version_id = v.id),
+        ARRAY[]::text[]
+    )::text[] AS surcharge_zones
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
@@ -16653,6 +16660,7 @@ type ShippingChoicesRow struct {
 	Carrier         string
 	FeeCents        int64
 	FreeOverCents   pgtype.Int8
+	SurchargeZones  []string
 }
 
 // Each method's newest version, offered only for a cart its carrier will take.
@@ -16675,6 +16683,7 @@ func (q *Queries) ShippingChoices(ctx context.Context, arg ShippingChoicesParams
 			&i.Carrier,
 			&i.FeeCents,
 			&i.FreeOverCents,
+			&i.SurchargeZones,
 		); err != nil {
 			return nil, err
 		}

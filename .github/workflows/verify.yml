@@ -87,9 +87,9 @@ jobs:
           version=$(awk -F':= *' '$1 ~ /^SQUAWK_VERSION/ { print $2; exit }' Makefile)
           npm install -g "squawk-cli@$version"
 
-      # Everything that needs neither Docker nor the network beyond the module
-      # cache. Runs first so an ordinary mistake is reported in a minute rather
-      # than after the container work.
+      # make verify includes demo-restore-check, which requires Docker in CI
+      # and may pull the compose PostgreSQL image before checking the restored
+      # database's ownership. The schema and browser suites run in separate jobs.
       - name: Verify
         run: make verify
 

@@ -102,9 +102,16 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 		return pages.FreeDelivery{}
 	}
 	var allFreeAt, namedAt int64
+	var zones []string
 	reached := true
-	for _, c := range choices {
+	for i := range choices {
+		c := &choices[i]
 		namedAt = max(namedAt, c.FreeOverCents)
+		for _, z := range c.SurchargeZones {
+			if !slices.Contains(zones, z) {
+				zones = append(zones, z)
+			}
+		}
 		if c.Free {
 			continue
 		}
@@ -115,7 +122,7 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 		allFreeAt = max(allFreeAt, c.FreeOverCents)
 	}
 	if reached {
-		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: namedAt}
+		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: namedAt, SurchargeZones: zones}
 	}
 	return pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents, ThresholdCents: allFreeAt}
 }
