@@ -2639,6 +2639,7 @@ th {
   --tiles-gap-x: 1rem;
   display: grid;
   gap: 2.5rem var(--tiles-gap-x);
+  column-gap: 1.5rem;
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
   grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
