@@ -109,11 +109,14 @@ const setup = `(() => {
   const shell = document.querySelector('.goen-filters__shell');
   if (shell) shell.open = true;
   const probe = window.filterFeedbackCheck = {
-    box, form, note, requests: [], finished: new Set(),
+    box, form, note, requests: [], finished: new Set(), snapshots: new WeakMap(),
     message: note.textContent.trim(), timeout: htmx.config.defaultTimeout,
   };
   document.addEventListener('htmx:before:request', ({ detail }) => {
-    if (detail.ctx?.request?.form === form) probe.requests.push(detail.ctx);
+    if (detail.ctx?.request?.form === form) {
+      probe.requests.push(detail.ctx);
+      probe.snapshots.set(detail.ctx, probe.nextSnapshot);
+    }
   });
   document.addEventListener('htmx:finally:request', ({ detail }) => {
     if (detail.ctx?.request?.form === form) probe.finished.add(detail.ctx);
@@ -153,7 +156,16 @@ async function journey(connection, locale, width) {
       assert.equal(new URL(request.url).pathname, '/c/audio');
       assert.equal(request.headers['HX-Request'] || request.headers['hx-request'], 'true');
       if (mode === 'reject') await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionClosed' });
-      else if (mode === 'http') await send('Fetch.fulfillRequest', { requestId, responseCode: 500, body: '' });
+      else if (mode === 'http') {
+        const canonical = new URL(request.url);
+        for (const [name, value] of [...canonical.searchParams]) {
+          if (value === '') canonical.searchParams.delete(name);
+        }
+        await send('Fetch.fulfillRequest', {
+          requestId, responseCode: 500, body: '',
+          responseHeaders: [{ name: 'HX-Push-Url', value: canonical.pathname + canonical.search }],
+        });
+      }
       else if (mode === 'hold' || mode === 'timeout') held.set(requestId, { networkId, url: request.url });
       else await send('Fetch.continueRequest', { requestId });
     };
@@ -184,15 +196,15 @@ async function journey(connection, locale, width) {
     };
     await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/c/audio*', resourceType: 'Fetch', requestStage: 'Request' }] });
     await load();
-    const change = async () => {
+    const change = async (minPrice) => {
       if (protocolFailure) throw protocolFailure;
       const index = await evaluate(`(() => {
         const p = window.filterFeedbackCheck;
-        p.before = document.getElementById('listing-results');
-        p.markup = p.before.innerHTML;
-        p.url = location.href;
-        p.checked = p.box.checked;
+        const before = document.getElementById('listing-results');
+        p.nextSnapshot = { before, markup: before.innerHTML, url: location.href, checked: p.box.checked };
         const index = p.requests.length;
+        const minPrice = ${JSON.stringify(minPrice ?? null)};
+        if (minPrice !== null) p.form.elements.namedItem('min_price').value = String(minPrice);
         p.box.closest('details').open = true; p.box.focus(); p.box.click();
         return index;
       })()`);
@@ -202,25 +214,42 @@ async function journey(connection, locale, width) {
     const finished = (index) => waitFor(() => evaluate(`filterFeedbackCheck.finished.has(filterFeedbackCheck.requests[${index}])`), 'filter request did not finish');
     const state = (index) => evaluate(`(() => {
       const p = filterFeedbackCheck, ctx = p.requests[${index}];
+      const before = p.snapshots.get(ctx);
       const results = document.getElementById('listing-results');
       const chips = document.getElementById('filters-applied');
       const count = document.getElementById('listing-status');
       const server = ctx.text ? new DOMParser().parseFromString(ctx.text, 'text/html') : null;
       const stockLabel = p.box.closest('label').querySelector('.goen-filters__label').textContent.trim();
+      const responseURL = ctx.response?.raw?.url;
+      const pushURL = ctx.response?.raw?.headers.get('HX-Push-Url') ?? null;
+      const replaceURL = ctx.response?.raw?.headers.get('HX-Replace-Url') ?? null;
+      const directive = (pushURL === 'false' ? null : pushURL) || (replaceURL === 'false' ? null : replaceURL);
+      let expectedURL;
+      if ((pushURL || replaceURL) && !directive) expectedURL = before.url;
+      else if (directive && directive !== 'true') expectedURL = new URL(directive, before.url).href;
+      else if (responseURL) {
+        const url = new URL(responseURL, before.url);
+        url.hash = ctx.request.anchor || '';
+        expectedURL = url.href;
+      }
       return {
         hidden: p.note.hidden, visible: !p.note.hidden && getComputedStyle(p.note).display !== 'none' && p.note.getBoundingClientRect().height > 0,
         message: p.note.textContent.trim() === p.message, role: p.note.getAttribute('role'),
         response: !!ctx.response, ok: ctx.response?.raw?.ok === true, aborted: ctx.request.signal.aborted,
-        stale: results === p.before && results.innerHTML === p.markup,
-        swapped: results !== p.before, changed: p.box.checked !== p.checked,
-        focused: document.activeElement === p.box, urlUnchanged: location.href === p.url,
+        stale: results === before.before && results.innerHTML === before.markup,
+        swapped: results !== before.before, changed: p.box.checked !== before.checked,
+        focused: document.activeElement === p.box, urlUnchanged: location.href === before.url,
         stockURL: new URL(location.href).searchParams.get('in_stock') === (p.box.checked ? p.box.value : null),
+        urlMatchesResponse: !!expectedURL && location.href === expectedURL,
+        actualURL: location.href, expectedURL, responseURL, pushURL, replaceURL, requestURL: ctx.request.action,
         landmarks: !!results && !!chips && !!count,
         serverLandmarks: !!server?.getElementById('listing-results') && !!server?.getElementById('filters-applied') && !!server?.getElementById('listing-status'),
         chips: chips?.textContent, count: count?.textContent,
         stockChip: [...chips.querySelectorAll('.goen-filters__chip > span')].some(chip => chip.textContent.trim() === stockLabel) === p.box.checked,
         serverChips: server?.getElementById('filters-applied')?.textContent,
         serverCount: server?.getElementById('listing-status')?.textContent,
+        resultText: results?.textContent,
+        serverResultText: server?.getElementById('listing-results')?.textContent,
       };
     })()`);
     const report = (name, value, expected) => {
@@ -232,6 +261,10 @@ async function journey(connection, locale, width) {
         failures.push(failure);
         console.error('FAIL ' + failure);
       } else console.log('PASS ' + label);
+      if (value.responseURL) {
+        const { requestURL, responseURL, pushURL, replaceURL, expectedURL, actualURL } = value;
+        console.log('URL evidence ' + label + ': ' + JSON.stringify({ requestURL, responseURL, pushURL, replaceURL, expectedURL, actualURL }));
+      }
     };
     const recover = async (name) => {
       mode = 'real';
@@ -239,9 +272,10 @@ async function journey(connection, locale, width) {
       const index = await change();
       await finished(index);
       const result = await state(index);
-      report(name + ' recovery', result, { ok: true, swapped: true, hidden: true, focused: true, stockURL: true, stockChip: true, landmarks: true, serverLandmarks: true });
+      report(name + ' recovery', result, { ok: true, swapped: true, hidden: true, focused: true, stockURL: true, stockChip: true, urlMatchesResponse: true, landmarks: true, serverLandmarks: true });
       assert.equal(result.chips, result.serverChips, 'chips must match the successful server response');
       assert.equal(result.count, result.serverCount, 'count must match the successful server response');
+      assert.equal(result.resultText, result.serverResultText, 'results must match the successful server response');
       assert.ok(result.count.trim().length > 0, 'the successful server response must carry its result count');
     };
     for (const failure of ['transport rejection', 'timeout', 'HTTP failure']) {
@@ -249,10 +283,12 @@ async function journey(connection, locale, width) {
       if (mode === 'timeout') await evaluate('htmx.config.defaultTimeout = 500');
       const index = await change();
       await finished(index);
-      report(failure, await state(index), {
+      const result = await state(index);
+      if (mode === 'http') assert.ok(result.pushURL, 'the controlled 500 must carry the handler canonical history header');
+      report(failure, result, {
         hidden: false, visible: true, message: true, role: 'alert',
         response: mode === 'http', stale: true, changed: true, focused: true,
-        ...(mode !== 'http' ? { urlUnchanged: true } : {}),
+        urlUnchanged: true,
         ...(mode === 'timeout' ? { aborted: true } : {}),
       });
       await recover(failure);
@@ -274,6 +310,49 @@ async function journey(connection, locale, width) {
     await finished(newer);
     report('replacement failure', await state(newer), { hidden: false, visible: true, response: false, stale: true, focused: true });
     await recover('replacement failure');
+
+    const requestURL = (index) => evaluate(`new URL(filterFeedbackCheck.requests[${index}].request.action, location.origin).href`);
+    const heldRequest = async (index) => {
+      const url = await requestURL(index);
+      return [...held].find(([, request]) => request.url === url);
+    };
+    const continueHeld = async (index) => {
+      const request = await heldRequest(index);
+      assert.ok(request, 'the controlled request must still be held');
+      await send('Fetch.continueRequest', { requestId: request[0] });
+      held.delete(request[0]);
+    };
+    const accepted = async (name, index) => {
+      const result = await state(index);
+      report(name, result, { ok: true, hidden: true, focused: true, stockURL: true, stockChip: true, urlMatchesResponse: true, landmarks: true, serverLandmarks: true });
+      report(name + ' response agreement', {
+        results: result.resultText === result.serverResultText,
+        chips: result.chips === result.serverChips,
+        count: result.count === result.serverCount,
+      }, { results: true, chips: true, count: true });
+    };
+
+    mode = 'real';
+    await load();
+    mode = 'hold';
+    await evaluate('htmx.config.defaultTimeout = 60000');
+    const first = await change(1);
+    await waitFor(async () => !!await heldRequest(first), 'first of three requests did not reach fetch');
+    const second = await change(2);
+    await waitFor(async () => !!await heldRequest(second), 'second of three requests did not reach fetch');
+    await finished(first);
+    const third = await change(3);
+    await waitFor(async () => !!await heldRequest(third), 'third of three requests did not reach fetch');
+    report('third replacement owns the queue', await state(second), { aborted: true });
+    await continueHeld(third);
+    await finished(third);
+    await accepted('third replacement success', third);
+    // On the defect, the second request is still live. Let its real response
+    // arrive last so the same journey records the stale swap as well.
+    if (await heldRequest(second)) await continueHeld(second);
+    await finished(second);
+    await accepted('third replacement survives older completion', third);
+
     if (protocolFailure) throw protocolFailure;
   } finally {
     stopPaused?.();

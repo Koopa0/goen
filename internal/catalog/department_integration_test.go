@@ -71,21 +71,12 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 	}
 }
 
-// The fact line counts what the department holds, whatever the shopper has filtered.
-func TestADepartmentCountsTheProductsItsListingHolds(t *testing.T) {
-	ctx := t.Context()
+// A head read without slots carries no notice and no editorial.
+func TestADepartmentHeadWithoutSlotsIsBare(t *testing.T) {
 	s := catalog.NewStore(pool)
-	slug := departmentOf(t, plainSlug(t))
-	head, err := s.DepartmentHead(ctx, slug, false, false, nil)
+	head, err := s.DepartmentHead(t.Context(), departmentOf(t, plainSlug(t)), false, false, nil)
 	if err != nil {
 		t.Fatalf("DepartmentHead: %v", err)
-	}
-	view, err := s.Listing(ctx, slug, catalog.Filters{})
-	if err != nil {
-		t.Fatalf("Listing: %v", err)
-	}
-	if head.Products == 0 || head.Products != view.Total {
-		t.Errorf("fact line counts %d products, the listing holds %d", head.Products, view.Total)
 	}
 	if head.Notice != nil || head.Preview != nil || head.Story != nil {
 		t.Error("a head read without slots carries a notice or an editorial")

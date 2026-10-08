@@ -10,7 +10,7 @@ var (
 	KeyCampaignEnded = key("campaign.ended", Message{ZhHant: "已結束", En: "Ended"})
 
 	// What is left of a running campaign, said inside a sentence, so English starts in lower case.
-	KeyCampaignDaysLeft = countKey("campaign.daysleft", "剩 %d 天", "%d day left", "%d days left")
+	KeyCampaignDaysLeft = countKey("campaign.daysleft", "剩\u00a0%d\u00a0天", "%d day left", "%d days left")
 
 	KeyCampaignEndsTomorrow = key("campaign.endstomorrow", Message{ZhHant: "明天結束", En: "ends tomorrow"})
 
