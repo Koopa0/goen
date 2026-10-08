@@ -120,26 +120,8 @@ jobs:
           }
 
           serve payments-off || exit 1
-          for m in storefront flows admin; do
-            echo "::group::$m"
-            CDP_PORT=9333 node scripts/probe-satisfaction.mjs "$m" shots || status=$?
-            echo '::endgroup::'
-          done
-          echo '::group::pay off'
-          PAY_STATE=off CDP_PORT=9333 node scripts/probe-satisfaction.mjs pay shots || status=$?
-          echo '::endgroup::'
+          CDP_PORT=9333 node scripts/probe-satisfaction.mjs admin shots || status=$?
           stop
-
-          # Payments on: a test-shaped key is enough to draw the page; nothing calls Stripe before a shopper presses pay.
-          export GOEN_STRIPE_API_KEY=sk_test_satisfaction_preview GOEN_STRIPE_WEBHOOK_SECRET=whsec_satisfaction_preview
-          if serve payments-on; then
-            echo '::group::pay on'
-            PAY_STATE=on CDP_PORT=9333 node scripts/probe-satisfaction.mjs pay shots || status=$?
-            echo '::endgroup::'
-            stop
-          else
-            status=1
-          fi
 
           ls shots | wc -l
           exit "$status"

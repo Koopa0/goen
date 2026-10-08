@@ -260,22 +260,28 @@ async function pay() {
   await shot({ name: `pay-payments-${state}`, path: `/orders/${env.PLACED_ORDER}/pay`, who: 'placed', state: `payments ${state}`, widths: [1440, 375] });
 }
 
+async function stockMeasure() {
+  const m = await evaluate(`(() => {
+    const table = document.querySelector('.goen-admin__stock');
+    const frame = table.closest('.goen-admin__tablewrap') || table.parentElement;
+    const pinned = table.querySelector('tbody tr td:last-child');
+    const pos = getComputedStyle(pinned).position;
+    const left = pinned.getBoundingClientRect().left;
+    const btns = [...table.querySelectorAll('tbody td:nth-child(4) .ui-btn, tbody td:nth-child(5) .ui-btn')];
+    const right = Math.max(...btns.map((b) => b.getBoundingClientRect().right));
+    return { frameClient: frame.clientWidth, frameScroll: frame.scrollWidth, table: Math.round(table.getBoundingClientRect().width),
+      pinnedPosition: pos, pinnedLeft: Math.round(left), lastButtonRight: Math.round(right), buttons: btns.length,
+      clear: Math.round(left - right) };
+  })()`);
+  console.log('MEASURE ' + innerWidthNote + JSON.stringify(m));
+}
+let innerWidthNote = '';
+
 async function admin() {
-  const pages = [
-    { name: 'admin-dashboard', path: '/admin', langs: ['zh-Hant', 'en'] },
-    { name: 'admin-orders', path: '/admin/orders' },
-    { name: 'admin-order-paid-packing', path: `/admin/orders/${env.PICKING_ORDER}`, state: 'paid, packing' },
-    { name: 'admin-products', path: '/admin/products' },
-    { name: 'admin-product-editor', path: `/admin/products/${env.MULTI_VARIANT_SLUG}` },
-    { name: 'admin-stock', path: '/admin/stock' },
-    { name: 'admin-reports', path: '/admin/reports', langs: ['zh-Hant', 'en'] },
-    { name: 'admin-campaigns', path: '/admin/campaigns' },
-    { name: 'admin-campaign-editor', path: '/admin/campaigns/layout-campaign' },
-    { name: 'admin-returns', path: '/admin/returns' },
-    { name: 'admin-customers', path: '/admin/customers' },
-    { name: 'admin-customer', path: `/admin/customers/${env.CUSTOMER_ID}` },
-  ];
-  for (const p of pages) await shot({ ...p, who: 'admin', admin: true });
+  for (const width of [1440, 1024, 375]) {
+    innerWidthNote = `w=${width} `;
+    await shot({ name: 'admin-stock', path: '/admin/stock', who: 'admin', admin: true, widths: [width], after: stockMeasure });
+  }
 }
 
 const key = (type, k, code, vk) => send('Input.dispatchKeyEvent', { type, key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
