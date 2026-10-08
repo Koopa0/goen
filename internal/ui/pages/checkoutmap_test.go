@@ -307,6 +307,38 @@ func TestARefusedStoreIsNeverEchoed(t *testing.T) {
 	}
 }
 
+// TestARefusedStoreSaysTheNextStepAmongTheChains: with no chain chosen there is
+// no map button, so the refusal must sit with the chains, above them, where the
+// shopper's next step is.
+func TestARefusedStoreSaysTheNextStepAmongTheChains(t *testing.T) {
+	t.Parallel()
+
+	v := aCheckoutWithAStore()
+	v.Address.PickupChain = ""
+	v.Address.PickupStoreCode, v.Address.PickupStoreName = "", ""
+	v.PickupStoreAddr = ""
+	v.MapOffered = false
+	v.PickupRefused = true
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), v))
+
+	msg := i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed)
+	if got := strings.Count(html, msg); got != 1 {
+		t.Fatalf("the refusal appears %d times, want 1", got)
+	}
+	chains := elementByID(t, html, "pickup_chain")
+	at := strings.Index(chains, msg)
+	if at < 0 {
+		t.Fatal("the refusal is outside the chain choices")
+	}
+	if first := strings.Index(chains, `name="pickup_chain"`); at > first {
+		t.Error("the refusal comes after the first chain choice, want above them")
+	}
+	if strings.Contains(html, `class="goen-pickup"`) {
+		t.Error("a refusal with no chain draws the store box around nothing")
+	}
+}
+
 // TestAHostileStoreNameCannotBreakOutOfThePage is the rendering half of the
 // same worry: the carrier's page can report any text at all.
 func TestAHostileStoreNameCannotBreakOutOfThePage(t *testing.T) {

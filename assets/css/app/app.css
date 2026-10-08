@@ -344,6 +344,13 @@ th {
   width: 2.75rem;
 }
 
+.goen-pdp__links .goen-btn svg,
+.goen-pdp__add svg,
+.goen-buybar__btn svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .goen-btn--block {
   display: flex;
   width: 100%;
@@ -1094,10 +1101,15 @@ th {
   }
 }
 
-/* Deals is not a department, so a 2.5rem space, the row's gap and this padding
-   together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
+  padding-left: 0;
+}
+
+/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
+   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
+   at the row's edge. */
+.goen-header__nav > :has(+ .goen-header__navitem--deal) {
+  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {
@@ -1146,69 +1158,77 @@ th {
   gap: 4px;
 }
 
-.goen-header__actions svg {
-  height: 1.5rem;
-  width: 1.5rem;
+.goen-header__actions svg,
+.goen-header__menu > summary svg {
+  height: 1.25rem;
+  width: 1.25rem;
 }
 
 .goen-header__actions .goen-btn,
-.goen-header__actions .ui-btn {
-  color: var(--n-700);
+.goen-header__actions .ui-btn,
+.goen-header__menu > summary {
+  color: var(--ink-2);
 }
 
 .goen-header__actions .goen-btn:hover,
-.goen-header__actions .ui-btn:hover {
+.goen-header__actions .ui-btn:hover,
+.goen-header__menu > summary:hover {
   background: var(--n-100);
-  color: var(--n-900);
+  color: var(--ink);
 }
 
-/* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the shared button spelling because `backoffice_test.go:112` asserts the
-   whole class attribute, so the ghost-icon recipe is written out again here
-   rather than taken from `.goen-btn`. */
-.goen-header__action--wide {
+/* The wishlist heart and, for staff, the words "Back office" before the language
+   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
+   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
+.goen-header__action--wide,
+.goen-header__backoffice {
   align-items: center;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
   cursor: pointer;
   display: none;
   height: 44px;
   justify-content: center;
-  padding: 0;
   text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__action--wide {
+  padding: 0;
   width: 44px;
 }
 
-.goen-header__cart {
-  position: relative;
+.goen-header__backoffice {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
-/* The count pill, beside the glyph and not over it. `check-layout.mjs:2570`
+.goen-header__actions .goen-header__cart {
+  gap: 4px;
+  min-width: 2.75rem;
+  padding-inline: 0.625rem;
+  width: auto;
+}
+
+/* The count is a number beside the bag, not a badge on it. `check-layout.mjs`
    reads its text through this exact pair of names after an add to cart, so the
-   spelling stays and the declarations are goen's. The button is 44px with a
-   24px glyph centred in it, so the pill starts at the glyph's right edge. */
+   spelling stays and the declarations are goen's. */
 .goen-header__cart .ui-badge--count {
-  align-items: center;
-  background: var(--n-900);
+  background: none;
   border: none;
-  border-radius: var(--r-full);
-  box-sizing: border-box;
-  color: var(--n-0);
-  display: flex;
+  color: var(--ink);
   font-family: inherit;
-  font-size: var(--fs-11);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
-  height: 18px;
-  justify-content: center;
-  left: calc(50% + 13px);
+  height: auto;
   line-height: 1;
-  min-width: 18px;
-  padding: 0 5px;
-  position: absolute;
-  top: 2px;
+  min-width: 0;
+  padding: 0;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1277,6 +1297,18 @@ th {
   display: none;
 }
 
+.goen-header__actions .goen-langmenu > summary {
+  box-sizing: border-box;
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-header__actions .goen-langmenu > summary:hover,
+.goen-header__actions .goen-langmenu[open] > summary {
+  color: var(--ink);
+}
+
 .goen-langmenu > summary:hover,
 .goen-langmenu[open] > summary {
   background: var(--n-100);
@@ -1290,8 +1322,8 @@ th {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1rem;
+  width: 1rem;
 }
 
 .goen-header .goen-langmenu__current {
@@ -1426,6 +1458,11 @@ th {
   background: none;
   color: var(--n-900);
   font-weight: var(--fw-medium);
+}
+
+/* The name only: the count beside it is not part of what is current. */
+.goen-header__drawer .ui-navitem[aria-current='page'] .goen-header__navname,
+.goen-header__drawer .goen-header__navitem--deal[aria-current='page'] {
   text-decoration: underline 2px var(--accent);
   text-underline-offset: 0.45em;
 }
@@ -1478,14 +1515,15 @@ th {
   }
 }
 
-/* English department names out-measure the zh-Hant ones, so the desktop row
-   gives up the wishlist icon below 1280 before it lets the search field fall
-   under the width `check-layout.mjs` calls usable; the account page carries
-   the wishlist link at every width. */
 @media (min-width: 1024px) {
   .goen-header__bar {
     column-gap: 1.25rem;
     padding: 0 var(--page-gutter);
+  }
+
+  .goen-header__action--wide,
+  .goen-header__backoffice {
+    display: inline-flex;
   }
 
   .goen-header__menu {
@@ -1526,18 +1564,6 @@ th {
     gap: 0;
   }
 
-  /* The mark is the brand where the row is this tight; the word stays in the
-     link's accessible name. */
-  .goen-header__wordmark {
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-
   .goen-header__search {
     flex-basis: 7.5rem;
     min-width: 7.5rem;
@@ -1553,9 +1579,17 @@ th {
     position: static;
     width: auto;
   }
+}
 
-  .goen-header__action--wide {
-    display: inline-flex;
+/* Forced colours replace the greys, so the glyphs and the count take the
+   button colour the system chose for controls. */
+@media (forced-colors: active) {
+  .goen-header__actions .goen-btn,
+  .goen-header__actions .ui-btn,
+  .goen-header__actions .goen-langmenu > summary,
+  .goen-header__menu > summary,
+  .goen-header__cart .ui-badge--count {
+    color: ButtonText;
   }
 }
 
@@ -1850,33 +1884,6 @@ th {
   }
 }
 
-/* The continuation after a section's name: same line, same size, grey. On a
-   phone the pair does not fit one line beside the link, and wrapping would split
-   a count from its unit ("8 / 件商品"), so there the continuation is its own
-   line at the body size and its separator is left to a screen reader. */
-.goen-home__aside {
-  color: var(--n-500);
-  font-weight: var(--fw-regular);
-}
-
-@media (max-width: 39.99rem) {
-  .goen-home__aside {
-    display: block;
-    font-size: var(--fs-16);
-    line-height: 1.5;
-    margin-top: 0.25rem;
-  }
-
-  .goen-home__sep {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-}
-
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -2153,9 +2160,37 @@ th {
   width: 1.25rem;
 }
 
-/* A slide with no photograph is colour and type, as tall as its text. */
+/* A slide with no photograph is colour and type. */
 .goen-hero__slide--text .goen-hero__body {
   padding-block: 2rem 2.5rem;
+}
+
+/* Beside photo slides the track makes it as tall as they are, so under 1024px
+   it is a poster: the name at the top, the facts and the button at the foot,
+   instead of the copy in the corner of a tall field of tone. */
+@media (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__body {
+    display: flex;
+  }
+
+  .goen-hero__slide--text .goen-hero__inner {
+    flex: 1;
+    max-width: none;
+  }
+
+  .goen-hero__slide--text .goen-hero__title {
+    margin-block-end: auto;
+  }
+}
+
+@media (min-width: 40rem) and (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__title {
+    font-size: 3rem;
+  }
+
+  .goen-hero__slide--text .goen-hero__title--long {
+    font-size: var(--fs-ed-38);
+  }
 }
 
 @media (max-width: 50rem) {
@@ -2333,21 +2368,6 @@ th {
   padding: var(--s-6) var(--page-gutter) var(--s-8);
 }
 
-.goen-band .goen-home__heading {
-  color: var(--tone-text);
-  font-size: var(--fs-ed-30);
-}
-
-.goen-band .goen-home__heading:lang(zh) {
-  font-family: var(--font-editorial);
-  font-weight: 500;
-}
-
-.goen-band .goen-home__aside {
-  font-family: var(--font-sans);
-  font-weight: var(--fw-regular);
-}
-
 .goen-band .goen-band__name--long {
   font-size: var(--fs-ed-24);
 }
@@ -2361,7 +2381,7 @@ th {
   color: var(--tone-text);
 }
 
-.goen-band .goen-home__aside,
+.goen-band .goen-band__fact,
 .goen-band .goen-tile__brand,
 .goen-band .goen-tile__was,
 .goen-band .goen-tile__state,
@@ -2369,7 +2389,7 @@ th {
   color: var(--tone-muted);
 }
 
-/* Below 768px the three products scroll sideways rather than stacking. */
+/* The four products scroll sideways until the shelf's container reaches 48rem. */
 .goen-band__tiles {
   display: grid;
   gap: 1rem;
@@ -2412,15 +2432,6 @@ th {
 @media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
-  }
-
-  .goen-band__tiles {
-    gap: 1.5rem;
-    grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
   }
 }
 
@@ -2506,6 +2517,101 @@ th {
   --lift: 0px;
 }
 
+/* The home page's band is the department's shelf: no photograph, because the
+   tile above shows it. From 60rem it shares the tiles' six columns and their
+   1.5rem gap, the name in two and the four products under tiles 3 to 6. The
+   department page's head is built from .goen-band too and takes none of this. */
+.goen-band--shelf {
+  background: var(--tone-ground);
+  container: band / inline-size;
+}
+
+.goen-band--shelf .goen-band__body {
+  display: grid;
+  gap: var(--s-5) var(--col-gap);
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--s-6) var(--page-edge) var(--s-7);
+}
+
+.goen-band--shelf .goen-band__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.goen-band--shelf .goen-band__name {
+  font-family: var(--font-sans);
+  font-size: var(--t-32);
+  font-weight: var(--fw-display);
+  hyphens: auto;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.goen-band--shelf .goen-band__name:lang(zh) {
+  font-family: var(--font-editorial);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.goen-band--shelf .goen-band__fact {
+  font-size: var(--t-15);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.goen-band--shelf .goen-band__fact:lang(zh) {
+  word-break: keep-all;
+}
+
+.goen-band--shelf .goen-home__more {
+  align-self: flex-start;
+  margin-top: var(--s-2);
+}
+
+.goen-band--shelf .goen-band__tiles {
+  grid-auto-columns: max(42%, 8rem);
+}
+
+@container band (width >= 48rem) {
+  .goen-band--shelf .goen-band__tiles {
+    gap: var(--col-gap);
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+@container band (width >= 60rem) {
+  .goen-band--shelf .goen-band__body {
+    column-gap: 1.5rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding-block: var(--s-7);
+  }
+
+  .goen-band--shelf .goen-band__head {
+    grid-column: 1 / 3;
+    padding-right: var(--s-5);
+  }
+
+  .goen-band--shelf .goen-band__tiles {
+    gap: 1.5rem;
+    grid-column: 3 / -1;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band--shelf {
+    border-block: 1px solid CanvasText;
+  }
+}
+
 /* The head is a listing's first screen. The copy sets its height and the
    photograph fills it, seven parts to the copy's five, at least 9:4: the floor
    is a pseudo-element's padding because a grid item with an aspect-ratio that is
@@ -2574,11 +2680,12 @@ th {
    ------------------------------------------------------------------------ */
 
 .goen-tiles__grid {
+  --tiles-gap-x: 1rem;
   display: grid;
-  gap: 2.5rem 1rem;
+  gap: 2.5rem var(--tiles-gap-x);
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2820,7 +2927,7 @@ input.goen-check {
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 2.5rem 1.5rem;
+    --tiles-gap-x: 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -3639,7 +3746,7 @@ input.goen-check {
   border-bottom: 1px solid var(--border);
   min-width: 160px;
   padding: 12px;
-  text-align: center;
+  text-align: left;
   vertical-align: top;
 }
 
@@ -3664,7 +3771,7 @@ input.goen-check {
 .goen-compare__image {
   border-radius: var(--r-md);
   height: 96px;
-  margin: 0 auto;
+  margin: 0;
   object-fit: cover;
   width: 96px;
 }
@@ -3691,8 +3798,6 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: 8px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .goen-compare__price {
@@ -4041,6 +4146,22 @@ input.goen-check {
 .goen-wish__remove,
 .goen-wish__add {
   margin: 0;
+}
+
+.goen-wish__remove {
+  align-self: flex-start;
+}
+
+.goen-wish__remove .goen-btn {
+  background: none;
+  color: var(--fg-muted);
+  padding-inline: 0;
+  width: auto;
+}
+
+.goen-wish__remove .goen-btn:hover {
+  background: none;
+  color: var(--fg);
 }
 
 .goen-wish__stock {
@@ -4440,6 +4561,7 @@ input.goen-check {
 
 .goen-pdp__pricebox {
   align-items: baseline;
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
@@ -4451,6 +4573,15 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
   line-height: 1.3;
+}
+
+/* A phone at 200% text leaves the box under 20rem, where "NT$19,900" at its own
+   size is wider than the line. */
+@container (width < 20rem) {
+  .goen-pdp__price {
+    font-size: min(var(--fs-ed-30), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-pdp__was {
@@ -4992,7 +5123,7 @@ input.goen-check {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
 }
 
 .goen-pdp__reviewlayout {
@@ -6069,6 +6200,11 @@ input.goen-check {
   background: var(--n-50);
   box-shadow: 0 0 0 100vmax var(--n-50);
   clip-path: inset(0 -100vmax);
+}
+
+/* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
+#checkout-region {
+  overflow-anchor: none;
 }
 
 /* The sections are one white block, parted by the space between them rather
@@ -7810,7 +7946,7 @@ input.goen-check {
 }
 
 .about__ring--accent {
-  stroke: var(--accent-deep);
+  stroke: var(--accent);
 }
 
 /* Where the two rings meet is lighter than the paper around it, not darker:
@@ -7818,6 +7954,16 @@ input.goen-check {
 .about__lens {
   fill: var(--n-0);
   fill-opacity: 0.6;
+}
+
+@media (forced-colors: active) {
+  .about__ring {
+    stroke: CanvasText;
+  }
+
+  .about__lens {
+    fill: none;
+  }
 }
 
 .about__title {
@@ -8425,10 +8571,10 @@ input.goen-check {
 /* ---------- Motion ----------
 
    Page to page. Every link stays a plain <a href> and every navigation stays a
-   full document load; what changes is that the browser now cross-fades the two
-   documents instead of cutting between them. That is the whole mechanism — no
-   script, no polyfill, no router — and a browser without it navigates exactly
-   as it did before.
+   full document load; what changes is that the browser cross-fades the two
+   documents instead of cutting between them, and carries a clicked photo across
+   to where it lands. No router, and a browser without it navigates exactly as
+   it did before.
 
    The chrome both documents share is named, so the browser lifts it out of the
    root snapshot and paints it once instead of fading it out and back in. That
@@ -8439,6 +8585,7 @@ input.goen-check {
 
 @view-transition {
   navigation: auto;
+  types: page;
 }
 
 .goen-header {
@@ -8460,44 +8607,87 @@ input.goen-check {
   view-transition-name: buybox;
 }
 
-/* Opacity only, at the base step: the old page stays on screen until the new
-   one has painted, so a longer fade is time the visitor waits on top of the
-   load. The pair carries the cross-fade. The group
-   carries the geometry, and its keyframes are what would move or resize a named
-   region when the two pages put it in different places: a page read halfway
-   down leaves its header above the viewport, and the browser would otherwise
-   slide the header back down into the new page. Dropping the name and keeping
-   the timing leaves the group where the new page puts it and lets the pair
-   fade there. The timing is set on the group as well because the user agent
-   puts its own 0.25s there and the pair inherits from it. */
-::view-transition-group(*) {
-  animation-duration: var(--dur-base);
-  animation-name: none;
-  animation-timing-function: var(--ease-standard);
-}
+/* The group carries the geometry, and its keyframes are what would move or
+   resize a named region when the two pages put it in different places: a page
+   read halfway down leaves its header above the viewport, and the browser
+   would otherwise slide the header back down into the new page. So the regions
+   that must stay put have no group animation, and the photos, which are meant
+   to travel, keep it. The timing is set on the group as well because the user
+   agent puts its own 0.25s there and the pair inherits from it.
 
+   A region swapped in place shares these snapshots and keeps the base step: the
+   old content stays on screen for the length of the fade, and a swap the
+   visitor is waiting on should not be slower than the request. */
+::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
   animation-duration: var(--dur-base);
   animation-timing-function: var(--ease-standard);
 }
 
+::view-transition-group(header),
+::view-transition-group(footer),
+::view-transition-group(gallery),
+::view-transition-group(buybox) {
+  animation-name: none;
+}
+
+/* A navigation replaces the whole page, and a page that arrives with a new
+   layout and new photographs reads as a cut when it dissolves as fast as a
+   swapped region does, so only navigations take the slow step. */
+html:active-view-transition-type(page)::view-transition-group(*),
+html:active-view-transition-type(page)::view-transition-old(*),
+html:active-view-transition-type(page)::view-transition-new(*) {
+  animation-duration: var(--dur-slow);
+}
+
+/* A photo that leaves one page and arrives on the next travels as one image:
+   assets/js/transitions.js names the clicked photo on the way out and the shown
+   one on the way in, and only for that navigation. The old photo stays opaque the whole way
+   and the new one fades in on top of it, so there is no half-transparent dip
+   in the middle; an unmatched old photo just fades out. */
+::view-transition-group(*.photo),
+html:active-view-transition-type(page)::view-transition-group(*.photo) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-move);
+}
+
+::view-transition-old(*.photo),
+::view-transition-new(*.photo) {
+  block-size: 100%;
+  mix-blend-mode: normal;
+  object-fit: cover;
+}
+
+::view-transition-old(*.photo) {
+  animation: none;
+}
+
+::view-transition-old(*.photo):only-child {
+  animation: goen-photo-out var(--dur-base) var(--ease-standard) both;
+}
+
+@keyframes goen-photo-out {
+  to { opacity: 0; }
+}
+
 /* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so the opt-out is spelled again. Taking the
-   transition out of the navigation leaves the plain document cut: the new page
-   is simply there, which is the state change reduced motion asks to keep. */
+   snapshots are not elements, so reduced motion is spelled again. Motion that
+   moves, scales or resizes is dropped and the two pages dissolve at the base
+   step: a hard cut between two very different layouts reads as more of a jump
+   than the dissolve does. The same rules cover a region swapped in place. */
 @media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
+  ::view-transition-group(*) {
+    animation-name: none;
   }
 
-  /* A region swapped in place is not a navigation, so the opt-out above does
-     not reach it and the snapshots are named again here. Without the animation
-     the new content is simply there, which is the state change reduced motion
-     asks to keep. */
+  ::view-transition-group(*),
   ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none;
+  ::view-transition-new(*),
+  html:active-view-transition-type(page)::view-transition-group(*),
+  html:active-view-transition-type(page)::view-transition-old(*),
+  html:active-view-transition-type(page)::view-transition-new(*) {
+    animation-duration: var(--dur-base);
   }
 }
 

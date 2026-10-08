@@ -75,12 +75,12 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
 										<input type="hidden" name="return" value="/account/wishlist"/>
 										<input type="hidden" name="quantity" value="1"/>
-										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, "submit") {
+										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAddToCart) }
 										}
 									</form>
 								} else if t.InStock {
-									@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
+									@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
 										{ i18n.T(ctx, i18n.KeyChooseOptions) }
 									}
 								}

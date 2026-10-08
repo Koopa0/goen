@@ -95,31 +95,32 @@ func TestTheBackOfficeEntranceIsSiteWideChrome(t *testing.T) {
 	}
 }
 
-// TestTheDesktopHeaderOffersTheBackOffice covers the width the back office is
-// actually used at. The drawer that carries the entrance is display:none from
-// 1024px up, so a staff member at a desk saw no door on any page but /account
-// — two clicks to reach the screen they open all day.
-//
-// It takes the WIDE slot rather than adding a fourth button: measured in Chrome,
-// the action row at 1024 in English already leaves the search field 52px, and
-// anything added there scrolls the page sideways. The slot holds the wishlist
-// for a customer, which is why both halves are asserted here.
+// TestTheDesktopHeaderOffersTheBackOffice asserts what the bar itself offers, not
+// the drawer's copy: a staff member sees a visible text link to /admin with no
+// aria-label to override it, and both staff and customer keep the wishlist heart.
 func TestTheDesktopHeaderOffersTheBackOffice(t *testing.T) {
 	t.Parallel()
 	base := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	const wishlist = `goen-header__action--wide" href="/account/wishlist"`
 
 	staff := renderComponent(t, layouts.WithStaff(base, true), layouts.Header(layouts.Page{}))
-	if !strings.Contains(staff, `class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin"`) {
-		t.Error("the wide action row offers a staff member no back office, so a " +
+	if !strings.Contains(staff, `class="ui-btn ui-btn--ghost goen-header__backoffice" href="/admin">`+i18n.T(base, i18n.KeyBackOffice)+`</a>`) {
+		t.Error("the bar offers a staff member no visible-text back office link, so a " +
 			"desktop staff member reaches it only through /account")
+	}
+	if strings.Contains(staff, `goen-header__backoffice" href="/admin" aria-label`) {
+		t.Error("the staff entrance has an aria-label that overrides its visible text")
+	}
+	if !strings.Contains(staff, wishlist) {
+		t.Error("the bar lost the wishlist heart for a staff member")
 	}
 
 	customer := renderComponent(t, base, layouts.Header(layouts.Page{}))
-	if !strings.Contains(customer, `href="/account/wishlist"`) {
-		t.Error("the wide slot lost the customer's wishlist")
+	if !strings.Contains(customer, wishlist) {
+		t.Error("the bar lost the customer's wishlist heart")
 	}
 	if strings.Contains(customer, `href="/admin"`) {
-		t.Error("the wide slot offers a customer the back office")
+		t.Error("the bar offers a customer the back office")
 	}
 }
 

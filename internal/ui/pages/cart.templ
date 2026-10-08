@@ -81,7 +81,13 @@ templ Cart(p layouts.Page, v CartView) {
 						<dl class="goen-summary">
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
-								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
+								<dd class="goen-summary__value">
+									if v.FreeDelivery.Kind == FreeDeliveryReached {
+										{ v.FreeDelivery.Word(ctx) }
+									} else {
+										{ i18n.T(ctx, i18n.KeyShippingLater) }
+									}
+								</dd>
 							</div>
 							<div class="goen-summary__row goen-summary__row--total">
 								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
@@ -423,6 +429,17 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									// opens, and that form is built on the server.
 									<div class="goen-field goen-checkout__wide" id="pickup_chain">
 										<p class="goen-label" id="pickup_chain-label">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</p>
+										if v.PickupRefused {
+											// The message says a store could not be confirmed and repeats NONE of what
+											// arrived: that text came from a cross-site post. It sits here because the
+											// next step is the choice below: with no chain chosen there is no map button.
+											@components.Notice(components.NoticeProps{
+												Intent: components.IntentDanger,
+												Class:  "ui-alert--error",
+											}) {
+												{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
+											}
+										}
 										<div
 											class="goen-checkout__choices"
 											{ checkoutChoiceSwap("pickup_chain")... }
@@ -751,18 +768,8 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 // cannot be checked by any means goen has. The shopper reading the name AND the
 // address before paying is the only check. Do not reduce it to the name.
 templ pickupStore(v *CheckoutView) {
-	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
+	if v.OffersTheStoreMap() || v.HasPickupStore() {
 		<div class="goen-pickup">
-			if v.PickupRefused {
-				// The message says a store could not be confirmed and repeats NONE of what
-				// arrived: that text came from a cross-site post.
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentDanger,
-					Class:  "ui-alert--error",
-				}) {
-					{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
-				}
-			}
 			if v.HasPickupStore() {
 				// Carried back so the order can be placed from this page. The ADDRESS is not among
 				// them: it is read from the URL for the summary above, never posted, never stored.

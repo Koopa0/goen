@@ -32,7 +32,7 @@ templ Header(p Page) {
 					}
 					for _, n := range TopNavFrom(ctx) {
 						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>
-							{ n.Name }
+							<span class="goen-header__navname">{ n.Name }</span>
 							if n.ProductCount > 0 {
 								<small>{ strconv.Itoa(n.ProductCount) }</small>
 							}
@@ -47,9 +47,7 @@ templ Header(p Page) {
 							href="/deals"
 						>{ i18n.T(ctx, i18n.KeyDeals) }</a>
 					}
-					// Reached from the drawer, not the wide bar's action row: at 1024 with the English
-					// catalogue names the search field is already on its floor and a text button there
-					// overflows or wraps the bar. Above 1024 /account carries the entrance instead.
+					// The menu is shown below 1024; from 1024 the bar's own link carries the entrance.
 					if IsStaff(ctx) {
 						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 					}
@@ -79,6 +77,11 @@ templ Header(p Page) {
 				})
 			</form>
 			<div class="goen-header__actions">
+				if IsStaff(ctx) {
+					// Words, not a glyph. Shown from 1024, where the menu button is hidden; below that the
+					// menu carries the entrance.
+					<a class="ui-btn ui-btn--ghost goen-header__backoffice" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
+				}
 				@languageMenu("goen-header__lang", true)
 				@components.ButtonLink(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleGhost,
@@ -87,18 +90,9 @@ templ Header(p Page) {
 				}, templ.SafeURL("/account")) {
 					@icons.User()
 				}
-				if IsStaff(ctx) {
-					// The wide slot, not a fourth button: at 1024 in English the search field is
-					// already on its floor and anything added there overflows or wraps the bar. Below
-					// 1024 this slot is hidden and the drawer carries the entrance.
-					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin" aria-label={ i18n.T(ctx, i18n.KeyBackOffice) }>
-						@icons.Lock()
-					</a>
-				} else {
-					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
-						@icons.Heart()
-					</a>
-				}
+				<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
+					@icons.Heart()
+				</a>
 				@cartLink()
 			</div>
 		</div>

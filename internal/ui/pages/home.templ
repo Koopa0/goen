@@ -16,10 +16,10 @@ templ Home(p layouts.Page, v HomeView) {
 			@heroCarousel(v.Slides)
 		}
 		<div class="goen-home">
+			@productRow(v.Row)
 			if v.ShowsDirectory() {
 				@departmentDirectory(v.Categories)
 			}
-			@productRow(v.Row)
 		</div>
 		if v.Band != nil {
 			@departmentBand(v.Band)
@@ -129,16 +129,18 @@ templ heroCarousel(slides []HeroSlide) {
 	</section>
 }
 
+// The band is one department's shelf: its tone, its name, its sub-categories
+// and four of its products. The department's photograph is the tile above and
+// the department page's head.
 templ departmentBand(b *DepartmentBand) {
-	{{ photo, onWell := bandPhoto(b.Photo, b.Tiles) }}
-	<section class="goen-band" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
+	<section class="goen-band goen-band--shelf" data-tone={ b.Tone.Attr() } aria-labelledby="band-heading">
 		<div class="goen-band__grid">
-			if photo.Shown() {
-				@bandMedia("goen-band__photo", Photo{URL: photo.URL, Srcset: photo.Srcset}, onWell, "(min-width: 1024px) 42vw, 100vw", true)
-			}
 			<div class="goen-band__body">
-				<div class="goen-home__head">
-					@bandHeading("band-heading", b.Name, b.Fact)
+				<div class="goen-band__head">
+					<h2 id="band-heading" class="goen-band__name">{ b.Name }</h2>
+					if b.Fact != "" {
+						<p class="goen-band__fact">{ b.Fact }</p>
+					}
 					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, b.Items, b.Items), b.Href)
 				</div>
 				<ul class="goen-band__tiles" role="list">
@@ -178,6 +180,7 @@ templ departmentTile(c HomeCategory) {
 					alt=""
 					width="800"
 					height="600"
+					loading="lazy"
 					decoding="async"
 				/>
 			} else {

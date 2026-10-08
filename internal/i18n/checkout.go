@@ -94,8 +94,8 @@ var (
 	})
 
 	KeyPickupStoreUnconfirmed = key("pickup.unconfirmed", Message{
-		ZhHant: "無法確認這家門市是不是你剛才挑的，請再選一次。",
-		En:     "That store could not be confirmed as the one you picked. Choose it again.",
+		ZhHant: "無法確認剛才的門市。請選擇超商，再開一次門市地圖。",
+		En:     "We couldn't confirm that store. Choose a chain, then open the store map again.",
 	})
 
 	KeyPickupStoreUnreadable = key("pickup.unreadable", Message{

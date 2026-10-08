@@ -5,6 +5,7 @@ package home
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func (s *Store) WithoutPickup() *Store {
 
 const (
 	rowTiles  = 4
-	bandTiles = 3
+	bandTiles = 4
 )
 
 // carouselSources is what the carousel and the sections beside it are read
@@ -107,7 +108,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	if err != nil {
 		return pages.HomeView{}, err
 	}
-	band, err := s.departmentBand(ctx, src)
+	band, err := s.departmentBand(ctx, src, row.Tiles)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
@@ -172,13 +173,15 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, true, nil
 }
 
-// departmentBand rotates by shop day through the departments that have a
-// photograph and enough products to fill the band; nil when none qualifies.
-func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages.DepartmentBand, error) {
+// departmentBand rotates by shop day through the departments with enough
+// products to fill the shelf, skipping any whose shelf would be left short
+// once the products already in the row above are taken out; nil when none
+// qualifies.
+func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []pages.ProductTile) (*pages.DepartmentBand, error) {
 	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
-		if departmentPhoto(&cats[i]).Shown() && held[cats[i].ID] >= bandTiles {
+		if held[cats[i].ID] >= bandTiles {
 			eligible = append(eligible, &cats[i])
 		}
 	}
@@ -186,20 +189,35 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources) (*pages
 		return nil, nil
 	}
 
-	c := eligible[dayIndex(s.now(), len(eligible))]
-	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{UUID: c.ID, Valid: true}, bandTiles)
-	if err != nil {
-		return nil, err
+	start := dayIndex(s.now(), len(eligible))
+	for k := range eligible {
+		c := eligible[(start+k)%len(eligible)]
+		tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{UUID: c.ID, Valid: true}, bandTiles+rowTiles)
+		if err != nil {
+			return nil, err
+		}
+		tiles = slices.DeleteFunc(tiles, func(t pages.ProductTile) bool {
+			return slices.ContainsFunc(row, func(r pages.ProductTile) bool { return r.Slug == t.Slug })
+		})
+		if len(tiles) < bandTiles {
+			continue
+		}
+		return &pages.DepartmentBand{
+			Name:  c.Name,
+			Items: held[c.ID],
+			Fact:  subCategoryLine(subs[c.ID]),
+			Href:  "/c/" + c.Slug,
+			Tone:  pages.ResolveTone(c.Tone),
+			Tiles: tiles[:bandTiles],
+		}, nil
 	}
-	return &pages.DepartmentBand{
-		Name:  c.Name,
-		Items: held[c.ID],
-		Fact:  strings.Join(subs[c.ID], " · "),
-		Href:  "/c/" + c.Slug,
-		Tone:  pages.ResolveTone(c.Tone),
-		Photo: departmentPhoto(c),
-		Tiles: tiles,
-	}, nil
+	return nil, nil
+}
+
+// subCategoryLine joins names with a no-break space before the dot, so a line
+// never starts with one.
+func subCategoryLine(names []string) string {
+	return strings.Join(names, "\u00a0· ")
 }
 
 // dayIndex counts days since the epoch, so every visitor on one shop day sees
