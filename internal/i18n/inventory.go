@@ -154,7 +154,7 @@ var (
 	})
 
 	KeyAdminNoticeBadQty = key("admin.notice.badqty", Message{
-		ZhHant: "進貨數量要是正整數。要往下修正數量，請用「調整」。",
-		En:     "A receipt quantity must be a positive whole number. To correct a count downward, use “Adjust”.",
+		ZhHant: "請輸入 1 到 10,000 的整數。要往下修正數量，請用「調整」。",
+		En:     "Enter a whole number from 1 to 10,000. To correct a count downward, use “Adjust”.",
 	})
 )
