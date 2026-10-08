@@ -4,6 +4,7 @@ package stock_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,7 +22,7 @@ import (
 )
 
 func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.T) {
-	ctx, actor := admintest.StaffContext(t, pool)
+	ctx, _ := admintest.StaffContext(t, pool)
 	staff := admintest.AdminRolePool(t, pool)
 	var role string
 	if err := staff.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
@@ -34,7 +35,6 @@ func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.
 		for _, tt := range []struct {
 			name     string
 			raw      string
-			spent    bool
 			noKey    bool
 			errorKey i18n.Key
 		}{
@@ -43,7 +43,6 @@ func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.
 			{name: "fraction", raw: "1.5", errorKey: i18n.KeyAdminNoticeBadQty},
 			{name: "malformed", raw: ` 12<x> `, errorKey: i18n.KeyAdminNoticeBadQty},
 			{name: "empty without key", noKey: true, errorKey: i18n.KeyAdminNoticeBadQty},
-			{name: "spent key with different quantity", raw: "4", spent: true, errorKey: i18n.KeyAdminNoticeRefused},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				requestCtx := i18n.WithLocale(ctx, locale)
@@ -54,11 +53,6 @@ func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.
 					t.Fatalf("receipt page = %d, want 200", get.Code)
 				}
 				key := receiptKey(t, get.Body.String())
-				if tt.spent {
-					if err := stock.NewStore(staff).Receive(requestCtx, sku, 3, actor.String(), key); err != nil {
-						t.Fatalf("record original receipt: %v", err)
-					}
-				}
 				before := receiptState(t, pool, variant)
 				form := url.Values{"sku": {sku}, "quantity": {tt.raw}}
 				if !tt.noKey {
@@ -95,6 +89,84 @@ func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.
 				}
 			})
 		}
+	}
+}
+
+func TestReceiptConflictStartsANewOperationAfterReviewingTheLedger(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	staff := admintest.AdminRolePool(t, pool)
+	store := stock.NewStore(staff)
+	mux := http.NewServeMux()
+	handlerOver(store).Routes(mux, admintest.BackOffice)
+	for _, tt := range []struct {
+		locale i18n.Locale
+		notice string
+	}{
+		{i18n.ZhHant, "這筆收貨與已記錄的庫存異動不符。請先確認異動紀錄，再收貨。"},
+		{i18n.En, "This receipt conflicts with an already recorded stock movement. Review the ledger before receiving more stock."},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			requestCtx := i18n.WithLocale(ctx, tt.locale)
+			sku, variant := receiptVariant(t, pool)
+			ledger := "/admin/stock/" + sku
+			get := httptest.NewRecorder()
+			mux.ServeHTTP(get, httptest.NewRequestWithContext(requestCtx, http.MethodGet, ledger, nil))
+			if get.Code != http.StatusOK {
+				t.Fatalf("receipt page = %d, want 200", get.Code)
+			}
+			originalKey := receiptKey(t, get.Body.String())
+			if err := store.Receive(requestCtx, sku, 3, actor.String(), originalKey); err != nil {
+				t.Fatalf("record original receipt: %v", err)
+			}
+			original := receiptSnapshot{Stock: 3, Movements: 1, Receipts: 1, Audits: 1}
+			if diff := cmp.Diff(original, receiptState(t, pool, variant)); diff != "" {
+				t.Fatalf("original receipt (-want +got):\n%s", diff)
+			}
+			if err := store.Receive(requestCtx, sku, 4, actor.String(), originalKey); !errors.Is(err, stock.ErrMovementConflict) || !errors.Is(err, stock.ErrRefused) {
+				t.Fatalf("receipt with conflicting quantity = %v, want movement conflict and refused", err)
+			}
+			form := url.Values{"sku": {sku}, "quantity": {"4"}, "idempotency": {originalKey}}
+			conflict := postReceipt(requestCtx, mux, form)
+			if conflict.Code != http.StatusSeeOther || conflict.Header().Get("Location") != ledger+"?receipt-conflict=1" {
+				t.Fatalf("conflicting receipt = %d %q, want 303 to recorded-movement notice", conflict.Code, conflict.Header().Get("Location"))
+			}
+			if diff := cmp.Diff(original, receiptState(t, pool, variant)); diff != "" {
+				t.Errorf("conflicting receipt changed inventory or audit (-want +got):\n%s", diff)
+			}
+			get = httptest.NewRecorder()
+			mux.ServeHTTP(get, httptest.NewRequestWithContext(requestCtx, http.MethodGet, conflict.Header().Get("Location"), nil))
+			if get.Code != http.StatusOK {
+				t.Fatalf("recorded-movement ledger = %d, want 200", get.Code)
+			}
+			body := get.Body.String()
+			if !strings.Contains(body, tt.notice) {
+				t.Errorf("recorded-movement ledger lacks %q", tt.notice)
+			}
+			if strings.Contains(body, `aria-invalid="true"`) || strings.Contains(body, `id="receive-qty-error"`) {
+				t.Error("new receipt form carries the earlier operation's field refusal")
+			}
+			freshKey := receiptKey(t, body)
+			if freshKey == originalKey {
+				t.Fatal("recorded-movement ledger retained the spent operation identity")
+			}
+			form.Set("idempotency", freshKey)
+			for attempt := range 2 {
+				accepted := postReceipt(requestCtx, mux, form)
+				if accepted.Code != http.StatusSeeOther || accepted.Header().Get("Location") != ledger+"?received=1" {
+					t.Fatalf("new receipt attempt %d = %d %q, want 303 to received page", attempt+1, accepted.Code, accepted.Header().Get("Location"))
+				}
+			}
+			form.Set("quantity", "3")
+			form.Set("idempotency", originalKey)
+			replay := postReceipt(requestCtx, mux, form)
+			if replay.Code != http.StatusSeeOther || replay.Header().Get("Location") != ledger+"?received=1" {
+				t.Fatalf("original receipt replay = %d %q, want 303 to received page", replay.Code, replay.Header().Get("Location"))
+			}
+			want := receiptSnapshot{Stock: 7, Movements: 2, Receipts: 2, Audits: 2}
+			if diff := cmp.Diff(want, receiptState(t, pool, variant)); diff != "" {
+				t.Errorf("new receipt and both replays (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

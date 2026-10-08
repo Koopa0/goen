@@ -42,9 +42,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":       web.Done(i18n.KeyAdminNoticeOK),
-	"refused":  web.Refused(i18n.KeyAdminNoticeRefused),
-	"received": web.Done(i18n.KeyAdminNoticeReceived),
+	"ok":               web.Done(i18n.KeyAdminNoticeOK),
+	"refused":          web.Refused(i18n.KeyAdminNoticeRefused),
+	"received":         web.Done(i18n.KeyAdminNoticeReceived),
+	"receipt-conflict": web.Refused(i18n.KeyAdminReceiptConflict),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +164,8 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, back+"?received=1", http.StatusSeeOther)
+	case errors.Is(err, ErrMovementConflict):
+		http.Redirect(w, r, back+"?receipt-conflict=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "goods receipt refused",
 			"sku", sku, "quantity", quantity, "error", err)
