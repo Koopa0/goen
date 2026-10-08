@@ -637,7 +637,7 @@ test-filter-feedback:
 
 .PHONY: test-screenshots
 test-screenshots:
-	node --test scripts/screenshot-route.test.mjs scripts/screenshot-reflow.test.mjs
+	node --test scripts/screenshot-route.test.mjs scripts/screenshot-reflow.test.mjs scripts/screenshot-delivery.test.mjs
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       pages:
-        description: 'Entries path@width[@en][@text200][@forced], one per line or separated by commas'
+        description: 'Entries path@width[@en][@text200][@forced][@delivery-refused]; refusal needs layout /admin/orders/{PLACED_ORDER}'
         default: |
           /@1440
           /@375

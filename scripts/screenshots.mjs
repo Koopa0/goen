@@ -4,7 +4,7 @@
 //
 // SHOT_PAGES lists the entries, one per line or separated by commas:
 //
-//   path@width[@lang][@text200][@forced]
+//   path@width[@lang][@text200][@forced][@delivery-refused]
 //
 //   /p/{PRODUCT_SLUG}@375@en@text200
 //
@@ -15,6 +15,9 @@
 // writes to its env file (names ending _SLUG or _ORDER, PICKUP_SHIP,
 // CUSTOMER_ID, LAYOUT_SERIAL; never a token).
 // A comma inside a path needs the one-entry-per-line form.
+// delivery-refused requires data=layout and /admin/orders/{PLACED_ORDER}; it
+// submits that order's real address form with an absent pickup field and captures
+// the localized 422 refusal. Omit the flag to capture the baseline order GET.
 //
 // Who is looking follows from the path: /admin is staff (ADMIN_TOKEN), /account
 // the signed-in customer (CUST_TOKEN), /cart and /checkout the cart's owner
@@ -37,6 +40,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { screenshotRouteMatches } from './screenshot-route.mjs';
 import { screenshotReflow } from './screenshot-reflow.mjs';
+import { captureDeliveryRefusal, deliveryRefusalTarget } from './screenshot-delivery.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700').replace(/\/$/, '');
@@ -67,6 +71,7 @@ function parseEntry(text) {
     else if (flag === 'zh') entry.lang = 'zh-Hant';
     else if (flag === 'text200') entry.text200 = true;
     else if (flag === 'forced') entry.forced = true;
+    else if (flag === 'delivery-refused') entry.deliveryRefused = true;
     else throw new Error(`unknown flag ${JSON.stringify(flag)}`);
   }
   entry.path = path.replace(/\{(\w+)\}/g, (_, name) => {
@@ -74,6 +79,7 @@ function parseEntry(text) {
     if (!process.env[name]) throw new Error(`${name} is not set`);
     return encodeURIComponent(process.env[name]);
   });
+  if (entry.deliveryRefused) deliveryRefusalTarget(entry.path, process.env.PLACED_ORDER);
   return entry;
 }
 
@@ -91,6 +97,7 @@ function slug(index, entry) {
   const parts = [String(index + 1).padStart(2, '0'), name.slice(0, 60), entry.width, entry.lang === 'en' ? 'en' : 'zh'];
   if (entry.text200) parts.push('text200');
   if (entry.forced) parts.push('forced');
+  if (entry.deliveryRefused) parts.push('delivery-refused');
   return parts.join('-') + '.png';
 }
 
@@ -186,6 +193,9 @@ async function shoot(entry, file) {
 
   await device(height);
   await navigate(ORIGIN + entry.path);
+  const refusal = entry.deliveryRefused
+    ? await captureDeliveryRefusal({ entry, placedOrder: process.env.PLACED_ORDER, origin: ORIGIN, ws, evaluate })
+    : null;
   if (entry.text200) {
     await evaluate(`document.documentElement.style.fontSize = '200%'`);
     await sleep(300);
@@ -216,7 +226,10 @@ async function shoot(entry, file) {
     reflow = { error: e.message };
   }
   const result = { ...facts, reflow, height: shotHeight, capped: shotHeight === CAP };
-  if (facts.status >= 400) result.error = `answered ${facts.status}`;
+  if (refusal) {
+    result.refusal = refusal;
+    if (facts.status !== 422 || facts.finalPath !== refusal.path) result.error = 'delivery refusal document changed before capture';
+  } else if (facts.status >= 400) result.error = `answered ${facts.status}`;
   else if (visitor && !screenshotRouteMatches(entry.path, facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
   return result;
 }
@@ -244,7 +257,8 @@ for (const [index, text] of entries.entries()) {
   try {
     const entry = parseEntry(text);
     record.file = slug(index, entry);
-    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, view: VIEW });
+    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, view: VIEW,
+      state: entry.deliveryRefused ? 'delivery-refused' : 'baseline' });
     Object.assign(record, await shoot(entry, record.file));
     if (record.error) {
       failed++;
