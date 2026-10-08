@@ -1508,6 +1508,9 @@ const proveListingDesktopResize = async (label, locale) => {
     const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
+    // An open filter panel overlays the applied row by design; close it so the
+    // link's own target is what is measured.
+    document.querySelectorAll('.goen-filters__group[open]').forEach((group) => group.removeAttribute('open'));
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
     const missed = [];
     if (remove) {
@@ -3012,8 +3015,8 @@ try {
             fail(label, boundary.selector + ': ' + boundary.error);
             continue;
           }
-          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
-            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast, boundary.underlineContrast, boundary.arrowContrast) < 3) {
+            fail(label, boundary.selector + ': boundary, underline, arrow and fill all below 3:1');
           }
           const focused = await controlFocus(boundary.selector);
           console.log(label + ' focus ' + JSON.stringify(focused));
