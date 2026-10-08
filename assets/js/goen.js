@@ -404,13 +404,18 @@
       if (pending.has(event.target)) event.preventDefault();
       else begin(event.target);
     });
+    document.addEventListener("htmx:config:request", (event) => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form?.matches(".goen-filters")) ctx.transition = false;
+    });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
-      // The filter form lets the latest change replace the one in flight
-      // (hx-sync), which this guard would cancel as a repeated press.
+      // htmx's replaced request can release its queue after the next one
+      // starts. Keep ownership here so a third change still aborts the second.
       if (form.matches(".goen-filters")) {
+        filters.get(form)?.request?.abort?.();
         filters.set(form, ctx);
         return;
       }
@@ -422,6 +427,17 @@
       if (pending.has(form) || !ctx.sourceElement.isConnected) { event.preventDefault(); return; }
       begin(form);
       requests.set(ctx, form);
+    });
+    document.addEventListener("htmx:after:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if (form?.matches(".goen-filters") && filters.get(form) !== ctx) event.preventDefault();
+    });
+    document.addEventListener("htmx:before:history:update", (event) => {
+      const { sourceElement, response } = event.detail || {};
+      const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
+      // DropEmptyParams may leave HX-Push-Url on an error response.
+      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
     });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
