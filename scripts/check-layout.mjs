@@ -2251,7 +2251,8 @@ const TRANSITION_RECORDER = `(() => {
       });
     }, () => rec({ ready: 'rejected' }));
   });
-  // After the enhancement file's own listener, so the names it set are the ones read.
+  addEventListener('pageshow', (e) => rec({ persisted: e.persisted }));
+  // After the transitions script's own listener, so the names it set are the ones read.
   document.addEventListener('DOMContentLoaded', () => addEventListener('pageswap', (e) => {
     if (e.viewTransition) rec({ oldNames: named(), swapped: true });
   }));
@@ -2289,6 +2290,7 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
   let got = await read('push');
   if (!got.revealed) { fail(label, 'the arriving page had no view transition: ' + JSON.stringify(got)); return; }
   if (got.ready !== 'resolved') { fail(label, 'the transition was skipped: ' + JSON.stringify(got)); return; }
+  if (got.swapped !== true) fail(label, 'the page being left never saw its own pageswap: ' + JSON.stringify(got));
   const photoGroups = (got.groups || []).filter((g) => /^::view-transition-group\((product|department)-photo\)$/.test(g));
   if (reduce) {
     if (photoGroups.length || (got.oldNames || []).length || (got.newNames || []).length) fail(label, 'reduced motion still named a photo: ' + JSON.stringify(got));
@@ -2299,6 +2301,7 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     if (JSON.stringify(got.newNames || []) !== want) fail(label, `the arriving page named ${JSON.stringify(got.newNames)}, want only ${want}`);
     if (!photoGroups.length) fail(label, `no ::view-transition-group(${name}) animated: ` + JSON.stringify(got.groups));
   }
+  let persisted;
   await new Promise((r) => setTimeout(r, 400));
   const left = await evalPage(`[...document.querySelectorAll('*')].filter((e) => e.style.viewTransitionName || e.style.viewTransitionClass).length`);
   if (left !== 0) fail(label, `${left} element(s) still carry a view-transition-name after the transition`);
@@ -2316,12 +2319,13 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     } else if ((returned.newNames || []).length || backGroups.length) {
       fail(label + ' back', 'a photo was sent to a card outside the viewport: ' + JSON.stringify(returned));
     }
-    const kept = await evalPage(`[...document.querySelectorAll('*')].filter((e) => e.style.viewTransitionName).length`);
     await new Promise((r) => setTimeout(r, 400));
     const after = await evalPage(`[...document.querySelectorAll('*')].filter((e) => e.style.viewTransitionName).length`);
-    if (after !== 0) fail(label + ' back', `${after} element(s) still carry a view-transition-name after the way back (${kept} at the start)`);
+    if (after !== 0) fail(label + ' back', `${after} element(s) still carry a view-transition-name after the way back`);
+    persisted = (await evalPage(`JSON.parse(sessionStorage.vt || '{}')`)).persisted;
   }
-  console.log(`${label.padEnd(24)} ${reduce ? 'reduced: dissolve only' : 'named ' + name + ', ran, cleared'}${back ? ', back ' + back : ''} ok`);
+  const how = persisted === undefined ? '' : persisted ? ' (restored from bfcache)' : ' (reloaded, not bfcache)';
+  console.log(`${label.padEnd(24)} ${reduce ? 'reduced: dissolve only' : 'named ' + name + ', ran, cleared'}${back ? ', back ' + back + how : ''} ok`);
 };
 
 {

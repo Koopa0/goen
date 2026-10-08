@@ -77,6 +77,10 @@ templ documentHead(p Page, surfaceCSS string) {
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(surfaceCSS)) }/>
+		if p.AwaitID != "" {
+			<link rel="expect" href={ templ.URL("#" + p.AwaitID) } blocking="render"/>
+		}
+		<script src={ templ.URL(assets.URL(assets.TransitionsJS)) }></script>
 		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
 		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
 	</head>

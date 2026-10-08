@@ -1,6 +1,10 @@
 package pages
 
-import "unicode/utf8"
+import (
+	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // Longest names the band sets at full size: Chinese by character, anything
 // else by letter.
@@ -20,6 +24,13 @@ func bandPhoto(department Photo, products []ProductTile) (photo Photo, onWell bo
 		return Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
 	}
 	return Photo{}, false
+}
+
+// awaiting is p with the first paint held until the element with that id is
+// parsed.
+func awaiting(p layouts.Page, id string) layouts.Page {
+	p.AwaitID = id
+	return p
 }
 
 func bandNameLong(name string) bool {

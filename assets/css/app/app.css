@@ -8570,6 +8570,7 @@ input.goen-check {
 
 @view-transition {
   navigation: auto;
+  types: page;
 }
 
 .goen-header {
@@ -8591,17 +8592,21 @@ input.goen-check {
   view-transition-name: buybox;
 }
 
-/* The old page stays on screen until the new one has painted, so a longer fade
-   is time the visitor waits on top of the load: the dissolve takes the slow
-   step. The group carries the geometry, and its keyframes are what would move
-   or resize a named region when the two pages put it in different places: a
-   page read halfway down leaves its header above the viewport, and the browser
+/* The group carries the geometry, and its keyframes are what would move or
+   resize a named region when the two pages put it in different places: a page
+   read halfway down leaves its header above the viewport, and the browser
    would otherwise slide the header back down into the new page. So the regions
    that must stay put have no group animation, and the photos, which are meant
    to travel, keep it. The timing is set on the group as well because the user
-   agent puts its own 0.25s there and the pair inherits from it. */
-::view-transition-group(*) {
-  animation-duration: var(--dur-slow);
+   agent puts its own 0.25s there and the pair inherits from it.
+
+   A region swapped in place shares these snapshots and keeps the base step: the
+   old content stays on screen for the length of the fade, and a swap the
+   visitor is waiting on should not be slower than the request. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--dur-base);
   animation-timing-function: var(--ease-standard);
 }
 
@@ -8612,10 +8617,13 @@ input.goen-check {
   animation-name: none;
 }
 
-::view-transition-old(*),
-::view-transition-new(*) {
+/* A navigation replaces the whole page, and a page that arrives with a new
+   layout and new photographs reads as a cut when it dissolves as fast as a
+   swapped region does, so only navigations take the slow step. */
+html:active-view-transition-type(page)::view-transition-group(*),
+html:active-view-transition-type(page)::view-transition-old(*),
+html:active-view-transition-type(page)::view-transition-new(*) {
   animation-duration: var(--dur-slow);
-  animation-timing-function: var(--ease-standard);
 }
 
 /* A photo that leaves one page and arrives on the next travels as one image:
@@ -8659,7 +8667,10 @@ input.goen-check {
 
   ::view-transition-group(*),
   ::view-transition-old(*),
-  ::view-transition-new(*) {
+  ::view-transition-new(*),
+  html:active-view-transition-type(page)::view-transition-group(*),
+  html:active-view-transition-type(page)::view-transition-old(*),
+  html:active-view-transition-type(page)::view-transition-new(*) {
     animation-duration: var(--dur-base);
   }
 }

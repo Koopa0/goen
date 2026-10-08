@@ -49,7 +49,10 @@ const (
 	SpeculationRules = "speculation/rules.json"
 	HTMXJS           = "js/vendor/htmx.min.js"
 	AppJS            = "js/goen.js"
-	MarkSVG          = "brand/goen-mark.svg"
+	// TransitionsJS is not deferred: pagereveal fires at the first render, and
+	// a deferred script can run after it.
+	TransitionsJS = "js/transitions.js"
+	MarkSVG       = "brand/goen-mark.svg"
 	// FaviconSVG is the mark for a browser tab. It carries a dark-scheme rule
 	// the page-level MarkSVG must not: the rule follows the operating system,
 	// not the page, so on a light page under a dark OS the ring would vanish.
@@ -134,6 +137,7 @@ var required = []string{
 	SpeculationRules,
 	HTMXJS,
 	AppJS,
+	TransitionsJS,
 	MarkSVG,
 	FaviconSVG,
 	FaviconICO,

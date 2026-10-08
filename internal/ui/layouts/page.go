@@ -26,6 +26,9 @@ type Page struct {
 	Newsletter NewsletterState
 	// Share's zero value keeps the default preview picture.
 	Share ShareImage
+	// AwaitID is the id of an element the first paint waits for, so the script
+	// that names a photo for the page transition finds it at the reveal.
+	AwaitID string
 }
 
 // ShareImage has a site-relative Path because the head prefixes the configured origin,
