@@ -515,7 +515,7 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeTechnicalDetails(t *testing.T) 
 					t.Errorf("code %s is not retained inside technical details", code)
 				}
 				label := tt.labels[labelIndexes[index]]
-				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary><code>` + regexp.QuoteMeta(code) + `</code></details>\s*</td>`)
+				cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(label) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary>\s*<code>` + regexp.QuoteMeta(code) + `</code></details>\s*</td>`)
 				if !cell.MatchString(html) {
 					t.Errorf("code %q lacks its localized explanation %q in the same cell", code, label)
 				}
@@ -576,7 +576,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{"issue_provider_rejected_2000006", tt.rejected},
 			{"allowance_provider_rejected_3100010", tt.rejected},
 		} {
-			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary><code>` + regexp.QuoteMeta(pair[0]) + `</code></details>\s*</td>`)
+			cell := regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(pair[1]) + `\s*<details class="goen-admin__rawdetail"><summary>[^<]+</summary>\s*<code>` + regexp.QuoteMeta(pair[0]) + `</code></details>\s*</td>`)
 			if !cell.MatchString(html) {
 				t.Errorf("reason %s is not explained as %q in its diagnostic cell", pair[0], pair[1])
 			}
