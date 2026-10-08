@@ -213,10 +213,13 @@ func TestAFullyReturnedOrderDrawsNoGrid(t *testing.T) {
 	if len(periods(html)) != 0 {
 		t.Error("a fully returned order draws a grid")
 	}
-	for _, banned := range []string{"剩餘", "申請退貨", "最後一天"} {
+	for _, banned := range []string{"剩餘", "申請退貨", "最後一天", "已送達", "付款完成"} {
 		if strings.Contains(html, banned) {
 			t.Errorf("a fully returned order still says %q", banned)
 		}
+	}
+	if !strings.Contains(html, `goen-pagehead__eyebrow">已退款<`) {
+		t.Error("a fully returned order's eyebrow does not say it was refunded")
 	}
 	for _, want := range []string{"退貨完成", "<dt>退款</dt>", "NT$5,900"} {
 		if !strings.Contains(html, want) {

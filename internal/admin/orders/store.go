@@ -31,6 +31,7 @@ import (
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -112,8 +113,8 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read recent orders: %w", err)
 	}
-	for i := range recent {
-		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
+	if view.Recent, err = s.orderRows(ctx, recent); err != nil {
+		return admin.DashboardView{}, err
 	}
 
 	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
@@ -139,20 +140,47 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 
 const DashboardRows = 8
 
+// orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.
+func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admin.OrderRow, error) {
+	ids := make([]uuid.UUID, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID
+	}
+	returned, err := s.q.ReturnedOrders(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("read returned orders: %w", err)
+	}
+	out := make([]admin.OrderRow, len(rows))
+	for i := range rows {
+		out[i] = orderRow(ctx, &rows[i], slices.Contains(returned, rows[i].ID))
+	}
+	return out, nil
+}
+
 // orderRow is one order as both the queue and the landing page render it. The
 // total is assembled here rather than in the query because the storefront's
 // own order view computes it the same way from the same four columns.
-func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
+func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
+	text, intent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, returned)
 	return admin.OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
-		StatusText:   admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-		StatusIntent: admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+		StatusText:   text,
+		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
 		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 	}
+}
+
+// orderStatus is the word and colour an order carries: an order returned in full says so in place of where its
+// delivery stands, since the refund has already been paid.
+func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, components.Intent) {
+	if returned {
+		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
+	}
+	return admin.FundedFulfillmentLabel(ctx, status, committed, owedCents), admin.FundedFulfillmentIntent(status, committed, owedCents)
 }
 
 // listPosition is a reader's place in the orders queue. The query builds it as
@@ -234,8 +262,8 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
 	}
-	for i := range rows {
-		view.Orders = append(view.Orders, orderRow(ctx, &rows[i]))
+	if view.Orders, err = s.orderRows(ctx, rows); err != nil {
+		return admin.OrdersView{}, err
 	}
 	return view, nil
 }
@@ -253,11 +281,16 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
+	returned, err := s.q.ReturnedOrders(ctx, []uuid.UUID{o.ID})
+	if err != nil {
+		return admin.OrderView{}, fmt.Errorf("read returned order: %w", err)
+	}
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
+	statusText, statusIntent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, len(returned) > 0)
 	view := admin.OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
-		StatusText:    admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-		StatusIntent:  admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents),
+		StatusText:    statusText,
+		StatusIntent:  statusIntent,
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,

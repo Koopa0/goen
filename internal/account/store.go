@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -537,6 +538,15 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
 		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
 
+	orderIDs := make([]uuid.UUID, len(orders))
+	for i := range orders {
+		orderIDs[i] = orders[i].ID
+	}
+	returned, err := s.q.ReturnedOrders(ctx, orderIDs)
+	if err != nil {
+		return pages.AccountView{}, fmt.Errorf("read returned orders: %w", err)
+	}
+
 	now := time.Now()
 	for i := range orders {
 		o := &orders[i]
@@ -548,6 +558,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 			LineCount:  o.LineCount,
 			Committed:  o.Committed,
 			OwedCents:  o.OwedCents,
+			Returned:   slices.Contains(returned, o.ID),
 			OneLastDay: o.OneLastDay,
 			LastDay:    shoptime.DateOf(o.RescissionEnds, now),
 		})

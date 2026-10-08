@@ -83,7 +83,7 @@ WHERE ol.id = @order_line_id
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
-       ol.product_name, ol.variant_label, o.order_number,
+       ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,
        coalesce(p.slug, '') AS product_slug
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id

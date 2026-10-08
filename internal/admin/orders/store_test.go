@@ -34,11 +34,11 @@ func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
 
 func TestOrderRowCarriesTheColourOfItsWord(t *testing.T) {
 	t.Parallel()
-	row := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true})
+	row := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true}, false)
 	if row.StatusIntent != components.IntentProgress {
 		t.Errorf("a picking order's row has intent %q, want %q", row.StatusIntent, components.IntentProgress)
 	}
-	ready := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPending), Committed: true})
+	ready := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPending), Committed: true}, false)
 	if ready.StatusIntent != components.IntentWarn {
 		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, components.IntentWarn)
 	}
