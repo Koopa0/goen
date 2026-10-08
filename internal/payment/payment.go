@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -65,6 +67,7 @@ const sessionStartMargin = time.Minute
 
 // Order is what the payment page needs to know about what is being paid.
 type Order struct {
+	ID     uuid.UUID
 	Number string
 	// TotalCents is what the order still OWES, not its gross total: a capture
 	// for the gross is refused by payments_capture_matches_order.
@@ -139,8 +142,11 @@ func (o *Order) SessionExpiry() time.Time { return o.HoldExpiresAt }
 
 // SessionKey is the Idempotency-Key goen sends when it creates a Checkout
 // Session. Stripe honours a key for 24 hours, which is what attempt is in it for.
-func SessionKey(number string, owedCents int64, attempt int32) string {
-	return "goen-pay:" + number +
+// It names the order by its row id, not its number: a number restarts with the
+// day's sequence after a database rebuild or the demo's nightly reset, and a
+// key Stripe already saw with another order's parameters is refused.
+func SessionKey(orderID uuid.UUID, owedCents int64, attempt int32) string {
+	return "goen-pay:" + orderID.String() +
 		":" + strconv.FormatInt(owedCents, 10) +
 		":" + strconv.FormatInt(int64(attempt), 10)
 }
