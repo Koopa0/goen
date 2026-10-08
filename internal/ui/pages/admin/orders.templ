@@ -755,6 +755,12 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 						</ul>
 					}
+					if v.AllowanceAwaitingUntil != "" {
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
+					}
+					if v.AllowanceAttention != "" {
+						<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
+					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
@@ -795,12 +801,6 @@ templ Order(p layouts.Page, v *OrderView) {
 								</p>
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceOnline) }</p>
 							</form>
-						}
-						if v.AllowanceAwaitingUntil != "" {
-							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
-						}
-						if v.AllowanceAttention != "" {
-							<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
 						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>

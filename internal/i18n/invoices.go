@@ -49,8 +49,8 @@ var (
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
-		ZhHant: "尚未啟用電子發票，這裡無法開立發票。",
-		En:     "E-invoicing is not set up for this shop, so no invoice can be issued from here.",
+		ZhHant: "尚未啟用電子發票，這裡無法開立、作廢或折讓。",
+		En:     "E-invoicing is not set up for this shop, so invoices cannot be issued, voided or credited from here.",
 	})
 
 	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "（已作廢）", En: "(voided)"})
