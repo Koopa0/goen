@@ -7281,30 +7281,48 @@ input.goen-check {
   font-weight: var(--fw-medium);
 }
 
-/* The order history. One table at every width; each row's facts sit under its number. */
+/* The order history. One table at every width; each row's facts sit under its number.
+   A row is a wrapping flex line so the status drops under the facts when an
+   unbreakable total ("NT$1,234,567") and the status no longer fit side by side. */
 .goen-account__orders {
   border-collapse: collapse;
   font-size: var(--fs-14);
   width: 100%;
 }
 
-.goen-account__orders th {
+.goen-account__orders tr {
   border-bottom: 1px solid var(--line);
-  color: var(--n-500);
-  font-size: 0.8125rem;
-  font-weight: var(--fw-medium);
-  padding: 0.5rem 0.5rem 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.goen-account__orders tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.goen-account__orders th,
+.goen-account__orders td {
+  flex: 0 0 7rem;
+  padding: 0.5rem 0;
   text-align: left;
 }
 
-.goen-account__orders td {
-  border-bottom: 1px solid var(--line);
-  padding: 0.75rem 0.5rem 0.75rem 0;
-  vertical-align: top;
+.goen-account__orders th:first-child,
+.goen-account__orders td:first-child {
+  flex: 1 1 0;
+  min-width: min-content;
 }
 
-.goen-account__orders tr:last-child td {
-  border-bottom: 0;
+.goen-account__orders th {
+  color: var(--n-500);
+  font-size: 0.8125rem;
+  font-weight: var(--fw-medium);
+}
+
+.goen-account__orders td {
+  padding-block: 0.75rem;
+  vertical-align: top;
 }
 
 .goen-account__number {
