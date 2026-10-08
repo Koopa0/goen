@@ -7546,8 +7546,9 @@ input.goen-check {
 /* The ledger. The signed amount leads, because a ledger is read down that
    column. */
 .goen-points {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  column-gap: 0.75rem;
+  grid-template-columns: max-content minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -7558,7 +7559,8 @@ input.goen-check {
   border-bottom: 1px solid var(--n-200);
   display: grid;
   gap: 0.25rem 0.75rem;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   padding: 0.75rem 0;
 }
 
@@ -7573,6 +7575,8 @@ input.goen-check {
 }
 
 .goen-points__amount {
+  justify-self: end;
+  text-align: end;
   color: var(--n-500);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;

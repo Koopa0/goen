@@ -238,7 +238,7 @@ func TestAnOversizedRedemptionIsRejectedBeforeItClaimsAnOperation(t *testing.T) 
 	}
 }
 
-func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) {
+func TestAnOversizedRedemptionPOSTKeepsItsDraftWithoutDatabaseEffects(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 100)
 	operationID := redemptionOperation(t, userID)
@@ -254,11 +254,11 @@ func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) 
 	res := httptest.NewRecorder()
 	loyalty.NewHandler(loyalty.NewStore(pool), slog.New(slog.DiscardHandler)).Redeem(res, req)
 
-	if res.Code != http.StatusSeeOther {
-		t.Fatalf("oversized POST status = %d, want 303", res.Code)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("oversized POST status = %d, want 422", res.Code)
 	}
-	if location := res.Header().Get("Location"); location != "/account/points?small=1" {
-		t.Fatalf("oversized POST location = %q, want small notice", location)
+	if location := res.Header().Get("Location"); location != "" {
+		t.Fatalf("oversized POST location = %q, want no redirect", location)
 	}
 	var effects int
 	if err := pool.QueryRow(ctx, `

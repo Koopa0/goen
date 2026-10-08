@@ -11,8 +11,8 @@ var (
 	KeyPointsTitle = key("points.title", Message{ZhHant: "會員點數", En: "Points"})
 
 	KeyPointsSub = key("points.sub", Message{
-		ZhHant: "每消費 NT$100 得 1 點，%s，可以兌換成購物金在結帳時折抵。",
-		En:     "One point per NT$100 spent. %s, redeemable as store credit at checkout.",
+		ZhHant: "每消費 NT$100 得 1 點，再乘以你目前的點數倍率（%s）。%s，可以兌換成購物金在結帳時折抵。",
+		En:     "One point per NT$100 spent, multiplied by your current %s points rate. %s, redeemable as store credit at checkout.",
 	})
 
 	// The lot's expires_on is award date + 365, and the redemption's credit entry
@@ -34,9 +34,8 @@ var (
 	})
 
 	KeyPointsRule = key("points.rule", Message{
-		ZhHant: "最少 %s 點，而且要是 %s 的整數倍 —— 換不完的點數會留著。",
-		En: "At least %s points, in whole multiples of %s. Whatever is left over stays " +
-			"on your account.",
+		ZhHant: "最少 %s 點，而且要是 %s 的倍數。",
+		En:     "At least %s points, in whole multiples of %s.",
 	})
 
 	KeyPointsRedeem = key("points.redeem", Message{
@@ -67,8 +66,8 @@ var (
 	KeyPointsEarned = key("points.reason.earned", Message{ZhHant: "購物回饋", En: "Earned on a purchase"})
 
 	KeyPointsSpent = key("points.reason.redeem", Message{
-		ZhHant: "兌換購物金",
-		En:     "Redeemed for store credit",
+		ZhHant: "兌換 %s 購物金",
+		En:     "Redeemed for %s store credit",
 	})
 
 	KeyPointsClawback = key("points.reason.clawback", Message{
@@ -76,24 +75,30 @@ var (
 		En:     "Reversed for a return",
 	})
 
+	KeyPointsClawbackOrder = key("points.reason.clawback.order", Message{
+		ZhHant: "退貨扣回，訂單 %s", En: "Reversed for a return, order %s",
+	})
+
+	KeyPointsEarnedOn = key("points.earnedon", Message{ZhHant: "%s 獲得", En: "earned %s"})
+
 	KeyPointsClawbackDetail = key("points.reason.clawback.detail", Message{
-		ZhHant: "應扣回 %s 點；實際扣回 %s 點；未扣回 %s 點",
-		En:     "Requested %s points; reversed %s; shortfall %s",
+		ZhHant: "點數不足，少扣 %s 點",
+		En:     "Not enough points: %s could not be reversed",
 	})
 
 	KeyPointsRedeemed = key("points.notice.done", Message{
-		ZhHant: "已經兌換成購物金，結帳時會自動折抵。",
-		En:     "Redeemed. The credit comes off your next order automatically.",
+		ZhHant: "已用 %s 點兌換 %s 購物金，結帳時會自動折抵。",
+		En:     "Redeemed %s points for %s store credit. The credit comes off your next order automatically.",
 	})
 
 	KeyPointsBadAmount = key("points.notice.amount", Message{
-		ZhHant: "兌換的點數要是整數倍，而且不能低於最低門檻。",
-		En:     "Redeem a whole multiple, and not less than the minimum.",
+		ZhHant: "至少要兌換 %s 點，而且要是 %s 的倍數，最多 %s 點。",
+		En:     "Redeem at least %s points, in whole multiples of %s, up to %s points.",
 	})
 
 	KeyPointsBadForm = key("points.notice.badform", Message{
-		ZhHant: "這份兌換表單已過期，請重新送出。",
-		En:     "That redemption form expired. Submit it again.",
+		ZhHant: "這次兌換沒有送出，點數沒有扣，請再按一次兌換。",
+		En:     "This redemption was not submitted. No points were deducted. Please press Redeem again.",
 	})
 
 	KeyPointsReturnUnsettled = key("points.notice.returnunsettled", Message{

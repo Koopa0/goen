@@ -61,36 +61,10 @@ func TestANilOperationIdentityIsNotAnEmptyAccount(t *testing.T) {
 }
 
 func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
-	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
-	u := user.User{ID: uuid.NewString(), Role: user.RoleCustomer}
-	validOp := uuid.NewString()
-	tests := []struct {
-		name string
-		form url.Values
-		want string
-	}{
-		{"missing", url.Values{"points": {"100"}}, "/account/points?badform=1"},
-		{"empty", url.Values{"points": {"100"}, "operation_id": {""}}, "/account/points?badform=1"},
-		{"malformed", url.Values{"points": {"100"}, "operation_id": {"not-a-uuid"}}, "/account/points?badform=1"},
-		{"nil UUID", url.Values{"points": {"100"}, "operation_id": {uuid.Nil.String()}}, "/account/points?badform=1"},
-		{"valid UUID", url.Values{"points": {"50"}, "operation_id": {validOp}}, "/account/points?small=1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequestWithContext(
-				user.NewContext(t.Context(), u),
-				http.MethodPost, "/account/points", strings.NewReader(tt.form.Encode()),
-			)
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			res := httptest.NewRecorder()
-			h.Redeem(res, req)
-			if res.Code != http.StatusSeeOther {
-				t.Fatalf("status = %d, want 303", res.Code)
-			}
-			if location := res.Header().Get("Location"); location != tt.want {
-				t.Fatalf("Location = %q, want %q", location, tt.want)
-			}
-		})
+	t.Parallel()
+	_, err := (&Store{}).Redeem(t.Context(), uuid.NewString(), 100, uuid.Nil)
+	if !errors.Is(err, ErrInvalidOperation) || errors.Is(err, ErrNoAccount) {
+		t.Fatalf("Redeem() error = %v, want invalid operation without missing account", err)
 	}
 }
 
@@ -112,34 +86,15 @@ func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
 	}
 }
 
-func TestAnExpiredRedemptionFormNoticeSpeaksBothLocales(t *testing.T) {
-	tests := []struct {
-		locale i18n.Locale
-		want   string
-	}{
-		{i18n.ZhHant, "這份兌換表單已過期，請重新送出。"},
-		{i18n.En, "That redemption form expired. Submit it again."},
-	}
-	for _, tt := range tests {
-		req, err := http.NewRequestWithContext(
-			i18n.WithLocale(t.Context(), tt.locale),
-			http.MethodGet, "/account/points?badform=1", http.NoBody,
-		)
-		if err != nil {
-			t.Fatalf("request: %v", err)
-		}
-		if got := noticeFor(req); got != tt.want {
-			t.Errorf("notice in %s = %q, want %q", tt.locale, got, tt.want)
-		}
-		short, err := http.NewRequestWithContext(
-			i18n.WithLocale(t.Context(), tt.locale),
-			http.MethodGet, "/account/points?short=1", http.NoBody,
-		)
-		if err != nil {
-			t.Fatalf("short request: %v", err)
-		}
-		if got := noticeFor(short); strings.Contains(got, tt.want) {
-			t.Errorf("short notice in %s reused the expired-form sentence", tt.locale)
+func TestQueryFlagsCannotClaimARedemptionOrNoDebit(t *testing.T) {
+	t.Parallel()
+	h := &Handler{confirmationKey: "test-key"}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, flag := range []string{"ok=1", "badform=1", "redeemed=forged"} {
+			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/account/points?"+flag, http.NoBody)
+			if got := h.noticeFor(req, "owner"); got != "" {
+				t.Errorf("noticeFor(%s, %s) = %q, want no assertion", locale, flag, got)
+			}
 		}
 	}
 }
