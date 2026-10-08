@@ -344,7 +344,7 @@ body {
      how far a period has run. 7.15:1 on white, so it is the link text as well
      as the ring and the fill; a price is never blue, or it reads as a link.
      --mark marks a stretch of time on the storefront; a chart's dates are drawn
-     in --ink-2. 藍墨 (ink blue) is the same hue pressed:
+     in --ink-2. The second ring of the goen mark is this blue too. 藍墨 (ink blue) is the same hue pressed:
      hover, text on a blue tint, and a label that is not an action. The tints
      are opaque so text on them is measured against one colour. */
   --accent: #2a56a0;
@@ -618,5 +618,15 @@ body {
 
   .ui-period > i[data-span="extra"][data-cell="today"] {
     mask: linear-gradient(90deg, #000 60%, transparent 0) 0 0 / 8px 100% round border-box;
+  }
+}
+
+/* An SVG keeps the colours it was drawn in, so on a dark Canvas the near-black
+   ring vanishes; below 1024px the mark is the only thing left of the home link. */
+@media (forced-colors: active) {
+  .goen-header__mark circle,
+  .goen-footer__mark circle,
+  .goen-adminbar__mark circle {
+    stroke: CanvasText;
   }
 }
