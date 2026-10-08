@@ -7931,7 +7931,7 @@ input.goen-check {
 }
 
 .about__ring--accent {
-  stroke: var(--accent-deep);
+  stroke: var(--accent);
 }
 
 /* Where the two rings meet is lighter than the paper around it, not darker:
@@ -7939,6 +7939,16 @@ input.goen-check {
 .about__lens {
   fill: var(--n-0);
   fill-opacity: 0.6;
+}
+
+@media (forced-colors: active) {
+  .about__ring {
+    stroke: CanvasText;
+  }
+
+  .about__lens {
+    fill: none;
+  }
 }
 
 .about__title {

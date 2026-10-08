@@ -40,7 +40,8 @@ type PlacedLine struct {
 func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed int64, now time.Time) string {
 	s := p.Snapshot
 	blocks := []string{fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedReceived), p.OrderNumber)}
-	lines := []string{i18n.T(ctx, i18n.KeyMailPlacedLines)}
+	lines := make([]string, 1, 1+2*len(s.Lines))
+	lines[0] = i18n.T(ctx, i18n.KeyMailPlacedLines)
 	for _, line := range s.Lines {
 		name := line.Name
 		if line.Label != "" {
@@ -50,7 +51,8 @@ func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed i
 			line.SKU, strconv.FormatInt(int64(line.Quantity), 10), twd(line.UnitCents), twd(line.UnitCents*int64(line.Quantity))))
 	}
 	blocks = append(blocks, strings.Join(lines, "\n"))
-	amounts := []string{i18n.T(ctx, i18n.KeyMailPlacedTotals)}
+	amounts := make([]string, 1, 8)
+	amounts[0] = i18n.T(ctx, i18n.KeyMailPlacedTotals)
 	for _, row := range []struct {
 		key   i18n.Key
 		cents int64
@@ -66,8 +68,7 @@ func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed i
 		}
 		amounts = append(amounts, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), label, twd(row.cents)))
 	}
-	blocks = append(blocks, strings.Join(amounts, "\n"))
-	blocks = append(blocks, strings.Join([]string{
+	blocks = append(blocks, strings.Join(amounts, "\n"), strings.Join([]string{
 		i18n.T(ctx, i18n.KeyMailPlacedDelivery), s.ShippingName,
 		fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyFieldRecipient), p.Name),
 		fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFact), i18n.T(ctx, i18n.KeyFieldPhoneShort), s.Phone),

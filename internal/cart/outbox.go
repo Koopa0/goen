@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -35,19 +34,21 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 	if err != nil {
 		return fmt.Errorf("read stock hold for order.placed: %w", err)
 	}
+	// finishOrder persists this same delivery after the confirmation is queued.
 	snapshot := &email.PlacedSnapshot{
 		SubtotalCents: summary.SubtotalCents, ShippingCents: summary.ShippingCents,
 		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason, TaxCents: summary.TaxCents,
 		CreditCents: summary.CreditCents, ShippingName: summary.ShippingMethodName,
 		Phone: addr.Phone, DeliveryNote: addr.Note, HoldUntil: hold.HeldUntil, StartBy: payment.StartBy(hold.HeldUntil),
 		DeliveryTo: pages.Delivery{
-			PostalCode: summary.PostalCode, City: summary.City, District: summary.District,
-			Street: summary.Street, PickupChain: pickup.Chain(summary.PickupChain),
-			PickupStoreCode: summary.PickupStoreCode, PickupStoreName: summary.PickupStoreName,
+			PostalCode: addr.PostalCode, City: addr.City, District: addr.District,
+			Street: addr.Street, PickupChain: addr.PickupChain,
+			PickupStoreCode: addr.PickupStoreCode, PickupStoreName: addr.PickupStoreName,
 		}.Line(),
 		Lines: make([]email.PlacedLine, 0, len(lines)),
 	}
-	for _, line := range lines {
+	for i := range lines {
+		line := &lines[i]
 		snapshot.Lines = append(snapshot.Lines, email.PlacedLine{
 			SKU: line.SKU, Name: line.ProductName, Label: line.VariantLabel.String,
 			UnitCents: line.UnitPriceCents, Quantity: line.Quantity,
