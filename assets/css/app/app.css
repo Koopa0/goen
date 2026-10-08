@@ -7319,17 +7319,21 @@ input.goen-check {
   border-bottom: 0;
 }
 
+/* The status column is as wide as its badge and pay link, never narrower:
+   a fixed basis broke 「前往付款」 across two lines beside the badge. */
 .goen-account__orders th,
 .goen-account__orders td {
-  flex: 0 0 7rem;
+  flex: 0 0 auto;
+  min-inline-size: 7rem;
   padding: 0.5rem 0;
-  text-align: left;
+  text-align: end;
 }
 
 .goen-account__orders th:first-child,
 .goen-account__orders td:first-child {
   flex: 1 1 0;
   min-width: min-content;
+  text-align: start;
 }
 
 .goen-account__orders th {
@@ -7357,6 +7361,7 @@ input.goen-check {
 
 .goen-account__orderpay {
   font-size: var(--fs-14);
+  white-space: nowrap;
   font-weight: var(--fw-medium);
   margin-inline-start: 0.5rem;
   text-decoration: none;
