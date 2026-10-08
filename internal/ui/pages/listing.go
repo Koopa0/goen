@@ -62,6 +62,27 @@ type ListingView struct {
 	Sort        string
 }
 
+const (
+	stockSelectedID = "stock-selected"
+	priceSelectedID = "price-selected"
+)
+
+// StockSelected and PriceSelected count the two groups that are not facets:
+// each is on or off.
+func (v ListingView) StockSelected() int64 {
+	if v.InStockOnly {
+		return 1
+	}
+	return 0
+}
+
+func (v ListingView) PriceSelected() int64 {
+	if v.MinPrice > 0 || v.MaxPrice > 0 {
+		return 1
+	}
+	return 0
+}
+
 func (v ListingView) MinPriceText() string { return priceField(v.MinPrice) }
 func (v ListingView) MaxPriceText() string { return priceField(v.MaxPrice) }
 

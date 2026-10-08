@@ -214,6 +214,9 @@ const HEADER_EN = [
   { label: 'header en 1440', width: 1440, height: 900, path: '/' },
   { label: 'listing header en 1024', width: 1024, height: 900, path: '/c/phones' },
   { label: 'listing header en 1440', width: 1440, height: 900, path: '/c/phones' },
+  // Staff have the widest bar: the wordmark, the heart and "Back office" all show from 1024.
+  { label: 'header en staff 1024', width: 1024, height: 900, path: '/', staff: true },
+  { label: 'header en staff 1440', width: 1440, height: 900, path: '/', staff: true },
 ];
 
 // The back office. Needs a staff session, which scripts/check-layout.sql
@@ -1508,6 +1511,9 @@ const proveListingDesktopResize = async (label, locale) => {
     const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
+    // An open filter panel overlays the applied row by design; close it so the
+    // link's own target is what is measured.
+    document.querySelectorAll('.goen-filters__group[open]').forEach((group) => group.removeAttribute('open'));
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
     const missed = [];
     if (remove) {
@@ -1807,9 +1813,20 @@ const HEADER_EN_PROBE = `(() => {
 
 await send(ws, 'Network.enable');
 for (const want of HEADER_EN) {
+  if (want.staff && !process.env.ADMIN_TOKEN) {
+    console.log(`${want.label.padEnd(24)} skipped (no ADMIN_TOKEN)`);
+    continue;
+  }
   await send(ws, 'Network.setCookie', {
     name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/',
   });
+  if (want.staff) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/',
+    });
+  } else {
+    await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  }
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: false,
   });
@@ -1849,6 +1866,7 @@ for (const want of HEADER_EN) {
 await send(ws, 'Network.deleteCookies', {
   name: 'goen_locale', domain: '127.0.0.1', path: '/',
 });
+await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
 
 // The cart pages. Their probe measures the CONTROLS: a cart is a page of
 // buttons and number inputs, and the defect this caught on its first run was a
@@ -3012,8 +3030,8 @@ try {
             fail(label, boundary.selector + ': ' + boundary.error);
             continue;
           }
-          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
-            fail(label, boundary.selector + ': boundary and fill both below 3:1');
+          if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast, boundary.underlineContrast, boundary.arrowContrast) < 3) {
+            fail(label, boundary.selector + ': boundary, underline, arrow and fill all below 3:1');
           }
           const focused = await controlFocus(boundary.selector);
           console.log(label + ' focus ' + JSON.stringify(focused));
@@ -3668,6 +3686,47 @@ const provePdpColourPhoto = async (label, scriptingOff) => {
 await provePdpColourPhoto('pdp colour photo 375 off', true);
 await provePdpColourPhoto('pdp colour photo 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+// The product page's related products are two across below 1024, wherever the
+// grid's gap changes. A card narrower than 40% of the row, or a second card on
+// a line of its own, is the single column the track width falls to when it
+// halves a gap the grid no longer has.
+const RELATED_ROW_PROBE = `(() => {
+  const grid = document.querySelector('.goen-pdp__related .goen-tiles__grid');
+  if (!grid) return { ok: false, why: 'the product page has no related products to measure' };
+  const cards = [...grid.children].map((c) => {
+    const r = c.getBoundingClientRect();
+    return { top: r.top, width: r.width };
+  });
+  if (cards.length < 2) return { ok: false, why: 'fewer than two related cards' };
+  return { ok: true, row: grid.getBoundingClientRect().width, a: cards[0], b: cards[1] };
+})()`;
+
+for (const width of [375, 768, 1023]) {
+  const label = `related ${width}`;
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 1024, deviceScaleFactor: 1, mobile: false });
+  const target = ORIGIN + '/p/' + (process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const got = await evalPage(RELATED_ROW_PROBE);
+  if (got.threw || !got.ok) {
+    fail(label, `the probe did not run: ${got.why}`);
+    continue;
+  }
+  if (![got.row, got.a.top, got.a.width, got.b.top, got.b.width].every(Number.isFinite)) {
+    fail(label, 'the related cards were not measured');
+    continue;
+  }
+  if (Math.abs(got.a.top - got.b.top) > 1) {
+    fail(label, `the second related card starts ${Math.round(got.b.top - got.a.top)}px below the first, want one row of two`);
+  }
+  for (const [name, card] of [['first', got.a], ['second', got.b]]) {
+    if (card.width <= got.row * 0.4) {
+      fail(label, `the ${name} related card is ${Math.round(card.width)}px of a ${Math.round(got.row)}px row, want more than 40%`);
+    }
+  }
+  console.log(`${label.padEnd(24)} cards=${Math.round(got.a.width)}+${Math.round(got.b.width)} of ${Math.round(got.row)}px`);
+}
 
 // axe-core, once per route.
 //

@@ -344,6 +344,13 @@ th {
   width: 2.75rem;
 }
 
+.goen-pdp__links .goen-btn svg,
+.goen-pdp__add svg,
+.goen-buybar__btn svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
 .goen-btn--block {
   display: flex;
   width: 100%;
@@ -506,7 +513,6 @@ th {
     outline-offset: -2px;
   }
 
-  .goen-header__drawer .ui-navitem[aria-current='page']:not(:focus-visible),
   .goen-account__navitem[aria-current='page']:not(:focus-visible) {
     outline: 1px solid Highlight;
     outline-offset: -1px;
@@ -622,6 +628,7 @@ th {
 .goen-input:focus-visible,
 .goen-filters .ui-input:focus-visible,
 .goen-filters .ui-select:focus-visible,
+.goen-search-sort .ui-select:focus-visible,
 .contact__select:focus-visible,
 .goen-checkout__select:focus-visible {
   border-color: var(--ink);
@@ -777,6 +784,7 @@ th {
   column-gap: 12px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   margin: 0 auto;
   max-width: var(--page-width);
   min-height: 4rem;
@@ -1093,10 +1101,15 @@ th {
   }
 }
 
-/* Deals is not a department, so a 2.5rem space, the row's gap and this padding
-   together, sets it apart. */
 .goen-header .goen-header__nav .goen-header__navitem--deal {
-  padding-left: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
+  padding-left: 0;
+}
+
+/* Deals is not a department, so a 2.5rem space (this margin plus the row's gap)
+   sets it apart. The margin sits on the item before it, so a wrapped Deals starts
+   at the row's edge. */
+.goen-header__nav > :has(+ .goen-header__navitem--deal) {
+  margin-inline-end: calc(2.5rem - clamp(1.25rem, 2vw, 1.75rem));
 }
 
 .goen-header__search {
@@ -1108,24 +1121,35 @@ th {
 .goen-header__searchicon {
   align-items: center;
   bottom: 0;
-  color: var(--n-500);
+  color: var(--ink-2);
   display: flex;
   left: 0;
-  padding-left: 12px;
   pointer-events: none;
   position: absolute;
   top: 0;
 }
 
 .goen-header__searchicon svg {
-  height: 16px;
-  width: 16px;
+  height: 1rem;
+  width: 1rem;
 }
 
+/* Page chrome, not a form: the field is its line. The line is the control's
+   boundary (1.4.11, 3.66:1) and focus draws the shared ring around the whole
+   field on top of it. */
 .goen-header .goen-header__field {
   background: none;
   border-radius: 0;
-  padding-left: 40px;
+  border-width: 0 0 1px;
+  padding-left: 1.75rem;
+}
+
+.goen-header .goen-header__field:hover {
+  border-bottom-color: var(--ink-2);
+}
+
+.goen-header .goen-header__field:focus-visible {
+  outline-offset: 4px;
 }
 
 .goen-header__actions {
@@ -1134,69 +1158,77 @@ th {
   gap: 4px;
 }
 
-.goen-header__actions svg {
-  height: 1.5rem;
-  width: 1.5rem;
+.goen-header__actions svg,
+.goen-header__menu > summary svg {
+  height: 1.25rem;
+  width: 1.25rem;
 }
 
 .goen-header__actions .goen-btn,
-.goen-header__actions .ui-btn {
-  color: var(--n-700);
+.goen-header__actions .ui-btn,
+.goen-header__menu > summary {
+  color: var(--ink-2);
 }
 
 .goen-header__actions .goen-btn:hover,
-.goen-header__actions .ui-btn:hover {
+.goen-header__actions .ui-btn:hover,
+.goen-header__menu > summary:hover {
   background: var(--n-100);
-  color: var(--n-900);
+  color: var(--ink);
 }
 
-/* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the shared button spelling because `backoffice_test.go:112` asserts the
-   whole class attribute, so the ghost-icon recipe is written out again here
-   rather than taken from `.goen-btn`. */
-.goen-header__action--wide {
+/* The wishlist heart and, for staff, the words "Back office" before the language
+   menu. Both keep the shared `ui-btn` spelling that `backoffice_test.go` reads,
+   so the ghost recipe is written out here rather than taken from `.goen-btn`. */
+.goen-header__action--wide,
+.goen-header__backoffice {
   align-items: center;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
   cursor: pointer;
   display: none;
   height: 44px;
   justify-content: center;
-  padding: 0;
   text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__action--wide {
+  padding: 0;
   width: 44px;
 }
 
-.goen-header__cart {
-  position: relative;
+.goen-header__backoffice {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
-/* The count pill, beside the glyph and not over it. `check-layout.mjs:2570`
+.goen-header__actions .goen-header__cart {
+  gap: 4px;
+  min-width: 2.75rem;
+  padding-inline: 0.625rem;
+  width: auto;
+}
+
+/* The count is a number beside the bag, not a badge on it. `check-layout.mjs`
    reads its text through this exact pair of names after an add to cart, so the
-   spelling stays and the declarations are goen's. The button is 44px with a
-   24px glyph centred in it, so the pill starts at the glyph's right edge. */
+   spelling stays and the declarations are goen's. */
 .goen-header__cart .ui-badge--count {
-  align-items: center;
-  background: var(--n-900);
+  background: none;
   border: none;
-  border-radius: var(--r-full);
-  box-sizing: border-box;
-  color: var(--n-0);
-  display: flex;
+  color: var(--ink);
   font-family: inherit;
-  font-size: var(--fs-11);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
-  height: 18px;
-  justify-content: center;
-  left: calc(50% + 13px);
+  height: auto;
   line-height: 1;
-  min-width: 18px;
-  padding: 0 5px;
-  position: absolute;
-  top: 2px;
+  min-width: 0;
+  padding: 0;
 }
 
 /* The language control, in the footer: two plain words, the current one set. */
@@ -1265,6 +1297,18 @@ th {
   display: none;
 }
 
+.goen-header__actions .goen-langmenu > summary {
+  box-sizing: border-box;
+  color: var(--ink-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.goen-header__actions .goen-langmenu > summary:hover,
+.goen-header__actions .goen-langmenu[open] > summary {
+  color: var(--ink);
+}
+
 .goen-langmenu > summary:hover,
 .goen-langmenu[open] > summary {
   background: var(--n-100);
@@ -1278,8 +1322,8 @@ th {
 }
 
 .goen-header__actions .goen-langmenu svg {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1rem;
+  width: 1rem;
 }
 
 .goen-header .goen-langmenu__current {
@@ -1411,8 +1455,16 @@ th {
 }
 
 .goen-header__drawer .ui-navitem[aria-current='page'] {
-  background: var(--accent-faint);
-  color: var(--accent-deep);
+  background: none;
+  color: var(--n-900);
+  font-weight: var(--fw-medium);
+}
+
+/* The name only: the count beside it is not part of what is current. */
+.goen-header__drawer .ui-navitem[aria-current='page'] .goen-header__navname,
+.goen-header__drawer .goen-header__navitem--deal[aria-current='page'] {
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 0.45em;
 }
 
 /* The way out of the drawer, and what the phone's bar has no room for. The
@@ -1463,14 +1515,15 @@ th {
   }
 }
 
-/* English department names out-measure the zh-Hant ones, so the desktop row
-   gives up the wishlist icon below 1280 before it lets the search field fall
-   under the width `check-layout.mjs` calls usable; the account page carries
-   the wishlist link at every width. */
 @media (min-width: 1024px) {
   .goen-header__bar {
     column-gap: 1.25rem;
     padding: 0 var(--page-gutter);
+  }
+
+  .goen-header__action--wide,
+  .goen-header__backoffice {
+    display: inline-flex;
   }
 
   .goen-header__menu {
@@ -1481,11 +1534,23 @@ th {
     margin-right: 0;
   }
 
+  .goen-header .goen-header__field {
+    font-size: var(--fs-14);
+  }
+
   .goen-header__search {
     flex: 1 1 8.75rem;
     margin-left: auto;
-    max-width: 22rem;
+    max-width: 15.5rem;
     min-width: 8.75rem;
+    order: 0;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .goen-header__search {
+    flex: 1 1 12rem;
+    max-width: 24rem;
     order: 0;
   }
 }
@@ -1497,18 +1562,6 @@ th {
 
   .goen-header__actions {
     gap: 0;
-  }
-
-  /* The mark is the brand where the row is this tight; the word stays in the
-     link's accessible name. */
-  .goen-header__wordmark {
-    clip-path: inset(50%);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
   }
 
   .goen-header__search {
@@ -1526,9 +1579,17 @@ th {
     position: static;
     width: auto;
   }
+}
 
-  .goen-header__action--wide {
-    display: inline-flex;
+/* Forced colours replace the greys, so the glyphs and the count take the
+   button colour the system chose for controls. */
+@media (forced-colors: active) {
+  .goen-header__actions .goen-btn,
+  .goen-header__actions .ui-btn,
+  .goen-header__actions .goen-langmenu > summary,
+  .goen-header__menu > summary,
+  .goen-header__cart .ui-badge--count {
+    color: ButtonText;
   }
 }
 
@@ -1633,9 +1694,85 @@ th {
   flex: 0 0 100%;
 }
 
-.goen-footer__signup .goen-input {
-  flex: 1 1 8rem;
+/* One shape: the field's own box, with the button set inside it 4px from every
+   edge. The field reserves the button's width, so typed text never runs under
+   it. */
+.goen-footer__field {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
+}
+
+.goen-footer__field > .goen-input {
+  border-radius: var(--r-lg);
+  grid-area: 1 / 1 / 2 / 3;
+  height: 3.25rem;
+  padding-right: 8.5rem;
+}
+
+.goen-footer__field > .goen-btn {
+  border-radius: var(--r-md);
+  grid-area: 1 / 2;
+  margin: 4px;
+  min-height: 2.75rem;
+  z-index: 1;
+}
+
+.goen-footer__field > .goen-btn:focus-visible {
+  outline-offset: -2px;
+}
+
+/* A column too narrow for the field and the action side by side puts the
+   action under the field. */
+.goen-footer__signup {
+  container-type: inline-size;
+}
+
+@container (max-width: 17rem) {
+  .goen-footer__field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-footer__field > .goen-input {
+    grid-area: auto;
+    padding-right: 0.75rem;
+  }
+
+  .goen-footer__field > .goen-btn {
+    grid-area: auto;
+    justify-self: start;
+    margin: 0.25rem 0 0;
+  }
+}
+
+.goen-footer__field > .goen-btn--ghost {
+  background: none;
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+  gap: 0.375rem;
+  padding-inline: 0.75rem 1rem;
+}
+
+.goen-footer__field > .goen-btn--ghost:hover {
+  background: none;
+  color: var(--accent-deep);
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}
+
+.goen-footer__field > .goen-btn--ghost > [aria-hidden] {
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-footer__field > .goen-btn--ghost:hover > [aria-hidden] {
+    transform: none;
+  }
 }
 
 .goen-footer__signup-done {
@@ -1747,33 +1884,6 @@ th {
   }
 }
 
-/* The continuation after a section's name: same line, same size, grey. On a
-   phone the pair does not fit one line beside the link, and wrapping would split
-   a count from its unit ("8 / 件商品"), so there the continuation is its own
-   line at the body size and its separator is left to a screen reader. */
-.goen-home__aside {
-  color: var(--n-500);
-  font-weight: var(--fw-regular);
-}
-
-@media (max-width: 39.99rem) {
-  .goen-home__aside {
-    display: block;
-    font-size: var(--fs-16);
-    line-height: 1.5;
-    margin-top: 0.25rem;
-  }
-
-  .goen-home__sep {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-}
-
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -1790,6 +1900,17 @@ th {
   color: var(--accent-text-hover);
   text-decoration: underline;
   text-underline-offset: 0.25em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-home__more > span {
+    display: inline-block;
+    transition: transform var(--dur-base) var(--ease-standard);
+  }
+
+  .goen-home__more:hover > span {
+    transform: translateX(3px);
+  }
 }
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
@@ -1954,9 +2075,13 @@ th {
 
 .goen-hero__tabs {
   display: flex;
-  gap: var(--s-6);
+  gap: var(--s-1);
+  margin-inline-start: calc(var(--s-4) * -1);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
+  /* The fade lands on this room, not on the last tab's words, when the tabs fit. */
+  padding-inline-end: 1.5rem;
   scrollbar-width: none;
 }
 
@@ -1969,13 +2094,15 @@ th {
 }
 
 .goen-hero__tabs a {
-  border-top: 2px solid var(--n-200);
+  border-radius: var(--r-full);
+  text-decoration: none;
   color: var(--fg-muted);
   flex: none;
   font-size: var(--t-14);
+  line-height: 1.5rem;
   max-width: 14em;
   overflow: hidden;
-  padding: var(--s-2) 0;
+  padding: 0.625rem var(--s-4);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1984,9 +2111,25 @@ th {
   color: var(--fg);
 }
 
+@media (max-width: 47.99rem) {
+  .goen-hero__tabs {
+    margin-inline-start: 0;
+  }
+}
+
+/* The current tab is told apart by its weight and its fill, so colour is not
+   the only cue; forced colours drop the fill and draw the edge instead. */
 .goen-hero__tabs a[aria-current="true"] {
-  border-top-color: var(--n-900);
-  color: var(--fg);
+  background: var(--accent-faint);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+@media (forced-colors: active) {
+  .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 .goen-hero__nav {
@@ -2017,9 +2160,37 @@ th {
   width: 1.25rem;
 }
 
-/* A slide with no photograph is colour and type, as tall as its text. */
+/* A slide with no photograph is colour and type. */
 .goen-hero__slide--text .goen-hero__body {
   padding-block: 2rem 2.5rem;
+}
+
+/* Beside photo slides the track makes it as tall as they are, so under 1024px
+   it is a poster: the name at the top, the facts and the button at the foot,
+   instead of the copy in the corner of a tall field of tone. */
+@media (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__body {
+    display: flex;
+  }
+
+  .goen-hero__slide--text .goen-hero__inner {
+    flex: 1;
+    max-width: none;
+  }
+
+  .goen-hero__slide--text .goen-hero__title {
+    margin-block-end: auto;
+  }
+}
+
+@media (min-width: 40rem) and (max-width: 63.99rem) {
+  .goen-hero__slide--text .goen-hero__title {
+    font-size: 3rem;
+  }
+
+  .goen-hero__slide--text .goen-hero__title--long {
+    font-size: var(--fs-ed-38);
+  }
 }
 
 @media (max-width: 50rem) {
@@ -2197,21 +2368,6 @@ th {
   padding: var(--s-6) var(--page-gutter) var(--s-8);
 }
 
-.goen-band .goen-home__heading {
-  color: var(--tone-text);
-  font-size: var(--fs-ed-30);
-}
-
-.goen-band .goen-home__heading:lang(zh) {
-  font-family: var(--font-editorial);
-  font-weight: 500;
-}
-
-.goen-band .goen-home__aside {
-  font-family: var(--font-sans);
-  font-weight: var(--fw-regular);
-}
-
 .goen-band .goen-band__name--long {
   font-size: var(--fs-ed-24);
 }
@@ -2225,7 +2381,7 @@ th {
   color: var(--tone-text);
 }
 
-.goen-band .goen-home__aside,
+.goen-band .goen-band__fact,
 .goen-band .goen-tile__brand,
 .goen-band .goen-tile__was,
 .goen-band .goen-tile__state,
@@ -2233,7 +2389,7 @@ th {
   color: var(--tone-muted);
 }
 
-/* Below 768px the three products scroll sideways rather than stacking. */
+/* The four products scroll sideways until the shelf's container reaches 48rem. */
 .goen-band__tiles {
   display: grid;
   gap: 1rem;
@@ -2276,15 +2432,6 @@ th {
 @media (min-width: 48rem) {
   .goen-band__media img {
     aspect-ratio: 16 / 9;
-  }
-
-  .goen-band__tiles {
-    gap: 1.5rem;
-    grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-inline: 0;
-    overflow: visible;
-    padding-inline: 0;
   }
 }
 
@@ -2370,6 +2517,101 @@ th {
   --lift: 0px;
 }
 
+/* The home page's band is the department's shelf: no photograph, because the
+   tile above shows it. From 60rem it shares the tiles' six columns and their
+   1.5rem gap, the name in two and the four products under tiles 3 to 6. The
+   department page's head is built from .goen-band too and takes none of this. */
+.goen-band--shelf {
+  background: var(--tone-ground);
+  container: band / inline-size;
+}
+
+.goen-band--shelf .goen-band__body {
+  display: grid;
+  gap: var(--s-5) var(--col-gap);
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--s-6) var(--page-edge) var(--s-7);
+}
+
+.goen-band--shelf .goen-band__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.goen-band--shelf .goen-band__name {
+  font-family: var(--font-sans);
+  font-size: var(--t-32);
+  font-weight: var(--fw-display);
+  hyphens: auto;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.goen-band--shelf .goen-band__name:lang(zh) {
+  font-family: var(--font-editorial);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.goen-band--shelf .goen-band__fact {
+  font-size: var(--t-15);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.goen-band--shelf .goen-band__fact:lang(zh) {
+  word-break: keep-all;
+}
+
+.goen-band--shelf .goen-home__more {
+  align-self: flex-start;
+  margin-top: var(--s-2);
+}
+
+.goen-band--shelf .goen-band__tiles {
+  grid-auto-columns: max(42%, 8rem);
+}
+
+@container band (width >= 48rem) {
+  .goen-band--shelf .goen-band__tiles {
+    gap: var(--col-gap);
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+@container band (width >= 60rem) {
+  .goen-band--shelf .goen-band__body {
+    column-gap: 1.5rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding-block: var(--s-7);
+  }
+
+  .goen-band--shelf .goen-band__head {
+    grid-column: 1 / 3;
+    padding-right: var(--s-5);
+  }
+
+  .goen-band--shelf .goen-band__tiles {
+    gap: 1.5rem;
+    grid-column: 3 / -1;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-band--shelf {
+    border-block: 1px solid CanvasText;
+  }
+}
+
 /* The head is a listing's first screen. The copy sets its height and the
    photograph fills it, seven parts to the copy's five, at least 9:4: the floor
    is a pseudo-element's padding because a grid item with an aspect-ratio that is
@@ -2438,11 +2680,12 @@ th {
    ------------------------------------------------------------------------ */
 
 .goen-tiles__grid {
+  --tiles-gap-x: 1rem;
   display: grid;
-  gap: 2.5rem 1rem;
+  gap: 2.5rem var(--tiles-gap-x);
   /* Two columns for as long as two cards of 6.5rem fit, so a narrow window or
      text at 200% does not drop to one photograph per row. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2684,7 +2927,7 @@ input.goen-check {
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 2.5rem 1.5rem;
+    --tiles-gap-x: 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -2815,9 +3058,11 @@ input.goen-check {
 }
 
 .goen-listing__filters {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 0 12px;
   min-width: 0;
 }
 
@@ -2840,8 +3085,18 @@ input.goen-check {
 }
 
 .goen-filters__shell {
-  border-bottom: 1px solid var(--n-200);
-  border-top: 1px solid var(--n-200);
+  min-width: 0;
+}
+
+.goen-listing__filters .goen-listing__count {
+  margin-inline-start: auto;
+}
+
+/* An open sheet takes the row; the count goes under it, not beside it. */
+@media (max-width: 63.99rem) {
+  .goen-filters__shell[open] {
+    flex: 1 1 100%;
+  }
 }
 
 .goen-filters__shell-summary {
@@ -2850,7 +3105,7 @@ input.goen-check {
   display: flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
 }
@@ -2859,18 +3114,19 @@ input.goen-check {
   display: none;
 }
 
-.goen-filters__shell-summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
+.goen-filters__shell-summary::after,
+.goen-filters__summary::after {
+  background: var(--chevron) center / 1.15em no-repeat;
   content: '';
-  height: 8px;
-  transform: rotate(45deg);
+  flex: none;
+  height: 1.15em;
   transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
+  width: 1.15em;
 }
 
-.goen-filters__shell[open] > .goen-filters__shell-summary::after {
-  transform: rotate(-135deg);
+.goen-filters__shell[open] > .goen-filters__shell-summary::after,
+.goen-filters__group[open] > .goen-filters__summary::after {
+  transform: rotate(180deg);
 }
 
 /* A closed disclosure hides its form outright. Chrome keeps the layout of the
@@ -2911,19 +3167,24 @@ input.goen-check {
 }
 
 .goen-filters__group {
-  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
 .goen-filters__summary {
   align-items: center;
   cursor: pointer;
+  color: var(--ink-2);
   display: flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: space-between;
+  gap: 8px;
   list-style: none;
   min-height: 44px;
+}
+
+.goen-filters__summary:hover,
+.goen-filters__group[open] > .goen-filters__summary {
+  color: var(--ink);
 }
 
 .goen-filters__summary::-webkit-details-marker {
@@ -2931,17 +3192,7 @@ input.goen-check {
 }
 
 .goen-filters__summary::after {
-  border-bottom: 2px solid var(--fg-muted);
-  border-right: 2px solid var(--fg-muted);
-  content: '';
-  height: 8px;
-  transform: rotate(45deg);
-  transition: transform var(--dur-base) var(--ease-standard);
-  width: 8px;
-}
-
-.goen-filters__group[open] > .goen-filters__summary::after {
-  transform: rotate(-135deg);
+  margin-inline-start: auto;
 }
 
 .goen-filters__options {
@@ -2979,6 +3230,28 @@ input.goen-check {
   font-variant-numeric: tabular-nums;
 }
 
+/* How many of a group's options are on. Empty when none, and then not drawn;
+   the element stays so a swap has somewhere to put the number. */
+.goen-filters__selected {
+  align-items: center;
+  background: var(--accent-faint);
+  border-radius: var(--r-full);
+  color: var(--accent-deep);
+  display: inline-flex;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  justify-content: center;
+  line-height: 1;
+  min-height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.375rem;
+}
+
+.goen-filters__selected:empty {
+  display: none;
+}
+
 .goen-filters__prices {
   align-items: center;
   display: flex;
@@ -2992,17 +3265,20 @@ input.goen-check {
 }
 
 .goen-filters__field {
+  align-items: center;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+.goen-filters__field > .goen-label {
+  color: var(--fg-muted);
+  font-weight: var(--fw-regular);
 }
 
 /* The price pair and the sort control keep the shared names: the shell probe
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
-.goen-filters .ui-input,
-.goen-filters .ui-select,
-.goen-search-sort .ui-select {
+.goen-filters .ui-input {
   background: var(--bg);
   border: 0;
   border-radius: var(--r-md);
@@ -3018,11 +3294,32 @@ input.goen-check {
   width: 100%;
 }
 
+/* The sort is words and an arrow, not a box. The arrow is its cue (1.4.11,
+   5.70:1 on white) and the target stays 44px tall. */
 .goen-filters .ui-select,
 .goen-search-sort .ui-select {
   appearance: none;
-  background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
-  padding-right: 2.5rem;
+  background: transparent var(--chevron) no-repeat right 0.25rem center / 1.15em;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  cursor: pointer;
+  field-sizing: content;
+  font-family: inherit;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  min-width: 0;
+  outline: 0;
+  padding: 0 1.75em 0 0.25rem;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .goen-filters .ui-select,
+  .goen-search-sort .ui-select {
+    font-size: var(--fs-14);
+  }
 }
 
 .goen-filters__apply {
@@ -3041,26 +3338,21 @@ input.goen-check {
 /* The search's one control sits above the grid, on the right where a phone and
    a desktop both find it. */
 .goen-search-sort {
-  align-items: flex-end;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 0 12px;
   justify-content: flex-end;
   margin-bottom: 16px;
-}
-
-.goen-search-sort .ui-select {
-  width: auto;
 }
 
 .goen-search-sort .goen-listing__count {
   align-items: center;
   display: flex;
+  margin-inline-end: auto;
   min-height: 44px;
-}
-
-.goen-search-sort .goen-filters__field {
-  min-width: min(100%, 16rem);
+  order: -1;
 }
 
 .goen-search-sort .goen-filters__field > label {
@@ -3301,23 +3593,59 @@ input.goen-check {
   color: var(--n-900);
 }
 
-.goen-pagehead__chip[aria-current='page'] {
-  background: var(--n-0);
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  color: var(--accent-deep);
+/* The department head's sub-categories are words on the tone, each a pill-sized
+   target on hover; only the current one is filled. They do not scroll as a
+   boxed button row: the empty search's shortcuts above keep the box. */
+.goen-listing__head .goen-pagehead__chips {
+  gap: 0;
+  margin-top: var(--s-2);
+  padding-inline-start: var(--page-gutter);
 }
 
-[data-tone='ink'] .goen-pagehead__chip {
-  background: var(--tone-rule);
-  border-color: var(--tone-rule);
+@media (min-width: 48rem) {
+  .goen-listing__head .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: calc(var(--s-4) * -1) 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+}
+
+.goen-listing__head .goen-pagehead__chip {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-regular);
+  min-height: 2.75rem;
+  padding: 0 var(--s-4);
+}
+
+.goen-listing__head .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.62);
   color: var(--tone-text);
 }
 
-[data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
-  background: var(--tone-text);
-  box-shadow: none;
-  color: var(--n-900);
+.goen-listing__head .goen-pagehead__chip[aria-current='page'] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip {
+  color: var(--tone-text);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
+  background: rgb(255 255 255 / 0.1);
+  border-color: var(--tone-text);
+  color: var(--on-ink-accent);
 }
 
 .goen-empty__links {
@@ -3870,16 +4198,11 @@ input.goen-check {
      are guarded: where ::details-content does not exist the toolbar stays behind
      its summary, which works. */
   .goen-listing__filters {
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: wrap;
     gap: 8px 24px;
   }
 
   .goen-filters__shell {
-    border: none;
     flex: 1 1 auto;
-    min-width: 0;
   }
 
   @supports selector(details::details-content) {
@@ -3909,7 +4232,7 @@ input.goen-check {
     align-items: center;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px 12px;
+    gap: 8px 24px;
   }
 
   .goen-filters__end {
@@ -3923,15 +4246,12 @@ input.goen-check {
   }
 
   .goen-filters__summary {
-    border: 1px solid var(--n-300);
-    border-radius: var(--r-full);
-    gap: 10px;
-    padding: 0 16px;
+    gap: 6px;
+    padding: 0 4px 0 0;
   }
 
-  .goen-filters__summary:hover,
-  .goen-filters__group[open] > .goen-filters__summary {
-    border-color: var(--n-900);
+  .goen-filters__summary::after {
+    margin-inline-start: 0;
   }
 
   .goen-filters__options,
@@ -3945,18 +4265,8 @@ input.goen-check {
     min-width: 15rem;
     padding: 12px;
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 0.75rem);
     z-index: 4;
-  }
-
-  .goen-filters__field {
-    align-items: center;
-    flex-direction: row;
-    gap: 8px;
-  }
-
-  .goen-filters__end .ui-select {
-    width: auto;
   }
 
   .goen-filters__end .goen-filters__apply {
@@ -4789,7 +5099,7 @@ input.goen-check {
 /* Similar products are a 4-up row from 1024 and two across below: four tiles
    in the listing's three columns would leave one on a line of its own. */
 .goen-pdp .goen-tiles__grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(6.5rem, 50% - var(--tiles-gap-x) / 2)), 1fr));
 }
 
 .goen-pdp__reviewlayout {

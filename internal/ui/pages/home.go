@@ -111,7 +111,6 @@ type DepartmentBand struct {
 	Fact  string
 	Href  string
 	Tone  Tone
-	Photo Photo
 	Tiles []ProductTile
 }
 
