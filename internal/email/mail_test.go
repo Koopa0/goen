@@ -259,7 +259,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if strings.Contains(body, "NT$1,999") {
 			t.Errorf("a partly funded letter quotes the order total instead of what is owed:\n%s", body)
 		}
-		if !strings.Contains(body, "前往付款") {
+		if !strings.Contains(body, "查看訂單與付款") {
 			t.Errorf("a partly funded letter dropped the pay CTA:\n%s", body)
 		}
 
@@ -277,7 +277,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if strings.Contains(en, "NT$1,999") {
 			t.Errorf("the English letter quotes the order total instead of what is owed:\n%s", en)
 		}
-		if !strings.Contains(en, "Go to payment") {
+		if !strings.Contains(en, "View it and pay") {
 			t.Errorf("the English letter dropped the pay CTA:\n%s", en)
 		}
 	})
@@ -295,7 +295,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if !strings.Contains(sink.msg.Body, "NT$1,999") {
 			t.Errorf("an already-queued letter did not fall back to the total:\n%s", sink.msg.Body)
 		}
-		if !strings.Contains(sink.msg.Body, "Go to payment") {
+		if !strings.Contains(sink.msg.Body, "View it and pay") {
 			t.Errorf("an already-queued letter dropped the pay CTA:\n%s", sink.msg.Body)
 		}
 	})
