@@ -142,6 +142,31 @@ func asWritten(t *testing.T, dest []any, query string, args ...any) {
 	}
 }
 
+// cardRefundOf records the return's card refund at the given status, against the order's captured payment.
+func cardRefundOf(t *testing.T, returnID, status string) {
+	t.Helper()
+	asWritten(t, nil, `
+		INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents, reason,
+		                     provider_ref, succeeded_at, failed_at)
+		SELECT p.id, r.id, 'return:' || r.id, $2::text, r.card_refund_cents, 'test', 're_' || r.id,
+		       CASE WHEN $2::text = 'succeeded' THEN now() - interval '1 day' END,
+		       CASE WHEN $2::text = 'failed' THEN now() - interval '1 day' END
+		FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+		WHERE r.id = $1`, returnID, status)
+}
+
+// refundedEventOf writes the refunded event the payout records once every source of the return has landed, ago
+// before now, and returns its time.
+func refundedEventOf(t *testing.T, returnID, ago string) time.Time {
+	t.Helper()
+	var at time.Time
+	asWritten(t, []any{&at}, `
+		INSERT INTO order_events (order_id, kind, return_request_id, occurred_at)
+		SELECT order_id, 'refunded', id, now() - $2::interval FROM return_requests WHERE id = $1
+		RETURNING occurred_at`, returnID, ago)
+	return at
+}
+
 // payFor captures the order's whole amount, so a card refund has a payment to come from.
 func payFor(t *testing.T, s *cart.Store, number string) {
 	t.Helper()
@@ -193,21 +218,11 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 					WHERE id = $1`, returnID)
 			}
 			if tc.card != "" {
-				asWritten(t, nil, `
-					INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents, reason,
-					                     provider_ref, succeeded_at, failed_at)
-					SELECT p.id, r.id, 'return:' || r.id, $2::text, r.card_refund_cents, 'test', 're_' || r.id,
-					       CASE WHEN $2::text = 'succeeded' THEN now() - interval '1 day' END,
-					       CASE WHEN $2::text = 'failed' THEN now() - interval '1 day' END
-					FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
-					WHERE r.id = $1`, returnID, tc.card)
+				cardRefundOf(t, returnID, tc.card)
 			}
 			var wantAt time.Time
 			if tc.event {
-				asWritten(t, []any{&wantAt}, `
-					INSERT INTO order_events (order_id, kind, return_request_id, occurred_at)
-					SELECT order_id, 'refunded', id, now() - interval '12 hours' FROM return_requests WHERE id = $1
-					RETURNING occurred_at`, returnID)
+				wantAt = refundedEventOf(t, returnID, "12 hours")
 			} else if err := pool.QueryRow(ctx, `SELECT decided_at FROM return_requests WHERE id = $1`,
 				returnID).Scan(&wantAt); err != nil {
 				t.Fatalf("read decision: %v", err)
@@ -251,5 +266,76 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 	returnOf(t, cancelled, "completed", true)
 	if refunded, err := s.Order(ctx, cancelled); err != nil || refunded.Returned != nil {
 		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", refunded.Returned, err)
+	}
+}
+
+// TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded holds that a return's settlement is its own.
+// Two returns cover the order's units between them: the first has been refunded and its event written, the second
+// is approved with its card refund failed. The first return's event says nothing about the second, so the order
+// still reads as paid until the second refund settles too; then it is refunded on the day of the later event, for
+// both amounts.
+func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	s := cart.NewStore(pool)
+	number := placeOrderOfUnits(t, s, "two-returns@example.com", 2)
+	payFor(t, s, number)
+
+	oneUnit := func() string {
+		t.Helper()
+		var id string
+		asWritten(t, []any{&id}, `
+			INSERT INTO return_requests (order_id, status, reason, decided_at, goods_refund_cents, shipping_refund_cents,
+			                             card_refund_cents, credit_refund_cents)
+			SELECT o.id, 'approved', 'test', now() - interval '3 days', ol.unit_price_cents, 0, ol.unit_price_cents, 0
+			FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+			WHERE o.order_number = $1 RETURNING id`, number)
+		asWritten(t, nil, `
+			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+			SELECT r.order_id, r.id, ol.id, 1
+			FROM return_requests r JOIN order_lines ol ON ol.order_id = r.order_id
+			WHERE r.id = $1`, id)
+		return id
+	}
+	first, second := oneUnit(), oneUnit()
+	cardRefundOf(t, first, "succeeded")
+	refundedEventOf(t, first, "2 days")
+	cardRefundOf(t, second, "failed")
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	if view.Returned != nil {
+		t.Errorf("with the second refund failed: Returned = %+v, want nil", view.Returned)
+	}
+	if got := view.StateKey(); got == i18n.KeyStatusRefunded {
+		t.Errorf("with the second refund failed: StateKey = %q, want the order's own state", got)
+	}
+	if got := view.PaymentState(); got != pages.PaymentPaid {
+		t.Errorf("with the second refund failed: PaymentState = %q, want %q", got, pages.PaymentPaid)
+	}
+
+	settled := refundedEventOf(t, second, "12 hours")
+	var wantCents int64
+	if err = pool.QueryRow(ctx, `
+		SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+		JOIN orders o ON o.id = ol.order_id WHERE o.order_number = $1`, number).Scan(&wantCents); err != nil {
+		t.Fatalf("read the order's value: %v", err)
+	}
+	view, err = s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	if view.Returned == nil {
+		t.Fatal("with both refunds settled: Returned = nil, want one")
+	}
+	if got := view.PaymentState(); got != pages.PaymentRefunded {
+		t.Errorf("with both refunds settled: PaymentState = %q, want %q", got, pages.PaymentRefunded)
+	}
+	if !view.Returned.At.Equal(settled) {
+		t.Errorf("Returned.At = %v, want the second refund's day %v", view.Returned.At, settled)
+	}
+	if view.Returned.RefundCents != wantCents {
+		t.Errorf("Returned.RefundCents = %d, want both returns' %d", view.Returned.RefundCents, wantCents)
 	}
 }
