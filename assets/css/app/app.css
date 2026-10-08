@@ -1723,16 +1723,28 @@ th {
 .goen-home__head {
   align-items: baseline;
   display: flex;
-  gap: 1rem;
+  container-type: inline-size;
+  flex-wrap: wrap;
+  gap: 0 1rem;
   justify-content: space-between;
   margin-bottom: 1.5rem;
 }
 
 .goen-home__heading {
-  font-size: var(--fs-ed-24);
+  font-size: var(--t-32);
   font-weight: var(--fw-display);
-  line-height: 1.35;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   margin: 0;
+}
+
+/* A phone at 200% text leaves a head under 16rem, where "Departments" at its
+   own size is wider than the line. */
+@container (width < 16rem) {
+  .goen-home__heading {
+    font-size: min(var(--t-24), 14cqi);
+    overflow-wrap: anywhere;
+  }
 }
 
 /* The continuation after a section's name: same line, same size, grey. On a
@@ -5444,6 +5456,8 @@ input.goen-check {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0.125rem 0 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
   text-wrap: pretty;
 }
 
