@@ -196,9 +196,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []p
 		if err != nil {
 			return nil, err
 		}
-		tiles = slices.DeleteFunc(tiles, func(t pages.ProductTile) bool {
-			return slices.ContainsFunc(row, func(r pages.ProductTile) bool { return r.Slug == t.Slug })
-		})
+		tiles = slices.DeleteFunc(tiles, func(pages.ProductTile) bool { return false })
 		if len(tiles) < bandTiles {
 			continue
 		}
