@@ -261,8 +261,10 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						if v.HasErr("code") {
 							<p class="ui-error-text" id="m-code-error">{ v.Err("code") }</p>
 						}
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
-						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "express_delivery") }</p>
+						<div class="goen-admin__hints">
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "express_delivery") }</p>
+						</div>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "m-destination"}) {

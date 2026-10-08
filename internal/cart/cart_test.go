@@ -1126,6 +1126,8 @@ func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T
 	never := pages.ShippingChoice{FeeCents: 100}
 	free := func(c pages.ShippingChoice) pages.ShippingChoice { c.FeeCents, c.Free = 0, true; return c }
 
+	islands := func(c pages.ShippingChoice) pages.ShippingChoice { c.SurchargeZones = []string{"離島"}; return c }
+
 	for _, tt := range []struct {
 		name     string
 		choices  []pages.ShippingChoice
@@ -1144,8 +1146,11 @@ func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T
 		{"a method that is never free says nothing", []pages.ShippingChoice{home, never}, 100000, pages.FreeDelivery{}},
 		{"every method free", []pages.ShippingChoice{free(home), free(pickupPoint)}, 300000,
 			pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: 300000}},
+		{"every method free, two of them charging the same zone extra",
+			[]pages.ShippingChoice{islands(free(home)), islands(free(pickupPoint)), free(pickupPoint)}, 300000,
+			pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: 300000, SurchargeZones: []string{"離島"}}},
 	} {
-		if got := freeDeliveryFor(tt.choices, tt.subtotal); got != tt.want {
+		if got := freeDeliveryFor(tt.choices, tt.subtotal); !cmp.Equal(got, tt.want) {
 			t.Errorf("%s: got %+v, want %+v", tt.name, got, tt.want)
 		}
 	}

@@ -88,10 +88,12 @@ templ Tiers(p layouts.Page, v TiersView) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
 						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30"/>
-						<p class="goen-admin__hint">
-							{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
-						</p>
-						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Silver") }</p>
+						<div class="goen-admin__hints">
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
+							</p>
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Silver") }</p>
+						</div>
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "tier-threshold"}) {
