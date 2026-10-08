@@ -435,6 +435,8 @@ func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
 		"view-transition-name: footer;",
 		"view-transition-name: gallery;",
 		"view-transition-name: buybox;",
+		"::view-transition-group(*.photo) {",
+		"animation-duration: var(--dur-move);",
 	} {
 		if !strings.Contains(sheet, rule) {
 			t.Errorf("served %s does not contain %q", assets.AppCSS, rule)

@@ -867,6 +867,7 @@ input.goen-check {
   border-radius: var(--r-md);
   min-width: 0;
   padding: 4px;
+  view-transition-name: rail;
 }
 
 .goen-admin__navlist {
@@ -2939,20 +2940,19 @@ input.goen-check {
   navigation: auto;
 }
 
-/* Opacity only, at the base step: the old page stays on screen until the new
-   one has painted, so a longer fade is time the visitor waits on top of the
-   load. The pair carries the cross-fade. The group
-   carries the geometry, and its keyframes are what would move or resize a named
-   region when the two pages put it in different places: a page read halfway
-   down leaves its header above the viewport, and the browser would otherwise
-   slide the header back down into the new page. Dropping the name and keeping
-   the timing leaves the group where the new page puts it and lets the pair
-   fade there. The timing is set on the group as well because the user agent
-   puts its own 0.25s there and the pair inherits from it. */
+/* Tools wait on every page they open, so the dissolve takes the base step. The
+   bar and the rail are lifted out and stay put: a page read halfway down leaves
+   them above the viewport, and a group animation would slide them back down
+   into the new page. The timing is set on the group as well because the user
+   agent puts its own 0.25s there and the pair inherits from it. */
 ::view-transition-group(*) {
   animation-duration: var(--dur-base);
-  animation-name: none;
   animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-group(header),
+::view-transition-group(rail) {
+  animation-name: none;
 }
 
 ::view-transition-old(*),
@@ -2962,21 +2962,11 @@ input.goen-check {
 }
 
 /* The global reduce block at the top of this file matches elements, and these
-   snapshots are not elements, so the opt-out is spelled again. Taking the
-   transition out of the navigation leaves the plain document cut: the new page
-   is simply there, which is the state change reduced motion asks to keep. */
+   snapshots are not elements, so reduced motion is spelled again: nothing
+   moves, and the pages still dissolve at the base step. */
 @media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
-  }
-
-  /* A region swapped in place is not a navigation, so the opt-out above does
-     not reach it and the snapshots are named again here. Without the animation
-     the new content is simply there, which is the state change reduced motion
-     asks to keep. */
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none;
+  ::view-transition-group(*) {
+    animation-name: none;
   }
 }
 
