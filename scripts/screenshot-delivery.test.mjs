@@ -149,3 +149,23 @@ test('a failed submission evaluation removes the native observer', async () => {
     evaluate: async () => { if (++calls === 1) return before; throw new Error('navigation failed'); } }), /navigation failed/);
   assert.equal(listeners, 0);
 });
+
+test('the canonical observer rejects POST 303 to GET 422 even when Chrome retains the request ID and URL', async () => {
+  const ws = new EventTarget();
+  let calls = 0;
+  const message = (method, params) => ws.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ method, params }) }));
+  const evaluate = async () => {
+    if (++calls === 1) return before;
+    if (calls === 2) {
+      message('Network.requestWillBeSent', { type: 'Document', requestId: 'retained', request: { method: 'POST', url: origin + target } });
+      message('Network.requestWillBeSent', { type: 'Document', requestId: 'retained',
+        redirectResponse: { status: 303, url: origin + target }, request: { method: 'GET', url: origin + target } });
+      message('Network.responseReceived', { type: 'Document', requestId: 'retained', response: { url: origin + target, status: 422 } });
+      message('Page.loadEventFired', {});
+      return before;
+    }
+    return page();
+  };
+  await assert.rejects(captureDeliveryRefusal({ entry: { path, lang: 'en' }, placedOrder: order, origin, ws, evaluate }), /redirected or changed/);
+  assert.equal(calls, 2);
+});

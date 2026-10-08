@@ -81,8 +81,15 @@ export async function captureDeliveryRefusal({ entry, placedOrder, origin, ws, e
   const finish = () => { if (response && loaded) resolve(response); };
   observe = (event) => {
     const { method, params = {} } = JSON.parse(event.data);
-    if (method === 'Network.requestWillBeSent' && params.type === 'Document' &&
-        params.request?.method === 'POST' && params.request.url === origin + target) requestID = params.requestId;
+    if (method === 'Network.requestWillBeSent' && params.type === 'Document') {
+      const matches = params.request?.method === 'POST' && params.request.url === origin + target;
+      if (!requestID && matches) requestID = params.requestId;
+      // Chrome keeps the request ID when a POST redirects to a different request.
+      if (requestID && params.requestId === requestID && (params.redirectResponse || !matches)) {
+        reject(new Error('delivery-refused POST redirected or changed request'));
+        return;
+      }
+    }
     if (method === 'Network.responseReceived' && requestID && params.requestId === requestID && params.type === 'Document') {
       response = { method: 'POST', path: params.response.url === origin + target ? target : null, status: params.response.status };
       finish();
