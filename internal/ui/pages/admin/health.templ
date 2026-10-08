@@ -137,9 +137,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 										if u.RefundOrderNumber != "" {
 											<a href={ templ.SafeURL("/admin/orders/" + u.RefundOrderNumber) }>{ u.RefundOrderNumber }</a> · { u.RefundAmount() }
 											<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe) }</span>
-											<span class="goen-admin__meta">{ u.Reason }</span>
+											@technicalDetail(u.Reason)
 										} else {
-											{ u.Reason }
+											@technicalDetail(u.Reason)
 										}
 									</td>
 									<td>{ u.Since }</td>
@@ -318,11 +318,13 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td>
 										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
 									</td>
-									<td>{ c.Kind }</td>
+									<td>{ c.KindText(ctx) }</td>
 									<td class="goen-admin__cellnum">{ c.Amount() }</td>
-									<td>{ c.Status }</td>
+									<td>{ c.StatusText(ctx) }</td>
 									<td class="goen-admin__cellnum">{ c.AttemptsText() }</td>
-									<td>{ c.LastError }</td>
+									<td>
+										@technicalDetail(c.LastError)
+									</td>
 									<td>{ c.Since }</td>
 									<td class="goen-admin__cellactions">
 										if c.CanAuthorizeResend {
@@ -449,4 +451,13 @@ templ healthItem(healthy bool, name, state, note string) {
 		<span class="goen-health__state">{ state }</span>
 		<span class="goen-admin__meta">{ note }</span>
 	</li>
+}
+
+templ technicalDetail(raw string) {
+	if raw != "" {
+		<details class="goen-admin__rawdetail">
+			<summary>{ i18n.T(ctx, i18n.KeyAdminTechnicalDetails) }</summary>
+			<code>{ raw }</code>
+		</details>
+	}
 }

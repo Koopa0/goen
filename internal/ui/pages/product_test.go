@@ -209,7 +209,7 @@ func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
 					t.Fatalf("signedIn=%t: wishlist mutation form availability disagrees with authentication", signedIn)
 				}
 				if !signedIn {
-					if wishlistSignInDestination(t, markup, i18n.T(ctx, i18n.KeyWishlistSignIn)) != "/signin?next=/p/sample-product" {
+					if wishlistSignInDestination(t, markup, i18n.T(ctx, i18n.KeyWishlistSignIn)) != "/signin?next=/p/sample-product%23wishlist" {
 						t.Fatal("guest wishlist lacks explicit sign-in link returning to the product")
 					}
 					if strings.Contains(markup, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(markup, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {

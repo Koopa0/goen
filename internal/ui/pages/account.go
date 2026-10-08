@@ -23,6 +23,8 @@ type AccountOrder struct {
 	LineCount  int64
 	Committed  bool
 	OwedCents  int64
+	// Returned is every unit of the order in an approved or completed return.
+	Returned bool
 	// OneLastDay is true when the whole order has a single last day to cancel; LastDay means nothing otherwise.
 	OneLastDay bool
 	LastDay    shoptime.Date
@@ -55,6 +57,9 @@ func (o AccountOrder) AwaitingPayment() bool {
 }
 
 func (o AccountOrder) StatusText(ctx context.Context) string {
+	if o.Returned {
+		return i18n.T(ctx, i18n.KeyStatusRefunded)
+	}
 	switch o.Status {
 	case order.FulfillmentPending:
 		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {
@@ -114,6 +119,9 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 }
 
 type AccountView struct {
+	ReturnAfterWelcome string
+	CartAdjusted       bool
+
 	EmailVerified   bool
 	PendingEmail    string
 	Email           string
@@ -192,7 +200,46 @@ func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
 
 func (v *AccountView) HasNotice() bool { return v.Notice != "" }
 
+type SignInRecovery uint8
+
+const (
+	SignInNoRecovery SignInRecovery = iota
+	SignInResetPassword
+	SignInRegister
+)
+
+func (r SignInRecovery) Href() string {
+	switch r {
+	case SignInNoRecovery:
+		return ""
+	case SignInResetPassword:
+		return "/forgot"
+	case SignInRegister:
+		return "/register"
+	default:
+		panic(fmt.Sprintf("sign-in: unknown recovery %d", r))
+	}
+}
+
+func (r SignInRecovery) Label(ctx context.Context) string {
+	switch r {
+	case SignInNoRecovery:
+		return ""
+	case SignInResetPassword:
+		return i18n.T(ctx, i18n.KeyForgotPassword)
+	case SignInRegister:
+		return i18n.T(ctx, i18n.KeyRegister)
+	default:
+		panic(fmt.Sprintf("sign-in: unknown recovery %d", r))
+	}
+}
+
 type AuthView struct {
+	ReturnMessage string
+	HideRegister  bool
+	PasswordFocus bool
+	Recovery      SignInRecovery
+
 	Email        string
 	Name         string
 	Next         string
@@ -269,9 +316,10 @@ func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
 type CartRecoveryView struct {
-	Next   string
-	Notice string
-	Retry  string
+	Welcome bool
+	Next    string
+	Notice  string
+	Retry   string
 }
 
 func CartRecoveryMeta(ctx context.Context) layouts.Page {

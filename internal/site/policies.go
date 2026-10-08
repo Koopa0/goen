@@ -20,11 +20,11 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "可以退什麼",
 				HeadingEn: "What can be returned",
 				Body: []string{
-					"只有「已出貨」的商品可以申請退貨，而且數量以實際出貨的數量為上限。這不是政策上的選擇，是系統本身的規則：尚未離開倉庫的商品沒有東西可以退。",
+					"只有「已出貨」的商品可以申請退貨，而且數量以實際出貨的數量為上限。",
 					"還沒出貨的訂單請直接聯絡我們取消，不需要走退貨流程。",
 				},
 				BodyEn: []string{
-					"Only goods that have shipped can be returned, and never more than actually left the warehouse. That is not a policy choice: there is nothing to send back from a parcel that has not gone out.",
+					"Only goods that have shipped can be returned, and never more than actually left the warehouse.",
 					"For an order that has not shipped, contact us to cancel it — there is no return to file.",
 				},
 			},
@@ -37,11 +37,14 @@ var policies = map[string]pages.PolicyDoc{
 					// that treats filling one as a step before submit tells
 					// that reader a blank is refused.
 					"在訂單頁點「申請退貨」，選擇要退回的商品與數量後送出。原因選填。同一筆訂單一次只能有一件處理中的申請。",
-					"我們收到申請後會審核並回覆結果，同意或不同意都會說明原因。",
+					// returns.Evaluate refuses a decline on any line filed
+					// inside the statutory window, and a decline cannot be
+					// saved without the reason the customer then sees.
+					"在猶豫期內提出的申請，我們不會拒絕。超過猶豫期的申請，我們會依「七日之外」的條件確認後回覆；不同意時一定會說明原因。",
 				},
 				BodyEn: []string{
 					"On your order page choose \u0022Request a return\u0022, pick the items and quantities, and send it. A reason is optional. One order can have one open request at a time.",
-					"We review it and reply either way, with the reason for the decision.",
+					"A request made within your seven-day right to cancel is never declined. After the seven days, we check it against the terms under \u0022Beyond the seven days\u0022 and reply; if we decline it, we always tell you why.",
 				},
 			},
 			{
@@ -50,11 +53,11 @@ var policies = map[string]pages.PolicyDoc{
 				// compensate_return_with_credit pays the store-credit half of a
 				// return; naming only Stripe here would describe a different shop.
 				Body: []string{
-					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；購物金退回後可立刻再用於結帳。",
+					"我們確認退貨後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；購物金退回後可立刻再用於結帳。",
 					"退款依原路退回，不會改用其他管道。",
 				},
 				BodyEn: []string{
-					"Once a return is approved we pay it back the way you paid: the card share is refunded through Stripe immediately, and store credit returns to your balance. The amount comes from the order's own prices, less the share of any discount those goods carried. When a card refund lands is your card issuer's decision, usually a few working days; credit is available again at once.",
+					"Once we confirm the return, we pay it back the way you paid: the card share is refunded through Stripe immediately, and store credit returns to your balance. The amount comes from the order's own prices, less the share of any discount those goods carried. When a card refund lands is your card issuer's decision, usually a few working days; credit is available again at once.",
 					"A refund always follows the original payment: card through Stripe, store credit to your balance. We will not substitute another channel.",
 				},
 			},
@@ -94,8 +97,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "拆封之後還能退嗎",
 				HeadingEn: "Can I still return it once it is opened?",
 				Body: []string{
-					"可以。無論是哪一項商品，拆開包裹檢查商品都不會讓七天的解除權結束，因為猶豫期本來就包含拆開來檢查。",
-					"法律允許少數幾類商品排除猶豫期，而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除猶豫期，所以本店所有商品都適用完整的七天。",
+					"可以。無論是哪一項商品，拆開包裹檢查商品都不會讓七日的解除權結束，因為猶豫期本來就包含拆開來檢查。",
+					"法律允許少數幾類商品排除猶豫期，而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除猶豫期，所以本店所有商品都適用完整的七日。",
 				},
 				BodyEn: []string{
 					"Yes. For every product, opening the parcel to inspect the goods does not end your seven days, because inspecting them is what the seven days are for.",
@@ -103,11 +106,11 @@ var policies = map[string]pages.PolicyDoc{
 				},
 			},
 			{
-				Heading:   "七天之外",
+				Heading:   "七日之外",
 				HeadingEn: "Beyond the seven days",
 				Body: []string{
 					"猶豫期之外，商品未使用、包裝與配件齊全的話，我們願意在送達後 14 天內受理退貨，運費由你負擔。",
-					"這是 goen 自己的額外服務，不是法律規定的猶豫期。前面七天的權利不受這一條影響，也不會因為這一條變短。",
+					"這是 goen 自己的額外服務，不是法律規定的猶豫期。前面七日的權利不受這一條影響，也不會因為這一條變短。",
 				},
 				BodyEn: []string{
 					"After the seven days, we will still take something back within 14 days of delivery if it is unused and complete with its box and accessories. You pay the postage.",
@@ -153,10 +156,10 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "什麼時候扣款",
 				HeadingEn: "When you are charged",
 				Body: []string{
-					"在 Stripe 頁面完成付款時就會扣款。goen 只在收到 Stripe 經過簽章驗證的通知後，才把訂單標記為已付款。回到網站看到的頁面本身不代表付款成功。",
+					"在 Stripe 頁面完成付款時就會扣款。訂單要等 Stripe 確認收款後才會顯示為已付款；付款後回到網站看到的頁面，還不代表付款成功。",
 				},
 				BodyEn: []string{
-					"At the moment you finish on Stripe's page. goen marks an order paid only on a signature-verified notice from Stripe — the page you land back on is not itself proof that the money arrived.",
+					"At the moment you finish on Stripe's page. Your order shows as paid only once Stripe confirms the payment — the page you land back on is not itself proof that the money arrived.",
 				},
 			},
 			{
@@ -232,20 +235,20 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "我們蒐集什麼",
 				HeadingEn: "What we collect",
 				Body: []string{
-					"下單時：收件人姓名、電話、地址與 Email，用於出貨與聯絡。",
-					"註冊時：Email 與密碼。密碼以 argon2id 雜湊儲存，任何人都無法從資料庫還原它，包含我們。",
+					"下單時：收件人姓名、電話、地址與電子郵件，用於出貨與聯絡。",
+					"註冊時：電子郵件與密碼。密碼以無法還原的方式保存，任何人都無法從資料庫取回它，包含我們。",
 					"付款時：卡片資料由 Stripe 處理，不經過 goen。我們只收到卡別與末四碼。",
-					"訂閱電子報時：保存你的 Email、語言、確認與退訂狀態，用於寄送及停止電子報。",
-					"登入時：工作階段保存 IP 位址及 User-Agent 瀏覽器資訊，登入狀態結束或帳號刪除後一併移除。",
-					"開立發票時：保存顧客姓名、Email，以及你選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
+					"訂閱電子報時：保存你的電子郵件、語言、確認與退訂狀態，用於寄送及停止電子報。",
+					"登入時：工作階段保存 IP 位址，以及瀏覽器送出的瀏覽器與裝置資訊，登入狀態結束或帳號刪除後一併移除。",
+					"開立發票時：保存顧客姓名、電子郵件，以及你選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
 					"登錄保固時：保存商品序號與保固登錄資料，用於識別送修商品及保固期限。",
 				},
 				BodyEn: []string{
 					"When you order: the recipient's name, phone, address and email — to ship to you and to reach you.",
-					"When you register: your email and a password. The password is stored as an argon2id hash, which nobody can reverse out of the database, us included.",
+					"When you register: your email and a password. The password is stored in a form that cannot be reversed, so nobody can recover it from the database, us included.",
 					"When you pay: your card details go to Stripe and never through goen. We receive the card brand and the last four digits.",
 					"When you subscribe to the newsletter: we keep your email, language, confirmation and unsubscribe status to send or stop the newsletter.",
-					"When you sign in: the session stores your IP address and User-Agent browser information, and is removed when the session expires or the account is deleted.",
+					"When you sign in: the session stores your IP address and the browser and device details your browser sends, and is removed when the session expires or the account is deleted.",
 					"When we issue an invoice: we keep your customer name and email, and the company tax ID, mobile barcode or donation code you choose to provide, for invoicing and subsequent allowances.",
 					"When you register a warranty: we keep the product serial number and warranty registration to identify the unit and its coverage period.",
 				},
@@ -255,11 +258,11 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Third-party processing",
 				Body: []string{
 					"付款由 Stripe 處理；開立發票與折讓所需的資料會提供給綠界電子發票平台。",
-					"網站字型由 goen 本站提供，載入字型不會向 fonts.googleapis.com 或 fonts.gstatic.com 發出請求。",
+					"網站字型由 goen 自己提供，載入字型不會連到 Google 的伺服器。",
 				},
 				BodyEn: []string{
 					"Stripe processes payments; information needed for invoices and allowances is sent to ECPay's e-invoice platform.",
-					"goen serves the website fonts itself. Loading fonts does not send requests to fonts.googleapis.com or fonts.gstatic.com.",
+					"goen serves the website fonts itself; loading them sends nothing to Google's servers.",
 				},
 			},
 			{
@@ -268,21 +271,21 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					"不將你的個人資料出售或提供給第三方作行銷用途。",
 					// The cookie list claims completeness, in both locales.
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、你選擇的語言、你關閉過的網站公告、挑選超商取貨門市時暫存的選擇，以及用 Google 登入時暫存幾分鐘的驗證資料。",
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、你選擇的語言、你關閉過的網站公告、挑選超商取貨門市時暫存的選擇、重設密碼後或刪除帳號前重新登入時用於預填電子郵件地址的資料（最多保留兩分鐘，開啟登入頁後即清除），以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
-					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, which site notice you have dismissed, what you chose while picking a convenience store to collect from, and — for a few minutes while you sign in with Google — what that sign-in belongs to.",
+					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, which site notice you have dismissed, what you chose while picking a convenience store to collect from, the email address used to prefill sign-in after a password reset or before account-deletion reauthentication (kept for up to two minutes and cleared when you open the sign-in page), and — for a few minutes while you sign in with Google — what that sign-in belongs to.",
 				},
 			},
 			{
 				Heading:   "刪除你的資料",
 				HeadingEn: "Deleting your data",
 				Body: []string{
-					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊；下列保留資料不在清除範圍內。",
-					"訂單財務紀錄及不可變更的發票快照會保留，包括顧客姓名、Email、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料，直到完成確認。",
+					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、電子郵件、電話、地址與訂單上的收件資訊；下列保留資料不在清除範圍內。",
+					"訂單財務紀錄及不可變更的發票快照會保留，包括顧客姓名、電子郵件、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料，直到完成確認。",
 					"保固登錄與商品序號會保留，但不再連結到已刪除的帳號。已公開的商品評價也會保留，但不再與你的帳號關聯。",
-					"只有已驗證帳號目前 Email 的所有權，刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除；請使用電子報中的退訂連結停止寄送。",
+					"只有已驗證帳號目前電子郵件的所有權，刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除；請使用電子報中的退訂連結停止寄送。",
 				},
 				BodyEn: []string{
 					"You can ask for your account to be deleted from your account pages. That erases the name, email, phone and address in your account and the delivery details on your orders, except for the retained data described below.",

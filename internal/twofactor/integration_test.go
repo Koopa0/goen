@@ -849,7 +849,7 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 // an empty Stripe key disables payment — off and saying so. Enrolled surfaces
 // ErrDisabled, which is not ErrSecretUnreadable, so a handler that takes its
 // generic failure branch answers 500 and never renders pages.TwoFactor's
-// !Enabled branch, whose whole job is to name the missing GOEN_TOTP_KEY.
+// !Enabled branch, whose whole job is to say the factor is off.
 func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
@@ -864,7 +864,7 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	}
 	// The status is not the lock on its own: a page rendered with Enabled
 	// hardcoded true keeps the 200 and loses the one sentence that tells an
-	// operator which variable is missing.
+	// operator the factor is off.
 	if want := i18n.T(ctx, i18n.KeyTwoFAOffBody); !strings.Contains(out.Body.String(), want) {
 		t.Errorf("the off-state notice is missing; want %q in the body", want)
 	}

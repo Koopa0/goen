@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -227,7 +228,9 @@ templ Home(p layouts.Page, v *HeroView) {
 						<p class="ui-error-text" id="h-days-error">{ v.Err("days") }</p>
 					}
 				</div>
-				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }
+				}
 			</form>
 			<aside class="goen-admin__side">
 				<h2 class="goen-admin__subhead" id="hero-history">{ i18n.T(ctx, i18n.KeyAdminHomeScheduled) }</h2>
@@ -274,7 +277,7 @@ templ Home(p layouts.Page, v *HeroView) {
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminHomeBannerLead) }
 		</p>
-		<div class="goen-admin__split">
+		<div class="goen-admin__productlayout">
 			<form class="goen-admin__form" method="post" action="/admin/home/banner">
 				@langSwitch("banner_lang", v.BannerInEnglish())
 				<div class="goen-admin__langgroup" data-lang="zh">
@@ -408,7 +411,9 @@ templ Home(p layouts.Page, v *HeroView) {
 				if v.HasErr("banner_cta") {
 					<p class="ui-error-text" id="b-cta-error" role="alert">{ v.Err("banner_cta") }</p>
 				}
-				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }
+				}
 			</form>
 			<aside class="goen-admin__side">
 				<h3 class="goen-admin__subhead" id="banner-history">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent) }</h3>

@@ -5,9 +5,9 @@ var (
 
 	// The source of a campaign price takes the campaign, what is left of it and the date of its last day, and
 	// names the campaign first: the page links the one and sets the other apart.
-	KeyCampaignPriceDaysLeft = key("pdp.campaignprice.daysleft", Message{ZhHant: "%[1]s活動價，%[2]s，至 %[3]s", En: "%[1]s price, %[2]s, until %[3]s"})
+	KeyCampaignPriceDaysLeft = key("pdp.campaignprice.daysleft", Message{ZhHant: "「%[1]s」活動價，%[2]s，至 %[3]s", En: "%[1]s price, %[2]s, until %[3]s"})
 
-	KeyCampaignPriceToday = key("pdp.campaignprice.today", Message{ZhHant: "%[1]s活動價，%[2]s", En: "%[1]s price, %[2]s"})
+	KeyCampaignPriceToday = key("pdp.campaignprice.today", Message{ZhHant: "「%[1]s」活動價，%[2]s", En: "%[1]s price, %[2]s"})
 
 	KeySectionSpecs = key("pdp.specs", Message{ZhHant: "規格", En: "Specifications"})
 
@@ -72,7 +72,7 @@ var (
 	})
 
 	KeyRestockBadEmail = key("pdp.restock.bademail", Message{
-		ZhHant: "請填寫正確的 Email。",
+		ZhHant: "請填寫正確的電子郵件。",
 		En:     "Enter a valid email address.",
 	})
 

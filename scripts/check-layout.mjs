@@ -146,15 +146,15 @@ const PAGES = [
 // The comparison TABLE. Enough() needs two columns; one p= is the too-few
 // empty state, and .goen-compare wraps that state too. A marker on the
 // wrapper measures chrome and calls the table covered.
-// COMPARE_SLUG_B is a second active seed product. table: true is what says
+// COMPARE_SLUG is a second active seed product. table: true is what says
 // this row measured columns, the sticky first cell, and (at 375) overflow
 // inside the scroll box — not merely that a marker existed.
 //
 // The one-product empty state is a different page. It cannot stand in for
 // the table.
 const COMPARE = [
-  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
-  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
+  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
+  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG', marker: '.goen-compare__table', table: true },
   { label: 'compare one 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
   { label: 'compare one 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
 ];
@@ -2461,7 +2461,7 @@ for (const want of COMPARE) {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
   });
   const target = ORIGIN + want.path
-    .replace('COMPARE_SLUG_B', process.env.COMPARE_SLUG_B || '')
+    .replace('COMPARE_SLUG', process.env.COMPARE_SLUG || '')
     .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target);
