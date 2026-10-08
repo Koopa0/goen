@@ -81,7 +81,13 @@ templ Cart(p layouts.Page, v CartView) {
 						<dl class="goen-summary">
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
-								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
+								<dd class="goen-summary__value">
+									if v.FreeDelivery.Kind == FreeDeliveryReached {
+										{ v.FreeDelivery.Word(ctx) }
+									} else {
+										{ i18n.T(ctx, i18n.KeyShippingLater) }
+									}
+								</dd>
 							</div>
 							<div class="goen-summary__row goen-summary__row--total">
 								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
