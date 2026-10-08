@@ -3,9 +3,11 @@
 package cart_test
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -139,7 +141,9 @@ func TestAMethodWithAZoneSurchargeNamesTheZoneInTheCartsChoices(t *testing.T) {
 		t.Fatalf("create method: %v", err)
 	}
 	t.Cleanup(func() {
-		if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET is_active = false WHERE id = $1`, methodID); err != nil {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `UPDATE shipping_methods SET is_active = false WHERE id = $1`, methodID); err != nil {
 			t.Errorf("withdraw method: %v", err)
 		}
 	})
