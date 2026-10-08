@@ -3699,7 +3699,7 @@ const RELATED_ROW_PROBE = `(() => {
   return { ok: true, row: grid.getBoundingClientRect().width, a: cards[0], b: cards[1] };
 })()`;
 
-for (const width of [768, 1023]) {
+for (const width of [375, 768, 1023]) {
   const label = `related ${width}`;
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 1024, deviceScaleFactor: 1, mobile: false });
   const target = ORIGIN + '/p/' + (process.env.PRODUCT_SLUG || '');
