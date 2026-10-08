@@ -20,7 +20,7 @@ WHERE question IN ('一定要註冊才能購買嗎?', '一定要註冊才能購�
   AND answer_en = 'No. goen supports guest checkout — you only need delivery details. Registering lets you see your order history, keep a wishlist, and earn and spend store credit.';
 
 UPDATE faq_entries
-SET answer = '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。公司統編發票會存入綠界電子發票載具，依結帳 Email 留存與通知，可在綠界的載具中查詢。'
+SET answer = '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。公司統編發票會存入綠界電子發票載具，寄到結帳時填的電子郵件，可在綠界的載具中查詢。'
 WHERE question IN ('可以開公司統編嗎?', '可以開公司統編嗎？')
   AND answer = '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。';
 
