@@ -1834,3 +1834,43 @@ func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
 		})
 	}
 }
+
+func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
+	t.Parallel()
+	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		kind   FreeDeliveryKind
+		want   string
+		not    string
+	}{
+		{"reached zh", i18n.ZhHant, FreeDeliveryReached, "免運", "結帳時計算"},
+		{"reached en", i18n.En, FreeDeliveryReached, ">Free<", "Calculated at checkout"},
+		{"short zh", i18n.ZhHant, FreeDeliveryShort, "結帳時計算", ">免運<"},
+		{"short en", i18n.En, FreeDeliveryShort, "Calculated at checkout", ">Free<"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		v := CartView{Lines: lines, ItemCount: 2, SubtotalCents: 360000,
+			FreeDelivery: FreeDelivery{Kind: tt.kind, ShortfallCents: 1, ThresholdCents: 300000}}
+		var b strings.Builder
+		if err := Cart(CartMeta(ctx), v).Render(ctx, &b); err != nil {
+			t.Fatalf("%s: render: %v", tt.name, err)
+		}
+		html := b.String()
+		at := strings.Index(html, `id="cart-summary"`)
+		if at < 0 {
+			t.Fatalf("%s: no cart summary: %s", tt.name, html)
+		}
+		html = html[at:]
+		if end := strings.Index(html, "</dl>"); end > 0 {
+			html = html[:end]
+		}
+		if !strings.Contains(html, tt.want) {
+			t.Errorf("%s: summary lacks %q: %s", tt.name, tt.want, html)
+		}
+		if strings.Contains(html, tt.not) {
+			t.Errorf("%s: summary holds %q: %s", tt.name, tt.not, html)
+		}
+	}
+}
