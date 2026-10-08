@@ -169,7 +169,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "goods receipt refused",
 			"sku", sku, "quantity", quantity, "error", err)
-		h.rejectReceipt(w, r, i18n.KeyAdminNoticeRefused)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
 		access.ServerError(w, r, h.log)

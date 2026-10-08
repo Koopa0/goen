@@ -170,6 +170,58 @@ func TestReceiptConflictStartsANewOperationAfterReviewingTheLedger(t *testing.T)
 	}
 }
 
+func TestReceiptStoreRefusalReturnsToFreshLedgerForm(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	staff := admintest.AdminRolePool(t, pool)
+	mux := http.NewServeMux()
+	handlerOver(stock.NewStore(staff)).Routes(mux, admintest.BackOffice)
+	for _, tt := range []struct {
+		locale i18n.Locale
+		notice string
+	}{
+		{i18n.ZhHant, "請重新整理，確認目前的狀態後再試。"},
+		{i18n.En, "Reload the page, check the current state, then try again."},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			requestCtx := i18n.WithLocale(ctx, tt.locale)
+			sku, variant := receiptVariant(t, pool)
+			ledger := "/admin/stock/" + sku
+			before := receiptState(t, pool, variant)
+			form := url.Values{"sku": {sku}, "quantity": {"4"}, "idempotency": {"   "}}
+			refused := postReceipt(requestCtx, mux, form)
+			if refused.Code != http.StatusSeeOther || refused.Header().Get("Location") != ledger+"?refused=1" {
+				t.Fatalf("store-refused receipt = %d %q, want 303 to ledger refusal notice", refused.Code, refused.Header().Get("Location"))
+			}
+			if diff := cmp.Diff(before, receiptState(t, pool, variant)); diff != "" {
+				t.Errorf("store-refused receipt changed inventory or audit (-want +got):\n%s", diff)
+			}
+			get := httptest.NewRecorder()
+			mux.ServeHTTP(get, httptest.NewRequestWithContext(requestCtx, http.MethodGet, refused.Header().Get("Location"), nil))
+			if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), tt.notice) {
+				t.Fatalf("refusal ledger = %d, want 200 with %q", get.Code, tt.notice)
+			}
+			key := receiptKey(t, get.Body.String())
+			if strings.TrimSpace(key) == "" {
+				t.Fatal("refusal ledger retained the whitespace-only operation identity")
+			}
+			if strings.Contains(get.Body.String(), `id="receive-qty-error"`) {
+				t.Error("fresh ledger form retained the prior receipt field refusal")
+			}
+			form.Set("idempotency", key)
+			for attempt := range 2 {
+				accepted := postReceipt(requestCtx, mux, form)
+				if accepted.Code != http.StatusSeeOther || accepted.Header().Get("Location") != ledger+"?received=1" {
+					t.Fatalf("fresh receipt attempt %d = %d %q, want 303 to received ledger", attempt+1, accepted.Code, accepted.Header().Get("Location"))
+				}
+			}
+			want := receiptSnapshot{Stock: 4, Movements: 1, Receipts: 1, Audits: 1}
+			if diff := cmp.Diff(want, receiptState(t, pool, variant)); diff != "" {
+				t.Errorf("fresh receipt and replay (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func postReceipt(ctx context.Context, mux *http.ServeMux, form url.Values) *httptest.ResponseRecorder {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/receive", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

@@ -27,7 +27,6 @@ func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
 			{name: "above the bound", raw: "10001", key: i18n.KeyAdminNoticeBadQty},
 			{name: "malformed", raw: ` 12<x> `, key: i18n.KeyAdminNoticeBadQty},
 			{name: "empty", key: i18n.KeyAdminNoticeBadQty},
-			{name: "store refusal", raw: "4", key: i18n.KeyAdminNoticeRefused},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
