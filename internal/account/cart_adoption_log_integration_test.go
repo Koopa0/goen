@@ -56,18 +56,22 @@ func TestCartAdoptionLogLevels(t *testing.T) {
 		}
 	})
 	store := account.NewStore(accountStorePool(t, "adoption-log-levels"))
+	unavailablePool := accountStorePool(t, "adoption-log-unavailable")
+	unavailablePool.Close()
 	for _, tt := range []struct {
 		name, userID, level string
 		cartID              uuid.UUID
+		store               *account.Store
 	}{
-		{"unavailable line", u.ID, "WARN", guestCart},
-		{"another owner", u.ID, "WARN", ownedCart},
-		{"missing cart", u.ID, "WARN", uuid.New()},
-		{"unexpected input failure", "not-a-uuid", "ERROR", guestCart},
+		{"unavailable line", u.ID, "WARN", guestCart, store},
+		{"another owner", u.ID, "WARN", ownedCart, store},
+		{"missing cart", u.ID, "WARN", uuid.New(), store},
+		{"unexpected input failure", "not-a-uuid", "ERROR", guestCart, store},
+		{"database unavailable", u.ID, "ERROR", guestCart, account.NewStore(unavailablePool)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var logs bytes.Buffer
-			h := account.NewHandler(store, resolvedAdoptionCart{id: tt.cartID},
+			h := account.NewHandler(tt.store, resolvedAdoptionCart{id: tt.cartID},
 				slog.New(slog.NewJSONHandler(&logs, nil)), false, nil)
 			for range 2 {
 				r := httptest.NewRequestWithContext(user.NewContext(t.Context(), user.User{ID: tt.userID}),
