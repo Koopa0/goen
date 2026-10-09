@@ -2327,7 +2327,13 @@ input.goen-check {
 .goen-admin__form .goen-btn {
   align-self: flex-start;
   box-sizing: border-box;
+  height: auto;
+  max-width: 100%;
   min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 /* The search's own button, on the component's class rather than the shared
@@ -2343,7 +2349,13 @@ input.goen-check {
 .goen-admin__decidebtns .goen-btn {
   box-sizing: border-box;
   flex: 1 1 auto;
+  height: auto;
+  max-width: 100%;
   min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 /* One operation: a card holding one form and the sentence that explains it.
