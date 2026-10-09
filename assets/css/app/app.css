@@ -720,7 +720,8 @@ th {
     width: 1px;
   }
 
-  .ui-crumbs > .ui-crumbs__link:last-of-type {
+  .ui-crumbs > .ui-crumbs__link:last-of-type,
+  .ui-crumbs > .ui-crumbs__link:focus-visible {
     align-items: center;
     clip-path: none;
     display: inline-flex;
