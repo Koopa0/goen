@@ -247,32 +247,6 @@ func TestALateRefundedPaymentIsNotCalledNothingCharged(t *testing.T) {
 	}
 }
 
-// TestAnOpenPaymentIsNotCalledNothingCharged: the customer cancels while a
-// payment is still open, and may be completed in another tab before the
-// cancellation closes it at Stripe. The notice must allow for that money.
-func TestAnOpenPaymentIsNotCalledNothingCharged(t *testing.T) {
-	for _, status := range []string{"requires_payment", "requires_action", "processing"} {
-		t.Run(status, func(t *testing.T) {
-			ctx := t.Context()
-			orderID := heldOrder(t, freshVariant(t, "cancel-open-payment"), -10*time.Minute, false)
-			number := numberOf(t, orderID)
-			ref := "cs_cancel_open_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
-			if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
-				t.Fatalf("open payment: %v", err)
-			}
-			if _, err := pool.Exec(ctx, `UPDATE payments SET status = $2 WHERE provider_ref = $1`, ref, status); err != nil {
-				t.Fatalf("move payment to %s: %v", status, err)
-			}
-			if _, err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
-				t.Fatalf("customer cancel: %v", err)
-			}
-			if !noticeRefunded(t, number) {
-				t.Errorf("the notice of an order cancelled with a %s payment says nothing was charged", status)
-			}
-		})
-	}
-}
-
 // TestTheSweepLeavesAnOrderThatMayStillTakeMoney: each case is an expired hold
 // on an order the sweeper must not cancel, because money has arrived or may.
 func TestTheSweepLeavesAnOrderThatMayStillTakeMoney(t *testing.T) {

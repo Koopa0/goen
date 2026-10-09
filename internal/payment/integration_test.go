@@ -1241,10 +1241,10 @@ func TestWebhookAndOpenShareProviderReferenceLock(t *testing.T) {
 	})
 }
 
-func TestACancelledOrderLeavesNoSessionUnclosed(t *testing.T) {
+func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
 	ctx := t.Context()
 
-	t.Run("opening wins and cancellation returns its session", func(t *testing.T) {
+	t.Run("opening wins and cancellation is refused", func(t *testing.T) {
 		number, id := order(t, 88800)
 		session := "cs_open_wins_" + number
 		tx1, beginErr := pool.Begin(ctx)
@@ -1280,46 +1280,19 @@ func TestACancelledOrderLeavesNoSessionUnclosed(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("Cancel stayed blocked after open_payment committed")
 		}
-		if result.err != nil {
-			t.Fatalf("Cancel: %v", result.err)
+		if !errors.Is(result.err, cart.ErrNotCancellable) || len(result.sessions) != 0 {
+			t.Fatalf("Cancel = %v, %v; want no sessions and ErrNotCancellable", result.sessions, result.err)
 		}
-		containsSession := false
-		for _, returned := range result.sessions {
-			if returned == session {
-				containsSession = true
-				break
-			}
+		var fulfillment, paymentStatus string
+		if err := pool.QueryRow(ctx, `
+			SELECT o.fulfillment_status, p.status
+			FROM orders o JOIN payments p ON p.order_id = o.id
+			WHERE o.id = $1 AND p.provider_ref = $2`, id, session).
+			Scan(&fulfillment, &paymentStatus); err != nil {
+			t.Fatal(err)
 		}
-		if !containsSession {
-			t.Errorf("Cancel returned sessions %v, want the concurrently opened %q", result.sessions, session)
-		}
-
-		rows, err := pool.Query(ctx, `
-			SELECT p.provider_ref
-			FROM payments p
-			WHERE p.order_id = $1 AND p.status = 'requires_payment'`, id)
-		if err != nil {
-			t.Fatalf("read sessions left open after cancellation: %v", err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var open string
-			if err := rows.Scan(&open); err != nil {
-				t.Fatalf("scan open session: %v", err)
-			}
-			returned := false
-			for _, candidate := range result.sessions {
-				if candidate == open {
-					returned = true
-					break
-				}
-			}
-			if !returned {
-				t.Errorf("requires_payment session %q was not in Cancel's expire-list %v", open, result.sessions)
-			}
-		}
-		if err := rows.Err(); err != nil {
-			t.Fatalf("walk open sessions: %v", err)
+		if fulfillment != "pending" || paymentStatus != "requires_payment" {
+			t.Errorf("opening first = order %q, payment %q; want pending/requires_payment", fulfillment, paymentStatus)
 		}
 	})
 

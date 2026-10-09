@@ -3715,33 +3715,6 @@ func stockOf(t *testing.T, vid uuid.UUID) int32 {
 	return n
 }
 
-// TestCancellingAnOrderHandsBackItsOpenCheckouts is the database half of closing
-// a cancelled order's checkout at Stripe. The row is opened through open_payment
-// because `store` holds no INSERT on payments.
-func TestCancellingAnOrderHandsBackItsOpenCheckouts(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-	vid := freshVariant(t, "cancel-session-1")
-
-	orderID := heldOrder(t, vid, -time.Hour, false)
-	number := numberOf(t, orderID)
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`,
-		orderID, "cs_test_still_open"); err != nil {
-		t.Fatalf("open a checkout session against the order: %v", err)
-	}
-
-	sessions, err := s.CancelOrder(ctx, number)
-	if err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
-	want := []string{"cs_test_still_open"}
-	if !slices.Equal(sessions, want) {
-		t.Errorf("Cancel() sessions = %v, want %v\n"+
-			"  A cancellation that hands back nothing leaves the customer's checkout "+
-			"payable for as long as the stock hold lasts.", sessions, want)
-	}
-}
-
 func TestCancellingAnOrderWithNoCheckoutHandsBackNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
