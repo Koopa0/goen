@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -30,9 +32,7 @@ func TestOneClickUnsubscribeUsesTheURLTokenAndIsIdempotent(t *testing.T) {
 				t.Fatal(err)
 			}
 			token := tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
-			h := newsletter.NewHandler(s, ratelimit.New(ratelimit.Config{
-				Every: time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 10,
-			}), slog.New(slog.DiscardHandler))
+			h := recoveryNewsletterHandler(t)
 			link := "/newsletter/unsubscribe?token=" + url.QueryEscape(token)
 			get := httptest.NewRecorder()
 			h.UnsubscribePage(get, httptest.NewRequestWithContext(t.Context(), http.MethodGet, link, http.NoBody))
@@ -85,9 +85,7 @@ func TestAnURLTokenNeedsTheOneClickMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
-	h := newsletter.NewHandler(s, ratelimit.New(ratelimit.Config{
-		Every: time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 10,
-	}), slog.New(slog.DiscardHandler))
+	h := recoveryNewsletterHandler(t)
 	for _, body := range []string{"", "List-Unsubscribe=Other", "List-Unsubscribe=One-Click&List-Unsubscribe=Other", "List-Unsubscribe=One-Click&token=wrong"} {
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 			"/newsletter/unsubscribe?token="+url.QueryEscape(token), strings.NewReader(body))
@@ -121,5 +119,40 @@ func TestAnURLTokenNeedsTheOneClickMarker(t *testing.T) {
 	h.Unsubscribe(w, r)
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/newsletter/unsubscribe?done=1" {
 		t.Errorf("ordinary body-token form response = %d %q", w.Code, w.Header().Get("Location"))
+	}
+}
+
+func TestOneClickDatabaseFailureKeepsTheSubscriptionAndReturns500(t *testing.T) {
+	t.Parallel()
+	s, email := store(t), addr(t)
+	if _, err := s.Request(t.Context(), email); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Confirm(t.Context(), tokenFor(t, "newsletter.confirm", email, "token")); err != nil {
+		t.Fatal(err)
+	}
+	token := tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
+	unavailablePool, err := pgxpool.NewWithConfig(t.Context(), pool.Config().Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	unavailablePool.Close()
+	var logs bytes.Buffer
+	h := newsletter.NewHandler(newsletter.NewStore(unavailablePool), ratelimit.New(ratelimit.Config{
+		Every: time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 10,
+	}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/newsletter/unsubscribe?token="+url.QueryEscape(token), strings.NewReader("List-Unsubscribe=One-Click"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.Unsubscribe(w, r)
+	if w.Code != http.StatusInternalServerError || w.Body.Len() != 0 || w.Header().Get("Location") != "" {
+		t.Errorf("failed one-click response = %d body=%s location=%q, want empty 500", w.Code, w.Body.String(), w.Header().Get("Location"))
+	}
+	if active, _ := subscribed(t, email); !active {
+		t.Error("a failed one-click changed the subscription")
+	}
+	if !strings.Contains(logs.String(), `"level":"ERROR"`) || !strings.Contains(logs.String(), "unsubscribe newsletter") {
+		t.Error("the database failure was not logged at ERROR")
 	}
 }

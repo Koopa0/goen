@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"log/slog"
 	"net/mail"
 	"net/url"
 	"strings"
@@ -52,13 +53,27 @@ func TestNewsletterIssuesCarryOneClickHeaders(t *testing.T) {
 func TestNewsletterOneClickRequiresAnHTTPSOrigin(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://goen.test", "https://goen.test\r\nBcc: unwanted@example.net", "https://goen.test>"} {
-		sink := &recorded{}
-		err := New(sink, base, "", "").SendNewsletterIssue(t.Context(), &NewsletterIssue{
+		sender := SMTPSender{Addr: "smtp.goen.invalid:587", From: "sender@goen.test"}
+		err := New(sender, base, "", "").SendNewsletterIssue(t.Context(), &NewsletterIssue{
 			Email: "reader@example.com", Subject: "issue", Body: "body", UnsubscribeToken: "token",
 		})
-		if err == nil || len(sink.msgs) != 0 {
-			t.Errorf("base URL %q: error=%v sent=%d, want refusal before sending", base, err, len(sink.msgs))
+		if err == nil || err.Error() != "email: invalid HTTPS one-click unsubscribe URL" {
+			t.Errorf("base URL %q: error=%v, want refusal before SMTP", base, err)
 		}
+	}
+}
+
+func TestHTTPNewsletterIsLoggedForLocalDevelopment(t *testing.T) {
+	t.Parallel()
+	var logs bytes.Buffer
+	sender := LogSender{Log: slog.New(slog.NewJSONHandler(&logs, nil))}
+	if err := New(sender, "http://127.0.0.1:9700", "", "").SendNewsletterIssue(t.Context(), &NewsletterIssue{
+		Email: "reader@example.com", Subject: "issue", Body: "body", UnsubscribeToken: "token",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), "email (not sent: no SMTP configured)") {
+		t.Error("the development sender did not log the newsletter")
 	}
 }
 

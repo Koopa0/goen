@@ -13,9 +13,6 @@ import (
 // send attaches the HTML part and hands the letter to the sender. Every letter
 // goes through here, so none reaches a customer without its header.
 func (n Notifier) send(ctx context.Context, m *Message) error {
-	if err := m.OneClickUnsubscribe.validate(); err != nil {
-		return err
-	}
 	html, err := n.html(ctx, m.Body)
 	if err != nil {
 		return err
