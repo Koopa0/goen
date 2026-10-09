@@ -138,11 +138,12 @@ try {
           }
           assert.equal(purchases[0].variant, initial, 'POST keeps the submitted variant');
           assert.equal(purchases[0].quantity, '1', 'POST keeps the submitted quantity');
+          const choiceIndex = cancelRead ? 2 : 1;
           const responses = firstResponse === 'purchase' ? [purchases[0], requests.at(-1)] : [requests.at(-1), purchases[0]];
           release(responses[0]);
-          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${firstResponse === 'purchase' ? '0' : 'purchaseProbe.requests.length - 1'}])`), 'first response settled');
+          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${firstResponse === 'purchase' ? 0 : choiceIndex}])`), 'first response settled');
           release(responses[1]);
-          await until(() => evaluate('purchaseProbe.finished.has(purchaseProbe.requests[0]) && purchaseProbe.finished.has(purchaseProbe.requests.at(-1))'), 'both responses settled');
+          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[0]) && purchaseProbe.finished.has(purchaseProbe.requests[${choiceIndex}])`), 'both responses settled');
           const state = await evaluate(`({
             variant: document.querySelector('#pdp-add [name="variant"]').value,
             selected: document.querySelector('#buybox [aria-current="true"]').textContent.trim().toLowerCase(),
@@ -207,5 +208,5 @@ try {
   await new Promise(resolve => { if (chrome.exitCode !== null) resolve(); else chrome.once('exit', resolve); });
   server.closeAllConnections();
   await new Promise(resolve => server.close(resolve));
-  await rm(profile, { recursive: true, force: true });
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }
