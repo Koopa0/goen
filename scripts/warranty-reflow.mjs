@@ -25,7 +25,12 @@ export async function checkWarrantyReflow({ origin, token, send, evaluate, navig
           await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
           const got = await evaluate(`(() => {
             const badges = [...document.querySelectorAll('.goen-warranty__head .goen-badge')];
-            const text = [...document.querySelectorAll('main h1, .goen-warranty__meta'), ...badges];
+            const heading = document.querySelector('main h1');
+            const metadata = [...document.querySelectorAll('.goen-warranty__meta')];
+            const text = [heading, ...metadata, ...badges].filter(Boolean);
+            const rendered = !!heading && metadata.length > 0 && text.every((element) =>
+              element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0
+              && getComputedStyle(element).visibility === 'visible');
             const outside = [];
             for (const element of text) {
               const range = document.createRange();
@@ -37,12 +42,15 @@ export async function checkWarrantyReflow({ origin, token, send, evaluate, navig
               }
             }
             return { lang: document.documentElement.lang, width: document.documentElement.clientWidth,
-              scroll: document.body.scrollWidth, badges: badges.map(b => b.textContent.trim()), outside };
+              scroll: document.body.scrollWidth, heading: heading?.textContent.trim(), rendered,
+              badges: badges.map(b => b.textContent.trim()), outside };
           })()`);
           const label = `${locale} ${scale}% scripting=${!disabled}`;
           assert.equal(got.lang, locale, label + ': wrong locale');
           assert.equal(got.width, 320, label + ': wrong viewport');
           assert.ok(got.badges.length >= 2, label + ': customer warranty fixtures missing');
+          assert.ok(got.rendered, label + ': warranty text is hidden or missing');
+          assert.equal(got.heading, locale === 'en' ? 'Warranty registration' : '保固登錄', label + ': warranty heading missing');
           // These are existing i18n messages, checked so an empty list or a
           // shorter, different state cannot satisfy the geometry assertion.
           const returned = locale === 'en'
