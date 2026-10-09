@@ -30,7 +30,7 @@ func TestCountReadsTheSingularOnlyForOne(t *testing.T) {
 }
 
 // aCountedNoun is a number placeholder followed by the plural noun it counts.
-var aCountedNoun = regexp.MustCompile(`%[sd] (items|products|reviews|stars|days|hours|minutes|seconds|sub-categories|versions|postal codes)\b`)
+var aCountedNoun = regexp.MustCompile(`%[sd] (items|products|reviews|stars|days|hours|minutes|seconds|sub-categories|versions|postal codes|units)\b`)
 
 // pluralOnlyOnPurpose is every message that counts something yet keeps one
 // English form, and why that is right.
