@@ -24,6 +24,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, refusalField{"code", "m-code"}, refusalField{"destination", "m-destination"}, refusalField{"max_parcel_longest", "m-max-longest"}, refusalField{"max_parcel_sum", "m-max-sum"}, refusalField{"max_parcel_weight", "m-max-weight"}, refusalField{"name", "m-name"}, refusalField{"fee", "m-fee"}, refusalField{"free_over", "m-free"}))
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, refusalField{"zone_code", "z-code"}, refusalField{"zone_name", "z-name"}, refusalField{"prefixes", "z-prefixes"}))
 		for _, m := range v.Methods {
 			{{ d := v.VersionValues(&m) }}
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
@@ -239,7 +241,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }</h2>
-			<form class="goen-admin__form" method="post" action="/admin/shipping/method">
+			<form class="goen-admin__form" id="new-method" method="post" action="/admin/shipping/method#new-method">
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "m-code"}) {
@@ -400,7 +402,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							class="goen-input"
 							id="m-fee"
 							name="fee"
-							type="number"
+							type={ dollarInputType(v.MethodDraft.Fee) }
 							min="0"
 							step="1"
 							required
@@ -419,7 +421,23 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						@components.Label(components.LabelProps{For: "m-free"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }
 						}
-						<input class="goen-input" id="m-free" name="free_over" type="number" min="0" step="1" inputmode="numeric" value={ v.MethodDraft.FreeOver }/>
+						<input
+							class="goen-input"
+							id="m-free"
+							name="free_over"
+							type={ dollarInputType(v.MethodDraft.FreeOver) }
+							min="0"
+							step="1"
+							inputmode="numeric"
+							value={ v.MethodDraft.FreeOver }
+							if v.HasErr("free_over") {
+								aria-invalid="true"
+								aria-describedby="m-free-error"
+							}
+						/>
+						if v.HasErr("free_over") {
+							<p class="ui-error-text" id="m-free-error">{ v.Err("free_over") }</p>
+						}
 					</div>
 				</div>
 				<p class="goen-admin__hint">
@@ -501,7 +519,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					</tbody>
 				</table>
 			</div>
-			<form class="goen-admin__form" method="post" action="/admin/shipping/zone">
+			<form class="goen-admin__form" id="new-zone" method="post" action="/admin/shipping/zone#new-zone">
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }</h3>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">

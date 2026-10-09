@@ -823,6 +823,9 @@ templ Variants(p layouts.Page, v VariantsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		for _, refusal := range v.Refusals() {
+			@RefusalSummary(refusal)
+		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
 				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
@@ -954,7 +957,7 @@ templ variantTable(variants []Variant, back string) {
 						</form>
 					</td>
 					<td>
-						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
+						<form class="goen-admin__inline" method="post" action={ templ.URL("/admin/stock/adjust#row-" + x.SKU) }>
 							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
@@ -962,7 +965,8 @@ templ variantTable(variants []Variant, back string) {
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "adj-" + x.SKU }
-								type="number"
+								type={ dollarInputType(x.DraftDelta) }
+								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }
 								placeholder="+10"

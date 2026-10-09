@@ -21,6 +21,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		for _, refusal := range v.InspectionRefusals() {
+			@RefusalSummary(refusal)
+		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
@@ -194,7 +197,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutStranded) }</p>
 						}
 						if r.AwaitingGoods() {
-							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>
+							<form class="goen-admin__decide" id={ "inspect-" + r.ID } method="post" action={ templ.SafeURL(r.InspectAction() + "#inspect-" + r.ID) }>
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
 								for _, l := range r.Lines {
 									<fieldset class="goen-admin__inspectline">
@@ -204,17 +207,21 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<input
 												class="ui-input"
 												id={ "recv-" + r.ID + "-" + l.OrderLineID }
-												type="number"
+												type={ dollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
+												inputmode="numeric"
 												name={ "received_" + l.OrderLineID }
-												value={ l.ReceivedField() }
+												value={ l.ReceivedField(v.FieldInvalid(r.ID, "inspect")) }
 												min="0"
 												max={ l.MaxQuantityText() }
 												required
-												if v.FieldInvalid(r.ID, "inspect") {
+												if v.InspectionRefusal(r.ID,"received",l.OrderLineID)!="" {
 													aria-invalid="true"
-													aria-describedby={ "inspect-error-" + r.ID }
+													aria-describedby={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }
 												}
 											/>
+											if message:=v.InspectionRefusal(r.ID,"received",l.OrderLineID); message!="" {
+												<p class="ui-error-text" id={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
+											}
 										</div>
 										if l.Restockable {
 											<div class="ui-field">
@@ -222,16 +229,20 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												<input
 													class="ui-input"
 													id={ "stock-" + r.ID + "-" + l.OrderLineID }
-													type="number"
+													type={ dollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
+													inputmode="numeric"
 													name={ "restocked_" + l.OrderLineID }
-													value={ l.RestockedField() }
+													value={ l.RestockedField(v.FieldInvalid(r.ID, "inspect")) }
 													min="0"
 													max={ l.MaxQuantityText() }
-													if v.FieldInvalid(r.ID, "inspect") {
+													if v.InspectionRefusal(r.ID,"restocked",l.OrderLineID)!="" {
 														aria-invalid="true"
-														aria-describedby={ "inspect-error-" + r.ID }
+														aria-describedby={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }
 													}
 												/>
+												if message:=v.InspectionRefusal(r.ID,"restocked",l.OrderLineID); message!="" {
+													<p class="ui-error-text" id={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
+												}
 											</div>
 										} else {
 											<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetNoVariant) }</p>

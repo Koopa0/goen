@@ -26,6 +26,8 @@ templ FAQ(p layouts.Page, v *FAQView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, refusalField{"category", "faq-category"}, refusalField{"question", "faq-question"}, refusalField{"answer", "faq-answer"}, refusalField{"category_en", "faq-category-en"}, refusalField{"question_en", "faq-question-en"}, refusalField{"answer_en", "faq-answer-en"}))
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, refusalField{"question", "q-" + v.Edit.ID}, refusalField{"answer", "a-" + v.Edit.ID}, refusalField{"question_en", "qe-" + v.Edit.ID}, refusalField{"answer_en", "ae-" + v.Edit.ID}))
 		if v.Untranslated() > 0 {
 			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
@@ -33,7 +35,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpAdd) }</h2>
-			<form class="goen-admin__form" method="post" action="/admin/faq">
+			<form class="goen-admin__form" id="new-faq" method="post" action="/admin/faq#new-faq">
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "faq-category"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColCategory) }
@@ -101,11 +103,16 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryEn) }
 						}
 						@components.Input(components.FieldProps{
-							ID:    "faq-category-en",
-							Name:  "category_en",
-							Value: v.Draft.CategoryEn,
-							Attrs: templ.Attributes{"maxlength": "40"},
+							ID:        "faq-category-en",
+							Name:      "category_en",
+							Value:     v.Draft.CategoryEn,
+							Invalid:   v.HasErr("category_en"),
+							Describes: "faq-category-en-error",
+							Attrs:     templ.Attributes{"maxlength": "40"},
 						})
+						if v.HasErr("category_en") {
+							<p class="ui-error-text" id="faq-category-en-error">{ v.Err("category_en") }</p>
+						}
 						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Orders") }</p>
 					</div>
 					<div class="goen-admin__field">
@@ -113,11 +120,16 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
 						}
 						@components.Input(components.FieldProps{
-							ID:    "faq-question-en",
-							Name:  "question_en",
-							Value: v.Draft.QuestionEn,
-							Attrs: templ.Attributes{"maxlength": "200"},
+							ID:        "faq-question-en",
+							Name:      "question_en",
+							Value:     v.Draft.QuestionEn,
+							Invalid:   v.HasErr("question_en"),
+							Describes: "faq-question-en-error",
+							Attrs:     templ.Attributes{"maxlength": "200"},
 						})
+						if v.HasErr("question_en") {
+							<p class="ui-error-text" id="faq-question-en-error">{ v.Err("question_en") }</p>
+						}
 					</div>
 				</div>
 				<div class="goen-admin__field">
@@ -125,11 +137,16 @@ templ FAQ(p layouts.Page, v *FAQView) {
 						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
 					}
 					@components.Textarea(components.FieldProps{
-						ID:    "faq-answer-en",
-						Name:  "answer_en",
-						Attrs: templ.Attributes{"maxlength": "2000", "rows": "5"},
+						ID:        "faq-answer-en",
+						Name:      "answer_en",
+						Invalid:   v.HasErr("answer_en"),
+						Describes: "faq-answer-en-error",
+						Attrs:     templ.Attributes{"maxlength": "2000", "rows": "5"},
 					}) {
 						{ v.Draft.AnswerEn }
+					}
+					if v.HasErr("answer_en") {
+						<p class="ui-error-text" id="faq-answer-en-error">{ v.Err("answer_en") }</p>
 					}
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
 				</div>
@@ -165,7 +182,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 								}
 								<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpUpdated), e.UpdatedAt) }</span>
 							</div>
-							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID) }>
+							<form id={ "faq-" + e.ID } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID + "#faq-" + e.ID) }>
 								<div class="goen-admin__field">
 									@components.Label(components.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
@@ -178,6 +195,9 @@ templ FAQ(p layouts.Page, v *FAQView) {
 										Describes: "faq-err-question-" + e.ID,
 										Attrs:     templ.Attributes{"maxlength": "200", "required": true},
 									})
+									if v.RowErr(stored,"question") {
+										<p class="ui-error-text" id={ "faq-err-question-" + e.ID }>{ v.EditErrors["question"] }</p>
+									}
 								</div>
 								<div class="goen-admin__field">
 									@components.Label(components.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}) {
@@ -192,32 +212,47 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}) {
 										{ e.Answer }
 									}
+									if v.RowErr(stored,"answer") {
+										<p class="ui-error-text" id={ "faq-err-answer-" + e.ID }>{ v.EditErrors["answer"] }</p>
+									}
 								</div>
 								<div class="goen-admin__field">
 									@components.Label(components.LabelProps{For: "qe-" + e.ID, Class: "goen-sr-only"}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
 									}
 									@components.Input(components.FieldProps{
-										ID:    "qe-" + e.ID,
-										Name:  "question_en",
-										Value: e.QuestionEn,
-										Attrs: templ.Attributes{"maxlength": "200", "placeholder": "English question"},
+										ID:        "qe-" + e.ID,
+										Name:      "question_en",
+										Value:     e.QuestionEn,
+										Invalid:   v.RowErr(stored, "question_en"),
+										Describes: "faq-err-question_en-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "200", "placeholder": "English question"},
 									})
+									if v.RowErr(stored,"question_en") {
+										<p class="ui-error-text" id={ "faq-err-question_en-" + e.ID }>{ v.EditErrors["question_en"] }</p>
+									}
 								</div>
 								<div class="goen-admin__field">
 									@components.Label(components.LabelProps{For: "ae-" + e.ID, Class: "goen-sr-only"}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
 									}
 									@components.Textarea(components.FieldProps{
-										ID:    "ae-" + e.ID,
-										Name:  "answer_en",
-										Attrs: templ.Attributes{"maxlength": "2000", "placeholder": "English answer", "rows": "3"},
+										ID:        "ae-" + e.ID,
+										Name:      "answer_en",
+										Invalid:   v.RowErr(stored, "answer_en"),
+										Describes: "faq-err-answer_en-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "2000", "placeholder": "English answer", "rows": "3"},
 									}) {
 										{ e.AnswerEn }
 									}
+									if v.RowErr(stored,"answer_en") {
+										<p class="ui-error-text" id={ "faq-err-answer_en-" + e.ID }>{ v.EditErrors["answer_en"] }</p>
+									}
 								</div>
-								for _, f := range v.RowErrFields(stored) {
-									<p class="ui-error-text" id={ "faq-err-" + f + "-" + e.ID } role="alert">{ v.EditErrors[f] }</p>
+								for _, f := range []string{"category", "category_en"} {
+									if v.RowErr(stored,f) {
+										<p class="ui-error-text" id={ "faq-err-" + f + "-" + e.ID } role="alert">{ v.EditErrors[f] }</p>
+									}
 								}
 								<input type="hidden" name="category" value={ e.Category }/>
 								<input type="hidden" name="category_en" value={ e.CategoryEn }/>

@@ -159,7 +159,7 @@ func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: admin.ZoneDraft{
-			Code: z.Code, Name: z.Name, NameEn: z.NameEn, Prefixes: z.Prefixes,
+			Code: r.PostFormValue("code"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"), Prefixes: r.PostFormValue("prefixes"),
 		}})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)

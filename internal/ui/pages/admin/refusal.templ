@@ -1,0 +1,16 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+templ RefusalSummary(v refusalSummary) {
+	if v.Count>0 {
+		@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
+			<strong class="goen-notice__lead">{ i18n.T(ctx,i18n.KeyAdminNoticeLeadRefused) }</strong>
+			{ v.Text(ctx) }
+			<a href={ templ.URL("#" + v.First) }>{ i18n.T(ctx,i18n.KeyAdminRefusalFirst) }</a>
+		}
+	}
+}

@@ -268,10 +268,10 @@ func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testi
 		action, switchName string
 		zh, en             []string
 	}{
-		{"/admin/home", "hero_lang",
+		{"/admin/home#new-hero", "hero_lang",
 			[]string{"headline", "eyebrow", "body", "primary_label", "second_label", "alt"},
 			[]string{"headline_en", "eyebrow_en", "body_en", "primary_label_en", "second_label_en", "alt_en"}},
-		{"/admin/home/banner", "banner_lang",
+		{"/admin/home/banner#new-banner", "banner_lang",
 			[]string{"message", "short", "cta_label"},
 			[]string{"message_en", "short_en", "cta_label_en"}},
 	} {
@@ -302,7 +302,7 @@ func TestTheBannerSwitchOpensOnTheLanguageOfTheFirstRefusedField(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	opensOn := func(errs map[string]string) (lang, form string) {
-		form = homeForm(t, renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{Errors: errs})), "/admin/home/banner")
+		form = homeForm(t, renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{Errors: errs})), "/admin/home/banner#new-banner")
 		if m := regexp.MustCompile(`value="(zh|en)" checked`).FindStringSubmatch(form); m != nil {
 			lang = m[1]
 		}

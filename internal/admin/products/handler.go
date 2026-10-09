@@ -331,13 +331,16 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Slug, view.Name, view.Summary = f.Slug, f.Name, f.Summary
-	view.Description, view.WarrantyNote = f.Description, f.WarrantyNote
+	view.Slug, view.Name, view.Summary = f.Slug, r.PostFormValue("name"), r.PostFormValue("summary")
+	if isNew {
+		view.Slug = r.PostFormValue("slug")
+	}
+	view.Description, view.WarrantyNote = r.PostFormValue("description"), r.PostFormValue("warranty")
 	view.WarrantyMonthsRaw = f.WarrantyMonthsRaw
 	view.WarrantyMonths = f.WarrantyMonths
-	view.NameEn, view.SummaryEn = f.NameEn, f.SummaryEn
-	view.DescriptionEn = f.DescriptionEn
-	view.BrandID, view.CategoryID = f.BrandID, f.CategoryID
+	view.NameEn, view.SummaryEn = r.PostFormValue("name_en"), r.PostFormValue("summary_en")
+	view.DescriptionEn = r.PostFormValue("description_en")
+	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
