@@ -3084,10 +3084,6 @@ input.goen-check {
   min-width: 0;
 }
 
-#filters-applied:empty {
-  display: none;
-}
-
 .goen-listing__results {
   display: flex;
   flex-direction: column;
@@ -6563,14 +6559,6 @@ input.goen-check {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-}
-
-.goen-order__cancel {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
 }
 
 .goen-pagehead > .ui-statline {

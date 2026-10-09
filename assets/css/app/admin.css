@@ -1714,16 +1714,6 @@ input.goen-check {
   padding: 0;
 }
 
-.goen-admin__side {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
 .goen-admin__tabs {
   gap: 6px;
 }
