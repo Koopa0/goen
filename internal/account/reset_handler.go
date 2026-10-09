@@ -79,7 +79,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	if password != r.PostFormValue("confirm") {
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
-			pages.ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch)}))
+			pages.ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch), ErrorField: "confirm"}))
 		return
 	}
 

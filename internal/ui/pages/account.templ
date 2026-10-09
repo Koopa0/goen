@@ -233,16 +233,17 @@ templ Register(p layouts.Page, v AuthView) {
 								Name:      "password",
 								Type:      "password",
 								Invalid:   v.HasErr("password"),
-								Describes: "password-error password-hint",
-								Attrs: templ.Attributes{
+								Describes: "password-error",
+								Attrs: v.PasswordAttrs(templ.Attributes{
 									"autocomplete": "new-password",
 									"minlength":    "10",
 									"required":     true,
-								},
+								}),
 							})
-							<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
 							if v.HasErr("password") {
 								<p class="ui-error-text" id="password-error" role="alert">{ v.Err("password") }</p>
+							} else {
+								<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
 							}
 						</div>
 						<div class="goen-field">
@@ -267,6 +268,10 @@ templ Register(p layouts.Page, v AuthView) {
 						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyCreateAccount) }
 						}
+						<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyRegisterEmailFollows) }</p>
+						<p class="goen-auth__hint">
+							{ i18n.T(ctx, i18n.KeyRegisterPolicyBefore) }<a href="/terms">{ i18n.T(ctx, i18n.KeyTermsPolicy) }</a>{ i18n.T(ctx, i18n.KeyRegisterPolicyBetween) }<a href="/privacy">{ i18n.T(ctx, i18n.KeyPrivacyPolicy) }</a>{ i18n.T(ctx, i18n.KeyRegisterPolicyAfter) }
+						</p>
 					</form>
 				}
 				<p class="goen-auth__alt">
@@ -283,7 +288,6 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyRegisterCompleteTitle) }</h1>
-				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyRegisterCompleteLede) }</p>
 				<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyRegisterCompleteWhy) }</p>
 				<form class="goen-auth__form" method="post" action="/register/complete">
 					<input type="hidden" name="token" value={ v.Token }/>
@@ -314,7 +318,7 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 				</form>
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyRegisterCompleteNotYou) }
-					<a href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
+					<a href="/forgot">{ i18n.T(ctx, i18n.KeyResetPasswordLink) }</a>
 				</p>
 			</div>
 		</div>

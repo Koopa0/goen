@@ -243,7 +243,7 @@ var (
 
 	KeyNameRequired = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名", En: "Enter the recipient's name"})
 
-	KeyNameTooLong = key("valid.name.toolong", Message{ZhHant: "姓名過長", En: "That name is too long"})
+	KeyNameTooLong = key("valid.name.toolong", Message{ZhHant: "姓名過長。", En: "That name is too long."})
 
 	KeyPhoneRequired = key("valid.phone.required", Message{ZhHant: "請填寫聯絡電話", En: "Enter a phone number"})
 
@@ -288,23 +288,23 @@ var (
 	})
 
 	KeyFieldHasControlChars = key("valid.controlchars", Message{
-		ZhHant: "含有不允許的字元",
-		En:     "Contains characters that are not allowed",
+		ZhHant: "含有不允許的字元。",
+		En:     "Contains characters that are not allowed.",
 	})
 
 	KeyCheckoutEmailRequired = key("valid.email.required", Message{
-		ZhHant: "請填寫電子郵件",
-		En:     "Enter an email address",
+		ZhHant: "請填寫電子郵件。",
+		En:     "Enter an email address.",
 	})
 
 	KeyCheckoutEmailTooLong = key("valid.email.toolong", Message{
-		ZhHant: "電子郵件過長",
-		En:     "That email address is too long",
+		ZhHant: "電子郵件過長。",
+		En:     "That email address is too long.",
 	})
 
 	KeyCheckoutEmailMalformed = key("valid.email.malformed", Message{
-		ZhHant: "電子郵件格式不正確",
-		En:     "That does not look like an email address",
+		ZhHant: "電子郵件格式不正確。",
+		En:     "That does not look like an email address.",
 	})
 
 	KeyInvoiceDonate = key("invoice.donate", Message{
