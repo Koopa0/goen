@@ -26,6 +26,9 @@ export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
           const got = await evaluate(`(() => {
             const title = document.querySelector('h1.goen-pagehead__title');
             const empty = document.querySelector('p.goen-empty__title');
+            const rendered = [title, empty].every((element) => element
+              && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0
+              && getComputedStyle(element).visibility === 'visible');
             const outside = [];
             for (const element of [title, empty]) {
               if (!element) continue;
@@ -38,12 +41,13 @@ export async function checkSearchReflow({ origin, send, evaluate, navigate }) {
               }
             }
             return { lang: document.documentElement.lang, title: title?.textContent,
-              empty: empty?.textContent, width: document.documentElement.clientWidth, scroll: document.body.scrollWidth, outside };
+              empty: empty?.textContent, rendered, width: document.documentElement.clientWidth, scroll: document.body.scrollWidth, outside };
           })()`);
           const label = `${locale} ${scale}% scripting=${!disabled}`;
           assert.equal(got.lang, locale, label + ': wrong locale');
           assert.ok(got.title?.includes(query), label + ': full query missing from title');
           assert.ok(got.empty?.includes(query), label + ': no-results feedback missing');
+          assert.ok(got.rendered, label + ': search text is hidden or missing');
           assert.equal(got.width, 320, label + ': wrong viewport');
           if (got.scroll > 321 || got.outside.length) {
             failures.push(label + ': ' + JSON.stringify({ scroll: got.scroll, outside: got.outside }));
