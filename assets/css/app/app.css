@@ -1725,7 +1725,9 @@ th {
   border-radius: var(--r-md);
   grid-area: 1 / 2;
   margin: 4px;
+  max-width: 100%;
   min-height: 2.75rem;
+  overflow-wrap: anywhere;
   z-index: 1;
 }
 
