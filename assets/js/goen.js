@@ -135,8 +135,8 @@
   /*
    * Small menus built on <details data-popover>, such as the language menu.
    * The element opens itself; what it does not ship with is closing on Escape
-   * with the focus returned to its button, closing on a click elsewhere, and
-   * one open at a time.
+   * with the focus returned to its button, closing when focus leaves or on a
+   * click elsewhere, and one open at a time.
    */
   function popovers() {
     const pops = document.querySelectorAll("details[data-popover]");
@@ -157,6 +157,9 @@
       }
     });
     for (const pop of pops) {
+      pop.addEventListener("focusout", (event) => {
+        if (!pop.contains(event.relatedTarget)) pop.open = false;
+      });
       pop.addEventListener("toggle", () => {
         if (!pop.open) return;
         for (const other of pops) if (other !== pop) other.open = false;
