@@ -192,9 +192,9 @@ func Points(p layouts.Page, v PointsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsUsing), v.RedeemableText()))
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyPointsUsing, v.Redeemable, v.RedeemableText()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/points.templ`, Line: 41, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/points.templ`, Line: 41, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -301,9 +301,9 @@ func Points(p layouts.Page, v PointsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepAmountText(ctx)))
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyPointsRule, v.Minimum, v.MinimumText(), v.StepAmountText(ctx)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/points.templ`, Line: 72, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/points.templ`, Line: 72, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
