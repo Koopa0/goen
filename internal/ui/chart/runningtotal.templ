@@ -8,7 +8,7 @@ templ RunningTotal(p RunningTotalProps) {
 	if p.Current.Density() == DensityFull {
 		{{ r := newRunningTotal(ctx, &p) }}
 		@frame(p.Caption, p.Note, runningTotalTable(p, r)) {
-			<div class="goen-chart__frame">
+			<div class="goen-chart__frame goen-chart__frame--runningtotal">
 				@valueLabels(r.axes)
 				<svg class="goen-chart__plot" width="100%" height={ strconv.Itoa(r.Height) } aria-hidden="true" focusable="false">
 					@gridRules(r.axes)
@@ -30,6 +30,16 @@ templ RunningTotal(p RunningTotalProps) {
 				</svg>
 			</div>
 			<p class="goen-chart__readout"></p>
+			<dl class="goen-chart__endlegend" aria-hidden="true">
+				<div>
+					<dt>{ r.CurrentLabel.Name }</dt>
+					<dd>{ r.CurrentLabel.Total }</dd>
+				</div>
+				<div>
+					<dt>{ r.PrevLabel.Name }</dt>
+					<dd>{ r.PrevLabel.Total }</dd>
+				</div>
+			</dl>
 		}
 	}
 }
