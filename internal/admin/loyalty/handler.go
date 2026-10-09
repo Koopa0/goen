@@ -47,7 +47,17 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	var view admin.CreditView
+	var err error
+	if customer := r.URL.Query().Get("customer"); customer != "" {
+		view, err = h.store.CreditForCustomer(r.Context(), customer, r.URL.Query().Get(web.KeysetParam))
+	} else {
+		view, err = h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	}
+	if errors.Is(err, ErrNotFound) {
+		access.NotFound(w, r, h.log)
+		return
+	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
 		access.ServerError(w, r, h.log)
@@ -82,7 +92,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
+	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id"), FilterCustomerID: r.PostFormValue("filter_customer")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
 		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
@@ -97,6 +107,9 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 			access.ServerError(w, r, h.log)
 		}
 		return
+	}
+	if view.FilterCustomerID != view.CustomerID {
+		view.FilterCustomerID = ""
 	}
 	if r.PostFormValue("edit") == "1" {
 		h.renderCreditForm(w, r, &view, http.StatusOK, "")
@@ -117,8 +130,11 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		// The balance travels as a number and never the address it belongs to,
 		// because a query string is logged.
-		http.Redirect(w, r, "/admin/credit?ok=1&balance="+
-			strconv.FormatInt(balance, 10), http.StatusSeeOther)
+		target := "/admin/credit?ok=1&balance=" + strconv.FormatInt(balance, 10)
+		if view.FilterCustomerID != "" {
+			target = web.ScopeURL("/admin/credit", "ok", "1", "balance", strconv.FormatInt(balance, 10), "customer", view.FilterCustomerID)
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
 		http.Redirect(w, r, "/admin/credit?creditneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
@@ -182,13 +198,18 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 }
 
 func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *admin.CreditView, status int, notice i18n.Key) {
-	ledger, err := h.store.Credit(r.Context())
+	ledger, err := h.store.CreditForCustomer(r.Context(), view.FilterCustomerID)
+	if errors.Is(err, ErrNotFound) {
+		access.NotFound(w, r, h.log)
+		return
+	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Rows, view.Bound = ledger.Rows, ledger.Bound
+	view.FilterCustomerID, view.FilterCustomerName = ledger.FilterCustomerID, ledger.FilterCustomerName
 	if notice != "" {
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}

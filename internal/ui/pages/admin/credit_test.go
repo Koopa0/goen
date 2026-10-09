@@ -63,3 +63,24 @@ func TestCreditLedgerTranslatesTheReasonsGoenWroteAndKeepsStaffText(t *testing.T
 		}
 	}
 }
+
+func TestCreditLedgerLinksItsCustomerAndSourceAndShowsBalanceAndActor(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		view := CreditView{Rows: []CreditEntry{
+			{Email: "ada@example.test", CustomerID: "customer-a", OrderNumber: "GO-261009-000001", Reason: reasonOrderSpend, AmountCents: -10000, BalanceCents: 20000},
+			{Email: "ada@example.test", CustomerID: "customer-a", OrderNumber: "GO-261009-000001", ReturnID: "return-a", Reason: reasonReturnPayout, AmountCents: 10000, BalanceCents: 30000},
+			{Email: "ada@example.test", CustomerID: "customer-a", Reason: "goodwill", AmountCents: 30000, BalanceCents: 30000, ActorName: "Staff Ada"},
+		}}
+		var body strings.Builder
+		if err := Credit(layouts.Page{Title: "credit"}, view).Render(ctx, &body); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{`href="/admin/customers/customer-a"`, `href="/admin/orders/GO-261009-000001"`, `href="/admin/returns?request=return-a"`, "NT$200", "NT$300", "Staff Ada"} {
+			if !strings.Contains(body.String(), want) {
+				t.Errorf("%s credit ledger lacks %q", locale.Tag(), want)
+			}
+		}
+	}
+}

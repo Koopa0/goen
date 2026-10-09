@@ -2223,6 +2223,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
        o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
+       coalesce(u.id::text, '')::text AS customer_id,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
@@ -2256,6 +2257,7 @@ type AdminSearchWarrantiesRow struct {
 	OrderNumber       string
 	FulfillmentStatus string
 	CustomerName      string
+	CustomerID        string
 	CustomerEmail     string
 }
 
@@ -2290,6 +2292,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.CustomerName,
+			&i.CustomerID,
 			&i.CustomerEmail,
 		); err != nil {
 			return nil, err
@@ -6695,6 +6698,24 @@ func (q *Queries) CreditBalance(ctx context.Context, userID uuid.NullUUID) (int6
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const creditCustomerByID = `-- name: CreditCustomerByID :one
+SELECT id, email, coalesce(full_name, '') AS full_name FROM users
+WHERE id = $1 AND role = 'customer'
+`
+
+type CreditCustomerByIDRow struct {
+	ID       uuid.UUID
+	Email    string
+	FullName string
+}
+
+func (q *Queries) CreditCustomerByID(ctx context.Context, id uuid.UUID) (CreditCustomerByIDRow, error) {
+	row := q.db.QueryRow(ctx, creditCustomerByID, id)
+	var i CreditCustomerByIDRow
+	err := row.Scan(&i.ID, &i.Email, &i.FullName)
+	return i, err
 }
 
 const currentPromoBanner = `-- name: CurrentPromoBanner :one
@@ -13147,11 +13168,27 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 }
 
 const recentCredit = `-- name: RecentCredit :many
+WITH ledger AS (
+    SELECT e.id, e.account_id, e.amount_cents, e.reason, e.idempotency_key, e.order_id, e.reverses_id, e.actor_user_id, e.created_at, a.user_id,
+           (sum(e.amount_cents) OVER (
+               PARTITION BY e.account_id ORDER BY e.created_at, e.id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+           ))::bigint AS balance_cents
+    FROM store_credit_entries e
+    JOIN store_credit_accounts a ON a.id = e.account_id
+    WHERE NOT $5::boolean OR a.user_id = $6::uuid
+)
 SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
-       coalesce(u.email, '') AS email
-FROM store_credit_entries e
-JOIN store_credit_accounts a ON a.id = e.account_id
-LEFT JOIN users u ON u.id = a.user_id
+       e.balance_cents, coalesce(u.email, '') AS email,
+       coalesce(u.id::text, '')::text AS customer_id,
+       coalesce(o.order_number, '') AS order_number,
+       coalesce(r.id::text, '')::text AS return_id,
+       coalesce(nullif(actor.full_name, ''), actor.email, '') AS actor_name
+FROM ledger e
+LEFT JOIN users u ON u.id = e.user_id
+LEFT JOIN orders o ON o.id = e.order_id
+LEFT JOIN return_requests r ON e.idempotency_key = 'return-credit:' || r.id::text AND r.order_id = e.order_id
+LEFT JOIN users actor ON actor.id = e.actor_user_id
 WHERE (NOT $1::boolean OR (e.created_at < $2::timestamptz)
        OR (e.created_at = $2::timestamptz AND e.id < $3::uuid))
 ORDER BY e.created_at DESC, e.id DESC
@@ -13159,18 +13196,25 @@ LIMIT $4::integer
 `
 
 type RecentCreditParams struct {
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
+	HasCustomer bool
+	CustomerID  uuid.UUID
 }
 
 type RecentCreditRow struct {
-	PageCursor  string
-	AmountCents int64
-	Reason      string
-	CreatedAt   time.Time
-	Email       string
+	PageCursor   string
+	AmountCents  int64
+	Reason       string
+	CreatedAt    time.Time
+	BalanceCents int64
+	Email        string
+	CustomerID   string
+	OrderNumber  string
+	ReturnID     string
+	ActorName    string
 }
 
 func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]RecentCreditRow, error) {
@@ -13179,6 +13223,8 @@ func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]R
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
+		arg.HasCustomer,
+		arg.CustomerID,
 	)
 	if err != nil {
 		return nil, err
@@ -13192,7 +13238,12 @@ func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]R
 			&i.AmountCents,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.BalanceCents,
 			&i.Email,
+			&i.CustomerID,
+			&i.OrderNumber,
+			&i.ReturnID,
+			&i.ActorName,
 		); err != nil {
 			return nil, err
 		}
@@ -14994,15 +15045,18 @@ SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r
        ), 'undelivered')::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
-WHERE (NOT $1::boolean OR (return_payout_outstanding(r.id) < $2::boolean)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') < $3::boolean)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at < $4::timestamptz)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at = $4::timestamptz AND r.id < $5::uuid))
+WHERE (NOT $1::boolean OR r.id = $2::uuid)
+  AND (NOT $3::boolean OR (return_payout_outstanding(r.id) < $4::boolean)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') < $5::boolean)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') = $5::boolean AND r.created_at < $6::timestamptz)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') = $5::boolean AND r.created_at = $6::timestamptz AND r.id < $7::uuid))
 ORDER BY return_payout_outstanding(r.id) DESC, (r.status = 'requested') DESC, r.created_at DESC, r.id DESC
-LIMIT $6::integer
+LIMIT $8::integer
 `
 
 type ReturnQueueParams struct {
+	HasRequest    bool
+	RequestID     uuid.UUID
 	HasCursor     bool
 	AfterRank     bool
 	AfterPriority bool
@@ -15034,6 +15088,8 @@ type ReturnQueueRow struct {
 // disappear from every actionable screen.
 func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]ReturnQueueRow, error) {
 	rows, err := q.db.Query(ctx, returnQueue,
+		arg.HasRequest,
+		arg.RequestID,
 		arg.HasCursor,
 		arg.AfterRank,
 		arg.AfterPriority,

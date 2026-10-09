@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyAdminCreditEntryBalance        = key("admin.credit.entry_balance", Message{ZhHant: "餘額", En: "Balance"})
+	KeyAdminCreditActor               = key("admin.credit.actor", Message{ZhHant: "發放人", En: "Granted by"})
 	KeyAdminCreditReasonOrderSpend    = key("admin.credit.reason.order_spend", Message{ZhHant: "訂單折抵", En: "Applied to an order"})
 	KeyAdminCreditReasonOrderReversed = key("admin.credit.reason.order_reversed", Message{ZhHant: "訂單取消，購物金退回", En: "Order cancelled, credit returned"})
 	KeyAdminCreditReasonReturnPayout  = key("admin.credit.reason.return_payout", Message{ZhHant: "退貨退回購物金", En: "Credit for a return"})

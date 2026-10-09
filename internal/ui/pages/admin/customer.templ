@@ -33,15 +33,16 @@ templ Customers(p layouts.Page, v CustomersView) {
 				value={ v.Term }
 				placeholder={ i18n.T(ctx, i18n.KeyAdminCustPlaceholder) }
 				autocomplete="off"
+				if v.TermTooShort() {
+					aria-describedby="customer-search-hint"
+				}
 			/>
 			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearch) }
 			}
 		</form>
 		if v.TermTooShort() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
-				{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }
-			}
+			<p class="ui-hint" id="customer-search-hint">{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }</p>
 		}
 		if v.Searching() && v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
@@ -70,8 +71,8 @@ templ Customers(p layouts.Page, v CustomersView) {
 								<td>
 									{ c.Email }
 									if !c.Verified {
-										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-											{ i18n.T(ctx, i18n.KeyAdminCustUnconfirmed) }
+										@components.Badge(components.BadgeProps{}) {
+											{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }
 										}
 									}
 								</td>
@@ -102,18 +103,21 @@ templ Customer(p layouts.Page, v *CustomerView) {
 				<p class="ui-page-head__sub">
 					{ v.Email }
 					if !v.Verified {
-						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+						@components.Badge(components.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }
 						}
 					}
 				</p>
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.GrantCreditHref())) {
+					{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
+				}
 			</div>
 		</div>
 		<div class="goen-admin__stats">
 			@components.StatLine([]components.Stat{
 				{Label: i18n.T(ctx, i18n.KeyAdminCustStatOrders), Value: components.StatNumber(v.Orders)},
 				{Label: i18n.T(ctx, i18n.KeyAdminCustStatSpent), Value: components.StatMoney(v.SpentCents)},
-				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: components.StatMoney(v.CreditCents)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: components.StatMoney(v.CreditCents), ValueHref: v.CreditHref()},
 				{Label: i18n.T(ctx, i18n.KeyAdminCustStatPoints), Value: components.StatNumber(v.Points)},
 			}, components.StatLineWide)
 		</div>

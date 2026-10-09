@@ -24,6 +24,7 @@ type WarrantyRow struct {
 	Order         string
 	OrderStatus   string
 	CustomerName  string
+	CustomerID    string
 	CustomerEmail string
 	RegisteredAt  string
 	ExpiresOn     string
@@ -64,3 +65,5 @@ func (r WarrantyRow) Customer(ctx context.Context) string {
 }
 
 func (r WarrantyRow) OrderHref() string { return "/admin/orders/" + r.Order }
+
+func (r WarrantyRow) CustomerHref() string { return "/admin/customers/" + r.CustomerID }

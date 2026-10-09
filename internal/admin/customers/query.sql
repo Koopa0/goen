@@ -61,6 +61,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
        o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
+       coalesce(u.id::text, '')::text AS customer_id,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id

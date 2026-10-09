@@ -125,22 +125,61 @@ type position struct {
 }
 
 func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
-	const scope = "/admin/credit"
+	return s.CreditForCustomer(ctx, "", after...)
+}
+
+func (s *Store) CreditForCustomer(ctx context.Context, customer string, after ...string) (admin.CreditView, error) {
+	view := admin.CreditView{}
+	user, err := s.creditCustomer(ctx, customer)
+	if err != nil {
+		return view, err
+	}
+	if customer != "" {
+		view.FilterCustomerID, view.FilterCustomerName, view.Email = user.ID.String(), user.FullName, user.Email
+	}
+	scope := web.ScopeURL("/admin/credit", "customer", view.FilterCustomerID)
 	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCustomer: customer != "", CustomerID: user.ID, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
-	view := admin.CreditView{Bound: bound}
+	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.CreditEntry{
-			Email:       r.Email,
-			AmountCents: r.AmountCents,
-			Reason:      r.Reason,
-			At:          shoptime.Minute(r.CreatedAt),
+			Email:        r.Email,
+			AmountCents:  r.AmountCents,
+			Reason:       r.Reason,
+			At:           shoptime.Minute(r.CreatedAt),
+			CustomerID:   r.CustomerID,
+			OrderNumber:  r.OrderNumber,
+			ReturnID:     r.ReturnID,
+			BalanceCents: r.BalanceCents,
+			ActorName:    r.ActorName,
 		})
 	}
 	return view, nil
+}
+
+func (s *Store) creditCustomer(ctx context.Context, customer string) (db.CreditCustomerByIDRow, error) {
+	var empty db.CreditCustomerByIDRow
+	if customer == "" {
+		return empty, nil
+	}
+	id, parseErr := uuid.Parse(customer)
+	if parseErr != nil || id == uuid.Nil {
+		return empty, ErrNotFound
+	}
+	user, err := s.q.CreditCustomerByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return empty, ErrNotFound
+	}
+	if err != nil {
+		return empty, fmt.Errorf("read ledger customer: %w", err)
+	}
+	if user.FullName == "" {
+		user.FullName = user.Email
+	}
+	return user, nil
 }

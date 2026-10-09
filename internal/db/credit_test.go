@@ -15,6 +15,10 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
+		"RecentCredit": "historical balance after EACH ledger entry, including entries " +
+			"on earlier pages. The current-account balance view cannot supply these " +
+			"positions. The window spans the complete account before pagination; " +
+			"the newest entry is checked against store_credit_balances",
 		"ReturnPayoutFacts": "spent and returned on ONE order, split by " +
 			"sign — a position rather than a balance, and the refund split needs both " +
 			"halves. It leaves out one return's own compensation because that is what " +
