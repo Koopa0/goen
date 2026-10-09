@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { fieldFaults } from './field-faults.mjs';
+import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
@@ -1623,7 +1624,11 @@ const proveListingDesktopResize = async (label, locale) => {
       });
       const [state, href] = String(result.value || '').split(' ');
       if (state === 'complete' && href.includes('in_stock=1') && href.includes('#listing-results')) {
-        return href;
+        if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
+        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
+        return '';
+      }
+      return href;
       }
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -3552,6 +3557,10 @@ const waitForHref = async (match, label) => {
     const href = String(result.value || '');
     if (match(href)) {
       await new Promise((r) => setTimeout(r, 250));
+      if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
+        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
+        return '';
+      }
       return href;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -4017,6 +4026,10 @@ const settledFor = async (pass, route, url) => {
     const [state, href] = String(result.value).split(' ');
     if (state === 'complete' && href !== 'about:blank') {
       await new Promise((r) => setTimeout(r, 150));
+      if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
+        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
+        return '';
+      }
       return href;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -4412,6 +4425,17 @@ const auditReflow = async () => {
   console.log(JSON.stringify({ ...reflowBaselineFile, routes: ordered }, null, 2));
   console.log('::endgroup::');
 };
+
+await checkColumnLabelReflow({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'column label reflow', url); },
+  fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
+});
 
 await proveTargetSizeGates();
 await auditAccessibility();
