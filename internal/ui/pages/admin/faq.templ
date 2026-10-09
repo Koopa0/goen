@@ -111,7 +111,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							Attrs:     templ.Attributes{"maxlength": "40"},
 						})
 						if v.HasErr("category_en") {
-							<p class="ui-error-text" id="faq-category-en-error">{ v.Err("category_en") }</p>
+							<p class="ui-error-text" id="faq-category-en-error" role="alert">{ v.Err("category_en") }</p>
 						}
 						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Orders") }</p>
 					</div>
@@ -128,7 +128,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							Attrs:     templ.Attributes{"maxlength": "200"},
 						})
 						if v.HasErr("question_en") {
-							<p class="ui-error-text" id="faq-question-en-error">{ v.Err("question_en") }</p>
+							<p class="ui-error-text" id="faq-question-en-error" role="alert">{ v.Err("question_en") }</p>
 						}
 					</div>
 				</div>
@@ -146,7 +146,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 						{ v.Draft.AnswerEn }
 					}
 					if v.HasErr("answer_en") {
-						<p class="ui-error-text" id="faq-answer-en-error">{ v.Err("answer_en") }</p>
+						<p class="ui-error-text" id="faq-answer-en-error" role="alert">{ v.Err("answer_en") }</p>
 					}
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
 				</div>
