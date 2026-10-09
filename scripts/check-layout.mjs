@@ -14,6 +14,7 @@ import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusi
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { fieldFaults } from './field-faults.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
+import { checkSearchReflow } from './search-reflow.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -4412,6 +4413,20 @@ const auditReflow = async () => {
   console.log(JSON.stringify({ ...reflowBaselineFile, routes: ordered }, null, 2));
   console.log('::endgroup::');
 };
+
+try {
+  await checkSearchReflow({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('search reflow', path, ORIGIN + path)) throw new Error('search did not load');
+    },
+  });
+  console.log('search reflow: both locales, 320px, 100%/200% text, scripting on/off passed');
+} catch (err) {
+  fail('search reflow', err.message);
+}
 
 await proveTargetSizeGates();
 await auditAccessibility();

@@ -3063,6 +3063,13 @@ input.goen-check {
   padding: 24px var(--page-gutter) 56px;
 }
 
+/* Search echoes arbitrary input, including a full-length term with no spaces. */
+.goen-listing--search .goen-pagehead__title,
+.goen-listing--search .goen-empty__title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .goen-listing__layout {
   display: grid;
   gap: 24px;
