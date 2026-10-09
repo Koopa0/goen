@@ -125,10 +125,12 @@ async function filterShell() {
 }
 async function visibleFocus() {
  return evaluate(`(() => { const e = document.activeElement, r = e.getBoundingClientRect(), s = getComputedStyle(e);
+ const target = getComputedStyle(e, '::after');
  const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
  return { text: e.textContent.trim(), tag: e.tagName, focusVisible: e.matches(':focus-visible'),
   uncovered: hit === e || e.contains(hit), width: r.width, height: r.height, right: r.right, viewport: innerWidth,
-  outlineWidth: parseFloat(s.outlineWidth), outlineStyle: s.outlineStyle }; })()`);
+  outlineWidth: parseFloat(s.outlineWidth), outlineStyle: s.outlineStyle,
+  targetWidth: parseFloat(target.width), targetHeight: parseFloat(target.height) }; })()`);
 }
 try {
  for (const locale of ['zh-Hant', 'en']) for (const width of [320, 375, 1440]) for (const text of [100, 200]) for (const dark of [false, true]) {
@@ -158,7 +160,7 @@ try {
   assert.equal(await evaluate("document.activeElement.matches('.goen-filters__chip-remove')"), true, label + ': applied chip is keyboard reachable');
   const chip = await visibleFocus();
   await capture(label + '-chip');
-  assert.ok(chip.uncovered && chip.focusVisible && chip.width >= 24 && chip.height >= 24 && chip.right <= chip.viewport, label + ': focused chip must be visible: ' + JSON.stringify(chip));
+  assert.ok(chip.uncovered && chip.focusVisible && chip.outlineWidth > 0 && chip.outlineStyle !== 'none' && chip.targetWidth >= 24 && chip.targetHeight >= 24 && chip.right <= chip.viewport, label + ': focused chip must be visible: ' + JSON.stringify(chip));
 
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab'); await key('Escape');
   assert.equal(await evaluate("!checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, label + ': Escape returns focus to summary');
