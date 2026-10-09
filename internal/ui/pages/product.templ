@@ -105,6 +105,8 @@ templ Product(p layouts.Page, v *ProductView) {
 						}
 					</ul>
 				</section>
+			} else if v.CategorySlug != "" {
+				<p><a href={ templ.URL("/c/" + v.CategorySlug) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseCategory), v.CategoryName) } <span aria-hidden="true">&rarr;</span></a></p>
 			}
 			if v.HasRecommendations() {
 				<section class="goen-pdp__also" aria-labelledby="also-heading">
@@ -236,11 +238,7 @@ templ productBuy(v *ProductView) {
 			<div class="goen-pdp__titlerow">
 				<h1 class="goen-pdp__title">{ v.Name }</h1>
 				if v.SelectionOK {
-					if v.LowStock() {
-						@components.Badge(components.BadgeProps{}) {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
-						}
-					} else if v.InStock() {
+					if v.InStock() {
 						@components.Badge(components.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeyInStock) }
 						}
@@ -262,7 +260,7 @@ templ productBuy(v *ProductView) {
 				</a>
 			}
 		</div>
-		if v.SelectionOK {
+		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
 				<span class="goen-pdp__price">
 					if v.PriceFrom() {
@@ -303,6 +301,8 @@ templ productBuy(v *ProductView) {
 					<legend class="goen-pdp__optname">
 						if o.SelectedLabel() != "" {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+						} else if o.HasSwatches() {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ i18n.T(ctx, i18n.KeyOptionChoose) }</span>
 						} else {
 							{ o.Label }
 						}
@@ -348,12 +348,14 @@ templ productBuy(v *ProductView) {
 											<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
 										}
 									</svg>
-									<span class="goen-sr-only">{ val.Label }</span>
+									<span class="goen-swatch__label">{ val.Label }</span>
+								} else if !val.Available {
+									<s>{ val.Label }</s>
 								} else {
 									{ val.Label }
 								}
 								if !val.Available {
-									if v.AllSoldOut() && !o.HasSwatches() {
+									if !o.HasSwatches() {
 										<small class="goen-swatch__note">{ v.ValueSoldOut(ctx) }</small>
 									} else {
 										<span class="goen-sr-only">{ v.ValueSoldOut(ctx) }</span>
@@ -450,17 +452,22 @@ templ productAddForm(v *ProductView) {
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
+			if v.CanBuy() && v.LowStock() {
+				<p class="goen-pdp__lowstock">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }</p>
+			}
 			<div class="goen-pdp__buyrow">
-				@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
-					{ i18n.T(ctx, i18n.KeyQuantity) }
+				if !v.SoldOut() && !v.AllSoldOut() {
+					@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
+						{ i18n.T(ctx, i18n.KeyQuantity) }
+					}
+					@components.Stepper(components.StepperProps{
+						ID: "quantity", Name: "quantity", Value: "1",
+						Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
+						DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+						IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
+						Class:         "goen-pdp__qty",
+					})
 				}
-				@components.Stepper(components.StepperProps{
-					ID: "quantity", Name: "quantity", Value: "1",
-					Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
-					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
-					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
-					Class:         "goen-pdp__qty",
-				})
 				@components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStylePrimary,
 					Class:       "goen-pdp__add",

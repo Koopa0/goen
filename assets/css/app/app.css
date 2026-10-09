@@ -4713,6 +4713,13 @@ input.goen-check {
   color: var(--n-500);
 }
 
+.goen-swatch--on.goen-swatch--out:not(.goen-swatch--dot) {
+  background: var(--n-50);
+  border-color: var(--n-900);
+  box-shadow: inset 0 0 0 1px var(--n-900);
+  color: var(--n-900);
+}
+
 /* A colour swatch: a 2rem disc inside a 44px target, so a thumb has the room a
    finger needs and the colours still read as one row. The ring is an outline on
    the disc, two pixels off its edge. */
@@ -4735,8 +4742,33 @@ input.goen-check {
 }
 
 .goen-swatch__dot circle {
-  stroke: var(--swatch-ring);
+  stroke: var(--control-boundary);
   stroke-width: 1;
+}
+
+.goen-swatch__label {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.goen-swatch--dot:is(:hover, :focus-visible) .goen-swatch__label {
+  clip-path: none;
+  font-size: var(--fs-12);
+  height: auto;
+  overflow-wrap: anywhere;
+  position: static;
+  white-space: normal;
+  width: auto;
+}
+
+.goen-pdp__lowstock {
+  color: var(--warn);
+  font-size: var(--fs-14);
+  margin: 0;
 }
 
 .goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
