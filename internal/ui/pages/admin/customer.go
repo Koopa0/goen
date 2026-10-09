@@ -90,6 +90,12 @@ func (v CustomerView) TierSentence(ctx context.Context) string {
 
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
 
+func (v CustomerView) CreditHref() string { return web.ScopeURL("/admin/credit", "customer", v.ID) }
+
+func (v CustomerView) GrantCreditHref() string {
+	return v.CreditHref() + "#credit-email"
+}
+
 func (v CustomerView) DisplayName() string {
 	if v.Name == "" {
 		return v.Email

@@ -10,10 +10,15 @@ import (
 )
 
 type CreditEntry struct {
-	Email       string
-	AmountCents int64
-	Reason      string
-	At          string
+	Email        string
+	AmountCents  int64
+	Reason       string
+	At           string
+	CustomerID   string
+	OrderNumber  string
+	ReturnID     string
+	BalanceCents int64
+	ActorName    string
 }
 
 // The reasons the database writes itself, in the words migrations/001 stores
@@ -54,6 +59,20 @@ func (e CreditEntry) Amount() string {
 
 func (e CreditEntry) IsSpend() bool { return e.AmountCents < 0 }
 
+func (e CreditEntry) CustomerHref() string { return "/admin/customers/" + e.CustomerID }
+
+func (e CreditEntry) SourceHref() string {
+	if e.ReturnID != "" {
+		return web.ScopeURL("/admin/returns", "request", e.ReturnID)
+	}
+	if e.OrderNumber != "" {
+		return "/admin/orders/" + e.OrderNumber
+	}
+	return ""
+}
+
+func (e CreditEntry) Balance() string { return money.TWD(e.BalanceCents) }
+
 type CreditView struct {
 	web.Bound
 
@@ -64,15 +83,17 @@ type CreditView struct {
 	Amount string
 	// OperationID identifies one rendered grant form across HTTP retries. It is
 	// deliberately separate from the per-request log correlation id.
-	OperationID   string
-	Confirm       bool
-	EmailInvalid  bool
-	AmountInvalid bool
-	ReasonInvalid bool
-	GrantCents    int64
-	CustomerID    string
-	CustomerName  string
-	BalanceCents  int64
+	OperationID        string
+	Confirm            bool
+	EmailInvalid       bool
+	AmountInvalid      bool
+	ReasonInvalid      bool
+	GrantCents         int64
+	CustomerID         string
+	CustomerName       string
+	BalanceCents       int64
+	FilterCustomerID   string
+	FilterCustomerName string
 }
 
 func (v *CreditView) Empty() bool { return len(v.Rows) == 0 }

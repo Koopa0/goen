@@ -46,7 +46,8 @@ JOIN orders o ON o.id = r.order_id
 -- Recovery is the only retry door. Rank it before the intake queue and before
 -- LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
 -- disappear from every actionable screen.
-WHERE (NOT @has_cursor::boolean OR (return_payout_outstanding(r.id) < @after_rank::boolean)
+WHERE (NOT @has_request::boolean OR r.id = @request_id::uuid)
+  AND (NOT @has_cursor::boolean OR (return_payout_outstanding(r.id) < @after_rank::boolean)
        OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') < @after_priority::boolean)
        OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') = @after_priority::boolean AND r.created_at < @after_at::timestamptz)
        OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') = @after_priority::boolean AND r.created_at = @after_at::timestamptz AND r.id < @after_id::uuid))

@@ -115,9 +115,22 @@ type queuePosition struct {
 }
 
 func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
-	scope := "/admin/returns"
+	return s.QueueForRequest(ctx, "", after...)
+}
+
+func (s *Store) QueueForRequest(ctx context.Context, request string, after ...string) (Queue, error) {
+	var requestID uuid.UUID
+	if request != "" {
+		id, err := uuid.Parse(request)
+		if err != nil || id == uuid.Nil {
+			return Queue{}, ErrInvalid
+		}
+		requestID = id
+		request = id.String()
+	}
+	scope := web.ScopeURL("/admin/returns", "request", request)
 	from, resumed := web.ResumeKeyset(scope, after, func(p queuePosition) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasRequest: request != "", RequestID: requestID, HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return Queue{}, fmt.Errorf("read return queue: %w", err)
 	}

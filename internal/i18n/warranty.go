@@ -123,13 +123,13 @@ var (
 	KeyAdminSearchButton = key("admin.search.button", Message{ZhHant: "查詢", En: "Search"})
 
 	KeyAdminSearchShort = key("admin.search.short", Message{
-		ZhHant: "查詢字串太短，至少要兩個字。",
-		En:     "That search is too short — two characters at least.",
+		ZhHant: "請至少輸入兩個字。",
+		En:     "Please enter at least two characters.",
 	})
 
 	KeyAdminColSerial = key("admin.col.serial", Message{ZhHant: "序號", En: "Serial"})
 
-	KeyAdminColCustomer = key("admin.col.customer", Message{ZhHant: "客戶", En: "Customer"})
+	KeyAdminColCustomer = key("admin.col.customer", Message{ZhHant: "顧客", En: "Customer"})
 
 	KeyAdminColRegistered = key("admin.col.registered", Message{ZhHant: "登錄日", En: "Registered"})
 
