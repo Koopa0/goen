@@ -3111,6 +3111,7 @@ if (process.env.ADMIN_TOKEN) {
         if (longest.wide > 0) fail(chart, `the page scrolls sideways by ${longest.wide}px with the last day's readout showing`);
         await mouse({ x: 2, y: 2 });
         const dismissed = await read();
+        if (dismissed.text !== '') fail(chart, `moving away left the readout showing "${dismissed.text}"`);
         if (Math.abs(dismissed.top - last.top) > 0.5) fail(chart, `the table moved ${dismissed.top - last.top}px when the readout was dismissed`);
         console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}", last "${last.want.slice(0, 40)}"`);
       }
