@@ -36,18 +36,6 @@
     ],
     "/admin/taxonomy": [
       "scroll-200"
-    ],
-    "/contact": [
-      "scroll-200",
-      "text-200:span.contact-method__value"
-    ],
-    "/search?q=%C2%A0%E3%80%80pixelight%E2%80%83": [
-      "scroll-200",
-      "text-200:h1.goen-pagehead__title"
-    ],
-    "/search?q=pixelight": [
-      "scroll-200",
-      "text-200:h1.goen-pagehead__title"
     ]
   }
 }
