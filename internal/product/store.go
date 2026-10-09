@@ -96,6 +96,13 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 	if view.SelectionOK {
 		s.showChosenVariant(ctx, &view, &chosen)
+	} else {
+		fallback, _ := Resolve(variants, nil)
+		view.FallbackPrice = fallback.SKU != ""
+		view.PriceCents = fallback.PriceCents
+		view.PriceVaries = dearerThan(fallback.PriceCents, variants)
+		// A new choice must not carry the impossible combination into its next URL.
+		sel = nil
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {

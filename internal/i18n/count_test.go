@@ -35,6 +35,7 @@ var aCountedNoun = regexp.MustCompile(`%[sd] (items|products|reviews|stars|days|
 // pluralOnlyOnPurpose is every message that counts something yet keeps one
 // English form, and why that is right.
 var pluralOnlyOnPurpose = map[Key]string{
+	"pdp.category.browse":    "the placeholder is a category name, not a count",
 	"compare.full":           "the number is MaxCompare, which is five",
 	"compare.overflow":       "the number is more than the cap, so at least six",
 	"cart.reorder.partial":   "two counts decide the verb and the noun together; it needs its own wording",

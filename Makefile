@@ -152,6 +152,7 @@ check-layout-run:
 	@psql "$$GOEN_DATABASE_URL" -X -q -v env=$(LAYOUT_DIR)/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrastInTheBrowser$$' ./internal/ui/pages
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \
