@@ -6485,6 +6485,10 @@ input.goen-check {
   margin: 0;
 }
 
+.goen-order__meta {
+  overflow-wrap: anywhere;
+}
+
 .goen-order__parcel,
 .goen-order__returned,
 .goen-order__items,
@@ -6621,7 +6625,7 @@ input.goen-check {
 
 @media (max-width: 30rem) {
   .goen-line--order {
-    grid-template-columns: 4.5rem minmax(0, 1fr);
+    grid-template-columns: min(4.5rem, 25%) minmax(0, 1fr);
   }
 
   .goen-line--order .goen-line__money {
