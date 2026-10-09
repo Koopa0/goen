@@ -792,6 +792,32 @@
       const line = fig.querySelector(".goen-chart__readout");
       if (!line) continue;
 
+      const rowText = (row) => {
+        const series = [];
+        const notes = [];
+        for (const [i, head] of heads.entries()) {
+          const text = row.cells[i]?.textContent.trim();
+          if (!text) continue;
+          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
+          else if (head.dataset.readout === "note") notes.push(text);
+        }
+        return [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+      };
+      // Overlapping hidden rows reserve the tallest readout at the current
+      // width and font size; a fixed line count cannot bound campaign names.
+      const space = document.createElement("div");
+      space.className = "goen-chart__readout-space";
+      const size = line.cloneNode(false);
+      size.classList.add("goen-chart__readout-size");
+      size.setAttribute("aria-hidden", "true");
+      for (const row of body.rows) {
+        const sample = document.createElement("span");
+        sample.textContent = rowText(row);
+        size.append(sample);
+      }
+      line.replaceWith(space);
+      space.append(line, size);
+
       const plot = hits[0].ownerSVGElement;
       const crosshair = hits[0].dataset.x === undefined ? null : document.createElementNS(NS, "line");
       if (crosshair) {
@@ -814,15 +840,7 @@
         if (!row) return;
         on?.classList.remove("goen-chart__hit--on");
         on = hit;
-        const series = [];
-        const notes = [];
-        for (const [i, head] of heads.entries()) {
-          const text = row.cells[i]?.textContent.trim();
-          if (!text) continue;
-          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
-          else if (head.dataset.readout === "note") notes.push(text);
-        }
-        line.textContent = [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+        line.textContent = rowText(row);
         if (crosshair) {
           crosshair.setAttribute("x1", hit.dataset.x);
           crosshair.setAttribute("x2", hit.dataset.x);
