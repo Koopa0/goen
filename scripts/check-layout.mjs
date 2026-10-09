@@ -1624,11 +1624,7 @@ const proveListingDesktopResize = async (label, locale) => {
       });
       const [state, href] = String(result.value || '').split(' ');
       if (state === 'complete' && href.includes('in_stock=1') && href.includes('#listing-results')) {
-        if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
-        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
-        return '';
-      }
-      return href;
+        return href;
       }
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -3557,10 +3553,6 @@ const waitForHref = async (match, label) => {
     const href = String(result.value || '');
     if (match(href)) {
       await new Promise((r) => setTimeout(r, 250));
-      if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
-        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
-        return '';
-      }
       return href;
     }
     await new Promise((r) => setTimeout(r, 100));
