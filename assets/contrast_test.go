@@ -585,3 +585,45 @@ func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
 		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
 	}
 }
+
+// The state colours are read from the rules that actually paint the boundary.
+func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
+	t.Parallel()
+	tokens := hexTokens(t)
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	aliases := regexp.MustCompile(`(--[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`)
+	links := make(map[string]string)
+	for _, m := range aliases.FindAllStringSubmatch(string(base), -1) {
+		links[m[1]] = m[2]
+	}
+	for _, state := range []struct{ sheet, name, rule string }{
+		{AppCSS, "storefront invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
+		{AdminCSS, "admin invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
+		{BaseCSS, "read-only hover", `(?s)\.ui-input:read-only:hover\s*\{[^}]*?border-color:\s*var\((--[a-z0-9-]+)\)`},
+	} {
+		sheet, readErr := fs.ReadFile(files, state.sheet)
+		if readErr != nil {
+			t.Fatalf("read %s: %v", state.sheet, readErr)
+		}
+		match := regexp.MustCompile(state.rule).FindStringSubmatch(string(sheet))
+		if match == nil {
+			t.Fatalf("%s has no boundary colour rule", state.name)
+		}
+		name := match[1]
+		for i := 0; tokens[name] == "" && i < len(links); i++ {
+			name = links[name]
+		}
+		if tokens[name] == "" {
+			t.Fatalf("%s: cannot resolve %s to a hex colour", state.name, match[1])
+		}
+		for _, ground := range []string{"--n-0", "--n-50"} {
+			got := contrast(tokens[name], tokens[ground])
+			if math.IsNaN(got) || got < 3 {
+				t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], tokens[name], ground, tokens[ground], got)
+			}
+		}
+	}
+}

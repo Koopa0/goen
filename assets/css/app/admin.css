@@ -437,7 +437,7 @@ h3 {
    colour alone is not a reason. */
 .goen-input--invalid,
 .goen-input[aria-invalid='true'] {
-  outline-color: var(--error-outline);
+  outline-color: var(--error);
 }
 
 .goen-input--invalid:focus-visible,
