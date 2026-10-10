@@ -2630,6 +2630,17 @@ input.goen-check {
   }
 }
 
+/* Queue names must remain readable when the heading stacks at enlarged text. */
+.goen-modqueue__switch {
+  height: auto;
+  max-width: 100%;
+  min-height: max(44px, 2.75rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
+}
+
 /* Back office — content
 
    The five content queues — the FAQ editor, the contact inbox, the product
