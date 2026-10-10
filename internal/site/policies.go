@@ -261,10 +261,12 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Third-party processing",
 				Body: []string{
 					"付款由 Stripe 處理；開立發票與折讓所需的資料會提供給綠界電子發票平台。",
+					"選擇用 Google 登入時，由 Google 確認你的身分；我們會從 Google 取得你的 Google 帳號識別碼、電子郵件、電子郵件是否已驗證與姓名，用來建立或登入你的 goen 帳號。",
 					"網站字型由 goen 自己提供，載入字型不會連到 Google 的伺服器。",
 				},
 				BodyEn: []string{
 					"Stripe processes payments; information needed for invoices and allowances is sent to ECPay's e-invoice platform.",
+					"If you sign in with Google, Google confirms who you are; we receive your Google account identifier, email address, whether that email is verified, and your name, and use them to create or sign in to your goen account.",
 					"goen serves the website fonts itself; loading them sends nothing to Google's servers.",
 				},
 			},
