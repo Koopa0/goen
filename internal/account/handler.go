@@ -1183,7 +1183,7 @@ func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 
 func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
-		http.NotFound(w, r)
+		h.googleUnavailable(w, r)
 		return
 	}
 	if retryAfter, ok := h.signinLimit.Allow("oauth:" + ratelimit.ClientKey(r)); !ok {
@@ -1206,7 +1206,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 // error page: the customer is mid-sign-in.
 func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
-		http.NotFound(w, r)
+		h.googleUnavailable(w, r)
 		return
 	}
 	state, ok := readOAuthState(r, h.secure)
@@ -1262,6 +1262,13 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	next := state.Next
 	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
+		i18n.T(r.Context(), i18n.KeySignIn), i18n.T(r.Context(), i18n.KeyGoogleUnavailable),
+		pages.NoticeActions{Primary: pages.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
 }
 
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {

@@ -4,19 +4,26 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/user"
 )
 
-templ Notice(p layouts.Page, code, heading, body string) {
+templ Notice(p layouts.Page, code, heading, body string, next ...NoticeActions) {
+	{{ actions := noticeActions(next) }}
 	@layouts.Base(p) {
 		<div class="notice">
-			if code != "" {
+			if code != "" && code != "404" {
 				<span class="notice__code" aria-hidden="true">{ code }</span>
 			}
 			<h1 class="notice__title">{ heading }</h1>
 			<p class="notice__body">{ body }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/") {
-					{ i18n.T(ctx, i18n.KeyBackToShop) }
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, templ.URL(actions.Primary.Href)) {
+					{ i18n.T(ctx, actions.Primary.Label) }
+				}
+				if actions.Secondary.Href != "" {
+					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge}, templ.URL(actions.Secondary.Href)) {
+						{ i18n.T(ctx, actions.Secondary.Label) }
+					}
 				}
 			</div>
 			if code == "404" {
@@ -72,19 +79,14 @@ templ FindOrderGrantFailed(p layouts.Page) {
 }
 
 templ OrderNotFound(p layouts.Page) {
-	@layouts.Base(p) {
-		<div class="notice">
-			<span class="notice__code" aria-hidden="true">404</span>
-			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
-			<p class="notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
-			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find") {
-					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
-				}
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge}, "/signin") {
-					{ i18n.T(ctx, i18n.KeySignIn) }
-				}
-			</div>
-		</div>
+	if _, signedIn := user.FromContext(ctx); signedIn {
+		@Notice(p, "404", i18n.T(ctx, i18n.KeyOrderNotFound), i18n.T(ctx, i18n.KeyOrderNotInAccount), NoticeActions{
+			Primary: NoticeLink{Href: "/orders/find", Label: i18n.KeyFindOrderTitle},
+		})
+	} else {
+		@Notice(p, "404", i18n.T(ctx, i18n.KeyOrderNotFound), i18n.T(ctx, i18n.KeyOrderNotYours), NoticeActions{
+			Primary:   NoticeLink{Href: "/orders/find", Label: i18n.KeyFindOrderTitle},
+			Secondary: NoticeLink{Href: "/signin", Label: i18n.KeySignIn},
+		})
 	}
 }
