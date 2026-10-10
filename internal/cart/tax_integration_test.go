@@ -33,6 +33,12 @@ func TestStoreRoleRefusesMixedTaxCheckoutWithoutLeavingAnOrder(t *testing.T) {
 	if !view.MixedTaxTypes || view.CanCheckout() {
 		t.Fatalf("mixed cart: %+v", view)
 	}
+	for _, line := range view.Lines {
+		want := line.VariantID == exempt.String()
+		if line.TaxExempt != want {
+			t.Errorf("cart line %s tax exempt = %t, want %t", line.VariantID, line.TaxExempt, want)
+		}
+	}
 	addr := &order.Delivery{Email: "tax@example.com", RecipientName: "王小明", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 	key := checkoutAttemptKey("mixed-tax-" + uuid.NewString())
 	_, err = placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)

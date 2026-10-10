@@ -168,6 +168,49 @@ func TestOnlyADepartmentWithChildrenOpensAPanel(t *testing.T) {
 	}
 }
 
+func TestDepartmentPanelUsesOnlyItsConfiguredPhotograph(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, tt := range []struct {
+			name string
+			slug string
+			url  string
+		}{
+			{"new department upload", "new-department", "/media/" + strings.Repeat("a", 64)},
+			{"replaced seeded photograph", "books-stationery", "/media/" + strings.Repeat("b", 64)},
+			{"cleared seeded photograph", "books-stationery", ""},
+		} {
+			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				item := layouts.NavItem{
+					Slug: tt.slug, Name: "Department", Href: "/c/" + tt.slug,
+					PhotoURL: tt.url,
+					Children: []layouts.NavItem{{Slug: "child", Name: "Child", Href: "/c/child"}},
+				}
+				if tt.url != "" {
+					item.PhotoSrcset = tt.url + "/400 400w, " + tt.url + " 600w"
+				}
+				header, _ := renderChrome(t, locale, []layouts.NavItem{item, {Slug: "other", Name: "Other", Href: "/c/other"}})
+				photos := regexp.MustCompile(`<img class="goen-dept__photo"[^>]*>`).FindAllString(header, -1)
+				if tt.url == "" {
+					if len(photos) != 0 {
+						t.Fatalf("cleared department renders photographs: %v", photos)
+					}
+					return
+				}
+				if len(photos) != 1 {
+					t.Fatalf("department renders %d photographs, want 1", len(photos))
+				}
+				for _, want := range []string{`src="` + item.PhotoURL + `"`, `srcset="` + item.PhotoSrcset + `"`, `alt=""`} {
+					if !strings.Contains(photos[0], want) {
+						t.Errorf("department photograph %s omits %s", photos[0], want)
+					}
+				}
+			})
+		}
+	}
+}
+
 func renderHeader(t *testing.T, items []layouts.NavItem, deals bool, page layouts.Page) string {
 	t.Helper()
 	ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), items), deals)

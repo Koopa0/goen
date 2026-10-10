@@ -214,9 +214,8 @@ type AddProductSpecParams struct {
 	Slug    string
 }
 
-// The position is computed IN the insert: product_specs_position_key is unique
-// on (product_id, position), so reading max(position) in Go and then writing it
-// is a race two staff members editing one product would meet.
+// Read the maximum in a separate statement after LockProductSpecAppendPosition:
+// a statement that waits for the lock keeps its pre-wait snapshot.
 func (q *Queries) AddProductSpec(ctx context.Context, arg AddProductSpecParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductSpec,
 		arg.Label,
@@ -7828,17 +7827,24 @@ func (q *Queries) ExpiredReservations(ctx context.Context, limit int32) ([]uuid.
 }
 
 const fAQEntries = `-- name: FAQEntries :many
-SELECT localized_name(category, category_en, $1::text) AS category,
+SELECT category AS canonical_category,
+       -- Translations are optional per entry; the first available one in staff
+       -- order supplies a single label for the whole canonical category.
+       localized_name(category, first_value(category_en) OVER (
+           PARTITION BY category
+           ORDER BY category_en IS NULL, position, id
+       ), $1::text) AS category,
        localized_name(question, question_en, $1::text) AS question,
        localized_name(answer, answer_en, $1::text) AS answer
 FROM faq_entries
-ORDER BY category, position, id
+ORDER BY faq_entries.category, position, id
 `
 
 type FAQEntriesRow struct {
-	Category string
-	Question string
-	Answer   string
+	CanonicalCategory string
+	Category          string
+	Question          string
+	Answer            string
 }
 
 // The FAQ, grouped by category in the order the back office set.
@@ -7854,7 +7860,12 @@ func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRo
 	items := []FAQEntriesRow{}
 	for rows.Next() {
 		var i FAQEntriesRow
-		if err := rows.Scan(&i.Category, &i.Question, &i.Answer); err != nil {
+		if err := rows.Scan(
+			&i.CanonicalCategory,
+			&i.Category,
+			&i.Question,
+			&i.Answer,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -9616,6 +9627,18 @@ func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProduc
 		&i.MinAgeMonths,
 	)
 	return i, err
+}
+
+const lockProductSpecAppendPosition = `-- name: LockProductSpecAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:product_specs:' || p.id::text, 628471039582915603::bigint))
+FROM products p
+WHERE p.slug = $1::text
+`
+
+func (q *Queries) LockProductSpecAppendPosition(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, lockProductSpecAppendPosition, slug)
+	return err
 }
 
 const lockReturnOrder = `-- name: LockReturnOrder :one
@@ -13923,6 +13946,7 @@ JOIN LATERAL (
       AND p.delivered_at IS NOT NULL
 ) parcel ON true
 WHERE ol.id = $4
+  AND o.order_number = $5::text
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
   AND $1::smallint <= (
@@ -13943,6 +13967,7 @@ type RegisterWarrantyParams struct {
 	UserID       uuid.NullUUID
 	SerialNumber string
 	OrderLineID  uuid.UUID
+	OrderNumber  string
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
@@ -13956,6 +13981,7 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 		arg.UserID,
 		arg.SerialNumber,
 		arg.OrderLineID,
+		arg.OrderNumber,
 	)
 	if err != nil {
 		return 0, err
@@ -14111,6 +14137,23 @@ WITH RECURSIVE up AS (
     SELECT id FROM up WHERE parent_id IS NULL
     UNION ALL
     SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+), reference_product AS (
+    SELECT p.brand_id,
+           (SELECT min(pv.price_cents) FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active) AS price_cents
+    FROM products p WHERE p.id = $2
+), reference_specs AS (
+    SELECT label, value FROM product_specs WHERE product_id = $2
+), reference_options AS (
+    SELECT o.name, v.value
+    FROM product_options o
+    JOIN product_option_values v ON v.option_id = o.id
+    WHERE o.product_id = $2
+      AND EXISTS (
+          SELECT 1 FROM variant_option_values vov
+          JOIN product_variants pv ON pv.id = vov.variant_id
+          WHERE vov.option_value_id = v.id AND pv.is_active
+      )
 )
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
@@ -14170,9 +14213,12 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
+JOIN reference_product reference ON true
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents FROM product_variants
+    SELECT price_cents, compare_at_price_cents,
+           min(price_cents) OVER () AS min_active_price_cents
+    FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents LIMIT 1
 ) mv ON true
@@ -14187,7 +14233,27 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = $3) DESC, in_stock DESC,
+         -- A shared attribute outweighs price proximity. Without specs the
+         -- reference product keeps the existing newest-first fallback.
+         CASE WHEN EXISTS (SELECT 1 FROM reference_specs) THEN
+             2 * (SELECT count(*) FROM product_specs ps
+                  JOIN reference_specs rs ON rs.label = ps.label AND rs.value = ps.value
+                  WHERE ps.product_id = p.id)
+             + 2 * (SELECT count(*) FROM product_options o
+                    JOIN product_option_values v ON v.option_id = o.id
+                    JOIN reference_options ro ON ro.name = o.name AND ro.value = v.value
+                    WHERE o.product_id = p.id
+                      AND EXISTS (
+                          SELECT 1 FROM variant_option_values vov
+                          JOIN product_variants pv ON pv.id = vov.variant_id
+                          WHERE vov.option_value_id = v.id AND pv.is_active
+                      ))
+             + CASE WHEN p.brand_id = reference.brand_id THEN 1 ELSE 0 END
+             + coalesce(1 - abs(mv.min_active_price_cents - reference.price_cents)::numeric
+                        / greatest(mv.min_active_price_cents, reference.price_cents, 1), 0)
+         ELSE 0 END DESC,
+         p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
@@ -17471,21 +17537,46 @@ func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Inte
 	return result.RowsAffected(), nil
 }
 
-const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :many
 DELETE FROM outbox_messages
 WHERE delivered_at IS NULL
   AND created_at < now() - $1::interval
+RETURNING id, topic, attempts, created_at
 `
+
+type SweepUndeliveredMessagesRow struct {
+	ID        uuid.UUID
+	Topic     string
+	Attempts  int32
+	CreatedAt time.Time
+}
 
 // An undelivered message past the same window goes too: its payload can carry a
 // token that nothing will ever mail, and it may not outlive that token. Keyed on
 // created_at because available_at moves on every claim.
-func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
-	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) ([]SweepUndeliveredMessagesRow, error) {
+	rows, err := q.db.Query(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []SweepUndeliveredMessagesRow{}
+	for rows.Next() {
+		var i SweepUndeliveredMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Topic,
+			&i.Attempts,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const tOTPCredential = `-- name: TOTPCredential :one
