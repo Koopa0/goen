@@ -25,12 +25,32 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		<div class="ui-filterbar goen-admin__tabs">
+			<a
+				class="ui-filter"
+				href="/admin/reviews"
+				if !v.ThreeStarsAndBelow {
+					aria-current="page"
+				}
+			>
+				{ i18n.T(ctx, i18n.KeyAdminTabAll) }
+			</a>
+			<a
+				class="ui-filter"
+				href="/admin/reviews?rating=3"
+				if v.ThreeStarsAndBelow {
+					aria-current="page"
+				}
+			>
+				{ i18n.T(ctx, i18n.KeyAdminReviewsThreeStarsAndBelow) }
+			</a>
+		</div>
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">
 					@icons.Star()
 				</span>
-				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminReviewsEmpty) }</p>
+				<p class="goen-admin__emptytitle">{ v.EmptyLabel(ctx) }</p>
 			</div>
 		} else if !v.Empty() {
 			<ul class="goen-modqueue" role="list">
@@ -43,7 +63,7 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 								</p>
 								@components.Badge(components.BadgeProps{}) {
 									<span aria-hidden="true">{ r.Stars() }</span>
-									<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminReviewStars), r.RatingText()) }</span>
+									<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminReviewStars), r.Rating) }</span>
 								}
 							</div>
 							<span class="goen-admin__meta">

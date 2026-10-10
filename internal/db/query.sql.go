@@ -1979,17 +1979,19 @@ SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r
 FROM product_reviews r
 JOIN products p ON p.id = r.product_id
 LEFT JOIN users u ON u.id = r.user_id
-WHERE (NOT $1::boolean OR (r.created_at < $2::timestamptz)
-       OR (r.created_at = $2::timestamptz AND r.id < $3::uuid))
+WHERE (NOT $1::boolean OR r.rating <= 3)
+  AND (NOT $2::boolean OR (r.created_at < $3::timestamptz)
+       OR (r.created_at = $3::timestamptz AND r.id < $4::uuid))
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type AdminReviewsParams struct {
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	ThreeStarsAndBelow bool
+	HasCursor          bool
+	AfterAt            time.Time
+	AfterID            uuid.UUID
+	RowLimit           int32
 }
 
 type AdminReviewsRow struct {
@@ -2010,6 +2012,7 @@ type AdminReviewsRow struct {
 // possible from a list that cannot show it.
 func (q *Queries) AdminReviews(ctx context.Context, arg AdminReviewsParams) ([]AdminReviewsRow, error) {
 	rows, err := q.db.Query(ctx, adminReviews,
+		arg.ThreeStarsAndBelow,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,

@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -13,8 +12,9 @@ import (
 type ReviewsView struct {
 	web.Bound
 
-	Rows   []Review
-	Notice components.Result
+	Rows               []Review
+	Notice             components.Result
+	ThreeStarsAndBelow bool
 }
 
 type Review struct {
@@ -37,7 +37,12 @@ func (r Review) Stars() string {
 	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
 }
 
-func (r Review) RatingText() string { return strconv.Itoa(r.Rating) }
+func (v ReviewsView) EmptyLabel(ctx context.Context) string {
+	if v.ThreeStarsAndBelow {
+		return i18n.T(ctx, i18n.KeyAdminReviewsFilteredEmpty)
+	}
+	return i18n.T(ctx, i18n.KeyAdminReviewsEmpty)
+}
 
 func (r Review) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
@@ -46,7 +51,7 @@ func (r Review) DisplayAuthor(ctx context.Context) string {
 	return r.Author
 }
 
-func (r Review) Href() string { return "/p/" + r.Slug }
+func (r Review) Href() string { return "/admin/products/" + r.Slug }
 
 func (r Review) Action() string {
 	if r.Hidden {
