@@ -312,9 +312,26 @@ const (
 	maintenanceRole databaseRole = "maintenance"
 )
 
+// databaseLoginPrivileges is what the pool's session_user can do to escape the
+// role the pool assumes with SET ROLE.
 type databaseLoginPrivileges struct {
-	superuser   bool
-	ownerMember bool
+	login               string
+	superuser           bool
+	tableOwner          string
+	memberOfTableOwner  bool
+	schemaOwner         string
+	memberOfSchemaOwner bool
+}
+
+func (r databaseRole) urlVariable() string {
+	switch r {
+	case adminRole:
+		return "GOEN_ADMIN_DATABASE_URL"
+	case maintenanceRole:
+		return "GOEN_MAINTENANCE_DATABASE_URL"
+	default:
+		return "GOEN_DATABASE_URL"
+	}
 }
 
 func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role databaseRole, secureCookies bool, log *slog.Logger) error {
@@ -325,24 +342,40 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 	}
 
 	// SET ROLE changes current_user, but session_user can still RESET ROLE or
-	// assume the schema owner and escape the application's write restrictions.
+	// assume an owner and escape the application's write restrictions. MEMBER
+	// rather than USAGE: a NOINHERIT member does not inherit the owner's
+	// privileges but can still SET ROLE to it.
 	var privileges databaseLoginPrivileges
 	if roleErr := pool.QueryRow(pingCtx, `
-		SELECT r.rolsuper, pg_catalog.pg_has_role(session_user, c.relowner, 'USAGE')
+		SELECT session_user::text, r.rolsuper,
+		       pg_catalog.pg_get_userbyid(c.relowner), pg_catalog.pg_has_role(session_user, c.relowner, 'MEMBER'),
+		       pg_catalog.pg_get_userbyid(n.nspowner), pg_catalog.pg_has_role(session_user, n.nspowner, 'MEMBER')
 		FROM pg_catalog.pg_roles r
 		CROSS JOIN pg_catalog.pg_class c
-		WHERE r.rolname = session_user AND c.oid = 'public.orders'::regclass
-	`).Scan(&privileges.superuser, &privileges.ownerMember); roleErr != nil {
+		CROSS JOIN pg_catalog.pg_namespace n
+		WHERE r.rolname = session_user AND c.oid = 'public.orders'::regclass AND n.nspname = 'public'
+	`).Scan(&privileges.login, &privileges.superuser,
+		&privileges.tableOwner, &privileges.memberOfTableOwner,
+		&privileges.schemaOwner, &privileges.memberOfSchemaOwner); roleErr != nil {
 		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
 	return checkDatabaseLogin(role, secureCookies, privileges, log)
 }
 
 func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databaseLoginPrivileges, log *slog.Logger) error {
-	if !privileges.superuser && !privileges.ownerMember {
+	var condition string
+	switch {
+	case privileges.superuser:
+		condition = "a superuser"
+	case privileges.memberOfTableOwner:
+		condition = fmt.Sprintf("a member of the table owner %q", privileges.tableOwner)
+	case privileges.memberOfSchemaOwner:
+		condition = fmt.Sprintf("a member of the schema owner %q", privileges.schemaOwner)
+	default:
 		return nil
 	}
-	message := fmt.Sprintf("%s database login can undo the privilege model; connect as a non-superuser member of %s", role, role)
+	message := fmt.Sprintf("the %s pool's login %q is %s; set %s to a login that is only a member of %s",
+		role, privileges.login, condition, role.urlVariable(), role)
 	if secureCookies {
 		return fmt.Errorf("refusing to start: %s", message)
 	}
