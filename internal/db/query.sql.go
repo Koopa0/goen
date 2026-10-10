@@ -214,9 +214,8 @@ type AddProductSpecParams struct {
 	Slug    string
 }
 
-// The position is computed IN the insert: product_specs_position_key is unique
-// on (product_id, position), so reading max(position) in Go and then writing it
-// is a race two staff members editing one product would meet.
+// Read the maximum in a separate statement after LockProductSpecAppendPosition:
+// a statement that waits for the lock keeps its pre-wait snapshot.
 func (q *Queries) AddProductSpec(ctx context.Context, arg AddProductSpecParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductSpec,
 		arg.Label,
@@ -9613,6 +9612,18 @@ func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProduc
 		&i.MinAgeMonths,
 	)
 	return i, err
+}
+
+const lockProductSpecAppendPosition = `-- name: LockProductSpecAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:product_specs:' || p.id::text, 628471039582915603::bigint))
+FROM products p
+WHERE p.slug = $1::text
+`
+
+func (q *Queries) LockProductSpecAppendPosition(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, lockProductSpecAppendPosition, slug)
+	return err
 }
 
 const lockReturnOrder = `-- name: LockReturnOrder :one
