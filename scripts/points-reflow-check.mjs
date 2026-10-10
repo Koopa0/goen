@@ -94,5 +94,11 @@ try {
     clearTimeout(killer);
   }
   server.close();
-  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  // Chrome's helper processes can outlive the browser and keep writing the
+  // profile; a leftover temp directory must not fail a check that already passed.
+  try {
+    rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (err) {
+    console.warn(`points-reflow: left ${profile}: ${err.message}`);
+  }
 }
