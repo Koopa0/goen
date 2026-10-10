@@ -50,7 +50,7 @@ func TestCustomerOrderAndWarrantyStatusSayRefundedOnceTheWholeOrdersRefundHasSet
 			if _, err := pool.Exec(t.Context(), `UPDATE orders SET fulfillment_status='delivered' WHERE id=$1`, orderID); err != nil {
 				t.Fatal(err)
 			}
-			if err := warranty.NewStore(pool).Register(t.Context(), lineID.String(), userID.String(), serial+"-2", 2); err != nil {
+			if err := warranty.NewStore(pool).Register(t.Context(), number, lineID.String(), userID.String(), serial+"-2", 2); err != nil {
 				t.Fatal(err)
 			}
 			if tc.quantity > 0 {
