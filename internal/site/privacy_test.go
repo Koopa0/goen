@@ -66,3 +66,31 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 		})
 	}
 }
+
+func TestPrivacyThirdPartySectionDisclosesGoogleSignIn(t *testing.T) {
+	for _, tc := range []struct {
+		locale  i18n.Locale
+		heading string
+		want    string
+	}{
+		{i18n.ZhHant, "第三方處理", "選擇用 Google 登入時，由 Google 確認你的身分；我們會從 Google 取得你的 Google 帳號識別碼、電子郵件、電子郵件是否已驗證與姓名，用來建立或登入你的 goen 帳號。"},
+		{i18n.En, "Third-party processing", "If you sign in with Google, Google confirms who you are; we receive your Google account identifier, email address, whether that email is verified, and your name, and use them to create or sign in to your goen account."},
+	} {
+		t.Run(string(tc.locale), func(t *testing.T) {
+			var found int
+			for _, section := range policies["privacy"].For(tc.locale).Sections {
+				if section.Heading != tc.heading {
+					continue
+				}
+				for _, paragraph := range section.Body {
+					if paragraph == tc.want {
+						found++
+					}
+				}
+			}
+			if found != 1 {
+				t.Errorf("%s discloses Google sign-in %d times, want once", tc.heading, found)
+			}
+		})
+	}
+}
