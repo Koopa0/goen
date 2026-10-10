@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -18,23 +19,29 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	web.Render(w, r, h.log, http.StatusOK, pages.FAQ(
+		layouts.Page{
+			Title:       i18n.T(r.Context(), i18n.KeyFAQTitle),
+			Description: i18n.T(r.Context(), i18n.KeyFAQDescription),
+		}, faqView(rows)))
+}
+
+func faqView(rows []db.FAQEntriesRow) pages.FAQView {
 	view := pages.FAQView{}
 	var current *pages.FAQGroup
+	var category string
 	for i := range rows {
 		e := &rows[i]
-		if current == nil || current.Category != e.Category {
+		if current == nil || category != e.CanonicalCategory {
 			view.Groups = append(view.Groups, pages.FAQGroup{Category: e.Category})
 			current = &view.Groups[len(view.Groups)-1]
+			category = e.CanonicalCategory
 		}
 		current.Items = append(current.Items, pages.FAQItem{
 			Question: e.Question, Answer: e.Answer,
 		})
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.FAQ(
-		layouts.Page{
-			Title:       i18n.T(r.Context(), i18n.KeyFAQTitle),
-			Description: i18n.T(r.Context(), i18n.KeyFAQDescription),
-		}, view))
+	return view
 }
 
 // Shipping reads the same rows checkout charges from.
