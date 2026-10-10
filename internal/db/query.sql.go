@@ -14134,6 +14134,23 @@ WITH RECURSIVE up AS (
     SELECT id FROM up WHERE parent_id IS NULL
     UNION ALL
     SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+), reference_product AS (
+    SELECT p.brand_id,
+           (SELECT min(pv.price_cents) FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active) AS price_cents
+    FROM products p WHERE p.id = $2
+), reference_specs AS (
+    SELECT label, value FROM product_specs WHERE product_id = $2
+), reference_options AS (
+    SELECT o.name, v.value
+    FROM product_options o
+    JOIN product_option_values v ON v.option_id = o.id
+    WHERE o.product_id = $2
+      AND EXISTS (
+          SELECT 1 FROM variant_option_values vov
+          JOIN product_variants pv ON pv.id = vov.variant_id
+          WHERE vov.option_value_id = v.id AND pv.is_active
+      )
 )
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
@@ -14193,9 +14210,12 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
+JOIN reference_product reference ON true
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents FROM product_variants
+    SELECT price_cents, compare_at_price_cents,
+           min(price_cents) OVER () AS min_active_price_cents
+    FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents LIMIT 1
 ) mv ON true
@@ -14210,7 +14230,27 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = $3) DESC, in_stock DESC,
+         -- A shared attribute outweighs price proximity. Without specs the
+         -- reference product keeps the existing newest-first fallback.
+         CASE WHEN EXISTS (SELECT 1 FROM reference_specs) THEN
+             2 * (SELECT count(*) FROM product_specs ps
+                  JOIN reference_specs rs ON rs.label = ps.label AND rs.value = ps.value
+                  WHERE ps.product_id = p.id)
+             + 2 * (SELECT count(*) FROM product_options o
+                    JOIN product_option_values v ON v.option_id = o.id
+                    JOIN reference_options ro ON ro.name = o.name AND ro.value = v.value
+                    WHERE o.product_id = p.id
+                      AND EXISTS (
+                          SELECT 1 FROM variant_option_values vov
+                          JOIN product_variants pv ON pv.id = vov.variant_id
+                          WHERE vov.option_value_id = v.id AND pv.is_active
+                      ))
+             + CASE WHEN p.brand_id = reference.brand_id THEN 1 ELSE 0 END
+             + coalesce(1 - abs(mv.min_active_price_cents - reference.price_cents)::numeric
+                        / greatest(mv.min_active_price_cents, reference.price_cents, 1), 0)
+         ELSE 0 END DESC,
+         p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
