@@ -828,7 +828,7 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 }
 
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
-SELECT o.order_number, o.fulfillment_status, o.placed_at,
+SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
@@ -846,6 +846,7 @@ type AdminCustomerOrdersParams struct {
 }
 
 type AdminCustomerOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -867,6 +868,7 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 	for rows.Next() {
 		var i AdminCustomerOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,
@@ -2220,7 +2222,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
-       o.order_number, o.fulfillment_status,
+       o.id AS order_id, o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
@@ -2252,6 +2254,7 @@ type AdminSearchWarrantiesRow struct {
 	InForce           bool
 	ProductName       string
 	VariantLabel      string
+	OrderID           uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	CustomerName      string
@@ -2286,6 +2289,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 			&i.InForce,
 			&i.ProductName,
 			&i.VariantLabel,
+			&i.OrderID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.CustomerName,

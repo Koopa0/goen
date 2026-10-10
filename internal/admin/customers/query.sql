@@ -40,7 +40,7 @@ FROM users u
 WHERE u.id = $1;
 
 -- name: AdminCustomerOrders :many
-SELECT o.order_number, o.fulfillment_status, o.placed_at,
+SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
@@ -59,7 +59,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
-       o.order_number, o.fulfillment_status,
+       o.id AS order_id, o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w

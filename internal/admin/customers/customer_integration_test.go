@@ -290,6 +290,11 @@ func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
 
 func registeredWarranty(t *testing.T, serial string) (registered, orderNumber string) {
 	t.Helper()
+	return registeredWarrantyQuantity(t, serial, 1)
+}
+
+func registeredWarrantyQuantity(t *testing.T, serial string, quantity int32) (registered, orderNumber string) {
+	t.Helper()
 	ctx := t.Context()
 
 	var variantID, productID uuid.UUID
@@ -335,9 +340,9 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 			order_id, product_id, variant_id, sku, product_name,
 			warranty_note, warranty_months, unit_price_cents, quantity
 		)
-		SELECT $1, $2, pv.id, pv.sku, p.name, nullif($4, ''), $5, 100000, 1
+		SELECT $1, $2, pv.id, pv.sku, p.name, nullif($4, ''), $5, 100000, $6
 		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $3 RETURNING order_lines.id`,
-		orderID, productID, variantID, warrantyNote, warrantyMonths).Scan(&lineID); err != nil {
+		orderID, productID, variantID, warrantyNote, warrantyMonths, quantity).Scan(&lineID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -348,10 +353,10 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 		t.Fatalf("create private data: %v", err)
 	}
 	ref := "cs_warranty_" + number
-	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`, orderID, ref, int64(quantity)*100000); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, ref); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, ref, int64(quantity)*100000); err != nil {
 		t.Fatalf("capture payment: %v", err)
 	}
 	admintest.MoveOrderToShipped(t, tx, orderID)
@@ -364,7 +369,7 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-		VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineID); err != nil {
+		VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, quantity); err != nil {
 		t.Fatalf("create shipment line: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
