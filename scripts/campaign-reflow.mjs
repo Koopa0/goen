@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
@@ -87,10 +87,6 @@ try {
         for (const button of geometry.buttons) {
           assert.ok(button.left >= 0 && button.right <= width + 0.5, `${label}: staff control escapes the viewport`);
           assert.ok(button.height >= 44, `${label}: staff control loses its target height`);
-        }
-        if (process.env.CAMPAIGN_REFLOW_SCREENSHOTS) {
-          const image = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-          writeFileSync(join(process.env.CAMPAIGN_REFLOW_SCREENSHOTS, `campaign-${locale}-${width}-${fontSize}.png`), Buffer.from(image.data, 'base64'));
         }
       }
     }
