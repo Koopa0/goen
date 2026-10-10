@@ -236,11 +236,6 @@ var (
 		En:     "The number may be wrong, or the order no longer exists.",
 	})
 
-	KeyOrderNotYoursShort = key("order.notyours.short", Message{
-		ZhHant: "訂單編號可能不正確，或這筆訂單不屬於這個瀏覽器。",
-		En:     "The number may be wrong, or this order was not placed from this browser.",
-	})
-
 	KeyOrderOpening = key("order.opening", Message{ZhHant: "正在開啟你的訂單…", En: "Opening your order…"})
 
 	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "開啟訂單", En: "Open your order"})

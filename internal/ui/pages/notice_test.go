@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
@@ -28,6 +29,37 @@ func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
 		}
 		if !strings.Contains(html, "/orders/find") {
 			t.Errorf("placement grant failure in %s has no find-order recovery link", tt.locale)
+		}
+	}
+}
+
+func TestOrderNotFoundOffersRecoveryForTheVisitor(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, signedIn := range []bool{false, true} {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			if signedIn {
+				ctx = user.NewContext(ctx, user.User{ID: "customer"})
+			}
+			body := renderNotice(t, OrderNotFound(layouts.Page{}), ctx)
+			if !strings.Contains(body, `href="/orders/find"`) {
+				t.Error("missing find-order link")
+			}
+			// The header can offer sign-in too; inspect only the notice actions.
+			_, actions, ok := strings.Cut(body, `class="notice__actions"`)
+			if !ok {
+				t.Fatal("missing notice actions")
+			}
+			actions, _, _ = strings.Cut(actions, "</div>")
+			if got := strings.Contains(actions, `href="/signin"`); got == signedIn {
+				t.Errorf("%s signedIn=%t: sign-in action present=%t", locale, signedIn, got)
+			}
+			if strings.Contains(body, `class="notice__code"`) {
+				t.Error("missing-order page still displays a status code")
+			}
+			if signedIn && locale == i18n.ZhHant && !strings.Contains(body, "這筆訂單不在你的帳號裡，請用訂單編號和 Email 查詢") {
+				t.Error("signed-in visitor is not told to use the order number and email")
+			}
 		}
 	}
 }
