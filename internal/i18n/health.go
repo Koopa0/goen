@@ -1,11 +1,75 @@
 package i18n
 
 var (
+	KeyAdminHPPendingTasks = countKey("admin.hp.pendingtasks", "%d 件要處理", "%d task needs attention", "%d tasks need attention")
+
+	KeyAdminHPTaskCountUnknown = key("admin.hp.taskcountunknown", Message{ZhHant: "待辦數無法查詢", En: "Task count unavailable"})
+
+	KeyAdminHPSystemStatus = key("admin.hp.systemstatus", Message{ZhHant: "系統狀態", En: "System status"})
+
+	KeyAdminHPEventCompleted = key("admin.hp.event.completed", Message{ZhHant: "結帳已完成", En: "Checkout completed"})
+
+	KeyAdminHPEventPaid = key("admin.hp.event.paid", Message{ZhHant: "延後付款已成功", En: "Delayed payment succeeded"})
+
+	KeyAdminHPEventFailed = key("admin.hp.event.failed", Message{ZhHant: "延後付款失敗", En: "Delayed payment failed"})
+
+	KeyAdminHPEventExpired = key("admin.hp.event.expired", Message{ZhHant: "結帳期限已過", En: "Checkout expired"})
+
+	KeyAdminHPEventRefundFailed = key("admin.hp.event.refundfailed", Message{ZhHant: "退款失敗通知", En: "Refund failure notification"})
+
+	KeyAdminHPEventUnknown = key("admin.hp.event.unknown", Message{ZhHant: "其他金流通知", En: "Other payment notification"})
+
+	KeyAdminHPEventUnreadable = key("admin.hp.event.unreadable", Message{ZhHant: "無法讀取金流通知，請查核 Stripe 的紀錄。", En: "The payment notification could not be read; check the Stripe record."})
+
+	KeyAdminHPEventUnattributed = key("admin.hp.event.unattributed", Message{ZhHant: "款項已收取，但找不到對應的付款紀錄。", En: "Money was captured without a matching payment record."})
+
+	KeyAdminHPEventCancelledCapture = key("admin.hp.event.cancelledcapture", Message{ZhHant: "訂單取消後仍收到款項，請查核退款。", En: "Money arrived after the order was cancelled; check the refund."})
+
+	KeyAdminHPEventRefusedCapture = key("admin.hp.event.refusedcapture", Message{ZhHant: "款項無法套用到訂單，請查核 Stripe 的紀錄。", En: "The capture could not be applied to the order; check the Stripe record."})
+
+	KeyAdminHPEventUnsettled = key("admin.hp.event.unsettled", Message{ZhHant: "結帳已完成，但款項尚未確認入帳。", En: "Checkout completed, but payment has not been confirmed."})
+
+	KeyAdminHPReasonUnknown = key("admin.hp.reason.unknown", Message{ZhHant: "原因尚無說明，請依下方代碼查核。", En: "No explanation is available for this reason; investigate the code below."})
+
+	KeyAdminHPInvoiceKindUnknown = key("admin.hp.invoice.kindunknown", Message{ZhHant: "其他發票操作", En: "Other invoice operation"})
+
+	KeyAdminHPInvoiceStatusUnknown = key("admin.hp.invoice.statusunknown", Message{ZhHant: "狀態尚無說明", En: "No explanation is available for this status"})
+
+	KeyAdminHPInvoiceMultipleCandidates = key("admin.hp.invoice.multiplecandidates", Message{ZhHant: "找到多筆尚未歸屬的折讓，無法確認哪筆屬於這次操作。", En: "Multiple unattributed allowances were found; this operation cannot be matched."})
+
+	KeyAdminHPInvoiceUnattributed = key("admin.hp.invoice.unattributed", Message{ZhHant: "找到折讓，但沒有這次操作的送出紀錄可供確認。", En: "An allowance was found without evidence that this operation sent it."})
+
+	KeyAdminHPInvoiceBuyerUnconfirmed = key("admin.hp.invoice.buyerunconfirmed", Message{ZhHant: "買受人尚未同意折讓，確認連結已逾期。", En: "The buyer has not agreed to the allowance and the consent link expired."})
+
+	KeyAdminHPInvoiceAmountHeld = key("admin.hp.invoice.amountheld", Message{ZhHant: "加值中心仍保留折讓額度，請查核折讓狀態。", En: "The provider still holds the allowance amount; check its status."})
+
+	KeyAdminHPInvoiceMismatch = key("admin.hp.invoice.mismatch", Message{ZhHant: "加值中心的發票或折讓資料與這次操作不符。", En: "The provider invoice or allowance does not match this operation."})
+
+	KeyAdminHPInvoiceRequestInvalid = key("admin.hp.invoice.requestinvalid", Message{ZhHant: "這次操作保留的送出資料無法使用。", En: "The saved request for this operation cannot be used."})
+
+	KeyAdminHPInvoiceRecordsInvalid = key("admin.hp.invoice.recordsinvalid", Message{ZhHant: "既有折讓紀錄不完整或重複，請查核。", En: "Existing allowance records are incomplete or duplicated; review them."})
+
+	KeyAdminHPInvoiceContradiction = key("admin.hp.invoice.contradiction", Message{ZhHant: "折讓狀態與既有紀錄或送出結果互相矛盾。", En: "The allowance status conflicts with existing records or send results."})
+
+	KeyAdminHPInvoiceUnsupported = key("admin.hp.invoice.unsupported", Message{ZhHant: "操作種類或加值中心狀態無法辨識。", En: "The operation kind or provider status is not recognized."})
+
+	KeyAdminHPInvoiceLookupFailed = key("admin.hp.invoice.lookupfailed", Message{ZhHant: "無法向加值中心查詢結果。", En: "The provider result could not be looked up."})
+
+	KeyAdminHPInvoiceAwaitingConfirmation = key("admin.hp.invoice.awaitingconfirmation", Message{ZhHant: "尚未確認加值中心是否已完成這次操作。", En: "Completion by the provider has not been confirmed."})
+
+	KeyAdminHPInvoiceAwaitingBuyer = key("admin.hp.invoice.awaitingbuyer", Message{ZhHant: "等待買受人同意折讓。", En: "Waiting for the buyer to agree to the allowance."})
+
+	KeyAdminHPInvoiceRecordFailed = key("admin.hp.invoice.recordfailed", Message{ZhHant: "無法保存這次操作的查核或完成紀錄。", En: "The review or completion record could not be saved."})
+
+	KeyAdminHPInvoiceProcessingChanged = key("admin.hp.invoice.processingchanged", Message{ZhHant: "這次查核失去處理權，尚未確認結果。", En: "This review lost its processing lease; the result has not been confirmed."})
+
+	KeyAdminHPInvoiceProviderRejected = key("admin.hp.invoice.providerrejected", Message{ZhHant: "加值中心拒絕這次操作。", En: "The provider rejected this operation."})
+
 	KeyAdminColKind = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 
 	KeyAdminHPLead = key("admin.hp.lead", Message{
-		ZhHant: "這些數字依實際完成的工作計算，背景作業空轉時也看得出來。",
-		En:     "These figures count work actually done, so a background job that runs without progress still shows here.",
+		ZhHant: "付款與發票待辦列在前方；背景作業的數字在頁尾的「系統狀態」。",
+		En:     "Payment and invoice tasks appear first. Background job figures are in System status at the end of the page.",
 	})
 
 	KeyAdminHPAllClear = key("admin.hp.allclear", Message{ZhHant: "一切正常", En: "All clear"})
@@ -16,8 +80,8 @@ var (
 	})
 
 	KeyAdminHPOutboxName = key("admin.hp.outbox.name", Message{
-		ZhHant: "通知信件（outbox）",
-		En:     "Notification email (outbox)",
+		ZhHant: "通知信件",
+		En:     "Notification email",
 	})
 
 	KeyAdminHPOutboxNote = key("admin.hp.outbox.note", Message{
@@ -27,8 +91,8 @@ var (
 	})
 
 	KeyAdminHPHoldsName = key("admin.hp.holds.name", Message{
-		ZhHant: "庫存保留清掃",
-		En:     "Stock-hold sweeper",
+		ZhHant: "未付款的庫存保留",
+		En:     "Unpaid stock holds",
 	})
 
 	KeyAdminHPHoldsNote = key("admin.hp.holds.note", Message{
@@ -38,8 +102,8 @@ var (
 	})
 
 	KeyAdminHPProjectionName = key("admin.hp.projection.name", Message{
-		ZhHant: "買了又買投影",
-		En:     "Bought-together projection",
+		ZhHant: "商品推薦",
+		En:     "Product recommendations",
 	})
 
 	KeyAdminHPProjectionNote = key("admin.hp.projection.note", Message{
@@ -126,11 +190,13 @@ var (
 		ZhHant: "資料庫連線池",
 		En:     "Database connection pools",
 	})
+
 	KeyAdminHPPoolsHint = key("admin.hp.pools.hint", Message{
 		ZhHant: "「等待連線次數」不是零、累計等待時間持續變長，代表連線不夠用。",
 		En: "Empty acquires above zero with a growing wait mean requests are " +
 			"queuing for a connection.",
 	})
+
 	KeyAdminHPColPool         = key("admin.hp.col.pool", Message{ZhHant: "連線池", En: "Pool"})
 	KeyAdminHPColPoolMax      = key("admin.hp.col.poolmax", Message{ZhHant: "上限", En: "Max"})
 	KeyAdminHPColPoolAcquired = key("admin.hp.col.poolacquired", Message{ZhHant: "使用中", En: "Acquired"})

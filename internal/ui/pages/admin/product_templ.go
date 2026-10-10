@@ -293,9 +293,9 @@ func Products(p layouts.Page, v ProductsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var19 string
-					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdVariantsFrom), row.VariantsText(), row.From()))
+					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyAdminProdVariantsFrom, int64(row.Variants), row.VariantsText(), row.From()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/product.templ`, Line: 57, Col: 98}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/product.templ`, Line: 57, Col: 110}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
