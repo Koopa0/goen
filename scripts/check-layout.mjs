@@ -19,6 +19,8 @@ import { checkRunningTotalReflow } from './running-total-reflow.mjs';
 import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
+import { checkSearchReflow } from './search-reflow.mjs';
+import { checkMenuFallback } from './menu-fallback.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -4502,6 +4504,34 @@ await checkAdminActionReflow({
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'admin action reflow', url); },
   fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
 });
+
+try {
+  await checkSearchReflow({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('search reflow', path, ORIGIN + path)) throw new Error('search did not load');
+    },
+  });
+  console.log('search reflow: both locales, 320px, 100%/200% text, scripting on/off passed');
+} catch (err) {
+  fail('search reflow', err.message);
+}
+
+try {
+  await checkMenuFallback({
+    origin: ORIGIN,
+    send: (method, params) => send(ws, method, params),
+    evaluate: evalPage,
+    navigate: async (path) => {
+      if (!await settledFor('menu fallback', path, ORIGIN + path)) throw new Error('menu page did not load');
+    },
+  });
+  console.log('menu fallback: both locales, 320px, 100%/200% text, scripting on/off passed');
+} catch (err) {
+  fail('menu fallback', err.message);
+}
 
 await proveTargetSizeGates();
 await auditAccessibility();

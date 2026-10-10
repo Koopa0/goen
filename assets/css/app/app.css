@@ -1483,6 +1483,14 @@ th {
    dropped, so one language control shows at a time. */
 .goen-header__close {
   align-self: flex-end;
+  display: none;
+}
+
+/* The native summary closes the drawer when scripting is unavailable. */
+@media (scripting: enabled) {
+  .goen-header__close {
+    display: flex;
+  }
 }
 
 .goen-header__drawertools {
@@ -3063,6 +3071,12 @@ input.goen-check {
   margin: 0 auto;
   max-width: var(--page-width);
   padding: 24px var(--page-gutter) 56px;
+}
+
+/* Search echoes arbitrary input, including a full-length term with no spaces. */
+.goen-listing--search .goen-empty__title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .goen-listing__layout {
