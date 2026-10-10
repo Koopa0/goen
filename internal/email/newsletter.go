@@ -84,7 +84,10 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 		"", i18n.T(ctx, i18n.KeyMailNoReply), "— goen", "",
 	}, "\n")
 
-	return n.send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
+	return n.send(ctx, &Message{
+		To: p.Email, Subject: p.Subject, Body: body,
+		OneClickUnsubscribe: OneClickUnsubscribeURL(link),
+	})
 }
 
 // AddressVerify is what an account.email_verify message carries. The address is
