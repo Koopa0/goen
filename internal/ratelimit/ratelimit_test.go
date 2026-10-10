@@ -538,23 +538,27 @@ func TestKeysAreIndependent(t *testing.T) {
 	}
 }
 
+// Keep setup at one fake instant so slow scheduling cannot expire keys before
+// the idle wait.
 func TestIdleKeysAreEvicted(t *testing.T) {
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond, MaxKeys: testMaxKeys})
+	synctest.Test(t, func(t *testing.T) {
+		l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond, MaxKeys: testMaxKeys})
 
-	for i := range 100 {
-		l.Allow("old-" + strconv.Itoa(i))
-	}
-	if got := bucketCount(l); got != 100 {
-		t.Fatalf("%d keys held, want 100", got)
-	}
+		for i := range 100 {
+			l.Allow("old-" + strconv.Itoa(i))
+		}
+		if got := bucketCount(l); got != 100 {
+			t.Fatalf("%d keys held, want 100", got)
+		}
 
-	time.Sleep(40 * time.Millisecond)
-	// A new key triggers the sweep: the map can only grow here.
-	l.Allow("fresh")
-	if got := bucketCount(l); got != 1 {
-		t.Errorf("%d keys held after the TTL passed, want 1 — idle keys are not "+
-			"being evicted and the map grows without bound", got)
-	}
+		time.Sleep(40 * time.Millisecond)
+		// A new key triggers the sweep: the map can only grow here.
+		l.Allow("fresh")
+		if got := bucketCount(l); got != 1 {
+			t.Errorf("%d keys held after the TTL passed, want 1 — idle keys are not "+
+				"being evicted and the map grows without bound", got)
+		}
+	})
 }
 
 func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
