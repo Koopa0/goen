@@ -437,7 +437,7 @@ h3 {
    colour alone is not a reason. */
 .goen-input--invalid,
 .goen-input[aria-invalid='true'] {
-  outline-color: var(--error-outline);
+  outline-color: var(--error);
 }
 
 .goen-input--invalid:focus-visible,
@@ -1712,16 +1712,6 @@ input.goen-check {
 .goen-admin__inspectline > legend {
   margin-bottom: 8px;
   padding: 0;
-}
-
-.goen-admin__side {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
 }
 
 .goen-admin__tabs {
