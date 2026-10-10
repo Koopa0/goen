@@ -83,9 +83,8 @@ var (
 	})
 
 	KeyForgotSent = key("auth.forgot.sent", Message{
-		ZhHant: "如果這個信箱有註冊過，重設連結已經寄出了。沒收到請看看垃圾郵件。",
-		En: "If that address has an account, the reset link is on its way. If it has not " +
-			"arrived, check your spam folder.",
+		ZhHant: "如果這個信箱有註冊帳號，請到信箱開啟重設連結。一小時內有效。沒收到請看看垃圾郵件。",
+		En:     "If that address has an account, check its inbox for the reset link. It works for one hour. If it has not arrived, check your spam folder.",
 	})
 
 	KeyForgotSubmit = key("auth.forgot.submit", Message{ZhHant: "寄送重設連結", En: "Send the reset link"})
@@ -230,4 +229,12 @@ var (
 	KeyDemoPasswordNoReset         = key("auth.demo.reset", Message{ZhHant: "示範帳號的密碼不能重設。", En: "The demo account password cannot be reset."})
 
 	KeyGoogleUnavailable = key("auth.google.unavailable", Message{ZhHant: "Google 登入目前未開放。請用電子郵件和密碼登入。", En: "Google sign-in is unavailable. Sign in with your email address and password."})
+)
+
+var (
+	KeyForgotSentTo = key("auth.forgot.sent.to", Message{
+		ZhHant: "如果 %s 有註冊帳號，請到信箱開啟重設連結。一小時內有效。沒收到請看看垃圾郵件。",
+		En:     "If %s has an account, check its inbox for the reset link. It works for one hour. If it has not arrived, check your spam folder.",
+	})
+	KeyForgotResend = key("auth.forgot.resend", Message{ZhHant: "沒收到？再寄一次", En: "Not received? Send another link"})
 )

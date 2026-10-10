@@ -33,6 +33,8 @@ var (
 
 	KeyBackToShop = key("nav.back", Message{ZhHant: "回到商店", En: "Back to the shop"})
 
+	KeyCheckInbox = key("mail.check_inbox", Message{ZhHant: "請到信箱收信", En: "Check your inbox"})
+
 	// The mirror of KeyBackToShop: that one leaves the back office, this one
 	// enters it. Two keys rather than one reused label, because the storefront's
 	// entrance and the admin chrome's own eyebrow are different sentences that

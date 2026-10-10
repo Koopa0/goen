@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -33,6 +34,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	form := pages.ContactForm{
 		Subjects: subjectChoices(r.Context()),
 		Done:     r.URL.Query().Get("sent") == "1",
+		SignedIn: signedIn(r.Context()),
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Contact(pages.ContactMeta(r.Context()), form))
 }
@@ -89,11 +91,16 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if web.IsHTMX(r) {
-		done := pages.ContactForm{Subjects: subjectChoices(r.Context()), Done: true}
+		done := pages.ContactForm{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
 		web.Render(w, r, h.log, http.StatusOK, pages.ContactPanel(done))
 		return
 	}
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
+}
+
+func signedIn(ctx context.Context) bool {
+	_, ok := user.FromContext(ctx)
+	return ok
 }
 
 func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form pages.ContactForm) {

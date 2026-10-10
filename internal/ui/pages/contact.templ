@@ -53,6 +53,10 @@ templ ContactPanel(f ContactForm) {
 			<div class="ui-alert__body">
 				<strong>{ i18n.T(ctx, i18n.KeyContactSent) }</strong>
 				{ i18n.T(ctx, i18n.KeyContactSentBody) }
+				<p><a href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a></p>
+				if f.SignedIn {
+					<p><a href="/account#orders-heading">{ i18n.T(ctx, i18n.KeyContactMyOrders) }</a></p>
+				}
 			</div>
 		</div>
 	} else {

@@ -57,7 +57,7 @@ func TestAccountPasswordConfirmationFormsDoNotRecordASignIn(t *testing.T) {
 		}, location: "/signin?changed=1"},
 		{name: "email change", path: "/account/email", values: url.Values{
 			"current": {"a sufficiently long password"}, "email": {"new-" + uuid.NewString() + "@example.com"},
-		}, location: "/account?email=sent"},
+		}, location: "/account?address=n%2A%2A%2A%40example.com&email=sent"},
 		{name: "refused new password", path: "/account/password", values: url.Values{
 			"current": {"a sufficiently long password"}, "password": {"short"}, "confirm": {"short"},
 		}, location: "/account?password=invalid"},

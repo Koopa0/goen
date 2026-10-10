@@ -139,7 +139,11 @@ templ Register(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel goen-auth__panel--wide">
-				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
+				if v.OffersResend && v.HasNotice() {
+					<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCheckInbox) }</h1>
+				} else {
+					<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
+				}
 				if v.HasNotice() {
 					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "register-sent"}) {
 						{ v.Notice }
@@ -719,12 +723,15 @@ templ Account(p layouts.Page, v *AccountView) {
 								</div>
 							</form>
 						}
-						if v.PendingEmail != "" {
+						if v.PendingEmail != "" && !v.EmailConfirmationRequested {
 							<p class="goen-account__meta">
 								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailPending), v.PendingEmail) }
 							</p>
 						}
-						<details class="goen-account__disclosure">
+						if v.EmailConfirmationRequested {
+							<p class="goen-account__meta"><a href="/account?email=reenter#account-email-form">{ i18n.T(ctx, i18n.KeyEmailReenter) }</a></p>
+						}
+						<details class="goen-account__disclosure" id="account-email-form" open?={ v.EmailReentry }>
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEmailChange) }</summary>
 							<form class="goen-account__form" method="post" action="/account/email">
 								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>

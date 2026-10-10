@@ -473,6 +473,8 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 		view.EmailVerified, view.PendingEmail = state.Verified, state.PendingEmail
 	}
 	view.Notice = accountNotice(r)
+	view.EmailConfirmationRequested = r.URL.Query().Get("email") == "sent"
+	view.EmailReentry = r.URL.Query().Get("email") == "reenter"
 	if r.URL.Query().Get("welcome") == "1" {
 		view.ReturnAfterWelcome, _ = web.SitePath(r.URL.Query().Get("next"))
 		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
@@ -505,7 +507,7 @@ func accountNotice(r *http.Request) string {
 	case q.Get("erase") == "admin":
 		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
-		return i18n.T(ctx, i18n.KeyEmailSent)
+		return emailSentNotice(ctx, q)
 	case q.Get("email") == "invalid":
 		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
 	case q.Get("email") == "staff":
@@ -518,6 +520,13 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyDemoAccountFixed)
 	}
 	return ""
+}
+
+func emailSentNotice(ctx context.Context, q url.Values) string {
+	if address := email.ReadMasked(q.Get("address")); address != "" {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailSentTo), address)
+	}
+	return i18n.T(ctx, i18n.KeyEmailSent)
 }
 
 func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
@@ -984,7 +993,7 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
+	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
 }
 
 func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
@@ -1001,7 +1010,7 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
+	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(u.Email)}}.Encode(), http.StatusSeeOther)
 }
 
 func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
