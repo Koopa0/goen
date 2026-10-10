@@ -152,7 +152,9 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingProduct)},
+				admin.MissingRecordView{Section: "products", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingProduct), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackProducts}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read product", "error", err)
