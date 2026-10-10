@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	stockdesk "github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
@@ -199,6 +200,64 @@ func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
 	}
 	if listed() {
 		t.Errorf("%s is still a best seller after its only order was refunded before shipment", slug)
+	}
+}
+
+func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
+	ctx := t.Context()
+	now := shopMoment(t, "2021-07-20 15:20:00")
+	placed := shopMoment(t, "2021-07-17 10:00:00")
+	_, staff := admintest.StaffContext(t, pool)
+	backOffice := admintest.AdminRolePool(t, pool)
+	for _, soldOut := range []bool{false, true} {
+		t.Run(map[bool]string{false: "stock available", true: "sold out"}[soldOut], func(t *testing.T) {
+			quantity := 20
+			if soldOut {
+				quantity = 0
+			}
+			variantID, sku := newVariant(t, quantity, 0)
+			orderOnVariant(t, variantID, sku, 3, &placed)
+			read := func() (db.StockAtRiskRow, bool) {
+				t.Helper()
+				rows, err := db.New(backOffice).StockAtRisk(ctx, db.StockAtRiskParams{FromAt: now.AddDate(0, 0, -30), ToAt: now})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := range rows {
+					row := &rows[i]
+					if row.VariantID == variantID {
+						return *row, true
+					}
+				}
+				return db.StockAtRiskRow{}, false
+			}
+			if row, found := read(); !found || row.UnitsSold != 3 || row.OrdersSold != 1 {
+				t.Fatalf("before refund: found=%v units=%d orders=%d, want true/3/1", found, row.UnitsSold, row.OrdersSold)
+			}
+			orderID := orderOf(t, sku, false)
+			if _, err := backOffice.Exec(ctx, `
+				SELECT open_refund_before_shipment(o.order_number, 'stock cover', $2, 'stock-cover-' || $3)
+				FROM orders o WHERE o.id = $1`, orderID, staff, sku); err != nil {
+				t.Fatal(err)
+			}
+			var committed bool
+			if err := backOffice.QueryRow(ctx, `SELECT order_is_committed($1)`, orderID).Scan(&committed); err != nil || !committed {
+				t.Fatalf("fixture must remain committed while payout is outstanding: %v, %v", committed, err)
+			}
+			if row, found := read(); found != soldOut || row.UnitsSold != 0 || row.OrdersSold != 0 {
+				t.Errorf("after refund: found=%v units=%d orders=%d, want %v/0/0", found, row.UnitsSold, row.OrdersSold, soldOut)
+			}
+			rows, _, err := stockdesk.NewStore(backOffice).DaysCover(ctx, 30, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range rows {
+				row := &rows[i]
+				if row.SKU == sku && (row.Sold != 0 || row.Orders != 0) {
+					t.Errorf("days cover still counts the cancelled sale: %+v", row)
+				}
+			}
+		})
 	}
 }
 
