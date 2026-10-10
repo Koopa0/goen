@@ -10,7 +10,7 @@
 
 **示範站：[goen.koopa0.dev](https://goen.koopa0.dev)**
 
-![繁體中文店面：有照片的活動輪播，寫出結束日與剩下的天數，下方是可以切換的投影片](assets/readme/storefront.zh-TW.png)
+![繁體中文店面首頁：有照片、寫出剩下天數的活動輪播，接著是活動的商品、各個館別，以及一個館別與它的商品](assets/readme/storefront.zh-TW.png)
 
 ![繁體中文後台總覽：等你處理的工作、近 7 天與前 7 天的營收和已付款訂單，以及最新訂單](assets/readme/backoffice.zh-TW.png)
 
