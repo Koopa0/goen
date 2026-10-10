@@ -50,10 +50,7 @@ var (
 		En:     "Those option values do not work together. Choose again.",
 	})
 
-	KeyAdminProdVariantsFrom = key("admin.prod.variantsfrom", Message{
-		ZhHant: "%s 個規格 · %s 起",
-		En:     "%s variants · from %s",
-	})
+	KeyAdminProdVariantsFrom = countKey("admin.prod.variantsfrom", "%s 個規格 · %s 起", "%s variant · from %s", "%s variants · from %s")
 
 	KeyAdminProdVariants = key("admin.prod.variants", Message{ZhHant: "規格", En: "Variants"})
 
