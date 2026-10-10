@@ -3636,10 +3636,9 @@ form[data-request-pending] [aria-disabled="true"] {
   shape-rendering: crispEdges;
 }
 
-/* Only where scripts run, so a page without them is unchanged. The padding, not
-   a margin, keeps the readout touching the plot's frame, so the pointer never
-   leaves both on the way down to it. Its height is held for the longest line,
-   which runs to two on a narrow figure. */
+/* The padding keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. The hidden rows share its grid cell and
+   reserve the tallest wrapped content, including after fonts or width change. */
 .goen-chart__readout {
   display: none;
   font-size: var(--fs-13);
@@ -3648,20 +3647,27 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (scripting: enabled) {
+  .goen-chart__readout-space,
+  .goen-chart__readout.goen-chart__readout-size {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .goen-chart__readout-space > .goen-chart__readout,
+  .goen-chart__readout-size > span {
+    grid-area: 1 / 1;
+    min-inline-size: 0;
+  }
+
   .goen-chart__readout {
     display: block;
     min-height: calc(var(--fs-13) * var(--lh-normal));
     padding-block-start: 8px;
   }
 
-  .goen-chart__readout:empty {
+  .goen-chart__readout:empty,
+  .goen-chart__readout-size {
     visibility: hidden;
-  }
-
-  @container (max-width: 519px) {
-    .goen-chart__readout {
-      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
-    }
   }
 }
 
