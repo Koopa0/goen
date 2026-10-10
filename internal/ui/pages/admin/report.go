@@ -32,7 +32,7 @@ func (s Seller) Facts(ctx context.Context) string {
 		facts = append(facts, s.Brand)
 	}
 	return strings.Join(append(facts,
-		fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUnits), s.UnitsText()),
+		i18n.Count(ctx, i18n.KeyAdminRepUnits, s.Units, s.UnitsText()),
 		fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepGross), s.Revenue())), " · ")
 }
 
