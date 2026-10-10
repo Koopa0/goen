@@ -288,12 +288,12 @@ func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, lo
 
 // servingPool opens the storefront pool, proves it answers, and puts the demo
 // account right before anything is served from it.
-func servingPool(ctx context.Context, url string, demo account.DemoAccount, log *slog.Logger) (*pgxpool.Pool, error) {
+func servingPool(ctx context.Context, url string, demo account.DemoAccount, secureCookies bool, log *slog.Logger) (*pgxpool.Pool, error) {
 	pool, err := openPool(ctx, url, log)
 	if err != nil {
 		return nil, fmt.Errorf("open database pool: %w", redactURL(err, url))
 	}
-	if err := reachDatabase(ctx, pool, url, log); err != nil {
+	if err := reachDatabase(ctx, pool, url, storeRole, secureCookies, log); err != nil {
 		pool.Close()
 		return nil, err
 	}
@@ -304,42 +304,64 @@ func servingPool(ctx context.Context, url string, demo account.DemoAccount, log 
 	return pool, nil
 }
 
-// reachDatabase proves the pool works before anything else is built, and warns
-// about a login role that could undo the privilege model.
-func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slog.Logger) error {
+type databaseRole string
+
+const (
+	storeRole       databaseRole = "store"
+	adminRole       databaseRole = "admin"
+	maintenanceRole databaseRole = "maintenance"
+)
+
+type databaseLoginPrivileges struct {
+	superuser   bool
+	ownerMember bool
+}
+
+func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role databaseRole, secureCookies bool, log *slog.Logger) error {
 	pingCtx, cancelPing := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelPing()
 	if pingErr := pool.Ping(pingCtx); pingErr != nil {
-		return fmt.Errorf("reach database: %w", redactURL(pingErr, url))
+		return fmt.Errorf("reach %s database: %w", role, redactURL(pingErr, url))
 	}
 
-	// A superuser login role can RESET ROLE back to full privilege. The dev
-	// Makefile connects as the owning superuser on purpose, so warn rather than
-	// refuse.
-	var loginIsSuper bool
-	if roleErr := pool.QueryRow(ctx,
-		"SELECT rolsuper FROM pg_roles WHERE rolname = session_user",
-	).Scan(&loginIsSuper); roleErr == nil && loginIsSuper {
-		log.Warn("connected as a superuser login role; the privilege model can be " +
-			"reset away with RESET ROLE — use a non-superuser member of store in production")
+	// SET ROLE changes current_user, but session_user can still RESET ROLE or
+	// assume the schema owner and escape the application's write restrictions.
+	var privileges databaseLoginPrivileges
+	if roleErr := pool.QueryRow(pingCtx, `
+		SELECT r.rolsuper, pg_catalog.pg_has_role(session_user, c.relowner, 'USAGE')
+		FROM pg_catalog.pg_roles r
+		CROSS JOIN pg_catalog.pg_class c
+		WHERE r.rolname = session_user AND c.oid = 'public.orders'::regclass
+	`).Scan(&privileges.superuser, &privileges.ownerMember); roleErr != nil {
+		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
+	return checkDatabaseLogin(role, secureCookies, privileges, log)
+}
+
+func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databaseLoginPrivileges, log *slog.Logger) error {
+	if !privileges.superuser && !privileges.ownerMember {
+		return nil
+	}
+	message := fmt.Sprintf("%s database login can undo the privilege model; connect as a non-superuser member of %s", role, role)
+	if secureCookies {
+		return fmt.Errorf("refusing to start: %s", message)
+	}
+	log.Warn(message)
 	return nil
 }
 
 // reachableAdminPool opens the back office's pool and proves it answers.
 // pgxpool connects lazily, so a wrong admin DSN otherwise gives a clean start,
 // a 200 from /readyz and a back office that 500s on every page.
-func reachableAdminPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+func reachableAdminPool(ctx context.Context, url string, secureCookies bool, log *slog.Logger) (*pgxpool.Pool, error) {
 	pool, err := openAdminPool(ctx, url, log)
 	if err != nil {
 		return nil, fmt.Errorf("open admin pool: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if pingErr := pool.Ping(pingCtx); pingErr != nil {
+	if err := reachDatabase(ctx, pool, url, adminRole, secureCookies, log); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("reach admin database: %w", redactURL(pingErr, url))
+		return nil, err
 	}
 	return pool, nil
 }
@@ -467,13 +489,13 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, poolErr := servingPool(ctx, cfg.DatabaseURL, demoAccount, log)
+	pool, poolErr := servingPool(ctx, cfg.DatabaseURL, demoAccount, cfg.SecureCookies, log)
 	if poolErr != nil {
 		return poolErr
 	}
 	defer pool.Close()
 
-	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL, log)
+	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL, cfg.SecureCookies, log)
 	if adminErr != nil {
 		return adminErr
 	}
@@ -482,7 +504,7 @@ func run() error {
 	// Opened here and not inside startWorkers: a pool closed by that function's
 	// own defer would be closed before the worker it belongs to has done
 	// anything.
-	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL, log)
+	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL, cfg.SecureCookies, log)
 	if maintenanceErr != nil {
 		return fmt.Errorf("open maintenance pool: %w", maintenanceErr)
 	}
@@ -585,31 +607,29 @@ const (
 )
 
 func openPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, log, "store", storeMaxConns, storeStatementTimeout)
+	return openPoolAs(ctx, url, log, storeRole, storeMaxConns, storeStatementTimeout)
 }
 
 // openAdminPool builds the pool the back office serves from. A second pool
 // rather than SET ROLE per request, which would leave the role set on a pooled
 // connection and run the next storefront request as admin.
 func openAdminPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, log, "admin", adminMaxConns, adminStatementTimeout)
+	return openPoolAs(ctx, url, log, adminRole, adminMaxConns, adminStatementTimeout)
 }
 
 // openMaintenancePool builds and reaches the pool background jobs run on, as a
 // role no request ever holds. pgxpool.NewWithConfig is lazy: Ping belongs here
 // so a wrong independent DSN or a login that cannot SET ROLE maintenance stops
 // startup rather than failing only inside an unattended worker.
-func openMaintenancePool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
-	pool, err := openPoolAs(ctx, url, log, "maintenance", maintenanceMaxConns, maintenanceStatementTimeout)
+func openMaintenancePool(ctx context.Context, url string, secureCookies bool, log *slog.Logger) (*pgxpool.Pool, error) {
+	pool, err := openPoolAs(ctx, url, log, maintenanceRole, maintenanceMaxConns, maintenanceStatementTimeout)
 	if err != nil {
 		return nil, redactURL(err, url)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if pingErr := pool.Ping(pingCtx); pingErr != nil {
+	if err := reachDatabase(ctx, pool, url, maintenanceRole, secureCookies, log); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("reach maintenance database: %w", redactURL(pingErr, url))
+		return nil, err
 	}
 	return pool, nil
 }
@@ -618,7 +638,7 @@ func openMaintenancePool(ctx context.Context, url string, log *slog.Logger) (*pg
 // maxConns of them, and runs no statement longer than statementTimeout. The
 // limits are set here because Config() on a built pool hands back a copy.
 func openPoolAs(
-	ctx context.Context, url string, log *slog.Logger, role string,
+	ctx context.Context, url string, log *slog.Logger, role databaseRole,
 	maxConns int32, statementTimeout time.Duration,
 ) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
@@ -626,7 +646,7 @@ func openPoolAs(
 		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
 	cfg.MaxConns = maxConns
-	cfg.ConnConfig.Tracer = newSlowQueryTracer(log, role)
+	cfg.ConnConfig.Tracer = newSlowQueryTracer(log, string(role))
 	// A bare number is milliseconds to PostgreSQL, and the startup packet is
 	// what makes it a property of the connection rather than of a caller.
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] =
@@ -635,7 +655,7 @@ func openPoolAs(
 	cfg.MaxConnIdleTime = 30 * time.Minute
 	cfg.MaxConnLifetime = time.Hour
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		if _, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize()); roleErr != nil {
+		if _, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{string(role)}.Sanitize()); roleErr != nil {
 			return fmt.Errorf("assume %s role: %w", role, roleErr)
 		}
 		// A superuser bypasses every REVOKE, so a session still superuser after
