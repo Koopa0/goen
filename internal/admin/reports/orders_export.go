@@ -52,7 +52,7 @@ func exportMonth(value string) (period, bool) {
 		return period{}, false
 	}
 	from, valid := shoptime.ParseInputDay(value + "-01")
-	if !valid || shoptime.In(from).Format("2006-01") != value {
+	if !valid || shoptime.Day(from) != value+"-01" {
 		return period{}, false
 	}
 	return period{from: from, to: from.AddDate(0, 1, 0)}, true
