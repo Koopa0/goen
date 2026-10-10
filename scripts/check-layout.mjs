@@ -18,6 +18,7 @@ import { checkQuestionSwitchReflow } from './question-switch-reflow.mjs';
 import { checkRunningTotalReflow } from './running-total-reflow.mjs';
 import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
+import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -4411,6 +4412,17 @@ await checkColumnLabelReflow({
     return result.value;
   },
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'column label reflow', url); },
+  fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
+});
+
+await checkAdminActionReflow({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'admin action reflow', url); },
   fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
 });
 
