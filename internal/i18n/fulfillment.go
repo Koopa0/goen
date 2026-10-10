@@ -28,7 +28,7 @@ var (
 
 	KeyAdminNoOrderTitle = key("admin.noorder.title", Message{ZhHant: "找不到訂單", En: "Order not found"})
 
-	KeyAdminNoOrderHead = key("admin.noorder.head", Message{ZhHant: "找不到這筆訂單", En: "No such order"})
+	KeyAdminNoOrderHead = key("admin.noorder.head", Message{ZhHant: "找不到 %s 這筆訂單", En: "Order %s not found"})
 
 	KeyAdminNoOrderBody = key("admin.noorder.body", Message{
 		ZhHant: "訂單編號不存在。",
