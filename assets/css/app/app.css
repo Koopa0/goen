@@ -8754,8 +8754,8 @@ form[data-request-pending] [aria-disabled="true"] {
 /* A page on its way (assets/js/goen.js marks it). A bar runs along the top of
    the screen, not the header, which a page read halfway down has left behind.
    It waits a moment first, so a page that arrives quickly, a prerendered one
-   above all, never shows it. It is the old page's own paint, so the cross-fade
-   takes it away with the rest. */
+   above all, never shows it. It is the old page's own paint and goes with
+   that page. */
 [data-navigating] body::before {
   animation:
     goen-navigating-in var(--dur-base) var(--ease-standard) 200ms both,
@@ -8824,7 +8824,7 @@ form[data-request-pending] [aria-disabled="true"] {
     outline-offset: -2px;
   }
 
-  .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending]) {
+  .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending], :focus-visible) {
     outline: none;
   }
 }

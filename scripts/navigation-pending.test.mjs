@@ -46,6 +46,16 @@ class Link extends Element {
   closest(selector) { return selector === 'a[href]' ? this : null; }
 }
 
+class Button extends Element {
+  constructor(attributes = {}) {
+    super();
+    for (const [name, value] of Object.entries(attributes)) this.setAttribute(name, value);
+  }
+
+  // As the platform does: without formaction, the page's URL.
+  get formAction() { return new URL(this.getAttribute('formaction') ?? '', `${origin}/c/tech`).href; }
+}
+
 class Form extends Element {
   constructor(attributes = {}) {
     super();
@@ -57,7 +67,6 @@ function page() {
   const document = new Surface();
   const window = new Surface();
   const navigation = new Surface();
-  const timers = [];
   document.documentElement = new Element();
   document.querySelector = () => null;
   document.querySelectorAll = () => [];
@@ -68,7 +77,6 @@ function page() {
     HTMLInputElement: class extends Element {}, HTMLButtonElement: class extends Element {},
     HTMLDetailsElement: class extends Element {},
     location: new URL(`${origin}/c/tech`),
-    setTimeout: (fn) => timers.push(fn),
   }, { filename: 'assets/js/goen.js' });
   const click = (target, fields = {}) => document.dispatch('click', { target, button: 0, ...fields });
   const submit = (form, submitter = null) => document.dispatch('submit', { target: form, submitter });
@@ -76,10 +84,7 @@ function page() {
   const navigate = () => {
     const controller = new AbortController();
     navigation.dispatch('navigate', { signal: controller.signal });
-    return () => {
-      controller.abort();
-      for (const run of timers.splice(0)) run();
-    };
+    return () => controller.abort();
   };
   const navigating = () => document.documentElement.hasAttribute('data-navigating');
   return { document, window, click, submit, navigate, navigating };
@@ -142,22 +147,37 @@ test('a stopped load clears the marks', () => {
   assert.equal(pending(chip), false);
 });
 
+// The browser aborts the replaced navigation before it fires the next one.
 test('the navigation a second press replaces does not clear the newer marks', () => {
   const view = page();
   view.click(new Link('/c/phones'));
   const replaced = view.navigate();
   const second = new Link('/c/laptops');
   view.click(second);
-  view.navigate();
   replaced();
+  view.navigate();
   assert.equal(view.navigating(), true);
   assert.equal(pending(second), true);
+});
+
+test('a load stopped after a jump within the page still clears the marks', () => {
+  const view = page();
+  const chip = new Link('/c/audio');
+  view.click(chip);
+  const stop = view.navigate();
+  view.click(new Link('#reviews'));
+  view.navigate();
+  stop();
+  assert.equal(view.navigating(), false);
+  assert.equal(pending(chip), false);
 });
 
 test('a form that loads a page marks the page; one that does not, nothing', () => {
   const loads = {
     'a search': [new Form({ action: '/search' }), null],
     'a post to this page': [new Form({ method: 'post' }), null],
+    'a button on a form posting here': [new Form({ action: '/cart', method: 'post' }), new Button()],
+    'a button whose formaction posts here': [new Form({ action: 'https://checkout.example.com/pay' }), new Button({ formaction: '/cart' })],
   };
   for (const [name, [form, submitter]] of Object.entries(loads)) {
     const view = page();
@@ -168,6 +188,10 @@ test('a form that loads a page marks the page; one that does not, nothing', () =
     'a dialog form': [new Form({ method: 'dialog' }), null],
     'another target': [new Form({ action: '/search', target: '_blank' }), null],
     'another origin': [new Form({ action: 'https://checkout.example.com/pay', method: 'post' }), null],
+    'a button on a form posting to another origin': [new Form({ action: 'https://checkout.example.com/pay', method: 'post' }), new Button()],
+    'a button whose formaction leaves the origin': [new Form({ action: '/cart' }), new Button({ formaction: 'https://checkout.example.com/pay' })],
+    'a button with another formtarget': [new Form({ action: '/search' }), new Button({ formtarget: '_blank' })],
+    'a button with formmethod dialog': [new Form({ action: '/search' }), new Button({ formmethod: 'dialog' })],
   };
   for (const [name, [form, submitter]] of Object.entries(stays)) {
     const view = page();

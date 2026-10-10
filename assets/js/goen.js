@@ -872,7 +872,9 @@
   function navigationPending() {
     const root = document.documentElement;
     let pressed = null;
+    let presses = 0;
     const start = (link) => {
+      presses++;
       pressed?.removeAttribute("data-navigation-pending");
       pressed = link;
       link?.setAttribute("data-navigation-pending", "");
@@ -883,14 +885,15 @@
       pressed = null;
       root.removeAttribute("data-navigating");
     };
-    const leavesPage = (url) => url.origin === location.origin
-      && !(url.hash && url.pathname === location.pathname && url.search === location.search);
 
     document.addEventListener("click", (e) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const link = e.target.closest?.("a[href]");
       if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
-      if (leavesPage(new URL(link.href))) start(link);
+      const url = new URL(link.href);
+      if (url.origin !== location.origin) return;
+      if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
+      start(link);
     });
     document.addEventListener("submit", (e) => {
       if (e.defaultPrevented) return;
@@ -899,18 +902,19 @@
       const method = (by?.getAttribute("formmethod") ?? form.getAttribute("method") ?? "get").toLowerCase();
       const target = by?.getAttribute("formtarget") ?? form.getAttribute("target");
       if (method === "dialog" || (target && target !== "_self")) return;
-      if (leavesPage(new URL(by?.formAction || (form.getAttribute("action") ?? ""), location.href))) start(null);
+      // A button's formAction falls back to the page's URL, not the form's action.
+      const action = by?.hasAttribute("formaction") ? by.formAction : form.getAttribute("action") ?? "";
+      if (new URL(action, location.href).origin === location.origin) start(null);
     });
     // Back to a page the browser kept: it returns as it was left, mid-press.
     window.addEventListener("pageshow", clear);
     // A stopped load aborts its navigation. So does a second press, which has
-    // already marked its own link by then, so only the latest navigation clears.
-    let latest = null;
+    // marked its own link by then and must keep it.
     window.navigation?.addEventListener("navigate", (e) => {
-      latest = e;
-      e.signal.addEventListener("abort", () => setTimeout(() => {
-        if (latest === e) clear();
-      }));
+      const at = presses;
+      e.signal.addEventListener("abort", () => {
+        if (presses === at) clear();
+      });
     });
   }
 
