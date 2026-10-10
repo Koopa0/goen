@@ -541,7 +541,7 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 		want   string
 	}{
 		{i18n.ZhHant, "點數不足，少扣 75 點"},
-		{i18n.En, "Not enough points: 75 could not be reversed"},
+		{i18n.En, "Not enough points: 75 points could not be reversed"},
 	} {
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			localized := i18n.WithLocale(ctx, tc.locale)
