@@ -21,6 +21,8 @@ templ Home(p layouts.Page, v *HeroView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, refusalField{"headline", "h-headline"}, refusalField{"primary", "h-plabel"}, refusalField{"alt", "h-alt"}, refusalField{"primaryhref", "h-phref"}, refusalField{"second", "h-shref"}, refusalField{"image", "h-image"}, refusalField{"days", "h-days"}))
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, refusalField{"message", "b-message"}, refusalField{"short", "b-short"}, refusalField{"message_en", "b-message-en"}, refusalField{"short_en", "b-short-en"}, refusalField{"banner_cta", "b-cta-href"}, refusalField{"banner_days", "b-days"}))
 		<section aria-labelledby="live-slides">
 			<h2 class="goen-admin__subhead" id="live-slides">{ i18n.T(ctx, i18n.KeyAdminHomeCarouselHead) }</h2>
 			if v.NoSlides() {
@@ -45,7 +47,8 @@ templ Home(p layouts.Page, v *HeroView) {
 			<form
 				class="goen-admin__form"
 				method="post"
-				action="/admin/home"
+				id="new-hero"
+				action="/admin/home#new-hero"
 				enctype="multipart/form-data"
 			>
 				@langSwitch("hero_lang", false)
@@ -278,7 +281,7 @@ templ Home(p layouts.Page, v *HeroView) {
 			{ i18n.T(ctx, i18n.KeyAdminHomeBannerLead) }
 		</p>
 		<div class="goen-admin__productlayout">
-			<form class="goen-admin__form" method="post" action="/admin/home/banner">
+			<form class="goen-admin__form" id="new-banner" method="post" action="/admin/home/banner#new-banner">
 				@langSwitch("banner_lang", v.BannerInEnglish())
 				<div class="goen-admin__langgroup" data-lang="zh">
 					<div class="ui-field">

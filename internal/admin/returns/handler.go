@@ -252,8 +252,8 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 		}
 		for j := range view.Rows[i].Lines {
 			line := &view.Rows[i].Lines[j]
-			line.DraftReceived = strings.TrimSpace(r.PostFormValue("received_" + line.OrderLineID))
-			line.DraftRestocked = strings.TrimSpace(r.PostFormValue("restocked_" + line.OrderLineID))
+			line.DraftReceived = r.PostFormValue("received_" + line.OrderLineID)
+			line.DraftRestocked = r.PostFormValue("restocked_" + line.OrderLineID)
 			line.DraftNote = r.PostFormValue("note_" + line.OrderLineID)
 		}
 	}

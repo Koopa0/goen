@@ -24,6 +24,11 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		if v.Which == "brands" {
+			@RefusalSummary(summarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, refusalField{"name", "brands-name"}, refusalField{"slug", "brands-slug"}))
+		} else if v.Which == "categories" {
+			@RefusalSummary(summarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, refusalField{"name", "categories-name"}, refusalField{"name_en", "categories-name-en"}, refusalField{"slug", "categories-slug"}, refusalField{"icon_key", "categories-icon"}, refusalField{"tone", "categories-tone"}, refusalField{"parent", "categories-parent"}))
+		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxBrands) }</h2>
 			@taxonList("brands", i18n.KeyAdminTaxNoBrands, v.Brands)
@@ -39,7 +44,7 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 
 // taxonForm's fields keep the ids and names the handler and its tests read.
 templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *TaxonomyView) {
-	<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind) }>
+	<form id={ "new-" + kind } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "#new-" + kind) }>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h3>
 		if v.HasErr(kind, "form") {
 			<p class="ui-error-text" role="alert">{ v.Err(kind, "form") }</p>
@@ -118,28 +123,50 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					@components.Label(components.LabelProps{For: "categories-icon"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColIcon) }
 					}
-					<select class="goen-input" id="categories-icon" name="icon_key">
+					<select
+						class="goen-input"
+						id="categories-icon"
+						name="icon_key"
+						if v.HasErr(kind,"icon_key") {
+							aria-invalid="true"
+							aria-describedby="categories-icon-error"
+						}
+					>
+						if v.HasErr(kind,"icon_key") && v.DraftFor(kind,"icon_key")!="" {
+							<option value={ v.DraftFor(kind, "icon_key") } selected>{ v.DraftFor(kind,"icon_key") }</option>
+						}
 						<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
 						for _, k := range icons.CategoryKeys() {
 							<option value={ k } selected?={ v.DraftFor(kind, "icon_key") == k }>{ k }</option>
 						}
 					</select>
 					if v.HasErr(kind, "icon_key") {
-						<p class="ui-error-text">{ v.Err(kind, "icon_key") }</p>
+						<p class="ui-error-text" id="categories-icon-error">{ v.Err(kind, "icon_key") }</p>
 					}
 				</div>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "categories-tone"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColTone) }
 					}
-					<select class="goen-input" id="categories-tone" name="tone">
+					<select
+						class="goen-input"
+						id="categories-tone"
+						name="tone"
+						if v.HasErr(kind,"tone") {
+							aria-invalid="true"
+							aria-describedby="categories-tone-error"
+						}
+					>
+						if v.HasErr(kind,"tone") && v.DraftFor(kind,"tone")!="" {
+							<option value={ v.DraftFor(kind, "tone") } selected>{ v.DraftFor(kind,"tone") }</option>
+						}
 						<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
 						for _, k := range pages.Tones() {
 							<option value={ string(k) } selected?={ v.DraftFor(kind, "tone") == string(k) }>{ k.Label(ctx) }</option>
 						}
 					</select>
 					if v.HasErr(kind, "tone") {
-						<p class="ui-error-text">{ v.Err(kind, "tone") }</p>
+						<p class="ui-error-text" id="categories-tone-error">{ v.Err(kind, "tone") }</p>
 					}
 				</div>
 				<label class="goen-check">

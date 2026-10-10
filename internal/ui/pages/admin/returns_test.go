@@ -103,7 +103,7 @@ func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
 				}
 			}
 			for _, returnID := range []string{"return-a", "return-b"} {
-				action := "/admin/returns/" + returnID + "/inspect"
+				action := "/admin/returns/" + returnID + "/inspect#inspect-" + returnID
 				form := forms[action]
 				if form == nil {
 					t.Fatalf("inspection form %q is missing", action)

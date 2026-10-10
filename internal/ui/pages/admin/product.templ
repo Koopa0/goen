@@ -108,6 +108,11 @@ templ ProductForm(p layouts.Page, v ProductView) {
 			}
 		</div>
 		@Announce(v.Notice)
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, refusalField{"name", "p-name"}, refusalField{"slug", "p-slug"}, refusalField{"brand", "p-brand"}, refusalField{"category", "p-category"}, refusalField{"summary", "p-summary"}, refusalField{"description", "p-description"}, refusalField{"name_en", "p-name-en"}, refusalField{"summary_en", "p-summary-en"}, refusalField{"description_en", "p-description-en"}, refusalField{"warranty_months", "p-warranty-months"}))
+		@RefusalSummary(v.VariantRefusal())
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, refusalField{"option", "opt-name"}, refusalField{"option_en", "opt-name-en"}))
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, refusalField{"value", "optval-value"}, refusalField{"value_en", "optval-value-en"}, refusalField{"swatch_hex", "optval-swatch"}))
+		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, refusalField{"spec_label", "spec-label"}, refusalField{"spec_value", "spec-value"}, refusalField{"spec_label_en", "spec-label-en"}, refusalField{"spec_value_en", "spec-value-en"}))
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>
@@ -136,7 +141,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 templ productDetails(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</h2>
-		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action()) }>
+		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action() + "#sec-details") }>
 			<div class="goen-admin__field">
 				@components.Label(components.LabelProps{For: "p-name"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdName) }
@@ -665,7 +670,7 @@ templ productOptions(v ProductView) {
 				}
 			</div>
 		} else {
-			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionAction()) }>
+			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionAction() + "#sec-options") }>
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdOptionAdd) }</h3>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
@@ -721,7 +726,7 @@ templ productOptions(v ProductView) {
 			</form>
 		}
 		if v.HasOptions() {
-			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionValueAction()) }>
+			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionValueAction() + "#sec-options") }>
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }</h3>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "optval-option"}) {
@@ -839,7 +844,7 @@ templ productVariants(v ProductView) {
 				}
 			</ul>
 		}
-		<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/variants") }>
+		<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/variants#sec-variants") }>
 			<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }</h3>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
@@ -871,7 +876,7 @@ templ productVariants(v ProductView) {
 						class="goen-input"
 						id="v-price"
 						name="price"
-						type="number"
+						type={ dollarInputType(v.VariantDraft.Price) }
 						min="1"
 						step="1"
 						required
@@ -894,7 +899,7 @@ templ productVariants(v ProductView) {
 						class="goen-input"
 						id="v-compare"
 						name="compare"
-						type="number"
+						type={ dollarInputType(v.VariantDraft.Compare) }
 						min="0"
 						step="1"
 						inputmode="numeric"
@@ -919,11 +924,18 @@ templ productVariants(v ProductView) {
 								id={ "v-opt-" + o.ID }
 								name="option_value"
 								required
+								if v.HasErr("options") {
+									aria-invalid="true"
+									aria-describedby={ "v-opt-" + o.ID + "-error" }
+								}
 							>
 								for _, val := range o.Values {
 									<option value={ val.ID } selected?={ v.VariantDraft.Chose(val.ID) }>{ val.Value }</option>
 								}
 							</select>
+							if v.HasErr("options") {
+								<p class="ui-error-text" id={ "v-opt-" + o.ID + "-error" }>{ v.Err("options") }</p>
+							}
 						</div>
 					}
 				}
@@ -1082,7 +1094,7 @@ templ productSpecs(v ProductView) {
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminProdNoSpecs) }</p>
 			</div>
 		}
-		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.SpecAction()) }>
+		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.SpecAction() + "#sec-specs") }>
 			<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdSpecAdd) }</h3>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
