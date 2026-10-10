@@ -238,7 +238,7 @@ func TestAnOversizedRedemptionIsRejectedBeforeItClaimsAnOperation(t *testing.T) 
 	}
 }
 
-func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) {
+func TestAnOversizedRedemptionPOSTKeepsItsDraftWithoutDatabaseEffects(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 100)
 	operationID := redemptionOperation(t, userID)
@@ -254,11 +254,11 @@ func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) 
 	res := httptest.NewRecorder()
 	loyalty.NewHandler(loyalty.NewStore(pool), slog.New(slog.DiscardHandler)).Redeem(res, req)
 
-	if res.Code != http.StatusSeeOther {
-		t.Fatalf("oversized POST status = %d, want 303", res.Code)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("oversized POST status = %d, want 422", res.Code)
 	}
-	if location := res.Header().Get("Location"); location != "/account/points?small=1" {
-		t.Fatalf("oversized POST location = %q, want small notice", location)
+	if location := res.Header().Get("Location"); location != "" {
+		t.Fatalf("oversized POST location = %q, want no redirect", location)
 	}
 	var effects int
 	if err := pool.QueryRow(ctx, `
@@ -540,8 +540,8 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{i18n.ZhHant, "應扣回 75 點；實際扣回 0 點；未扣回 75 點"},
-		{i18n.En, "Requested 75 points; reversed 0; shortfall 75"},
+		{i18n.ZhHant, "點數不足，少扣 75 點"},
+		{i18n.En, "Not enough points: 75 could not be reversed"},
 	} {
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			localized := i18n.WithLocale(ctx, tc.locale)
@@ -551,6 +551,9 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 			}
 			if !strings.Contains(rendered.String(), tc.want) {
 				t.Errorf("rendered history omits %q", tc.want)
+			}
+			if !strings.Contains(rendered.String(), `<span class="goen-points__amount">0</span>`) {
+				t.Error("rendered history omits the zero-point clawback amount")
 			}
 		})
 	}

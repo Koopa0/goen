@@ -306,6 +306,9 @@ func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
 				t.Fatalf("found %d swatches, want 2", len(swatches))
 			}
 			for _, a := range swatches {
+				if got := attrValue(a, "hx-sync"); got != "#buybox:replace" {
+					t.Errorf("swatch %s uses request queue %q, want #buybox:replace", attrValue(a, "href"), got)
+				}
 				if got := attrValue(a, "hx-select"); got != "#buybox" {
 					t.Errorf("swatch %s selects %q, want #buybox", attrValue(a, "href"), got)
 				}
