@@ -156,6 +156,7 @@ check-layout-run:
 	done
 	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
+	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \
