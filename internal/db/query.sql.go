@@ -13943,6 +13943,7 @@ JOIN LATERAL (
       AND p.delivered_at IS NOT NULL
 ) parcel ON true
 WHERE ol.id = $4
+  AND o.order_number = $5::text
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
   AND $1::smallint <= (
@@ -13963,6 +13964,7 @@ type RegisterWarrantyParams struct {
 	UserID       uuid.NullUUID
 	SerialNumber string
 	OrderLineID  uuid.UUID
+	OrderNumber  string
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
@@ -13976,6 +13978,7 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 		arg.UserID,
 		arg.SerialNumber,
 		arg.OrderLineID,
+		arg.OrderNumber,
 	)
 	if err != nil {
 		return 0, err
@@ -17491,21 +17494,46 @@ func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Inte
 	return result.RowsAffected(), nil
 }
 
-const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :many
 DELETE FROM outbox_messages
 WHERE delivered_at IS NULL
   AND created_at < now() - $1::interval
+RETURNING id, topic, attempts, created_at
 `
+
+type SweepUndeliveredMessagesRow struct {
+	ID        uuid.UUID
+	Topic     string
+	Attempts  int32
+	CreatedAt time.Time
+}
 
 // An undelivered message past the same window goes too: its payload can carry a
 // token that nothing will ever mail, and it may not outlive that token. Keyed on
 // created_at because available_at moves on every claim.
-func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
-	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) ([]SweepUndeliveredMessagesRow, error) {
+	rows, err := q.db.Query(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []SweepUndeliveredMessagesRow{}
+	for rows.Next() {
+		var i SweepUndeliveredMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Topic,
+			&i.Attempts,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const tOTPCredential = `-- name: TOTPCredential :one
