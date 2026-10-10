@@ -879,6 +879,63 @@
     });
   }
 
+  /*
+   * A press that loads a new page is answered at once rather than when that
+   * page paints: the pressed link is marked, and the root carries
+   * data-navigating, from which app.css draws a bar if the load outlasts a
+   * moment. Only plain same-origin loads in this tab; a click or a submit that
+   * something else took over (htmx, the duplicate-submit refusal) arrives here
+   * already prevented, which is why this listens after every other handler.
+   */
+  function navigationPending() {
+    const root = document.documentElement;
+    let pressed = null;
+    let presses = 0;
+    const start = (link) => {
+      presses++;
+      pressed?.removeAttribute("data-navigation-pending");
+      pressed = link;
+      link?.setAttribute("data-navigation-pending", "");
+      root.setAttribute("data-navigating", "");
+    };
+    const clear = () => {
+      pressed?.removeAttribute("data-navigation-pending");
+      pressed = null;
+      root.removeAttribute("data-navigating");
+    };
+
+    document.addEventListener("click", (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target.closest?.("a[href]");
+      if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+      const url = new URL(link.href);
+      if (url.origin !== location.origin) return;
+      if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
+      start(link);
+    });
+    document.addEventListener("submit", (e) => {
+      if (e.defaultPrevented) return;
+      const form = e.target;
+      const by = e.submitter;
+      const method = (by?.getAttribute("formmethod") ?? form.getAttribute("method") ?? "get").toLowerCase();
+      const target = by?.getAttribute("formtarget") ?? form.getAttribute("target");
+      if (method === "dialog" || (target && target !== "_self")) return;
+      // A button's formAction falls back to the page's URL, not the form's action.
+      const action = by?.hasAttribute("formaction") ? by.formAction : form.getAttribute("action") ?? "";
+      if (new URL(action, location.href).origin === location.origin) start(null);
+    });
+    // Back to a page the browser kept: it returns as it was left, mid-press.
+    window.addEventListener("pageshow", clear);
+    // A stopped load aborts its navigation. So does a second press, which has
+    // marked its own link by then and must keep it.
+    window.navigation?.addEventListener("navigate", (e) => {
+      const at = presses;
+      e.signal.addEventListener("abort", () => {
+        if (presses === at) clear();
+      });
+    });
+  }
+
   recipientBox();
   demoAccount();
   handoff();
@@ -890,4 +947,5 @@
   stepper();
   carousel();
   chartReadout();
+  navigationPending();
 })();
