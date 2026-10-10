@@ -61,7 +61,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 
 // Register decides ownership, delivery and the term in the statement's WHERE
 // clause, under the same read the insert uses.
-func (s *Store) Register(ctx context.Context, lineID, userID, serial string, unit int) error {
+func (s *Store) Register(ctx context.Context, orderNumber, lineID, userID, serial string, unit int) error {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrNotFound
@@ -79,6 +79,7 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 	}
 
 	n, err := s.q.RegisterWarranty(ctx, db.RegisterWarrantyParams{
+		OrderNumber:  orderNumber,
 		OrderLineID:  line,
 		UnitNo:       int16(unit),
 		UserID:       uuid.NullUUID{UUID: owner, Valid: true},

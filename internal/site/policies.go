@@ -1,10 +1,16 @@
 package site
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+func policyText(locale i18n.Locale, key i18n.Key) string {
+	return i18n.T(i18n.WithLocale(context.Background(), locale), key)
+}
 
 // policies is the static policy documents, keyed by their path segment. A
 // section marked Pending renders as a visible gap, and a term the law already
@@ -168,15 +174,12 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					// Interpolated, never typed: a literal here is a second copy
 					// of an enforced duration that no test binds.
-					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘，請在下單後 %s 分鐘內開始付款。"+
-						"保留時間結束仍未付款的訂單會自動取消：商品回到架上，不會收取任何款項，使用的購物金也會退回。",
+					fmt.Sprintf(policyText(i18n.ZhHant, i18n.KeyPolicyPaymentHold),
 						pages.HoldMinutesText(), pages.PayStartMinutesText()),
 				},
 				BodyEn: []string{
-					fmt.Sprintf("Placing an order holds the stock for %s minutes; start the payment within %s "+
-						"minutes of ordering. An order still unpaid when the hold ends is cancelled automatically: "+
-						"the goods go back on the shelf, nothing is charged, and any store credit you applied is "+
-						"returned.", pages.HoldMinutesText(), pages.PayStartMinutesText()),
+					fmt.Sprintf(policyText(i18n.En, i18n.KeyPolicyPaymentHold),
+						pages.HoldMinutesText(), pages.PayStartMinutesText()),
 				},
 			},
 		},
@@ -213,12 +216,12 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "怎麼送修",
 				HeadingEn: "Sending something in",
 				Body: []string{
-					"先在會員中心登錄該商品，登錄後送修時不需要再找收據。登錄的入口在訂單頁。",
+					policyText(i18n.ZhHant, i18n.KeyPolicyWarrantyRegistration),
 					"需要送修時請聯絡客服。宅配訂單由我們安排到府收件，超商取貨的訂單請由超商寄回；兩種訂單的收送費用都由 goen 負擔。",
 					"維修期間不提供替代機。",
 				},
 				BodyEn: []string{
-					"Register the unit in your account first — once it is registered you will not need the receipt to claim. The link is on the order it came from.",
+					policyText(i18n.En, i18n.KeyPolicyWarrantyRegistration),
 					"When you need a repair, contact us. For a home-delivery order we arrange collection from your door, and a convenience-store pickup order is sent back from a convenience store; we pay the carriage both ways in either case.",
 					"We do not lend a replacement while yours is away.",
 				},
