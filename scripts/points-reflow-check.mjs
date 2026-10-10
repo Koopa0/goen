@@ -31,7 +31,7 @@ chrome.stderr.on('data', chunk => { stderr += chunk; });
 let ws;
 try {
   let endpoint;
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 600; i++) {
     endpoint = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/)?.[1];
     if (endpoint) break;
     if (chrome.exitCode !== null) throw new Error(stderr);
@@ -87,7 +87,12 @@ try {
 } finally {
   ws?.close();
   chrome.kill('SIGTERM');
-  if (chrome.exitCode === null) await once(chrome, 'exit');
+  if (chrome.exitCode === null && chrome.signalCode === null) {
+    const exited = once(chrome, 'exit');
+    const killer = setTimeout(() => chrome.kill('SIGKILL'), 5000);
+    await exited;
+    clearTimeout(killer);
+  }
   server.close();
   rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
