@@ -5632,14 +5632,13 @@ input.goen-check {
    radii and buttons do not. A tone never touches a photograph: wherever the two
    meet, a seam of goen's white (--n-0) lies between them, which is why a tone
    can be a flat colour and not the ground its photographs were shot on.
-   assets/contrast_test.go holds the text, edge and mark colours to their
+   assets/contrast_test.go holds the text and mark colours to their
    ratios on every ground. */
 [data-tone="paper"] {
   --tone-ground: #eae1d6;
   --tone-rule: #ddd3c6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5648,7 +5647,6 @@ input.goen-check {
   --tone-rule: #cfcfce;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5657,7 +5655,6 @@ input.goen-check {
   --tone-rule: #c5d6e6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5666,7 +5663,6 @@ input.goen-check {
   --tone-rule: #c7d6c4;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5675,7 +5671,6 @@ input.goen-check {
   --tone-rule: #e3cac6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5692,7 +5687,6 @@ input.goen-check {
   --tone-rule: #27272a;
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
-  --tone-edge: #8e8e96;
   --tone-mark: var(--on-ink-accent);
 }
 
@@ -6487,6 +6481,10 @@ input.goen-check {
   margin: 0;
 }
 
+.goen-order__meta {
+  overflow-wrap: anywhere;
+}
+
 .goen-order__parcel,
 .goen-order__returned,
 .goen-order__items,
@@ -6623,7 +6621,7 @@ input.goen-check {
 
 @media (max-width: 30rem) {
   .goen-line--order {
-    grid-template-columns: 4.5rem minmax(0, 1fr);
+    grid-template-columns: min(4.5rem, 25%) minmax(0, 1fr);
   }
 
   .goen-line--order .goen-line__money {
@@ -8751,6 +8749,84 @@ form[data-request-pending] [aria-disabled="true"] {
 
 .goen-btn:active:not(:disabled):not([aria-disabled="true"]) {
   opacity: 0.85;
+}
+
+/* A page on its way (assets/js/goen.js marks it). A bar runs along the top of
+   the screen, not the header, which a page read halfway down has left behind.
+   It waits a moment first, so a page that arrives quickly, a prerendered one
+   above all, never shows it. It is the old page's own paint and goes with
+   that page. */
+[data-navigating] body::before {
+  animation:
+    goen-navigating-in var(--dur-base) var(--ease-standard) 200ms both,
+    goen-navigating 1.2s ease-in-out 200ms infinite;
+  background: var(--accent);
+  block-size: 3px;
+  content: "";
+  inline-size: 40vw;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: var(--z-toast);
+}
+
+@keyframes goen-navigating-in {
+  from { opacity: 0; }
+}
+
+@keyframes goen-navigating {
+  from { translate: -100% 0; }
+  to { translate: 100vw 0; }
+}
+
+/* The reduce block above stops the run after one frame; a still bar across the
+   whole width says the same without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  [data-navigating] body::before {
+    inline-size: 100%;
+  }
+}
+
+/* A sub-category chip takes the current fill the moment it is pressed, and the
+   one it replaces lets go of it, as a segmented control would. */
+.goen-listing__head .goen-pagehead__chip[data-navigation-pending] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  font-weight: var(--fw-medium);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chip[data-navigation-pending] {
+  background: rgb(255 255 255 / 0.1);
+  border-color: var(--tone-text);
+  color: var(--on-ink-accent);
+}
+
+.goen-listing__head .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending]) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+  font-weight: var(--fw-regular);
+}
+
+.goen-listing__head [data-tone='ink'] .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending]) {
+  color: var(--tone-text);
+}
+
+@media (forced-colors: active) {
+  [data-navigating] body::before {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .goen-pagehead__chip[data-navigation-pending]:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending], :focus-visible) {
+    outline: none;
+  }
 }
 
 /* These are entry fades, never timers that dismiss unread feedback. Removal

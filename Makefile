@@ -154,6 +154,7 @@ check-layout-run:
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs --staff /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
+	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
@@ -638,13 +639,17 @@ workflow-check:
 test-filter-feedback:
 	node --test scripts/filter-feedback.test.mjs scripts/filter-feedback-check.test.mjs
 
+.PHONY: test-navigation-pending
+test-navigation-pending:
+	node --test scripts/navigation-pending.test.mjs
+
 .PHONY: test-screenshots
 test-screenshots:
 	node --test scripts/screenshot-route.test.mjs scripts/screenshot-entry.test.mjs scripts/screenshot-reflow.test.mjs scripts/screenshot-delivery.test.mjs
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race test-filter-feedback test-screenshots
+verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race test-filter-feedback test-navigation-pending test-screenshots
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.

@@ -103,10 +103,13 @@ try {
     if (entry.text200) await evaluate("document.documentElement.style.fontSize = '200%'");
     const facts = await evaluate(`({path: location.pathname + location.search, status: performance.getEntriesByType('navigation')[0]?.responseStatus, lang: document.documentElement.lang, rootFontSize: getComputedStyle(document.documentElement).fontSize})`);
     if (facts.status !== 200 || facts.lang !== entry.lang || !(facts.path === entry.path || (visitor && screenshotRouteMatches(entry.path, facts.path, visitor.prefix)))) throw new Error(`${text}: unexpected document ${JSON.stringify(facts)}`);
+    const required = process.env.REFLOW_REQUIRED_SELECTOR;
+    const marker = required ? await evaluate(`document.querySelector(${JSON.stringify(required)})?.textContent.trim() || ''`) : '';
+    if (required && !marker) throw new Error(`${text}: required fixture content ${required} is absent`);
     if (staff && !await evaluate(`Boolean(document.querySelector('.goen-header a[href="/admin"]'))`)) throw new Error(`${text}: staff session was not accepted`);
     const got = await evaluate(reflowProbe(entry.width), true);
     const movement = await evaluate(`(${screenshotReflow.toString()})()`, true);
-    const record = { entry: text, staff, ...facts, ...got, movement };
+    const record = { entry: text, staff, marker, ...facts, ...got, movement };
     if (got.scrollWidth > entry.width || movement.scrollX !== 0 || got.text.length || !movement.settled || !movement.restored) failed = true;
     console.log(JSON.stringify(record));
     if (evidence) {

@@ -54,7 +54,7 @@ templ Products(p layouts.Page, v ProductsView) {
 									<span class="goen-admin__meta">{ row.Category }</span>
 								</td>
 								<td>
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdVariantsFrom), row.VariantsText(), row.From()) }
+									{ i18n.Count(ctx, i18n.KeyAdminProdVariantsFrom, int64(row.Variants), row.VariantsText(), row.From()) }
 								</td>
 								<td>
 									// display:flex belongs to a division inside the cell: setting it on
