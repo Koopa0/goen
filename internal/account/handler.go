@@ -621,7 +621,11 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if errors.Is(err, ErrQuantityAdjusted) {
 		return cartAdoptionAdjusted
 	}
-	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	if errors.Is(err, ErrCartMergeRefused) || errors.Is(err, ErrNotFound) {
+		h.log.WarnContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	} else {
+		h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	}
 	return cartAdoptionFailed
 }
 

@@ -10,10 +10,12 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
+import { reflowProbe } from './reflow-probe.mjs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { fieldFaults } from './field-faults.mjs';
 import { checkRunningTotalReflow } from './running-total-reflow.mjs';
+import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
@@ -3010,12 +3012,18 @@ if (process.env.ADMIN_TOKEN) {
   // own table under the plot without moving anything, it stays while the
   // pointer is on it, Escape puts it away, and nothing overflows sideways.
   if (ADMIN.length) {
-    for (const [width, height] of [[375, 812], [1440, 900]]) {
-      const label = `admin chart readout ${width}`;
+    const readoutCases = ['zh-Hant', 'en'].flatMap((locale) =>
+      [[320, 800, ''], [375, 812, ''], [1440, 900, ''], [375, 812, '200%'], [1440, 900, '200%']]
+        .map(([width, height, fontSize]) => ({ locale, width, height, fontSize })));
+    for (const { locale, width, height, fontSize } of readoutCases) {
+      const label = `admin chart readout ${locale} ${width}${fontSize ? ' text200' : ''}`;
+      await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
       await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 });
       const target = ORIGIN + '/admin/reports';
       await send(ws, 'Page.navigate', { url: target });
       await settled(ws, label, target);
+      await send(ws, 'Runtime.evaluate', { expression: `document.documentElement.style.fontSize = ${JSON.stringify(fontSize)}` });
+      await send(ws, 'Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true });
       const count = await evalPage('document.querySelectorAll(".goen-chart__hit").length ? document.querySelectorAll(".goen-chart").length : 0');
       if (!count || count.threw) {
         fail(label, 'the reports page rendered no chart with hit areas — its fixture did not run, so this check proved nothing');
@@ -3053,6 +3061,10 @@ if (process.env.ADMIN_TOKEN) {
         })()`);
       for (let k = 0; k < count; k++) {
         const chart = `${label} chart ${k + 1}`;
+        // The running-total end labels cover its plot at enlarged phone text
+        // (#1517). Exercise enlarged readouts there on the columns chart; both
+        // charts are exercised at enlarged desktop text and ordinary phone text.
+        if (fontSize && width < 768 && !await evalPage(`!!document.querySelectorAll('.goen-chart')[${k}].querySelector('.goen-chart__frame--columns')`)) continue;
         const got = await probe(k, 'hits[hits.length >> 1]');
         if (got.none) continue;
         if (got.threw || !got.line) {
@@ -3087,8 +3099,8 @@ if (process.env.ADMIN_TOKEN) {
         }
         const gone = await read();
         if (gone.text !== '') fail(chart, `Escape left the readout showing "${gone.text}"`);
-        // The last day reads the longest line, two lines on a narrow figure; the
-        // height held for it is what keeps the table's toggle where it was.
+        // The last day includes the cutoff and overlapping campaigns. Its
+        // wrapped height must be reserved before the pointer reaches it.
         const last = await probe(k, 'hits[hits.length - 1]');
         if (last.threw || last.none) {
           fail(chart, 'could not measure the last day');
@@ -3101,9 +3113,13 @@ if (process.env.ADMIN_TOKEN) {
         if (Math.abs(longest.top - last.top) > 0.5) fail(chart, `the table moved ${longest.top - last.top}px when the last day's readout appeared`);
         if (longest.wide > 0) fail(chart, `the page scrolls sideways by ${longest.wide}px with the last day's readout showing`);
         await mouse({ x: 2, y: 2 });
+        const dismissed = await read();
+        if (dismissed.text !== '') fail(chart, `moving away left the readout showing "${dismissed.text}"`);
+        if (Math.abs(dismissed.top - last.top) > 0.5) fail(chart, `the table moved ${dismissed.top - last.top}px when the readout was dismissed`);
         console.log(`${chart.padEnd(32)} reads "${got.want.slice(0, 40)}", last "${last.want.slice(0, 40)}"`);
       }
     }
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
   }
 
   // The order page is the packing slip: printed, the back office around it is
@@ -4253,63 +4269,7 @@ const auditAccessibility = async () => {
 // counts. text-overflow: ellipsis and -webkit-line-clamp cut on purpose and
 // mark the cut.
 const REFLOW_WIDTH = 320;
-const REFLOW_PROBE = `(async () => {
-  await document.fonts.ready;
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  const width = ${REFLOW_WIDTH};
-  const scrolls = (o) => o === 'auto' || o === 'scroll';
-  const clips = (o) => o === 'hidden' || o === 'clip';
-  const cuts = (lo, hi, boxLo, boxHi) => lo < boxHi && hi > boxLo && (lo < boxLo - 0.5 || hi > boxHi + 0.5);
-  const text = [];
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const range = document.createRange();
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.nodeValue.trim()) continue;
-    const owner = node.parentElement;
-    if (!owner || owner.closest('script, style, noscript, template, option')) continue;
-    if (getComputedStyle(owner).visibility !== 'visible') continue;
-    range.selectNodeContents(node);
-    const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
-    if (!rects.length) continue;
-    const left = Math.min(...rects.map((r) => r.left));
-    const right = Math.max(...rects.map((r) => r.right));
-    const top = Math.min(...rects.map((r) => r.top));
-    const bottom = Math.max(...rects.map((r) => r.bottom));
-    let xFree = false;
-    let yFree = false;
-    let cause = '';
-    for (let a = owner; a && a !== document.body && a !== document.documentElement && !cause; a = a.parentElement) {
-      const cs = getComputedStyle(a);
-      const box = a.getBoundingClientRect();
-      if (!xFree) {
-        if (scrolls(cs.overflowX)) xFree = true;
-        else if (clips(cs.overflowX)) {
-          if (box.width <= 1 || cs.textOverflow === 'ellipsis') xFree = true;
-          else if (cuts(left, right, box.left, box.right)) cause = 'cut by the clip of';
-        }
-      }
-      if (!yFree && !cause) {
-        if (scrolls(cs.overflowY)) yFree = true;
-        else if (clips(cs.overflowY)) {
-          if (box.height <= 1 || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) yFree = true;
-          else if (cuts(top, bottom, box.top, box.bottom)) cause = 'cut by the clip of';
-        }
-      }
-      if (cs.position === 'fixed') break;
-    }
-    if (!cause && !xFree && cuts(left, right, 0, width)) cause = 'runs past the viewport in';
-    if (cause) {
-      // The attribute, not className: on an SVG element className is an SVGAnimatedString.
-      const where = owner.tagName.toLowerCase() + '.' + (owner.getAttribute('class') || '').split(' ')[0];
-      text.push({ owner: where, detail: cause + ' ' + JSON.stringify(node.nodeValue.trim().slice(0, 24)) });
-    }
-  }
-  const scrollWidth = document.body.scrollWidth;
-  window.scrollTo(10000, 0);
-  const scrollX = window.scrollX;
-  window.scrollTo(0, 0);
-  return { scrollWidth, scrollX, text };
-})()`;
+const REFLOW_PROBE = reflowProbe(REFLOW_WIDTH);
 
 const auditReflow = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
@@ -4426,6 +4386,17 @@ await checkRunningTotalReflow({
     return result.value;
   },
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'running total reflow', url); },
+  fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
+});
+
+await checkColumnLabelReflow({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'column label reflow', url); },
   fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
 });
 
