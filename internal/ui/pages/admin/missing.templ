@@ -15,7 +15,7 @@ templ MissingRecord(p layouts.Page, v MissingRecordView) {
 				<p class="ui-page-head__sub">{ v.Body }</p>
 			</div>
 		</div>
-		if v.Section == "orders" {
+		if v.OrderNumber != "" {
 			<form class="goen-admin__search" method="get" action="/admin/orders">
 				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 				<input class="ui-input" id="order-search" type="search" name="q" value={ v.OrderNumber } placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) } autocomplete="off"/>
