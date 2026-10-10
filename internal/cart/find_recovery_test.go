@@ -30,7 +30,7 @@ func TestRefusedOrderLookupOffersContactAndKeepsInput(t *testing.T) {
 		if locale == i18n.ZhHant {
 			want = "找不到確認信？請聯絡我們，並附上下單時用的 Email。"
 		}
-		if !strings.Contains(body, want) || !strings.Contains(body, `href="/contact"`) {
+		if !strings.Contains(body, `href="/contact">`+want+`</a>`) {
 			t.Error("lookup refusal has no confirmation-email recovery guidance")
 		}
 	}
