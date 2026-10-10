@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,51 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestReturnInspectionCountsRestockedUnitsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, count := range []int32{0, 1, 2, 1000} {
+			t.Run(fmt.Sprintf("%s/%d", locale, count), func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				rendered := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returns.StatusApproved, Window: "within",
+						Lines: []ReturnLine{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
+				}))
+				want := fmt.Sprintf("Inspection finished — %d units went back into stock.", count)
+				if count == 1 {
+					want = "Inspection finished — 1 unit went back into stock."
+				}
+				if locale == i18n.ZhHant {
+					want = fmt.Sprintf("驗貨已完成，共 %d 件回到庫存。", count)
+				}
+				if !strings.Contains(rendered, want) {
+					t.Errorf("inspection notice does not contain %q", want)
+				}
+			})
+		}
+	}
+}
+
+func TestSellerFactsCountUnitsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, count := range []int64{0, 1, 2, 1000} {
+			want := fmt.Sprintf("%d units sold", count)
+			if count == 1 {
+				want = "1 unit sold"
+			}
+			if locale == i18n.ZhHant {
+				want = fmt.Sprintf("售出 %d 件", count)
+			}
+			got := (Seller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
+			if !strings.Contains(got, want) {
+				t.Errorf("Facts(%s, %d) = %q, want %q", locale, count, got, want)
+			}
+		}
+	}
+}
 
 func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
 	t.Parallel()

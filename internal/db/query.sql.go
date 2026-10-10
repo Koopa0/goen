@@ -214,9 +214,8 @@ type AddProductSpecParams struct {
 	Slug    string
 }
 
-// The position is computed IN the insert: product_specs_position_key is unique
-// on (product_id, position), so reading max(position) in Go and then writing it
-// is a race two staff members editing one product would meet.
+// Read the maximum in a separate statement after LockProductSpecAppendPosition:
+// a statement that waits for the lock keeps its pre-wait snapshot.
 func (q *Queries) AddProductSpec(ctx context.Context, arg AddProductSpecParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductSpec,
 		arg.Label,
@@ -7825,17 +7824,24 @@ func (q *Queries) ExpiredReservations(ctx context.Context, limit int32) ([]uuid.
 }
 
 const fAQEntries = `-- name: FAQEntries :many
-SELECT localized_name(category, category_en, $1::text) AS category,
+SELECT category AS canonical_category,
+       -- Translations are optional per entry; the first available one in staff
+       -- order supplies a single label for the whole canonical category.
+       localized_name(category, first_value(category_en) OVER (
+           PARTITION BY category
+           ORDER BY category_en IS NULL, position, id
+       ), $1::text) AS category,
        localized_name(question, question_en, $1::text) AS question,
        localized_name(answer, answer_en, $1::text) AS answer
 FROM faq_entries
-ORDER BY category, position, id
+ORDER BY faq_entries.category, position, id
 `
 
 type FAQEntriesRow struct {
-	Category string
-	Question string
-	Answer   string
+	CanonicalCategory string
+	Category          string
+	Question          string
+	Answer            string
 }
 
 // The FAQ, grouped by category in the order the back office set.
@@ -7851,7 +7857,12 @@ func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRo
 	items := []FAQEntriesRow{}
 	for rows.Next() {
 		var i FAQEntriesRow
-		if err := rows.Scan(&i.Category, &i.Question, &i.Answer); err != nil {
+		if err := rows.Scan(
+			&i.CanonicalCategory,
+			&i.Category,
+			&i.Question,
+			&i.Answer,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -9613,6 +9624,18 @@ func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProduc
 		&i.MinAgeMonths,
 	)
 	return i, err
+}
+
+const lockProductSpecAppendPosition = `-- name: LockProductSpecAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:product_specs:' || p.id::text, 628471039582915603::bigint))
+FROM products p
+WHERE p.slug = $1::text
+`
+
+func (q *Queries) LockProductSpecAppendPosition(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, lockProductSpecAppendPosition, slug)
+	return err
 }
 
 const lockReturnOrder = `-- name: LockReturnOrder :one
