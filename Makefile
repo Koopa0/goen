@@ -635,13 +635,17 @@ workflow-check:
 test-filter-feedback:
 	node --test scripts/filter-feedback.test.mjs scripts/filter-feedback-check.test.mjs
 
+.PHONY: test-navigation-pending
+test-navigation-pending:
+	node --test scripts/navigation-pending.test.mjs
+
 .PHONY: test-screenshots
 test-screenshots:
 	node --test scripts/screenshot-route.test.mjs scripts/screenshot-entry.test.mjs scripts/screenshot-reflow.test.mjs scripts/screenshot-delivery.test.mjs
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race test-filter-feedback test-screenshots
+verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race test-filter-feedback test-navigation-pending test-screenshots
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
