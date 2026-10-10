@@ -56,7 +56,7 @@ func TestMain(m *testing.M) {
 // rejected by openMaintenancePool itself, not by the first projection refresh.
 func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	ctx := t.Context()
-	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString(), quietLog)
+	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString(), false, quietLog)
 	if err != nil {
 		t.Fatalf("open reachable maintenance pool: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 	probeDSN.User = url.UserPassword(role, password)
 	probeURL := probeDSN.String()
-	rejected, err := openMaintenancePool(ctx, probeURL, quietLog)
+	rejected, err := openMaintenancePool(ctx, probeURL, false, quietLog)
 	if rejected != nil {
 		rejected.Close()
 	}
@@ -119,7 +119,9 @@ func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
 		{role: "admin", open: openAdminPool, wantMS: 30_000},
 		// The co-purchase rebuild is measured in hundreds of milliseconds over
 		// the whole order history and must outlive the storefront's bound.
-		{role: "maintenance", open: openMaintenancePool, wantMS: 300_000},
+		{role: "maintenance", open: func(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+			return openMaintenancePool(ctx, url, false, log)
+		}, wantMS: 300_000},
 	}
 	for _, tt := range tests {
 		t.Run(tt.role, func(t *testing.T) {
