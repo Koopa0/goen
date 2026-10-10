@@ -93,7 +93,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	back := "/account/warranty/" + url.PathEscape(number)
-	switch err := h.store.Register(r.Context(), r.PostFormValue("line"), u.ID,
+	switch err := h.store.Register(r.Context(), number, r.PostFormValue("line"), u.ID,
 		r.PostFormValue("serial"), unit); {
 	case err == nil:
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
