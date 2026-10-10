@@ -300,7 +300,7 @@ body {
 .ui-input:read-only:not([type="button"]), .ui-textarea:read-only {
   background: var(--panel); color: var(--fg-muted); cursor: default;
 }
-.ui-input:read-only:hover { border-color: var(--border); }
+.ui-input:read-only:hover { border-color: var(--control-boundary); }
 
 .ui-navitem:active { background: var(--panel); }
 
