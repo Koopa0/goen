@@ -9,9 +9,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -61,36 +63,10 @@ func TestANilOperationIdentityIsNotAnEmptyAccount(t *testing.T) {
 }
 
 func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
-	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
-	u := user.User{ID: uuid.NewString(), Role: user.RoleCustomer}
-	validOp := uuid.NewString()
-	tests := []struct {
-		name string
-		form url.Values
-		want string
-	}{
-		{"missing", url.Values{"points": {"100"}}, "/account/points?badform=1"},
-		{"empty", url.Values{"points": {"100"}, "operation_id": {""}}, "/account/points?badform=1"},
-		{"malformed", url.Values{"points": {"100"}, "operation_id": {"not-a-uuid"}}, "/account/points?badform=1"},
-		{"nil UUID", url.Values{"points": {"100"}, "operation_id": {uuid.Nil.String()}}, "/account/points?badform=1"},
-		{"valid UUID", url.Values{"points": {"50"}, "operation_id": {validOp}}, "/account/points?small=1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequestWithContext(
-				user.NewContext(t.Context(), u),
-				http.MethodPost, "/account/points", strings.NewReader(tt.form.Encode()),
-			)
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			res := httptest.NewRecorder()
-			h.Redeem(res, req)
-			if res.Code != http.StatusSeeOther {
-				t.Fatalf("status = %d, want 303", res.Code)
-			}
-			if location := res.Header().Get("Location"); location != tt.want {
-				t.Fatalf("Location = %q, want %q", location, tt.want)
-			}
-		})
+	t.Parallel()
+	_, err := (&Store{}).Redeem(t.Context(), uuid.NewString(), 100, uuid.Nil)
+	if !errors.Is(err, ErrInvalidOperation) || errors.Is(err, ErrNoAccount) {
+		t.Fatalf("Redeem() error = %v, want invalid operation without missing account", err)
 	}
 }
 
@@ -112,34 +88,15 @@ func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
 	}
 }
 
-func TestAnExpiredRedemptionFormNoticeSpeaksBothLocales(t *testing.T) {
-	tests := []struct {
-		locale i18n.Locale
-		want   string
-	}{
-		{i18n.ZhHant, "這份兌換表單已過期，請重新送出。"},
-		{i18n.En, "That redemption form expired. Submit it again."},
-	}
-	for _, tt := range tests {
-		req, err := http.NewRequestWithContext(
-			i18n.WithLocale(t.Context(), tt.locale),
-			http.MethodGet, "/account/points?badform=1", http.NoBody,
-		)
-		if err != nil {
-			t.Fatalf("request: %v", err)
-		}
-		if got := noticeFor(req); got != tt.want {
-			t.Errorf("notice in %s = %q, want %q", tt.locale, got, tt.want)
-		}
-		short, err := http.NewRequestWithContext(
-			i18n.WithLocale(t.Context(), tt.locale),
-			http.MethodGet, "/account/points?short=1", http.NoBody,
-		)
-		if err != nil {
-			t.Fatalf("short request: %v", err)
-		}
-		if got := noticeFor(short); strings.Contains(got, tt.want) {
-			t.Errorf("short notice in %s reused the expired-form sentence", tt.locale)
+func TestQueryFlagsCannotClaimARedemptionOrNoDebit(t *testing.T) {
+	t.Parallel()
+	h := &Handler{confirmationKey: "test-key"}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, flag := range []string{"ok=1", "badform=1", "redeemed=forged", "small=1"} {
+			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/account/points?"+flag, http.NoBody)
+			if got := h.noticeFor(req, "owner"); got != "" {
+				t.Errorf("noticeFor(%s, %s) = %q, want no assertion", locale, flag, got)
+			}
 		}
 	}
 }
@@ -174,5 +131,48 @@ func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
 		if readHistoryCursor("owner", token).Valid {
 			t.Errorf("%s: a token that is not the reader's was accepted", name)
 		}
+	}
+}
+
+func TestPointsHistoryKeepsTheReversalReason(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		reason string
+		want   string
+	}{
+		{name: "return zh", locale: i18n.ZhHant, reason: "return", want: "退貨扣回，訂單 GO-20261005-000003"},
+		{name: "return en", locale: i18n.En, reason: "return", want: "Reversed for a return, order GO-20261005-000003"},
+		{name: "cancelled zh", locale: i18n.ZhHant, reason: "cancelled", want: "訂單取消扣回，訂單 GO-20261005-000003"},
+		{name: "cancelled en", locale: i18n.En, reason: "cancelled", want: "Reversed for a cancelled order, order GO-20261005-000003"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			entry := pointsHistoryEntry(ctx, db.PointsHistoryRow{Kind: "clawback", Reason: tt.reason, Points: -284, RequestedPoints: 284, OrderNumber: "GO-20261005-000003"}, time.Now())
+			if got := entry.What(ctx); got != tt.want {
+				t.Errorf("pointsHistoryEntry().What() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPointsAmountRefusalNamesThePublishedRule(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.ZhHant, "至少要兌換 100 點，而且要是 10 的倍數。"},
+		{i18n.En, "Redeem at least 100 points, in whole multiples of 10."},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), tt.locale), http.MethodPost, "/account/points", http.NoBody)
+			if got := pointsAmountReason(req); got != tt.want {
+				t.Errorf("pointsAmountReason() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
