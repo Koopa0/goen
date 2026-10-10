@@ -159,6 +159,7 @@ check-layout-run:
 	done
 	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
+	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/pages/admin -run '^TestCampaignEditorReflowsInBothLanguages$$'
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
