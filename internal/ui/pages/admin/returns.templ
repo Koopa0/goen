@@ -214,12 +214,12 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												min="0"
 												max={ l.MaxQuantityText() }
 												required
-												if v.InspectionRefusal(r.ID,"received",l.OrderLineID)!="" {
+												if v.FieldRefusal(r.ID,"inspect")!="" {
 													aria-invalid="true"
 													aria-describedby={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }
 												}
 											/>
-											if message:=v.InspectionRefusal(r.ID,"received",l.OrderLineID); message!="" {
+											if message:=v.FieldRefusal(r.ID,"inspect"); message!="" {
 												<p class="ui-error-text" id={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
 											}
 										</div>
@@ -235,12 +235,12 @@ templ Returns(p layouts.Page, v ReturnsView) {
 													value={ l.RestockedField(v.FieldInvalid(r.ID, "inspect")) }
 													min="0"
 													max={ l.MaxQuantityText() }
-													if v.InspectionRefusal(r.ID,"restocked",l.OrderLineID)!="" {
+													if v.FieldRefusal(r.ID,"inspect")!="" {
 														aria-invalid="true"
 														aria-describedby={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }
 													}
 												/>
-												if message:=v.InspectionRefusal(r.ID,"restocked",l.OrderLineID); message!="" {
+												if message:=v.FieldRefusal(r.ID,"inspect"); message!="" {
 													<p class="ui-error-text" id={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
 												}
 											</div>
@@ -274,7 +274,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 						if r.CanComplete() {
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.CompleteAction()) }>
 								<p class="goen-admin__hint">
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetRestockedUnits), r.RestockedUnitsText()) }
+									{ i18n.Count(ctx, i18n.KeyAdminRetRestockedUnits, int64(r.RestockedUnits()), r.RestockedUnitsText()) }
 								</p>
 								<div class="ui-field">
 									<label class="ui-label" for={ "done-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetCloseNote) }</label>

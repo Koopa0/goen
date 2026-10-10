@@ -66,7 +66,7 @@ var (
 		En:     "Nothing was dispatched in this period.",
 	})
 
-	KeyAdminRepUnits = key("admin.rep.units", Message{ZhHant: "售出 %s 件", En: "%s units sold"})
+	KeyAdminRepUnits = countKey("admin.rep.units", "售出 %s 件", "%s unit sold", "%s units sold")
 
 	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
 	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費；不是上方的營收。", En: "Product gross is the tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping. It is not the revenue above."})
@@ -245,4 +245,17 @@ var (
 		ZhHant: "只計入已付款的訂單，依下單時間。今天到 %s 為止。",
 		En:     "Paid orders only, by the time placed. Today is counted up to %s.",
 	})
+)
+
+var (
+	KeyAdminRepExportOrder    = key("admin.rep.export.order", Message{ZhHant: "訂單編號", En: "order_number"})
+	KeyAdminRepExportPlaced   = key("admin.rep.export.placed", Message{ZhHant: "下單時間（台灣時間）", En: "placed_at_taiwan"})
+	KeyAdminRepExportPaid     = key("admin.rep.export.paid", Message{ZhHant: "付款時間（台灣時間）", En: "paid_at_taiwan"})
+	KeyAdminRepExportTotal    = key("admin.rep.export.total", Message{ZhHant: "訂單總額_cents", En: "order_total_cents"})
+	KeyAdminRepExportDiscount = key("admin.rep.export.discount", Message{ZhHant: "折扣_cents", En: "discount_cents"})
+	KeyAdminRepExportShipping = key("admin.rep.export.shipping", Message{ZhHant: "運費_cents", En: "delivery_cents"})
+	KeyAdminRepExportCredit   = key("admin.rep.export.credit", Message{ZhHant: "購物金折抵_cents", En: "store_credit_cents"})
+	KeyAdminRepExportCard     = key("admin.rep.export.card", Message{ZhHant: "信用卡金額_cents", En: "card_cents"})
+	KeyAdminRepExportInvoice  = key("admin.rep.export.invoice", Message{ZhHant: "發票號碼", En: "invoice_number"})
+	KeyAdminRepExportMonth    = key("admin.rep.export.month", Message{ZhHant: "請以 YYYY-MM 指定月份。", En: "Specify the month as YYYY-MM."})
 )

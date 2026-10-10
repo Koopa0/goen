@@ -64,6 +64,7 @@ JOIN LATERAL (
       AND p.delivered_at IS NOT NULL
 ) parcel ON true
 WHERE ol.id = @order_line_id
+  AND o.order_number = @order_number::text
   AND o.user_id = @user_id
   AND ol.warranty_months IS NOT NULL
   AND @unit_no::smallint <= (

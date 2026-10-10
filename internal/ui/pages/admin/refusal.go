@@ -2,8 +2,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -49,11 +47,11 @@ func (v ReturnsView) InspectionRefusals() []refusalSummary {
 		for j := range row.Lines {
 			line := &row.Lines[j]
 			id := "recv-" + row.ID + "-" + line.OrderLineID
-			errors[id] = v.InspectionRefusal(row.ID, "received", line.OrderLineID)
+			errors[id] = v.FieldRefusal(row.ID, "inspect")
 			fields = append(fields, refusalField{id, id})
 			if line.Restockable {
 				id = "stock-" + row.ID + "-" + line.OrderLineID
-				errors[id] = v.InspectionRefusal(row.ID, "restocked", line.OrderLineID)
+				errors[id] = v.FieldRefusal(row.ID, "inspect")
 				fields = append(fields, refusalField{id, id})
 			}
 		}
@@ -62,23 +60,8 @@ func (v ReturnsView) InspectionRefusals() []refusalSummary {
 	return out
 }
 
-// InspectionRefusal identifies only the refused count controls. Legacy/form-level
-// refusals remain attached to the inspection counts together.
-func (v ReturnsView) InspectionRefusal(returnID, field, lineID string) string {
-	for key := range v.Errors {
-		if strings.HasPrefix(key, returnID+".received_") || strings.HasPrefix(key, returnID+".restocked_") {
-			return v.FieldRefusal(returnID, field+"_"+lineID)
-		}
-	}
-	return v.FieldRefusal(returnID, "inspect")
-}
-
 func (v refusalSummary) Text(ctx context.Context) string {
-	key := i18n.KeyAdminRefusalSummary
-	if v.Count == 1 {
-		key = i18n.KeyAdminRefusalSummaryOne
-	}
-	return fmt.Sprintf(i18n.T(ctx, key), i18n.T(ctx, v.Form), v.Count)
+	return i18n.Count(ctx, i18n.KeyAdminRefusalSummary, int64(v.Count), v.Count, i18n.T(ctx, v.Form))
 }
 
 func (v *ProductView) VariantRefusal() refusalSummary {

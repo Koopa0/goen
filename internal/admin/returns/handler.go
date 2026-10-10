@@ -255,22 +255,6 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 			line.DraftReceived = r.PostFormValue("received_" + line.OrderLineID)
 			line.DraftRestocked = r.PostFormValue("restocked_" + line.OrderLineID)
 			line.DraftNote = r.PostFormValue("note_" + line.OrderLineID)
-			// Explain a refused count without changing the store's validation or
-			// deciding whether anything may be put back into stock.
-			received, receivedErr := strconv.ParseInt(strings.TrimSpace(line.DraftReceived), 10, 32)
-			receivedBad := receivedErr != nil || received < 0 || received > int64(line.Quantity)
-			if receivedBad {
-				view.Errors[id+".received_"+line.OrderLineID] = i18n.T(r.Context(), i18n.KeyAdminNoticeBadCount)
-			}
-			rawRestocked := strings.TrimSpace(line.DraftRestocked)
-			var restocked int64
-			var restockedErr error
-			if rawRestocked != "" {
-				restocked, restockedErr = strconv.ParseInt(rawRestocked, 10, 32)
-			}
-			if line.Restockable && (restockedErr != nil || restocked < 0 || (!receivedBad && restocked > received)) {
-				view.Errors[id+".restocked_"+line.OrderLineID] = i18n.T(r.Context(), i18n.KeyAdminNoticeBadCount)
-			}
 		}
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Returns(
