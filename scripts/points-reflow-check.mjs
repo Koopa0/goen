@@ -89,5 +89,5 @@ try {
   chrome.kill('SIGTERM');
   if (chrome.exitCode === null) await once(chrome, 'exit');
   server.close();
-  rmSync(profile, { recursive: true, force: true });
+  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
