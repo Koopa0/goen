@@ -143,3 +143,5 @@ var (
 
 	KeyAdminMsgHandle = key("admin.message.handle", Message{ZhHant: "標記已處理", En: "Mark handled"})
 )
+
+var KeyContactMyOrders = key("contact.myorders", Message{ZhHant: "我的訂單", En: "My orders"})

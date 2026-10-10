@@ -15,7 +15,7 @@ templ Forgot(p layouts.Page, v ForgotView) {
 				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyForgotSub) }</p>
 				if v.Sent {
 					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "forgot-sent"}) {
-						{ i18n.T(ctx, i18n.KeyForgotSent) }
+						{ v.SentMessage(ctx) }
 					}
 				}
 				if v.Notice != "" {
@@ -23,27 +23,15 @@ templ Forgot(p layouts.Page, v ForgotView) {
 						{ v.Notice }
 					}
 				}
-				<form class="goen-auth__form" method="post" action="/forgot">
-					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "email"}) {
-							{ i18n.T(ctx, i18n.KeyFieldEmail) }
-						}
-						@components.Input(components.FieldProps{
-							ID:   "email",
-							Name: "email",
-							Type: "email",
-							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
-								"autocomplete": "email",
-								"autofocus":    true,
-								"maxlength":    "254",
-								"required":     true,
-							}),
-						})
-					</div>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
-						{ i18n.T(ctx, i18n.KeyForgotSubmit) }
-					}
-				</form>
+				if v.Sent {
+					<p class="goen-auth__alt"><a href="/forgot">{ i18n.T(ctx, i18n.KeyEmailReenter) }</a></p>
+					<details class="goen-account__disclosure" id="forgot-resend">
+						<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyForgotResend) }</summary>
+						@forgotForm(false)
+					</details>
+				} else {
+					@forgotForm(true)
+				}
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyRemembered) }
 					<a href="/signin">{ i18n.T(ctx, i18n.KeyBackToSignIn) }</a>
@@ -51,6 +39,30 @@ templ Forgot(p layouts.Page, v ForgotView) {
 			</div>
 		</div>
 	}
+}
+
+templ forgotForm(autofocus bool) {
+	<form class="goen-auth__form" method="post" action="/forgot">
+		<div class="goen-field">
+			@components.Label(components.LabelProps{For: "email"}) {
+				{ i18n.T(ctx, i18n.KeyFieldEmail) }
+			}
+			@components.Input(components.FieldProps{
+				ID:   "email",
+				Name: "email",
+				Type: "email",
+				Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+					"autocomplete": "email",
+					"autofocus":    autofocus,
+					"maxlength":    "254",
+					"required":     true,
+				}),
+			})
+		</div>
+		@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+			{ i18n.T(ctx, i18n.KeyForgotSubmit) }
+		}
+	</form>
 }
 
 templ Reset(p layouts.Page, v ResetView) {

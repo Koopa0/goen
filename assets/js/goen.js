@@ -761,6 +761,20 @@
   }
 
   /*
+   * A control that swaps itself away takes keyboard focus with it, and focus
+   * falls to <body>. Such a control names, in data-focus-after-swap, the id the
+   * swapped-in content should hand focus to. On document, because the source
+   * element is detached by the swap and an event on it never reaches us.
+   */
+  function focusAfterSwap() {
+    document.addEventListener("htmx:finally:request", (event) => {
+      const source = event.detail?.ctx?.sourceElement;
+      const id = source?.getAttribute?.("data-focus-after-swap");
+      if (id && !source.isConnected) document.getElementById(id)?.focus();
+    });
+  }
+
+  /*
    * The sign-in page's demo account. Its credentials are printed as text for a
    * browser without this file; here the button appears, puts them in the form
    * and signs in with it, as its label says.
@@ -950,6 +964,7 @@
   demoAccount();
   handoff();
   buyBar();
+  focusAfterSwap();
   headerMenu();
   departmentRow();
   departmentPanels();

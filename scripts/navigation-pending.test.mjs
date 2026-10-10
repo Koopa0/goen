@@ -203,3 +203,17 @@ test('a form that loads a page marks the page; one that does not, nothing', () =
   assert.equal(event.defaultPrevented, true);
   assert.equal(view.navigating(), false, 'a submit something else took over');
 });
+
+test('a control that swaps itself away hands focus to the id it names', () => {
+  const view = page();
+  let focused = 0;
+  const field = { focus() { focused++; } };
+  view.document.getElementById = (id) => (id === 'newsletter-email' ? field : null);
+  const finish = (source) => view.document.dispatch('htmx:finally:request', { detail: { ctx: { sourceElement: source } } });
+  const link = (isConnected) => Object.assign(new Link('/', { 'data-focus-after-swap': 'newsletter-email' }), { isConnected });
+  finish(link(true));
+  finish(new Link('/'));
+  assert.equal(focused, 0, 'a control that is still on the page, or names nothing, moves no focus');
+  finish(link(false));
+  assert.equal(focused, 1);
+});

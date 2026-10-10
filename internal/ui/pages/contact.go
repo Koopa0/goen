@@ -31,6 +31,8 @@ type ContactForm struct {
 	Errors map[string]string
 
 	Done bool
+	// SignedIn offers a finished message's sender their own orders.
+	SignedIn bool
 }
 
 func (f ContactForm) err(field string) string { return f.Errors[field] }
