@@ -151,6 +151,9 @@ check-layout-run:
 	@# against a database this line cannot reach.
 	@psql "$$GOEN_DATABASE_URL" -X -q -v env=$(LAYOUT_DIR)/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
+	@set -e; for path in '/cart' '/checkout' '/checkout?ship={PICKUP_SHIP}' '/contact' '/p/pixelight-9' '/p/pixelight-9-pro' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D' '/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD' '/privacy' '/s/layout-campaign' '/search?q=pixelight' '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83'; do \
+		node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs "$$path@320" "$$path@320@text200" "$$path@320@en" "$$path@320@en@text200"; \
+	done
 	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/ui/pages

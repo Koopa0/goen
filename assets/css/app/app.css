@@ -5563,6 +5563,10 @@ input.goen-check {
   margin: 0;
 }
 
+.goen-pagehead--search .goen-pagehead__title {
+  overflow-wrap: anywhere;
+}
+
 .goen-order .goen-pagehead__eyebrow,
 .goen-pay .goen-pagehead__eyebrow {
   color: var(--accent-deep);
@@ -8143,6 +8147,7 @@ input.goen-check {
   color: var(--n-900);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
 }
 
 .contact__panel {
