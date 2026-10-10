@@ -9,9 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// A fixed width or height keeps a glyph from growing with 200% text (WCAG
-// 1.4.4) wherever no component rule sizes it, so a line icon carries the
-// ui-icon class and no size attribute.
+// The ui-icon class is what lets a glyph follow the reader's text size (WCAG
+// 1.4.4); the width and height attributes only size it when no stylesheet loads.
 func TestLineIconsAreSizedByClass(t *testing.T) {
 	tests := []struct {
 		name string
@@ -28,12 +27,9 @@ func TestLineIconsAreSizedByClass(t *testing.T) {
 				t.Fatalf("render: %v", err)
 			}
 			svg, _, _ := strings.Cut(b.String(), ">")
-			if !strings.Contains(svg, `class="ui-icon"`) {
-				t.Errorf("opening tag %q lacks class ui-icon", svg)
-			}
-			for _, attr := range []string{" width=", " height="} {
-				if strings.Contains(svg, attr) {
-					t.Errorf("opening tag %q carries %q", svg, attr)
+			for _, attr := range []string{`class="ui-icon"`, `focusable="false"`} {
+				if !strings.Contains(svg, attr) {
+					t.Errorf("opening tag %q lacks %s", svg, attr)
 				}
 			}
 		})
