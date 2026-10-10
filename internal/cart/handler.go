@@ -39,8 +39,8 @@ type Handler struct {
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
 	// half of a credential whose other half is guessable.
 	findLimit *ratelimit.Limiter
-	// sessions is nil on a deployment with no Stripe key, where there is no
-	// session to close.
+	// sessions is nil on a deployment with no Stripe key, where the checkout
+	// takes no payment.
 	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
@@ -1570,10 +1570,9 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := h.store.CancelOrder(r.Context(), number)
+	err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
