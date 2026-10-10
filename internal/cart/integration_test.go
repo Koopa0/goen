@@ -5854,10 +5854,16 @@ func assertPayUnreachableWithoutGrant(
 // checkout.
 func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 	t.Helper()
+	return placeOrderOfUnits(t, s, address, 1)
+}
+
+// placeOrderOfUnits is placeUnpaidOrderFor with that many units of its one line.
+func placeOrderOfUnits(t *testing.T, s *cart.Store, address string, units int32) string {
+	t.Helper()
 	ctx := t.Context()
 
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, freshVariant(t, "unpaid-order"), 1); err != nil {
+	if err := s.Add(ctx, id, freshVariant(t, "unpaid-order"), units); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID

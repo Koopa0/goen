@@ -11525,25 +11525,29 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 }
 
 const orderReturns = `-- name: OrderReturns :many
-SELECT coalesce(
-           greatest((SELECT max(rf.succeeded_at) FROM refunds rf
-                     WHERE rf.return_request_id = rr.id AND rf.status = 'succeeded'),
-                    (SELECT max(e.created_at) FROM store_credit_entries e
-                     WHERE e.idempotency_key = 'return-credit:' || rr.id::text)),
-           rr.decided_at)::timestamptz AS paid_out_at,
+SELECT coalesce((SELECT e.occurred_at FROM order_events e
+                 WHERE e.return_request_id = rr.id AND e.kind = 'refunded'),
+                rr.decided_at)::timestamptz AS refunded_at,
        (rr.goods_refund_cents + rr.shipping_refund_cents)::bigint AS refund_cents
 FROM return_requests rr
-WHERE rr.order_id = $1 AND rr.status IN ('approved', 'completed') AND NOT rr.before_shipment
-ORDER BY paid_out_at, rr.id
+WHERE rr.order_id = $1
+  AND NOT rr.before_shipment
+  AND (rr.status = 'completed'
+       OR (rr.status = 'approved'
+           AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                OR EXISTS (SELECT 1 FROM order_events e
+                           WHERE e.return_request_id = rr.id AND e.kind = 'refunded'))))
+ORDER BY refunded_at, rr.id
 `
 
 type OrderReturnsRow struct {
-	PaidOutAt   time.Time
+	RefundedAt  time.Time
 	RefundCents int64
 }
 
-// The returns that sent money back, with the day each was paid out: the later of the card refund and the
-// credit posting, or the decision for a return that sent nothing back.
+// The returns whose refund has settled, as ReturnedOrders counts them, with the money each sent back and the
+// day it was refunded: the refunded event the payout wrote once every source landed, or the decision for a
+// return that sent nothing back.
 func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderReturnsRow, error) {
 	rows, err := q.db.Query(ctx, orderReturns, orderID)
 	if err != nil {
@@ -11553,7 +11557,7 @@ func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderR
 	items := []OrderReturnsRow{}
 	for rows.Next() {
 		var i OrderReturnsRow
-		if err := rows.Scan(&i.PaidOutAt, &i.RefundCents); err != nil {
+		if err := rows.Scan(&i.RefundedAt, &i.RefundCents); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -15175,12 +15179,20 @@ WHERE o.id = ANY($1::uuid[])
         AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
                                     JOIN return_requests rr ON rr.id = rl.return_request_id
                                     WHERE rl.order_line_id = ol.id
-                                      AND rr.status IN ('approved', 'completed')
-                                      AND NOT rr.before_shipment), 0))
+                                      AND NOT rr.before_shipment
+                                      AND (rr.status = 'completed'
+                                           OR (rr.status = 'approved'
+                                               AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                                                    OR EXISTS (SELECT 1 FROM order_events e
+                                                               WHERE e.return_request_id = rr.id
+                                                                 AND e.kind = 'refunded'))))), 0))
 `
 
-// The orders among @order_ids whose every unit is in a return the shop has approved or completed. The refund
-// is paid at approval, so the order is returned from then on; a refund before shipment returns nothing.
+// The orders among @order_ids whose every unit is in a return whose refund has settled; a refund before shipment
+// returns nothing. Approval only starts the payout: a card refund can fail or wait and a credit posting can fail,
+// leaving the return approved with the money not sent. So a return counts once it is completed, or approved with
+// nothing to send back, or approved with its refunded event written, which the payout writes only after every
+// source has landed. The completed-status trigger holds the same definition of settled.
 func (q *Queries) ReturnedOrders(ctx context.Context, orderIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, returnedOrders, orderIds)
 	if err != nil {
@@ -17164,7 +17176,7 @@ JOIN LATERAL (
     SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true
@@ -17701,6 +17713,34 @@ func (q *Queries) UnreconciledCompletePayments(ctx context.Context) ([]Unreconci
 		return nil, err
 	}
 	return items, nil
+}
+
+const unreconciledPaymentCount = `-- name: UnreconciledPaymentCount :one
+SELECT
+    ((SELECT count(*) FROM payment_webhook_events
+      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
+     +
+     (SELECT count(*) FROM payments p
+      WHERE p.status = 'requires_reconciliation'
+        AND NOT EXISTS (
+            SELECT 1 FROM payment_webhook_events e
+            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+        )))::bigint AS unreconciled_payments
+`
+
+// Events accepted and NOT acted on: a known Stripe object this binary could
+// not read, paid money with no local payment row, paid money for an order
+// already cancelled, a completed checkout whose money is still in flight,
+// or a refund goen recorded as succeeded that Stripe later reported failed.
+// Each is still marked processed because retrying the same event
+// changes nothing; the durable reason makes the human action countable
+// instead of leaving only a log line nobody reads.
+func (q *Queries) UnreconciledPaymentCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, unreconciledPaymentCount)
+	var unreconciled_payments int64
+	err := row.Scan(&unreconciled_payments)
+	return unreconciled_payments, err
 }
 
 const unreconciledPayments = `-- name: UnreconciledPayments :many
@@ -18730,24 +18770,7 @@ SELECT
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
-    -- Events accepted and NOT acted on: a known Stripe object this binary could
-    -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, a completed checkout whose money is still in flight,
-    -- or a refund goen recorded as succeeded that Stripe later reported failed.
-    -- Each is still marked processed because retrying the same event
-    -- changes nothing; the durable reason makes the human action countable
-    -- instead of leaving only a log line nobody reads.
-    ((SELECT count(*) FROM payment_webhook_events
-      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
-     +
-     (SELECT count(*) FROM payments p
-      WHERE p.status = 'requires_reconciliation'
-        AND NOT EXISTS (
-            SELECT 1 FROM payment_webhook_events e
-            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
-              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
-        )))::bigint AS unreconciled_payments
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
 `
 
 type WorkerHealthRow struct {
@@ -18759,7 +18782,6 @@ type WorkerHealthRow struct {
 	CopurchaseEverBuilt  bool
 	ExpiredSessions      int64
 	UnreferencedMedia    int64
-	UnreconciledPayments int64
 }
 
 // Overdue is measured from available_at — when a message became DUE — because
@@ -18780,7 +18802,6 @@ func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHe
 		&i.CopurchaseEverBuilt,
 		&i.ExpiredSessions,
 		&i.UnreferencedMedia,
-		&i.UnreconciledPayments,
 	)
 	return i, err
 }

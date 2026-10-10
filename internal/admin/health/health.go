@@ -75,6 +75,10 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	if err != nil {
 		return admin.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
 	}
+	unreconciledCount, err := s.q.UnreconciledPaymentCount(ctx)
+	if err != nil {
+		return admin.WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
+	}
 	view := admin.WorkerHealthView{
 		OutboxPending:        row.OutboxPending,
 		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
@@ -84,7 +88,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		CopurchaseEverBuilt:  row.CopurchaseEverBuilt,
 		ExpiredSessions:      row.ExpiredSessions,
 		UnreferencedMedia:    row.UnreferencedMedia,
-		UnreconciledPayments: row.UnreconciledPayments,
+		UnreconciledPayments: unreconciledCount,
 
 		OutboxStaleAfter:     OutboxStaleAfter,
 		MaxExpiredHolds:      MaxExpiredHolds,
@@ -152,6 +156,39 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	return view, nil
 }
 
+func (s *Store) StaffTaskCount(ctx context.Context) (int64, error) {
+	view, err := s.staffTaskCounts(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return view.StaffTaskCount(), nil
+}
+
+func (s *Store) staffTaskCounts(ctx context.Context) (admin.WorkerHealthView, error) {
+	count, err := s.q.UnreconciledPaymentCount(ctx)
+	if err != nil {
+		return admin.WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
+	}
+	view := admin.WorkerHealthView{UnreconciledPayments: count}
+	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
+	if err != nil {
+		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
+	}
+	if len(stranded) > 0 {
+		view.StrandedClaimCount = stranded[0].Total
+		view.StrandedClaimOldestSeconds = stranded[0].OldestSeconds
+	}
+	uninvoiced, err := s.q.UninvoicedOrders(ctx, interval(UninvoicedAfter))
+	if err != nil {
+		return admin.WorkerHealthView{}, fmt.Errorf("read paid orders with no invoice operation: %w", err)
+	}
+	if len(uninvoiced) > 0 {
+		view.UninvoicedCount = uninvoiced[0].Total
+		view.UninvoicedOldestSeconds = uninvoiced[0].OldestSeconds
+	}
+	return view, nil
+}
+
 // Tasks is what /admin/health judges to need a person, read through the same
 // queries and thresholds as the page and none of the lists it names them in.
 func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
@@ -159,29 +196,14 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read worker health: %w", err)
 	}
-	view := admin.WorkerHealthView{
-		ExpiredHolds:         row.ExpiredHolds,
-		UnreconciledPayments: row.UnreconciledPayments,
-		MaxExpiredHolds:      MaxExpiredHolds,
-	}
-	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
+	view, err := s.staffTaskCounts(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read stranded invoice claims: %w", err)
+		return nil, err
 	}
-	if len(stranded) > 0 {
-		view.StrandedClaimCount = stranded[0].Total
-		view.StrandedClaimOldestSeconds = stranded[0].OldestSeconds
-	}
+	view.ExpiredHolds = row.ExpiredHolds
+	view.MaxExpiredHolds = MaxExpiredHolds
 	if view.OpenRefundCount, err = s.q.OpenRefundCount(ctx); err != nil {
 		return nil, fmt.Errorf("count open refunds: %w", err)
-	}
-	uninvoiced, err := s.q.UninvoicedOrders(ctx, interval(UninvoicedAfter))
-	if err != nil {
-		return nil, fmt.Errorf("read paid orders with no invoice operation: %w", err)
-	}
-	if len(uninvoiced) > 0 {
-		view.UninvoicedCount = uninvoiced[0].Total
-		view.UninvoicedOldestSeconds = uninvoiced[0].OldestSeconds
 	}
 	unvoided, err := s.q.CancelledOrderInvoices(ctx, interval(UnvoidedAfter))
 	if err != nil {

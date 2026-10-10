@@ -144,6 +144,9 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	items := make([]layouts.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		if size[r.ID] == 0 {
+			continue
+		}
 		items = append(items, layouts.NavItem{
 			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: size[r.ID], Children: children[r.ID], Picks: picks[r.ID],
 		})

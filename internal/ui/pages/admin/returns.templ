@@ -263,7 +263,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 						if r.CanComplete() {
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.CompleteAction()) }>
 								<p class="goen-admin__hint">
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetRestockedUnits), r.RestockedUnitsText()) }
+									{ i18n.Count(ctx, i18n.KeyAdminRetRestockedUnits, int64(r.RestockedUnits()), r.RestockedUnitsText()) }
 								</p>
 								<div class="ui-field">
 									<label class="ui-label" for={ "done-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetCloseNote) }</label>

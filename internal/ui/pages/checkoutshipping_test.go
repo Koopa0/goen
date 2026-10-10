@@ -28,7 +28,7 @@ func TestCheckoutWithoutDeliveryKeepsTypedDraftAndBlocksPlacement(t *testing.T) 
 					view.Chosen = view.Shipping[0].VersionID
 				}
 				body := renderComponent(t, ctx, Checkout(CheckoutMeta(ctx), view))
-				got := checkoutDeliveryState(t, body, i18n.T(ctx, i18n.KeyPlaceOrder))
+				got := checkoutDeliveryState(t, body, i18n.T(ctx, view.PlaceOrderKey()))
 				want := checkoutDeliveryFacts{
 					PlaceButtons: 2, Email: "draft@example.com", Name: "Draft Recipient",
 					Coupon: "DRAFT", Attempt: "attempt-to-retain",

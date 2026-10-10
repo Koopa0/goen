@@ -698,21 +698,27 @@ func (m Movement) ReasonText(ctx context.Context) string {
 type MovementsView struct {
 	web.Bound
 
-	SKU         string
-	ProductName string
-	Slug        string
-	Stock       int32
-	Safety      int32
-	Rows        []Movement
-	Days        []StockDay
-	Notice      components.Result
-	FormID      string
+	SKU           string
+	ProductName   string
+	Slug          string
+	Stock         int32
+	Safety        int32
+	Rows          []Movement
+	Days          []StockDay
+	Notice        components.Result
+	FormID        string
+	DraftQuantity string
+	QuantityError string
+	ReceiptKey    string
 }
 
 // ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
 // form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
 // two forms never share a key.
 func (v *MovementsView) ReceiveKey() string {
+	if v.ReceiptKey != "" {
+		return v.ReceiptKey
+	}
 	return "rcv:" + v.SKU + ":" + v.FormID
 }
 

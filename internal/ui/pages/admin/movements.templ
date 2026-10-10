@@ -95,12 +95,19 @@ templ receiveForm(v *MovementsView) {
 				<input
 					class="goen-input goen-admin__num"
 					id="receive-qty"
-					type="number"
+					type="text"
+					inputmode="numeric"
 					name="quantity"
-					min="1"
-					step="1"
+					value={ v.DraftQuantity }
+					if v.QuantityError != "" {
+						aria-invalid="true"
+						aria-describedby="receive-qty-error"
+					}
 					required
 				/>
+				if v.QuantityError != "" {
+					<p class="ui-error-text" id="receive-qty-error" role="alert">{ v.QuantityError }</p>
+				}
 			</div>
 			@components.Button(components.ButtonProps{
 				ButtonStyle: components.ButtonStylePrimary,
