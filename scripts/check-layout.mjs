@@ -378,13 +378,13 @@ const ADMIN = [
 // decided.
 const ACCOUNT_BADFORM = [
   { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期，請重新送出。' },
+    notice: '這次兌換沒有送出，點數沒有扣，請再按一次兌換。' },
   { label: 'points badform 1440', width: 1440, height: 900, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期，請重新送出。' },
+    notice: '這次兌換沒有送出，點數沒有扣，請再按一次兌換。' },
   { label: 'points badform en 375', width: 375, height: 812, locale: 'en',
-    notice: 'That redemption form expired. Submit it again.' },
+    notice: 'This redemption was not submitted. No points were deducted. Please press Redeem again.' },
   { label: 'points badform en 1440', width: 1440, height: 900, locale: 'en',
-    notice: 'That redemption form expired. Submit it again.' },
+    notice: 'This redemption was not submitted. No points were deducted. Please press Redeem again.' },
 ];
 
 const ACCOUNT_PAGES = [
@@ -565,7 +565,7 @@ const ACCESSIBILITY = `
     // the rules it had just broken, with the refusal itself never spoken.
     unexplainedInvalids: [...document.querySelectorAll('[aria-invalid="true"]')]
       .filter((e) => {
-        const ids = (e.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        const ids = (e.getAttribute('aria-describedby') || '').split(/\\s+/).filter(Boolean);
         return !ids.some((id) => {
           const t = document.getElementById(id);
           return t && (t.getAttribute('role') === 'alert' ||
@@ -2564,6 +2564,40 @@ const POINTS_REDEEM_PROBE = `(() => {
   };
 })()`;
 
+const POINTS_LEDGER_PROBE = `(() => {
+  const rows = [...document.querySelectorAll('.goen-points__item')];
+  return rows.map((row) => {
+    const amount = row.querySelector('.goen-points__amount');
+    const what = row.querySelector('.goen-points__what');
+    if (!amount || !what) return { incomplete: true };
+    const a = amount.getBoundingClientRect();
+    const w = what.getBoundingClientRect();
+    return { amount: amount.textContent.trim(), right: a.right, descriptionLeft: w.left,
+      numeric: getComputedStyle(amount).fontVariantNumeric };
+  });
+})()`;
+
+const checkPointsLedger = (at, rows) => {
+  if (!rows || rows.length < 2 || rows.some((row) => row.incomplete)) {
+    fail(at, 'the points fixture has no complete multi-row ledger; alignment was not exercised');
+    return;
+  }
+  const amounts = rows.map((row) => row.amount);
+  if (!amounts.some((amount) => amount.startsWith('+')) ||
+      !amounts.some((amount) => amount.startsWith('-')) ||
+      new Set(amounts.map((amount) => amount.replace(/^[+-]/, '').length)).size < 2) {
+    fail(at, 'the points fixture needs both signs and different digit lengths to exercise its amount column');
+  }
+  if (rows.some((row) => !row.numeric.includes('tabular-nums'))) {
+    fail(at, 'points ledger amounts do not use tabular numerals');
+  }
+  const right = rows.map((row) => row.right);
+  const left = rows.map((row) => row.descriptionLeft);
+  if (Math.max(...right) - Math.min(...right) > 0.5 || Math.max(...left) - Math.min(...left) > 0.5) {
+    fail(at, `points amount right edges and description starts do not share columns: ${JSON.stringify(rows)}`);
+  }
+};
+
 const ACCOUNT_BADFORM_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -2575,7 +2609,7 @@ const ACCOUNT_BADFORM_PROBE = `(() => {
     }
     return false;
   };
-  const notice = document.querySelector('.ui-alert--info');
+  const notice = document.querySelector('#points-error');
   const redeem = ${POINTS_REDEEM_PROBE};
   if (redeem.noRedeem) return { noRedeem: true };
   if (redeem.noRedeemable) return { noRedeemable: true };
@@ -2588,6 +2622,7 @@ const ACCOUNT_BADFORM_PROBE = `(() => {
     minTap: redeem.minTap,
     controls: redeem.controls,
     redeemable: redeem.redeemable,
+    ledger: ${POINTS_LEDGER_PROBE},
     notice: notice ? notice.textContent.trim() : '',
     ${ACCESSIBILITY}
   };
@@ -2646,6 +2681,7 @@ const POINTS_PAGE_PROBE = `(() => {
     minTap: redeem.minTap,
     controls: redeem.controls,
     redeemable: redeem.redeemable,
+    ledger: ${POINTS_LEDGER_PROBE},
     ${ACCESSIBILITY}
   };
 })()`;
@@ -2746,8 +2782,47 @@ if (process.env.CUST_TOKEN) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
       width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
     });
-    const target = ORIGIN + '/account/points?badform=1';
+    const target = ORIGIN + '/account/points';
     await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, want.label, target);
+
+    const refused = new Promise((resolve) => {
+      let requestID = '', status = null, loaded = false;
+      const finish = () => {
+        if (status === null || !loaded) return;
+        clearTimeout(timer);
+        ws.removeEventListener('message', observe);
+        resolve(status);
+      };
+      const observe = (event) => {
+        const message = JSON.parse(event.data);
+        const params = message.params || {};
+        if (message.method === 'Network.requestWillBeSent' && params.type === 'Document' &&
+            params.request?.method === 'POST' && params.request.url === target) requestID = params.requestId;
+        if (message.method === 'Network.responseReceived' && params.requestId === requestID) {
+          status = params.response.status;
+          finish();
+        }
+        if (message.method === 'Page.loadEventFired' && requestID) { loaded = true; finish(); }
+      };
+      const timer = setTimeout(() => { ws.removeEventListener('message', observe); resolve(null); }, 8000);
+      ws.addEventListener('message', observe);
+    });
+    const submission = await evalPage(`(() => {
+      const form = document.querySelector('form.goen-qa__form');
+      const operation = form?.querySelector('[name="operation_id"]');
+      const field = document.querySelector('#points');
+      if (!form || !operation || !field) return { ok: false };
+      operation.remove();
+      field.value = '100';
+      form.requestSubmit();
+      return { ok: true };
+    })()`);
+    const status = await refused;
+    if (!submission.ok || status !== 422) {
+      fail(want.label, `native missing-operation POST returned ${status}, want 422`);
+      continue;
+    }
     await settled(ws, want.label, target);
 
     const evaluated = await send(ws, 'Runtime.evaluate', {
@@ -2770,7 +2845,7 @@ if (process.env.CUST_TOKEN) {
       continue;
     }
     if (!got.notice) {
-      fail(at, 'the expired-form notice did not render (.ui-alert--info is absent) — this check proved nothing');
+      fail(at, 'the missing-operation refusal did not render under the points field (#points-error is absent) — this check proved nothing');
       continue;
     }
     if (got.notice !== want.notice) {
@@ -2780,6 +2855,7 @@ if (process.env.CUST_TOKEN) {
       fail(at, `<html lang> is ${JSON.stringify(got.lang)}, want ${JSON.stringify(want.locale)}`);
     }
     checkAccessibility(at, got);
+    checkPointsLedger(at, got.ledger);
     if (got.scrollWidth > got.viewportWidth) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
@@ -2839,6 +2915,7 @@ if (process.env.CUST_TOKEN) {
       continue;
     }
     checkAccessibility(at, got);
+    if (want.points) checkPointsLedger(at, got.ledger);
     if (got.scrollWidth > got.viewportWidth) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));

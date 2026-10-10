@@ -24,14 +24,14 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 			rate := fmt.Sprintf("%d %s = NT$1", n, unit)
 			expiring := fmt.Sprintf("%d %s %s on 2030-01-01", n, unit, expiryVerb)
 			step := fmt.Sprintf("%d %s", n, unit)
-			detail := fmt.Sprintf("Requested %d %s; reversed %d; shortfall 0", n, unit, n)
+			detail := fmt.Sprintf("Not enough points: %d %s could not be reversed", n, unit)
 			if locale == i18n.ZhHant {
 				using = fmt.Sprintf("用 %d 點", n)
 				rule = fmt.Sprintf("最少 %d 點，每次以 %d 點為單位兌換", n, n)
 				rate = fmt.Sprintf("%d 點 = NT$1", n)
 				expiring = fmt.Sprintf("%d 點會在 2030-01-01 到期", n)
 				step = fmt.Sprintf("%d 點", n)
-				detail = fmt.Sprintf("應扣回 %d 點；實際扣回 %d 點；未扣回 0 點", n, n)
+				detail = fmt.Sprintf("點數不足，少扣 %d 點", n)
 			}
 			body := renderComponent(t, ctx, Points(layouts.Page{}, v))
 			for _, want := range []string{">" + using + "</span>", rule, expiring} {
@@ -45,7 +45,7 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 			if got := v.StepAmountText(ctx); got != step {
 				t.Errorf("StepAmountText(%s, %d) = %q, want %q", locale, n, got, step)
 			}
-			entry := PointsEntry{Kind: PointsClawedBack, RequestedPoints: n, Points: -n}
+			entry := PointsEntry{Kind: PointsClawedBack, ShortfallPoints: n}
 			if got := entry.Detail(ctx); got != detail {
 				t.Errorf("Detail(%s, %d) = %q, want %q", locale, n, got, detail)
 			}

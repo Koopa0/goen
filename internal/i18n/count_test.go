@@ -51,6 +51,7 @@ var pluralOnlyOnPurpose = map[Key]string{
 	"valid.password.short":        "account.MinPasswordRunes is fixed at 10 characters",
 	"pdp.reviews.bodyhint":        "product.MinReviewBodyRunes and MaxReviewBodyRunes are fixed at 5 and 2000 characters",
 	"warranty.serial.toolong":     "warranty.MaxSerialRunes is fixed at 60 characters",
+	"points.sub":                  "the number placeholder is a member multiplier modifying \"points rate\", not a count of points",
 }
 
 func TestACountedMessageHasASingular(t *testing.T) {
