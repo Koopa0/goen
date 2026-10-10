@@ -67,6 +67,8 @@ var (
 	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
+
+	KeyCurrentDeals = key("campaign.currentdeals", Message{ZhHant: "看目前的優惠", En: "See current deals"})
 )
 
 var (

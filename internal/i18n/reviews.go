@@ -98,7 +98,11 @@ var (
 
 	KeyAdminReviewsEmpty = key("admin.reviews.empty", Message{ZhHant: "還沒有任何評價。", En: "No reviews yet."})
 
-	KeyAdminReviewStars = key("admin.review.stars", Message{ZhHant: "%s 分", En: "%s out of 5"})
+	KeyAdminReviewsThreeStarsAndBelow = key("admin.reviews.threestarsandbelow", Message{ZhHant: "只看 3 星以下", En: "3 stars and below"})
+
+	KeyAdminReviewsFilteredEmpty = key("admin.reviews.filteredempty", Message{ZhHant: "沒有 3 星以下的評價。", En: "No reviews of 3 stars and below."})
+
+	KeyAdminReviewStars = key("admin.review.stars", Message{ZhHant: "%d／5", En: "%d/5"})
 
 	KeyAdminReviewBought = key("admin.review.bought", Message{ZhHant: "· 已購買", En: "· verified purchase"})
 

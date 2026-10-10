@@ -20,6 +20,7 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 					}) {
 						{ v.Error }
 					}
+					<p><a href="/contact">{ i18n.T(ctx, i18n.KeyFindOrderContact) }</a></p>
 				}
 				// goen-auth__form is the class the layout gate reads on every credential form,
 				// shared with sign in, register and reset; adding styles here would repaint all four.
