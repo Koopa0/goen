@@ -3636,10 +3636,9 @@ form[data-request-pending] [aria-disabled="true"] {
   shape-rendering: crispEdges;
 }
 
-/* Only where scripts run, so a page without them is unchanged. The padding, not
-   a margin, keeps the readout touching the plot's frame, so the pointer never
-   leaves both on the way down to it. Its height is held for the longest line,
-   which runs to two on a narrow figure. */
+/* The padding keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. The hidden rows share its grid cell and
+   reserve the tallest wrapped content, including after fonts or width change. */
 .goen-chart__readout {
   display: none;
   font-size: var(--fs-13);
@@ -3648,20 +3647,27 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (scripting: enabled) {
+  .goen-chart__readout-space,
+  .goen-chart__readout.goen-chart__readout-size {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .goen-chart__readout-space > .goen-chart__readout,
+  .goen-chart__readout-size > span {
+    grid-area: 1 / 1;
+    min-inline-size: 0;
+  }
+
   .goen-chart__readout {
     display: block;
     min-height: calc(var(--fs-13) * var(--lh-normal));
     padding-block-start: 8px;
   }
 
-  .goen-chart__readout:empty {
+  .goen-chart__readout:empty,
+  .goen-chart__readout-size {
     visibility: hidden;
-  }
-
-  @container (max-width: 519px) {
-    .goen-chart__readout {
-      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
-    }
   }
 }
 
@@ -3793,6 +3799,20 @@ form[data-request-pending] [aria-disabled="true"] {
 
 .goen-chart__window {
   fill: var(--chart-previous);
+}
+
+/* Day ticks are fitted to pixel geometry, like the span names below. Keep
+   their fitted size; the complete data table carries enlarged date text. */
+.goen-chart__frame--columns .goen-chart__plot > .goen-chart__label {
+  font-size: 12px;
+}
+
+/* Below the span-fitting threshold, even fixed-size dates share too little
+   room. Keep the final day (Today when present); every date stays in the table. */
+@container (width < 18rem) {
+  .goen-chart__frame--columns .goen-chart__plot > .goen-chart__label:not(:last-of-type) {
+    display: none;
+  }
 }
 
 .goen-chart__open {
