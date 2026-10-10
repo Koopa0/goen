@@ -3424,6 +3424,79 @@ form[data-request-pending] [aria-disabled="true"] {
   overflow: visible;
 }
 
+/* Narrow figures put the line-end names below the plot, where enlarged text
+   can wrap without taking away the plot's width. The table is the complete
+   accessible alternative; this repeats the visual SVG end labels only. */
+.goen-chart__endlegend {
+  display: none;
+  font-size: var(--fs-12);
+  margin: 8px 0;
+}
+
+.goen-chart__endlegend > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-chart__endlegend dt {
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__endlegend dd {
+  font-variant-numeric: tabular-nums lining-nums;
+  margin: 0;
+}
+
+/* A short sample of the line each name belongs to, drawn as the series is. */
+.goen-chart__endkey dt::before {
+  content: "";
+  display: inline-block;
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+  width: 1rem;
+}
+
+.goen-chart__endkey--current dt::before {
+  border-top: 2px solid var(--chart-hue);
+}
+
+.goen-chart__endkey--previous dt::before {
+  border-top: 1.5px solid var(--chart-previous);
+}
+
+/* Dates share the plot's fitted pixel geometry; their enlarged text remains
+   in the complete data table, while the end legend itself grows and wraps. */
+.goen-chart__frame--runningtotal .goen-chart__plot > .goen-chart__label {
+  font-size: 12px;
+}
+
+@container (width < 36rem) {
+  .goen-chart__frame--runningtotal {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .goen-chart__frame--runningtotal .goen-chart__ends {
+    display: none;
+  }
+
+  .goen-chart__endlegend {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep Today on a small enlarged figure; the table still names every day. */
+@container (width < 18rem) {
+  .goen-chart__endlegend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-chart__frame--runningtotal .goen-chart__plot > .goen-chart__label:not(.goen-chart__today) {
+    display: none;
+  }
+}
+
 .goen-chart__label,
 .goen-chart__endvalue {
   fill: var(--chart-label);
@@ -3710,6 +3783,14 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__previous {
     stroke: GrayText;
+  }
+
+  .goen-chart__endkey--current dt::before {
+    border-top-color: CanvasText;
+  }
+
+  .goen-chart__endkey--previous dt::before {
+    border-top-color: GrayText;
   }
 
   .goen-chart__wash,

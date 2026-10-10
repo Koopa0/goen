@@ -15,6 +15,7 @@ import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusi
 import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 import { fieldFaults } from './field-faults.mjs';
 import { checkQuestionSwitchReflow } from './question-switch-reflow.mjs';
+import { checkRunningTotalReflow } from './running-total-reflow.mjs';
 import { checkColumnLabelReflow } from './column-label-reflow.mjs';
 import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 import { checkAdminActionReflow } from './admin-action-reflow.mjs';
@@ -4389,6 +4390,19 @@ await checkQuestionSwitchReflow({
   navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'question switch reflow', url); },
   fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
 });
+
+
+await checkRunningTotalReflow({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'running total reflow', url); },
+  fail, origin: ORIGIN, adminToken: process.env.ADMIN_TOKEN, placedOrder: process.env.PLACED_ORDER,
+});
+
 
 await checkColumnLabelReflow({
   send: (method, params) => send(ws, method, params),
