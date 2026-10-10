@@ -7712,6 +7712,17 @@ input.goen-check {
   justify-content: space-between;
 }
 
+/* Warranty states can be sentences rather than short badge names. */
+.goen-warranty__head .goen-badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.goen-account--warranty .goen-pagehead__title,
+.goen-warranty__meta {
+  overflow-wrap: anywhere;
+}
+
 .goen-warranty__name {
   color: var(--n-900);
   font-size: var(--fs-14);
