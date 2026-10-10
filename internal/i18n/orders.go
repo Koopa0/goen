@@ -236,11 +236,6 @@ var (
 		En:     "The number may be wrong, or the order no longer exists.",
 	})
 
-	KeyOrderNotYoursShort = key("order.notyours.short", Message{
-		ZhHant: "訂單編號可能不正確，或這筆訂單不屬於這個瀏覽器。",
-		En:     "The number may be wrong, or this order was not placed from this browser.",
-	})
-
 	KeyOrderOpening = key("order.opening", Message{ZhHant: "正在開啟你的訂單…", En: "Opening your order…"})
 
 	KeyOrderOpenLink = key("order.open.link", Message{ZhHant: "開啟訂單", En: "Open your order"})
@@ -303,4 +298,8 @@ var (
 		En: "Those details matched an order, but access could not be set up in this browser. " +
 			"Try finding your order again.",
 	})
+
+	KeyOrderNotInAccount = key("order.notinaccount", Message{ZhHant: "這筆訂單不在你的帳號裡，請用訂單編號和電子郵件查詢。", En: "This order is not in your account. Find it using the order number and email address."})
+
+	KeyFindOrderContact = key("order.find.contact", Message{ZhHant: "找不到確認信？請聯絡我們，並附上下單時用的電子郵件。", En: "Can't find your confirmation email? Contact us and include the email address you used at checkout."})
 )

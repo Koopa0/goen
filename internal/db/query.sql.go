@@ -1978,17 +1978,19 @@ SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r
 FROM product_reviews r
 JOIN products p ON p.id = r.product_id
 LEFT JOIN users u ON u.id = r.user_id
-WHERE (NOT $1::boolean OR (r.created_at < $2::timestamptz)
-       OR (r.created_at = $2::timestamptz AND r.id < $3::uuid))
+WHERE (NOT $1::boolean OR r.rating <= 3)
+  AND (NOT $2::boolean OR (r.created_at < $3::timestamptz)
+       OR (r.created_at = $3::timestamptz AND r.id < $4::uuid))
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type AdminReviewsParams struct {
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	ThreeStarsAndBelow bool
+	HasCursor          bool
+	AfterAt            time.Time
+	AfterID            uuid.UUID
+	RowLimit           int32
 }
 
 type AdminReviewsRow struct {
@@ -2009,6 +2011,7 @@ type AdminReviewsRow struct {
 // possible from a list that cannot show it.
 func (q *Queries) AdminReviews(ctx context.Context, arg AdminReviewsParams) ([]AdminReviewsRow, error) {
 	rows, err := q.db.Query(ctx, adminReviews,
+		arg.ThreeStarsAndBelow,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -3783,13 +3786,27 @@ func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, e
 
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE id = $1
-  AND fulfillment_status = 'pending'
-  AND NOT order_is_committed(id)
+WHERE orders.id = $1
+  AND orders.fulfillment_status = 'pending'
+  AND NOT order_is_committed(orders.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = orders.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = orders.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
 `
 
-// Both predicates are load-bearing: `pending` refuses a second cancellation,
-// `not committed` refuses one somebody has paid for. Run it after
+// Pending refuses a second cancellation; committed and unresolved payment
+// facts protect stock when money has arrived or may still arrive. Run it after
 // LockOrderByNumber: a capture holds the order lock without updating the row,
 // so an UPDATE that waited for it would judge payment by the snapshot taken
 // before the wait and reach the transition trigger, which store may not run.
@@ -14134,6 +14151,23 @@ WITH RECURSIVE up AS (
     SELECT id FROM up WHERE parent_id IS NULL
     UNION ALL
     SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+), reference_product AS (
+    SELECT p.brand_id,
+           (SELECT min(pv.price_cents) FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active) AS price_cents
+    FROM products p WHERE p.id = $2
+), reference_specs AS (
+    SELECT label, value FROM product_specs WHERE product_id = $2
+), reference_options AS (
+    SELECT o.name, v.value
+    FROM product_options o
+    JOIN product_option_values v ON v.option_id = o.id
+    WHERE o.product_id = $2
+      AND EXISTS (
+          SELECT 1 FROM variant_option_values vov
+          JOIN product_variants pv ON pv.id = vov.variant_id
+          WHERE vov.option_value_id = v.id AND pv.is_active
+      )
 )
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
@@ -14193,9 +14227,12 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
+JOIN reference_product reference ON true
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents FROM product_variants
+    SELECT price_cents, compare_at_price_cents,
+           min(price_cents) OVER () AS min_active_price_cents
+    FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents LIMIT 1
 ) mv ON true
@@ -14210,7 +14247,27 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = $3) DESC, in_stock DESC,
+         -- A shared attribute outweighs price proximity. Without specs the
+         -- reference product keeps the existing newest-first fallback.
+         CASE WHEN EXISTS (SELECT 1 FROM reference_specs) THEN
+             2 * (SELECT count(*) FROM product_specs ps
+                  JOIN reference_specs rs ON rs.label = ps.label AND rs.value = ps.value
+                  WHERE ps.product_id = p.id)
+             + 2 * (SELECT count(*) FROM product_options o
+                    JOIN product_option_values v ON v.option_id = o.id
+                    JOIN reference_options ro ON ro.name = o.name AND ro.value = v.value
+                    WHERE o.product_id = p.id
+                      AND EXISTS (
+                          SELECT 1 FROM variant_option_values vov
+                          JOIN product_variants pv ON pv.id = vov.variant_id
+                          WHERE vov.option_value_id = v.id AND pv.is_active
+                      ))
+             + CASE WHEN p.brand_id = reference.brand_id THEN 1 ELSE 0 END
+             + coalesce(1 - abs(mv.min_active_price_cents - reference.price_cents)::numeric
+                        / greatest(mv.min_active_price_cents, reference.price_cents, 1), 0)
+         ELSE 0 END DESC,
+         p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 

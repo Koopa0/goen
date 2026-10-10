@@ -45,3 +45,10 @@ func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
 	))
 }
+
+func (h *Handler) BadRequest(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusBadRequest, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
+		i18n.T(r.Context(), i18n.KeyAddressUnreadable),
+		i18n.T(r.Context(), i18n.KeyAddressRecovery)))
+}

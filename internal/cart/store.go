@@ -282,6 +282,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			Brand:        r.Brand,
 			SKU:          r.SKU,
 			Label:        optionLabel(r.OptionNames, r.OptionValues),
+			TaxExempt:    r.TaxType == string(invoicepkg.Exempt),
 			UnitCents:    r.PriceCents,
 			Quantity:     r.Quantity,
 			Available:    r.SellableQuantity,
