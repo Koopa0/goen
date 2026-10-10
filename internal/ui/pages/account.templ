@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -11,7 +12,7 @@ import (
 
 templ SignIn(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
-		<div class="goen-auth">
+		<div class={ "goen-auth", templ.KV("goen-auth--door", !v.HideRegister) }>
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
 				if v.ReturnMessage != "" {
@@ -30,10 +31,6 @@ templ SignIn(p layouts.Page, v AuthView) {
 						{ v.Notice }
 					}
 				}
-				if v.HasErr("form") {
-					// Not the notice component: a guard reads role="alert" from this source (aria_test.go).
-					<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
-				}
 				if v.OffersDemoAccount() {
 					@demoAccountNote(v)
 				}
@@ -41,6 +38,10 @@ templ SignIn(p layouts.Page, v AuthView) {
 					<input type="hidden" name="next" value={ v.Next }/>
 					if v.HideRegister {
 						<input type="hidden" name="reauth" value="erase"/>
+					}
+					if v.HasErr("form") {
+						// Not the notice component: a guard reads role="alert" from this source (aria_test.go).
+						<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
 					}
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "email"}) {
@@ -53,18 +54,15 @@ templ SignIn(p layouts.Page, v AuthView) {
 							Value: v.Email,
 							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
-								"autofocus":    !v.PasswordFocus,
+								"autofocus":    !v.PasswordFocus && !v.OffersDemoAccount(),
 								"required":     true,
 							}),
 						})
 					</div>
 					<div class="goen-field">
-						<div class="goen-auth__labelrow">
-							@components.Label(components.LabelProps{For: "password"}) {
-								{ i18n.T(ctx, i18n.KeyFieldPassword) }
-							}
-							<a class="goen-auth__forgot" href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
-						</div>
+						@components.Label(components.LabelProps{For: "password"}) {
+							{ i18n.T(ctx, i18n.KeyFieldPassword) }
+						}
 						@components.Input(components.FieldProps{
 							ID:        "password",
 							Name:      "password",
@@ -77,13 +75,13 @@ templ SignIn(p layouts.Page, v AuthView) {
 								"required":     true,
 							},
 						})
+						<a class="goen-auth__forgot" href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
 					</div>
 					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignIn) }
 					}
 				</form>
 				if v.GoogleSignIn {
-					<hr class="goen-auth__divider"/>
 					@components.ButtonLink(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,
 						Size:        components.SizeLarge,
@@ -100,8 +98,26 @@ templ SignIn(p layouts.Page, v AuthView) {
 					</p>
 				}
 			</div>
+			if !v.HideRegister {
+				@authDoor()
+			}
 		</div>
 	}
+}
+
+// The photo comes last in the document: it adds nothing to the form, so a reader and the Tab order meet it after the form.
+templ authDoor() {
+	<div class="goen-auth__media">
+		<img
+			src={ assets.ProductImageURL("department-books-stationery.webp") }
+			srcset={ assets.ProductImageSrcset("department-books-stationery.webp") }
+			sizes="(min-width: 64rem) 57vw, 1px"
+			alt=""
+			width="1600"
+			height="1200"
+			decoding="async"
+		/>
+	</div>
 }
 
 // Credentials as plain text for a browser without scripting; goen.js reveals the button that fills and submits the form.
@@ -137,8 +153,8 @@ templ demoAccountNote(v AuthView) {
 
 templ Register(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
-		<div class="goen-auth">
-			<div class="goen-auth__panel goen-auth__panel--wide">
+		<div class="goen-auth goen-auth--door">
+			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
 				if v.HasNotice() {
 					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "register-sent"}) {
@@ -274,6 +290,7 @@ templ Register(p layouts.Page, v AuthView) {
 					<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
 				</p>
 			</div>
+			@authDoor()
 		</div>
 	}
 }
