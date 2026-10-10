@@ -443,20 +443,21 @@
       const { sourceElement, response } = event.detail || {};
       const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
       // DropEmptyParams may leave HX-Push-Url on an error response.
-      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
+      if ((form?.matches(".goen-filters") || form?.matches(".goen-search-sort")) && response?.status >= 400) event.preventDefault();
     });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
       // A timeout and a replaced request both abort without a response. Only
-      // the latest request may change the feedback beside the filters.
+      // the latest request may change the feedback beside the form.
       const requestForm = ctx?.request?.form;
       const ownsRead = requestForm && reads.get(requestForm) === ctx;
       if (ownsRead) {
         reads.delete(requestForm);
-        if (requestForm.matches(".goen-filters")) {
-          const note = document.querySelector(".goen-filters__error");
+        if (requestForm.matches(".goen-filters") || requestForm.matches(".goen-search-sort")) {
+          const note = document.querySelector(requestForm.matches(".goen-search-sort")
+            ? "#goen-search-sort-error" : ".goen-filters__error");
           const raw = ctx.response?.raw;
           if (note) note.hidden = raw?.ok === true;
         }

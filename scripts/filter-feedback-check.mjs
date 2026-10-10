@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 
 const origin = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
 const debugging = `http://127.0.0.1:${Number(process.env.CDP_PORT || 9222)}`;
 const failures = [];
+const sortFailureCaptures = [];
 
 export async function waitForDebuggingEndpoint(endpoint, { timeoutMs = 30000, retryMs = 200 } = {}) {
   const deadline = performance.now() + timeoutMs;
@@ -370,6 +373,8 @@ async function journey(connection, locale, width) {
 async function searchSortJourney(connection, locale, width) {
   const { browserContextId } = await connection.send('Target.createBrowserContext', { disposeOnDetach: true });
   let targetId;
+  let stopPaused;
+  let stopFailed;
   try {
     ({ targetId } = await connection.send('Target.createTarget', { url: 'about:blank', browserContextId }));
     const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
@@ -499,7 +504,212 @@ async function searchSortJourney(connection, locale, width) {
         console.error('FAIL ' + failure);
       } else console.log('PASS ' + label + ': ' + JSON.stringify(result));
     }
+
+    let mode = 'real';
+    let protocolFailure;
+    const held = new Map();
+    const httpEvidence = [];
+    const waitFor = async (predicate, why) => {
+      const deadline = Date.now() + 15000;
+      while (!await predicate()) {
+        if (protocolFailure) throw protocolFailure;
+        if (Date.now() >= deadline) throw new Error(why);
+        await delay(20);
+      }
+      if (protocolFailure) throw protocolFailure;
+    };
+    const intercept = async ({ params }) => {
+      const { requestId, request, networkId, responseStatusCode, responseHeaders } = params;
+      assert.equal(new URL(request.url).origin, origin);
+      assert.equal(new URL(request.url).pathname, '/search');
+      // Reference reads use the real server without entering the fault lane.
+      if ((request.headers['HX-Request'] || request.headers['hx-request']) !== 'true') {
+        await send('Fetch.continueRequest', { requestId });
+        return;
+      }
+      if (responseStatusCode) {
+        assert.equal(responseStatusCode, 200, 'the HTTP fault must start with a real successful production response');
+        const push = responseHeaders.find(header => header.name.toLowerCase() === 'hx-push-url')?.value;
+        assert.ok(push, 'the real relevance response must carry its canonical history header');
+        const body = await send('Fetch.getResponseBody', { requestId });
+        const status = Number(mode);
+        assert.ok([400, 500].includes(status));
+        httpEvidence.push({ requestURL: request.url, originalStatus: responseStatusCode, controlledStatus: status, pushURL: push });
+        await send('Fetch.fulfillRequest', {
+          requestId, responseCode: status,
+          responseHeaders: responseHeaders.filter(header => !['content-length', 'content-encoding', 'transfer-encoding'].includes(header.name.toLowerCase())),
+          body: body.base64Encoded ? body.body : Buffer.from(body.body).toString('base64'),
+        });
+      } else if (mode === 'transport') {
+        await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionClosed' });
+      } else if (mode === 'hold' || mode === 'timeout') {
+        held.set(requestId, { networkId, url: request.url });
+      } else {
+        await send('Fetch.continueRequest', { requestId, interceptResponse: mode === '400' || mode === '500' });
+      }
+    };
+    stopPaused = connection.on('Fetch.requestPaused', event => {
+      if (event.sessionId === sessionId) intercept(event).catch(error => { protocolFailure = error; });
+    });
+    stopFailed = connection.on('Network.loadingFailed', event => {
+      if (event.sessionId !== sessionId) return;
+      for (const [id, request] of held) {
+        if (request.networkId === event.params.requestId) held.delete(id);
+      }
+    });
+    await send('Page.navigate', { url: origin + '/search?q=pixelight&sort=price_desc' });
+    await waitFor(() => evaluate(`document.readyState === 'complete' && !!document.querySelector('.goen-search-sort')?._htmx?.initialized`), 'sort failure page did not initialize');
+    const initial = await evaluate(`(() => {
+      const form = document.querySelector('.goen-search-sort');
+      const select = form?.querySelector('select[name=sort]');
+      const note = document.getElementById('goen-search-sort-error');
+      if (!select || !note || !document.getElementById('search-results')) throw new Error('sort failure landmarks missing');
+      const p = window.searchSortFeedbackCheck = { form, select, note, contexts: [], finished: new Set(), timeout: htmx.config.defaultTimeout };
+      p.links = root => [...root.querySelectorAll('#search-results a.goen-tile')].map(a => a.getAttribute('href'));
+      p.originalFetch = window.fetch;
+      document.addEventListener('htmx:before:request', ({ detail }) => { if (detail.ctx?.request?.form === form) p.contexts.push(detail.ctx); });
+      document.addEventListener('htmx:finally:request', ({ detail }) => { if (detail.ctx?.request?.form === form) p.finished.add(detail.ctx); });
+      return { lang: document.documentElement.lang, hidden: note.hidden, role: note.getAttribute('role'), message: note.textContent.trim(), outsideResults: !document.getElementById('search-results').contains(note) };
+    })()`);
+    assert.equal(initial.lang, locale);
+    assert.equal(initial.hidden, true);
+    assert.equal(initial.role, 'alert');
+    assert.equal(initial.outsideResults, true);
+    assert.ok(initial.message.length > 0);
+    await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/search*', resourceType: 'Fetch', requestStage: 'Request' }] });
+    const change = async value => {
+      const index = await evaluate(`(() => {
+        const p = searchSortFeedbackCheck;
+        p.before = { url: location.href, node: document.getElementById('search-results'), text: document.getElementById('search-results').textContent, links: p.links(document) };
+        const index = p.contexts.length;
+        p.select.focus(); p.select.value = ${JSON.stringify(value)};
+        p.select.dispatchEvent(new Event('change', { bubbles: true }));
+        return index;
+      })()`);
+      await waitFor(() => evaluate(`searchSortFeedbackCheck.contexts.length > ${index}`), 'sort failure request did not start');
+      return index;
+    };
+    const finished = index => waitFor(() => evaluate(`searchSortFeedbackCheck.finished.has(searchSortFeedbackCheck.contexts[${index}])`), 'sort failure request did not finish');
+    const state = index => evaluate(`(() => {
+      const p = searchSortFeedbackCheck, ctx = p.contexts[${index}], node = document.getElementById('search-results');
+      const raw = ctx.response?.raw;
+      const rect = p.note.getBoundingClientRect();
+      return { status: raw?.status ?? null, ok: raw?.ok === true, aborted: ctx.request.signal.aborted,
+        href: location.href, acceptedURL: p.before.url, urlUnchanged: location.href === p.before.url,
+        sameNode: node === p.before.node, sameResults: node.textContent === p.before.text && JSON.stringify(p.links(document)) === JSON.stringify(p.before.links),
+        hidden: p.note.hidden, visible: !p.note.hidden && rect.width > 0 && rect.height > 0 && getComputedStyle(p.note).visibility !== 'hidden',
+        role: p.note.getAttribute('role'), message: p.note.textContent.trim(), focused: document.activeElement === p.select,
+        pending: p.form.getAttribute('aria-busy') === 'true',
+        cleared: !p.form.hasAttribute('data-request-pending') && p.form.getAttribute('aria-busy') !== 'true' && !p.form.querySelector('[aria-disabled="true"]'),
+        links: p.links(document), selected: p.select.value, pushURL: raw?.headers.get('HX-Push-Url') ?? null };
+    })()`);
+    const report = (name, actual, expected) => {
+      const label = `search sort feedback / ${locale} / ${width} / ${name}`;
+      const differences = Object.entries(expected).filter(([key, value]) => actual[key] !== value)
+        .map(([key, value]) => `${key} = ${JSON.stringify(actual[key])}, want ${JSON.stringify(value)}`);
+      console.log('STATE ' + label + ': ' + JSON.stringify(actual));
+      if (differences.length) {
+        const failure = label + ': ' + differences.join('; ');
+        failures.push(failure); console.error('FAIL ' + failure);
+      } else console.log('PASS ' + label);
+    };
+    const expectedFailure = { ok: false, hidden: false, visible: true, role: 'alert', message: initial.message, urlUnchanged: true, sameNode: true, sameResults: true, focused: true, cleared: true };
+    const captureFailure = async actual => {
+      const context = await evaluate(`(() => {
+        const p = searchSortFeedbackCheck;
+        p.note.scrollIntoView({ block: 'center', behavior: 'instant' });
+        return { lang: document.documentElement.lang, finalPath: location.pathname + location.search,
+          viewportWidth: document.documentElement.clientWidth, viewportHeight: window.innerHeight,
+          rootFontSize: getComputedStyle(document.documentElement).fontSize,
+          devicePixelRatio: devicePixelRatio, scrollX: scrollX, scrollY: scrollY,
+          heading: document.querySelector('h1')?.textContent.trim(),
+          selectedSort: p.select.value, alert: p.note.textContent.trim(),
+          alertHidden: p.note.hidden, alertRole: p.note.getAttribute('role') };
+      })()`);
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      const png = Buffer.from(data, 'base64');
+      assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', 'failure capture must be a PNG');
+      const dimensions = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+      assert.equal(dimensions.width, width);
+      assert.equal(dimensions.height, 900);
+      const directory = 'layout-screenshots';
+      const file = `search-sort-http500-${locale}-${width}.png`;
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(`${directory}/${file}`, png);
+      const record = { file, sha256: createHash('sha256').update(png).digest('hex'), dimensions,
+        requestedViewport: { width, height: 900 }, locale, ...context,
+        fault: httpEvidence.at(-1), acceptedURL: actual.acceptedURL, observedURL: actual.href,
+        sameResultsNode: actual.sameNode, sameResultsTextAndLinks: actual.sameResults,
+        acceptedLinks: actual.links, visibleAlert: actual.visible, focused: actual.focused };
+      sortFailureCaptures.push(record);
+      writeFileSync(`${directory}/search-sort-failures.json`, JSON.stringify(sortFailureCaptures, null, 2) + '\n');
+      console.log('CAPTURE search sort feedback: ' + JSON.stringify(record));
+    };
+
+    const recover = async name => {
+      mode = 'real';
+      await evaluate('htmx.config.defaultTimeout = searchSortFeedbackCheck.timeout');
+      const index = await change('price_asc');
+      await finished(index);
+      const actual = await state(index);
+      const expectedLinks = await evaluate(`(async () => {
+        const p = searchSortFeedbackCheck;
+        const response = await p.originalFetch.call(window, '/search?q=pixelight&sort=price_asc');
+        if (!response.ok) throw new Error('sort recovery reference failed: ' + response.status);
+        return p.links(new DOMParser().parseFromString(await response.text(), 'text/html'));
+      })()`);
+      assert.ok(expectedLinks.length >= 2, 'recovery must compare actual ordered results');
+      report(name + ' recovery', { ...actual, responseAgreement: JSON.stringify(actual.links) === JSON.stringify(expectedLinks), acceptedSort: new URL(actual.href).searchParams.get('sort') === 'price_asc' },
+        { ok: true, status: 200, hidden: true, sameNode: false, focused: true, cleared: true, selected: 'price_asc', acceptedSort: true, responseAgreement: true });
+    };
+    for (const fault of ['400', '500', 'transport', 'timeout']) {
+      mode = fault;
+      if (fault === 'timeout') await evaluate('htmx.config.defaultTimeout = 500');
+      const index = await change('');
+      await finished(index);
+      const actual = await state(index);
+      report(fault, actual, { ...expectedFailure, status: ['400', '500'].includes(fault) ? Number(fault) : null, ...(fault === 'timeout' ? { aborted: true } : {}) });
+      if (fault === '400' || fault === '500') {
+        assert.ok(actual.pushURL, 'controlled HTTP error must retain real HX-Push-Url');
+        console.log('HTTP fault evidence ' + JSON.stringify(httpEvidence.at(-1)));
+      }
+      if (fault === '500') await captureFailure(actual);
+      await recover(fault);
+    }
+    mode = 'hold';
+    await evaluate(`(() => {
+      const p = searchSortFeedbackCheck;
+      htmx.config.defaultTimeout = 15000;
+      p.delayNext = true;
+      window.fetch = (...args) => {
+        const outcome = p.originalFetch.call(window, ...args).then(value => ({ value }), error => ({ error }));
+        if (!p.delayNext) return outcome.then(result => { if (result.error) throw result.error; return result.value; });
+        p.delayNext = false;
+        return new Promise(resolve => { p.releaseOlder = resolve; }).then(async () => {
+          const result = await outcome;
+          if (args[1].signal.aborted) throw new DOMException('Superseded sort', 'AbortError');
+          if (result.error) throw result.error;
+          return result.value;
+        });
+      };
+    })()`);
+    const older = await change('price_desc');
+    await waitFor(() => held.size === 1, 'older sort did not reach controlled hold');
+    mode = 'transport';
+    const latest = await change('');
+    await finished(latest);
+    report('latest failure before older completion', await state(latest), expectedFailure);
+    await evaluate('searchSortFeedbackCheck.releaseOlder()');
+    await finished(older);
+    report('latest failure after older completion', await state(latest), expectedFailure);
+    report('superseded older request', await state(older), { aborted: true });
+    await evaluate('window.fetch = searchSortFeedbackCheck.originalFetch');
+    await recover('superseded failure');
+    if (protocolFailure) throw protocolFailure;
   } finally {
+    stopPaused?.();
+    stopFailed?.();
     try {
       if (targetId) await connection.send('Target.closeTarget', { targetId });
     } finally {
