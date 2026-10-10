@@ -1465,8 +1465,6 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		if orderaccess.ReloadSameSite(w, r, h.log) {
 			return
 		}
-		// Its own page rather than a bare Notice: this is the one 404 with a
-		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
@@ -1531,9 +1529,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1570,9 +1566,7 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1585,7 +1579,10 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody)))
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), pages.NoticeActions{
+				Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
 		h.serverError(w, r)

@@ -15,11 +15,11 @@ import (
 // arrived, where the refusal becomes a 500. It belongs before routing, so
 // nothing behind it reads one. A query pair that does not decode is left alone,
 // as every reader of the query drops it.
-func RefuseUnstorableText(next http.Handler, secure bool) http.Handler {
+func RefuseUnstorableText(next http.Handler, secure bool, refuse http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !storableText(r.URL.Path) || !queryStoresAsText(r.URL.RawQuery) {
 			ctx := i18n.WithLocale(r.Context(), i18n.Detect(r, secure))
-			http.Error(w, "400 "+i18n.T(ctx, i18n.KeyAddressUnreadable), http.StatusBadRequest)
+			refuse.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		next.ServeHTTP(w, r)
