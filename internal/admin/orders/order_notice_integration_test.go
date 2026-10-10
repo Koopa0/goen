@@ -32,11 +32,11 @@ func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 	}
 	terminalNotice(t, id, email.TerminalCancelledByStaff)
 	number, id, _ = admintest.PendingOrderHoldingStock(t, pool)
-	if _, err := cart.NewStore(pool).CancelOrder(t.Context(), number); err != nil {
+	if err := cart.NewStore(pool).CancelOrder(t.Context(), number); err != nil {
 		t.Fatal(err)
 	}
 	terminalNotice(t, id, email.TerminalCancelledByCustomer)
-	if _, err := cart.NewStore(pool).CancelOrder(t.Context(), number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := cart.NewStore(pool).CancelOrder(t.Context(), number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Fatalf("repeat cancellation=%v", err)
 	}
 }
