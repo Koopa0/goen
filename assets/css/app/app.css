@@ -5630,14 +5630,13 @@ input.goen-check {
    radii and buttons do not. A tone never touches a photograph: wherever the two
    meet, a seam of goen's white (--n-0) lies between them, which is why a tone
    can be a flat colour and not the ground its photographs were shot on.
-   assets/contrast_test.go holds the text, edge and mark colours to their
+   assets/contrast_test.go holds the text and mark colours to their
    ratios on every ground. */
 [data-tone="paper"] {
   --tone-ground: #eae1d6;
   --tone-rule: #ddd3c6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5646,7 +5645,6 @@ input.goen-check {
   --tone-rule: #cfcfce;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5655,7 +5653,6 @@ input.goen-check {
   --tone-rule: #c5d6e6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5664,7 +5661,6 @@ input.goen-check {
   --tone-rule: #c7d6c4;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5673,7 +5669,6 @@ input.goen-check {
   --tone-rule: #e3cac6;
   --tone-text: var(--n-900);
   --tone-muted: #4d4d53;
-  --tone-edge: #77777e;
   --tone-mark: var(--mark);
 }
 
@@ -5690,7 +5685,6 @@ input.goen-check {
   --tone-rule: #27272a;
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
-  --tone-edge: #8e8e96;
   --tone-mark: var(--on-ink-accent);
 }
 
