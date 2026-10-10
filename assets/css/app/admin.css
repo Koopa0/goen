@@ -2630,6 +2630,17 @@ input.goen-check {
   }
 }
 
+/* Queue names must remain readable when the heading stacks at enlarged text. */
+.goen-modqueue__switch {
+  height: auto;
+  max-width: 100%;
+  min-height: max(44px, 2.75rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
+}
+
 /* Back office — content
 
    The five content queues — the FAQ editor, the contact inbox, the product
@@ -2647,17 +2658,6 @@ input.goen-check {
    children, space them. This one does the item's job. No element is painted
    twice, and when those screens are rebuilt their rule goes without this one
    having to move. */
-/* Queue names must remain readable when the heading stacks at enlarged text. */
-.goen-modqueue__switch {
-  height: auto;
-  max-width: 100%;
-  min-height: max(44px, 2.75rem);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding-block: 0.5rem;
-  white-space: normal;
-}
-
 .goen-modqueue {
   display: flex;
   flex-direction: column;
