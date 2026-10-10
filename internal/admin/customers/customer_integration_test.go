@@ -377,7 +377,7 @@ func registeredWarrantyQuantity(t *testing.T, serial string, quantity int32) (re
 	}
 
 	if err := warranty.NewStore(pool).Register(
-		ctx, lineID.String(), userID.String(), serial, 1); err != nil {
+		ctx, number, lineID.String(), userID.String(), serial, 1); err != nil {
 		t.Fatalf("register warranty: %v", err)
 	}
 	return serial, number
