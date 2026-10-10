@@ -13943,6 +13943,7 @@ JOIN LATERAL (
       AND p.delivered_at IS NOT NULL
 ) parcel ON true
 WHERE ol.id = $4
+  AND o.order_number = $5::text
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
   AND $1::smallint <= (
@@ -13963,6 +13964,7 @@ type RegisterWarrantyParams struct {
 	UserID       uuid.NullUUID
 	SerialNumber string
 	OrderLineID  uuid.UUID
+	OrderNumber  string
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
@@ -13976,6 +13978,7 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 		arg.UserID,
 		arg.SerialNumber,
 		arg.OrderLineID,
+		arg.OrderNumber,
 	)
 	if err != nil {
 		return 0, err

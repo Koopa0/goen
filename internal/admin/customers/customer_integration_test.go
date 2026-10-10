@@ -372,7 +372,7 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	}
 
 	if err := warranty.NewStore(pool).Register(
-		ctx, lineID.String(), userID.String(), serial, 1); err != nil {
+		ctx, number, lineID.String(), userID.String(), serial, 1); err != nil {
 		t.Fatalf("register warranty: %v", err)
 	}
 	return serial, number
