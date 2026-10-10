@@ -3424,6 +3424,23 @@ form[data-request-pending] [aria-disabled="true"] {
   margin: 0;
 }
 
+/* A short sample of the line each name belongs to, drawn as the series is. */
+.goen-chart__endkey dt::before {
+  content: "";
+  display: inline-block;
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+  width: 1rem;
+}
+
+.goen-chart__endkey--current dt::before {
+  border-top: 2px solid var(--chart-hue);
+}
+
+.goen-chart__endkey--previous dt::before {
+  border-top: 1.5px solid var(--chart-previous);
+}
+
 /* Dates share the plot's fitted pixel geometry; their enlarged text remains
    in the complete data table, while the end legend itself grows and wraps. */
 .goen-chart__frame--runningtotal .goen-chart__plot > .goen-chart__label {
@@ -3737,6 +3754,14 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__previous {
     stroke: GrayText;
+  }
+
+  .goen-chart__endkey--current dt::before {
+    border-top-color: CanvasText;
+  }
+
+  .goen-chart__endkey--previous dt::before {
+    border-top-color: GrayText;
   }
 
   .goen-chart__wash,

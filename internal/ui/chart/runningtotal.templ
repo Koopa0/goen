@@ -31,11 +31,11 @@ templ RunningTotal(p RunningTotalProps) {
 			</div>
 			<p class="goen-chart__readout"></p>
 			<dl class="goen-chart__endlegend" aria-hidden="true">
-				<div>
+				<div class="goen-chart__endkey goen-chart__endkey--current">
 					<dt>{ r.CurrentLabel.Name }</dt>
 					<dd>{ r.CurrentLabel.Total }</dd>
 				</div>
-				<div>
+				<div class="goen-chart__endkey goen-chart__endkey--previous">
 					<dt>{ r.PrevLabel.Name }</dt>
 					<dd>{ r.PrevLabel.Total }</dd>
 				</div>
