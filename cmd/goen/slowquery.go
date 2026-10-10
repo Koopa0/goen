@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/web"
 )
@@ -15,6 +16,8 @@ import (
 // the log: well under the statement timeouts, so a query creeping from 50ms to
 // 800ms is seen long before it starts being cancelled.
 const slowQueryThreshold = 500 * time.Millisecond
+
+const slowAcquireThreshold = 100 * time.Millisecond
 
 // sqlcName reads the `-- name: Foo :one` comment sqlc leaves at the head of
 // every statement it generates.
@@ -27,10 +30,10 @@ type slowQueryStart struct {
 
 type slowQueryKey struct{}
 
-// slowQueryTracer logs a WARN for a statement slower than threshold, naming the
-// sqlc statement, how long it took and which pool ran it. It never logs the
-// arguments, which carry customers' personal data, nor the error, whose text
-// pgx builds from the offending values.
+type slowAcquireKey struct{}
+
+// SQL arguments and error text can carry customers' personal data, so neither
+// query nor acquisition warnings include them.
 type slowQueryTracer struct {
 	log       *slog.Logger
 	pool      string
@@ -67,5 +70,29 @@ func (t *slowQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.
 			attrs = append(attrs, slog.String("request_id", id))
 		}
 		t.log.LogAttrs(ctx, slog.LevelWarn, "slow query", attrs...)
+	}
+}
+
+func (t *slowQueryTracer) TraceAcquireStart(
+	ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData,
+) context.Context {
+	return context.WithValue(ctx, slowAcquireKey{}, t.now())
+}
+
+func (t *slowQueryTracer) TraceAcquireEnd(ctx context.Context, _ *pgxpool.Pool, data pgxpool.TraceAcquireEndData) {
+	start, ok := ctx.Value(slowAcquireKey{}).(time.Time)
+	if !ok {
+		return
+	}
+	if elapsed := t.now().Sub(start); elapsed >= slowAcquireThreshold {
+		attrs := []slog.Attr{
+			slog.String("pool", t.pool),
+			slog.Duration("duration", elapsed),
+			slog.Bool("failed", data.Err != nil),
+		}
+		if id := web.RequestID(ctx); id != "" {
+			attrs = append(attrs, slog.String("request_id", id))
+		}
+		t.log.LogAttrs(ctx, slog.LevelWarn, "slow acquire", attrs...)
 	}
 }
