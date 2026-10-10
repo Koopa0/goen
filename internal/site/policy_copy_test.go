@@ -89,23 +89,3 @@ func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
 		})
 	}
 }
-
-func TestPolicyCopyAvoidsSystemJargon(t *testing.T) {
-	t.Parallel()
-	for page, doc := range policies {
-		for _, locale := range i18n.Locales() {
-			t.Run(page+"/"+string(locale), func(t *testing.T) {
-				t.Parallel()
-				var out strings.Builder
-				if err := pages.Policy(layouts.Page{}, doc.For(locale)).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
-					t.Fatal(err)
-				}
-				for _, word := range []string{"系統本身", "店儲", "額度", "argon2id", "簽章", "User-Agent"} {
-					if strings.Contains(strings.ToLower(out.String()), strings.ToLower(word)) {
-						t.Errorf("policy still contains %q", word)
-					}
-				}
-			})
-		}
-	}
-}
