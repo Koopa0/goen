@@ -32,8 +32,11 @@ type slowQueryKey struct{}
 
 type slowAcquireKey struct{}
 
-// SQL arguments and error text can carry customers' personal data, so neither
-// query nor acquisition warnings include them.
+// slowQueryTracer logs a WARN for a statement slower than slowQueryThreshold,
+// naming the sqlc statement, and for a connection acquisition slower than
+// slowAcquireThreshold, each with how long it took and which pool. It never
+// logs the arguments, which carry customers' personal data, nor the error,
+// whose text pgx builds from the offending values.
 type slowQueryTracer struct {
 	log       *slog.Logger
 	pool      string
