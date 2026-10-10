@@ -377,7 +377,16 @@ func (s *Store) Sweep(ctx context.Context) (int64, error) {
 	if err != nil {
 		return delivered, fmt.Errorf("sweep undelivered messages: %w", err)
 	}
-	return delivered + undelivered, nil
+	for _, m := range undelivered {
+		s.log.WarnContext(ctx, "outbox message expired",
+			"message", m.ID, "topic", m.Topic, "attempts", m.Attempts,
+			"created_at", m.CreatedAt)
+	}
+	if delivered > 0 || len(undelivered) > 0 {
+		s.log.InfoContext(ctx, "outbox swept", "delivered", delivered,
+			"undelivered", len(undelivered), "retain_days", int(Retain.Hours()/24))
+	}
+	return delivered + int64(len(undelivered)), nil
 }
 
 // SweepForever runs Sweep on a ticker until ctx is cancelled. A sweep that errors
@@ -390,12 +399,8 @@ func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			switch n, err := s.Sweep(ctx); {
-			case err != nil && ctx.Err() == nil:
+			if _, err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
 				log.ErrorContext(ctx, "sweep outbox", "error", err)
-			case err == nil && n > 0:
-				log.InfoContext(ctx, "outbox swept", "deleted", n,
-					"retain_days", int(Retain.Hours()/24))
 			}
 		}
 	}
