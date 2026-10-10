@@ -542,6 +542,10 @@ func (v *ProductView) AlreadyComparing() bool {
 	return slices.Contains(v.Comparing, v.Slug)
 }
 
+func (v *ProductView) CurrentCompareHref() string {
+	return "/compare?" + url.Values{"p": v.Comparing}.Encode()
+}
+
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 // maxHighlights is how many specification values stand under the name.
