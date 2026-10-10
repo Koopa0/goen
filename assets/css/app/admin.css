@@ -3801,6 +3801,20 @@ form[data-request-pending] [aria-disabled="true"] {
   fill: var(--chart-previous);
 }
 
+/* Day ticks are fitted to pixel geometry, like the span names below. Keep
+   their fitted size; the complete data table carries enlarged date text. */
+.goen-chart__frame--columns .goen-chart__plot > .goen-chart__label {
+  font-size: 12px;
+}
+
+/* Below the span-fitting threshold, even fixed-size dates share too little
+   room. Keep the final day (Today when present); every date stays in the table. */
+@container (width < 18rem) {
+  .goen-chart__frame--columns .goen-chart__plot > .goen-chart__label:not(:last-of-type) {
+    display: none;
+  }
+}
+
 .goen-chart__open {
   fill: var(--bg);
   stroke: var(--chart-hue);
