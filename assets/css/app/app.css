@@ -5520,8 +5520,7 @@ input.goen-check {
 .goen-checkout,
 .goen-order,
 .goen-pay,
-.goen-returns,
-.goen-findorder {
+.goen-returns {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -5544,14 +5543,6 @@ input.goen-check {
 .goen-order,
 .goen-pay {
   max-width: calc(48rem + 2 * var(--page-gutter));
-}
-
-/* The lookup is a credential form, so it sits in the middle of the fold the
-   way every other one does. */
-.goen-findorder {
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
 }
 
 .goen-pagehead {
@@ -6693,40 +6684,6 @@ input.goen-check {
   gap: 12px;
 }
 
-.goen-findorder__card {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 400px;
-  width: 100%;
-}
-
-.goen-findorder__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-20);
-  font-weight: var(--fw-medium);
-  margin: 0;
-}
-
-.goen-findorder__sub,
-.goen-findorder__alt {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  margin: 0;
-  text-align: center;
-}
-
-.goen-findorder__sub {
-  text-align: start;
-}
-
-.goen-findorder__alt a {
-  color: var(--accent-text);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
 @media (min-width: 640px) {
   .goen-cart .goen-pagehead__title,
   .goen-checkout .goen-pagehead__title,
@@ -6774,8 +6731,7 @@ input.goen-check {
   .goen-checkout,
   .goen-order,
   .goen-pay,
-  .goen-returns,
-  .goen-findorder {
+  .goen-returns {
     gap: 2rem;
     padding: 2rem var(--page-gutter) 4rem;
   }
@@ -6891,8 +6847,7 @@ input.goen-check {
   .goen-checkout,
   .goen-order,
   .goen-pay,
-  .goen-returns,
-  .goen-findorder {
+  .goen-returns {
     padding: 2.5rem var(--page-gutter) 5rem;
   }
 
@@ -6919,7 +6874,7 @@ input.goen-check {
 
    Every surface here is a single column a visitor reads or fills in, so they
    share one rhythm: a page title, 1.5rem to the content, and sections parted by
-   a hairline rather than boxed. Auth is a bare 24rem form. The account is a
+   a hairline rather than boxed. Auth is a bare 24rem form, with a photo beside it for sign in and register. The account is a
    column of links beside its sections. Policy, FAQ and about are one 48rem
    prose column. Contact puts the form beside the facts. The 404 and the
    campaign page close the set.
@@ -6928,8 +6883,7 @@ input.goen-check {
    already on, which is what keeps the whole surface working with scripting off.
    ------------------------------------------------------------------------ */
 
-/* Page title and display sizes, written once for the four heads below. */
-.goen-auth__title,
+/* Page title and display sizes, written once for the heads below. */
 .goen-doc__head .goen-pagehead__title,
 .contact .goen-pagehead__title,
 .about__title,
@@ -6939,7 +6893,6 @@ input.goen-check {
 }
 
 @media (min-width: 640px) {
-  .goen-auth__title,
   .goen-doc__head .goen-pagehead__title,
   .contact .goen-pagehead__title,
   .about__title,
@@ -6968,22 +6921,27 @@ input.goen-check {
   gap: 1.25rem;
   margin: 0 auto auto;
   max-width: 24rem;
+  min-width: 0;
   width: 100%;
-}
-
-/* Registration is the same column. The modifier stays as a marker the markup
-   already carries. */
-.goen-auth__panel--wide {
-  max-width: 24rem;
 }
 
 .goen-auth__title {
   color: var(--n-900);
+  font-size: var(--t-44);
   font-weight: var(--fw-display);
+  line-height: 1.2;
   margin: 0;
+  text-wrap: balance;
 }
 
-.goen-auth__lede,
+/* Why you are here and where you go next: the first sentence read, so body text under the title. */
+.goen-auth__lede {
+  color: var(--ink-2);
+  font-size: var(--fs-16);
+  line-height: 1.6;
+  margin: -0.5rem 0 0;
+}
+
 .goen-auth__hint {
   color: var(--n-500);
   font-size: var(--fs-14);
@@ -6997,20 +6955,15 @@ input.goen-check {
   gap: 1.25rem;
 }
 
-/* The way out of a forgotten password sits on the label's own row, beside the
-   field it is about, rather than under the button where it reads as a second
-   action of equal weight. */
-.goen-auth__labelrow {
-  align-items: center;
-  display: flex;
-  gap: 0.5rem;
-  justify-content: space-between;
-}
-
+/* Under the field it is about, after it in the DOM: what is seen is the order Tab takes. */
 .goen-auth__forgot {
+  align-items: center;
+  align-self: flex-end;
   color: var(--accent-text);
+  display: inline-flex;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  min-height: 1.5rem;
   text-decoration: none;
 }
 
@@ -7019,13 +6972,8 @@ input.goen-check {
   text-decoration: underline;
 }
 
-/* A rule and not a word: a sentence goen says lives in internal/i18n, and the
-   shop has not written one for this. */
-.goen-auth__divider {
-  background: var(--n-200);
-  border: 0;
-  height: 1px;
-  margin: 0;
+.goen-auth__form + .goen-auth__oauth {
+  margin-top: -0.25rem;
 }
 
 .goen-auth__oauth {
@@ -7036,7 +6984,6 @@ input.goen-check {
   color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
-  text-align: center;
 }
 
 .goen-auth__alt a {
@@ -7045,13 +6992,17 @@ input.goen-check {
   text-underline-offset: 4px;
 }
 
-/* The shared demo account: quieter than the form it fills, and its credentials
-   in a face that tells 0 from O and l from 1. */
+.goen-auth .ui-error-text {
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+
+/* The shared demo account: a blue face, never an outline; its button the white hole in it. */
 .goen-auth__demo {
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  color: var(--fg-muted);
+  background: var(--accent-faint);
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  color: var(--muted);
   display: flex;
   flex-direction: column;
   font-size: var(--fs-14);
@@ -7059,8 +7010,14 @@ input.goen-check {
   padding: 1rem;
 }
 
+@media (min-width: 40rem) {
+  .goen-auth__demo {
+    padding: 1.25rem;
+  }
+}
+
 .goen-auth__demotitle {
-  color: var(--fg);
+  color: var(--accent-deep);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   margin: 0;
@@ -7075,7 +7032,7 @@ input.goen-check {
 .goen-auth__democreds div {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0 0.5rem;
 }
 
 .goen-auth__democreds dt {
@@ -7091,12 +7048,65 @@ input.goen-check {
 .goen-auth__democreds code {
   color: var(--fg);
   font-family: var(--font-mono);
+  font-size: var(--fs-14);
   user-select: all;
 }
 
 .goen-auth__demonote {
   line-height: 1.5;
   margin: 0;
+}
+
+.goen-auth__demo .goen-btn--outline {
+  background: var(--n-0);
+}
+
+.goen-auth__demo .goen-btn--outline:hover {
+  background: var(--accent-muted);
+}
+
+.goen-auth__media {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  /* Doubled so that it outranks the padding the 40rem step sets further down. */
+  .goen-auth.goen-auth--door {
+    align-items: start;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    max-width: none;
+    padding: 0 0 6rem;
+  }
+
+  .goen-auth--door .goen-auth__panel {
+    margin: 0 clamp(2rem, 4.5vw, 4.5rem) 0 var(--page-edge);
+    padding-top: 4rem;
+    width: auto;
+  }
+
+  /* The hero's photo column, inset by --col-gap. A ratio and not a rem height, so 200% text cannot stretch it. */
+  .goen-auth__media {
+    display: block;
+    margin-left: var(--col-gap);
+  }
+
+  .goen-auth__media img {
+    aspect-ratio: 3 / 2;
+    background: var(--well);
+    display: block;
+    height: auto;
+    max-height: 40rem;
+    object-fit: cover;
+    object-position: 50% 62%;
+    width: 100%;
+  }
+}
+
+@media (forced-colors: active) {
+  .goen-auth__demo {
+    border-color: CanvasText;
+  }
 }
 
 /* ----- The account, and the pages that hang off it ----- */
