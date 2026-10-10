@@ -12,7 +12,7 @@ var (
 	KeyProductLabelNetQuantity          = key("product.label.net.quantity", Message{ZhHant: "淨含量數值", En: "Net quantity"})
 	KeyProductLabelNetUnit              = key("product.label.net.unit", Message{ZhHant: "淨含量單位", En: "Net unit"})
 	KeyProductLabelMinAge               = key("product.label.age", Message{ZhHant: "最低適用月齡", En: "Minimum age in months"})
-	KeyProductLabelAgeMonths            = key("product.label.age.months", Message{ZhHant: "%d 個月以上", En: "%d months and over"})
+	KeyProductLabelAgeMonths            = countKey("product.label.age.months", "%d 個月以上", "%d month and over", "%d months and over")
 	KeyProductLabelAgeAll               = key("product.label.age.all", Message{ZhHant: "不限年齡", En: "All ages"})
 	KeyProductLabelPiece                = key("product.label.unit.piece", Message{ZhHant: "件", En: "pcs"})
 	KeyProductLabelSave                 = key("product.label.save", Message{ZhHant: "儲存商品標示", En: "Save product label"})
