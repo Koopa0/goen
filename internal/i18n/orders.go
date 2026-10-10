@@ -298,4 +298,8 @@ var (
 		En: "Those details matched an order, but access could not be set up in this browser. " +
 			"Try finding your order again.",
 	})
+
+	KeyOrderNotInAccount = key("order.notinaccount", Message{ZhHant: "這筆訂單不在你的帳號裡，請用訂單編號和電子郵件查詢。", En: "This order is not in your account. Find it using the order number and email address."})
+
+	KeyFindOrderContact = key("order.find.contact", Message{ZhHant: "找不到確認信？請聯絡我們，並附上下單時用的電子郵件。", En: "Can't find your confirmation email? Contact us and include the email address you used at checkout."})
 )

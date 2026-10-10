@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -26,11 +27,11 @@ func TestRefusedOrderLookupOffersContactAndKeepsInput(t *testing.T) {
 		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `value="GO-260101-000001"`) {
 			t.Error("lookup refusal lost the number or the 422 response")
 		}
-		want := "Can’t find your confirmation email? Contact us and include the email address you used at checkout."
+		want := "Can't find your confirmation email? Contact us and include the email address you used at checkout."
 		if locale == i18n.ZhHant {
-			want = "找不到確認信？請聯絡我們，並附上下單時用的 Email。"
+			want = "找不到確認信？請聯絡我們，並附上下單時用的電子郵件。"
 		}
-		if !strings.Contains(body, `href="/contact">`+want+`</a>`) {
+		if !strings.Contains(body, `href="/contact">`+html.EscapeString(want)+`</a>`) {
 			t.Error("lookup refusal has no confirmation-email recovery guidance")
 		}
 	}

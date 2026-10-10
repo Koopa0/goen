@@ -57,7 +57,7 @@ func TestOrderNotFoundOffersRecoveryForTheVisitor(t *testing.T) {
 			if strings.Contains(body, `class="notice__code"`) {
 				t.Error("missing-order page still displays a status code")
 			}
-			if signedIn && locale == i18n.ZhHant && !strings.Contains(body, "這筆訂單不在你的帳號裡，請用訂單編號和 Email 查詢") {
+			if signedIn && locale == i18n.ZhHant && !strings.Contains(body, "這筆訂單不在你的帳號裡，請用訂單編號和電子郵件查詢。") {
 				t.Error("signed-in visitor is not told to use the order number and email")
 			}
 		}
