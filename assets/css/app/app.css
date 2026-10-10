@@ -1483,6 +1483,14 @@ th {
    dropped, so one language control shows at a time. */
 .goen-header__close {
   align-self: flex-end;
+  display: none;
+}
+
+/* The native summary closes the drawer when scripting is unavailable. */
+@media (scripting: enabled) {
+  .goen-header__close {
+    display: flex;
+  }
 }
 
 .goen-header__drawertools {
