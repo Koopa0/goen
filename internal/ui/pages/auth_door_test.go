@@ -11,7 +11,7 @@ import (
 var authPhoto = regexp.MustCompile(`<img[^>]*department-books-stationery[^>]*alt=""`)
 
 // TestSignInAndRegisterOpenWithAPhotoAfterTheForm: the photo is decoration, so
-// it follows the form in the document and Tab, and the pages that carry no
+// it follows the form in the document, and the pages that carry no
 // photo (a re-sign-in, forgot) stay a single column.
 func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
 	t.Parallel()
@@ -62,14 +62,29 @@ func TestTheDemoAccountTakesTheFocusOffTheEmailField(t *testing.T) {
 	page := layouts.Page{Title: "x"}
 	focus := func(v AuthView) bool {
 		body := renderToString(t, SignIn(page, v))
-		start := strings.Index(body, `id="email"`)
-		end := start + strings.Index(body[start:], ">")
-		return strings.Contains(body[start-200:end], "autofocus")
+		id := strings.Index(body, `id="email"`)
+		if id < 0 {
+			t.Fatal(`no id="email" in the sign-in page`)
+		}
+		start := strings.LastIndex(body[:id], "<input")
+		if start < 0 {
+			t.Fatal(`id="email" is not on an <input>`)
+		}
+		end := id + strings.Index(body[id:], ">")
+		return strings.Contains(body[start:end], "autofocus")
 	}
 	if !focus(AuthView{}) {
 		t.Error("the email field lost its focus with no demo account")
 	}
 	if focus(AuthView{DemoEmail: "demo@example.com", DemoPassword: "x"}) {
 		t.Error("the email field takes the focus above a demo account")
+	}
+}
+
+func TestTheReturnSentenceIsALede(t *testing.T) {
+	t.Parallel()
+	body := renderToString(t, SignIn(layouts.Page{Title: "x"}, AuthView{ReturnMessage: "Sign in to go back to your cart."}))
+	if !strings.Contains(body, `<p class="goen-auth__lede">Sign in to go back to your cart.</p>`) {
+		t.Error("the return sentence is not in an element with class goen-auth__lede")
 	}
 }

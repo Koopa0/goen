@@ -6874,10 +6874,10 @@ input.goen-check {
 
    Every surface here is a single column a visitor reads or fills in, so they
    share one rhythm: a page title, 1.5rem to the content, and sections parted by
-   a hairline rather than boxed. Auth is a bare 24rem form, with a photo beside it for sign in and register. The account is a
-   column of links beside its sections. Policy, FAQ and about are one 48rem
-   prose column. Contact puts the form beside the facts. The 404 and the
-   campaign page close the set.
+   a hairline rather than boxed. Auth is a bare 24rem form, with a photo beside
+   it for sign in and register. The account is a column of links beside its
+   sections. Policy, FAQ and about are one 48rem prose column. Contact puts the
+   form beside the facts. The 404 and the campaign page close the set.
 
    Every section is in the document and the account nav moves the page it is
    already on, which is what keeps the whole surface working with scripting off.
@@ -7067,40 +7067,6 @@ input.goen-check {
 
 .goen-auth__media {
   display: none;
-}
-
-@media (min-width: 64rem) {
-  /* Doubled so that it outranks the padding the 40rem step sets further down. */
-  .goen-auth.goen-auth--door {
-    align-items: start;
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    max-width: none;
-    padding: 0 0 6rem;
-  }
-
-  .goen-auth--door .goen-auth__panel {
-    margin: 0 clamp(2rem, 4.5vw, 4.5rem) 0 var(--page-edge);
-    padding-top: 4rem;
-    width: auto;
-  }
-
-  /* The hero's photo column, inset by --col-gap. A ratio and not a rem height, so 200% text cannot stretch it. */
-  .goen-auth__media {
-    display: block;
-    margin-left: var(--col-gap);
-  }
-
-  .goen-auth__media img {
-    aspect-ratio: 3 / 2;
-    background: var(--well);
-    display: block;
-    height: auto;
-    max-height: 40rem;
-    object-fit: cover;
-    object-position: 50% 62%;
-    width: 100%;
-  }
 }
 
 @media (forced-colors: active) {
@@ -8423,6 +8389,40 @@ input.goen-check {
 
   .notice {
     padding: 6rem var(--page-gutter) 8rem;
+  }
+}
+
+/* After the 640px step, whose .goen-auth padding this replaces by rule order. */
+@media (min-width: 64rem) {
+  .goen-auth--door {
+    align-items: start;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    max-width: none;
+    padding: 0 0 6rem;
+  }
+
+  .goen-auth--door .goen-auth__panel {
+    margin: 0 clamp(2rem, 4.5vw, 4.5rem) 0 var(--page-edge);
+    padding-top: 4rem;
+    width: auto;
+  }
+
+  /* The hero's photo column, inset by --col-gap. A ratio and not a rem height, so 200% text cannot stretch it. */
+  .goen-auth__media {
+    display: block;
+    margin-left: var(--col-gap);
+  }
+
+  .goen-auth__media img {
+    aspect-ratio: 3 / 2;
+    background: var(--well);
+    display: block;
+    height: auto;
+    max-height: 40rem;
+    object-fit: cover;
+    object-position: 50% 62%;
+    width: 100%;
   }
 }
 

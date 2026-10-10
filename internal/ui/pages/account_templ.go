@@ -87,14 +87,14 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.ReturnMessage != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"goen-auth__alt\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"goen-auth__lede\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.ReturnMessage)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 19, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 19, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -466,7 +466,7 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 	})
 }
 
-// The photo comes last in the document: it adds nothing to the form, so a reader and the Tab order meet it after the form.
+// The photo adds nothing to the form, so it follows the form in the document.
 func authDoor() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
