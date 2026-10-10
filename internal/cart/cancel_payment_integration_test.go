@@ -117,6 +117,10 @@ func TestCustomerCancellationAfterSessionExpiryReleasesStock(t *testing.T) {
 	if _, err := pool.Exec(ctx, `SELECT cancel_payment($1)`, ref); err != nil {
 		t.Fatal(err)
 	}
+	otherID := heldOrder(t, freshVariant(t, "cancel-expired-session-other"), -10*time.Minute, false)
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, otherID, "cs_cancel_other_"+uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
 	before := stockOf(t, variant)
 	number := numberOf(t, orderID)
 	if err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
