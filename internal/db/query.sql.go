@@ -17715,6 +17715,34 @@ func (q *Queries) UnreconciledCompletePayments(ctx context.Context) ([]Unreconci
 	return items, nil
 }
 
+const unreconciledPaymentCount = `-- name: UnreconciledPaymentCount :one
+SELECT
+    ((SELECT count(*) FROM payment_webhook_events
+      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
+     +
+     (SELECT count(*) FROM payments p
+      WHERE p.status = 'requires_reconciliation'
+        AND NOT EXISTS (
+            SELECT 1 FROM payment_webhook_events e
+            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+        )))::bigint AS unreconciled_payments
+`
+
+// Events accepted and NOT acted on: a known Stripe object this binary could
+// not read, paid money with no local payment row, paid money for an order
+// already cancelled, a completed checkout whose money is still in flight,
+// or a refund goen recorded as succeeded that Stripe later reported failed.
+// Each is still marked processed because retrying the same event
+// changes nothing; the durable reason makes the human action countable
+// instead of leaving only a log line nobody reads.
+func (q *Queries) UnreconciledPaymentCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, unreconciledPaymentCount)
+	var unreconciled_payments int64
+	err := row.Scan(&unreconciled_payments)
+	return unreconciled_payments, err
+}
+
 const unreconciledPayments = `-- name: UnreconciledPayments :many
 SELECT e.event_id, e.type, coalesce(e.object_ref, '') AS object_ref,
        e.unreconciled::text AS reason, e.received_at,
@@ -18742,24 +18770,7 @@ SELECT
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
-    -- Events accepted and NOT acted on: a known Stripe object this binary could
-    -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, a completed checkout whose money is still in flight,
-    -- or a refund goen recorded as succeeded that Stripe later reported failed.
-    -- Each is still marked processed because retrying the same event
-    -- changes nothing; the durable reason makes the human action countable
-    -- instead of leaving only a log line nobody reads.
-    ((SELECT count(*) FROM payment_webhook_events
-      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
-     +
-     (SELECT count(*) FROM payments p
-      WHERE p.status = 'requires_reconciliation'
-        AND NOT EXISTS (
-            SELECT 1 FROM payment_webhook_events e
-            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
-              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
-        )))::bigint AS unreconciled_payments
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
 `
 
 type WorkerHealthRow struct {
@@ -18771,7 +18782,6 @@ type WorkerHealthRow struct {
 	CopurchaseEverBuilt  bool
 	ExpiredSessions      int64
 	UnreferencedMedia    int64
-	UnreconciledPayments int64
 }
 
 // Overdue is measured from available_at — when a message became DUE — because
@@ -18792,7 +18802,6 @@ func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHe
 		&i.CopurchaseEverBuilt,
 		&i.ExpiredSessions,
 		&i.UnreferencedMedia,
-		&i.UnreconciledPayments,
 	)
 	return i, err
 }

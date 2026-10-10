@@ -93,7 +93,7 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 		return ""
 	case PointsClawedBack:
 		if e.ShortfallPoints > 0 {
-			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackDetail), strconv.FormatInt(e.ShortfallPoints, 10))
+			return i18n.Count(ctx, i18n.KeyPointsClawbackDetail, e.ShortfallPoints, strconv.FormatInt(e.ShortfallPoints, 10))
 		}
 		return ""
 	default:
@@ -140,17 +140,17 @@ func (v *PointsView) ShowRedemptionForm() bool { return v.CanRedeem() || v.Draft
 func (v *PointsView) MinimumText() string { return strconv.FormatInt(v.Minimum, 10) }
 
 func (v *PointsView) RateText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRate), strconv.FormatInt(v.PerCredit, 10))
+	return i18n.Count(ctx, i18n.KeyPointsRate, v.PerCredit, strconv.FormatInt(v.PerCredit, 10))
 }
 
 func (v *PointsView) StepAmountText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsAmount), v.StepText())
+	return i18n.Count(ctx, i18n.KeyPointsAmount, v.PerCredit, v.StepText())
 }
 
 func (v *PointsView) Expiring() bool { return v.ExpiringPoints > 0 && v.ExpiringOn != "" }
 
 func (v *PointsView) ExpiringText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpiring),
+	return i18n.Count(ctx, i18n.KeyPointsExpiring, v.ExpiringPoints,
 		strconv.FormatInt(v.ExpiringPoints, 10), v.ExpiringOn)
 }
 

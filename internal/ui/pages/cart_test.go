@@ -1125,6 +1125,93 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	}
 }
 
+func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []struct {
+		locale                                i18n.Locale
+		pay, place, paying, coveredNote, zero string
+	}{
+		{locale: i18n.ZhHant, pay: "送出訂單並付款", place: "送出訂單", paying: "送出後會為你保留商品，請在 29 分鐘內開始付款。", coveredNote: "購物金已全額折抵，送出後訂單就完成付款。", zero: "這筆訂單不需付款，送出後就完成。"},
+		{locale: i18n.En, pay: "Place order and pay", place: "Place order", paying: "Placing the order holds the goods; start paying within 29 minutes.", coveredNote: "Store credit covers this order; placing it completes payment.", zero: "No payment is needed; placing the order completes it."},
+	} {
+		for _, tt := range []struct {
+			name             string
+			credit, discount int64
+			label, note      string
+		}{
+			{name: "amount owed", label: locale.pay, note: locale.paying},
+			{name: "partially credited", credit: 1000, label: locale.pay, note: locale.paying},
+			{name: "covered by credit", credit: 10000, label: locale.place, note: locale.coveredNote},
+			{name: "zero by discount with unused credit", credit: 10000, discount: 10000, label: locale.place, note: locale.zero},
+		} {
+			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale.locale)
+				view := CheckoutView{
+					Cart:     CartView{Lines: []CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000},
+					Shipping: []ShippingChoice{{VersionID: "shipping", Code: "home", Name: "Home delivery"}}, Chosen: "shipping",
+					AvailableCreditCents: tt.credit, CouponDiscountCents: tt.discount,
+				}
+				if tt.discount > 0 {
+					view.CouponApplied = "FULL"
+				}
+				body := renderComponent(t, ctx, Checkout(CheckoutMeta(ctx), &view))
+				doc, err := htmlparse.Parse(strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				type placementFacts struct {
+					Default, Visible, Note string
+					Notes                  int
+					NoteBeforeVisible      bool
+				}
+				var got placementFacts
+				var visible *htmlparse.Node
+				var form *htmlparse.Node
+				for n := range doc.Descendants() {
+					if n.Type == htmlparse.ElementNode && n.Data == "form" && attrValue(n, "id") == "checkout-form" {
+						form = n
+						break
+					}
+				}
+				if form == nil {
+					t.Fatal("checkout has no placement form")
+				}
+				for n := range form.Descendants() {
+					if n.Type != htmlparse.ElementNode || n.Data != "button" || attrValue(n, "type") != "submit" {
+						continue
+					}
+					if attrValue(n, "aria-hidden") == "true" {
+						got.Default = strings.TrimSpace(nodeText(n))
+					}
+					if strings.Contains(attrValue(n, "class"), "goen-btn--primary") {
+						visible = n
+						got.Visible = strings.TrimSpace(nodeText(n))
+					}
+				}
+				if visible == nil {
+					t.Fatal("checkout has no visible placement button")
+				}
+				seenVisible := false
+				for n := visible.Parent.FirstChild; n != nil; n = n.NextSibling {
+					if n == visible {
+						seenVisible = true
+					}
+					if n.Type == htmlparse.ElementNode && n.Data == "p" && attrValue(n, "class") == "goen-checkout__note" {
+						got.Note = strings.TrimSpace(nodeText(n))
+						got.Notes++
+						got.NoteBeforeVisible = !seenVisible
+					}
+				}
+				want := placementFacts{Default: tt.label, Visible: tt.label, Note: tt.note, Notes: 1, NoteBeforeVisible: true}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("checkout placement explanation (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
 // TestTheChosenOptionIsMarkedOnTheRadioAlone holds the single source for "this
 // is the one chosen". The page used to say it twice — a class the server
 // rendered onto the label, and a :has(input:checked) rule following the live

@@ -26,18 +26,17 @@ var (
 
 	KeyPointsRedeemable = key("points.redeemable", Message{ZhHant: "可兌換", En: "Redeemable"})
 
-	KeyPointsUsing = key("points.using", Message{ZhHant: "用 %s 點", En: "Using %s points"})
+	KeyPointsUsing = countKey("points.using", "用 %s 點", "Using %s point", "Using %s points")
 
 	KeyPointsHowMany = key("points.howmany", Message{
 		ZhHant: "要兌換幾點？",
 		En:     "How many points?",
 	})
 
-	KeyPointsRule = key("points.rule", Message{
-		ZhHant: "最少 %s 點，每次以 %s為單位兌換；換不完的點數會留著。",
-		En: "At least %s points, in whole multiples of %s. Whatever is left over stays " +
-			"on your account.",
-	})
+	KeyPointsRule = countKey("points.rule",
+		"最少 %s 點，每次以 %s為單位兌換；換不完的點數會留著。",
+		"At least %s point, in whole multiples of %s. Whatever is left over stays on your account.",
+		"At least %s points, in whole multiples of %s. Whatever is left over stays on your account.")
 
 	KeyPointsRedeem = key("points.redeem", Message{
 		ZhHant: "兌換成購物金",
@@ -51,14 +50,11 @@ var (
 		En:     "No points yet. They start accumulating with your first completed order.",
 	})
 
-	KeyPointsAmount = key("points.amount", Message{ZhHant: "%s 點", En: "%s points"})
+	KeyPointsAmount = countKey("points.amount", "%s 點", "%s point", "%s points")
 
-	KeyPointsRate = key("points.rate", Message{ZhHant: "%s 點 = NT$1", En: "%s points = NT$1"})
+	KeyPointsRate = countKey("points.rate", "%s 點 = NT$1", "%s point = NT$1", "%s points = NT$1")
 
-	KeyPointsExpiring = key("points.expiring", Message{
-		ZhHant: "%s 點會在 %s 到期",
-		En:     "%s points expire on %s",
-	})
+	KeyPointsExpiring = countKey("points.expiring", "%s 點會在 %s 到期", "%s point expires on %s", "%s points expire on %s")
 
 	KeyPointsExpired = key("points.expired", Message{ZhHant: "已於 %s 到期", En: "expired %s"})
 
@@ -88,20 +84,20 @@ var (
 
 	KeyPointsEarnedOn = key("points.earnedon", Message{ZhHant: "%s 獲得", En: "earned %s"})
 
-	KeyPointsClawbackDetail = key("points.reason.clawback.detail", Message{
-		ZhHant: "點數不足，少扣 %s 點",
-		En:     "Not enough points: %s could not be reversed",
-	})
+	KeyPointsClawbackDetail = countKey("points.reason.clawback.detail",
+		"點數不足，少扣 %s 點",
+		"Not enough points: %s point could not be reversed",
+		"Not enough points: %s points could not be reversed")
 
-	KeyPointsRedeemed = key("points.notice.done", Message{
-		ZhHant: "已用 %s 點兌換 %s 購物金，結帳時會自動折抵。",
-		En:     "Redeemed %s points for %s store credit. The credit comes off your next order automatically.",
-	})
+	KeyPointsRedeemed = countKey("points.notice.done",
+		"已用 %s 點兌換 %s 購物金，結帳時會自動折抵。",
+		"Redeemed %s point for %s store credit. The credit comes off your next order automatically.",
+		"Redeemed %s points for %s store credit. The credit comes off your next order automatically.")
 
-	KeyPointsBadAmount = key("points.notice.amount", Message{
-		ZhHant: "至少要兌換 %s 點，而且要是 %s 的倍數。",
-		En:     "Redeem at least %s points, in whole multiples of %s.",
-	})
+	KeyPointsBadAmount = countKey("points.notice.amount",
+		"至少要兌換 %s 點，而且要是 %s 的倍數。",
+		"Redeem at least %s point, in whole multiples of %s.",
+		"Redeem at least %s points, in whole multiples of %s.")
 
 	KeyPointsBadForm = key("points.notice.badform", Message{
 		ZhHant: "這次兌換沒有送出，點數沒有扣，請再按一次兌換。",

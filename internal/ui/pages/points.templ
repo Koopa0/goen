@@ -38,7 +38,7 @@ templ Points(p layouts.Page, v PointsView) {
 				<li class="goen-points__figure">
 					<span class="goen-points__label">{ i18n.T(ctx, i18n.KeyPointsRedeemable) }</span>
 					<span class="goen-points__value">{ v.Credit() }</span>
-					<span class="goen-points__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsUsing), v.RedeemableText()) }</span>
+					<span class="goen-points__meta">{ i18n.Count(ctx, i18n.KeyPointsUsing, v.Redeemable, v.RedeemableText()) }</span>
 				</li>
 			</ul>
 			if v.Expiring() {
@@ -65,7 +65,7 @@ templ Points(p layouts.Page, v PointsView) {
 							Attrs: v.pointsFieldAttrs(),
 						})
 						<p class="goen-points__rule" id="points-rule">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepAmountText(ctx)) }
+							{ i18n.Count(ctx, i18n.KeyPointsRule, v.Minimum, v.MinimumText(), v.StepAmountText(ctx)) }
 						</p>
 						if v.FieldError != "" {
 							<p class="ui-error-text" id="points-error" role="alert">{ v.FieldError }</p>

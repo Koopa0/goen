@@ -104,6 +104,28 @@ func (v *WorkerHealthView) AllHealthy() bool {
 		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
 }
 
+func (v *WorkerHealthView) StaffTaskCount() int64 {
+	return v.UnreconciledPayments + v.UninvoicedCount + v.StrandedClaimCount
+}
+
+func (v *WorkerHealthView) StaffTaskText(ctx context.Context) string {
+	count := v.StaffTaskCount()
+	return i18n.Count(ctx, i18n.KeyAdminHPPendingTasks, count, count)
+}
+
+func (v *WorkerHealthView) FirstStaffTaskAnchor() string {
+	switch {
+	case len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0:
+		return "#events-heading"
+	case v.UninvoicedCount > 0:
+		return "#uninvoiced-heading"
+	case len(v.StrandedClaims) > 0:
+		return "#claims-heading"
+	default:
+		return ""
+	}
+}
+
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
 
 func (v *WorkerHealthView) UninvoicedText(ctx context.Context) string {
@@ -199,6 +221,47 @@ type UnreconciledEvent struct {
 	// refund.failed event names; "" and 0 for every other event.
 	RefundOrderNumber string
 	RefundCents       int64
+}
+
+func (u UnreconciledEvent) TypeText(ctx context.Context) string {
+	var key i18n.Key
+	switch u.Type {
+	case "checkout.session.completed":
+		key = i18n.KeyAdminHPEventCompleted
+	case "checkout.session.async_payment_succeeded":
+		key = i18n.KeyAdminHPEventPaid
+	case "checkout.session.async_payment_failed":
+		key = i18n.KeyAdminHPEventFailed
+	case "checkout.session.expired":
+		key = i18n.KeyAdminHPEventExpired
+	case "refund.failed":
+		key = i18n.KeyAdminHPEventRefundFailed
+	default:
+		key = i18n.KeyAdminHPEventUnknown
+	}
+	return i18n.T(ctx, key)
+}
+
+func (u UnreconciledEvent) ReasonText(ctx context.Context) string {
+	cause, _, _ := strings.Cut(u.Reason, ":")
+	var key i18n.Key
+	switch cause {
+	case "unreadable_event":
+		key = i18n.KeyAdminHPEventUnreadable
+	case "unattributed_capture":
+		key = i18n.KeyAdminHPEventUnattributed
+	case "cancelled_order_capture":
+		key = i18n.KeyAdminHPEventCancelledCapture
+	case "refused_capture":
+		key = i18n.KeyAdminHPEventRefusedCapture
+	case "unsettled_session":
+		key = i18n.KeyAdminHPEventUnsettled
+	case "refund_failed":
+		key = i18n.KeyAdminHPRefundFailedAtStripe
+	default:
+		key = i18n.KeyAdminHPReasonUnknown
+	}
+	return i18n.T(ctx, key)
 }
 
 func (u UnreconciledEvent) RefundAmount() string { return money.TWD(u.RefundCents) }
@@ -304,6 +367,75 @@ type StrandedClaim struct {
 	// CanAuthorizeResend is true only after an ambiguous Allowance send has
 	// remained absent beyond the propagation window and has no live worker lease.
 	CanAuthorizeResend bool
+}
+
+func (c StrandedClaim) ExplainedKindText(ctx context.Context) string {
+	if key, known := InvoiceOperationLabels[c.Kind]; known {
+		return i18n.T(ctx, key)
+	}
+	return i18n.T(ctx, i18n.KeyAdminHPInvoiceKindUnknown)
+}
+
+func (c StrandedClaim) ExplainedStatusText(ctx context.Context) string {
+	if key, known := InvoiceOperationStatuses[c.Status]; known {
+		return i18n.T(ctx, key)
+	}
+	return i18n.T(ctx, i18n.KeyAdminHPInvoiceStatusUnknown)
+}
+
+var invoiceReasonLabels = map[string]i18n.Key{
+	"issue_lookup_failed":                       i18n.KeyAdminHPInvoiceLookupFailed,
+	"issue_post_send_lookup_failed":             i18n.KeyAdminHPInvoiceLookupFailed,
+	"allowance_lookup_failed":                   i18n.KeyAdminHPInvoiceLookupFailed,
+	"allowance_known_facts_failed":              i18n.KeyAdminHPInvoiceLookupFailed,
+	"void_lookup_failed":                        i18n.KeyAdminHPInvoiceLookupFailed,
+	"issue_send_ambiguous":                      i18n.KeyAdminHPInvoiceAwaitingConfirmation,
+	"allowance_send_ambiguous":                  i18n.KeyAdminHPInvoiceAwaitingConfirmation,
+	"void_send_needs_lookup":                    i18n.KeyAdminHPInvoiceAwaitingConfirmation,
+	"issue_not_yet_visible":                     i18n.KeyAdminHPInvoiceAwaitingConfirmation,
+	"allowance_not_yet_visible":                 i18n.KeyAdminHPInvoiceAwaitingConfirmation,
+	"allowance_awaiting_buyer":                  i18n.KeyAdminHPInvoiceAwaitingBuyer,
+	"allowance_invalid_reconcile_failed":        i18n.KeyAdminHPInvoiceRecordFailed,
+	"allowance_invalid_record_failed":           i18n.KeyAdminHPInvoiceRecordFailed,
+	"issue_local_settlement_failed":             i18n.KeyAdminHPInvoiceRecordFailed,
+	"allowance_consent_encoding_failed":         i18n.KeyAdminHPInvoiceRecordFailed,
+	"allowance_local_settlement_failed":         i18n.KeyAdminHPInvoiceRecordFailed,
+	"void_local_settlement_failed":              i18n.KeyAdminHPInvoiceRecordFailed,
+	"allowance_invalid_reconcile_lost_lease":    i18n.KeyAdminHPInvoiceProcessingChanged,
+	"allowance_invalid_record_lost_lease":       i18n.KeyAdminHPInvoiceProcessingChanged,
+	"void_provider_rejected":                    i18n.KeyAdminHPInvoiceProviderRejected,
+	"":                                          i18n.KeyHealthNoReason,
+	"allowance_multiple_unknown_candidates":     i18n.KeyAdminHPInvoiceMultipleCandidates,
+	"allowance_candidate_without_send_evidence": i18n.KeyAdminHPInvoiceUnattributed,
+	"allowance_buyer_unconfirmed":               i18n.KeyAdminHPInvoiceBuyerUnconfirmed,
+	"allowance_amount_still_held":               i18n.KeyAdminHPInvoiceAmountHeld,
+	"allowance_success_mismatch":                i18n.KeyAdminHPInvoiceMismatch,
+	"issue_lookup_mismatch":                     i18n.KeyAdminHPInvoiceMismatch,
+	"allowance_lookup_mismatch":                 i18n.KeyAdminHPInvoiceMismatch,
+	"void_lookup_mismatch":                      i18n.KeyAdminHPInvoiceMismatch,
+	"void_success_identity_mismatch":            i18n.KeyAdminHPInvoiceMismatch,
+	"allowance_known_document_mismatch":         i18n.KeyAdminHPInvoiceMismatch,
+	"frozen_issue_request_invalid":              i18n.KeyAdminHPInvoiceRequestInvalid,
+	"frozen_allowance_request_invalid":          i18n.KeyAdminHPInvoiceRequestInvalid,
+	"frozen_void_request_invalid":               i18n.KeyAdminHPInvoiceRequestInvalid,
+	"allowance_known_document_malformed":        i18n.KeyAdminHPInvoiceRecordsInvalid,
+	"allowance_known_document_duplicate":        i18n.KeyAdminHPInvoiceRecordsInvalid,
+	"allowance_invalid_after_current_send":      i18n.KeyAdminHPInvoiceContradiction,
+	"allowance_provider_reactivated":            i18n.KeyAdminHPInvoiceContradiction,
+	"allowance_invalid_reconcile_contradiction": i18n.KeyAdminHPInvoiceContradiction,
+	"allowance_invalid_record_contradiction":    i18n.KeyAdminHPInvoiceContradiction,
+	"allowance_known_document_status_unknown":   i18n.KeyAdminHPInvoiceUnsupported,
+	"unknown_operation_kind":                    i18n.KeyAdminHPInvoiceUnsupported,
+}
+
+func (c StrandedClaim) ReasonText(ctx context.Context) string {
+	if key, known := invoiceReasonLabels[c.LastError]; known {
+		return i18n.T(ctx, key)
+	}
+	if strings.HasPrefix(c.LastError, "issue_provider_rejected_") || strings.HasPrefix(c.LastError, "allowance_provider_rejected_") {
+		return i18n.T(ctx, i18n.KeyAdminHPInvoiceProviderRejected)
+	}
+	return i18n.T(ctx, i18n.KeyAdminHPReasonUnknown)
 }
 
 func (c StrandedClaim) Amount() string { return money.TWD(c.AmountCents) }

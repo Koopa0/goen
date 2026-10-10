@@ -22,7 +22,7 @@ func TestAClawbackShowsOnlyTheUnrecoveredShortfall(t *testing.T) {
 		detail string
 	}{
 		{i18n.ZhHant, "退貨扣回", "點數不足，少扣 60 點"},
-		{i18n.En, "Reversed for a return", "Not enough points: 60 could not be reversed"},
+		{i18n.En, "Reversed for a return", "Not enough points: 60 points could not be reversed"},
 	} {
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
@@ -39,7 +39,7 @@ func TestAClawbackShowsOnlyTheUnrecoveredShortfall(t *testing.T) {
 		Kind: "clawback", Points: 0, RequestedPoints: 75, ShortfallPoints: 75,
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	if got := whollyConsumed.Detail(ctx); got != "Not enough points: 75 could not be reversed" {
+	if got := whollyConsumed.Detail(ctx); got != "Not enough points: 75 points could not be reversed" {
 		t.Errorf("zero-point clawback detail = %q", got)
 	}
 }
@@ -87,9 +87,9 @@ func TestPointsRowsNameTheirOrderDatesAndCredit(t *testing.T) {
 		{name: "full reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "2026-10-05"}},
 		{name: "full reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "2026-10-05"}},
 		{name: "short reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 60 點 · 2026-10-05"}},
-		{name: "short reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 60 could not be reversed · 2026-10-05"}},
+		{name: "short reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: -40, RequestedPoints: 100, ShortfallPoints: 60, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-40", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 60 points could not be reversed · 2026-10-05"}},
 		{name: "zero reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "退貨扣回，訂單 GO-20261005-000003", "metadata": "點數不足，少扣 75 點 · 2026-10-05"}},
-		{name: "zero reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 75 could not be reversed · 2026-10-05"}},
+		{name: "zero reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "return", Points: 0, RequestedPoints: 75, ShortfallPoints: 75, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "0", "what": "Reversed for a return, order GO-20261005-000003", "metadata": "Not enough points: 75 points could not be reversed · 2026-10-05"}},
 		{name: "cancelled reversal zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsClawedBack, Reason: "cancelled", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "訂單取消扣回，訂單 GO-20261005-000003", "metadata": "2026-10-05"}},
 		{name: "cancelled reversal en", locale: i18n.En, entry: PointsEntry{Kind: PointsClawedBack, Reason: "cancelled", Points: -284, RequestedPoints: 284, Order: "GO-20261005-000003", At: "2026-10-05"}, want: map[string]string{"amount": "-284", "what": "Reversed for a cancelled order, order GO-20261005-000003", "metadata": "2026-10-05"}},
 		{name: "earned zh", locale: i18n.ZhHant, entry: PointsEntry{Kind: PointsAwarded, Points: 284, Order: "GO-20261005-000003", At: "2026-10-05", ExpiresOn: "2027-10-05"}, want: map[string]string{"amount": "+284", "what": "訂單 GO-20261005-000003", "metadata": "2026-10-05 獲得 · 2027-10-05 到期"}},

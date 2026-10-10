@@ -3,7 +3,6 @@ package loyalty
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -126,7 +125,7 @@ func (h *Handler) noticeFor(r *http.Request, owner string) string {
 		if !valid {
 			return ""
 		}
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRedeemed), strconv.FormatInt(result.Points, 10), money.TWD(result.CreditCents))
+		return i18n.Count(ctx, i18n.KeyPointsRedeemed, result.Points, strconv.FormatInt(result.Points, 10), money.TWD(result.CreditCents))
 	case r.URL.Query().Get("short") == "1":
 		return i18n.T(ctx, i18n.KeyPointsShort)
 	default:
@@ -135,7 +134,7 @@ func (h *Handler) noticeFor(r *http.Request, owner string) string {
 }
 
 func pointsAmountReason(r *http.Request) string {
-	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyPointsBadAmount), strconv.FormatInt(MinRedemption, 10), strconv.FormatInt(PointsPerCredit, 10))
+	return i18n.Count(r.Context(), i18n.KeyPointsBadAmount, MinRedemption, strconv.FormatInt(MinRedemption, 10), strconv.FormatInt(PointsPerCredit, 10))
 }
 
 func (h *Handler) renderFormRefusal(w http.ResponseWriter, r *http.Request, owner string, operation uuid.UUID, reason string) {

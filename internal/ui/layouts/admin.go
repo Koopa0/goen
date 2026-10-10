@@ -3,6 +3,8 @@ package layouts
 import (
 	"context"
 	"slices"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // adminNavHolds decides on the server which group arrives OPEN, so the right group
@@ -27,4 +29,23 @@ func WithAdmin(ctx context.Context, admin bool) context.Context {
 func isAdmin(ctx context.Context) bool {
 	admin, ok := ctx.Value(adminKey{}).(bool)
 	return ok && admin
+}
+
+type healthTaskCountKey struct{}
+
+type healthTaskCount struct {
+	count int64
+	known bool
+}
+
+func WithHealthTaskCount(ctx context.Context, count int64, known bool) context.Context {
+	return context.WithValue(ctx, healthTaskCountKey{}, healthTaskCount{count: count, known: known})
+}
+
+func healthTaskText(ctx context.Context) string {
+	count, ok := ctx.Value(healthTaskCountKey{}).(healthTaskCount)
+	if !ok || !count.known {
+		return i18n.T(ctx, i18n.KeyAdminHPTaskCountUnknown)
+	}
+	return i18n.Count(ctx, i18n.KeyAdminHPPendingTasks, count.count, count.count)
 }

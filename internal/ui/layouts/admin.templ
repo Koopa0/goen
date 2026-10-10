@@ -286,7 +286,10 @@ templ adminNav(current string) {
 						if current == "health" {
 							aria-current="page"
 						}
-					>{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
+					>
+						{ i18n.T(ctx, i18n.KeyAdminPageHealth) }
+						<span class="goen-admin__meta">{ healthTaskText(ctx) }</span>
+					</a>
 				</div>
 			</details>
 			<a class="ui-navitem goen-admin__navback" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
