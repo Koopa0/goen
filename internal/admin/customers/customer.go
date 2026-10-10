@@ -119,13 +119,13 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
-	numbers := make([]string, len(orders))
+	ids := make([]uuid.UUID, len(orders))
 	for i := range orders {
-		numbers[i] = orders[i].OrderNumber
+		ids[i] = orders[i].ID
 	}
-	returned, err := returnedOrderNumbers(ctx, q, numbers)
+	returned, err := q.ReturnedOrders(ctx, ids)
 	if err != nil {
-		return admin.CustomerView{}, fmt.Errorf("read returned customer orders: %v", err)
+		return admin.CustomerView{}, fmt.Errorf("read returned customer orders: %w", err)
 	}
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
@@ -148,7 +148,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {
-		view.Recent = append(view.Recent, recentOrderRow(ctx, &orders[i], returned[orders[i].OrderNumber]))
+		view.Recent = append(view.Recent, recentOrderRow(ctx, &orders[i], slices.Contains(returned, orders[i].ID)))
 	}
 	return view, nil
 }
@@ -168,34 +168,4 @@ func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned 
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 	}
-}
-
-func returnedOrderNumbers(ctx context.Context, q *db.Queries, numbers []string) (map[string]bool, error) {
-	idsByNumber := make(map[string]uuid.UUID, len(numbers))
-	ids := make([]uuid.UUID, 0, len(numbers))
-	for _, number := range numbers {
-		if _, known := idsByNumber[number]; known {
-			continue
-		}
-		row, err := q.OrderIDByNumber(ctx, number)
-		if err != nil {
-			return nil, err
-		}
-		idsByNumber[number] = row.ID
-		ids = append(ids, row.ID)
-	}
-	out := make(map[string]bool)
-	if len(ids) == 0 {
-		return out, nil
-	}
-	returned, err := q.ReturnedOrders(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	for number, id := range idsByNumber {
-		if slices.Contains(returned, id) {
-			out[number] = true
-		}
-	}
-	return out, nil
 }

@@ -3,8 +3,11 @@ package customers
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -33,18 +36,18 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
 	view.Bound = bound
-	numbers := make([]string, len(rows))
+	ids := make([]uuid.UUID, len(rows))
 	for i := range rows {
-		numbers[i] = rows[i].OrderNumber
+		ids[i] = rows[i].OrderID
 	}
-	returned, err := returnedOrderNumbers(ctx, s.q, numbers)
+	returned, err := s.q.ReturnedOrders(ctx, ids)
 	if err != nil {
-		return admin.WarrantiesView{}, fmt.Errorf("read returned warranty orders: %v", err)
+		return admin.WarrantiesView{}, fmt.Errorf("read returned warranty orders: %w", err)
 	}
 	for i := range rows {
 		r := &rows[i]
 		status := admin.FulfillmentLabel(ctx, order.FulfillmentStatus(r.FulfillmentStatus))
-		if returned[r.OrderNumber] {
+		if slices.Contains(returned, r.OrderID) {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)
 		}
 		view.Rows = append(view.Rows, admin.WarrantyRow{
