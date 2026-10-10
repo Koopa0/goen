@@ -3715,30 +3715,6 @@ func stockOf(t *testing.T, vid uuid.UUID) int32 {
 	return n
 }
 
-func TestCancellingAnOrderWithNoCheckoutHandsBackNothing(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-	vid := freshVariant(t, "cancel-session-2")
-
-	// A DIFFERENT order with a live session, so the query is asked to tell two
-	// orders apart rather than merely to find none.
-	other := heldOrder(t, freshVariant(t, "cancel-session-3"), -time.Hour, false)
-	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`,
-		other, "cs_test_someone_elses"); err != nil {
-		t.Fatalf("open a checkout session against another order: %v", err)
-	}
-
-	number := numberOf(t, heldOrder(t, vid, -time.Hour, false))
-	sessions, err := s.CancelOrder(ctx, number)
-	if err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
-	if len(sessions) != 0 {
-		t.Errorf("Cancel() returned %v for an order with no checkout of its own — "+
-			"the handler would ask Stripe to expire another order's session", sessions)
-	}
-}
-
 func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3748,7 +3724,7 @@ func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	number := numberOf(t, orderID)
 	held := stockOf(t, vid)
 
-	if _, err := s.CancelOrder(ctx, number); err != nil {
+	if err := s.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 
@@ -3811,7 +3787,7 @@ func TestExpiryWinningTheOrderLockDoesNotPoisonCancellation(t *testing.T) {
 	cancelPool := applicationPool(t, "cancel-behind-sweep")
 	cancelDone := make(chan error, 1)
 	go func() {
-		_, cancelErr := cart.NewStore(cancelPool).CancelOrder(ctx, number)
+		cancelErr := cart.NewStore(cancelPool).CancelOrder(ctx, number)
 		cancelDone <- cancelErr
 	}()
 	waitForApplicationLock(t, "cancel-behind-sweep", cancelDone)
@@ -3860,7 +3836,7 @@ func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	if _, err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Fatalf("a paid order was cancellable: %v", err)
 	}
 	if got := stockOf(t, vid); got != before {
@@ -3882,12 +3858,12 @@ func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	vid := freshVariant(t, "stockfix-10")
 
 	number := numberOf(t, heldOrder(t, vid, -time.Hour, false))
-	if _, err := s.CancelOrder(ctx, number); err != nil {
+	if err := s.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("first cancel: %v", err)
 	}
 	after := stockOf(t, vid)
 
-	if _, err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Errorf("the second cancellation was accepted: %v", err)
 	}
 	if got := stockOf(t, vid); got != after {
@@ -3907,14 +3883,14 @@ func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 		t.Fatalf("move to picking: %v", err)
 	}
 
-	if _, err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Errorf("an order being picked was cancellable: %v", err)
 	}
 }
 
 func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
 	s := cart.NewStore(pool)
-	if _, err := s.CancelOrder(t.Context(), "GO-990101-999999"); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(t.Context(), "GO-990101-999999"); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Errorf("an unknown order answered %v, want ErrNotCancellable", err)
 	}
 }
@@ -3938,7 +3914,7 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 		t.Fatalf("consume: %v", err)
 	}
 
-	if _, err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Fatalf("a paid order with no held stock was cancellable: %v", err)
 	}
 	var status string
@@ -4969,7 +4945,7 @@ func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 		t.Fatalf("balance after spending = %d, want 30000", got)
 	}
 
-	if _, err := s.CancelOrder(ctx, number); err != nil {
+	if err := s.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 

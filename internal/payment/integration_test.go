@@ -1258,15 +1258,13 @@ func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
 		}
 
 		type cancelResult struct {
-			sessions []string
-			err      error
+			err error
 		}
 		returned := make(chan struct{})
 		done := make(chan cancelResult, 1)
 		go func() {
 			defer close(returned)
-			sessions, cancelErr := cart.NewStore(pool).CancelOrder(ctx, number)
-			done <- cancelResult{sessions: sessions, err: cancelErr}
+			done <- cancelResult{err: cart.NewStore(pool).CancelOrder(ctx, number)}
 		}()
 		waitForSQLLock(t, ctx, returned,
 			"%FROM orders WHERE order_number = $1 FOR UPDATE%")
@@ -1280,8 +1278,8 @@ func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("Cancel stayed blocked after open_payment committed")
 		}
-		if !errors.Is(result.err, cart.ErrNotCancellable) || len(result.sessions) != 0 {
-			t.Fatalf("Cancel = %v, %v; want no sessions and ErrNotCancellable", result.sessions, result.err)
+		if !errors.Is(result.err, cart.ErrNotCancellable) {
+			t.Fatalf("Cancel = %v; want ErrNotCancellable", result.err)
 		}
 		var fulfillment, paymentStatus string
 		if err := pool.QueryRow(ctx, `

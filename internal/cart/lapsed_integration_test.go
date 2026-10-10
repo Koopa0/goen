@@ -234,7 +234,7 @@ func TestALateRefundedPaymentIsNotCalledNothingCharged(t *testing.T) {
 
 			if bySweep {
 				sweepAs(t, storeRolePool(t))
-			} else if _, err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
+			} else if err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
 				t.Fatalf("customer cancel: %v", err)
 			}
 			if f := factsOf(t, number, uuid.Nil); f.status != "cancelled" || f.notices != 1 {
@@ -417,7 +417,7 @@ func TestTheSweepAndTheCustomerCancelOnce(t *testing.T) {
 			}
 			cancel := func() {
 				go func() {
-					_, cancelErr := customer.CancelOrder(ctx, number)
+					cancelErr := customer.CancelOrder(ctx, number)
 					cancelDone <- cancelErr
 				}()
 				waitForApplicationLock(t, "lapse-race-cancel", cancelDone)
@@ -481,7 +481,7 @@ func TestACancelBehindACaptureIsRefusedNotFailed(t *testing.T) {
 	customer := cart.NewStore(storeApplicationPool(t, "cancel-behind-capture"))
 	done := make(chan error, 1)
 	go func() {
-		_, cancelErr := customer.CancelOrder(ctx, number)
+		cancelErr := customer.CancelOrder(ctx, number)
 		done <- cancelErr
 	}()
 	waitForApplicationLock(t, "cancel-behind-capture", done)

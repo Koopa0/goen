@@ -1576,10 +1576,9 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := h.store.CancelOrder(r.Context(), number)
+	err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.

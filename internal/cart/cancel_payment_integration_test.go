@@ -91,7 +91,7 @@ func TestCustomerCancellationRereadsPaymentAfterTakingOrderLock(t *testing.T) {
 	customer := cart.NewStore(storeApplicationPool(t, "customer-cancel-behind-open"))
 	done := make(chan error, 1)
 	go func() {
-		_, cancelErr := customer.CancelOrder(ctx, number)
+		cancelErr := customer.CancelOrder(ctx, number)
 		done <- cancelErr
 	}()
 	waitForApplicationLock(t, "customer-cancel-behind-open", done)
@@ -119,7 +119,7 @@ func TestCustomerCancellationAfterSessionExpiryReleasesStock(t *testing.T) {
 	}
 	before := stockOf(t, variant)
 	number := numberOf(t, orderID)
-	if _, err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
+	if err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel after session expiry: %v", err)
 	}
 	if f := factsOf(t, number, uuid.Nil); f.status != "cancelled" || f.heldHolds != 0 || f.events != 1 || f.notices != 1 {
