@@ -31,6 +31,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/reports", ac.RequireStaff(h.Page))
+	mux.HandleFunc("GET /admin/reports/orders.csv", ac.RequireStaff(h.ordersCSV))
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
