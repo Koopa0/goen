@@ -558,7 +558,10 @@ templ productCompare(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyViewCompare) }
 				}
 			} else {
-				<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
+				<p class="goen-pdp__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
+					<a href={ templ.SafeURL(v.CurrentCompareHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) }</a>
+				</p>
 			}
 		</div>
 	}
