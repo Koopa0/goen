@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"fmt"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -32,7 +30,7 @@ templ Staff(p layouts.Page, v StaffView) {
 		}
 		if !v.NoKey && !v.AllEnrolled() {
 			@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
-				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnenrolled), v.UnenrolledText()) }
+				{ i18n.Count(ctx, i18n.KeyAdminStaffUnenrolled, int64(v.Unenrolled()), v.UnenrolledText()) }
 			}
 		}
 		<div class="goen-admin__tablewrap">

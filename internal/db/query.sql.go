@@ -17176,7 +17176,7 @@ JOIN LATERAL (
     SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true

@@ -246,3 +246,16 @@ var (
 		En:     "Paid orders only, by the time placed. Today is counted up to %s.",
 	})
 )
+
+var (
+	KeyAdminRepExportOrder    = key("admin.rep.export.order", Message{ZhHant: "訂單編號", En: "order_number"})
+	KeyAdminRepExportPlaced   = key("admin.rep.export.placed", Message{ZhHant: "下單時間（台灣時間）", En: "placed_at_taiwan"})
+	KeyAdminRepExportPaid     = key("admin.rep.export.paid", Message{ZhHant: "付款時間（台灣時間）", En: "paid_at_taiwan"})
+	KeyAdminRepExportTotal    = key("admin.rep.export.total", Message{ZhHant: "訂單總額_cents", En: "order_total_cents"})
+	KeyAdminRepExportDiscount = key("admin.rep.export.discount", Message{ZhHant: "折扣_cents", En: "discount_cents"})
+	KeyAdminRepExportShipping = key("admin.rep.export.shipping", Message{ZhHant: "運費_cents", En: "delivery_cents"})
+	KeyAdminRepExportCredit   = key("admin.rep.export.credit", Message{ZhHant: "購物金折抵_cents", En: "store_credit_cents"})
+	KeyAdminRepExportCard     = key("admin.rep.export.card", Message{ZhHant: "信用卡金額_cents", En: "card_cents"})
+	KeyAdminRepExportInvoice  = key("admin.rep.export.invoice", Message{ZhHant: "發票號碼", En: "invoice_number"})
+	KeyAdminRepExportMonth    = key("admin.rep.export.month", Message{ZhHant: "請以 YYYY-MM 指定月份。", En: "Specify the month as YYYY-MM."})
+)
