@@ -28,7 +28,7 @@ import (
 func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
-	want := seedFilteredReviews(t, ctx, owner)
+	want := seedFilteredReviews(ctx, t, owner)
 	store := feedback.NewStore(admintest.AdminRolePool(t, owner))
 	first, err := store.Reviews(ctx, feedback.ThreeStarsAndBelowReviews)
 	if err != nil {
@@ -85,10 +85,10 @@ func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
 	if restarted.First != "" || restarted.Rows[0].ID != want[0] {
 		t.Error("filtered list accepted a cursor from the unfiltered list")
 	}
-	checkReviewFilterGET(t, ctx, store, first)
+	checkReviewFilterGET(ctx, t, store, first)
 }
 
-func seedFilteredReviews(t *testing.T, ctx context.Context, owner *pgxpool.Pool) []string {
+func seedFilteredReviews(ctx context.Context, t *testing.T, owner *pgxpool.Pool) []string {
 	t.Helper()
 	if _, err := owner.Exec(ctx, "DELETE FROM product_reviews"); err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func seedFilteredReviews(t *testing.T, ctx context.Context, owner *pgxpool.Pool)
 	return want
 }
 
-func checkReviewFilterGET(t *testing.T, ctx context.Context, store *feedback.Store, first admin.ReviewsView) {
+func checkReviewFilterGET(ctx context.Context, t *testing.T, store *feedback.Store, first admin.ReviewsView) {
 	t.Helper()
 	handler := feedback.NewHandler(store, slog.New(slog.DiscardHandler))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
