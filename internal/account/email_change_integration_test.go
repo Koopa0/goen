@@ -632,8 +632,8 @@ func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
 		heading string
 		body    string
 	}{
-		{locale: i18n.En, heading: "Address confirmed", body: "Your email address is confirmed. Everything we send you goes there from now on."},
-		{locale: i18n.ZhHant, heading: "\u4fe1\u7bb1\u5df2\u78ba\u8a8d", body: "\u96fb\u5b50\u90f5\u4ef6\u5df2\u78ba\u8a8d\uff0c\u4e4b\u5f8c\u7684\u901a\u77e5\u4fe1\u90fd\u6703\u5bc4\u5230\u9019\u500b\u4fe1\u7bb1\u3002"},
+		{locale: i18n.En, heading: "Address confirmed", body: "Your email address is confirmed. Sign in with the new address from now on; notices go there too."},
+		{locale: i18n.ZhHant, heading: "\u4fe1\u7bb1\u5df2\u78ba\u8a8d", body: "電子郵件已確認，之後請用新信箱登入，通知信也會寄到這裡。"},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.locale), func(t *testing.T) {

@@ -69,28 +69,30 @@ templ Reset(p layouts.Page, v ResetView) {
 								ID:        "password",
 								Name:      "password",
 								Type:      "password",
-								Invalid:   v.HasError(),
+								Invalid:   v.Invalid("password"),
 								Describes: "reset-error",
-								Attrs: templ.Attributes{
+								Attrs: v.PasswordAttrs(templ.Attributes{
 									"autocomplete": "new-password",
 									"autofocus":    true,
 									"minlength":    "10",
 									"required":     true,
-								},
+								}),
 							})
-							if v.HasError() {
+							if v.Invalid("password") {
 								<p class="ui-error-text" id="reset-error" role="alert">{ v.Error }</p>
+							} else {
+								<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
 							}
 						</div>
 						<div class="goen-field">
 							@components.Label(components.LabelProps{For: "confirm"}) {
-								{ i18n.T(ctx, i18n.KeyFieldAgain) }
+								{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
 							}
 							@components.Input(components.FieldProps{
 								ID:        "confirm",
 								Name:      "confirm",
 								Type:      "password",
-								Invalid:   v.HasError(),
+								Invalid:   v.Invalid("confirm"),
 								Describes: "reset-error",
 								Attrs: templ.Attributes{
 									"autocomplete": "new-password",
@@ -98,6 +100,9 @@ templ Reset(p layouts.Page, v ResetView) {
 									"required":     true,
 								},
 							})
+							if v.Invalid("confirm") {
+								<p class="ui-error-text" id="reset-error" role="alert">{ v.Error }</p>
+							}
 						</div>
 						<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyResetEndsSessions) }</p>
 						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {

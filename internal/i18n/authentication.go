@@ -1,6 +1,12 @@
 package i18n
 
 var (
+	KeyRegisterPolicyBefore  = key("auth.register.policy.before", Message{ZhHant: "建立帳號即表示你同意", En: "By creating an account you agree to the "})
+	KeyRegisterPolicyBetween = key("auth.register.policy.between", Message{ZhHant: "，並已閱讀", En: " and have read the "})
+	KeyRegisterPolicyAfter   = key("auth.register.policy.after", Message{ZhHant: "。", En: "."})
+	KeyRegisterEmailFollows  = key("auth.register.email.follows", Message{ZhHant: "我們會寄確認信，點信中連結後帳號才會啟用。", En: "We will send a confirmation email. Your account opens after you follow its link."})
+	KeyResetPasswordLink     = key("auth.reset.link", Message{ZhHant: "重新設定密碼", En: "Reset your password"})
+
 	KeySignIn = key("auth.signin", Message{ZhHant: "登入", En: "Sign in"})
 
 	KeySignInWithGoogle = key("auth.signin.google", Message{
@@ -51,8 +57,6 @@ var (
 		En:     "Confirm new password",
 	})
 
-	KeyFieldAgain = key("field.again", Message{ZhHant: "再輸入一次", En: "Type it again"})
-
 	KeyFieldNameOpt = key("field.name.optional", Message{ZhHant: "姓名（選填）", En: "Name (optional)"})
 
 	KeyFieldFullName = key("field.name.full", Message{ZhHant: "姓名", En: "Name"})
@@ -78,8 +82,8 @@ var (
 	KeyForgotTitle = key("auth.forgot.title", Message{ZhHant: "忘記密碼", En: "Forgotten password"})
 
 	KeyForgotSub = key("auth.forgot.sub", Message{
-		ZhHant: "我們寄一個連結給你，一小時內有效。",
-		En:     "We will send you a link. It works for one hour.",
+		ZhHant: "輸入註冊用的電子郵件，我們會寄一個重設連結給你，一小時內有效。",
+		En:     "Enter the email address you registered with. We will send a reset link that works for one hour.",
 	})
 
 	KeyForgotSent = key("auth.forgot.sent", Message{
@@ -124,18 +128,18 @@ var (
 	})
 
 	KeyPasswordsDiffer = key("valid.password.mismatch", Message{
-		ZhHant: "兩次輸入的密碼不一致",
-		En:     "Those two passwords do not match",
+		ZhHant: "兩次輸入的密碼不一致。",
+		En:     "Those two passwords do not match.",
 	})
 
-	KeyPasswordRequired = key("valid.password.required", Message{ZhHant: "請設定密碼", En: "Choose a password"})
+	KeyPasswordRequired = key("valid.password.required", Message{ZhHant: "請設定密碼。", En: "Choose a password."})
 
 	KeyPasswordTooShort = key("valid.password.short", Message{
-		ZhHant: "密碼至少需要 %d 個字元",
-		En:     "A password needs at least %d characters",
+		ZhHant: "密碼至少需要 %d 個字元。",
+		En:     "A password needs at least %d characters.",
 	})
 
-	KeyPasswordTooLong = key("valid.password.long", Message{ZhHant: "密碼過長", En: "That password is too long"})
+	KeyPasswordTooLong = key("valid.password.long", Message{ZhHant: "密碼過長。", En: "That password is too long."})
 
 	// The second sentence is for everybody, because an account whose link has
 	// not been followed yet is refused exactly as a wrong password is.
@@ -156,14 +160,9 @@ var (
 		En:     "Finish creating your account",
 	})
 
-	KeyRegisterCompleteLede = key("auth.register.complete.lede", Message{
-		ZhHant: "輸入你註冊時設定的密碼，就完成註冊並登入。",
-		En:     "Enter the password you chose when you registered to finish and sign in.",
-	})
-
 	KeyRegisterCompleteWhy = key("auth.register.complete.why", Message{
-		ZhHant: "信裡的連結證明這個信箱是你的，密碼證明註冊的人是你，兩者都對才會啟用帳號。",
-		En:     "The link proves the mailbox is yours and the password proves you are the one who registered; the account opens only with both.",
+		ZhHant: "為了確認是你本人，請再輸入一次註冊時設定的密碼。",
+		En:     "To confirm it is you, enter the password you chose when registering again.",
 	})
 
 	KeyRegisterSentTo = key("auth.register.sentto", Message{
@@ -194,8 +193,8 @@ var (
 	})
 
 	KeyRegisterCompleteNotYou = key("auth.register.complete.notyou", Message{
-		ZhHant: "沒有在這裡註冊過？用「忘記密碼」重新設定一組，這個信箱的帳號就是你的。",
-		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
+		ZhHant: "不是你註冊的？",
+		En:     "Did not register here?",
 	})
 
 	KeyPasswordReset = key("auth.reset.done", Message{
