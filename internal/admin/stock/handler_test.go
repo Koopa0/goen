@@ -13,11 +13,11 @@ func TestEveryRedirectTheStockFormsMakeCarriesAMessage(t *testing.T) {
 		t.Fatalf("read handler.go: %v", err)
 	}
 	sent := map[string]bool{}
-	for _, m := range regexp.MustCompile(`[?&"]([a-z]+)=1`).FindAllStringSubmatch(string(src), -1) {
+	for _, m := range regexp.MustCompile(`[?&"]([a-z-]+)=1`).FindAllStringSubmatch(string(src), -1) {
 		sent[m[1]] = true
 	}
 	// The stock list's writes name their notice through stockBack.
-	for _, m := range regexp.MustCompile(`stockBack\(r, "([a-z]+)"\)`).FindAllStringSubmatch(string(src), -1) {
+	for _, m := range regexp.MustCompile(`stockBack\(r, "([a-z-]+)"\)`).FindAllStringSubmatch(string(src), -1) {
 		sent[m[1]] = true
 	}
 	if len(sent) == 0 {

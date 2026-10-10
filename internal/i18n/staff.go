@@ -43,7 +43,7 @@ var (
 	})
 
 	KeyStaffNeeds = key("staff.needs", Message{
-		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的 Email 與姓名。",
+		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的電子郵件與姓名。",
 		En:     "Something is missing, or that is not a usable staff account. Enter a valid email and a name.",
 	})
 
@@ -52,10 +52,10 @@ var (
 		En:     "Entering the back office requires two-factor verification. Staff who have not enrolled are taken to the verification page to set it up.",
 	})
 
-	KeyAdminStaffUnenrolled = key("admin.staff.unenrolled", Message{
-		ZhHant: "還有 %s 個帳號尚未設定兩階段驗證。請他們登入後到 /admin/verify 完成設定。",
-		En:     "%s accounts have not enrolled in two-factor verification. Ask them to sign in and complete setup at /admin/verify.",
-	})
+	KeyAdminStaffUnenrolled = countKey("admin.staff.unenrolled",
+		"還有 %s 個帳號尚未設定兩階段驗證。請他們登入後到 /admin/verify 完成設定。",
+		"%s account has not enrolled in two-factor verification. Ask them to sign in and complete setup at /admin/verify.",
+		"%s accounts have not enrolled in two-factor verification. Ask them to sign in and complete setup at /admin/verify.")
 
 	KeyAdminStaffYou = key("admin.staff.you", Message{ZhHant: "你自己", En: "you"})
 

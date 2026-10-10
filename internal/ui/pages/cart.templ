@@ -270,7 +270,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						tabindex="-1"
 						aria-hidden="true"
 						disabled?={ !v.HasShipping() }
-					>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
+					>{ i18n.T(ctx, v.PlaceOrderKey()) }</button>
 					<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
 					// One fixed-size identity for the lines, prices, delivery, coupon and credit spend.
 					// The server rebuilds it while holding the database locks; it is a witness, not pricing input.
@@ -745,17 +745,17 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								}
 							</div>
 						</div>
+						<p class="goen-checkout__note">
+							{ v.PlacementNote(ctx) }
+						</p>
 						@components.Button(components.ButtonProps{
 							ButtonStyle: components.ButtonStylePrimary,
 							Size:        components.SizeLarge,
 							Block:       true,
 							Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
 						}, "submit") {
-							{ i18n.T(ctx, i18n.KeyPlaceOrder) }
+							{ i18n.T(ctx, v.PlaceOrderKey()) }
 						}
-						<p class="goen-checkout__note">
-							{ i18n.T(ctx, i18n.KeyCheckoutSubmitNote) }
-						</p>
 					}
 				</form>
 			</div>

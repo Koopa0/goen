@@ -41,14 +41,14 @@ var (
 	})
 
 	KeyAdminQueueSearchPlaceholder = key("admin.queue.search.placeholder", Message{
-		ZhHant: "訂單編號、收件人姓名或 Email",
+		ZhHant: "訂單編號、收件人姓名或電子郵件",
 		En:     "Order number, recipient name or email",
 	})
 
 	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除", En: "Clear"})
 
 	KeyAdminQueueSearchNote = key("admin.queue.search.note", Message{
-		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和 Email 比對開頭。搜尋時不套用上方的狀態篩選。",
+		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和電子郵件比對開頭。搜尋時不套用上方的狀態篩選。",
 		En:     "Searching for %q. An order number must match exactly; a name or email address matches from the start. A search ignores the status filter above.",
 	})
 
