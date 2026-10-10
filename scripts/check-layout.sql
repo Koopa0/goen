@@ -82,6 +82,11 @@ SELECT slug AS compare_slug FROM products
 WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1 \gset
 INSERT INTO product_questions (product_id, user_id, body)
 VALUES (:'product_id', :'customer_id', '請問這款有支援快充嗎？盒裝裡面有附充電器嗎？');
+-- Keep the unanswered queue entry and also measure the nested answer list,
+-- including both present and absent staff names.
+INSERT INTO product_questions (product_id, user_id, body)
+VALUES (:'product_id', :'customer_id', '請問商品可以使用哪些充電方式？')
+RETURNING id AS answered_question_id \gset
 -- What the product editor's sales and reviews card draws: paid orders on nine
 -- shop days, so the weekly columns have axes, and six reviews of three star
 -- values, one of them hidden, so the spread is drawn and the hidden one stays out.
@@ -124,6 +129,27 @@ SELECT mark_payment_event_unreconciled('evt_layout_check',
     'cancelled_order_capture: money arrived for an order that was already cancelled');
 
 SET ROLE admin;
+
+SELECT upsert_staff('layout-answer@goen.invalid', 'Mina', 'staff')
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = 'layout-answer@goen.invalid');
+SELECT id AS named_answer_staff_id FROM users
+WHERE lower(email) = 'layout-answer@goen.invalid' AND role = 'staff' AND full_name = 'Mina' \gset
+SELECT true AS unnamed_answer_staff
+FROM users WHERE id = :'staff_id' AND coalesce(full_name, '') = '' \gset
+
+-- Match AnswerQuestionAsStaff and its audit event in this same transaction.
+INSERT INTO product_answers (question_id, user_id, body, is_staff)
+SELECT q.id, :'named_answer_staff_id', '你可以使用商品規格列出的充電方式。', true
+FROM product_questions q WHERE q.id = :'answered_question_id' AND q.hidden_at IS NULL
+RETURNING id AS named_answer_id \gset
+SELECT record_audit_event(:'named_answer_staff_id', 'question.answer', 'product_answers', :'answered_question_id', NULL,
+    jsonb_build_object('length', length('你可以使用商品規格列出的充電方式。')));
+INSERT INTO product_answers (question_id, user_id, body, is_staff)
+SELECT q.id, :'staff_id', '如果你需要確認配件，請提供商品型號。', true
+FROM product_questions q WHERE q.id = :'answered_question_id' AND q.hidden_at IS NULL
+RETURNING id AS unnamed_answer_id \gset
+SELECT record_audit_event(:'staff_id', 'question.answer', 'product_answers', :'answered_question_id', NULL,
+    jsonb_build_object('length', length('如果你需要確認配件，請提供商品型號。')));
 
 -- The fixture's one-star review, hidden by moderation: the rating spread counts
 -- visible reviews only.

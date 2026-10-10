@@ -66,13 +66,13 @@ var (
 
 	KeyOrderFactRefund = key("order.fact.refund", Message{ZhHant: "退款", En: "Refund"})
 
-	KeyOrderFactReturned = key("order.fact.returned", Message{ZhHant: "退貨完成", En: "Return completed"})
+	KeyOrderFactRefundDate = key("order.fact.refunddate", Message{ZhHant: "退款日期", En: "Refund date"})
 
 	KeyOrderReturnedTitle = key("order.returned.title", Message{ZhHant: "退貨", En: "Returns"})
 
 	KeyOrderReturnedAll = key("order.returned.all", Message{
-		ZhHant: "這筆訂單的商品已全部退回並退款。",
-		En:     "Everything in this order has been returned and refunded.",
+		ZhHant: "這筆訂單已全部退款。",
+		En:     "This order has been refunded in full.",
 	})
 
 	KeyOrderItems = key("order.items", Message{ZhHant: "商品", En: "Items"})

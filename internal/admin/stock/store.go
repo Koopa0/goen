@@ -32,7 +32,8 @@ var (
 	ErrNotFound = errors.New("stock: not found")
 	// ErrRefused is a write the database declined; its message is the database's
 	// own, because that names the rule.
-	ErrRefused = errors.New("stock: refused")
+	ErrRefused          = errors.New("stock: refused")
+	ErrMovementConflict = errors.New("stock: movement conflict")
 )
 
 type Store struct {
@@ -192,8 +193,11 @@ func (s *Store) settleReplay(
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
 		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: string(reason),
 	})
-	if checkErr != nil || !applied {
-		return err
+	if checkErr != nil {
+		return errors.Join(err, fmt.Errorf("check recorded stock movement: %w", checkErr))
+	}
+	if !applied {
+		return errors.Join(err, ErrMovementConflict)
 	}
 	return nil
 }

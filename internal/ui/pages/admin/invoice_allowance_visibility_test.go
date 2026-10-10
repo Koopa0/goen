@@ -19,6 +19,7 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 		locale      i18n.Locale
 		disabled    string
 		awaiting    string
+		stale       string
 		unconfirmed string
 		held        string
 		mismatch    string
@@ -27,14 +28,16 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 			locale:      i18n.ZhHant,
 			disabled:    "尚未啟用電子發票，這裡無法開立、作廢或折讓。",
 			awaiting:    "已寄出折讓確認信，等待顧客在 2026-10-10 15:00 前確認。",
+			stale:       "這張折讓在停用電子發票前已向綠界送出，顧客確認期限是 2026-10-10 15:00。停用期間這裡不會更新結果，請到綠界後台查看。",
 			unconfirmed: "顧客未在 72 小時內確認折讓。",
 			held:        "綠界表示這張發票可折讓的金額仍被先前未確認的折讓保留，這次沒有開立任何折讓。",
 			mismatch:    "綠界的回覆指向另一張發票，無法確認這筆折讓是否已寄出給顧客。",
 		},
 		{
 			locale:      i18n.En,
-			disabled:    "E-invoicing is not set up for this shop, so invoices cannot be issued, voided or credited from here.",
+			disabled:    "E-invoicing is not set up for this shop, so invoices cannot be issued or voided, and credit notes cannot be filed, from here.",
 			awaiting:    "The credit note was e-mailed to the customer to agree to by 2026-10-10 15:00.",
+			stale:       "This credit note was sent to ECPay before e-invoicing was turned off; the customer has until 2026-10-10 15:00 to agree. Its outcome is not updated here while e-invoicing is off, so check it in ECPay's back office.",
 			unconfirmed: "The customer did not agree to the credit note within 72 hours.",
 			held:        "ECPay says an earlier credit note the customer never agreed to still holds this invoice's amount, so nothing was filed this time.",
 			mismatch:    "ECPay's reply named another invoice, so whether this credit note reached the customer is unknown.",
@@ -48,14 +51,15 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 			{name: "enabled", enabled: true},
 		} {
 			for _, tt := range []struct {
-				name           string
-				awaiting       string
-				attention      string
-				message        string
-				noInvoice      bool
-				enabledActions []string
+				name            string
+				awaiting        string
+				attention       string
+				message         string
+				disabledMessage string
+				noInvoice       bool
+				enabledActions  []string
 			}{
-				{name: "pending", awaiting: "2026-10-10 15:00", message: language.awaiting, enabledActions: []string{"void"}},
+				{name: "pending", awaiting: "2026-10-10 15:00", message: language.awaiting, disabledMessage: language.stale, enabledActions: []string{"void"}},
 				{name: "unconfirmed", attention: invoice.CategoryBuyerUnconfirmed, message: language.unconfirmed, enabledActions: []string{"void"}},
 				{name: "held amount", attention: invoice.CategoryAmountStillHeld, message: language.held, enabledActions: []string{"void"}},
 				{name: "provider mismatch", attention: invoice.CategorySuccessMismatch, message: language.mismatch, enabledActions: []string{"void"}},
@@ -79,11 +83,15 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 						}
 					}
 					body := renderComponent(t, ctx, Order(layouts.Page{Title: "GO-ALLOWANCE"}, &view))
-					wantCounts := map[string]int{
-						language.awaiting: 0, language.unconfirmed: 0, language.held: 0, language.mismatch: 0,
+					message := tt.message
+					if !provider.enabled && tt.disabledMessage != "" {
+						message = tt.disabledMessage
 					}
-					if tt.message != "" {
-						wantCounts[tt.message] = 1
+					wantCounts := map[string]int{
+						language.stale: 0, language.awaiting: 0, language.unconfirmed: 0, language.held: 0, language.mismatch: 0,
+					}
+					if message != "" {
+						wantCounts[message] = 1
 					}
 					counts := make(map[string]int, len(wantCounts))
 					for message := range wantCounts {
@@ -92,7 +100,7 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 					if diff := cmp.Diff(wantCounts, counts); diff != "" {
 						t.Errorf("Order() allowance notices (-want +got):\n%s", diff)
 					}
-					if tt.attention != "" && !strings.Contains(body, `<p class="ui-alert ui-alert--error" role="status">`+html.EscapeString(tt.message)+`</p>`) {
+					if tt.attention != "" && !strings.Contains(body, `<p class="ui-alert ui-alert--error" role="status">`+html.EscapeString(message)+`</p>`) {
 						t.Error("Order() allowance attention has no visible status region")
 					}
 					for _, number := range []string{"LC97535645", "CN-PREVIOUS"} {

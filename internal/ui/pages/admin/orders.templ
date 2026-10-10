@@ -755,8 +755,11 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 						</ul>
 					}
-					if v.AllowanceAwaitingUntil != "" {
+					if v.AllowanceAwaitingUntil != "" && v.InvoicingEnabled {
 						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
+					}
+					if v.AllowanceAwaitingUntil != "" && !v.InvoicingEnabled {
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaitingUnreconciled), v.AllowanceAwaitingUntil) }</p>
 					}
 					if v.AllowanceAttention != "" {
 						<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>

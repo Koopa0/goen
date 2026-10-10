@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -87,10 +87,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderHead),
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderBody)))
+			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
+				admin.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
@@ -375,6 +374,13 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 		access.ServerError(w, r, h.log)
 		return
 	}
+	applyDeliveryRefusals(r.Context(), &view, d, refusals)
+	view.AllowanceOperationID = uuid.NewString()
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+}
+
+func applyDeliveryRefusals(ctx context.Context, view *admin.OrderView, d *DeliveryCorrection, refusals []web.FieldRefusal) {
 	view.Delivery = admin.Delivery(*d)
 	view.DeliveryErrors = make(map[string]string, len(refusals))
 	for _, refusal := range refusals {
@@ -383,10 +389,19 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 			field = "recipient"
 		}
 		if _, seen := view.DeliveryErrors[field]; !seen {
-			view.DeliveryErrors[field] = i18n.T(r.Context(), refusal.MessageKey)
+			view.DeliveryErrors[field] = i18n.T(ctx, refusal.MessageKey)
+		}
+		var shown bool
+		switch field {
+		case "recipient", "phone", "email":
+			shown = true
+		case "postal_code", "city", "district", "street":
+			shown = !view.PickupDestination
+		case "pickup_chain", "pickup_store_code", "pickup_store_name":
+			shown = view.PickupDestination
+		}
+		if !shown && view.Notice.Text == "" {
+			view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: view.DeliveryErrors[field]}
 		}
 	}
-	view.AllowanceOperationID = uuid.NewString()
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }

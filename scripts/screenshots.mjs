@@ -4,7 +4,7 @@
 //
 // SHOT_PAGES lists the entries, one per line or separated by commas:
 //
-//   path@width[@lang][@text200][@forced][@member][@noscript]
+//   path@width[@lang][@text200][@forced][@member][@noscript][@delivery-refused]
 //
 //   /p/{PRODUCT_SLUG}@375@en@text200
 //
@@ -18,6 +18,9 @@
 // numbers scripts/check-layout.sql writes to its env file (names ending _SLUG
 // or _ORDER, PICKUP_SHIP, CUSTOMER_ID, LAYOUT_SERIAL; never a token).
 // A comma inside a path needs the one-entry-per-line form.
+// delivery-refused requires data=layout and /admin/orders/{PLACED_ORDER}; it
+// submits that order's real address form with an absent pickup field and captures
+// the localized 422 refusal. Omit the flag to capture the baseline order GET.
 //
 // Who is looking follows from the path: /admin is staff (ADMIN_TOKEN), /account
 // the signed-in customer (CUST_TOKEN), /cart and /checkout the cart's owner
@@ -40,6 +43,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { screenshotRouteMatches } from './screenshot-route.mjs';
 import { screenshotReflow } from './screenshot-reflow.mjs';
+import { captureDeliveryRefusal, recoverDeliveryBaseline } from './screenshot-delivery.mjs';
 import { parseEntry, screenshotVisitor } from './screenshot-entry.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -62,6 +66,7 @@ function slug(index, entry) {
   if (entry.text200) parts.push('text200');
   if (entry.forced) parts.push('forced');
   if (entry.member) parts.push('member');
+  if (entry.deliveryRefused) parts.push('delivery-refused');
   if (entry.noscript) parts.push('noscript');
   return parts.join('-') + '.png';
 }
@@ -159,6 +164,9 @@ async function shoot(entry, file) {
   await send('Emulation.setScriptExecutionDisabled', { value: entry.noscript });
   await device(height);
   await navigate(ORIGIN + entry.path);
+  const refusal = entry.deliveryRefused
+    ? await captureDeliveryRefusal({ entry, placedOrder: process.env.PLACED_ORDER, origin: ORIGIN, ws, evaluate })
+    : null;
   if (entry.text200) {
     await evaluate(`document.documentElement.style.fontSize = '200%'`);
     await sleep(300);
@@ -189,7 +197,18 @@ async function shoot(entry, file) {
     reflow = { error: e.message };
   }
   const result = { ...facts, reflow, height: shotHeight, capped: shotHeight === CAP };
-  if (facts.status >= 400) result.error = `answered ${facts.status}`;
+  if (refusal) {
+    const { baseline, ...observed } = refusal;
+    result.refusal = observed;
+    if (facts.status !== 422 || facts.finalPath !== refusal.path) result.error = 'delivery refusal document changed before capture';
+    else {
+      try {
+        result.refusal.recovery = await recoverDeliveryBaseline({ entry, origin: ORIGIN, baseline, navigate, evaluate });
+      } catch (e) {
+        result.error = e.message;
+      }
+    }
+  } else if (facts.status >= 400) result.error = `answered ${facts.status}`;
   else if (visitor && !screenshotRouteMatches(entry.path, facts.finalPath, visitor.prefix)) result.error = `needs ${visitor.token} but ended on ${facts.finalPath}`;
   return result;
 }
@@ -217,7 +236,8 @@ for (const [index, text] of entries.entries()) {
   try {
     const entry = parseEntry(text, process.env);
     record.file = slug(index, entry);
-    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, member: entry.member, noscript: entry.noscript, view: VIEW });
+    Object.assign(record, { requested: entry.path, width: entry.width, lang: entry.lang, text200: entry.text200, forced: entry.forced, member: entry.member, noscript: entry.noscript, view: VIEW,
+      state: entry.deliveryRefused ? 'delivery-refused' : 'baseline' });
     Object.assign(record, await shoot(entry, record.file));
     if (record.error) {
       failed++;
@@ -225,6 +245,7 @@ for (const [index, text] of entries.entries()) {
     }
     console.log(`${record.file} ${record.status} ${record.finalPath} h1=${JSON.stringify(record.h1)} scrollWidth=${record.scrollWidth} height=${record.height}`);
   } catch (e) {
+    if (e.capture) Object.assign(record, e.capture);
     record.error = e.message;
     failed++;
     console.error(`${text}: ${e.message}`);
