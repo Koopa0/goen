@@ -4,7 +4,6 @@ package productlabel
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -83,7 +82,7 @@ func (f *Facts) Rows(ctx context.Context) []Fact {
 	if f.MinAgeMonths != nil {
 		value := i18n.T(ctx, i18n.KeyProductLabelAgeAll)
 		if *f.MinAgeMonths != 0 {
-			value = fmt.Sprintf(i18n.T(ctx, i18n.KeyProductLabelAgeMonths), *f.MinAgeMonths)
+			value = i18n.Count(ctx, i18n.KeyProductLabelAgeMonths, int64(*f.MinAgeMonths), *f.MinAgeMonths)
 		}
 		rows = append(rows, Fact{Term: i18n.KeyProductLabelMinAge, Value: value})
 	}
