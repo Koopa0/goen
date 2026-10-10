@@ -42,19 +42,11 @@ func (v ReturnsView) InspectionRefusals() []refusalSummary {
 	out := make([]refusalSummary, 0, len(v.Rows))
 	for i := range v.Rows {
 		row := &v.Rows[i]
-		fields := make([]refusalField, 0, 2*len(row.Lines))
-		errors := map[string]string{}
-		for j := range row.Lines {
-			line := &row.Lines[j]
-			id := "recv-" + row.ID + "-" + line.OrderLineID
-			errors[id] = v.FieldRefusal(row.ID, "inspect")
-			fields = append(fields, refusalField{id, id})
-			if line.Restockable {
-				id = "stock-" + row.ID + "-" + line.OrderLineID
-				errors[id] = v.FieldRefusal(row.ID, "inspect")
-				fields = append(fields, refusalField{id, id})
-			}
+		var fields []refusalField
+		if len(row.Lines) > 0 {
+			fields = append(fields, refusalField{"inspect", "recv-" + row.ID + "-" + row.Lines[0].OrderLineID})
 		}
+		errors := map[string]string{"inspect": v.FieldRefusal(row.ID, "inspect")}
 		out = append(out, summarizeRefusal(i18n.KeyAdminRefusalInspection, errors, fields...))
 	}
 	return out
@@ -67,8 +59,8 @@ func (v refusalSummary) Text(ctx context.Context) string {
 func (v *ProductView) VariantRefusal() refusalSummary {
 	fields := make([]refusalField, 0, 7+len(v.Options))
 	fields = append(fields, refusalField{"sku", "v-sku"}, refusalField{"price", "v-price"}, refusalField{"compare", "v-compare"})
-	for _, option := range v.Options {
-		fields = append(fields, refusalField{"options", "v-opt-" + option.ID})
+	if len(v.Options) > 0 {
+		fields = append(fields, refusalField{"options", "v-opt-" + v.Options[0].ID})
 	}
 	fields = append(fields, refusalField{"safety", "v-safety"}, refusalField{"parcel_longest", "v-longest"}, refusalField{"parcel_sum", "v-sum"}, refusalField{"parcel_weight", "v-weight"})
 	return summarizeRefusal(i18n.KeyAdminProdVariantAdd, v.Errors, fields...)

@@ -185,3 +185,25 @@ func TestRefusalSummaryCountsInEnglish(t *testing.T) {
 		}
 	}
 }
+
+func TestRefusalSummariesCountEachRefusalOnce(t *testing.T) {
+	t.Parallel()
+	view := ReturnsView{
+		Rows: []Return{{ID: "r1", Lines: []ReturnLine{
+			{OrderLineID: "l1", Restockable: true}, {OrderLineID: "l2", Restockable: true},
+		}}},
+		Errors: map[string]string{"r1.inspect": "bad count"},
+	}
+	got := view.InspectionRefusals()
+	if len(got) != 1 || got[0].Count != 1 || got[0].First != "recv-r1-l1" {
+		t.Errorf("InspectionRefusals() = %+v, want one refusal at recv-r1-l1", got)
+	}
+
+	product := &ProductView{
+		Options: []Option{{ID: "a"}, {ID: "b"}, {ID: "c"}},
+		Errors:  map[string]string{"options": "pick one"},
+	}
+	if got := product.VariantRefusal(); got.Count != 1 || got.First != "v-opt-a" {
+		t.Errorf("VariantRefusal() = %+v, want Count 1 at v-opt-a", got)
+	}
+}
