@@ -222,6 +222,28 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
+// A contrast guarantee is useful only for a colour the stylesheet draws.
+func TestEveryDeclaredToneColourHasAConsumer(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	consumers := regexp.MustCompile(`var\(\s*(--tone-[a-z]+)\s*[,)]`)
+	used := make(map[string]bool)
+	for _, match := range consumers.FindAllStringSubmatch(string(sheet), -1) {
+		used[match[1]] = true
+	}
+	for _, block := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
+		for _, decl := range toneDecl.FindAllStringSubmatch(block[2], -1) {
+			if !used[decl[1]] {
+				t.Errorf("data-tone=%q declares %s without a stylesheet consumer", block[1], decl[1])
+			}
+		}
+	}
+}
+
 // periodOverride finds the colours a head gives the period on its tone, and
 // periodDecl one of them: a tone token, a token of the page's own, or a
 // translucent rgb().
@@ -297,7 +319,7 @@ var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid-
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground, and its edge and mark colours to 3:1
+// shows to 4.5:1 on each tone's ground, and its period fill to 3:1
 // (WCAG 1.4.11). A new tone is a new block, and one
 // whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
@@ -344,7 +366,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-edge", "--tone-mark"} {
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-mark"} {
 			if len(decl[prop]) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -380,10 +402,6 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 				}
 			}
 			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
-		}
-		if got := contrast(decl["--tone-edge"], ground); got < 3 {
-			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
-				decl["--tone-edge"], name, ground, got)
 		}
 		if name == "ink" {
 			continue
