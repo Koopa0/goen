@@ -1,8 +1,17 @@
 -- goen dev catalogue seed. Edited by hand; nothing generates it.
 -- The seed/repair_*_faq.sql scripts rewrite specific FAQ answers on a database
 -- that already has this catalogue, and their text must match the rows here.
--- Dev only. Loads as the owner. Idempotent-ish: run against a fresh schema.
+-- Development only. Loads as the schema owner into an empty shop.
 BEGIN;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM products) OR EXISTS (SELECT 1 FROM orders) THEN
+        RAISE EXCEPTION 'demo catalogue requires a database without products or orders'
+            USING ERRCODE = '23514', CONSTRAINT = 'dev_catalog_requires_empty_shop';
+    END IF;
+END;
+$$;
 
 INSERT INTO brands (id, slug, name) VALUES
     ('00000001-0000-4000-8000-000000000001', 'pixelight', 'Pixelight'),
