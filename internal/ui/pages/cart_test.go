@@ -1712,14 +1712,12 @@ func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) 
 	}
 }
 
-// TestTheCartRecoveryPageGoesHome holds 回到商店 to its word: it was the page
-// the shopper was trying to reach, which is this page's own failure.
-func TestTheCartRecoveryPageGoesHome(t *testing.T) {
+func TestTheCartRecoveryPageReturnsToTheCart(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
 	back := tagCarrying(t, html, "notice__back")
-	if !strings.Contains(back, `href="/"`) {
-		t.Errorf("回到商店 does not go to the home page: %s", back)
+	if !strings.Contains(back, `href="/cart"`) {
+		t.Errorf("cart recovery does not return to the cart: %s", back)
 	}
 }
 
