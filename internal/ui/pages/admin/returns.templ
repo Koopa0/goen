@@ -173,7 +173,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
 										}
 									}
-									if !r.Rescission() {
+									if r.CanReject() {
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},

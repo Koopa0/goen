@@ -144,6 +144,20 @@ func ReturnLineWindowText(ctx context.Context, window returns.PolicyWindow) stri
 
 func (r *Return) Rescission() bool { return r.Window == returns.WindowStatutory }
 
+// CanReject excludes requests whose undelivered lines have no recorded start
+// for the statutory clock, including requests with other line windows.
+func (r *Return) CanReject() bool {
+	if r.Rescission() || r.Window == returns.WindowUndelivered {
+		return false
+	}
+	for i := range r.Lines {
+		if r.Lines[i].Window == returns.WindowUndelivered {
+			return false
+		}
+	}
+	return true
+}
+
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
 func (r *Return) Goodwill() bool { return r.Window == returns.WindowGoodwill }

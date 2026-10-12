@@ -491,6 +491,35 @@ func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 	}
 }
 
+func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name       string
+			window     returns.PolicyWindow
+			lines      []ReturnLine
+			wantReject bool
+		}{
+			{name: "undelivered", window: returns.WindowUndelivered},
+			{name: "statutory", window: returns.WindowStatutory},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowLate}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowGoodwill}}},
+			{name: "goodwill", window: returns.WindowGoodwill, wantReject: true},
+			{name: "late", window: returns.WindowLate, wantReject: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				page := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
+				}))
+				if got := strings.Contains(page, `name="decision" value="rejected"`); got != tt.wantReject {
+					t.Errorf("queue offers Reject = %t, want %t", got, tt.wantReject)
+				}
+			})
+		}
+	}
+}
+
 func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
