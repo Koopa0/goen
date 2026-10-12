@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -64,8 +65,37 @@ func (c CampaignRow) NextActive() string { return nextActive(c.Active) }
 func (c CampaignRow) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, c.Active) }
 
 type CampaignProduct struct {
-	Slug string
-	Name string
+	Slug          string
+	Name          string
+	ImageKey      string
+	PriceCents    int64
+	CompareCents  int64
+	SellableUnits int64
+	HasVariant    bool
+	// The selected regular-price variant can coexist with an unavailable discounted one.
+	HasDiscountedVariant bool
+	Draft                bool
+}
+
+func (p CampaignProduct) imageURL() string { return assets.ProductImageURL(p.ImageKey) }
+
+func (p CampaignProduct) hasMarkdown() bool {
+	return p.HasVariant && p.CompareCents > p.PriceCents
+}
+
+func (p CampaignProduct) priceText(ctx context.Context) string {
+	if p.hasMarkdown() {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampProductPrice), money.TWD(p.CompareCents),
+			money.TWD(p.PriceCents), (p.CompareCents-p.PriceCents)*100/p.CompareCents)
+	}
+	return money.TWD(p.PriceCents)
+}
+
+func (p CampaignProduct) stockText(ctx context.Context) string {
+	if p.SellableUnits <= 0 {
+		return i18n.T(ctx, i18n.KeySoldOut)
+	}
+	return i18n.Count(ctx, i18n.KeyAdminCampProductStock, p.SellableUnits, p.SellableUnits)
 }
 
 type CampaignsView struct {

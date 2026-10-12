@@ -300,8 +300,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						for _, item := range v.Products {
 							<tr>
 								<td class="goen-admin__cellkey">
-									<a href={ templ.SafeURL("/admin/products/" + item.Slug) }>{ item.Name }</a>
-									<span class="goen-admin__meta">/p/{ item.Slug }</span>
+									@campaignProductDetails(item)
 								</td>
 								<td class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
@@ -462,23 +461,46 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				<ul class="goen-admin__matches" role="list">
 					for _, m := range v.Matches {
 						<li>
-							<span>
-								{ m.Name }
-								<span class="goen-admin__meta">/p/{ m.Slug }</span>
-							</span>
-							<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
-								<input type="hidden" name="product" value={ m.Slug }/>
-								@components.Button(components.ButtonProps{
-									ButtonStyle: components.ButtonStyleOutline,
-									Size:        components.SizeSmall,
-								}, "submit") {
-									{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
-								}
-							</form>
+							@campaignProductDetails(m)
+							if m.HasDiscountedVariant {
+								<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+									<input type="hidden" name="product" value={ m.Slug }/>
+									@components.Button(components.ButtonProps{
+										ButtonStyle: components.ButtonStyleOutline,
+										Size:        components.SizeSmall,
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
+									}
+								</form>
+							}
 						</li>
 					}
 				</ul>
 			}
 		}
 	}
+}
+
+templ campaignProductDetails(p CampaignProduct) {
+	<div class="goen-admin__campaign-product">
+		if image := p.imageURL(); image != "" {
+			<img class="goen-admin__campaign-photo" src={ image } alt="" loading="lazy" width="40" height="40"/>
+		} else {
+			<span class="goen-admin__campaign-photo" aria-hidden="true"></span>
+		}
+		<div class="goen-admin__campaign-facts">
+			<a href={ templ.SafeURL("/admin/products/" + p.Slug) }>{ p.Name }</a>
+			<span class="goen-admin__meta">/p/{ p.Slug }</span>
+			if p.HasVariant {
+				<span class="goen-admin__meta">{ p.priceText(ctx) }</span>
+			}
+			if !p.HasDiscountedVariant {
+				<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminCampProductNoOriginal) }</span>
+			}
+			<span class="goen-admin__meta">{ p.stockText(ctx) }</span>
+			if p.Draft {
+				<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminCampProductDraft) }</span>
+			}
+		</div>
+	</div>
 }
