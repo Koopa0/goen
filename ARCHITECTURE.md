@@ -190,7 +190,7 @@ Hold time runs from acquire to release and includes lock waits; read averages wi
 | Saturation and restart | Full pools, steady webhooks, overlapping instances. | Acknowledgements, readiness, cancellation, and recovery after load drops. |
 | Lost external outcome | Provider accepts, then goen stops before recording. | Recovery under the original operation identity. |
 
-Test webhooks and readiness under saturation first. A webhook acquires its connection under the caller's context, outside the request budget; readiness checks `store` and then `admin` within one shared 2 seconds, so a saturated admin pool can take the instance out of rotation. See [payment processing][payment-store] and [probes][probe].
+Test webhooks and readiness under saturation first. A webhook acquires its connection under the caller's context, outside the request budget; readiness checks only `store` within 2 seconds, so a degraded admin pool does not take shopper routes out of rotation. Admin connectivity is validated at startup, and its runtime health remains visible on `/admin/health`. See [payment processing][payment-store] and [probes][probe].
 
 Run races and faults on isolated data with controlled providers and scheduled connections. Combine closed (fixed users) and open (fixed arrival rate) models, and record offered, sent, completed, rejected, and dropped work, so a slow system does not quietly slow the generator. See [k6 workload models][k6-models] and [dropped iterations][k6-dropped].
 
