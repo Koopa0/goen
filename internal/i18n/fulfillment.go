@@ -205,20 +205,12 @@ var (
 		En:     "Change the status",
 	})
 
-	KeyAdminQueueStatusSave = key("admin.queue.status.save", Message{
-		ZhHant: "更新狀態",
-		En:     "Update the status",
-	})
-
-	// Completing is what stamps delivered_at, which starts the seven-day period
-	// /admin/returns counts from; for a store pickup nobody else witnesses the handover.
-	// KeyAdminQueueStartPicking is the one move a paid order awaiting fulfilment
-	// has, so it is a button and not a menu of one.
 	KeyAdminQueueStartPicking = key("admin.queue.startpicking", Message{
 		ZhHant: "開始備貨",
 		En:     "Start picking",
 	})
 
+	// For a store pickup nobody else witnesses the handover that starts the seven-day period.
 	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
 		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。從這個時間點的次日起算七日猶豫期。",
 		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +
@@ -226,9 +218,83 @@ var (
 	})
 
 	KeyAdminQueueNextHint = key("admin.queue.next.hint", Message{
-		ZhHant: "只列出資料庫允許的下一步。未付款的訂單無法進入備貨。",
-		En: "Only the next steps the database will accept are listed. An unpaid order cannot " +
-			"move into picking.",
+		ZhHant: "可進行的下一步",
+		En:     "Steps you can take now",
+	})
+
+	KeyAdminOrderUnpaidStepHint = key("admin.order.unpaidstep.hint", Message{
+		ZhHant: "未付款的訂單無法進入備貨。",
+		En:     "An unpaid order cannot move into picking.",
+	})
+
+	KeyAdminOrderOtherSteps = key("admin.order.othersteps", Message{
+		ZhHant: "其他",
+		En:     "Other steps",
+	})
+
+	KeyAdminOrderStepDelivered = key("admin.order.step.delivered", Message{
+		ZhHant: "標記為已送達",
+		En:     "Mark delivered",
+	})
+
+	KeyAdminOrderStepCompleted = key("admin.order.step.completed", Message{
+		ZhHant: "標記為已完成",
+		En:     "Mark completed",
+	})
+
+	KeyAdminOrderStepCancelled = key("admin.order.step.cancelled", Message{
+		ZhHant: "取消訂單",
+		En:     "Cancel order",
+	})
+
+	KeyAdminOrderNextRefund = key("admin.order.next.refund", Message{
+		ZhHant: "出貨前退款還沒完成，請在退款區按「繼續退款」。",
+		En:     "The refund before shipment is unfinished; choose “Resume the refund” in the refund section.",
+	})
+
+	KeyAdminOrderNextAllowanceAttention = key("admin.order.next.allowance.attention", Message{
+		ZhHant: "發票折讓需要人工處理，請看發票區。",
+		En:     "The invoice allowance needs staff attention; see the invoice section.",
+	})
+
+	KeyAdminOrderNextAllowanceAwaiting = key("admin.order.next.allowance.awaiting", Message{
+		ZhHant: "發票折讓等待買方同意，期限 %s。",
+		En:     "The invoice allowance awaits the buyer’s consent until %s.",
+	})
+
+	KeyAdminOrderNextUnpaid = key("admin.order.next.unpaid", Message{
+		ZhHant: "等待顧客付款，付款前無法備貨。",
+		En:     "Waiting for the customer to pay; picking cannot begin before payment.",
+	})
+
+	KeyAdminOrderNextPending = key("admin.order.next.pending", Message{
+		ZhHant: "已付款，可以開始備貨。",
+		En:     "Paid; picking can begin.",
+	})
+
+	KeyAdminOrderNextPicking = key("admin.order.next.picking", Message{
+		ZhHant: "備貨中，出貨時填寫物流與單號。",
+		En:     "Picking is in progress; enter the carrier and tracking number when dispatching.",
+	})
+
+	KeyAdminOrderNextShipped = key("admin.order.next.shipped", Message{
+		ZhHant: "已出貨，下一步是標記為已送達。",
+		En:     "Shipped; the next step is to mark it delivered.",
+	})
+
+	KeyAdminOrderNextPartialDelivery = key("admin.order.next.partialdelivery", Message{
+		ZhHant: "已送達部分包裹，還有商品待出貨。",
+		En:     "Some parcels have arrived; goods still need to be shipped.",
+	})
+
+	KeyAdminOrderNextDelivered = key("admin.order.next.delivered", Message{
+		ZhHant: "已送達，下一步是標記為已完成。",
+		En:     "Delivered; the next step is to mark it completed.",
+	})
+
+	KeyAdminOrderNextNone = key("admin.order.next.none", Message{
+		ZhHant: "這筆訂單沒有需要處理的事。",
+		En:     "This order needs no further action.",
 	})
 
 	KeyAdminQueueFinal = key("admin.queue.final", Message{
@@ -286,11 +352,6 @@ var (
 	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
 		ZhHant: "這筆訂單還有包裹沒出貨，不能標為已完成。請先出貨剩下的包裹。",
 		En:     "This order still owes a parcel, so it cannot be marked completed. Ship the rest first.",
-	})
-
-	KeyAdminQueueNextChoose = key("admin.queue.next.choose", Message{
-		ZhHant: "請選擇下一步",
-		En:     "Choose the next step",
 	})
 
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
