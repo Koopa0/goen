@@ -114,6 +114,15 @@ WHERE o.order_number = $1;
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
 
+-- name: OrderShipment :one
+SELECT id, carrier, tracking_number, delivered_at
+FROM order_shipments WHERE order_id = @order_id AND id = @shipment_id;
+
+-- name: MarkShipmentDelivered :one
+UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
+WHERE order_id = @order_id AND id = @shipment_id AND delivered_at IS NULL
+RETURNING delivered_at;
+
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
 SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
@@ -333,7 +342,7 @@ FROM (
 ORDER BY at, precedence, tie;
 
 -- name: OrderShipments :many
-SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
+SELECT id, carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Written with the shipment: a return has to be bounded by what actually went

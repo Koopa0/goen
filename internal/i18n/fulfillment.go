@@ -96,6 +96,8 @@ var (
 
 	KeyAdminQueueDispatch = key("admin.queue.dispatch", Message{ZhHant: "出貨", En: "Dispatch"})
 
+	KeyAdminMarkDelivered = key("admin.shipment.deliver", Message{ZhHant: "標記已送達", En: "Mark delivered"})
+
 	KeyAdminQueueDelivered = key("admin.queue.delivered", Message{ZhHant: "%s 送達", En: "Delivered %s"})
 
 	KeyAdminQueueDispatched = key("admin.queue.dispatched", Message{
@@ -252,6 +254,10 @@ var (
 )
 
 var (
+	KeyAdminShipmentArrivalRefused = key("admin.shipment.arrival_refused", Message{ZhHant: "目前無法替這筆訂單記錄包裹送達。請重新整理後再試。", En: "This order cannot record that parcel’s arrival now. Reload the page and try again."})
+
+	KeyAdminNoticeShipmentDelivered = key("admin.notice.shipment_delivered", Message{ZhHant: "已記錄包裹送達。", En: "Parcel arrival recorded."})
+
 	KeyAdminNoticeShipped = key("admin.notice.shipped", Message{
 		ZhHant: "已出貨。配送資訊與庫存都已記錄。",
 		En:     "Dispatched. The delivery details and the stock movement are both recorded.",

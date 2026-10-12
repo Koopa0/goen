@@ -481,6 +481,14 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
 									} else {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDispatched), sh.ShippedAt) }</span>
+										if v.Status == order.FulfillmentDelivered {
+											<form method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/shipments/" + sh.ID + "/delivered") }>
+												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+													{ i18n.T(ctx, i18n.KeyAdminMarkDelivered) }
+													<span class="goen-sr-only">{ " " + sh.Tracking }</span>
+												}
+											</form>
+										}
 									}
 								</li>
 							}

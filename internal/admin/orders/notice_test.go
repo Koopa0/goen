@@ -22,6 +22,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		{"ok", components.OutcomeDone},
 		{"refused", components.OutcomeRefused},
 		{"shipped", components.OutcomeDone},
+		{"parceldelivered", components.OutcomeDone},
 		{"toolate", components.OutcomeRefused},
 		{"deliveryneeds", components.OutcomeRefused},
 		{"paidcancel", components.OutcomeRefused},
