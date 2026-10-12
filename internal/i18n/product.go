@@ -77,7 +77,7 @@ var (
 	})
 
 	KeyRestockUnavailable = key("pdp.restock.unavailable", Message{
-		ZhHant: "這個規格目前不需要補貨通知（已經有貨，或已不存在）。請確認規格後再試。",
+		ZhHant: "這個款式目前不需要補貨通知（已經有貨，或已不存在）。請確認款式後再試。",
 		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
 	})
 
@@ -259,12 +259,12 @@ var (
 	KeyAdminProdAddImage = key("admin.prod.addimage", Message{ZhHant: "加入圖片", En: "Add image"})
 
 	KeyAdminProdNoOptions = key("admin.prod.nooptions", Message{
-		ZhHant: "還沒有規格項目。單一規格的商品不需要。",
+		ZhHant: "還沒有選項。單一款式的商品不需要。",
 		En:     "No options yet. A product with a single variant does not need any.",
 	})
 
 	KeyAdminProdNoVariants = key("admin.prod.novariants", Message{
-		ZhHant: "還沒有規格。沒有規格的商品沒有價格，無法上架。",
+		ZhHant: "還沒有款式。沒有款式的商品沒有價格，無法上架。",
 		En:     "No variants yet. A product with no variant has no price and cannot be published.",
 	})
 
@@ -283,7 +283,7 @@ var (
 	})
 
 	KeyAdminProdNeedsVariant = key("admin.prod.needsvariant", Message{
-		ZhHant: "先新增至少一個規格，才能上架。",
+		ZhHant: "先新增至少一個款式，才能上架。",
 		En:     "Add at least one variant before this can be published.",
 	})
 

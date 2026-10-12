@@ -46,7 +46,7 @@ var (
 
 	KeyAuditEntityProductSpecs = key("audit.entity.product_specs", Message{ZhHant: "商品規格表", En: "Product specification"})
 
-	KeyAuditEntityProductVariants = key("audit.entity.product_variants", Message{ZhHant: "規格", En: "Variant"})
+	KeyAuditEntityProductVariants = key("audit.entity.product_variants", Message{ZhHant: "款式", En: "Variant"})
 
 	KeyAuditEntityProducts = key("audit.entity.products", Message{ZhHant: "商品", En: "Product"})
 

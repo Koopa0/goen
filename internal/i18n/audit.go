@@ -22,9 +22,9 @@ var (
 	KeyAuditVariantReprice = key("audit.variant.reprice", Message{ZhHant: "調整售價", En: "Change price"})
 	KeyAuditVariantArrival = key("audit.variant.arrival", Message{ZhHant: "設定預計到貨日", En: "Set expected arrival"})
 
-	KeyAuditVariantRetire = key("audit.variant.retire", Message{ZhHant: "規格上下架", En: "Variant availability"})
+	KeyAuditVariantRetire = key("audit.variant.retire", Message{ZhHant: "款式上下架", En: "Variant availability"})
 
-	KeyAuditVariantCreate = key("audit.variant.create", Message{ZhHant: "新增規格", En: "Add variant"})
+	KeyAuditVariantCreate = key("audit.variant.create", Message{ZhHant: "新增款式", En: "Add variant"})
 
 	KeyAuditProductCreate = key("audit.product.create", Message{ZhHant: "新增商品", En: "Add product"})
 
@@ -55,9 +55,9 @@ var (
 		En:     "Remove product from campaign",
 	})
 
-	KeyAuditOptionAdd = key("audit.option.add", Message{ZhHant: "新增規格項目", En: "Add option"})
+	KeyAuditOptionAdd = key("audit.option.add", Message{ZhHant: "新增選項", En: "Add option"})
 
-	KeyAuditOptionValueAdd = key("audit.option.value.add", Message{ZhHant: "新增規格選項值", En: "Add option value"})
+	KeyAuditOptionValueAdd = key("audit.option.value.add", Message{ZhHant: "新增選項值", En: "Add option value"})
 
 	KeyAuditSpecAdd = key("audit.spec.add", Message{ZhHant: "新增商品規格", En: "Add spec row"})
 
@@ -241,7 +241,7 @@ var (
 	KeyAuditFieldMessageID            = key("audit.field.message_id", Message{ZhHant: "留言編號", En: "Message ID"})
 	KeyAuditFieldNewsletterID         = key("audit.field.newsletter_id", Message{ZhHant: "電子報編號", En: "Newsletter ID"})
 	KeyAuditFieldNewsletterRecipients = key("audit.field.newsletter_recipients", Message{ZhHant: "收信人數", En: "Recipient count"})
-	KeyAuditFieldOptionValue          = key("audit.field.option_value", Message{ZhHant: "規格選項值", En: "Option value"})
+	KeyAuditFieldOptionValue          = key("audit.field.option_value", Message{ZhHant: "選項值", En: "Option value"})
 	KeyAuditFieldParentCategory       = key("audit.field.parent_category", Message{ZhHant: "上層分類", En: "Parent category"})
 	KeyAuditFieldPointsRate           = key("audit.field.points_rate", Message{ZhHant: "點數倍率（基點）", En: "Points rate (basis points)"})
 	KeyAuditFieldPostalCodeCount      = key("audit.field.postal_code_count", Message{ZhHant: "郵遞區號數", En: "Postal-code count"})
@@ -259,7 +259,7 @@ var (
 	KeyAuditFieldRestockedLines       = key("audit.field.restocked_lines", Message{ZhHant: "回補庫存品項數", En: "Restocked item count"})
 	KeyAuditFieldReturnRequest        = key("audit.field.return_request", Message{ZhHant: "退貨申請編號", En: "Return request ID"})
 	KeyAuditFieldReviewID             = key("audit.field.review_id", Message{ZhHant: "評價編號", En: "Review ID"})
-	KeyAuditFieldSKU                  = key("audit.field.sku", Message{ZhHant: "商品規格編號", En: "SKU"})
+	KeyAuditFieldSKU                  = key("audit.field.sku", Message{ZhHant: "款式 SKU", En: "SKU"})
 	KeyAuditFieldStockChange          = key("audit.field.stock_change", Message{ZhHant: "庫存調整數量", En: "Stock quantity change"})
 	KeyAuditFieldUnknown              = key("audit.field.unknown", Message{ZhHant: "這筆記錄包含「%s」欄位。", En: "This record includes the field “%s”."})
 )

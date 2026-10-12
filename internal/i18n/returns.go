@@ -322,7 +322,7 @@ var (
 	})
 
 	KeyAdminRetNoVariant = key("admin.ret.novariant", Message{
-		ZhHant: "這個品項已無對應規格，無法入庫。",
+		ZhHant: "這個品項已無對應款式，無法入庫。",
 		En:     "This item no longer has a variant to go back into, so nothing can be restocked.",
 	})
 
