@@ -151,9 +151,7 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 	}
 }
 
-// TestTheIssueButtonFollowsTheMoney: the button is offered for every order
-// whose money has arrived, including a pending one store credit paid in full,
-// and for no order still owing.
+// A positive sale paid wholly with store credit still owes an invoice before picking.
 func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -161,8 +159,12 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		view OrderView
 		want bool
 	}{
-		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true}, want: true},
-		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending}, want: true},
+		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000}, want: true},
+		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, CreditCents: 100000}, want: true},
+		{name: "zero gross, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
+		{name: "zero gross, committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
+		{name: "shipping remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, ShippingCents: 8000}, want: true},
+		{name: "tax remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, TaxCents: 5000}, want: true},
 		{name: "still owing", view: OrderView{Status: order.FulfillmentPending, Unpaid: true}, want: false},
 		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled}, want: false},
 	} {
