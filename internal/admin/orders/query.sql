@@ -310,7 +310,12 @@ FROM (
                 WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT @invoicing_enabled::boolean
                 THEN 'not_sent'
                 ELSE op.status END,
-           op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.completed_at,
+           CASE WHEN op.status = 'rejected' AND op.kind IN ('issue', 'allowance')
+                     AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
+                THEN substring(op.last_error FROM '[0-9]+$')
+                ELSE '' END,
+           op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = @order_id
