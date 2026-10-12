@@ -519,6 +519,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 		return pages.AccountView{}, fmt.Errorf("read profile: %w", err)
 	}
 	view.Phone = profile.Phone.String
+	view.HasPassword = profile.HasPassword
 
 	identities, err := s.q.IdentitiesForUser(ctx, id)
 	if err != nil {

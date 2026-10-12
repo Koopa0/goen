@@ -338,6 +338,9 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
 	mux.HandleFunc("GET /forgot", customers.ForgotPage)
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
+	// RequireUser's sign-in return URL would issue GET to this POST-only action.
+	mux.HandleFunc("POST /account/password/setup",
+		ratelimit.Guard(authLimit, log, customers.RequestPasswordSetup))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
 	// Open to a signed-out visitor, who is sent on rather than refused: a
