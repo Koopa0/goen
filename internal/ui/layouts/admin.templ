@@ -25,13 +25,18 @@ templ Admin(p Page, current string) {
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@adminBar()
-			<main id="main">
+			<main
+				if current == "" {
+					id="main"
+					tabindex="-1"
+				}
+			>
 				if current == "" {
 					{ children... }
 				} else {
 					<div class="goen-admin">
 						@adminNav(current)
-						<div class="goen-admin__main">
+						<div id="main" class="goen-admin__main" tabindex="-1">
 							{ children... }
 						</div>
 					</div>
