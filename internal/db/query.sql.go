@@ -10255,6 +10255,7 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 
 const myWarranties = `-- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.order_line_id,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,
@@ -10271,6 +10272,7 @@ type MyWarrantiesRow struct {
 	ID           uuid.UUID
 	UnitNo       int16
 	SerialNumber string
+	OrderLineID  uuid.UUID
 	RegisteredAt time.Time
 	ExpiresOn    time.Time
 	InForce      bool
@@ -10295,6 +10297,7 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.ID,
 			&i.UnitNo,
 			&i.SerialNumber,
+			&i.OrderLineID,
 			&i.RegisteredAt,
 			&i.ExpiresOn,
 			&i.InForce,
@@ -14006,11 +14009,15 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 const registrableLines = `-- name: RegistrableLines :many
 SELECT
     ol.id AS order_line_id,
+    o.order_number,
     ol.product_name,
     ol.variant_label,
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
+    -- sqlc types the lateral date as non-null, so retain its presence separately.
+    (parcel.expires_on IS NOT NULL)::boolean AS has_expiry,
+    coalesce(parcel.expires_on, shop_today())::date AS expires_on,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
     coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
@@ -14035,23 +14042,39 @@ LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
 ) registered ON true
-WHERE o.order_number = $1::text
+LEFT JOIN LATERAL (
+    SELECT (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE coalesce(registered.units, 0) + 1 > p.units_before
+      AND coalesce(registered.units, 0) + 1 <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+) parcel ON true
+WHERE ($1::text IS NULL OR o.order_number = $1::text)
   AND o.user_id = $2
-ORDER BY ol.position, ol.id
+ORDER BY o.placed_at DESC, o.id, ol.position, ol.id
 `
 
 type RegistrableLinesParams struct {
-	OrderNumber string
+	OrderNumber pgtype.Text
 	UserID      uuid.NullUUID
 }
 
 type RegistrableLinesRow struct {
 	OrderLineID     uuid.UUID
+	OrderNumber     string
 	ProductName     string
 	VariantLabel    pgtype.Text
 	ProductSlug     pgtype.Text
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
+	HasExpiry       bool
+	ExpiresOn       time.Time
 	DeliveredUnits  int32
 	ReturnedUnits   int32
 	RegisteredUnits int32
@@ -14073,11 +14096,14 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		var i RegistrableLinesRow
 		if err := rows.Scan(
 			&i.OrderLineID,
+			&i.OrderNumber,
 			&i.ProductName,
 			&i.VariantLabel,
 			&i.ProductSlug,
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
+			&i.HasExpiry,
+			&i.ExpiresOn,
 			&i.DeliveredUnits,
 			&i.ReturnedUnits,
 			&i.RegisteredUnits,
