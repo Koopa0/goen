@@ -3,6 +3,7 @@
 package account_test
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -96,6 +97,12 @@ func TestSigningOutOtherDevicesKeepsTheCurrentSessionAndOtherUsers(t *testing.T)
 					assertCounts(counts{Own: 1, Foreign: 2})
 					for index, wantID := range []string{u.ID, "", foreign.ID, foreign.ID} {
 						signedIn, err := s.SessionUser(ctx, tokens[index])
+						if wantID == "" {
+							if !errors.Is(err, account.ErrNotFound) || signedIn.ID != "" {
+								t.Errorf("revoked session user = %q, %v; want no user and ErrNotFound", signedIn.ID, err)
+							}
+							continue
+						}
 						if err != nil || signedIn.ID != wantID {
 							t.Errorf("session %d user = %q, %v; want %q", index, signedIn.ID, err, wantID)
 						}
