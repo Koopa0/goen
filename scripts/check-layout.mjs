@@ -22,6 +22,7 @@ import { checkAdminActionReflow } from './admin-action-reflow.mjs';
 import { checkSearchReflow } from './search-reflow.mjs';
 import { checkMenuFallback } from './menu-fallback.mjs';
 import { checkWarrantyReflow } from './warranty-reflow.mjs';
+import { checkWishlistFocus } from './wishlist-focus-check.mjs';
 
 const LAYOUT_DIR = process.env.LAYOUT_DIR || '.layout-chrome';
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
@@ -4459,6 +4460,17 @@ const auditReflow = async () => {
   console.log(JSON.stringify({ ...reflowBaselineFile, routes: ordered }, null, 2));
   console.log('::endgroup::');
 };
+
+await checkWishlistFocus({
+  send: (method, params) => send(ws, method, params),
+  evaluate: async (expression, awaitPromise = false) => {
+    const { result, exceptionDetails } = await send(ws, 'Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    return result.value;
+  },
+  navigate: async (url) => { await send(ws, 'Page.navigate', { url }); await settled(ws, 'wishlist focus', url); },
+  fail, origin: ORIGIN,
+});
 
 await checkQuestionSwitchReflow({
   send: (method, params) => send(ws, method, params),
