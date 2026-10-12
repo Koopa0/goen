@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyAdminNewsAudience = key("admin.news.audience", Message{ZhHant: "會以這份內容寄給全部 %d 位訂閱者（其中 %d 位選擇英文），不分語言。", En: "This goes to all %d subscribers (%d chose English) as written."})
+
 	KeyNewsletterSent = key("news.sent", Message{
 		ZhHant: "確認信已寄出",
 		En:     "Check your inbox",
