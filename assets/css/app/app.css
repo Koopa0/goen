@@ -4426,7 +4426,6 @@ input.goen-check {
 .goen-pdp__thumb {
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  grid-row: 2;
   min-width: 0;
   padding-bottom: 0.375rem;
 }
