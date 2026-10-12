@@ -166,6 +166,20 @@ func (r *Return) Late() bool { return r.Window == returns.WindowLate }
 
 func (r *Return) Mixed() bool { return r.Window == returns.WindowMixed }
 
+func (r *Return) mixedStatutoryApproval() bool {
+	if !r.Mixed() || len(r.Lines) == 0 {
+		return false
+	}
+	for i := range r.Lines {
+		switch r.Lines[i].Window {
+		case returns.WindowStatutory, returns.WindowUndelivered:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func (r *Return) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case returns.WindowStatutory:

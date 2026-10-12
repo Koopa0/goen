@@ -520,6 +520,54 @@ func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
 	}
 }
 
+func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name             string
+			window           returns.PolicyWindow
+			lines            []ReturnLine
+			wantAssessment   bool
+			wantException    bool
+			wantGoodwillHint bool
+		}{
+			{name: "undelivered", window: returns.WindowUndelivered, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}}},
+			{name: "statutory", window: returns.WindowStatutory, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}}},
+			{name: "mixed statutory undelivered", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowUndelivered}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed statutory goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				page := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
+				}))
+				if !strings.Contains(page, `name="decision" value="approved"`) {
+					t.Error("the queue does not offer ordinary approval")
+				}
+				for _, item := range []struct {
+					name string
+					text string
+					want bool
+				}{
+					{name: "assessment", text: `action="/admin/returns/open-row/assess"`, want: tt.wantAssessment},
+					{name: "exception", text: `name="decision" value="exception"`, want: tt.wantException},
+					{name: "goodwill hint", text: i18n.T(ctx, i18n.KeyAdminRetGoodwillHint), want: tt.wantGoodwillHint},
+				} {
+					if got := strings.Contains(page, item.text); got != item.want {
+						t.Errorf("queue offers %s = %t, want %t", item.name, got, item.want)
+					}
+				}
+				if tt.window == returns.WindowMixed && !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)) {
+					t.Error("the mixed request lost its factual window label")
+				}
+			})
+		}
+	}
+}
+
 func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
