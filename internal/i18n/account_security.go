@@ -29,6 +29,16 @@ var (
 
 	KeyLinkedAccounts = key("account.linked", Message{ZhHant: "連結的帳號", En: "Linked accounts"})
 
+	KeySignOutOtherDevices = key("account.sessions.others.end", Message{
+		ZhHant: "登出其他裝置",
+		En:     "Sign out other devices",
+	})
+
+	KeyOtherDevicesSignedOut = key("account.notice.others.signedout", Message{
+		ZhHant: "已登出其他裝置。",
+		En:     "Signed out of your other devices.",
+	})
+
 	KeyGoogleLinked = key("account.linked.google", Message{
 		ZhHant: "這個帳號可以用 Google 登入。",
 		En:     "You can sign in to this account with Google.",

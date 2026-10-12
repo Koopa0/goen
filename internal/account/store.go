@@ -259,6 +259,16 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 	return nil
 }
 
+func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken string) error {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	return s.q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
+		UserID: id, CurrentTokenHash: HashToken(currentToken),
+	})
+}
+
 func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.UUID) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {

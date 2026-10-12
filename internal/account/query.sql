@@ -118,6 +118,10 @@ DELETE FROM sessions WHERE token_hash = $1;
 -- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = $1;
 
+-- name: DeleteOtherUserSessions :exec
+DELETE FROM sessions
+WHERE user_id = @user_id AND token_hash <> @current_token_hash::bytea;
+
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
 

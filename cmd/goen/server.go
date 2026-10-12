@@ -370,6 +370,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("POST /account/addresses", customers.RequireUser(customers.AddAddress))
 	mux.HandleFunc("POST /account/addresses/default", customers.RequireUser(customers.MakeDefaultAddress))
 	mux.HandleFunc("POST /account/addresses/delete", customers.RequireUser(customers.DeleteAddress))
+	mux.HandleFunc("POST /account/sessions/others/end", customers.RequireUser(customers.SignOutOtherDevices))
 	// Also guarded: these verify a password with argon2, so a signed-in session
 	// is otherwise an unbounded supply of 64 MiB hashes.
 	mux.HandleFunc("POST /account/email",

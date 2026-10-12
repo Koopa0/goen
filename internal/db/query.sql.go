@@ -7171,6 +7171,21 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 	return err
 }
 
+const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
+DELETE FROM sessions
+WHERE user_id = $1 AND token_hash <> $2::bytea
+`
+
+type DeleteOtherUserSessionsParams struct {
+	UserID           uuid.UUID
+	CurrentTokenHash []byte
+}
+
+func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentTokenHash)
+	return err
+}
+
 const deleteOutstandingEmailVerificationMessage = `-- name: DeleteOutstandingEmailVerificationMessage :exec
 DELETE FROM outbox_messages m
 USING email_verifications v
