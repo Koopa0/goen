@@ -1,0 +1,89 @@
+import assert from 'node:assert/strict';
+
+const [origin, port] = process.argv.slice(2);
+const debugging = `http://127.0.0.1:${port}`;
+const response = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' });
+assert.equal(response.ok, true, 'Chrome must create the carousel test page');
+const target = await response.json();
+const socket = new WebSocket(target.webSocketDebuggerUrl);
+try {
+  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+  let id = 0;
+  const pending = new Map();
+  socket.onmessage = ({ data }) => {
+    const message = JSON.parse(data), request = pending.get(message.id);
+    if (!request) return;
+    pending.delete(message.id);
+    clearTimeout(request.timer);
+    if (message.error) request.reject(new Error(JSON.stringify(message.error)));
+    else request.resolve(message.result);
+  };
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const current = ++id;
+    const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${method} timed out`)); }, 20000);
+    pending.set(current, { resolve, reject, timer });
+    socket.send(JSON.stringify({ id: current, method, params }));
+  });
+  const evaluate = async expression => {
+    const got = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (got.exceptionDetails) throw new Error(JSON.stringify(got.exceptionDetails));
+    return got.result.value;
+  };
+  const waitFor = async (expression, label) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (await evaluate(expression)) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(`${label} did not settle`);
+  };
+  await send('Page.enable');
+  for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
+    const label = `carousel ${locale} ${width}px`;
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
+    const url = `${origin}/carousel?lang=${locale}&width=${width}`;
+    await send('Page.navigate', { url });
+    await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, label);
+    await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
+    assert.equal(await evaluate('document.documentElement.lang'), locale, label);
+    await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
+    await evaluate("document.body.style.minHeight = '3000px'; window.scrollTo({top: 64, behavior: 'instant'})");
+    const before = await evaluate(`(() => {
+      const track = document.querySelector('.goen-hero__track').getBoundingClientRect();
+      return { y: scrollY, x: scrollX, gestureX: track.left + track.width / 2,
+        gestureY: track.top + track.height / 2, distance: track.width * 2 };
+    })()`);
+    assert.equal(before.y, 64, `${label}: nonzero reading position`);
+    for (const [index, direction] of [[2, -1], [0, 1]]) {
+      await send('Input.synthesizeScrollGesture', { x: before.gestureX, y: before.gestureY,
+        xDistance: direction * before.distance, yDistance: 0, speed: 1500, preventFling: true,
+        gestureSourceType: width < 768 ? 'touch' : 'mouse' });
+      await waitFor(`document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}'`, `${label} swipe ${index}`);
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const got = await evaluate(`(() => {
+        const row = document.querySelector('.goen-hero__tabs'), tab = row.querySelector('[aria-current="true"]');
+        const box = row.getBoundingClientRect(), current = tab.getBoundingClientRect();
+        const endPadding = parseFloat(getComputedStyle(row).paddingInlineEnd);
+        const right = box.left + row.clientWidth - endPadding;
+        const centre = (current.left + current.right) / 2, faults = [];
+        if (centre < box.left - 1 || centre > right + 1) faults.push('current state is outside the unfaded tab row');
+        if (current.width <= right - box.left && (current.left < box.left - 1 || current.right > right + 1))
+          faults.push('current tab is clipped or under the fade');
+        return { y: scrollY, x: scrollX, rowY: row.scrollTop, left: row.scrollLeft,
+          overflow: row.scrollWidth > row.clientWidth, current: tab.getAttribute('href'), faults };
+      })()`);
+      assert.equal(got.y, before.y, `${label}: page vertical position`);
+      assert.equal(got.x, before.x, `${label}: page horizontal position`);
+      assert.equal(got.rowY, 0, `${label}: tab row vertical position`);
+      assert.deepEqual(got.faults, [], label);
+      if (width < 768) {
+        assert.equal(got.overflow, true, `${label}: narrow fixture must require tab scrolling`);
+        if (index === 2) assert.ok(got.left > 0, `${label}: third tab must scroll horizontally`);
+        else assert.equal(got.left, 0, `${label}: first tab returns to the start`);
+      } else assert.equal(got.left, 0, `${label}: fitting desktop tabs stay still`);
+      console.log(`${label}: ${JSON.stringify(got)}`);
+    }
+  }
+} finally {
+  socket.close();
+  await fetch(`${debugging}/json/close/${target.id}`);
+}
