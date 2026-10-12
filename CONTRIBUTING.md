@@ -171,6 +171,19 @@ store before anything else.
   provider quirk, a lock ordering) and nothing else. No history.
 - Commits carry no `Co-authored-by` trailer.
 
+### Test files
+
+- Name tests after the source they exercise: `foo_test.go` and
+  `foo_integration_test.go` for `foo.go`. A topic file covers behavior spanning
+  several source files and uses the package's domain words, never an issue or PR.
+- Every integration test file has both `//go:build integration` and the
+  `_integration_test.go` suffix. Keep `TestMain` and shared setup in
+  `main_integration_test.go`.
+- Use the external test package (`package foo_test`) unless the test needs
+  unexported names.
+- Put a helper shared by several packages in the area's helper package, such
+  as `admintest` or `dbtest`.
+
 ## Changes that need the maintainer first
 
 Open an issue before touching any of these; each one is a place where a small
