@@ -40,13 +40,14 @@ func TestBuyerConsentKeysSatisfyTheSchema(t *testing.T) {
 		t.Fatal("001_initial_schema.up.sql no longer checks p_buyer_consent ?& ARRAY[...]: " +
 			"the schema moved, so update this test, do not skip it")
 	}
-	var required []string
-	for _, q := range regexp.MustCompile(`'([^']+)'`).FindAllSubmatch(match[1], -1) {
+	quoted := regexp.MustCompile(`'([^']+)'`).FindAllSubmatch(match[1], -1)
+	required := make([]string, 0, len(quoted))
+	for _, q := range quoted {
 		required = append(required, string(q[1]))
 	}
 
 	typ := reflect.TypeFor[buyerConsent]()
-	var written []string
+	written := make([]string, 0, typ.NumField())
 	for i := range typ.NumField() {
 		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
 		written = append(written, name)
