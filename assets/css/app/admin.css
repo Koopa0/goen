@@ -1680,6 +1680,11 @@ input.goen-check {
   align-items: start;
 }
 
+.goen-admin__main:has(.goen-admin__layout > .goen-admin__orderpanel) {
+  container-name: order-detail;
+  container-type: inline-size;
+}
+
 .goen-admin__refunds {
   display: grid;
   gap: 12px;
@@ -1822,6 +1827,13 @@ input.goen-check {
   .goen-admin__layout {
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 32px;
+  }
+}
+
+/* A fixed side column must not leave enlarged action labels in a narrow form. */
+@container order-detail (max-width: 40rem) {
+  .goen-admin__layout:has(> .goen-admin__orderpanel) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
