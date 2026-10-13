@@ -42,13 +42,14 @@ const server = createServer(async (request, response) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const profile = await mkdtemp(join(tmpdir(), 'goen-product-purchase-'));
+const externalPort = process.env.GOEN_PURCHASE_CDP_PORT;
+const profile = externalPort ? null : await mkdtemp(join(tmpdir(), 'goen-product-purchase-'));
 let chromeLog = '';
-const chrome = spawn(process.env.GOEN_CHROME, [
+const chrome = externalPort ? null : spawn(process.env.GOEN_CHROME, [
   '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
   '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-chrome.stderr.on('data', data => { chromeLog += data; });
+chrome?.stderr.on('data', data => { chromeLog += data; });
 let socket;
 let browserTarget;
 const pending = new Map();
@@ -83,7 +84,7 @@ function send(method, params = {}, sessionId) {
 }
 
 try {
-  const port = await until(async () => {
+  const port = externalPort || await until(async () => {
     try { return (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; }
     catch { return false; }
   }, 'Chrome debugging port');
@@ -234,9 +235,11 @@ try {
     socket.close();
   }
   for (const command of pending.values()) { clearTimeout(command.timer); command.reject(new Error('browser closed')); }
-  chrome.kill();
-  await new Promise(resolve => { if (chrome.exitCode !== null) resolve(); else chrome.once('exit', resolve); });
+  if (chrome) {
+    chrome.kill();
+    await new Promise(resolve => { if (chrome.exitCode !== null) resolve(); else chrome.once('exit', resolve); });
+  }
   server.closeAllConnections();
   await new Promise(resolve => server.close(resolve));
-  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  if (profile) await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }

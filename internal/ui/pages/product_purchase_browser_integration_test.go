@@ -16,8 +16,8 @@ import (
 )
 
 func TestProductChoiceAgainstAnInFlightPurchase(t *testing.T) {
-	if os.Getenv("GOEN_CHROME") == "" {
-		t.Skip("set GOEN_CHROME to run the product purchase browser regression")
+	if os.Getenv("GOEN_CHROME") == "" && os.Getenv("GOEN_PURCHASE_CDP_PORT") == "" {
+		t.Skip("set GOEN_CHROME or GOEN_PURCHASE_CDP_PORT to run the product purchase browser regression")
 	}
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
