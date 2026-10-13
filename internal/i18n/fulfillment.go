@@ -5,6 +5,8 @@ var (
 
 	KeyAdminTabAll = key("admin.tab.all", Message{ZhHant: "全部", En: "All"})
 
+	KeyAdminOrderStatus = key("admin.order.status", Message{ZhHant: "訂單狀態", En: "Order status"})
+
 	KeyAdminStatusPending = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
 
 	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})

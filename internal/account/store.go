@@ -668,6 +668,60 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	return nil
 }
 
+func (s *Store) addressForUser(ctx context.Context, userID, addressID string) (pages.AccountAddress, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return pages.AccountAddress{}, err
+	}
+	aid, err := uuid.Parse(addressID)
+	if err != nil {
+		return pages.AccountAddress{}, ErrNotFound
+	}
+	row, err := s.q.AddressForUser(ctx, db.AddressForUserParams{UserID: uid, AddressID: aid})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pages.AccountAddress{}, ErrNotFound
+		}
+		return pages.AccountAddress{}, err
+	}
+	return pages.AccountAddress{
+		ID: row.ID.String(), Label: row.Label.String, Name: row.RecipientName,
+		Phone: row.Phone, PostalCode: row.PostalCode, City: row.City,
+		District: row.District, Street: row.Street, Default: row.IsDefault,
+	}, nil
+}
+
+func (s *Store) updateAddress(ctx context.Context, userID, addressID string, a *Address) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	aid, err := uuid.Parse(addressID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if a == nil {
+		return ErrInvalidInput
+	}
+	bounded := *a
+	bounded.Trim()
+	if len(bounded.Validate()) > 0 {
+		return ErrInvalidInput
+	}
+	n, err := s.q.UpdateAddress(ctx, db.UpdateAddressParams{
+		UserID: uid, AddressID: aid, Label: text(bounded.Label),
+		RecipientName: bounded.Name, Phone: bounded.Phone, PostalCode: bounded.PostalCode,
+		City: bounded.City, District: bounded.District, Street: bounded.Street,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 const SessionSweepInterval = 6 * time.Hour
 
 const ResetTokenGrace = 7 * 24 * time.Hour
