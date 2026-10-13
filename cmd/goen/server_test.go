@@ -21,7 +21,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -1044,7 +1043,7 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 				StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), SecureCookies: tt.secure,
+				AdminPool: idle, Payments: gateway, Refunder: gateway, SecureCookies: tt.secure,
 			},
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
@@ -1079,7 +1078,7 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			AdminPool: idle, Payments: gateway, Refunder: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 

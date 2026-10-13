@@ -252,7 +252,7 @@ linters:
             - github.com/stripe/stripe-go/v86/webhook$
           deny:
             - pkg: github.com/stripe/stripe-go/
-              desc: only the stripe-go root and its webhook package are admitted; call Stripe through a client from payment.NewStripeClient
+              desc: only the stripe-go root and its webhook package are admitted; call Stripe through the client in internal/payment/stripeclient.go
 
     forbidigo:
       analyze-types: true
@@ -273,10 +273,10 @@ linters:
         # not hide the call.
         - pattern: ^stripe\.(NewClient|NewBackends|NewBackendsWithConfig|GetBackendWithConfig)$
           pkg: ^github\.com/stripe/stripe-go/v\d+$
-          msg: a Stripe client is built only by payment.NewStripeClient, which carries goen's timeout and reply bound
+          msg: a Stripe client is built only in internal/payment/stripeclient.go, which carries goen's timeout and reply bound
         - pattern: ^stripe\.(GetBackend|GetRawRequestBackend|RawRequest|SetBackend|SetHTTPClient)$
           pkg: ^github\.com/stripe/stripe-go/v\d+$
-          msg: the SDK's global backend has no reply bound; call Stripe through a client from payment.NewStripeClient
+          msg: the SDK's global backend has no reply bound; call Stripe through the client in internal/payment/stripeclient.go
 
     sloglint:
       no-mixed-args: true
@@ -354,7 +354,7 @@ linters:
       - path: ^internal/payment/stripeclient\.go$|_test\.go$
         linters:
           - forbidigo
-        text: a Stripe client is built only by payment\.NewStripeClient
+        text: a Stripe client is built only in internal/payment/stripeclient\.go
       # GOEN: templ writes these; the generator's style is not ours to fix.
       - path: _templ\.go
         linters:

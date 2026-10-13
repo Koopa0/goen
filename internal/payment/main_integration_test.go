@@ -28,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -1671,7 +1670,7 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	spendCreditOnOrder(t, orderID, -cents)
 
 	staff, actor := staffContext(t)
-	backOffice := admintest.OrderStore(adminRolePool(t), refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(adminRolePool(t), disabledGateway(t), nil, nil)
 	if _, err := backOffice.Advance(staff, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2340,7 +2339,7 @@ func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
 	}
 
 	ctx, actor := staffContext(t)
-	backOffice := admintest.OrderStore(adminPool, refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(adminPool, disabledGateway(t), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2495,7 +2494,7 @@ func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 func advanceToPicking(t *testing.T, number string) {
 	t.Helper()
 	ctx, actor := staffContext(t)
-	backOffice := admintest.OrderStore(pool, refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(pool, disabledGateway(t), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}
@@ -2697,6 +2696,17 @@ func gatewayRecordingCalls(t *testing.T, sessionID string) (gateway *payment.Gat
 	}))
 	t.Cleanup(srv.Close)
 	return gatewayAt(t, srv.URL), &callCount
+}
+
+// disabledGateway is a Gateway built without a Stripe key: it refuses every
+// refund with payment.ErrDisabled.
+func disabledGateway(t *testing.T) *payment.Gateway {
+	t.Helper()
+	gateway, err := payment.NewGateway("", "", "https://goen.test")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	return gateway
 }
 
 // gatewayAt is a real Gateway, built through the production Stripe client,

@@ -427,6 +427,10 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
 	return m, nil
 }
 
+// The one Stripe client the Gateway holds also issues refunds; the back office
+// reaches it through the refunds.Refunder it consumes.
+var _ refunds.Refunder = (*payment.Gateway)(nil)
+
 // openProviders builds the outside services goen talks to and says when any is
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
@@ -517,7 +521,6 @@ func run() error {
 	if demoErr != nil {
 		return demoErr
 	}
-	refunder := refunds.NewRefunder(cfg.StripeAPIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -549,7 +552,7 @@ func run() error {
 			Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
+			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: gateway,
 			SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
 		},
 	}, proxies, log)

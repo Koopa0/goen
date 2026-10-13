@@ -462,7 +462,7 @@ func (s *Store) recordRefundProviderError(
 	// UNKNOWN IS NOT FAILURE: lookup, decode, transport and unrecognised provider
 	// responses leave the claim pending. Only a rejection wrapped at the
 	// refund-CREATE boundary proves no provider object was created.
-	if !errors.Is(providerErr, ErrCreateRejected) {
+	if !errors.Is(providerErr, refund.ErrCreateRejected) {
 		return fmt.Errorf("refund for return %s: %w", returnID, providerErr)
 	}
 	if _, err := s.q.RecordRefundAPIRejection(ctx, db.RecordRefundAPIRejectionParams{

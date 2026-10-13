@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -31,7 +30,7 @@ func TestShopperReadinessSurvivesAdminPoolSaturationAndFailure(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: store, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway, Refunder: refunds.NewRefunder("")},
+		BackOffice: BackOfficeConfig{AdminPool: admin, Payments: gateway, Refunder: gateway},
 	}, slog.New(slog.DiscardHandler))
 	check := func(path string, wantStatus int, wantBody string) {
 		t.Helper()

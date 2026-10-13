@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -122,7 +121,7 @@ func confirmationRouter(t *testing.T) http.Handler {
 	}
 	return newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder("")},
+		BackOffice: BackOfficeConfig{AdminPool: pool, Payments: gateway, Refunder: gateway},
 	}, slog.New(slog.DiscardHandler))
 }
 

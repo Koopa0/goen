@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -121,7 +120,7 @@ func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 		{
 			name: "create API rejection",
 			refunder: admintest.Refunder{RefundErr: fmt.Errorf(
-				"%w: provider rejected create", refunds.ErrCreateRejected)},
+				"%w: provider rejected create", refund.ErrCreateRejected)},
 			firstState: "failed",
 		},
 	}
