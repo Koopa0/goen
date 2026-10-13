@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -57,11 +57,11 @@ func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
 		t.Fatalf("credit paying all of %s queued %+v, want one due with its commit", whole, got)
 	}
 
-	gateway, err := invoice.NewGateway("", "", "", "")
+	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	if err := invoice.NewStore(adminRole(t), gateway).ClaimDue(ctx, &got[0]); err != nil {
+	if err := issuer.NewStore(adminRole(t), gateway).ClaimDue(ctx, &got[0]); err != nil {
 		t.Fatalf("claim the invoice of a pending order credit paid in full: %v", err)
 	}
 	var kind, status string
