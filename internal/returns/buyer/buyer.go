@@ -1,7 +1,7 @@
-// Package returnpage is the buyer's form for sending something back,
+// Package buyer is the buyer's form for sending something back,
 // /orders/{number}/return. What may be returned is bounded by what SHIPPED, a
 // rule the database holds in return_within_shipment.
-package returnpage
+package buyer
 
 import (
 	"errors"
@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("returnpage: order not found")
-	ErrNotReturnable = errors.New("returnpage: nothing on this order can be returned")
-	ErrAlreadyOpen   = errors.New("returnpage: this order already has an open request")
-	ErrInvalid       = errors.New("returnpage: invalid request")
-	ErrTooMany       = errors.New("returnpage: quantity exceeds returnable amount")
+	ErrNotFound      = errors.New("buyer: order not found")
+	ErrNotReturnable = errors.New("buyer: nothing on this order can be returned")
+	ErrAlreadyOpen   = errors.New("buyer: this order already has an open request")
+	ErrInvalid       = errors.New("buyer: invalid request")
+	ErrTooMany       = errors.New("buyer: quantity exceeds returnable amount")
 	// ErrAccountErased means a concurrent erasure removed the only destination
 	// for the return's store-credit payout before the request could commit.
-	ErrAccountErased = errors.New("returnpage: account was erased before the return committed")
+	ErrAccountErased = errors.New("buyer: account was erased before the return committed")
 )
 
 const MaxReasonRunes = 500

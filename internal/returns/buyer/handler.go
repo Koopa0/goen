@@ -1,4 +1,4 @@
-package returnpage
+package buyer
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type Handler struct {
 
 func NewHandler(s *Store, grants *access.Store, log *slog.Logger) *Handler {
 	if s == nil || grants == nil || log == nil {
-		panic("returnpage: NewHandler requires a store, an access check and a logger")
+		panic("buyer: NewHandler requires a store, an access check and a logger")
 	}
 	return &Handler{store: s, access: grants, log: log}
 }
@@ -120,7 +120,7 @@ func returnReasonMessage(reason string) i18n.Key {
 	case reasonUnsupportedControls:
 		return i18n.KeyReturnReasonUnsupportedControls
 	default:
-		panic("returnpage: unknown reason validation: " + string(result))
+		panic("buyer: unknown reason validation: " + string(result))
 	}
 }
 

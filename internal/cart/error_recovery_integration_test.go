@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -65,7 +65,7 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	pay := payment.NewHandler(payment.NewStore(appPool), gateway, grants, log)
-	returns := returnpage.NewHandler(returnpage.NewStore(appPool), grants, log)
+	returns := buyer.NewHandler(buyer.NewStore(appPool), grants, log)
 	for _, locale := range i18n.Locales() {
 		for _, route := range []struct {
 			path    string
