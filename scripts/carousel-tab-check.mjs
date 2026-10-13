@@ -20,7 +20,7 @@ try {
   };
   const send = (method, params = {}) => new Promise((resolve, reject) => {
     const current = ++id;
-    const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${method} timed out`)); }, 20000);
+    const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${method} timed out: ${JSON.stringify(params)}`)); }, 20000);
     pending.set(current, { resolve, reject, timer });
     socket.send(JSON.stringify({ id: current, method, params }));
   });
@@ -42,22 +42,30 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
     const url = `${origin}/carousel?lang=${locale}&width=${width}`;
     await send('Page.navigate', { url });
+    await send('Page.bringToFront');
     await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, label);
+    assert.equal(await evaluate('document.visibilityState'), 'visible', `${label}: active native test page`);
     await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
     assert.equal(await evaluate('document.documentElement.lang'), locale, label);
     await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
     await evaluate("document.body.style.minHeight = '3000px'; window.scrollTo({top: 64, behavior: 'instant'})");
     const before = await evaluate(`(() => {
       const track = document.querySelector('.goen-hero__track').getBoundingClientRect();
-      return { y: scrollY, x: scrollX, gestureX: track.left + track.width / 2,
-        gestureY: track.top + track.height / 2, distance: track.width * 2 };
+      return { y: scrollY, x: scrollX, left: track.left, width: track.width,
+        gestureY: track.top + track.height / 2, distance: track.width * 0.75 };
     })()`);
     assert.equal(before.y, 64, `${label}: nonzero reading position`);
-    for (const [index, direction] of [[2, -1], [0, 1]]) {
-      await send('Input.synthesizeScrollGesture', { x: before.gestureX, y: before.gestureY,
+    // One native gesture per slide: scroll-snap-stop prevents skipping a snap point.
+    for (const [index, direction] of [[1, -1], [2, -1], [1, 1], [0, 1]]) {
+      const x = before.left + before.width * (direction < 0 ? 0.875 : 0.125);
+      await send('Input.synthesizeScrollGesture', { x, y: before.gestureY,
         xDistance: direction * before.distance, yDistance: 0, speed: 1500, preventFling: true,
         gestureSourceType: width < 768 ? 'touch' : 'mouse' });
-      await waitFor(`document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}'`, `${label} swipe ${index}`);
+      await waitFor(`(() => {
+        const track = document.querySelector('.goen-hero__track');
+        return document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}' &&
+          Math.abs(track.scrollLeft - ${index} * track.clientWidth) <= 1;
+      })()`, `${label} swipe ${index}`);
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       const got = await evaluate(`(() => {
         const row = document.querySelector('.goen-hero__tabs'), tab = row.querySelector('[aria-current="true"]');
@@ -68,9 +76,13 @@ try {
         if (centre < box.left - 1 || centre > right + 1) faults.push('current state is outside the unfaded tab row');
         if (current.width <= right - box.left && (current.left < box.left - 1 || current.right > right + 1))
           faults.push('current tab is clipped or under the fade');
+        const track = document.querySelector('.goen-hero__track');
         return { y: scrollY, x: scrollX, rowY: row.scrollTop, left: row.scrollLeft,
+          slideOffset: track.scrollLeft, slideWidth: track.clientWidth,
           overflow: row.scrollWidth > row.clientWidth, current: tab.getAttribute('href'), faults };
       })()`);
+      assert.ok(Math.abs(got.slideOffset - index * got.slideWidth) <= 1,
+        `${label}: native gesture must actually settle on slide ${index + 1}`);
       assert.equal(got.y, before.y, `${label}: page vertical position`);
       assert.equal(got.x, before.x, `${label}: page horizontal position`);
       assert.equal(got.rowY, 0, `${label}: tab row vertical position`);

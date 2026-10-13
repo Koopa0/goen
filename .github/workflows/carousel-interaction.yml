@@ -1,0 +1,49 @@
+name: Native carousel interaction
+
+on:
+  pull_request:
+    paths:
+      - assets/js/goen.js
+      - assets/css/app/app.css
+      - scripts/carousel-tab-check.mjs
+      - internal/ui/pages/carousel_browser_test.go
+      - internal/ui/pages/home.templ
+      - .github/workflows/carousel-interaction.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carousel-interaction-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+      CDP_PORT: '9222'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Start hosted Chrome
+        run: |
+          chrome=$(scripts/resolve-chrome.sh)
+          "$chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --remote-debugging-port=9222 --user-data-dir="$RUNNER_TEMP/carousel-chrome" about:blank > chrome.log 2>&1 &
+          for _attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9222/json/version; then exit 0; fi
+            sleep 1
+          done
+          cat chrome.log
+          exit 1
+      - name: Native slide and tab-row regression
+        run: go test -count=1 -v -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$' ./internal/ui/pages
