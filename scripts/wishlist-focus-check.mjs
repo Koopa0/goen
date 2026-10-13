@@ -44,18 +44,19 @@ export async function checkWishlistFocus({ send, evaluate, navigate, fail, origi
             const padding = parseFloat(style.paddingLeft);
             const ring = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
             const viewport = document.documentElement.clientWidth, faults = [];
+            if (box.height < 44) faults.push('control height is below 44px');
             if (!control.matches(':focus-visible') || style.outlineStyle === 'none' || !ring)
               faults.push('native Tab focus has no visible outline');
             if (box.left - ring < -0.5 || box.right + ring > viewport + 0.5)
               faults.push('focused control or outline exceeds the viewport');
             if (document.documentElement.scrollWidth > viewport || Math.abs(scrollX) > 0.5)
               faults.push('focusing the control causes horizontal scroll');
-            if (offset !== 12 || padding !== offset || parseFloat(style.paddingRight) !== offset)
+            if (offset !== 0 || padding !== offset || parseFloat(style.paddingRight) !== offset)
               faults.push('label alignment does not retain equal fixed-pixel offset and padding');
             const column = control.closest('.goen-pdp__buy, .goen-pdp__more');
             if (!column || offset + ring > column.getBoundingClientRect().left + 0.5)
               faults.push('negative margin exceeds the column gutter minus its focus outline');
-            return { control: row.className, left: box.left, right: box.right, ring, viewport, offset, padding, faults };
+            return { control: row.className, left: box.left, right: box.right, height: box.height, ring, viewport, offset, padding, faults };
           })()`);
           if (!got) continue;
           reached.add(got.control);
