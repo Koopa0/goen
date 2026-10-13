@@ -54,7 +54,7 @@ func TestRecentCreditBoundsItsGlobalPageAndReadsOnlySelectedAccountHistory(t *te
 		if err := owner.QueryRow(ctx, `INSERT INTO users(email) VALUES ($1) RETURNING id`, prefix+"-"+strconv.Itoa(i)+"@example.com").Scan(&customer); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := owner.Exec(ctx, `SELECT post_store_credit($1,100,'Index fixture',NULL,'plan:'||$1::text||':'||n::text,NULL) FROM generate_series(1,$2) n`, customer, entriesPerAccount); err != nil {
+		if _, err := owner.Exec(ctx, `SELECT post_store_credit($1,100,'Index fixture',NULL,$3::text||':'||n::text,NULL) FROM generate_series(1,$2) n`, customer, entriesPerAccount, "plan:"+customer.String()); err != nil {
 			t.Fatal(err)
 		}
 	}
