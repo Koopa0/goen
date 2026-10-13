@@ -17,7 +17,7 @@ sql:
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"
-      - "internal/twofactor/query.sql"
+      - "internal/admin/twofactor/query.sql"
       - "internal/recommend/query.sql"
       - "internal/warranty/query.sql"
       - "internal/account/query.sql"
