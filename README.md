@@ -68,10 +68,43 @@ You need Go 1.27, Docker and `psql`.
 ```sh
 cp .env.example .env
 make db-up
+```
+
+Choose one of the following paths on a fresh database. For the `psql` commands,
+export `GOEN_DATABASE_URL` in your shell with the schema owner's connection
+configured in `.env`.
+
+### An empty shop
+
+```sh
 make migrate-up
-make db-seed
+psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT upsert_staff('you@example.com', '', 'admin')"
 make run          # http://127.0.0.1:9700
 ```
+
+Leave `GOEN_DEMO_ACCOUNT_EMAIL` and `GOEN_DEMO_ACCOUNT_PASSWORD` unset. The schema
+starts without a catalogue, demo account or sample orders. Open `/forgot` with
+the owner's email to set a password, then enrol the second factor on first
+entry to `/admin`. Configure mail and `GOEN_TOTP_KEY` in `.env` before doing so.
+Add the shop's departments and products in the back office.
+
+### A local demo
+
+```sh
+make migrate-up
+make db-seed
+psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT upsert_staff('you@example.com', '', 'admin')"
+```
+
+Set `GOEN_DEMO_ACCOUNT_EMAIL` and `GOEN_DEMO_ACCOUNT_PASSWORD` in `.env` to offer
+the shared customer sign-in when goen starts. Configure mail and `GOEN_TOTP_KEY`,
+then start `make run` to set the owner's password through `/forgot` and enrol
+the second factor on first entry to `/admin`. Stop goen, load the history using
+the command under **Try the demo**, then restart `make run`.
+
+`make db-seed` refuses a database that already contains products or orders.
+Use a fresh database for the demo catalogue; the history and date-shift scripts
+operate on an existing demo as described above.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and configuration.
 
