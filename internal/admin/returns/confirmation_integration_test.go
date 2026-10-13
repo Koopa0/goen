@@ -32,7 +32,8 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 				now := time.Now()
 				id = returnedOrderAtOn(t, pool, now.Add(-24*time.Hour), now)
 			} else {
-				id, _ = admintest.ReturnedOrder(t, pool, 1)
+				id = admintest.ReturnedOrderAtWithReason(t, pool,
+					admintest.ShopNoonDaysAgo(t, 15), time.Now(), "late return")
 			}
 			form := url.Values{"decision": {decision}, "resolution": {"Recorded decision"}}
 			post := func() *httptest.ResponseRecorder {

@@ -152,6 +152,21 @@ const (
 	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
 )
 
+type OperationKind string
+
+type OperationStatus string
+
+const (
+	OperationIssue     OperationKind = "issue"
+	OperationAllowance OperationKind = "allowance"
+	OperationVoid      OperationKind = "void"
+
+	OperationPending   OperationStatus = "pending"
+	OperationAttention OperationStatus = "attention"
+	OperationSucceeded OperationStatus = "succeeded"
+	OperationRejected  OperationStatus = "rejected"
+)
+
 // DocumentKind is invoice_documents.kind, closed by invoice_documents_kind_known.
 type DocumentKind string
 

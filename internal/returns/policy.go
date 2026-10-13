@@ -168,16 +168,17 @@ type Claim struct {
 type RefusalKind string
 
 const (
-	RefuseStatutoryReject RefusalKind = "statutory_reject"
-	RefuseIncomplete      RefusalKind = "incomplete"
-	RefuseNeedException   RefusalKind = "need_exception"
-	RefuseUnmetApprove    RefusalKind = "unmet_approve"
-	RefuseNoUnmet         RefusalKind = "no_unmet"
-	RefuseUseApprove      RefusalKind = "use_approve"
-	RefuseEmpty           RefusalKind = "empty"
-	RefuseStale           RefusalKind = "stale"
-	RefuseExceptionReason RefusalKind = "exception_reason"
-	RefuseRejectionReason RefusalKind = "rejection_reason"
+	RefuseStatutoryReject   RefusalKind = "statutory_reject"
+	RefuseUndeliveredReject RefusalKind = "undelivered_reject"
+	RefuseIncomplete        RefusalKind = "incomplete"
+	RefuseNeedException     RefusalKind = "need_exception"
+	RefuseUnmetApprove      RefusalKind = "unmet_approve"
+	RefuseNoUnmet           RefusalKind = "no_unmet"
+	RefuseUseApprove        RefusalKind = "use_approve"
+	RefuseEmpty             RefusalKind = "empty"
+	RefuseStale             RefusalKind = "stale"
+	RefuseExceptionReason   RefusalKind = "exception_reason"
+	RefuseRejectionReason   RefusalKind = "rejection_reason"
 )
 
 type RefusalError struct {
@@ -288,8 +289,8 @@ func evaluateApprove(
 	hasStatutory, hasGoodwill, hasLate, hasUndelivered bool,
 	goodwillUnknown, goodwillUnmet, goodwillAllMet bool,
 ) (Claim, error) {
-	if window == WindowStatutory {
-		return Claim{Window: WindowStatutory, Entitlement: EntitlementStatutory}, nil
+	if !hasGoodwill && !hasLate {
+		return Claim{Window: window, Entitlement: EntitlementStatutory}, nil
 	}
 	if window == WindowGoodwill {
 		if goodwillUnknown {
@@ -302,11 +303,6 @@ func evaluateApprove(
 	}
 	if window == WindowLate {
 		return Claim{}, refuse(RefuseNeedException)
-	}
-	// Undelivered is not late. The existing decide path still pays; the
-	// claim is an exception so the window is not read as a policy right.
-	if window == WindowUndelivered {
-		return Claim{Window: WindowUndelivered, Entitlement: EntitlementException}, nil
 	}
 	if hasStatutory && hasGoodwill && !hasLate && !hasUndelivered {
 		if goodwillUnknown {
@@ -325,6 +321,9 @@ func evaluateReject(
 	hasStatutory, hasGoodwill, hasLate, hasUndelivered bool,
 	goodwillUnknown, goodwillUnmet bool,
 ) (Claim, error) {
+	if hasUndelivered {
+		return Claim{}, refuse(RefuseUndeliveredReject)
+	}
 	// A request that still contains a statutory line cannot be closed against
 	// that line: missing reason, unpacking, and the days 8–14 conditions are
 	// not grounds Consumer Protection Act §19 I allows.
@@ -340,7 +339,7 @@ func evaluateReject(
 		}
 		return Claim{Window: window}, nil
 	}
-	if hasLate || hasUndelivered {
+	if hasLate {
 		return Claim{Window: window}, nil
 	}
 	return Claim{}, refuse(RefuseNoUnmet)
@@ -365,7 +364,7 @@ func evaluateException(
 	hasStatutory, hasGoodwill, hasLate, hasUndelivered bool,
 	goodwillUnknown, goodwillUnmet, goodwillAllMet bool,
 ) (Claim, error) {
-	if window == WindowStatutory {
+	if !hasGoodwill && !hasLate {
 		return Claim{}, refuse(RefuseUseApprove)
 	}
 	// A late or undelivered line cannot stand in for missing days 8–14
@@ -377,7 +376,7 @@ func evaluateException(
 	if window == WindowGoodwill {
 		return evaluateGoodwillException(goodwillUnmet, goodwillAllMet)
 	}
-	if window == WindowLate || window == WindowUndelivered {
+	if window == WindowLate {
 		return Claim{Window: window, Entitlement: EntitlementException}, nil
 	}
 	ground := exceptionGround(goodwillUnmet, hasLate, hasUndelivered)

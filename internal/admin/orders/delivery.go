@@ -70,7 +70,9 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 		switch order.FulfillmentStatus(row.FulfillmentStatus) {
 		case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
 			return ErrTooLateToCorrect
-		case order.FulfillmentPending, order.FulfillmentPicking, order.FulfillmentCancelled:
+		case order.FulfillmentCancelled:
+			return ErrRefused
+		case order.FulfillmentPending, order.FulfillmentPicking:
 			// Still correctable; UpdateOrderDelivery's WHERE clause is the authority.
 		}
 		to, ok := destination.For(row.DestinationKind)

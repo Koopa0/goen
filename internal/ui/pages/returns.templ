@@ -51,7 +51,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 					</ul>
 				}
 			}
-			if v.HasOpen {
+			if v.Filed {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-sent"}) {
+					{ i18n.T(ctx, i18n.KeyReturnRequestSent) }
+				}
+			} else if v.HasOpen {
 				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-inflight"}) {
 					{ i18n.T(ctx, i18n.KeyReturnInFlight) }
 				}

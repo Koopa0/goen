@@ -23,6 +23,8 @@ var (
 			"once it is decided.",
 	})
 
+	KeyReturnRequestSent = key("returns.request.sent", Message{ZhHant: "你的退貨申請已送出。", En: "Your return request is sent."})
+
 	KeyReturnNothing = key("returns.nothing", Message{
 		ZhHant: "這筆訂單目前沒有可以退貨的商品。尚未出貨的訂單請改用取消。",
 		En: "Nothing on this order can be returned. If it has not shipped, cancel it " +
@@ -177,7 +179,7 @@ var (
 	})
 
 	KeyAdminRetGoodwillHint = key("admin.ret.goodwillhint", Message{
-		ZhHant: "未使用且包裝與配件齊全才是政策內受理。請先逐項評估這三項：有未知就不能核准或拒絕；三項皆符合才記政策內權利。",
+		ZhHant: "未使用且包裝與配件齊全才是政策內受理。請先逐項評估這三項：有未知就不能同意或不同意；三項皆符合才記政策內權利。",
 		En:     "Unused and complete with box and accessories is the advertised offer. Assess those three facts first: unknown cannot be approved or declined, and only all-met records a policy entitlement.",
 	})
 
@@ -206,7 +208,7 @@ var (
 	KeyAdminRetReject = key("admin.ret.reject", Message{ZhHant: "不同意", En: "Decline"})
 
 	KeyAdminRetException = key("admin.ret.exception", Message{
-		ZhHant: "以人工例外核准",
+		ZhHant: "以人工例外同意",
 		En:     "Approve as a staff exception",
 	})
 
@@ -248,28 +250,33 @@ var (
 		En:     "Assessment version %s · %s",
 	})
 
+	KeyAdminRetErrUndeliveredReject = key("admin.ret.err.undeliveredreject", Message{
+		ZhHant: "商品送達前，或在猶豫期內提出的申請，我們不會拒絕。",
+		En:     "A request made before the goods arrive, or within your seven-day right to cancel, is never declined.",
+	})
+
 	KeyAdminRetErrStatutoryReject = key("admin.ret.err.statutoryreject", Message{
-		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 天條件而拒絕。",
-		En:     "A valid request inside seven days cannot be refused for a missing reason, for opening the parcel, or for the days 8–14 conditions.",
+		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 天條件而不同意。",
+		En:     "A valid request inside seven days cannot be declined for a missing reason, for opening the parcel, or for the days 8–14 conditions.",
 	})
 
 	KeyAdminRetErrIncomplete = key("admin.ret.err.incomplete", Message{
-		ZhHant: "還有未觀察的品項。補齊三項評估後才能核准或拒絕；未知不算符合，也不算不符合。",
+		ZhHant: "還有未觀察的品項。補齊三項評估後才能同意或不同意；未知不算符合，也不算不符合。",
 		En:     "Some facts are still unknown. Finish the three observations before approving or declining; unknown is neither a pass nor a failure.",
 	})
 
 	KeyAdminRetErrNeedException = key("admin.ret.err.needexception", Message{
-		ZhHant: "這筆不能記成政策內權利。若要核准，請明確選擇人工例外。",
+		ZhHant: "這筆不能記成政策內權利。若要同意，請明確選擇人工例外。",
 		En:     "This cannot be recorded as a policy entitlement. To pay it, choose a staff exception.",
 	})
 
 	KeyAdminRetErrUnmetApprove = key("admin.ret.err.unmetapprove", Message{
-		ZhHant: "已有不符合的觀察，不能記成第 8–14 天政策內權利。拒絕須引用該事實，或改選人工例外。",
+		ZhHant: "已有不符合的觀察，不能記成第 8–14 天政策內權利。不同意須引用該事實，或改選人工例外。",
 		En:     "An unmet observation cannot be recorded as the days 8–14 policy entitlement. Decline by citing that fact, or approve as a staff exception.",
 	})
 
 	KeyAdminRetErrNoUnmet = key("admin.ret.err.nounmet", Message{
-		ZhHant: "沒有已確認不符合的事實可以引用，因此不能拒絕。",
+		ZhHant: "沒有已確認不符合的事實可以引用，因此不能選擇「不同意」。",
 		En:     "There is no confirmed unmet fact to cite, so this cannot be declined.",
 	})
 
@@ -289,7 +296,7 @@ var (
 	})
 
 	KeyAdminRetErrExceptionReason = key("admin.ret.err.exceptionreason", Message{
-		ZhHant: "人工例外必須寫下核准理由，空白或只有空白字元不能付款。",
+		ZhHant: "人工例外必須寫下同意理由，空白或只有空白字元不能付款。",
 		En:     "A staff exception needs a recorded reason; blank or whitespace cannot pay.",
 	})
 
@@ -299,7 +306,7 @@ var (
 	})
 
 	KeyAdminRetPayoutOutstanding = key("admin.ret.payoutoutstanding", Message{
-		ZhHant: "這筆退貨已核准，但款項尚未退回。重新送出會沿用同一個退款識別，不會重複付款。",
+		ZhHant: "這筆退貨已同意，但款項尚未退回。重新送出會沿用同一個退款識別，不會重複付款。",
 		En:     "This return is approved, but its money has not gone back. Sending it again uses the same refund key, so it cannot pay twice.",
 	})
 
@@ -334,8 +341,8 @@ var (
 	})
 
 	KeyAdminRetInspectButton = key("admin.ret.inspectbutton", Message{
-		ZhHant: "記錄驗貨並入庫",
-		En:     "Record the inspection and restock",
+		ZhHant: "記錄驗貨",
+		En:     "Record the inspection",
 	})
 
 	KeyAdminRetRestockedUnits = countKey("admin.ret.restockedunits",
@@ -353,7 +360,7 @@ var (
 	// staff members deciding at once cannot both pay. What is outstanding here
 	// is the payment alone.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
-		ZhHant: "這筆退貨已核准，但退款沒有完成。請到 Stripe 後台確認後，按退貨列上的「重新退款」；不需要重新核准。",
+		ZhHant: "這筆退貨已同意，但退款沒有完成。請到 Stripe 後台確認後，按退貨列上的「重新退款」；不需要重新同意。",
 		En:     "This return is approved, but the refund did not complete. Check the Stripe dashboard, then press “Send the refund again” on its row. The approval stands.",
 	})
 
@@ -438,14 +445,14 @@ var (
 	})
 
 	KeyAdminNoticeAssessed = key("admin.notice.assessed", Message{
-		ZhHant: "資格評估已記錄。核准與拒絕會凍結這個版本。",
-		En:     "Eligibility assessment recorded. Approving or declining will freeze this version.",
+		ZhHant: "已記錄評估。同意或不同意之後，評估就不能再改。",
+		En:     "Assessment recorded. Once you approve or decline, it can no longer change.",
 	})
 )
 
 var (
 	KeyAdminRetConfirmApprove     = key("admin.ret.confirm.approve", Message{ZhHant: "確認同意並退款", En: "Confirm approval and refund"})
-	KeyAdminRetConfirmReject      = key("admin.ret.confirm.reject", Message{ZhHant: "確認拒絕退貨", En: "Confirm rejection"})
+	KeyAdminRetConfirmReject      = key("admin.ret.confirm.reject", Message{ZhHant: "確認不同意退貨", En: "Confirm declining the return"})
 	KeyAdminRetConfirmException   = key("admin.ret.confirm.exception", Message{ZhHant: "確認例外同意並退款", En: "Confirm exception and refund"})
 	KeyAdminRetConfirmRetry       = key("admin.ret.confirm.retry", Message{ZhHant: "確認重試退款", En: "Confirm refund retry"})
 	KeyAdminRetConfirmOrder       = key("admin.ret.confirm.order", Message{ZhHant: "訂單", En: "Order"})
@@ -453,7 +460,7 @@ var (
 	KeyAdminRetConfirmAmount      = key("admin.ret.confirm.amount", Message{ZhHant: "本次退貨金額", En: "Return amount"})
 	KeyAdminRefundConfirmAmount   = key("admin.refund.confirm.amount", Message{ZhHant: "取消退款金額", En: "Refund on cancellation"})
 	KeyAdminRetConfirmBack        = key("admin.ret.confirm.back", Message{ZhHant: "返回退貨清單", En: "Back to returns"})
-	KeyAdminRetErrRejectionReason = key("admin.ret.err.rejectionreason", Message{ZhHant: "請填寫拒絕退貨的原因。", En: "Enter a reason for rejecting this return."})
+	KeyAdminRetErrRejectionReason = key("admin.ret.err.rejectionreason", Message{ZhHant: "請填寫不同意退貨的原因。", En: "Enter a reason for declining this return."})
 )
 
 var (

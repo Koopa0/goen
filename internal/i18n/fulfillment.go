@@ -156,6 +156,8 @@ var (
 
 	KeyAdminTimelineInvoiceSucceeded = key("admin.timeline.invoice.succeeded", Message{ZhHant: "完成", En: "Done"})
 
+	KeyAdminTimelineInvoiceProviderCode = key("admin.timeline.invoice.provider_code", Message{ZhHant: "綠界代碼 %s", En: "ECPay code %s"})
+
 	KeyAdminTimelineInvoiceRejected = key("admin.timeline.invoice.rejected", Message{ZhHant: "遭拒絕", En: "Refused"})
 
 	KeyAdminQueueCustomerNote = key("admin.queue.customernote", Message{

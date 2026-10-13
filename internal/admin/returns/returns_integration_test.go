@@ -1241,7 +1241,8 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
-	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
+	requestID := admintest.ReturnedOrderAtWithReason(t, pool,
+		admintest.ShopNoonDaysAgo(t, 15), time.Now(), "late return")
 
 	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", ""); err != nil {
 		t.Fatalf("reject: %v", err)
