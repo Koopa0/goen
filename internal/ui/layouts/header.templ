@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -158,8 +157,8 @@ templ departmentPanel(p Page, n NavItem) {
 					</ul>
 				}
 				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
-					if src, srcset, ok := assets.CategoryImage(n.Slug); ok {
-						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="240px" alt="" loading="lazy" decoding="async"/>
+					if n.PhotoURL != "" {
+						<img class="goen-dept__photo" src={ n.PhotoURL } srcset={ n.PhotoSrcset } sizes="240px" alt="" loading="lazy" decoding="async"/>
 					}
 					<span class="goen-dept__caption">
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }

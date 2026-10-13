@@ -60,11 +60,12 @@ func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 	return facts
 }
 
-// ReturnedFacts are what an order says once every unit has come back.
+// ReturnedFacts are what an order says once every unit is in a return whose refund has settled: the money and
+// the day it was refunded, since the goods may still be on their way back.
 func (v *OrderView) ReturnedFacts(ctx context.Context) []components.Stat {
 	now := v.now()
 	return []components.Stat{
-		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactReturned), shoptime.DateOf(v.Returned.At, now), ""),
+		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactRefundDate), shoptime.DateOf(v.Returned.At, now), ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.Returned.RefundCents)},
 	}
 }

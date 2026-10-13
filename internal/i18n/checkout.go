@@ -27,8 +27,18 @@ var (
 	KeySectionInvoice = key("checkout.section.invoice", Message{ZhHant: "發票", En: "Invoice"})
 
 	KeyCheckoutSubmitNote = key("checkout.submit.note", Message{
-		ZhHant: "送出後將產生訂單並保留庫存，接著進行付款。",
-		En:     "Placing the order reserves the stock. Payment comes next.",
+		ZhHant: "送出後會為你保留商品，請在 %s 分鐘內開始付款。",
+		En:     "Placing the order holds the goods; start paying within %s minutes.",
+	})
+
+	KeyCheckoutCreditSubmitNote = key("checkout.submit.credit", Message{
+		ZhHant: "購物金已全額折抵，送出後訂單就完成付款。",
+		En:     "Store credit covers this order; placing it completes payment.",
+	})
+
+	KeyCheckoutZeroSubmitNote = key("checkout.submit.zero", Message{
+		ZhHant: "這筆訂單不需付款，送出後就完成。",
+		En:     "No payment is needed; placing the order completes it.",
 	})
 
 	KeyZoneSurcharge = key("checkout.zone.surcharge", Message{
@@ -62,7 +72,7 @@ var (
 
 	KeyFieldNote = key("field.note", Message{ZhHant: "備註（選填）", En: "Note (optional)"})
 
-	KeyFieldPickupChain = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
+	KeyFieldPickupChain = key("field.pickup.chain", Message{ZhHant: "超商", En: "Convenience store"})
 
 	KeyPickupChooseStore = key("pickup.choose", Message{ZhHant: "選擇門市", En: "Choose a store"})
 
@@ -262,7 +272,7 @@ var (
 
 	KeyStreetTooLong = key("valid.street.toolong", Message{ZhHant: "地址過長", En: "That address is too long"})
 
-	KeyPickupChainRequired = key("valid.pickup.brand", Message{
+	KeyPickupChainRequired = key("valid.pickup.chain", Message{
 		ZhHant: "請選擇超商",
 		En:     "Choose a convenience store chain",
 	})

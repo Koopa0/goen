@@ -131,8 +131,8 @@ func (h *Handler) rejectFAQ(
 	}
 	typed := admin.FAQEntry{
 		ID:       f.ID,
-		Category: f.Category, Question: f.Question, Answer: f.Answer,
-		CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
+		Category: r.PostFormValue("category"), Question: r.PostFormValue("question"), Answer: r.PostFormValue("answer"),
+		CategoryEn: r.PostFormValue("category_en"), QuestionEn: r.PostFormValue("question_en"), AnswerEn: r.PostFormValue("answer_en"),
 	}
 	// An edit goes back to the entry it was made on. The add form's draft is the
 	// wrong place: its error would send the operator to press 新增 and publish a
@@ -207,7 +207,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create promo banner", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		h.rejectBanner(w, r, f, errs)
+		h.rejectBanner(w, r, errs)
 	default:
 		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 	}
@@ -239,7 +239,7 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 }
 
 func (h *Handler) rejectBanner(
-	w http.ResponseWriter, r *http.Request, f *BannerForm, errs map[string]string,
+	w http.ResponseWriter, r *http.Request, errs map[string]string,
 ) {
 	view, err := h.homeView(r.Context(), "", "")
 	if err != nil {
@@ -249,9 +249,9 @@ func (h *Handler) rejectBanner(
 	}
 	view.Errors = errs
 	view.BannerDraft = admin.BannerDraft{
-		Message: f.Message, Short: f.Short, Code: f.Code,
-		CTALabel: f.CTALabel, CTAHref: f.CTAHref, Days: r.PostFormValue("days"),
-		MessageEn: f.MessageEn, ShortEn: f.ShortEn, CTALabelEn: f.CTALabelEn,
+		Message: r.PostFormValue("message"), Short: r.PostFormValue("short"), Code: r.PostFormValue("code"),
+		CTALabel: r.PostFormValue("cta_label"), CTAHref: r.PostFormValue("cta_href"), Days: r.PostFormValue("days"),
+		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))

@@ -1,0 +1,31 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ MissingRecord(p layouts.Page, v MissingRecordView) {
+	@layouts.Admin(p, v.Section) {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ v.Heading }</h1>
+				<p class="ui-page-head__sub">{ v.Body }</p>
+			</div>
+		</div>
+		if v.OrderNumber != "" {
+			<form class="goen-admin__search" method="get" action="/admin/orders">
+				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
+				<input class="ui-input" id="order-search" type="search" name="q" value={ v.OrderNumber } placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) } autocomplete="off"/>
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminSearch) }
+				}
+			</form>
+		}
+		@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, templ.URL("/admin/"+v.Section)) {
+			{ i18n.T(ctx, v.BackLabel) }
+		}
+	}
+}

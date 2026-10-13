@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"time"
 
@@ -192,24 +193,80 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 // token matching nothing is shown as a failure, because only there is the
 // reader still on the list.
 func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := parseUnsubscribeForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	token, oneClick, err := unsubscribeToken(r)
+	if err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	_, err := h.store.Unsubscribe(ctx, r.PostFormValue("token"))
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterLeaveDead), pages.EmailLinkContact)
-			return
+	_, err = h.store.Unsubscribe(ctx, token)
+	if err == nil {
+		if oneClick {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			http.Redirect(w, r, "/newsletter/unsubscribe?done=1", http.StatusSeeOther)
 		}
-		h.log.ErrorContext(ctx, "unsubscribe newsletter", "error", err)
-		h.linkFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
 		return
 	}
+	if !errors.Is(err, ErrNotFound) {
+		h.log.ErrorContext(ctx, "unsubscribe newsletter", "error", err)
+	}
+	if oneClick {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrNotFound) {
+			status = http.StatusUnprocessableEntity
+		}
+		w.WriteHeader(status)
+		return
+	}
+	if errors.Is(err, ErrNotFound) {
+		h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterLeaveDead), pages.EmailLinkContact)
+		return
+	}
+	h.linkFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+}
 
-	http.Redirect(w, r, "/newsletter/unsubscribe?done=1", http.StatusSeeOther)
+func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) error {
+	if err := web.ParseForm(w, r); err != nil {
+		return err
+	}
+	if r.Header.Get("Content-Type") == "" {
+		return nil
+	}
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return err
+	}
+	if mediaType != "multipart/form-data" {
+		return nil
+	}
+	// RFC 8058 receivers may use either form encoding. ParseForm has already
+	// bounded the body, but it leaves multipart fields unread.
+	err = r.ParseMultipartForm(web.MaxFormBytes)
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }() //nolint:errcheck // Best-effort temporary-file cleanup.
+	}
+	if err != nil {
+		return err
+	}
+	return web.CheckFormText(r.Form)
+}
+
+func unsubscribeToken(r *http.Request) (token string, oneClick bool, err error) {
+	marker, oneClick := r.PostForm["List-Unsubscribe"]
+	if !oneClick {
+		return r.PostFormValue("token"), false, nil
+	}
+	tokens := r.URL.Query()["token"]
+	if len(r.PostForm) != 1 || len(marker) != 1 || marker[0] != "One-Click" || len(tokens) != 1 || tokens[0] == "" {
+		return "", true, errors.New("newsletter: invalid one-click unsubscribe form")
+	}
+	return tokens[0], true, nil
 }
 
 func (h *Handler) deadLink(w http.ResponseWriter, r *http.Request, body string, recovery pages.EmailLinkRecovery) {

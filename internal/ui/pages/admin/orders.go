@@ -351,6 +351,14 @@ func (e TimelineEntry) StatusText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineNowSince), i18n.T(ctx, e.Status), e.DoneAt)
 }
 
+func (e TimelineEntry) noteText(ctx context.Context) string {
+	if e.Note != "" && e.Status == i18n.KeyAdminTimelineInvoiceRejected &&
+		(e.Label == i18n.KeyAuditInvoiceIssue || e.Label == i18n.KeyAuditInvoiceAllowance) {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineInvoiceProviderCode), e.Note)
+	}
+	return e.Note
+}
+
 func (e TimelineEntry) By(ctx context.Context) string {
 	switch e.ActorKind {
 	case ActorStaff:
@@ -368,6 +376,7 @@ func (e TimelineEntry) By(ctx context.Context) string {
 }
 
 type Shipment struct {
+	ID          string
 	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
@@ -515,7 +524,7 @@ func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoid
 // invoice is owed all the same.
 func (v *OrderView) CanIssueInvoice() bool {
 	funded := v.Committed || (v.Status == order.FulfillmentPending && !v.Unpaid)
-	if !v.InvoicingEnabled || !funded {
+	if !v.InvoicingEnabled || !funded || v.SubtotalCents-v.DiscountCents+v.ShippingCents+v.TaxCents <= 0 {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {
@@ -698,21 +707,27 @@ func (m Movement) ReasonText(ctx context.Context) string {
 type MovementsView struct {
 	web.Bound
 
-	SKU         string
-	ProductName string
-	Slug        string
-	Stock       int32
-	Safety      int32
-	Rows        []Movement
-	Days        []StockDay
-	Notice      components.Result
-	FormID      string
+	SKU           string
+	ProductName   string
+	Slug          string
+	Stock         int32
+	Safety        int32
+	Rows          []Movement
+	Days          []StockDay
+	Notice        components.Result
+	FormID        string
+	DraftQuantity string
+	QuantityError string
+	ReceiptKey    string
 }
 
 // ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
 // form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
 // two forms never share a key.
 func (v *MovementsView) ReceiveKey() string {
+	if v.ReceiptKey != "" {
+		return v.ReceiptKey
+	}
 	return "rcv:" + v.SKU + ":" + v.FormID
 }
 

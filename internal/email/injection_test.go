@@ -119,7 +119,7 @@ func wireHeaders(m *Message) []string {
 }
 
 // TestNoTextInALetterCanAddAMailHeader holds the header block of every letter
-// to the eight headers render writes. A subject, a name, a product name, a card
+// to the fixed headers render writes. A subject, a name, a product name, a card
 // label or a carrier carrying a line break is text in a header or in the body,
 // never a header of its own, and a recipient carrying one is never sent to.
 func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
@@ -144,13 +144,20 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 					t.Fatalf("%d messages sent, want 1", len(sink.msgs))
 				}
 				headers := wireHeaders(sink.msgs[0])
-				if len(headers) != len(want) {
+				wantHeaders := want
+				if letter == "SendNewsletterIssue" {
+					wantHeaders = append(append([]string{}, want[:6]...),
+						"List-Unsubscribe: <https://goen.test/newsletter/unsubscribe?token=tok>",
+						"List-Unsubscribe-Post: List-Unsubscribe=One-Click")
+					wantHeaders = append(wantHeaders, want[6:]...)
+				}
+				if len(headers) != len(wantHeaders) {
 					t.Fatalf("the letter has %d header lines, want %d:\n%s",
-						len(headers), len(want), strings.Join(headers, "\n"))
+						len(headers), len(wantHeaders), strings.Join(headers, "\n"))
 				}
 				for i, line := range headers {
-					if !strings.HasPrefix(line, want[i]) {
-						t.Errorf("header line %d is %q, want it to start %q", i, line, want[i])
+					if !strings.HasPrefix(line, wantHeaders[i]) {
+						t.Errorf("header line %d is %q, want it to start %q", i, line, wantHeaders[i])
 					}
 					// Text that reached a header is encoded there; a raw line
 					// break would end the header and start another.

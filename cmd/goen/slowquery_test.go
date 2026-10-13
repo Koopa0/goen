@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/web"
 )
@@ -111,5 +112,104 @@ func TestSlowQueriesKeepTheirOwnRequestIDsAndOmitBackgroundIdentity(t *testing.T
 				t.Errorf("warning %q leaks %q", lines[i], leaked)
 			}
 		}
+	}
+}
+
+func TestSlowAcquiresWarnAt100MillisecondsWithoutErrorText(t *testing.T) {
+	t.Parallel()
+	privateErr := errors.New("connect postgres://customer:private-password@db:5432/shop: private@example.com")
+	for _, tc := range []struct {
+		name     string
+		took     time.Duration
+		err      error
+		duration string
+		failed   string
+	}{
+		{name: "fast success", took: 100*time.Millisecond - time.Nanosecond},
+		{name: "fast failure", took: 100*time.Millisecond - time.Nanosecond, err: privateErr},
+		{name: "threshold success", took: 100 * time.Millisecond, duration: "100ms", failed: "false"},
+		{name: "threshold failure", took: 100 * time.Millisecond, err: privateErr, duration: "100ms", failed: "true"},
+		{name: "slow success", took: 2 * time.Second, duration: "2s", failed: "false"},
+		{name: "slow cancellation", took: 2 * time.Second, err: context.Canceled, duration: "2s", failed: "true"},
+		{name: "slow timeout", took: 2 * time.Second, err: context.DeadlineExceeded, duration: "2s", failed: "true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var out bytes.Buffer
+			tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "admin")
+			clock := time.Unix(1_700_000_000, 0)
+			tr.now = func() time.Time { return clock }
+			var acquire pgxpool.AcquireTracer = tr
+			ctx := acquire.TraceAcquireStart(t.Context(), nil, pgxpool.TraceAcquireStartData{})
+			clock = clock.Add(tc.took)
+			acquire.TraceAcquireEnd(ctx, nil, pgxpool.TraceAcquireEndData{Err: tc.err})
+			got := out.String()
+			if tc.duration == "" {
+				if got != "" {
+					t.Errorf("fast acquire logged %q", got)
+				}
+				return
+			}
+			if strings.Count(got, "\n") != 1 {
+				t.Fatalf("want one acquire warning, got %q", got)
+			}
+			for _, want := range []string{
+				"level=WARN", `msg="slow acquire"`, "pool=admin", "duration=" + tc.duration, "failed=" + tc.failed,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("acquire warning %q lacks %q", got, want)
+				}
+			}
+			for _, leaked := range []string{"postgres://", "private-password", "private@example.com", "context canceled", "context deadline exceeded", "request_id="} {
+				if strings.Contains(got, leaked) {
+					t.Errorf("acquire warning %q carries %q", got, leaked)
+				}
+			}
+		})
+	}
+}
+
+func TestSlowAcquiresKeepSeparateClocksAndRequestIDs(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "store")
+	clock := time.Unix(1_700_000_000, 0)
+	tr.now = func() time.Time { return clock }
+	first := tr.TraceAcquireStart(web.WithRequestID(t.Context(), "request-one"), nil, pgxpool.TraceAcquireStartData{})
+	clock = clock.Add(50 * time.Millisecond)
+	second := tr.TraceAcquireStart(web.WithRequestID(t.Context(), "request-two"), nil, pgxpool.TraceAcquireStartData{})
+	clock = clock.Add(50 * time.Millisecond)
+	background := tr.TraceAcquireStart(t.Context(), nil, pgxpool.TraceAcquireStartData{})
+	query := tr.TraceQueryStart(first, nil, pgx.TraceQueryStartData{SQL: namedStatement, Args: []any{"private@example.com"}})
+	clock = clock.Add(100 * time.Millisecond)
+	tr.TraceAcquireEnd(query, nil, pgxpool.TraceAcquireEndData{})
+	tr.TraceAcquireEnd(second, nil, pgxpool.TraceAcquireEndData{})
+	tr.TraceAcquireEnd(background, nil, pgxpool.TraceAcquireEndData{})
+	tr.TraceQueryEnd(query, nil, pgx.TraceQueryEndData{})
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("got %d warnings, want 3: %q", len(lines), out.String())
+	}
+	for i, want := range []string{"duration=200ms request_id=request-one", "duration=150ms request_id=request-two", "duration=100ms"} {
+		fields := strings.Fields(want)
+		fields = append(fields, "level=WARN", `msg="slow acquire"`, "pool=store", "failed=false")
+		for _, field := range fields {
+			if !strings.Contains(lines[i], field) {
+				t.Errorf("warning %q lacks %q", lines[i], field)
+			}
+		}
+	}
+	if strings.Contains(lines[2], "request_id=") {
+		t.Errorf("background warning invents an HTTP identity: %q", lines[2])
+	}
+}
+
+func TestAcquireEndWithoutStartStaysQuiet(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "maintenance")
+	tr.TraceAcquireEnd(t.Context(), nil, pgxpool.TraceAcquireEndData{Err: context.Canceled})
+	if got := out.String(); got != "" {
+		t.Errorf("acquire without a start logged %q", got)
 	}
 }

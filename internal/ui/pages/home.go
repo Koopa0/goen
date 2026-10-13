@@ -20,8 +20,8 @@ func HomeMeta(ctx context.Context) layouts.Page {
 func departments(ctx context.Context) string {
 	items := layouts.TopNavFrom(ctx)
 	names := make([]string, 0, len(items))
-	for _, item := range items {
-		names = append(names, item.Name)
+	for i := range items {
+		names = append(names, items[i].Name)
 	}
 	return joinList(ctx, names)
 }
@@ -115,11 +115,12 @@ type DepartmentBand struct {
 }
 
 type HomeView struct {
-	Slides     []HeroSlide
-	Categories []HomeCategory
-	Row        ProductRow
-	Band       *DepartmentBand
-	Rules      ShopRules
+	AccountErased bool
+	Slides        []HeroSlide
+	Categories    []HomeCategory
+	Row           ProductRow
+	Band          *DepartmentBand
+	Rules         ShopRules
 }
 
 // ShowsDirectory reports whether the department list is drawn. With one

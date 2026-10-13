@@ -28,6 +28,7 @@ type CartLine struct {
 	Brand        string
 	SKU          string
 	Label        string
+	TaxExempt    bool
 	UnitCents    int64
 	CompareCents int64
 	Quantity     int32
@@ -410,16 +411,15 @@ type PickupChainChoice struct {
 	Label string
 }
 
-// PickupChainChoices is every chain the shop can accept, so an order placed at one
-// of them stays correctable in the back office.
-func PickupChainChoices() []PickupChainChoice {
-	return choicesFor(pickup.Offered())
+// KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
+func KnownPickupChainChoices() []PickupChainChoice {
+	return choicesFor(pickup.KnownChains())
 }
 
-// CheckoutPickupChainChoices is the part shoppers may choose today: the two chains
-// whose store picker the shop integrates first.
+// CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
 func CheckoutPickupChainChoices() []PickupChainChoice {
-	return choicesFor([]pickup.Chain{pickup.SevenEleven, pickup.FamilyMart})
+	chains := pickup.KnownChains()
+	return choicesFor(slices.DeleteFunc(chains, func(chain pickup.Chain) bool { return !chain.AtCheckout() }))
 }
 
 func choicesFor(chains []pickup.Chain) []PickupChainChoice {
@@ -596,6 +596,23 @@ func (v *CheckoutView) Credit() string { return "-" + twd(v.CreditCents()) }
 
 func (v *CheckoutView) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
+func (v *CheckoutView) PlaceOrderKey() i18n.Key {
+	if v.TotalCents() > 0 {
+		return i18n.KeyPlaceOrderAndPay
+	}
+	return i18n.KeyPlaceOrder
+}
+
+func (v *CheckoutView) PlacementNote(ctx context.Context) string {
+	if v.TotalCents() > 0 {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutSubmitNote), PayStartMinutesText())
+	}
+	if v.UsesCredit() {
+		return i18n.T(ctx, i18n.KeyCheckoutCreditSubmitNote)
+	}
+	return i18n.T(ctx, i18n.KeyCheckoutZeroSubmitNote)
+}
+
 type OrderLine struct {
 	SKU         string
 	Name        string
@@ -771,7 +788,7 @@ type OrderView struct {
 	PaymentsEnabled bool
 }
 
-// OrderReturned is an order whose every unit is in an approved or completed return. At is the day the last of them was paid out.
+// OrderReturned is an order whose every unit is in a return whose refund has settled. At is the day the last of them was refunded.
 type OrderReturned struct {
 	At          time.Time
 	RefundCents int64

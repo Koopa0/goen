@@ -23,8 +23,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ordercancel"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/cancellation"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
@@ -174,8 +174,8 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.Or
 	}
 }
 
-// orderStatus is the word and colour an order carries: an order returned in full says so in place of where its
-// delivery stands, since the refund has already been paid.
+// orderStatus is the word and colour an order carries: an order returned in full, with every refund settled, says
+// so in place of where its delivery stands.
 func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, components.Intent) {
 	if returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
@@ -269,7 +269,9 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 }
 
 func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, error) {
-	o, err := s.q.AdminOrderByNumber(ctx, number)
+	o, err := s.q.AdminOrderByNumber(ctx, db.AdminOrderByNumberParams{
+		OrderNumber: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.OrderView{}, ErrNotFound
@@ -312,7 +314,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		// whether to offer the form.
 		Correctable:          correctable(fulfillment),
 		PickupDestination:    o.PickupChain != "",
-		PickupChains:         pages.PickupChainChoices(),
+		PickupChains:         pages.KnownPickupChainChoices(),
 		CustomerNote:         o.CustomerNote.String,
 		StaffNote:            o.StaffNote.String,
 		InvoiceType:          invoice.Preference(o.InvoiceType),
@@ -367,7 +369,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	for i := range shipments {
 		sh := &shipments[i]
 		view.Shipments = append(view.Shipments, admin.Shipment{
-			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
+			ID: sh.ID.String(), Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
 		})
@@ -519,7 +521,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
 	case order.FulfillmentCancelled:
-		_, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+		_, err := cancellation.Settle(ctx, q, &cancellation.Order{
 			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: email.TerminalCancelledByStaff,
 			VoidTrigger: web.RequestID(ctx),
 		})
@@ -564,7 +566,7 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
-		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
+		return notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
 	default:
 		return nil
 	}

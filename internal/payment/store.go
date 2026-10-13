@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 // Store holds the pool rather than a DBTX because processing a webhook spans
@@ -551,7 +551,7 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 // RefundStatus reads goen's own refund this webhook object names. Only the
 // provider reference attributes it: a refund made in the Stripe Dashboard has
 // none here, and its metadata or payment intent could name any of goen's.
-func (w *webhookTx) RefundStatus(ctx context.Context) (refundstate.State, error) {
+func (w *webhookTx) RefundStatus(ctx context.Context) (refund.Status, error) {
 	if w.objectRef == "" {
 		return "", errors.New("read refund for webhook without a provider object")
 	}
@@ -562,7 +562,7 @@ func (w *webhookTx) RefundStatus(ctx context.Context) (refundstate.State, error)
 		}
 		return "", fmt.Errorf("read refund %s: %w", w.objectRef, err)
 	}
-	return refundstate.State(status), nil
+	return refund.Status(status), nil
 }
 
 func cardLabel(c Capture) string {

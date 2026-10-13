@@ -70,7 +70,7 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
-		Slug: "audio", Name: "耳機與音響",
+		Slug: "audio", Name: "耳機與音響", Total: 1,
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
@@ -202,7 +202,7 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
-		Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true,
+		Slug: "audio", Name: "耳機與音響", Total: 1, Filtered: true, InStockOnly: true,
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
@@ -245,7 +245,7 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	t.Parallel()
 
 	view := ListingView{
-		Slug: "phones", Name: "手機",
+		Slug: "phones", Name: "手機", Total: 2,
 		Products: []ProductTile{
 			{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Comparable: true},
 			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
@@ -290,14 +290,14 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 
 	// One price for the product: the figure IS the price, and saying "from"
 	// there would be worse than saying nothing.
-	one := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
+	one := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []ProductTile{
 		{Slug: "solo", Name: "Solo", PriceCents: 2590000},
 	}}
 	if got := renderToString(t, Listing(ListingMeta(ctx, one), one, nil, nil)); strings.Contains(got, marked) {
 		t.Errorf("a single-priced product renders %q", marked)
 	}
 
-	many := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
+	many := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []ProductTile{
 		{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true},
 	}}
 	if got := renderToString(t, Listing(ListingMeta(ctx, many), many, nil, nil)); !strings.Contains(got, marked) {
@@ -466,7 +466,7 @@ func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 		slug := fmt.Sprintf("p%d", i)
 		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
-	view := ListingView{Slug: "audio", Name: "Audio", Products: tiles}
+	view := ListingView{Slug: "audio", Name: "Audio", Total: int64(len(tiles)), Products: tiles}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
 	if got := strings.Count(html, `loading="lazy"`); got != 2 {

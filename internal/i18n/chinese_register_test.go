@@ -28,6 +28,17 @@ func TestChineseNeverUsesTheHonorificYou(t *testing.T) {
 	}
 }
 
+func TestChineseNeverUsesDoubleEmDashes(t *testing.T) {
+	if len(messages) == 0 {
+		t.Fatal("the catalogue is empty; this test would pass on nothing")
+	}
+	for k, m := range messages {
+		if strings.Contains(m.ZhHant, "——") {
+			t.Errorf("%s uses a double em dash: %q", k, m.ZhHant)
+		}
+	}
+}
+
 // halfWidthMarkBesideHan reports the first ASCII , : ; ? ! ( ) whose nearest
 // non-space neighbour on either side is Chinese.
 func halfWidthMarkBesideHan(s string) (rune, bool) {

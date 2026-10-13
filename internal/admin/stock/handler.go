@@ -42,10 +42,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 var notices = map[string]web.NoticeEntry{
-	"ok":       web.Done(i18n.KeyAdminNoticeOK),
-	"refused":  web.Refused(i18n.KeyAdminNoticeRefused),
-	"received": web.Done(i18n.KeyAdminNoticeReceived),
-	"badqty":   web.Refused(i18n.KeyAdminNoticeBadQty),
+	"ok":               web.Done(i18n.KeyAdminNoticeOK),
+	"refused":          web.Refused(i18n.KeyAdminNoticeRefused),
+	"received":         web.Done(i18n.KeyAdminNoticeReceived),
+	"receipt-conflict": web.Refused(i18n.KeyAdminReceiptConflict),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -148,21 +148,24 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	sku := r.PostFormValue("sku")
 	back := "/admin/stock/" + url.PathEscape(sku)
-
-	quantity, ok := ParseReceipt(r.PostFormValue("quantity"))
-	if !ok {
-		http.Redirect(w, r, back+"?badqty=1", http.StatusSeeOther)
-		return
-	}
 	key := r.PostFormValue("idempotency")
 	if key == "" {
 		key = newKey()
+		r.PostForm.Set("idempotency", key)
+	}
+
+	quantity, ok := ParseReceipt(r.PostFormValue("quantity"))
+	if !ok {
+		h.rejectReceipt(w, r, i18n.KeyAdminNoticeBadQty)
+		return
 	}
 
 	err := h.store.Receive(r.Context(), sku, quantity, u.ID, key)
 	switch {
 	case err == nil:
 		http.Redirect(w, r, back+"?received=1", http.StatusSeeOther)
+	case errors.Is(err, ErrMovementConflict):
+		http.Redirect(w, r, back+"?receipt-conflict=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "goods receipt refused",
 			"sku", sku, "quantity", quantity, "error", err)
@@ -171,6 +174,27 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
 		access.ServerError(w, r, h.log)
 	}
+}
+
+func (h *Handler) rejectReceipt(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	view, err := h.store.Movements(r.Context(), r.PostFormValue("sku"), time.Now())
+	switch {
+	case err == nil:
+		h.renderReceiptRefusal(w, r, &view, key)
+	case errors.Is(err, ErrNotFound):
+		access.NotFound(w, r, h.log)
+	default:
+		h.log.ErrorContext(r.Context(), "read movements after refused receipt", "error", err)
+		access.ServerError(w, r, h.log)
+	}
+}
+
+func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, view *admin.MovementsView, key i18n.Key) {
+	view.DraftQuantity = r.PostFormValue("quantity")
+	view.QuantityError = i18n.T(r.Context(), key)
+	view.ReceiptKey = r.PostFormValue("idempotency")
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Movements(
+		layouts.Page{Title: view.SKU}, view))
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {

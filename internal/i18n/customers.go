@@ -4,14 +4,14 @@ var (
 	KeyAdminColPhone = key("admin.col.phone", Message{ZhHant: "電話", En: "Phone"})
 
 	KeyAdminCustLead = key("admin.cust.lead", Message{
-		ZhHant: "用 Email 或姓名的開頭搜尋，搜尋後才會列出顧客。",
+		ZhHant: "用電子郵件或姓名的開頭搜尋，搜尋後才會列出顧客。",
 		En:     "Search by the start of an email address or name. Customers are listed only after a search.",
 	})
 
 	KeyAdminCustSearch = key("admin.cust.search", Message{ZhHant: "搜尋顧客", En: "Search customers"})
 
 	KeyAdminCustPlaceholder = key("admin.cust.placeholder", Message{
-		ZhHant: "Email 或姓名",
+		ZhHant: "電子郵件或姓名",
 		En:     "Email or name",
 	})
 
@@ -32,7 +32,7 @@ var (
 	KeyAdminCustUnconfirmed = key("admin.cust.unconfirmed", Message{ZhHant: "未確認", En: "Unconfirmed"})
 
 	KeyAdminCustEmailUnconfirmed = key("admin.cust.email.unconfirmed", Message{
-		ZhHant: "Email 未確認",
+		ZhHant: "電子郵件未確認",
 		En:     "Email not confirmed",
 	})
 

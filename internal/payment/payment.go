@@ -87,9 +87,9 @@ type Order struct {
 	holdCoversSession bool
 }
 
-// startBy is the last moment a customer can begin paying against a hold that
+// StartBy is the last moment a customer can begin paying against a hold that
 // ends at until: Start's admission rule read backwards.
-func startBy(until time.Time) time.Time {
+func StartBy(until time.Time) time.Time {
 	return until.Add(-minSessionLifetime - sessionStartMargin)
 }
 

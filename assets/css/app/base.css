@@ -52,6 +52,10 @@
 
   --container: 1280px;
 
+  --icon-s: 1rem;
+  --icon-m: 1.25rem;
+  --icon-l: 1.5rem;
+
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --dur-base: 120ms;
   --dur-slow: 200ms;
@@ -123,6 +127,15 @@ body {
 
 .ui-btn svg { width: 16px; height: 16px; flex: none; }
 .ui-btn--sm svg { width: 14px; height: 14px; }
+
+/* ---------- Icon ---------- */
+
+/* No specificity, so a component that sizes its own icons keeps winning. */
+:where(.ui-icon) {
+  inline-size: var(--icon-s);
+  block-size: var(--icon-s);
+  flex: none;
+}
 
 /* ---------- Badge ---------- */
 
@@ -300,7 +313,7 @@ body {
 .ui-input:read-only:not([type="button"]), .ui-textarea:read-only {
   background: var(--panel); color: var(--fg-muted); cursor: default;
 }
-.ui-input:read-only:hover { border-color: var(--border); }
+.ui-input:read-only:hover { border-color: var(--control-boundary); }
 
 .ui-navitem:active { background: var(--panel); }
 

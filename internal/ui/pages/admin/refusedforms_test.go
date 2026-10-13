@@ -27,7 +27,7 @@ func TestARefusedInspectionKeepsWhatWasTyped(t *testing.T) {
 
 	for _, want := range []string{
 		`name="restocked_l1" value="3"`, `value="外盒破損"`, `aria-invalid="true"`,
-		`id="inspect-error-r1"`, `aria-describedby="inspect-error-r1"`,
+		`id="inspect-error-r1"`, `aria-describedby="stock-r1-l1-error"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the refused inspection form is missing %q", want)

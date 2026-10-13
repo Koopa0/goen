@@ -161,7 +161,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 			}
 		}
-		<div class="ui-filterbar goen-admin__tabs">
+		<nav class="ui-filterbar goen-admin__tabs" aria-label={ i18n.T(ctx, i18n.KeyAdminOrderStatus) }>
 			for _, t := range v.Tabs {
 				<a
 					class="ui-filter"
@@ -174,7 +174,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 					<span class="ui-filter__count">{ t.CountText() }</span>
 				</a>
 			}
-		</div>
+		</nav>
 		if v.Status == QueuePicking && !v.Searching() {
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/orders/picking/slips") {
 				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
@@ -481,6 +481,14 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
 									} else {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDispatched), sh.ShippedAt) }</span>
+										if v.Status == order.FulfillmentDelivered {
+											<form method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/shipments/" + sh.ID + "/delivered") }>
+												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+													{ i18n.T(ctx, i18n.KeyAdminMarkDelivered) }
+													<span class="goen-sr-only">{ " " + sh.Tracking }</span>
+												}
+											</form>
+										}
 									}
 								</li>
 							}
@@ -502,7 +510,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
 									if e.Note != "" {
-										<span class="goen-admin__meta">{ e.Note }</span>
+										<span class="goen-admin__meta">{ e.noteText(ctx) }</span>
 									}
 								</li>
 							}
@@ -755,6 +763,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 						</ul>
 					}
+					if v.AllowanceAwaitingUntil != "" && v.InvoicingEnabled {
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
+					}
+					if v.AllowanceAwaitingUntil != "" && !v.InvoicingEnabled {
+						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaitingUnreconciled), v.AllowanceAwaitingUntil) }</p>
+					}
+					if v.AllowanceAttention != "" {
+						<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
+					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
@@ -796,12 +813,6 @@ templ Order(p layouts.Page, v *OrderView) {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceOnline) }</p>
 							</form>
 						}
-						if v.AllowanceAwaitingUntil != "" {
-							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
-						}
-						if v.AllowanceAttention != "" {
-							<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
-						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
 						}
@@ -823,6 +834,9 @@ templ Variants(p layouts.Page, v VariantsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		for _, refusal := range v.Refusals() {
+			@RefusalSummary(refusal)
+		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
 				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
@@ -954,7 +968,7 @@ templ variantTable(variants []Variant, back string) {
 						</form>
 					</td>
 					<td>
-						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
+						<form class="goen-admin__inline" method="post" action={ templ.URL("/admin/stock/adjust#row-" + x.SKU) }>
 							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
@@ -962,7 +976,8 @@ templ variantTable(variants []Variant, back string) {
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "adj-" + x.SKU }
-								type="number"
+								type={ dollarInputType(x.DraftDelta) }
+								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }
 								placeholder="+10"

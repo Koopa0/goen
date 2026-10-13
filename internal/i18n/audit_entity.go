@@ -2,6 +2,8 @@ package i18n
 
 // The record kinds /admin/audit names in a row's subject line.
 var (
+	KeyAuditEntityOrderShipments = key("audit.entity.order_shipments", Message{ZhHant: "包裹", En: "Parcel"})
+
 	KeyAuditEntityOrders = key("audit.entity.orders", Message{ZhHant: "訂單", En: "Order"})
 
 	KeyAuditEntityOrderPrivateData = key("audit.entity.order_private_data", Message{ZhHant: "訂單收件資料", En: "Order delivery details"})

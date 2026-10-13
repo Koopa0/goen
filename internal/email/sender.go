@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,22 @@ type Message struct {
 	// HTML is Body laid out as a page, sent beside it as an alternative. Empty
 	// sends Body alone.
 	HTML string
+	// OneClickUnsubscribe emits only the paired RFC 8058 headers.
+	OneClickUnsubscribe OneClickUnsubscribeURL
+}
+
+type OneClickUnsubscribeURL string
+
+func (u OneClickUnsubscribeURL) validate() error {
+	if u == "" {
+		return nil
+	}
+	link, err := url.ParseRequestURI(string(u))
+	if err != nil || link.Scheme != "https" || link.Host == "" || link.User != nil || link.Fragment != "" ||
+		strings.ContainsAny(string(u), "<>\"#") || strings.IndexFunc(string(u), func(r rune) bool { return r <= ' ' || r >= 127 }) >= 0 {
+		return errors.New("email: invalid HTTPS one-click unsubscribe URL")
+	}
+	return nil
 }
 
 type Sender interface {
@@ -86,6 +103,9 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	}
 	if !Valid(m.To) {
 		return fmt.Errorf("email: refusing to send to %q", m.To)
+	}
+	if err := m.OneClickUnsubscribe.validate(); err != nil {
+		return err
 	}
 	// Resolved BEFORE anything is dialled: an unsendable From fails every message.
 	envelope, err := envelopeFrom(s.From)
@@ -196,7 +216,8 @@ func deliver(c *smtp.Client, s SMTPSender, m *Message, host, envelope string) er
 // A message with HTML is multipart/alternative, text first: a client shows the
 // last part it can display, so one that cannot show HTML still has the letter.
 // Its Content-Transfer-Encoding is 7bit, which both base64 parts make true, so
-// the header block is the same eight lines a text-only letter has.
+// the MIME headers are the same ones a text-only letter has. Newsletter issues
+// also carry the paired unsubscribe headers.
 //
 // Date and Message-ID are generated here and never from the message: RFC 5322
 // requires the first, and the order confirmation is a record the consumer keeps,
@@ -209,6 +230,10 @@ func render(from string, m *Message) []byte {
 	b.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
 	b.WriteString("Message-ID: " + messageID(from) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
+	if m.OneClickUnsubscribe != "" {
+		b.WriteString("List-Unsubscribe: <" + string(m.OneClickUnsubscribe) + ">\r\n")
+		b.WriteString("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n")
+	}
 	if m.HTML == "" {
 		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")

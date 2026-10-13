@@ -1,64 +1,28 @@
 {
   "_comment": "The routes `make check-layout` accepts as failing at 320px or at 200% text, as route -> check ids: scroll-320, scroll-200, and text-320:<element> or text-200:<element> for the element (tag.first-class) that owns the cut text. A check that is not listed fails the gate; a check listed that no longer fires fails it too, so this file can only shrink. Each storefront page change removes its routes, and a route added later is measured with nothing listed. The run prints the file that makes it green when the set moves.",
   "routes": {
-    "/admin/credit": [
-      "scroll-200"
-    ],
     "/admin/messages": [
       "scroll-200",
       "text-200:span.goen-admin__meta"
     ],
     "/admin/orders/{order}": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?allowfailed=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?voidfailed=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
     ],
     "/admin/orders/{order}?voidreason=1": [
       "scroll-200",
-      "text-200:p.ui-alert",
       "text-200:span.goen-admin__eventhead"
-    ],
-    "/admin/products/aurora-charger-65": [
-      "scroll-200"
-    ],
-    "/admin/returns": [
-      "scroll-200",
-      "text-200:span.goen-admin__meta"
-    ],
-    "/admin/shipping": [
-      "scroll-200"
     ],
     "/admin/taxonomy": [
       "scroll-200"
-    ],
-    "/contact": [
-      "scroll-200",
-      "text-200:span.contact-method__value"
-    ],
-    "/privacy": [
-      "scroll-200",
-      "text-200:p."
-    ],
-    "/s/layout-campaign": [
-      "text-200:h1.goen-pagehead__title"
-    ],
-    "/search?q=%C2%A0%E3%80%80pixelight%E2%80%83": [
-      "scroll-200",
-      "text-200:h1.goen-pagehead__title"
-    ],
-    "/search?q=pixelight": [
-      "scroll-200",
-      "text-200:h1.goen-pagehead__title"
     ]
   }
 }

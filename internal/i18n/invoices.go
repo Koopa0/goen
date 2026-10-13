@@ -27,6 +27,12 @@ var (
 		En:     "The credit note was e-mailed to the customer to agree to by %s.",
 	})
 
+	KeyAdminQueueAllowanceAwaitingUnreconciled = key("admin.queue.allowance.awaitingunreconciled", Message{
+		ZhHant: "這張折讓在停用電子發票前已向綠界送出，顧客確認期限是 %s。停用期間這裡不會更新結果，請到綠界後台查看。",
+		En: "This credit note was sent to ECPay before e-invoicing was turned off; the customer has until %s to agree. " +
+			"Its outcome is not updated here while e-invoicing is off, so check it in ECPay's back office.",
+	})
+
 	KeyAdminQueueAllowanceUnconfirmed = key("admin.queue.allowance.unconfirmed", Message{
 		ZhHant: "顧客未在 72 小時內確認折讓。",
 		En:     "The customer did not agree to the credit note within 72 hours.",
@@ -54,8 +60,8 @@ var (
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
-		ZhHant: "尚未啟用電子發票，這裡無法開立發票。",
-		En:     "E-invoicing is not set up for this shop, so no invoice can be issued from here.",
+		ZhHant: "尚未啟用電子發票，這裡無法開立、作廢或折讓。",
+		En:     "E-invoicing is not set up for this shop, so invoices cannot be issued or voided, and credit notes cannot be filed, from here.",
 	})
 
 	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "（已作廢）", En: "(voided)"})

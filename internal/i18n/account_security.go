@@ -17,6 +17,8 @@ var (
 		En:     "I want to delete my account",
 	})
 
+	KeyAccountErased = key("account.erase.done", Message{ZhHant: "你的帳號已刪除，個人資料與收件資訊已移除。已完成的訂單以無個資的形式保留，作為交易與稅務紀錄。", En: "Your account has been deleted and your personal details and delivery information removed. Completed orders are kept without them as financial and tax records."})
+
 	KeyEraseConfirmLabel = key("account.erase.confirm", Message{
 		ZhHant: "輸入 %s 以確認",
 		En:     "Type %s to confirm",
@@ -28,6 +30,16 @@ var (
 	})
 
 	KeyLinkedAccounts = key("account.linked", Message{ZhHant: "連結的帳號", En: "Linked accounts"})
+
+	KeySignOutOtherDevices = key("account.sessions.others.end", Message{
+		ZhHant: "登出其他裝置",
+		En:     "Sign out other devices",
+	})
+
+	KeyOtherDevicesSignedOut = key("account.notice.others.signedout", Message{
+		ZhHant: "已登出其他裝置。",
+		En:     "Signed out of your other devices.",
+	})
 
 	KeyGoogleLinked = key("account.linked.google", Message{
 		ZhHant: "這個帳號可以用 Google 登入。",

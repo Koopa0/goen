@@ -5,6 +5,8 @@ var (
 
 	KeyAdminTabAll = key("admin.tab.all", Message{ZhHant: "全部", En: "All"})
 
+	KeyAdminOrderStatus = key("admin.order.status", Message{ZhHant: "訂單狀態", En: "Order status"})
+
 	KeyAdminStatusPending = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
 
 	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
@@ -28,7 +30,7 @@ var (
 
 	KeyAdminNoOrderTitle = key("admin.noorder.title", Message{ZhHant: "找不到訂單", En: "Order not found"})
 
-	KeyAdminNoOrderHead = key("admin.noorder.head", Message{ZhHant: "找不到這筆訂單", En: "No such order"})
+	KeyAdminNoOrderHead = key("admin.noorder.head", Message{ZhHant: "找不到 %s 這筆訂單", En: "Order %s not found"})
 
 	KeyAdminNoOrderBody = key("admin.noorder.body", Message{
 		ZhHant: "訂單編號不存在。",
@@ -41,14 +43,14 @@ var (
 	})
 
 	KeyAdminQueueSearchPlaceholder = key("admin.queue.search.placeholder", Message{
-		ZhHant: "訂單編號、收件人姓名或 Email",
+		ZhHant: "訂單編號、收件人姓名或電子郵件",
 		En:     "Order number, recipient name or email",
 	})
 
 	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除", En: "Clear"})
 
 	KeyAdminQueueSearchNote = key("admin.queue.search.note", Message{
-		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和 Email 比對開頭。搜尋時不套用上方的狀態篩選。",
+		ZhHant: "搜尋「%s」：訂單編號完全比對，姓名和電子郵件比對開頭。搜尋時不套用上方的狀態篩選。",
 		En:     "Searching for %q. An order number must match exactly; a name or email address matches from the start. A search ignores the status filter above.",
 	})
 
@@ -95,6 +97,8 @@ var (
 	})
 
 	KeyAdminQueueDispatch = key("admin.queue.dispatch", Message{ZhHant: "出貨", En: "Dispatch"})
+
+	KeyAdminMarkDelivered = key("admin.shipment.deliver", Message{ZhHant: "標記已送達", En: "Mark delivered"})
 
 	KeyAdminQueueDelivered = key("admin.queue.delivered", Message{ZhHant: "%s 送達", En: "Delivered %s"})
 
@@ -153,6 +157,8 @@ var (
 	KeyAdminTimelineInvoiceAttention = key("admin.timeline.invoice.attention", Message{ZhHant: "需要人工處理", En: "Needs a person"})
 
 	KeyAdminTimelineInvoiceSucceeded = key("admin.timeline.invoice.succeeded", Message{ZhHant: "完成", En: "Done"})
+
+	KeyAdminTimelineInvoiceProviderCode = key("admin.timeline.invoice.provider_code", Message{ZhHant: "綠界代碼 %s", En: "ECPay code %s"})
 
 	KeyAdminTimelineInvoiceRejected = key("admin.timeline.invoice.rejected", Message{ZhHant: "遭拒絕", En: "Refused"})
 
@@ -252,6 +258,10 @@ var (
 )
 
 var (
+	KeyAdminShipmentArrivalRefused = key("admin.shipment.arrival_refused", Message{ZhHant: "目前無法替這筆訂單記錄包裹送達。請重新整理後再試。", En: "This order cannot record that parcel’s arrival now. Reload the page and try again."})
+
+	KeyAdminNoticeShipmentDelivered = key("admin.notice.shipment_delivered", Message{ZhHant: "已記錄包裹送達。", En: "Parcel arrival recorded."})
+
 	KeyAdminNoticeShipped = key("admin.notice.shipped", Message{
 		ZhHant: "已出貨。配送資訊與庫存都已記錄。",
 		En:     "Dispatched. The delivery details and the stock movement are both recorded.",

@@ -9,11 +9,11 @@ sql:
       - "internal/catalog/query.sql"
       - "internal/product/query.sql"
       - "internal/cart/query.sql"
-      - "internal/orderaccess/query.sql"
+      - "internal/order/access/query.sql"
       - "internal/payment/query.sql"
       - "internal/returnpage/query.sql"
       - "internal/outbox/query.sql"
-      - "internal/ordernotice/query.sql"
+      - "internal/order/notice/query.sql"
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"
@@ -38,6 +38,7 @@ sql:
       - "internal/admin/taxonomy/query.sql"
       - "internal/admin/returns/query.sql"
       - "internal/admin/reports/query.sql"
+      - "internal/admin/reports/orders_export.sql"
       - "internal/invoice/query.sql"
     gen:
       go:

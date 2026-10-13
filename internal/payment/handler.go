@@ -7,14 +7,15 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -58,21 +59,21 @@ type webhookOutcome struct {
 	refundFailure       refundFailure
 	isRefundFailure     bool
 	// refundStatus is goen's own row for the failed refund, "" when goen has none.
-	refundStatus refundstate.State
+	refundStatus refund.Status
 }
 
 type Handler struct {
-	access  *orderaccess.Store
+	access  *access.Store
 	store   *Store
 	gateway *Gateway
 	log     *slog.Logger
 }
 
-func NewHandler(s *Store, g *Gateway, access *orderaccess.Store, log *slog.Logger) *Handler {
-	if s == nil || g == nil || access == nil || log == nil {
+func NewHandler(s *Store, g *Gateway, grants *access.Store, log *slog.Logger) *Handler {
+	if s == nil || g == nil || grants == nil || log == nil {
 		panic("payment: NewHandler requires a store, a gateway, an access check and a logger")
 	}
-	return &Handler{store: s, gateway: g, access: access, log: log}
+	return &Handler{store: s, gateway: g, access: grants, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +137,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
 	case !hasSession:
-		hold.StartBy = startBy(o.Hold.Until)
+		hold.StartBy = StartBy(o.Hold.Until)
 	}
 	view.Hold = hold
 	for i := range o.Lines {
@@ -579,7 +580,7 @@ func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) 
 		return err
 	}
 	o.refundStatus = status
-	if status != refundstate.Succeeded {
+	if status != refund.Succeeded {
 		return nil
 	}
 	// The sentence a person reads is on /admin/health, in the viewer's language.
@@ -613,7 +614,7 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome
 		h.log.ErrorContext(ctx,
 			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
 			"event", ev.ID, "session", outcome.unsettledSession)
-	case outcome.isRefundFailure && outcome.refundStatus == refundstate.Succeeded:
+	case outcome.isRefundFailure && outcome.refundStatus == refund.Succeeded:
 		h.log.ErrorContext(ctx,
 			"a refund goen recorded as succeeded failed at Stripe — repay the customer another way",
 			"event", ev.ID, "refund", outcome.refundFailure.refundID,
@@ -643,7 +644,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	if !ok {
-		if !orderaccess.ReloadSameSite(w, r, h.log) {
+		if !web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
 			h.notFound(w, r)
 		}
 		return nil, false
@@ -671,15 +672,16 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	h.notice(w, r, http.StatusNotFound,
-		i18n.T(r.Context(), i18n.KeyOrderNotFound),
-		i18n.T(r.Context(), i18n.KeyOrderNotFound),
-		i18n.T(r.Context(), i18n.KeyOrderNotYours))
+	web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {
 	web.Render(w, r, h.log, status, pages.Notice(
-		layouts.Page{Title: title}, "", heading, body))
+		layouts.Page{Title: title}, "", heading, body, pages.NoticeActions{
+			Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
+			Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+		}))
 }
 
 func (h *Handler) paymentConflict(w http.ResponseWriter, r *http.Request) {

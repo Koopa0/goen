@@ -21,6 +21,14 @@ const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec //
 // account and this binary move to a newer version.
 const legacyWebhookAPIVersion = "2022-11-15"
 
+func TestStartByUsesTheExistingStripeAdmissionWindow(t *testing.T) {
+	until := time.Date(2099, 1, 1, 1, 0, 0, 0, time.UTC)
+	want := time.Date(2099, 1, 1, 0, 29, 0, 0, time.UTC)
+	if got := payment.StartBy(until); !got.Equal(want) {
+		t.Errorf("StartBy(%s) = %s, want %s", until, got, want)
+	}
+}
+
 // signed produces a webhook body and header exactly as Stripe would sign them.
 func signed(t *testing.T, body any) (payload []byte, header string) {
 	t.Helper()

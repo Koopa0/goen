@@ -574,9 +574,16 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 		t.Fatalf("WorkerHealth: %v", err)
 	}
 	if worker.OutboxPending != 0 || worker.OutboxStuck != 0 || worker.ExpiredHolds != 0 ||
-		worker.ExpiredSessions != 0 || worker.UnreferencedMedia != 0 || worker.UnreconciledPayments != 0 ||
+		worker.ExpiredSessions != 0 || worker.UnreferencedMedia != 0 ||
 		!worker.CopurchaseEverBuilt || worker.CopurchaseAgeSeconds > 600 {
 		t.Errorf("WorkerHealth = %+v, want every count 0 and co-purchases just rebuilt", worker)
+	}
+	unreconciledCount, err := q.UnreconciledPaymentCount(ctx)
+	if err != nil {
+		t.Fatalf("UnreconciledPaymentCount: %v", err)
+	}
+	if unreconciledCount != 0 {
+		t.Errorf("UnreconciledPaymentCount = %d, want 0", unreconciledCount)
 	}
 	refunds, err := q.OpenRefundCount(ctx)
 	if err != nil {

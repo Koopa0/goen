@@ -22,7 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -37,8 +37,8 @@ var (
 )
 
 // Payouts pays an approved return back and says where each payout stands. A
-// payout that did not finish wraps refundstate.ErrIncomplete; one the database
-// refused wraps refundstate.ErrRefused.
+// payout that did not finish wraps refund.ErrIncomplete; one the database
+// refused wraps refund.ErrRefused.
 type Payouts interface {
 	FillPayouts(ctx context.Context, ids []uuid.UUID, rows []admin.Return) (map[uuid.UUID]error, error)
 	PayApproved(ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID) error
@@ -287,8 +287,8 @@ func (s *Store) retryDecideReturn(
 	ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID,
 ) error {
 	worked, err := s.payouts.Resume(ctx, row, actor)
-	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) && !errors.Is(err, refundstate.ErrRefused) {
-		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
+	if err != nil && !errors.Is(err, refund.ErrIncomplete) && !errors.Is(err, refund.ErrRefused) {
+		return fmt.Errorf("%w: %w", refund.ErrIncomplete, err)
 	}
 	if err != nil || worked {
 		return err
@@ -321,8 +321,8 @@ func (s *Store) decideReturnFirst(
 		return nil
 	}
 	err := s.payouts.PayApproved(ctx, row.ID, actor)
-	if err != nil && !errors.Is(err, refundstate.ErrIncomplete) {
-		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
+	if err != nil && !errors.Is(err, refund.ErrIncomplete) {
+		return fmt.Errorf("%w: %w", refund.ErrIncomplete, err)
 	}
 	return err
 }

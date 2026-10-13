@@ -74,6 +74,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Comparable: r.PostFormValue("comparable") != "",
 	}
 
+	typed := *f
 	var errs map[string]string
 	var err error
 	if kind == "categories" {
@@ -93,8 +94,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Which, view.Errors = kind, errs
 		view.Draft = admin.TaxonDraft{
-			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
-			IconKey: f.IconKey, Tone: f.Tone, Comparable: f.Comparable,
+			Slug: typed.Slug, Name: typed.Name, NameEn: typed.NameEn, Parent: typed.Parent,
+			IconKey: typed.IconKey, Tone: typed.Tone, Comparable: typed.Comparable,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Taxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))

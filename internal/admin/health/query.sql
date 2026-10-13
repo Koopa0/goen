@@ -86,14 +86,17 @@ SELECT
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
-    -- Events accepted and NOT acted on: a known Stripe object this binary could
-    -- not read, paid money with no local payment row, paid money for an order
-    -- already cancelled, a completed checkout whose money is still in flight,
-    -- or a refund goen recorded as succeeded that Stripe later reported failed.
-    -- Each is still marked processed because retrying the same event
-    -- changes nothing; the durable reason makes the human action countable
-    -- instead of leaving only a log line nobody reads.
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media;
+
+-- Events accepted and NOT acted on: a known Stripe object this binary could
+-- not read, paid money with no local payment row, paid money for an order
+-- already cancelled, a completed checkout whose money is still in flight,
+-- or a refund goen recorded as succeeded that Stripe later reported failed.
+-- Each is still marked processed because retrying the same event
+-- changes nothing; the durable reason makes the human action countable
+-- instead of leaving only a log line nobody reads.
+-- name: UnreconciledPaymentCount :one
+SELECT
     ((SELECT count(*) FROM payment_webhook_events
       WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
      +

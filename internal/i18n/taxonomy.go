@@ -75,9 +75,8 @@ var (
 	KeyAdminCatImage = key("admin.cat.image", Message{ZhHant: "分類頁首圖片", En: "Category header photograph"})
 
 	KeyAdminCatImageHint = key("admin.cat.imagehint", Message{
-		ZhHant: "顯示在館別頁標題旁，會從中央裁成 3:2。建議 1200×800。子分類沿用上層的圖片。",
-		En: "Shown beside the department's heading, cropped from the centre to 3:2. " +
-			"1200×800 works best. A sub-category shows its department's photograph.",
+		ZhHant: "顯示在首頁、館別頁標題旁和選單裡，各處都從中央裁切，主體請放在中間。建議 1200×800。子分類沿用上層的圖片。",
+		En:     "Shown on the home page, beside the department's heading and in the menu, each cropped from the centre, so keep the subject in the middle. 1200×800 works best. A sub-category shows its department's photograph.",
 	})
 
 	KeyAdminPageTaxonomy = key("admin.page.taxonomy", Message{ZhHant: "品牌與分類", En: "Brands and categories"})

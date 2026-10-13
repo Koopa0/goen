@@ -8,8 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
@@ -29,6 +31,21 @@ func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
 		if !errors.Is(got, tt.err) {
 			t.Errorf("refusedIfNoRow(%s) = %v, which no longer wraps %v", tt.name, got, tt.err)
 		}
+	}
+}
+
+// TestAnOrderRefundedInFullSaysSoInPlaceOfItsDelivery holds orderStatus without the database: an order the
+// settled-refund query names says it was refunded, and any other order keeps its delivery word.
+func TestAnOrderRefundedInFullSaysSoInPlaceOfItsDelivery(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	text, intent := orderStatus(ctx, order.FulfillmentDelivered, true, 0, true)
+	if want := i18n.T(ctx, i18n.KeyStatusRefunded); text != want || intent != components.IntentNeutral {
+		t.Errorf("orderStatus(delivered, returned) = %q, %q; want %q, %q", text, intent, want, components.IntentNeutral)
+	}
+	text, _ = orderStatus(ctx, order.FulfillmentDelivered, true, 0, false)
+	if want := admin.FundedFulfillmentLabel(ctx, order.FulfillmentDelivered, true, 0); text != want {
+		t.Errorf("orderStatus(delivered, not returned) = %q, want %q", text, want)
 	}
 }
 

@@ -86,6 +86,18 @@ shoots that branch, which has to contain the workflow (merge `main` into an olde
 one). The entry syntax is at the top of `scripts/screenshots.mjs`; fetch the
 result with `gh run download <run id> -n screenshots`.
 
+For a delivery refusal, use `data=layout` and
+`pages='/admin/orders/{PLACED_ORDER}@1440@delivery-refused,/admin/orders/{PLACED_ORDER}@1440@en@delivery-refused,/admin/orders/{PLACED_ORDER}@320@text200@delivery-refused,/admin/orders/{PLACED_ORDER}@320@en@text200@delivery-refused'`.
+A single entry such as `/admin/orders/{PLACED_ORDER}@320@delivery-refused` also
+works. The explicit flag submits the fixture's production address form with an invalid absent pickup
+field and captures its actual localized HTTP 422 document. The recipe refuses
+to capture when the alert is missing or the visible draft or saved summary
+changes. After saving the refusal screenshot, it checks a fresh order GET
+restores the saved fields and records that recovery in the manifest. Omit the
+flag for its baseline GET; add `@en` and `@text200` for English
+and 200% text, or use `@1440` for desktop. This state needs the absent-control
+refusal repair; a branch without it fails rather than substituting a normal GET.
+
 goen targets WCAG 2.2 level AA. The pinned axe rules select `wcag2a`, `wcag2aa`,
 `wcag21a`, `wcag21aa` and `wcag22aa`; serious or critical WCAG findings gate,
 while best-practice findings remain advisory. `scripts/axe-baseline.json`
@@ -158,6 +170,21 @@ store before anything else.
 - Comments carry the reason a reader needs to not break the line (a statute, a
   provider quirk, a lock ordering) and nothing else. No history.
 - Commits carry no `Co-authored-by` trailer.
+
+### Test files
+
+- Name tests after the source they exercise: `foo_test.go` and
+  `foo_integration_test.go` for `foo.go`. A topic file covers behavior spanning
+  several source files and uses the package's domain words, never an issue or PR.
+- Every integration test file has both `//go:build integration` and the
+  `_integration_test.go` suffix. Keep `TestMain` and shared setup in
+  `main_integration_test.go`; `internal/db` (`schema_integration_test.go`),
+  `internal/contact` and `internal/home` (`handler_integration_test.go`) keep
+  theirs beside the tests it serves.
+- Use the external test package (`package foo_test`) unless the test needs
+  unexported names.
+- Put a helper shared by several packages in the area's helper package, such
+  as `admintest` or `dbtest`.
 
 ## Changes that need the maintainer first
 

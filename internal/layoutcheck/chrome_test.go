@@ -227,6 +227,9 @@ func assertLayoutChromeExited(t *testing.T, binDir string) {
 		if err != nil {
 			t.Fatalf("probe recorded fixture PID %d: %v", pid, err)
 		}
+		if runtime.GOOS == "linux" && linuxLayoutChromeExited(t, pid) {
+			return
+		}
 		select {
 		case <-ctx.Done():
 			t.Errorf("fixture PID %d is still running after probe cleanup, want the recorded process gone", pid)
@@ -234,6 +237,28 @@ func assertLayoutChromeExited(t *testing.T, binDir string) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func linuxLayoutChromeExited(t *testing.T, pid int) bool {
+	t.Helper()
+	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	if err != nil {
+		t.Fatalf("read recorded fixture PID %d state: %v", pid, err)
+	}
+	// The parenthesized process name can itself contain spaces and parentheses.
+	end := bytes.LastIndexByte(stat, ')')
+	if end < 0 {
+		t.Fatalf("recorded fixture PID %d stat has no process name terminator: %q", pid, stat)
+	}
+	fields := bytes.Fields(stat[end+1:])
+	if len(fields) == 0 || len(fields[0]) != 1 {
+		t.Fatalf("recorded fixture PID %d stat has no process state: %q", pid, stat)
+	}
+	// Signal 0 still succeeds for an exited zombie when PID 1 does not reap it.
+	return fields[0][0] == 'Z'
 }
 
 func repoRoot(t *testing.T) string {

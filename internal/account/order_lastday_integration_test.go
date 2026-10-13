@@ -107,9 +107,10 @@ func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
 	}
 }
 
-// TestAccountOrderRowSaysRefundedOnceEveryUnitIsInAnApprovedReturn holds that the history reads the same fact the
-// order page does: the refund is paid at approval, so a part of the order in a return leaves it as it was.
-func TestAccountOrderRowSaysRefundedOnceEveryUnitIsInAnApprovedReturn(t *testing.T) {
+// TestAccountOrderRowSaysRefundedOnceEveryUnitsRefundHasSettled holds that the history reads the same fact the
+// order page does: approval only starts the payout, so an approved return counts once the payout has written its
+// refunded event or it has nothing to send back, and a part of the order in a return leaves it as it was.
+func TestAccountOrderRowSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T) {
 	s := account.NewStore(pool)
 	owner := register(t, s, "returned-"+uuid.NewString()+"@example.invalid")
 	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), owner)
@@ -117,10 +118,14 @@ func TestAccountOrderRowSaysRefundedOnceEveryUnitIsInAnApprovedReturn(t *testing
 	for _, tc := range []struct {
 		name     string
 		returned int
+		zero     bool // the return sends nothing back
+		event    bool // the payout wrote the refunded event
 		want     bool
 	}{
-		{"one unit of two", 1, false},
-		{"both units", 2, true},
+		{"one unit of two, refunded", 1, false, true, false},
+		{"both units, the card refund not yet sent", 2, false, false, false},
+		{"both units, refunded", 2, false, true, true},
+		{"both units, nothing to send back", 2, true, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx, err := pool.Begin(ctx)
@@ -146,16 +151,27 @@ func TestAccountOrderRowSaysRefundedOnceEveryUnitIsInAnApprovedReturn(t *testing
 				VALUES ($1, 'RETURNED', 'Returned', 100, 2) RETURNING id`, orderID).Scan(&lineID); err != nil {
 				t.Fatalf("insert line: %v", err)
 			}
+			refundCents := 100 * tc.returned
+			if tc.zero {
+				refundCents = 0
+			}
 			if err = tx.QueryRow(ctx, `
 				INSERT INTO return_requests (order_id, status, reason, decided_at, goods_refund_cents, shipping_refund_cents,
 				                             card_refund_cents, credit_refund_cents)
-				VALUES ($1, 'approved', 'test', now(), $2, 0, $2, 0) RETURNING id`, orderID, 100*tc.returned).Scan(&returnID); err != nil {
+				VALUES ($1, 'approved', 'test', now(), $2, 0, $2, 0) RETURNING id`, orderID, refundCents).Scan(&returnID); err != nil {
 				t.Fatalf("insert return: %v", err)
 			}
 			if _, err = tx.Exec(ctx, `
 				INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
 				VALUES ($1, $2, $3, $4)`, orderID, returnID, lineID, tc.returned); err != nil {
 				t.Fatalf("insert return line: %v", err)
+			}
+			if tc.event {
+				if _, err = tx.Exec(ctx, `
+					INSERT INTO order_events (order_id, kind, return_request_id) VALUES ($1, 'refunded', $2)`,
+					orderID, returnID); err != nil {
+					t.Fatalf("insert refunded event: %v", err)
+				}
 			}
 			if err = tx.Commit(ctx); err != nil {
 				t.Fatalf("commit: %v", err)

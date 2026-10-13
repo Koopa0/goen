@@ -53,6 +53,8 @@ var (
 
 	KeyPlaceOrder = key("buy.place", Message{ZhHant: "送出訂單", En: "Place order"})
 
+	KeyPlaceOrderAndPay = key("buy.place.pay", Message{ZhHant: "送出訂單並付款", En: "Place order and pay"})
+
 	KeyPay = key("buy.pay", Message{ZhHant: "前往付款", En: "Pay now"})
 
 	KeyCouponCode = key("buy.coupon", Message{ZhHant: "折扣碼", En: "Discount code"})

@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
@@ -33,6 +34,9 @@ type Order struct {
 	ID          uuid.UUID
 	Number      string
 	Fulfillment string
+	Pickup      bool
+	Shipments   []pages.OrderShipment
+	Now         time.Time
 	Lines       []Line
 	HasOpen     bool
 	Existing    []Existing
@@ -77,8 +81,14 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		return nil, fmt.Errorf("read returns of %s: %w", number, err)
 	}
 
+	shipments, err := s.q.OrderTracking(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("read return windows of %s: %w", number, err)
+	}
+
 	o := &Order{
 		ID: row.ID, Number: row.OrderNumber, Fulfillment: row.FulfillmentStatus,
+		Pickup:  row.Pickup,
 		HasOpen: open,
 		Lines:   make([]Line, 0, len(lines)),
 	}
@@ -91,6 +101,16 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		})
 	}
 	now := time.Now()
+	o.Now = now
+	for i := range shipments {
+		shipment := &shipments[i]
+		parcel := pages.OrderShipment{}
+		if shipment.DeliveredAt.Valid {
+			parcel.DeliveredAt = shipment.DeliveredAt.Time
+			parcel.RescissionEnds = shipment.RescissionEnds
+		}
+		o.Shipments = append(o.Shipments, parcel)
+	}
 	for i := range existing {
 		e := &existing[i]
 		o.Existing = append(o.Existing, Existing{
