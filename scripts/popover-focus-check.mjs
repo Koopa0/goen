@@ -133,7 +133,7 @@ async function visibleFocus() {
   targetWidth: parseFloat(target.width), targetHeight: parseFloat(target.height) }; })()`);
 }
 try {
- for (const locale of ['zh-Hant', 'en']) for (const width of [320, 375, 1440]) for (const text of [100, 200]) for (const dark of [false, true]) {
+ for (const locale of ['zh-Hant', 'en']) for (const width of [1440, 320, 375]) for (const text of [100, 200]) for (const dark of [false, true]) {
   const label = `${locale}-${width}-${text}-${dark ? 'dark' : 'light'}`;
   const path = '/c/' + (process.env.DEPARTMENT_SLUG || 'audio');
   await navigate(path, width, text, locale, dark);
@@ -150,10 +150,13 @@ try {
   await press(optionText, label + ': option label');
   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': native label press toggles its option');
   await evaluate("checkedPopover.querySelector('summary').focus()");
+  await press(optionText, label + ': restore the applied option');
+  assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': second native label press restores the filter');
+  await evaluate("checkedPopover.querySelector('summary').focus()");
   if (width === 1440) {
    const padding = await evaluate(`(() => { const panel = checkedPopover.querySelector('.goen-filters__options'), r = panel.getBoundingClientRect(), s = getComputedStyle(panel); return {x:r.x + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft) / 2, y:r.y + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) / 2}; })()`);
    await press(padding, label + ': panel padding');
-   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': padding does not toggle the option');
+   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), checked, label + ': padding does not toggle the option');
    await evaluate("checkedPopover.querySelector('summary').focus()");
   }
 
@@ -180,7 +183,9 @@ try {
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab', 8);
   assert.equal(await evaluate('checkedPopover.open'), false, label + ': reverse Tab out closes the group');
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter');
-  await evaluate("document.querySelector('h1').click()");
+  const outside = await evaluate("(() => { const r = document.querySelector('h1').getBoundingClientRect(); return {x:r.x+r.width/2, y:r.y+r.height/2}; })()");
+  await connection.send('Input.dispatchMouseEvent', {type:'mousePressed', button:'left', clickCount:1, ...outside});
+  await connection.send('Input.dispatchMouseEvent', {type:'mouseReleased', button:'left', clickCount:1, ...outside});
   assert.equal(await evaluate('checkedPopover.open'), false, label + ': outside click still closes the group');
 
   if (width === 1440) {
