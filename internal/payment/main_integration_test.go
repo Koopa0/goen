@@ -2259,7 +2259,7 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 func TestAFullyFundedOrderOwesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	number, _ := creditFundedOrder(t, 50000, 50000)
+	number, _ := creditFundedOrder(t, creditFundedTotal)
 
 	o, err := s.Order(ctx, number)
 	if err != nil {
@@ -2273,13 +2273,16 @@ func TestAFullyFundedOrderOwesNothing(t *testing.T) {
 	}
 }
 
-// creditFundedOrder places an order of totalCents with stock held long enough
-// for a Checkout Session, then spends creditCents of store credit on it. Held,
+// creditFundedTotal is what creditFundedOrder's orders cost, in cents.
+const creditFundedTotal = 50000
+
+// creditFundedOrder places an order of creditFundedTotal with stock held long
+// enough for a Checkout Session, then spends creditCents of store credit on it. Held,
 // so that a handler which let the order through would reach Stripe rather than
 // be stopped by a lapsed hold.
-func creditFundedOrder(t *testing.T, totalCents, creditCents int64) (number string, id uuid.UUID) {
+func creditFundedOrder(t *testing.T, creditCents int64) (number string, id uuid.UUID) {
 	t.Helper()
-	number, id = holdableOrder(t, totalCents)
+	number, id = holdableOrder(t, creditFundedTotal)
 	hold(t, id, 0, 60*time.Minute, "credit-funded:"+number)
 	userID := creditedUser(t, creditCents)
 	if _, err := pool.Exec(t.Context(),
@@ -2314,7 +2317,7 @@ func payRequest(t *testing.T, method, number string) *http.Request {
 // order that owes nothing is sent on to its order page, and the pay page
 // neither offers payment nor opens an attempt for it.
 func TestAFullyFundedOrderIsTurnedAwayFromThePayPage(t *testing.T) {
-	number, orderID := creditFundedOrder(t, 50000, 50000)
+	number, orderID := creditFundedOrder(t, creditFundedTotal)
 	gateway, calls := gatewayRecordingCalls(t, "cs_must_not_open_"+uuid.NewString()[:12])
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
@@ -2338,7 +2341,7 @@ func TestAFullyFundedOrderIsTurnedAwayFromThePayPage(t *testing.T) {
 // that owes nothing is sent on to its order page, with no Checkout Session
 // created at Stripe and no attempt recorded.
 func TestAFullyFundedOrderIsNeverSentToStripe(t *testing.T) {
-	number, orderID := creditFundedOrder(t, 50000, 50000)
+	number, orderID := creditFundedOrder(t, creditFundedTotal)
 	gateway, calls := gatewayRecordingCalls(t, "cs_must_not_open_"+uuid.NewString()[:12])
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
@@ -2395,7 +2398,7 @@ func TestAFullyFundedOrderReadAcrossACreditReversalIsStillTurnedAway(t *testing.
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
-			number, orderID := creditFundedOrder(t, 50000, 50000)
+			number, orderID := creditFundedOrder(t, creditFundedTotal)
 
 			// Credit goes back only once the order has been cancelled, so the
 			// other request cancels it and gives the credit back. The read in
@@ -2449,7 +2452,7 @@ func TestAFullyFundedOrderReadAcrossACreditReversalIsStillTurnedAway(t *testing.
 // credit gets the pay page, and a Start that opens one Checkout Session and one
 // attempt. Without it, a guard that turned every order away would pass them.
 func TestAnOrderStillOwingMoneyIsOfferedPaymentAndSentToStripe(t *testing.T) {
-	number, orderID := creditFundedOrder(t, 50000, 20000)
+	number, orderID := creditFundedOrder(t, 20000)
 	const session = "cs_owing_order_start"
 	gateway, calls := gatewayRecordingCalls(t, session)
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
