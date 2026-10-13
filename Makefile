@@ -153,6 +153,7 @@ check-layout-run:
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
+	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestGalleryThumbnailsWrapAndKeepNativeSelection$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs --staff /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@set -e; for path in '/cart' '/checkout' '/checkout?ship={PICKUP_SHIP}' '/contact' '/p/pixelight-9' '/p/pixelight-9-pro' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D' '/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD' '/privacy' '/s/layout-campaign' '/search?q=pixelight' '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83'; do \
 		node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs "$$path@320" "$$path@320@text200" "$$path@320@en" "$$path@320@en@text200"; \
