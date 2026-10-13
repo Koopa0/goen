@@ -1604,7 +1604,7 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	}
 }
 
-func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
+func TestTheStatusStepsOfferOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1624,8 +1624,8 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	if offers(&unpaid, order.FulfillmentPicking) {
 		t.Error("an unpaid order is offered picking, which orders_funded_to_leave_pending refuses")
 	}
-	if !unpaid.NextIsDestructive() {
-		t.Error("an unpaid order's menu preselects cancelling")
+	if len(unpaid.Next) != 1 || unpaid.Next[0].Value != order.FulfillmentCancelled {
+		t.Errorf("unpaid order next steps = %v, want only cancellation", unpaid.Next)
 	}
 
 	number, _, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "menu")

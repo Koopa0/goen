@@ -238,6 +238,7 @@ templ Order(p layouts.Page, v *OrderView) {
 			<div>
 				<h1 class="ui-page-head__title">{ v.Number }</h1>
 				<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
+				<p id="order-next-step" class="goen-admin__hint">{ v.nextStepSummary(ctx) }</p>
 			</div>
 			<div class="ui-page-head__actions">
 				@components.Badge(components.BadgeProps{Intent: v.StatusIntent}) {
@@ -698,42 +699,37 @@ templ Order(p layouts.Page, v *OrderView) {
 				if v.CanAdvance() {
 					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
-						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
-							if v.StartsPicking() {
-								<input type="hidden" name="status" value={ string(order.FulfillmentPicking) }/>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
-									{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }</p>
+						{{ primary := v.primaryStepIndex() }}
+						if primary >= 0 {
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+								<input type="hidden" name="status" value={ string(v.Next[primary].Value) }/>
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true, Attrs: templ.Attributes{"id": "order-primary-step"}}, "submit") {
+									{ v.Next[primary].submitLabel(ctx) }
 								}
-							} else {
-								<div class="ui-field">
-									<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
-									<select class="ui-select" id="next-status" name="status" required?={ v.NextIsDestructive() }>
-										// Cancelling is irreversible, so it is never the preselected move.
-										if v.NextIsDestructive() {
-											<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminQueueNextChoose) }</option>
-										}
-										for _, n := range v.Next {
-											<option value={ string(n.Value) }>{ n.Label }</option>
-										}
-									</select>
-								</div>
-								if v.CanShip {
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
-										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
-									}
-								} else {
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
-										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
+							</form>
+						}
+						if primary < 0 || len(v.Next) > 1 {
+							<details class="goen-disclosure">
+								<summary class="goen-btn goen-btn--outline goen-btn--block">{ i18n.T(ctx, i18n.KeyAdminOrderOtherSteps) }</summary>
+								for i, step := range v.Next {
+									if i != primary {
+										<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+											<input type="hidden" name="status" value={ string(step.Value) }/>
+											@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+												{ step.submitLabel(ctx) }
+											}
+										</form>
 									}
 								}
-								<p class="goen-admin__hint">
-									{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }
-								</p>
-								if v.PickupDestination {
-									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint) }</p>
-								}
-							}
-						</form>
+							</details>
+						}
+						if v.Status == order.FulfillmentPending {
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminOrderUnpaidStepHint) }</p>
+						}
+						if v.PickupDestination {
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint) }</p>
+						}
 					}
 				} else if v.Final() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
