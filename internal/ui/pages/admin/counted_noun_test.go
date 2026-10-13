@@ -26,7 +26,7 @@ func TestProductVariantAndStaffCountsSelectSingularInTheRenderedPage(t *testing.
 				wantStaff = "1 account has not enrolled"
 			}
 			if locale == i18n.ZhHant {
-				wantVariants = fmt.Sprintf("%d 個規格 · ", n)
+				wantVariants = fmt.Sprintf("%d 個款式 · ", n)
 				wantStaff = fmt.Sprintf("還有 %d 個帳號尚未設定", n)
 			}
 			if !strings.Contains(product, wantVariants) {
