@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ordercancel"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/cancellation"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refundstate"
@@ -339,7 +339,7 @@ func recordStaffCancellation(
 	if err != nil {
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
-	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
+	return notice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: refundedCents > 0,
 	})
 }
@@ -386,7 +386,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	// the audit row it is their consent to the void, so the void's request id is
 	// this request's. It is kept off the order event, which the customer's order
 	// page shows.
-	returnedCents, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+	returnedCents, err := cancellation.Settle(ctx, q, &cancellation.Order{
 		ID: orderID, Number: number, Actor: actor, Kind: email.TerminalCancelledByStaff,
 		VoidTrigger: web.RequestID(ctx),
 	})

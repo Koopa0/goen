@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/returnpage"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -40,7 +40,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	if len(order.Shipments) != 1 || !order.Shipments[0].RescissionEnds.Equal(expected) {
 		t.Fatalf("return form parcels = %+v, want the existing database deadline %v", order.Shipments, expected)
 	}
-	handler := returnpage.NewHandler(store, orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	handler := returnpage.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
 	mux.HandleFunc("POST /orders/{number}/return", handler.Submit)
@@ -93,7 +93,7 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 	}
 	appPool := returnsApplicationPool(t, "return-pickup")
 	store := returnpage.NewStore(appPool)
-	handler := returnpage.NewHandler(store, orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	handler := returnpage.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
 	for _, tc := range []struct {

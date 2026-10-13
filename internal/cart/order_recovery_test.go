@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 )
 
 func TestInaccessibleOrderActionsOfferLookupAndSignIn(t *testing.T) {
 	t.Parallel()
-	h := &Handler{access: &orderaccess.Store{}, log: slog.New(slog.DiscardHandler)}
+	h := &Handler{access: &access.Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, route := range []struct {
 			path    string

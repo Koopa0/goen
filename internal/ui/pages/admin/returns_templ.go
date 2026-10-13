@@ -268,7 +268,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-					} else if r.Goodwill() || r.Mixed() {
+					} else if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span class=\"goen-admin__meta\"><strong>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -556,7 +556,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 					} else if !r.Decided {
-						if r.Goodwill() || r.Mixed() {
+						if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<form class=\"goen-admin__decide\" method=\"post\" action=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -967,7 +967,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 						}
-						if r.Goodwill() || r.Mixed() || r.Late() {
+						if (r.Goodwill() || r.Mixed() || r.Late()) && !r.mixedStatutoryApproval() {
 							templ_7745c5c3_Var58 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 								templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 								templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -999,7 +999,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 						}
-						if !r.Rescission() {
+						if r.CanReject() {
 							templ_7745c5c3_Var60 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 								templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 								templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)

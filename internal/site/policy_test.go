@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -407,7 +407,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:              {zh: "購物車", en: "your cart"},
 		account.SessionCookieName:    {zh: "登入狀態", en: "your sign-in"},
-		orderaccess.CookieName:       {zh: "訂單瀏覽權限", en: "permission to view an order"},
+		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},
 		home.DismissCookie:           {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"},
@@ -754,8 +754,8 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			term:   "whether a request inside the window can be declined",
 			cite:   "消保法 §19 I — 無須說明理由, and §19 IV ends the contract on dispatch; returns.Evaluate refuses a decline on any statutory line",
 			doc:    "returns",
-			want:   []string{"在猶豫期內提出的申請，我們不會拒絕"},
-			wantEn: []string{"A request made within your seven-day right to cancel is never declined"},
+			want:   []string{"商品送達前，或在猶豫期內提出的申請，我們不會拒絕。"},
+			wantEn: []string{"A request made before the goods arrive, or within your seven-day right to cancel, is never declined."},
 		},
 	}
 

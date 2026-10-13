@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -54,7 +54,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 	}
 	return &integrityCheckout{
 		s: s,
-		h: cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+		h: cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
 			Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 		}), nil, nil),
 		userID: userID, cartID: cartID, token: token, variant: variant,
@@ -267,7 +267,7 @@ func TestCheckoutPlacesNothingOnAQuoteItDidNotRender(t *testing.T) {
 func TestNoPostedQuantityReachesACartOutsideItsBounds(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	}), nil, nil)
 
