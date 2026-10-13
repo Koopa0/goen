@@ -7,6 +7,7 @@ const (
 	// entire content is somebody else's personal data.
 	ActionViewCustomer             Action = "customer.view"
 	ActionShipOrder                Action = "order.ship"
+	ActionDeliverShipment          Action = "shipment.delivered"
 	ActionAdvanceOrder             Action = "order.advance"
 	ActionDecideReturn             Action = "return.decide"
 	ActionInspectReturn            Action = "return.inspect"
