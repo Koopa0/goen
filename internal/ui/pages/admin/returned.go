@@ -34,6 +34,18 @@ const minUnitsForRate = 20
 
 func (p ReturnedProduct) ShowsRate() bool { return p.Sold >= minUnitsForRate }
 
+const returnedRateScale = 1000
+
+func (p ReturnedProduct) returnedPermille() int64 {
+	if p.Returned <= 0 || p.Sold <= 0 {
+		return 0
+	}
+	if p.Returned >= p.Sold {
+		return returnedRateScale
+	}
+	return max(int64(float64(p.Returned)*returnedRateScale/float64(p.Sold)), 1)
+}
+
 // Share is the returned percentage, rounded half up, never 0% or 100% unless
 // none or all came back.
 func (p ReturnedProduct) Share(ctx context.Context) string {

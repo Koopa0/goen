@@ -135,7 +135,8 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 	}
 	for id, describedBy := range map[string]string{"b-days": "b-days-error", "b-cta-href": "b-cta-error"} {
 		in := input(id)
-		if !strings.Contains(in, `aria-invalid="true"`) || !strings.Contains(in, `aria-describedby="`+describedBy+`"`) {
+		descriptions := regexp.MustCompile(`aria-describedby="([^"]*)"`).FindStringSubmatch(in)
+		if !strings.Contains(in, `aria-invalid="true"`) || len(descriptions) != 2 || !strings.Contains(" "+descriptions[1]+" ", " "+describedBy+" ") {
 			t.Errorf("%s is not marked invalid and linked to %s: %s", id, describedBy, in)
 		}
 		if !strings.Contains(page, `id="`+describedBy+`"`) {
@@ -311,7 +312,7 @@ func TestTheBannerSwitchOpensOnTheLanguageOfTheFirstRefusedField(t *testing.T) {
 
 	if got, form := opensOn(map[string]string{"message_en": "too long"}); got != "en" {
 		t.Errorf("an English refusal opens the switch on %q, want en", got)
-	} else if !strings.Contains(form, `id="b-message-en-error"`) || !strings.Contains(form, `aria-describedby="b-message-en-error"`) {
+	} else if !strings.Contains(form, `id="b-message-en-error"`) || !strings.Contains(form, `aria-describedby="b-message-en-example b-message-en-error"`) {
 		t.Error("the refused English field is not marked and explained")
 	}
 	if got, _ := opensOn(map[string]string{"message": "needed", "message_en": "too long"}); got != "zh" {

@@ -52,7 +52,7 @@ run: gen
 	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
 		case $$status in \
 		0) ;; \
-		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run PGOPTIONS="-c goen.catalogue_seed=development" make db-reset' >&2; exit 1;; \
 		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
 		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
@@ -161,10 +161,12 @@ check-layout-run:
 	done
 	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
+	@node --env-file=$(LAYOUT_DIR)/env scripts/popover-focus-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrastInTheBrowser$$' ./internal/ui/pages
 	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/pages/admin -run '^TestCampaignEditorReflowsInBothLanguages$$'
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductChoiceAgainstAnInFlightPurchase$$' ./internal/ui/pages
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \

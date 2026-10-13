@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -51,7 +51,7 @@ func (cfg *config) validateLiveInvoicing() error {
 			"are required beside a live GOEN_STRIPE_API_KEY: without them no e-invoice is issued")
 	}
 	// An empty URL is the staging endpoint by default.
-	if cfg.ECPayBaseURL == "" || namesHost(cfg.ECPayBaseURL, invoice.StagingBaseURL) {
+	if cfg.ECPayBaseURL == "" || namesHost(cfg.ECPayBaseURL, issuer.StagingBaseURL) {
 		return errors.New("GOEN_ECPAY_BASE_URL must name the production invoice endpoint " +
 			"beside a live GOEN_STRIPE_API_KEY; empty and the staging endpoint are refused")
 	}

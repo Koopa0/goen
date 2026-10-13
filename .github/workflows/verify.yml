@@ -167,7 +167,7 @@ jobs:
         run: |
           set -euo pipefail
           make migrate-up
-          make db-seed
+          PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 
       - name: Control boundary contrast calculations
         run: node --test scripts/control-boundary.test.mjs

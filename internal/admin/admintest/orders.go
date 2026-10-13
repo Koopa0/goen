@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/pgtx"
 )
 
@@ -299,17 +300,17 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 type DisabledInvoiceWriter struct{}
 
 func (DisabledInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 func (DisabledInvoiceWriter) Void(context.Context, string, string) error {
-	return invoice.ErrDisabled
+	return issuer.ErrDisabled
 }
 
 func (DisabledInvoiceWriter) FileAllowance(
 	context.Context, string, uuid.UUID,
 ) (invoice.Document, error) {
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 // OrderStore builds the order desk's store and the refunds, invoicing, stock and health
@@ -322,7 +323,7 @@ func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Rea
 // that needs it to fail.
 func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer, desk orders.Health) *orders.Store {
 	if reader == nil {
-		reader = invoice.NewStore(p, &invoice.Gateway{})
+		reader = issuer.NewStore(p, &issuer.Gateway{})
 	}
 	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk, reports.NewStore(p))
 }

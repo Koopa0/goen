@@ -20,9 +20,6 @@
     "/admin/orders/{order}?voidreason=1": [
       "scroll-200",
       "text-200:span.goen-admin__eventhead"
-    ],
-    "/admin/taxonomy": [
-      "scroll-200"
     ]
   }
 }

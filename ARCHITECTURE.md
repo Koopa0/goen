@@ -258,12 +258,12 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
-| Invoices and deferred delivery | [`internal/invoice`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
+| Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
 | Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-banner], [`internal/recommend`][recommend], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/account`][account], [staff access][access], [`internal/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Identity and browser security | [`internal/account`][account], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -285,9 +285,9 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
-[invoice-store]: internal/invoice/store.go
-[invoice-recovery]: internal/invoice/recovery.go
-[invoice-cancellation]: internal/invoice/cancellation.go
+[invoice-store]: internal/invoice/issuer/store.go
+[invoice-recovery]: internal/invoice/issuer/recovery.go
+[invoice-cancellation]: internal/invoice/issuer/cancellation.go
 [invoicing]: internal/admin/invoicing
 [outbox]: internal/outbox/outbox.go
 [outbox-sql]: internal/outbox/query.sql
@@ -299,7 +299,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [audit]: internal/admin/audit/audit.go
 [account]: internal/account
 [access]: internal/admin/access/access.go
-[twofactor]: internal/twofactor
+[twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit
 [i18n]: internal/i18n
 [money]: internal/money
