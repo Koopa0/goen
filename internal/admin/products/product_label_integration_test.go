@@ -24,7 +24,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -300,7 +299,7 @@ func TestProductLabelWritesDoNotBlockProductReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err := db.New(tx).LockProductLabel(ctx, slug); err != nil {
 		t.Fatal(err)
 	}

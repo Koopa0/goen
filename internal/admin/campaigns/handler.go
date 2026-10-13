@@ -9,9 +9,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -258,7 +258,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
-	case pgerr.IsConstraint(err, "sale_campaign_needs_discount"):
+	case db.IsConstraint(err, "sale_campaign_needs_discount"):
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, back+"?nodiscount=1", http.StatusSeeOther)

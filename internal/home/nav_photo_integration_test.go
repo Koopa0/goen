@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -30,7 +29,7 @@ func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 
 			var root uuid.UUID
 			if err = tx.QueryRow(ctx, `

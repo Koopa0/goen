@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -152,7 +151,7 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (number st
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	var id uuid.UUID
 	if err := tx.QueryRow(ctx, `
   INSERT INTO orders (order_number,user_id,shipping_version_id,shipping_method_code,shipping_method_name,shipping_cents,discount_cents,placed_at,customer_note)

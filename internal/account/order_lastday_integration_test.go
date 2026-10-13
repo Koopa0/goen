@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -60,7 +60,7 @@ func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 			// The order is still pending, which no shipment may be recorded against.
 			if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 				t.Fatalf("relax triggers: %v", err)
@@ -132,7 +132,7 @@ func TestAccountOrderRowSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T)
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 			if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 				t.Fatalf("relax triggers: %v", err)
 			}

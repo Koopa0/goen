@@ -22,10 +22,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // TestContentRowWritesAnswerAFailureAsAServerError: a database that cannot be
@@ -116,7 +116,7 @@ func TestHomeEditorReadFailuresAnswerAsServerErrors(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					defer pgtx.Rollback(ctx, holder)
+					defer db.Rollback(ctx, holder)
 					if _, lockErr := holder.Exec(ctx, read.lock); lockErr != nil {
 						t.Fatal(lockErr)
 					}

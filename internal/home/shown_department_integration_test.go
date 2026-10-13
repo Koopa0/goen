@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -26,7 +26,7 @@ func TestShownDepartmentsNeedListedProducts(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 
 			var subtreeProduct uuid.UUID
 			for _, root := range []struct {

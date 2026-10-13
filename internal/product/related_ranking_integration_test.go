@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/shoptime"
 )
@@ -139,7 +138,7 @@ func TestRelatedProductsRankContentBeforeRecency(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 
 			var categoryID, brandID uuid.UUID
 			if err := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, position)

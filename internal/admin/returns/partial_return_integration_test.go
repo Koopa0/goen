@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/returns"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 type orderLine struct {
@@ -158,7 +158,7 @@ func shippedDiscountedOrder(t *testing.T, o discountedOrder) placedOrder {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var userID uuid.NullUUID
 	if o.creditCents > 0 {
@@ -251,7 +251,7 @@ func approvedReturn(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var requestID uuid.UUID
 	if err := tx.QueryRow(ctx, `

@@ -20,7 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 // These rules span rows, so a CHECK cannot express them. Each is enforced by a trigger that
@@ -2384,7 +2384,7 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 		if err != nil {
 			t.Fatalf("begin: %v", err)
 		}
-		defer pgtx.Rollback(ctx, tx)
+		defer db.Rollback(ctx, tx)
 		if _, err := tx.Exec(ctx, fixtures); err != nil {
 			t.Fatalf("fixtures: %v", err)
 		}
@@ -2476,7 +2476,7 @@ func TestASoldOrderIsCommittedAndNotRefundedBeforeShipment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err := tx.Exec(ctx, fixtures+refundRuleStaff+`SET LOCAL ROLE admin;`); err != nil {
 		t.Fatalf("fixtures: %v", err)
 	}

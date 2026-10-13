@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 type invoiceArithmeticItem struct {
@@ -182,7 +182,7 @@ func assertCanonicalInvoiceVector(t *testing.T, vector invoiceArithmeticVector) 
 	if beginErr != nil {
 		t.Fatalf("begin invoice vector: %v", beginErr)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `

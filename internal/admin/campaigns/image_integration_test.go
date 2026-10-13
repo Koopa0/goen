@@ -26,9 +26,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func campaignImageRequest(t *testing.T, slug, alt string) *http.Request {
@@ -314,7 +314,7 @@ func holdUploadWrite(t *testing.T, owner *pgxpool.Pool) func() {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pgtx.Rollback(ctx, tx) })
+	t.Cleanup(func() { db.Rollback(ctx, tx) })
 	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
 		t.Fatal(err)
 	}

@@ -20,10 +20,10 @@ import (
 
 	"errors"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -971,7 +971,7 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO shipping_method_versions
@@ -1171,7 +1171,7 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err = tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at) VALUES ('lead-width', '主圖寬度', now() + interval '3 days')`); err != nil {
 		t.Fatalf("insert campaign: %v", err)
 	}

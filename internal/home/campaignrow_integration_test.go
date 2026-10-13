@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // The campaign's row prices a product as the campaign's page does: at its
@@ -22,7 +21,7 @@ func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err = tx.Exec(ctx, `UPDATE sale_campaigns SET is_active = false`); err != nil {
 		t.Fatalf("stop the seed's campaigns: %v", err)
 	}

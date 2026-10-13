@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 )
 
@@ -313,7 +312,7 @@ func (s *Store) processWebhook(
 	if err != nil {
 		return false, fmt.Errorf("begin webhook transaction: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	webhook := &webhookTx{
 		q: s.q.WithTx(tx), tx: tx, eventID: ev.ID, objectRef: ev.ObjectRef,
@@ -383,7 +382,7 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	if postErr := post(w.q.WithTx(sp)); postErr != nil {
 		// Back to the savepoint, so the transaction is usable and the caller can
 		// say what happened.
-		pgtx.Rollback(ctx, sp)
+		db.Rollback(ctx, sp)
 		return postErr
 	}
 	if err := sp.Commit(ctx); err != nil {

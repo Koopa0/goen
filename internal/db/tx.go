@@ -1,6 +1,4 @@
-// Package pgtx ends pgx transactions the way every goen store needs: detached
-// from the request that opened them, and bounded in time.
-package pgtx
+package db
 
 import (
 	"context"

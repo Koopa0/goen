@@ -21,9 +21,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -523,11 +523,11 @@ type sqlExecer interface {
 
 // featureNewProduct puts a new product with one discounted variant holding
 // stock into the campaign; status is the product's status once featured.
-func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock int, status string) {
+func featureNewProduct(t *testing.T, exec sqlExecer, campaignSlug string, stock int, status string) {
 	t.Helper()
 	ctx := t.Context()
 	slug := "featured-" + uuid.NewString()
-	if _, err := db.Exec(ctx, `
+	if _, err := exec.Exec(ctx, `
 		WITH p AS (
 		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		    SELECT (SELECT id FROM brands LIMIT 1),
@@ -540,13 +540,13 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	if _, err := db.Exec(ctx, `
+	if _, err := exec.Exec(ctx, `
 		INSERT INTO sale_campaign_products (campaign_id, product_id)
 		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`,
 		campaignSlug, slug); err != nil {
 		t.Fatalf("feature product: %v", err)
 	}
-	if _, err := db.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
+	if _, err := exec.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
 		t.Fatalf("set product status: %v", err)
 	}
 }
@@ -693,7 +693,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	s := catalog.NewStore(tx)
 
 	deep := newDeal(t, tx, 100, 0)
@@ -759,10 +759,10 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	}
 }
 
-func newDeal(t *testing.T, db sqlExecer, price, stock int) string {
+func newDeal(t *testing.T, exec sqlExecer, price, stock int) string {
 	t.Helper()
 	slug := "deal-" + uuid.NewString()
-	if _, err := db.Exec(t.Context(), `
+	if _, err := exec.Exec(t.Context(), `
 		WITH p AS (
 		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		    SELECT (SELECT id FROM brands LIMIT 1),

@@ -1,4 +1,4 @@
-package pgtx
+package db
 
 import (
 	"context"

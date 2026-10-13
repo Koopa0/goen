@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returns/buyer"
 )
 
@@ -649,7 +648,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin competing return: %v", err)
 			}
-			defer pgtx.Rollback(ctx, competitor)
+			defer db.Rollback(ctx, competitor)
 			var requestID uuid.UUID
 			if err := competitor.QueryRow(ctx, `
 		INSERT INTO return_requests (order_id, reason)

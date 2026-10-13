@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestOrderHeaderAndPickingSlipReadThePurchasedDeliveryMethodInTheReadersLanguage(t *testing.T) {
@@ -33,7 +33,7 @@ func TestOrderHeaderAndPickingSlipReadThePurchasedDeliveryMethodInTheReadersLang
 			if beginErr != nil {
 				t.Fatal(beginErr)
 			}
-			defer pgtx.Rollback(t.Context(), tx)
+			defer db.Rollback(t.Context(), tx)
 			code := "language_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 			var methodID, versionID, orderID uuid.UUID
 			if err := tx.QueryRow(t.Context(), `INSERT INTO shipping_methods(code) VALUES ($1) RETURNING id`, code).Scan(&methodID); err != nil {

@@ -21,8 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -117,7 +115,7 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
-				return pgerr.WrapRefusal(moveErr, ErrRefused)
+				return db.WrapRefusal(moveErr, ErrRefused)
 			}
 			return nil
 		})
@@ -155,10 +153,10 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
-				return pgerr.WrapRefusal(moveErr, ErrRefused)
+				return db.WrapRefusal(moveErr, ErrRefused)
 			}
 			if clearErr := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID}); clearErr != nil {
-				return pgerr.WrapRefusal(clearErr, ErrRefused)
+				return db.WrapRefusal(clearErr, ErrRefused)
 			}
 			return nil
 		})
@@ -187,7 +185,7 @@ func lockVariant(ctx context.Context, q *db.Queries, id uuid.UUID, sku string) (
 func (s *Store) settleReplay(
 	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason inventory.MovementReason, key string,
 ) error {
-	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
+	if err == nil || !db.IsConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
@@ -230,7 +228,7 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 				ID: v.ID, IsActive: active,
 			})
 		})
-	return pgerr.WrapRefusal(err, ErrRefused)
+	return db.WrapRefusal(err, ErrRefused)
 }
 
 // SetPrice reprices a variant. product_variants_compare_at_is_higher
@@ -262,7 +260,7 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
 				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
 			}); err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})
@@ -295,7 +293,7 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 	if err != nil {
 		return admin.MovementsView{}, fmt.Errorf("begin movements snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 	v, err := q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
@@ -389,7 +387,7 @@ func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed 
 	if err != nil {
 		return nil, 0, fmt.Errorf("begin stock snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	rows, err := q.StockAtRisk(ctx, db.StockAtRiskParams{FromAt: from, ToAt: now})

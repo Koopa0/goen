@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -25,7 +25,7 @@ func TestTheParcelCarriesTheDatabasesLastDays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	// The order is still pending, which no shipment may be recorded against.
 	if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 		t.Fatalf("relax triggers: %v", err)
@@ -90,7 +90,7 @@ func returnOf(t *testing.T, number, status string, beforeShipment bool) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 		t.Fatalf("relax triggers: %v", err)
 	}
@@ -125,7 +125,7 @@ func asWritten(t *testing.T, dest []any, query string, args ...any) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err = tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 		t.Fatalf("relax triggers: %v", err)
 	}

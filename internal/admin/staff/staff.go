@@ -15,8 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -77,9 +75,9 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 		})
 		if upsertErr != nil {
 			switch {
-			case pgerr.IsConstraint(upsertErr, "users_keep_one_admin"):
+			case db.IsConstraint(upsertErr, "users_keep_one_admin"):
 				return uuid.UUID{}, nil, ErrLastAdmin
-			case pgerr.IsConstraint(upsertErr, "users_staff_already_exists"):
+			case db.IsConstraint(upsertErr, "users_staff_already_exists"):
 				return uuid.UUID{}, nil, ErrAlreadyStaff
 			}
 			return uuid.UUID{}, nil, fmt.Errorf("add staff %s: %w", address, upsertErr)
@@ -180,7 +178,7 @@ func (s *Store) write(
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", action, err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	target, after, err := work(ctx, q)

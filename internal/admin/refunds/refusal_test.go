@@ -10,13 +10,12 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/refund"
 )
 
 func refusedBy(constraint string) error {
 	cause := &pgconn.PgError{Code: "23514", ConstraintName: constraint, Message: "an order is not what a shop assistant can read"}
-	return pgerr.WrapRefusal(fmt.Errorf("a statement: %w", cause), refund.ErrRefused)
+	return db.WrapRefusal(fmt.Errorf("a statement: %w", cause), refund.ErrRefused)
 }
 
 func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {

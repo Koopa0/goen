@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -26,7 +26,7 @@ func reverseWarrantyParcels(t *testing.T, laterQuantity int) (fixture, uuid.UUID
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(t.Context(), tx)
+	defer db.Rollback(t.Context(), tx)
 	var orderID, firstShipment uuid.UUID
 	if err := tx.QueryRow(t.Context(), `SELECT s.order_id,s.id FROM order_shipments s JOIN order_shipment_lines sl ON sl.shipment_id=s.id WHERE sl.order_line_id=$1`, f.lineID).Scan(&orderID, &firstShipment); err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestWarrantyReverseArrivalKeepsDecidedReturnCounts(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer pgtx.Rollback(t.Context(), tx)
+				defer db.Rollback(t.Context(), tx)
 				var orderID, returnID uuid.UUID
 				if err := tx.QueryRow(t.Context(), `SELECT order_id FROM order_lines WHERE id=$1`, f.lineID).Scan(&orderID); err != nil {
 					t.Fatal(err)

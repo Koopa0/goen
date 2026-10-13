@@ -25,8 +25,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestCouponToggleFaultsKeepSavedStateAndRecover(t *testing.T) {
@@ -118,7 +118,7 @@ func couponToggleFault(t *testing.T, ctx context.Context, owner, writing *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pgtx.Rollback(ctx, holder) })
+	t.Cleanup(func() { db.Rollback(ctx, holder) })
 	if _, err := holder.Exec(ctx, `SELECT 1 FROM coupons WHERE code=$1 FOR UPDATE`, code); err != nil {
 		t.Fatal(err)
 	}

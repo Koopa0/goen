@@ -14,7 +14,6 @@ import (
 	stockdesk "github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -587,7 +586,7 @@ func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var productID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -623,7 +622,7 @@ func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, pl
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -933,7 +932,7 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var lineID uuid.UUID
 	var sold int
@@ -1238,7 +1237,7 @@ func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var productID, orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `

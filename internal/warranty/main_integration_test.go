@@ -22,9 +22,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -93,7 +93,7 @@ func newWarrantyFixture(t *testing.T, userID uuid.UUID, guest bool, ordered, mon
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if userID == uuid.Nil && !guest {
 		if err := tx.QueryRow(ctx, `

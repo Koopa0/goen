@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -444,7 +443,7 @@ func (s *Store) claimReturnRefundExecution(
 		RequestID:       requestID,
 	})
 	if err != nil {
-		return db.RefundExecutionRow{}, pgerr.WrapRefusal(
+		return db.RefundExecutionRow{}, db.WrapRefusal(
 			fmt.Errorf("claim refund execution for return %s: %w", returnID, err), refund.ErrRefused)
 	}
 	claim, err := s.q.RefundExecution(ctx, refundID)

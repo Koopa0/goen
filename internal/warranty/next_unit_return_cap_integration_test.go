@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -39,7 +38,7 @@ func TestWarrantyNextExpiryRespectsTheNetDeliveredOrdinalCap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer pgtx.Rollback(t.Context(), tx)
+			defer db.Rollback(t.Context(), tx)
 			var orderID, returnID uuid.UUID
 			if orderErr := tx.QueryRow(t.Context(), `SELECT order_id FROM order_lines WHERE id=$1`, f.lineID).Scan(&orderID); orderErr != nil {
 				t.Fatal(orderErr)

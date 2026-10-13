@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -150,7 +149,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 			})
 		})
 	if err != nil {
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -170,7 +169,7 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 				ID: slideID, IsActive: active,
 			})
 			if setErr != nil {
-				return pgerr.WrapRefusal(setErr, ErrRefused)
+				return db.WrapRefusal(setErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -191,7 +190,7 @@ func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, promoteErr := q.PromoteHeroSlide(ctx, slideID)
 			if promoteErr != nil {
-				return pgerr.WrapRefusal(promoteErr, ErrRefused)
+				return db.WrapRefusal(promoteErr, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound

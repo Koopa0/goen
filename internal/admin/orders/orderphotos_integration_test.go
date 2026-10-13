@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	orderaccess "github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
@@ -180,7 +179,7 @@ func orderPhotoFixture(t *testing.T, owner *pgxpool.Pool) (number string, orderI
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `INSERT INTO orders(order_number,shipping_version_id,shipping_method_code,shipping_method_name,shipping_cents)
  SELECT next_order_number(),v.id,m.code,v.name,0 FROM shipping_method_versions v JOIN shipping_methods m ON m.id=v.method_id ORDER BY v.effective_at LIMIT 1 RETURNING id,order_number`).Scan(&orderID, &number); err != nil {
 		t.Fatal(err)

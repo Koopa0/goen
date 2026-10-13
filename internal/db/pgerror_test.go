@@ -1,4 +1,4 @@
-package pgerr
+package db_test
 
 import (
 	"errors"
@@ -6,19 +6,21 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/db"
 )
 
 func TestIsConstraintReadsTheConstraintNameNotTheMessage(t *testing.T) {
 	t.Parallel()
 	violation := fmt.Errorf("insert: %w", &pgconn.PgError{
 		Code: "23505", ConstraintName: "coupons_code_key", Message: "duplicate key"})
-	if !IsConstraint(violation, "coupons_code_key") {
+	if !db.IsConstraint(violation, "coupons_code_key") {
 		t.Error("the named constraint was not recognised through a wrapped error")
 	}
-	if IsConstraint(violation, "duplicate key") {
+	if db.IsConstraint(violation, "duplicate key") {
 		t.Error("the message was matched as a constraint")
 	}
-	if IsConstraint(errors.New("coupons_code_key"), "coupons_code_key") {
+	if db.IsConstraint(errors.New("coupons_code_key"), "coupons_code_key") {
 		t.Error("a plain error naming the constraint was matched")
 	}
 }
@@ -41,15 +43,15 @@ func TestWrapRefusalMarksOnlyWhatARuleDecided(t *testing.T) {
 		{name: "a closed pool", err: errors.New("closed pool"), refused: false},
 	} {
 		wrapped := fmt.Errorf("commit: %w", tt.err)
-		got := WrapRefusal(wrapped, errRefused)
+		got := db.WrapRefusal(wrapped, errRefused)
 		if errors.Is(got, errRefused) != tt.refused {
-			t.Errorf("WrapRefusal(%s) = %v, refused %t, want %t", tt.name, got, !tt.refused, tt.refused)
+			t.Errorf("db.WrapRefusal(%s) = %v, refused %t, want %t", tt.name, got, !tt.refused, tt.refused)
 		}
 		if !errors.Is(got, tt.err) {
-			t.Errorf("WrapRefusal(%s) = %v, which no longer wraps %v", tt.name, got, tt.err)
+			t.Errorf("db.WrapRefusal(%s) = %v, which no longer wraps %v", tt.name, got, tt.err)
 		}
 	}
-	if got := WrapRefusal(nil, errRefused); got != nil {
-		t.Errorf("WrapRefusal(nil) = %v, want nil", got)
+	if got := db.WrapRefusal(nil, errRefused); got != nil {
+		t.Errorf("db.WrapRefusal(nil) = %v, want nil", got)
 	}
 }

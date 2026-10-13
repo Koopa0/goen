@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -120,7 +119,7 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 			CtaLabelEn: f.CTALabelEn, Days: f.Days,
 		})
 	}); err != nil {
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -139,7 +138,7 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 			BannerID: bannerID, IsActive: active,
 		})
 		if execErr != nil {
-			return pgerr.WrapRefusal(execErr, ErrRefused)
+			return db.WrapRefusal(execErr, ErrRefused)
 		}
 		if n == 0 {
 			return ErrNotFound

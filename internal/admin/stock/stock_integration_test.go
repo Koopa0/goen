@@ -18,9 +18,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -696,7 +696,7 @@ func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin fixture: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 			var productID uuid.UUID
 			if err := tx.QueryRow(ctx, `
     INSERT INTO products (brand_id, category_id, slug, name, status, published_at)

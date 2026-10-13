@@ -24,7 +24,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -226,7 +225,7 @@ func (s *Store) mutateCart(
 	if err != nil {
 		return fmt.Errorf("begin cart mutation: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if err := lockCart(ctx, q, cartID); err != nil {
 		return err
@@ -481,7 +480,7 @@ func (s *Store) placeOrder(
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	prior, taken, err := claimCheckoutKey(ctx, q, cartID, attemptID)

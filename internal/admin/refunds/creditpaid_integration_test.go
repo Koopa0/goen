@@ -19,11 +19,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -231,7 +230,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, first)
+			defer db.Rollback(ctx, first)
 			if _, err := first.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); err != nil {
 				t.Fatalf("lock the order: %v", err)
 			}
@@ -276,7 +275,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			case err := <-result:
 				if !errors.Is(err, refund.ErrRefused) ||
 					(tc.changed && !errors.Is(err, refunds.ErrOrderChanged)) ||
-					(!tc.changed && !pgerr.IsConstraint(err, tc.constraint)) {
+					(!tc.changed && !db.IsConstraint(err, tc.constraint)) {
 					t.Errorf("cancellation after %s = %v, want ErrRefused from %s", tc.name, err, tc.constraint)
 				}
 			case <-time.After(10 * time.Second):

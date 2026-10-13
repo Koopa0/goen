@@ -15,7 +15,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
@@ -61,12 +60,12 @@ func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
 			if beginErr != nil {
 				t.Fatal(beginErr)
 			}
-			defer pgtx.Rollback(ctx, winner)
+			defer db.Rollback(ctx, winner)
 			follower, beginErr := app.Begin(ctx)
 			if beginErr != nil {
 				t.Fatal(beginErr)
 			}
-			defer pgtx.Rollback(ctx, follower)
+			defer db.Rollback(ctx, follower)
 			var pid int
 			if pidErr := follower.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&pid); pidErr != nil {
 				t.Fatal(pidErr)
