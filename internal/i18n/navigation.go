@@ -73,8 +73,8 @@ var (
 	KeyTermsPolicy = key("footer.terms", Message{ZhHant: "服務條款", En: "Terms"})
 
 	KeyContentNotice = key("notice.content", Message{
-		ZhHant: "部分商品說明只有繁體中文。",
-		En:     "Some product descriptions are in Traditional Chinese only.",
+		ZhHant: "部分商品說明只有繁體中文。政策文件的中英文版本如有不同，以繁體中文版為準。",
+		En:     "Some product descriptions are in Traditional Chinese only. Where the English and Traditional Chinese policies differ, the Traditional Chinese version applies.",
 	})
 )
 

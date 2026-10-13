@@ -144,12 +144,31 @@ type AccountView struct {
 }
 
 type AddressDraft struct {
+	ID string
+
 	Label, Name, Phone, PostalCode, City, District, Street string
 	Default                                                bool
 }
 
-// AddressOpen keeps the disclosure open on a refused address so its messages show.
 func (v *AccountView) AddressOpen() bool { return v.AddressDraft != nil }
+
+func (v *AccountView) AddressEditing() bool {
+	return v.AddressDraft != nil && v.AddressDraft.ID != ""
+}
+
+func (v *AccountView) AddressAction() string {
+	if v.AddressEditing() {
+		return "/account/addresses/update#addresses-heading"
+	}
+	return "/account/addresses"
+}
+
+func (v *AccountView) AddressID() string {
+	if v.AddressDraft == nil {
+		return ""
+	}
+	return v.AddressDraft.ID
+}
 
 func (v *AccountView) AddrValue(field string) string {
 	d := v.AddressDraft
@@ -268,6 +287,13 @@ func RegisterCompleteMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
 }
 
+func (v AuthView) authPageLink(path string) string {
+	if v.Next == "" || v.Next == "/account" {
+		return path
+	}
+	return path + "?next=" + url.QueryEscape(v.Next)
+}
+
 func (v AuthView) GoogleLink() string {
 	if v.Next == "" {
 		return "/auth/google"
@@ -318,10 +344,16 @@ func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
 type CartRecoveryView struct {
-	Welcome bool
-	Next    string
-	Notice  string
-	Retry   string
+	Welcome  bool
+	Next     string
+	Notice   string
+	Retry    string
+	Contents CartRecoveryContents
+}
+
+type CartRecoveryContents struct {
+	BeforeSignIn []CartLine
+	Account      []CartLine
 }
 
 func CartRecoveryMeta(ctx context.Context) layouts.Page {

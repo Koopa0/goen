@@ -7,7 +7,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"slices"
 	"time"
 )
 
@@ -17,28 +16,16 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
-// Dependency is one named thing readiness depends on. The name is what the log
-// line and the response body report, so an operator learns which pool is down.
-type Dependency struct {
-	Name string
-	DB   Pinger
-}
-
 type Handler struct {
-	deps []Dependency
+	pool Pinger
 	log  *slog.Logger
 }
 
-func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
-	if log == nil || len(deps) == 0 {
-		panic("probe: NewHandler requires a logger and at least one dependency")
+func NewHandler(log *slog.Logger, pool Pinger) *Handler {
+	if log == nil || pool == nil {
+		panic("probe: NewHandler requires a logger and the storefront pool")
 	}
-	for _, d := range deps {
-		if d.DB == nil || d.Name == "" {
-			panic("probe: every readiness dependency needs a name and a pool")
-		}
-	}
-	return &Handler{deps: slices.Clone(deps), log: log}
+	return &Handler{pool: pool, log: log}
 }
 
 // Live serves GET /healthz. It checks nothing: a liveness probe that tested the
@@ -47,20 +34,16 @@ func (h *Handler) Live(w http.ResponseWriter, _ *http.Request) {
 	writePlain(w, http.StatusOK, "ok")
 }
 
-// Ready serves GET /readyz. goen cannot serve a page without PostgreSQL, so
-// readiness is exactly whether every pool it serves from can answer.
+// Ready serves GET /readyz. A degraded back office must not take shopper routes
+// out of service.
 func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
-	// One budget for the whole check, not one per pool: a probe that hangs has
-	// already failed.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	for _, d := range h.deps {
-		if err := d.DB.Ping(ctx); err != nil {
-			h.log.WarnContext(ctx, "readiness probe failed", "pool", d.Name, "error", err)
-			writePlain(w, http.StatusServiceUnavailable, d.Name+" database unreachable")
-			return
-		}
+	if err := h.pool.Ping(ctx); err != nil {
+		h.log.WarnContext(ctx, "readiness probe failed", "pool", "storefront", "error", err)
+		writePlain(w, http.StatusServiceUnavailable, "storefront database unreachable")
+		return
 	}
 	writePlain(w, http.StatusOK, "ready")
 }

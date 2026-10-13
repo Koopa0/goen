@@ -202,6 +202,8 @@ var (
 		En:     "Your password is reset. Sign in with the new one.",
 	})
 
+	KeyPasswordChanged = key("auth.password.changed", Message{ZhHant: "你的密碼已變更。請使用新密碼登入。", En: "Your password is changed. Sign in with the new one."})
+
 	KeyDemoAccount = key("auth.demo", Message{ZhHant: "示範帳號", En: "Demo account"})
 
 	KeyDemoAccountShared = key("auth.demo.shared", Message{

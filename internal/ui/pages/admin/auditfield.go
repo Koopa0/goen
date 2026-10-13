@@ -25,6 +25,7 @@ type auditField struct {
 // auditFields is keyed by the stored key, or "table.key" where the same key
 // means something else on another table.
 var auditFields = map[string]auditField{
+	"order_shipments.delivered_at":     {i18n.KeyAuditFieldDeliveredAt, nil, nil},
 	"amount_cents":                     {i18n.KeyAdminColAmount, centsText, isAmount},
 	"card_refund_cents":                {i18n.KeyAdminPayRefundCard, centsText, isAmount},
 	"credit_refund_cents":              {i18n.KeyAdminPayRefundCredit, centsText, isAmount},

@@ -15,25 +15,28 @@ const (
 	OKMart      Chain = "ok_mart"
 )
 
-var offered = [...]Chain{
+var knownChains = [...]Chain{
 	SevenEleven,
 	FamilyMart,
 	HiLife,
 	OKMart,
 }
 
-// Offered returns every chain an order can carry, in display order: the back
-// office renders and corrects orders placed at chains checkout no longer takes. The result
-// owns its storage, so a caller cannot mutate the canonical closed set.
-func Offered() []Chain { return slices.Clone(offered[:]) }
+// KnownChains gives callers their own storage so they cannot mutate the canonical closed set.
+func KnownChains() []Chain { return slices.Clone(knownChains[:]) }
 
 func (c Chain) Known() bool {
-	for _, candidate := range offered {
+	for _, candidate := range knownChains {
 		if c == candidate {
 			return true
 		}
 	}
 	return false
+}
+
+// AtCheckout excludes historical chains whose store picker checkout does not integrate.
+func (c Chain) AtCheckout() bool {
+	return c == SevenEleven || c == FamilyMart
 }
 
 // maxStoreCodeLen is ECPay's published pickup-point store code length, not any

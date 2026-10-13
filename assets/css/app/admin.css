@@ -702,6 +702,7 @@ input.goen-check {
 .goen-adminbar__actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -2278,6 +2279,27 @@ input.goen-check {
   gap: 8px 16px;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.goen-admin__campaign-product {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-admin__campaign-photo {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+
+.goen-admin__campaign-facts {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Back office — orders

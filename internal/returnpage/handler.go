@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -20,16 +20,16 @@ import (
 )
 
 type Handler struct {
-	access *orderaccess.Store
+	access *access.Store
 	store  *Store
 	log    *slog.Logger
 }
 
-func NewHandler(s *Store, access *orderaccess.Store, log *slog.Logger) *Handler {
-	if s == nil || access == nil || log == nil {
+func NewHandler(s *Store, grants *access.Store, log *slog.Logger) *Handler {
+	if s == nil || grants == nil || log == nil {
 		panic("returnpage: NewHandler requires a store, an access check and a logger")
 	}
-	return &Handler{store: s, access: access, log: log}
+	return &Handler{store: s, access: grants, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -37,8 +37,10 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	view := viewOf(r.Context(), o, nil, nil)
+	view.Filed = r.URL.Query().Get("filed") == "1"
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, nil)))
+		pages.ReturnsMeta(r.Context(), o.Number), view))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +208,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
+		Shipments: o.Shipments, Pickup: o.Pickup, Now: o.Now,
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
@@ -245,6 +248,9 @@ func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.Fi
 }
 
 func returnRefusals(o *Order, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
+	if o.HasOpen {
+		return nil
+	}
 	for _, refusal := range refusals {
 		switch refusal.MessageKey {
 		case i18n.KeyReturnTooMany:

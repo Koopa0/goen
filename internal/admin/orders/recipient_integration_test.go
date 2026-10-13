@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/pgtx"
 )
 
@@ -63,7 +63,7 @@ func shippedParcel(t *testing.T) uuid.UUID {
 // not use: the notice and the order page say no day, and the row still scans.
 func TestAnUndeliveredParcelHasNoRescissionDay(t *testing.T) {
 	id := shippedParcel(t)
-	to, ok, err := ordernotice.NewRecipients(pool).Of(t.Context(), id)
+	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {
 		t.Fatalf("Recipients.Of = %v, %t", err, ok)
 	}
@@ -87,7 +87,7 @@ func TestADeliveredParcelNamesTheShopDayPlusSeven(t *testing.T) {
 		RETURNING return_window_ends(delivered_at)`, id).Scan(&want); err != nil {
 		t.Fatal(err)
 	}
-	to, ok, err := ordernotice.NewRecipients(pool).Of(t.Context(), id)
+	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {
 		t.Fatalf("Recipients.Of = %v, %t", err, ok)
 	}
@@ -107,7 +107,7 @@ func TestADeliveredParcelNamesTheShopDayPlusSeven(t *testing.T) {
 // recipient reads, and carries no day for the cancellation mail to mention.
 func TestAnOrderWithNoParcelHasNoRescissionDay(t *testing.T) {
 	_, id, _ := admintest.PendingOrderHoldingStock(t, pool)
-	to, ok, err := ordernotice.NewRecipients(pool).Of(t.Context(), id)
+	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {
 		t.Fatalf("Recipients.Of = %v, %t", err, ok)
 	}

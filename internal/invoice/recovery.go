@@ -39,13 +39,13 @@ type frozenRequest struct {
 type operation struct {
 	ID                   uuid.UUID
 	OrderID              uuid.UUID
-	Kind                 string
+	Kind                 OperationKind
 	TargetDocumentID     uuid.UUID
 	ResultDocumentID     uuid.UUID
 	ProviderKey          string
 	AmountCents          int64
 	Request              frozenRequest
-	Status               string
+	Status               OperationStatus
 	Reconciles           int32
 	Sends                int32
 	ResendAuthorizations int32
@@ -58,15 +58,31 @@ func (s *Store) operation(ctx context.Context, id uuid.UUID) (operation, error) 
 	if err != nil {
 		return operation{}, err
 	}
+	return decodeOperation(&row)
+}
+
+func decodeOperation(row *db.InvoiceOperationRow) (operation, error) {
+	kind := OperationKind(row.Kind)
+	switch kind {
+	case OperationIssue, OperationAllowance, OperationVoid:
+	default:
+		return operation{}, fmt.Errorf("invoice operation %s has unknown kind %q", row.ID, row.Kind)
+	}
+	status := OperationStatus(row.Status)
+	switch status {
+	case OperationPending, OperationAttention, OperationSucceeded, OperationRejected:
+	default:
+		return operation{}, fmt.Errorf("invoice operation %s has unknown status %q", row.ID, row.Status)
+	}
 	var request frozenRequest
 	if err := json.Unmarshal(row.RequestPayload, &request); err != nil {
-		return operation{}, fmt.Errorf("decode frozen invoice operation %s: %w", id, err)
+		return operation{}, fmt.Errorf("decode frozen invoice operation %s: %w", row.ID, err)
 	}
 	return operation{
-		ID: row.ID, OrderID: row.OrderID, Kind: row.Kind,
+		ID: row.ID, OrderID: row.OrderID, Kind: kind,
 		TargetDocumentID: row.TargetDocumentID, ResultDocumentID: row.ResultDocumentID,
 		ProviderKey: row.ProviderKey, AmountCents: row.AmountCents, Request: request,
-		Status: row.Status, Reconciles: row.ReconcileAttempts,
+		Status: status, Reconciles: row.ReconcileAttempts,
 		Sends: row.SendAttempts, ResendAuthorizations: row.ResendAuthorizations,
 		LastError: row.LastError, LastSentAt: row.LastSendAt,
 	}, nil
@@ -81,14 +97,17 @@ func (s *Store) processClaim(ctx context.Context, operationID uuid.UUID) (Docume
 		return Document{}, fmt.Errorf("read invoice operation %s: %w", operationID, err)
 	}
 	switch op.Status {
-	case "succeeded":
+	case OperationSucceeded:
 		return s.operationDocument(ctx, operationID)
-	case "rejected":
+	case OperationRejected:
 		return Document{}, fmt.Errorf("%w: operation %s was rejected (%s)",
 			ErrRejected, operationID, op.LastError)
-	case "attention":
+	case OperationAttention:
 		return Document{}, fmt.Errorf("%w: operation %s needs reconciliation (%s)",
 			ErrPending, operationID, op.LastError)
+	case OperationPending:
+	default:
+		return Document{}, fmt.Errorf("invoice operation %s has unknown status %q", operationID, op.Status)
 	}
 
 	owner := uuid.New()
@@ -111,11 +130,11 @@ func (s *Store) processLeased(ctx context.Context, operationID, owner uuid.UUID)
 		return Document{}, err
 	}
 	switch op.Kind {
-	case "issue":
+	case OperationIssue:
 		return s.processIssue(ctx, &op, owner)
-	case "allowance":
+	case OperationAllowance:
 		return s.processAllowance(ctx, &op, owner)
-	case "void":
+	case OperationVoid:
 		return s.processVoid(ctx, &op, owner)
 	default:
 		cause := fmt.Errorf("invoice operation %s has unknown kind %q", op.ID, op.Kind)
