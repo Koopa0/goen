@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -111,11 +111,11 @@ func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 		firstRef   bool
 	}{
 		{
-			name: "failed provider object", refunder: admintest.Refunder{State: refundstate.Failed},
+			name: "failed provider object", refunder: admintest.Refunder{State: refund.Failed},
 			firstState: "failed", firstRef: true,
 		},
 		{
-			name: "cancelled provider object", refunder: admintest.Refunder{State: refundstate.Cancelled},
+			name: "cancelled provider object", refunder: admintest.Refunder{State: refund.Cancelled},
 			firstState: "cancelled", firstRef: true,
 		},
 		{

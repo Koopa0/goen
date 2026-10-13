@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -19,8 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// ErrRefused is an invoice write asked of a back office with no e-invoice
-// provider configured.
+// ErrRefused is an invoice write unavailable in the current back-office state.
 var ErrRefused = errors.New("invoicing: refused")
 
 type Reader interface {
@@ -120,6 +120,10 @@ func (s *Store) Issue(ctx context.Context, number string) error {
 		return err
 	}
 	_, err = s.writer.Issue(filingCtx, number)
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+		pgErr.Code == "23514" && pgErr.ConstraintName == "invoice_issue_itemisation" {
+		return fmt.Errorf("%w: invoice itemisation: %w", ErrRefused, err)
+	}
 	return err
 }
 

@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 		t.Errorf("settled finishing failure = %d %q, want 303 with cancelretry=1",
 			first.Code, first.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !admintest.LockTimedOut(diagnostic.err) {
+	if !errors.Is(diagnostic.err, refund.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !admintest.LockTimedOut(diagnostic.err) {
 		t.Errorf("finishing diagnostic = %v, want cancellation incomplete with the original PostgreSQL lock failure", diagnostic.err)
 	}
 	if diff := cmp.Diff(wantSettled, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
@@ -140,7 +140,7 @@ func TestUnpaidRefundBeforeShipmentKeepsThePayoutRecoveryNotice(t *testing.T) {
 		t.Fatalf("read held stock: %v", err)
 	}
 	var sent atomic.Int64
-	refunder := admintest.Refunder{State: refundstate.Failed, Sent: &sent}
+	refunder := admintest.Refunder{State: refund.Failed, Sent: &sent}
 	adminPool := admintest.AdminRolePool(t, pool)
 	store := refunds.NewStore(adminPool, refunder, nil)
 	diagnostic := &refundCompletionLog{}
@@ -149,7 +149,7 @@ func TestUnpaidRefundBeforeShipmentKeepsThePayoutRecoveryNotice(t *testing.T) {
 	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/orders/"+number+"?refundretry=1" {
 		t.Errorf("unpaid refund = %d %q, want 303 with refundretry=1", response.Code, response.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) {
+	if !errors.Is(diagnostic.err, refund.ErrIncomplete) || errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) {
 		t.Errorf("unpaid diagnostic = %v, want payout incomplete without cancellation incomplete", diagnostic.err)
 	}
 	want := refundCompletionFacts{
@@ -205,7 +205,7 @@ func TestRefundCompletionPreservesTheInvoiceRecoveryCause(t *testing.T) {
 		t.Errorf("live invoice after settlement = %d %q, want 303 with cancelinvoice=1",
 			response.Code, response.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refundstate.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !pgerr.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
+	if !errors.Is(diagnostic.err, refund.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !pgerr.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
 		t.Errorf("invoice diagnostic = %v, want incomplete retaining orders_cancel_invoice_resolved", diagnostic.err)
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {

@@ -2275,7 +2275,7 @@ CREATE TABLE order_private_data (
         OR (street ~ '[^[:space:]]'
             AND char_length(street) <= 200 AND street !~ '[[:cntrl:]]')
     ),
-    -- An allowlist, because the brand decides which carrier's manifest the
+    -- An allowlist, because the chain decides which carrier's manifest the
     -- parcel joins and a typo there is a parcel that never leaves.
     CONSTRAINT order_private_data_pickup_chain_known CHECK (
         pickup_chain IS NULL

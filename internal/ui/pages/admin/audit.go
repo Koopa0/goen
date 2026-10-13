@@ -52,6 +52,7 @@ func (e AuditEntry) Label(ctx context.Context) string {
 // does not know renders as itself: audit_events is append-only, so a row naming
 // a retired table must still show.
 var entityLabels = map[string]i18n.Key{
+	"order_shipments":          i18n.KeyAuditEntityOrderShipments,
 	"orders":                   i18n.KeyAuditEntityOrders,
 	"order_private_data":       i18n.KeyAuditEntityOrderPrivateData,
 	"payments":                 i18n.KeyAuditEntityPayments,
@@ -97,6 +98,7 @@ func (e AuditEntry) EntityLabel(ctx context.Context) string {
 }
 
 var actionLabels = map[string]i18n.Key{
+	"shipment.delivered":                  i18n.KeyAuditShipmentDelivered,
 	"customer.view":                       i18n.KeyAuditCustomerView,
 	"newsletter.send":                     i18n.KeyAuditNewsletterSend,
 	"newsletter.compose":                  i18n.KeyAuditNewsletterCompose,
