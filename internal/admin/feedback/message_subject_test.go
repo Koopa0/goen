@@ -3,14 +3,14 @@ package feedback
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/contact/subject"
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		subject subject.Subject
+		subject contact.Subject
 		zh      string
 		en      string
 	}{

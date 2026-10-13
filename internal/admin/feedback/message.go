@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/contact/subject"
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -29,7 +29,7 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	}
 	for i := range rows {
 		m := &rows[i]
-		label, labelErr := subjectLabel(ctx, subject.Subject(m.Subject))
+		label, labelErr := subjectLabel(ctx, contact.Subject(m.Subject))
 		if labelErr != nil {
 			return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
 		}
@@ -46,10 +46,10 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	return view, nil
 }
 
-func subjectLabel(ctx context.Context, topic subject.Subject) (string, error) {
-	key, ok := topic.LabelKey()
+func subjectLabel(ctx context.Context, subject contact.Subject) (string, error) {
+	key, ok := subject.LabelKey()
 	if !ok {
-		return "", fmt.Errorf("unknown contact subject %q", topic)
+		return "", fmt.Errorf("unknown contact subject %q", subject)
 	}
 	return i18n.T(ctx, key), nil
 }
