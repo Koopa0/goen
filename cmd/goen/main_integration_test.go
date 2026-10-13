@@ -27,13 +27,13 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/twofactor"
 )
 
 var pool *pgxpool.Pool

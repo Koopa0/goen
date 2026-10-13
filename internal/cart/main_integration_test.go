@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -29,7 +31,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
@@ -186,7 +187,7 @@ func checkoutQuoteFacts(
 	if err != nil {
 		t.Fatalf("quote delivery: %v", err)
 	}
-	shipping, discount := quoteTotal(t, delivery), int64(0)
+	shippingFee, discount := quoteTotal(t, delivery), int64(0)
 	if couponCode != "" {
 		coupon, findErr := s.CouponByCode(t.Context(), couponCode)
 		if findErr != nil {
@@ -198,10 +199,10 @@ func checkoutQuoteFacts(
 			t.Fatalf("apply coupon to quote: %v", err)
 		}
 		if free {
-			shipping = delivery.Surcharge
+			shippingFee = delivery.Surcharge
 		}
 	}
-	gross := view.SubtotalCents + shipping - discount
+	gross := view.SubtotalCents + shippingFee - discount
 	balance, err := s.AvailableCredit(t.Context(), owner)
 	if err != nil {
 		t.Fatalf("read quoted credit: %v", err)
@@ -223,7 +224,7 @@ func checkoutQuoteFacts(
 		CartID:            cartID,
 		Lines:             lines,
 		ShippingVersionID: shippingID,
-		ShippingCents:     shipping,
+		ShippingCents:     shippingFee,
 		CouponCode:        cart.NormaliseCode(couponCode),
 		DiscountCents:     discount,
 		CreditCents:       min(balance, gross),
@@ -3476,7 +3477,7 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	addr := &order.Delivery{
 		// The destination the CALLER claims is deliberately wrong: PlaceOrder re-reads
 		// the method and overrides it.
-		To:    destination.Address,
+		To:    shipping.DestinationAddress,
 		Email: "pickup@example.com", RecipientName: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
@@ -3509,7 +3510,7 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	}
 
 	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+		To:    shipping.DestinationPickupPoint,
 		Email: "chain@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3561,7 +3562,7 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+		To:    shipping.DestinationPickupPoint,
 		Email: "named@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3594,7 +3595,7 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	}
 
 	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+		To:    shipping.DestinationPickupPoint,
 		Email: "home@example.com", RecipientName: "王大明", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
