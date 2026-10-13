@@ -79,3 +79,23 @@ func TestTheNewsletterActionIsBlueTextWithADecorativeArrow(t *testing.T) {
 		t.Errorf("the subscribe button lacks its decorative arrow: %s", button)
 	}
 }
+
+// The re-entry link swaps itself away with the form; the script hands focus to
+// the id it names, so that id has to exist in the form the swap brings in.
+func TestTheNewsletterReentryLinkNamesTheFieldThatTakesFocus(t *testing.T) {
+	t.Parallel()
+	render := func(s layouts.NewsletterState) string {
+		var b strings.Builder
+		if err := layouts.NewsletterForm(s).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
+			t.Fatal(err)
+		}
+		return b.String()
+	}
+	target := regexp.MustCompile(`data-focus-after-swap="([^"]+)"`).FindStringSubmatch(render(layouts.NewsletterState{Done: true, Email: "a***@example.com"}))
+	if target == nil {
+		t.Fatal("the re-entry link names no element to take focus")
+	}
+	if !strings.Contains(render(layouts.NewsletterState{}), `id="`+target[1]+`"`) {
+		t.Errorf("the form the swap brings in has no element with id %q", target[1])
+	}
+}

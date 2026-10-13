@@ -214,7 +214,7 @@ func TestTheDemoAccountRefusesWhatWouldShutOutTheNextVisitorAndKeepsTheRest(t *t
 	ownAddr := "demo-neighbour-" + uuid.NewString() + "@example.com"
 	registerProved(t, s, ownAddr)
 	own := b.signIn(ownAddr)
-	if res := b.askToMove(own, "moved-"+uuid.NewString()+"@example.com"); res.Header().Get("Location") != "/account?email=sent" {
+	if res := b.askToMove(own, "moved-"+uuid.NewString()+"@example.com"); res.Header().Get("Location") != "/account?address=m%2A%2A%2A%40example.com&email=sent" {
 		t.Errorf("an ordinary account asking to move answered %d to %q", res.Code, res.Header().Get("Location"))
 	}
 	changed := b.serve(h.ChangePassword, cartForm(ctx, "/account/password", url.Values{

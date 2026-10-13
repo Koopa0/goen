@@ -172,7 +172,9 @@ type ProductView struct {
 	Campaign ProductCampaign
 
 	SelectionOK bool
-	Exact       bool
+	// FallbackPrice keeps catalogue pricing visible without making an unknown combination purchasable.
+	FallbackPrice bool
+	Exact         bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
 	PriceVaries         bool
 	AnySellable         bool
@@ -300,7 +302,7 @@ func (v *ProductView) InStock() bool {
 	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
 }
 
-func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
+func (v *ProductView) NeedsChoice() bool { return (v.SelectionOK || v.FallbackPrice) && !v.Exact }
 
 func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
@@ -562,6 +564,10 @@ func (v *ProductView) CompareHref() string {
 
 func (v *ProductView) AlreadyComparing() bool {
 	return slices.Contains(v.Comparing, v.Slug)
+}
+
+func (v *ProductView) CurrentCompareHref() string {
+	return "/compare?" + url.Values{"p": v.Comparing}.Encode()
 }
 
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }

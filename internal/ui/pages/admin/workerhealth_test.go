@@ -9,13 +9,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 	t.Parallel()
-	refund := OpenRefund{Status: "cancelled"}
+	open := OpenRefund{Status: "cancelled"}
 	tests := []struct {
 		name   string
 		locale i18n.Locale
@@ -28,7 +28,7 @@ func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			if got := refund.StatusText(ctx); got != tt.want {
+			if got := open.StatusText(ctx); got != tt.want {
 				t.Errorf("cancelled refund status = %q, want %q", got, tt.want)
 			}
 		})
@@ -39,31 +39,31 @@ func TestOpenRefundRowsLinkTheOrderAndExplainManualRecovery(t *testing.T) {
 	t.Parallel()
 	states := []struct {
 		name   string
-		state  refundstate.State
+		state  refund.Status
 		status [2]string
 		next   [2]string
 	}{
 		{
 			name:   "pending",
-			state:  refundstate.Pending,
+			state:  refund.Pending,
 			status: [2]string{"已送出，還沒收到金流端的結果", "Sent, no answer from the provider yet"},
 			next:   [2]string{"請在 Stripe 查詢退款結果。", "Check the refund status in Stripe."},
 		},
 		{
 			name:   "requires action",
-			state:  refundstate.RequiresAction,
+			state:  refund.RequiresAction,
 			status: [2]string{"金流端說還需要處理才會退出去", "The provider says something more is needed before the money moves"},
 			next:   [2]string{"請先查看 Stripe 顯示的退款處理指示。", "Read the refund action instructions shown in Stripe first."},
 		},
 		{
 			name:   "failed",
-			state:  refundstate.Failed,
+			state:  refund.Failed,
 			status: [2]string{"金流端拒絕了這筆退款，錢沒有退出去", "The provider refused this refund: no money moved"},
 			next:   [2]string{"請在 Stripe 查明退款失敗原因。", "Check why the refund failed in Stripe."},
 		},
 		{
 			name:   "cancelled attempt",
-			state:  refundstate.Cancelled,
+			state:  refund.Cancelled,
 			status: [2]string{"金流端取消了這筆退款，錢沒有退出去", "The provider cancelled this refund attempt: no money moved"},
 			next:   [2]string{"請在 Stripe 查明這筆退款被取消的原因。", "Check why this refund attempt was cancelled in Stripe."},
 		},
@@ -452,7 +452,7 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 		StrandedClaims:               []StrandedClaim{{Operation: "op_preserved", OrderNumber: "GO-claim", CanAuthorizeResend: true}},
 		CancelledOrderInvoiceCount:   5, CancelledOrderInvoices: []CancelledOrderInvoice{{OrderNumber: "GO-cancelled"}},
 		Disputes:        DisputeState{Configured: true, Items: []OpenDispute{{OrderNumber: "GO-dispute", URL: "https://dashboard.stripe.com/disputes/dp_preserved"}}},
-		OpenRefundCount: 6, OpenRefunds: []OpenRefund{{OrderNumber: "GO-refund", Status: refundstate.Pending}},
+		OpenRefundCount: 6, OpenRefunds: []OpenRefund{{OrderNumber: "GO-refund", Status: refund.Pending}},
 		Pools: []PoolHealth{{Name: "staff pool"}}, Stuck: []StuckMessage{{Key: "stuck_preserved"}},
 	}
 	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(layouts.Page{}, &view))

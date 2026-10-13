@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -302,7 +302,7 @@ func (m StuckMessage) Reason(ctx context.Context) string {
 type OpenRefund struct {
 	OrderNumber string
 	Key         string
-	Status      refundstate.State
+	Status      refund.Status
 	AmountCents int64
 	ProviderRef string
 	Since       string
@@ -312,13 +312,13 @@ func (r OpenRefund) Amount() string { return money.TWD(r.AmountCents) }
 
 func (r OpenRefund) StatusText(ctx context.Context) string {
 	switch r.Status {
-	case refundstate.Pending:
+	case refund.Pending:
 		return i18n.T(ctx, i18n.KeyHealthRefundPending)
-	case refundstate.RequiresAction:
+	case refund.RequiresAction:
 		return i18n.T(ctx, i18n.KeyHealthRefundAction)
-	case refundstate.Failed:
+	case refund.Failed:
 		return i18n.T(ctx, i18n.KeyHealthRefundFailed)
-	case refundstate.Cancelled:
+	case refund.Cancelled:
 		return i18n.T(ctx, i18n.KeyHealthRefundCancelled)
 	default:
 		return string(r.Status)
@@ -328,13 +328,13 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 func (r OpenRefund) NextStep(ctx context.Context) string {
 	var key i18n.Key
 	switch r.Status {
-	case refundstate.Pending:
+	case refund.Pending:
 		key = i18n.KeyHealthRefundPendingNext
-	case refundstate.RequiresAction:
+	case refund.RequiresAction:
 		key = i18n.KeyHealthRefundActionNext
-	case refundstate.Failed:
+	case refund.Failed:
 		key = i18n.KeyHealthRefundFailedNext
-	case refundstate.Cancelled:
+	case refund.Cancelled:
 		key = i18n.KeyHealthRefundCancelledNext
 	default:
 		return i18n.T(ctx, i18n.KeyHealthRefundExternalNext)

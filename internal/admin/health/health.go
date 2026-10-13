@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -322,7 +322,7 @@ func openRefunds(rows []db.OpenRefundsRow) []admin.OpenRefund {
 		out[i] = admin.OpenRefund{
 			OrderNumber: r.OrderNumber,
 			Key:         r.RequestKey,
-			Status:      refundstate.State(r.Status),
+			Status:      refund.Status(r.Status),
 			AmountCents: r.AmountCents,
 			ProviderRef: r.ProviderRef,
 			Since:       shoptime.Minute(r.CreatedAt),
