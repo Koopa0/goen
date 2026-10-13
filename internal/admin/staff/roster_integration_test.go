@@ -606,10 +606,10 @@ func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
 		`SELECT id::text FROM users WHERE lower(email) = lower($1)`, address).Scan(&target); err != nil {
 		t.Fatalf("read promoted id: %v", err)
 	}
-	gotActor, gotEmail, gotRole := readStaffAudit(t, "staff.grant", target)
-	if gotActor != actor || gotEmail != address || gotRole != "staff" {
-		t.Errorf("staff.grant = actor %s email %q role %q; want %s/%q/staff",
-			gotActor, gotEmail, gotRole, actor, address)
+	gotActor, hasEmail, gotRole := readStaffAudit(t, "staff.grant", target)
+	if gotActor != actor || hasEmail || gotRole != "staff" {
+		t.Errorf("staff.grant = actor %s has email key %t role %q; want %s/false/staff",
+			gotActor, hasEmail, gotRole, actor)
 	}
 
 	beforeRevoke := staffAuditCount(t, "staff.revoke")
@@ -619,13 +619,13 @@ func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
 	if after := staffAuditCount(t, "staff.revoke"); after != beforeRevoke+1 {
 		t.Fatalf("RevokeStaff left %d staff.revoke rows, want %d", after, beforeRevoke+1)
 	}
-	gotActor, gotEmail, gotRole = readStaffAudit(t, "staff.revoke", target)
-	if gotActor != actor || gotEmail != address || gotRole != "customer" {
-		t.Errorf("staff.revoke = actor %s email %q role %q; want %s/%q/customer",
-			gotActor, gotEmail, gotRole, actor, address)
+	gotActor, hasEmail, gotRole = readStaffAudit(t, "staff.revoke", target)
+	if gotActor != actor || hasEmail || gotRole != "customer" {
+		t.Errorf("staff.revoke = actor %s has email key %t role %q; want %s/false/customer",
+			gotActor, hasEmail, gotRole, actor)
 	}
 
-	lost, lostEmail := admintest.AdminUser(t, pool)
+	lost, _ := admintest.AdminUser(t, pool)
 	enrolFactor(t, lost)
 	beforeRemove := staffAuditCount(t, "staff.factor.remove")
 	if err := s.RemoveFactor(asActor(ctx, actor), lost); err != nil {
@@ -634,20 +634,20 @@ func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
 	if after := staffAuditCount(t, "staff.factor.remove"); after != beforeRemove+1 {
 		t.Fatalf("RemoveFactor left %d staff.factor.remove rows, want %d", after, beforeRemove+1)
 	}
-	gotActor, gotEmail, _ = readStaffAudit(t, "staff.factor.remove", lost)
-	if gotActor != actor || gotEmail != lostEmail {
-		t.Errorf("staff.factor.remove = actor %s email %q; want %s/%q",
-			gotActor, gotEmail, actor, lostEmail)
+	gotActor, hasEmail, _ = readStaffAudit(t, "staff.factor.remove", lost)
+	if gotActor != actor || hasEmail {
+		t.Errorf("staff.factor.remove = actor %s has email key %t; want %s/false",
+			gotActor, hasEmail, actor)
 	}
-	var secretInTrail int
+	var payloadRows int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM audit_events
 		WHERE action = 'staff.factor.remove' AND entity_id = $1
-		  AND (after ? 'secret' OR after::text ILIKE '%secret%')`, lost).Scan(&secretInTrail); err != nil {
-		t.Fatalf("look for a secret in the trail: %v", err)
+		  AND (after IS NOT NULL OR before IS NOT NULL)`, lost).Scan(&payloadRows); err != nil {
+		t.Fatalf("look for a payload in the trail: %v", err)
 	}
-	if secretInTrail != 0 {
-		t.Error("factor-remove after retained TOTP material")
+	if payloadRows != 0 {
+		t.Error("factor-remove recorded a payload; the row's entity_id names the user")
 	}
 }
 
@@ -725,6 +725,7 @@ func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
 	missing := uuid.NewString()
 	address := "unattributed-" + uuid.NewString()[:8] + "@goen.invalid"
 
+	grantsBefore := staffAuditCount(t, "staff.grant")
 	_, err := s.AddStaff(asActor(ctx, missing), address, "不得落地", "staff")
 	if err == nil {
 		t.Fatal("AddStaff with an unrecordable actor succeeded")
@@ -734,17 +735,14 @@ func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
 		t.Fatalf("AddStaff audit failure = %v, want audit actor FK", err)
 	}
 
-	var users, audits int
+	var users int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM users WHERE lower(email) = lower($1)`, address).Scan(&users); err != nil {
 		t.Fatalf("count users: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM audit_events
-		WHERE action = 'staff.grant' AND after->>'email' = $1`, address).Scan(&audits); err != nil {
-		t.Fatalf("count audits: %v", err)
-	}
-	if users != 0 || audits != 0 {
+	// The grant's payload no longer carries the address, so the audit rows are
+	// counted by action instead.
+	if audits := staffAuditCount(t, "staff.grant") - grantsBefore; users != 0 || audits != 0 {
 		t.Errorf("unattributed grant left %d user(s) and %d audit row(s), want 0/0", users, audits)
 	}
 }

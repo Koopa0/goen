@@ -22,6 +22,12 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
                                 JOIN orders o ON o.id = p.order_id WHERE rf.id = a.entity_id)
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pv.sku FROM product_variants pv WHERE pv.id = a.entity_id)
+           -- A staff change names the person it acted on by their CURRENT name; the
+           -- row holds only the id, so an erased account leaves it blank. A customer
+           -- view has its own column below.
+           WHEN 'users' THEN CASE WHEN a.action <> 'customer.view' THEN
+               (SELECT coalesce(nullif(tu.full_name, ''), tu.email) FROM users tu WHERE tu.id = a.entity_id)
+           END
        END, '')::text AS subject,
        coalesce(CASE a.entity_table
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)

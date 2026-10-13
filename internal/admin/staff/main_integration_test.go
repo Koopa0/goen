@@ -84,17 +84,22 @@ func staffAuditCount(t *testing.T, action string) int {
 	}
 	return n
 }
-func readStaffAudit(t *testing.T, action, target string) (actor, email, role string) {
+
+// readStaffAudit reads the newest audit row of one action on one user: who did
+// it, whether its payload carries an email key (it must not: audit_events is
+// append-only, so an address there outlives the account), and the role it
+// recorded.
+func readStaffAudit(t *testing.T, action, target string) (actor string, hasEmail bool, role string) {
 	t.Helper()
 	if err := pool.QueryRow(t.Context(), `
-		SELECT actor_user_id::text, coalesce(after->>'email', ''), coalesce(after->>'role', '')
+		SELECT actor_user_id::text, coalesce(after ? 'email', false), coalesce(after->>'role', '')
 		FROM audit_events
 		WHERE action = $1 AND entity_id = $2
 		ORDER BY occurred_at DESC, id DESC LIMIT 1`, action, target).
-		Scan(&actor, &email, &role); err != nil {
+		Scan(&actor, &hasEmail, &role); err != nil {
 		t.Fatalf("read %s audit for %s: %v", action, target, err)
 	}
-	return actor, email, role
+	return actor, hasEmail, role
 }
 func rolePool(t *testing.T, applicationName, role string) *pgxpool.Pool {
 	t.Helper()
