@@ -43,7 +43,7 @@ import (
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -250,7 +250,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
-	sendbacks := returnpage.NewHandler(returnpage.NewStore(pool), orderAccess, log)
+	sendbacks := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log)
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
