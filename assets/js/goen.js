@@ -158,7 +158,7 @@
     });
     for (const pop of pops) {
       pop.addEventListener("focusout", (event) => {
-        if (!pop.contains(event.relatedTarget)) pop.open = false;
+        if (event.relatedTarget && !pop.contains(event.relatedTarget)) pop.open = false;
       });
       pop.addEventListener("toggle", () => {
         if (!pop.open) return;

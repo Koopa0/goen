@@ -38,7 +38,7 @@ class Connection {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`${method} exceeded 15 seconds`));
+        reject(new Error(`${method} ${JSON.stringify(params)} exceeded 15 seconds`));
       }, 15000);
       this.pending.set(id, { resolve, reject, timer });
       try {
