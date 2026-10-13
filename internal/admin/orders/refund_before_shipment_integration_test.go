@@ -22,14 +22,14 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	s := admintest.OrderStore(pool, refunder, nil, nil)
-	refund := refunds.NewStore(pool, refunder, nil)
+	desk := refunds.NewStore(pool, refunder, nil)
 	h := admintest.OrderDesk(s)
 
 	for _, picking := range []bool{false, true} {
@@ -102,7 +102,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 			t.Fatalf("issue invoice: %v", err)
 		}
-		if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
+		if _, err := desk.RefundBeforeShipment(ctx, number, "顧客取消"); admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 			t.Fatalf("refund with a live invoice = %v", err)
 		}
 		if _, err := pool.Exec(ctx, `
@@ -116,7 +116,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {
 			t.Fatalf("order is %s, want picking until Resume", got)
 		}
-		if _, err := refund.RefundBeforeShipment(ctx, number, ""); err != nil {
+		if _, err := desk.RefundBeforeShipment(ctx, number, ""); err != nil {
 			t.Fatalf("resume: %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" {
@@ -174,14 +174,14 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 		first   admintest.Refunder
 		want    error
 	}{
-		{name: "pending at Stripe", first: admintest.Refunder{State: refundstate.Pending}, want: refunds.ErrUnsettled},
-		{name: "refused by Stripe", picking: true, first: admintest.Refunder{State: refundstate.Failed}, want: refundstate.ErrIncomplete},
+		{name: "pending at Stripe", first: admintest.Refunder{State: refund.Pending}, want: refunds.ErrUnsettled},
+		{name: "refused by Stripe", picking: true, first: admintest.Refunder{State: refund.Failed}, want: refund.ErrIncomplete},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, tc.picking)
 			s := admintest.OrderStore(pool, tc.first, nil, nil)
-			refund := refunds.NewStore(pool, tc.first, nil)
-			if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); !errors.Is(err, tc.want) {
+			desk := refunds.NewStore(pool, tc.first, nil)
+			if _, err := desk.RefundBeforeShipment(ctx, number, "顧客取消"); !errors.Is(err, tc.want) {
 				t.Fatalf("first press = %v, want %v", err, tc.want)
 			}
 			if got := admintest.FulfillmentOf(t, pool, orderID); got == "cancelled" {
@@ -249,7 +249,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	refunder := admintest.Refunder{}
 	s := admintest.OrderStore(pool, refunder, nil, nil)
-	refund := refunds.NewStore(pool, refunder, nil)
+	desk := refunds.NewStore(pool, refunder, nil)
 
 	for _, doorFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("door-first=%t", doorFirst), func(t *testing.T) {
@@ -283,7 +283,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 				if doorFirst {
 					result <- s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "TW-SECOND-" + number}, actor)
 				} else {
-					_, refundErr := refund.RefundBeforeShipment(ctx, number, "顧客取消")
+					_, refundErr := desk.RefundBeforeShipment(ctx, number, "顧客取消")
 					result <- refundErr
 				}
 			}()

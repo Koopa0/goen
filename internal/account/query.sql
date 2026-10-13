@@ -118,6 +118,10 @@ DELETE FROM sessions WHERE token_hash = $1;
 -- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = $1;
 
+-- name: DeleteOtherUserSessions :exec
+DELETE FROM sessions
+WHERE user_id = @user_id AND token_hash <> @current_token_hash::bytea;
+
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
 
@@ -235,6 +239,23 @@ SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
 SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
 FROM addresses WHERE user_id = $1
 ORDER BY is_default DESC, created_at;
+
+-- name: AddressForUser :one
+SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
+FROM addresses
+WHERE user_id = @user_id::uuid AND id = @address_id::uuid;
+
+-- Keeping is_default out of the edit preserves a concurrent default selection.
+-- name: UpdateAddress :execrows
+UPDATE addresses
+SET label = sqlc.narg(label)::text,
+    recipient_name = @recipient_name::text,
+    phone = @phone::text,
+    postal_code = @postal_code::text,
+    city = @city::text,
+    district = @district::text,
+    street = @street::text
+WHERE user_id = @user_id::uuid AND id = @address_id::uuid;
 
 -- name: CreateAddress :exec
 INSERT INTO addresses (user_id, label, recipient_name, phone,

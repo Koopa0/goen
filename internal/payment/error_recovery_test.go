@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 )
 
 func TestInaccessiblePaymentOffersOrderLookup(t *testing.T) {
 	t.Parallel()
-	h := &Handler{access: &orderaccess.Store{}, log: slog.New(slog.DiscardHandler)}
+	h := &Handler{access: &access.Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/orders/GO-260101-000001/pay", http.NoBody)
 		r.SetPathValue("number", "GO-260101-000001")

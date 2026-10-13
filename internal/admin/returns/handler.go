@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -85,14 +85,14 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
-	case errors.Is(err, refundstate.ErrIncomplete):
+	case errors.Is(err, refund.ErrIncomplete):
 		// A payout may preserve a database refusal as its cause, but once approval
 		// committed the operator needs the recovery notice, not the generic
 		// "decision refused" notice. Test this before ErrRefused.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused), errors.Is(err, refundstate.ErrRefused):
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused), errors.Is(err, refund.ErrRefused):
 		h.log.WarnContext(r.Context(), "return decision refused",
 			"return", r.PathValue("id"), "error", err)
 		if h.renderReturnRefusal(w, r, err) {
@@ -285,16 +285,17 @@ func refusalMessage(r *http.Request, kind returnrules.RefusalKind) string {
 }
 
 var refusalKeys = map[returnrules.RefusalKind]i18n.Key{
-	returnrules.RefuseStatutoryReject: i18n.KeyAdminRetErrStatutoryReject,
-	returnrules.RefuseIncomplete:      i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseNeedException:   i18n.KeyAdminRetErrNeedException,
-	returnrules.RefuseUnmetApprove:    i18n.KeyAdminRetErrUnmetApprove,
-	returnrules.RefuseNoUnmet:         i18n.KeyAdminRetErrNoUnmet,
-	returnrules.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
-	returnrules.RefuseStale:           i18n.KeyAdminRetErrStale,
-	returnrules.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
-	returnrules.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
+	returnrules.RefuseStatutoryReject:   i18n.KeyAdminRetErrStatutoryReject,
+	returnrules.RefuseUndeliveredReject: i18n.KeyAdminRetErrUndeliveredReject,
+	returnrules.RefuseIncomplete:        i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseNeedException:     i18n.KeyAdminRetErrNeedException,
+	returnrules.RefuseUnmetApprove:      i18n.KeyAdminRetErrUnmetApprove,
+	returnrules.RefuseNoUnmet:           i18n.KeyAdminRetErrNoUnmet,
+	returnrules.RefuseUseApprove:        i18n.KeyAdminRetErrUseApprove,
+	returnrules.RefuseStale:             i18n.KeyAdminRetErrStale,
+	returnrules.RefuseEmpty:             i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseExceptionReason:   i18n.KeyAdminRetErrExceptionReason,
+	returnrules.RefuseRejectionReason:   i18n.KeyAdminRetErrRejectionReason,
 }
 
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {

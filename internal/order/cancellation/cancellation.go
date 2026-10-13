@@ -1,6 +1,6 @@
-// Package ordercancel holds what cancelling an order that was never committed
+// Package cancellation holds what cancelling an order that was never committed
 // does besides moving its status.
-package ordercancel
+package cancellation
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -63,7 +63,7 @@ func Settle(ctx context.Context, q *db.Queries, o *Order) (creditReturnedCents i
 	if err != nil {
 		return 0, fmt.Errorf("read payments of %s: %w", o.Number, err)
 	}
-	err = ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
+	err = notice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: o.ID, Kind: o.Kind, Refunded: mayHaveTakenMoney(facts.Statuses, facts.ProviderFlagged),
 	})
 	if err != nil {

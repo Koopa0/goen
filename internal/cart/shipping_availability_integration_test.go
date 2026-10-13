@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 )
 
 func TestCheckoutWithoutDeliveryRetainsTheTypedDraftAndWritesNothing(t *testing.T) {
@@ -75,7 +75,7 @@ func TestCheckoutWithoutDeliveryRetainsTheTypedDraftAndWritesNothing(t *testing.
 				}
 				before := deliveryWriteState(t, ownerPool, id, variant)
 				var diagnostics bytes.Buffer
-				h := cart.NewHandler(s, orderaccess.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
 				mux := http.NewServeMux()
 				mux.HandleFunc("GET /checkout", h.Checkout)
 				mux.HandleFunc("POST /checkout", h.PlaceOrder)
@@ -397,7 +397,7 @@ func TestCartPageDistinguishesUnavailableDeliveryFromALookupFailure(t *testing.T
 				}
 				before := deliveryWriteState(t, owner, id, variant)
 				var diagnostics bytes.Buffer
-				h := cart.NewHandler(s, orderaccess.NewStore(app, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(app, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
 				mux := http.NewServeMux()
 				mux.HandleFunc("GET /cart", h.Page)
 				trace.mu.Lock()

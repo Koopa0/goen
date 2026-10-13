@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/access"
+	adminaccess "github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/content"
@@ -37,7 +37,7 @@ import (
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/probe"
@@ -149,10 +149,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
 	mux.HandleFunc("GET /favicon.ico", staticAssetHandler(assets.Alias(log, assets.FaviconICO)).ServeHTTP)
 
-	probes := probe.NewHandler(log,
-		probe.Dependency{Name: "storefront", DB: pool},
-		probe.Dependency{Name: "admin", DB: adminPool},
-	)
+	probes := probe.NewHandler(log, pool)
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
@@ -171,7 +168,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
 	}
-	orderAccess := orderaccess.NewStore(pool, secureCookies)
+	orderAccess := access.NewStore(pool, secureCookies)
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies, findLimit,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
@@ -210,7 +207,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // chain and the catch-all read them too.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
-	customers *account.Handler, orderAccess *orderaccess.Store, findLimit *ratelimit.Limiter) {
+	customers *account.Handler, orderAccess *access.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
@@ -368,8 +365,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("GET /account/orders/{number}", customers.RequireUser(customers.OrderPage))
 	mux.HandleFunc("POST /account/profile", customers.RequireUser(customers.UpdateProfile))
 	mux.HandleFunc("POST /account/addresses", customers.RequireUser(customers.AddAddress))
+	mux.HandleFunc("GET /account/addresses/{address}/edit", customers.RequireUser(customers.EditAddress))
+	// The handler redirects an expired session without returning sign-in to a POST-only URL.
+	mux.HandleFunc("POST /account/addresses/update", customers.UpdateAddress)
 	mux.HandleFunc("POST /account/addresses/default", customers.RequireUser(customers.MakeDefaultAddress))
 	mux.HandleFunc("POST /account/addresses/delete", customers.RequireUser(customers.DeleteAddress))
+	mux.HandleFunc("POST /account/sessions/others/end", customers.RequireUser(customers.SignOutOtherDevices))
 	// Also guarded: these verify a password with argon2, so a signed-in session
 	// is otherwise an unbounded supply of 64 MiB hashes.
 	mux.HandleFunc("POST /account/email",
@@ -435,7 +436,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
-	backOffice := access.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
+	backOffice := adminaccess.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)

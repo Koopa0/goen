@@ -44,13 +44,13 @@ var policies = map[string]pages.PolicyDoc{
 					// that reader a blank is refused.
 					"在訂單頁點「申請退貨」，選擇要退回的商品與數量後送出。原因選填。同一筆訂單一次只能有一件處理中的申請。",
 					// returns.Evaluate refuses a decline on any line filed
-					// inside the statutory window, and a decline cannot be
+					// before delivery or inside the statutory window. A decline cannot be
 					// saved without the reason the customer then sees.
-					"在猶豫期內提出的申請，我們不會拒絕。超過猶豫期的申請，我們會依「七日之外」的條件確認後回覆；不同意時一定會說明原因。",
+					"商品送達前，或在猶豫期內提出的申請，我們不會拒絕。超過猶豫期的申請，我們會依「七日之外」的條件確認後回覆；不同意時一定會說明原因。",
 				},
 				BodyEn: []string{
 					"On your order page choose \u0022Request a return\u0022, pick the items and quantities, and send it. A reason is optional. One order can have one open request at a time.",
-					"A request made within your seven-day right to cancel is never declined. After the seven days, we check it against the terms under \u0022Beyond the seven days\u0022 and reply; if we decline it, we always tell you why.",
+					"A request made before the goods arrive, or within your seven-day right to cancel, is never declined. After the seven days, we check it against the terms under \u0022Beyond the seven days\u0022 and reply; if we decline it, we always tell you why.",
 				},
 			},
 			{

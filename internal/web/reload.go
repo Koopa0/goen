@@ -1,11 +1,10 @@
-package orderaccess
+package web
 
 import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/a-h/templ"
 )
 
 // ReloadSameSite answers a refused cross-site navigation with a page that loads
@@ -22,9 +21,12 @@ import (
 // re-requests with GET. The two GETs it serves must stay free of side effects:
 // this page lets any site load them with the member's cookie.
 //
+// page renders the refresh page for the target; web cannot import ui/pages,
+// so the caller passes pages.OrderReload.
+//
 // Call it only after refusing, and before reading the order: the answer is
 // the same whether the order exists or not.
-func ReloadSameSite(w http.ResponseWriter, r *http.Request, log *slog.Logger) bool {
+func ReloadSameSite(w http.ResponseWriter, r *http.Request, log *slog.Logger, page func(target string) templ.Component) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
@@ -36,6 +38,6 @@ func ReloadSameSite(w http.ResponseWriter, r *http.Request, log *slog.Logger) bo
 	}
 	target := r.URL.RequestURI()
 	w.Header().Set("Cache-Control", "no-store")
-	web.Render(w, r, log, http.StatusOK, pages.OrderReload(target))
+	Render(w, r, log, http.StatusOK, page(target))
 	return true
 }
