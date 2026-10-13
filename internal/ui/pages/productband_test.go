@@ -99,8 +99,8 @@ func TestAReviewDateReadsAsTheShopDateAndKeepsItsISOForm(t *testing.T) {
 func TestTheEmptyReviewsSentenceHasNoPause(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{
-		i18n.ZhHant: "還沒有人評價這個商品，你可以是第一個。",
-		i18n.En:     "Nobody has reviewed this yet. You could be the first.",
+		i18n.ZhHant: "還沒有評價。買過這個商品、訂單送達後，就可以在這裡評價。",
+		i18n.En:     "No reviews yet. Once an order with this product is delivered, its buyer can review it here.",
 	} {
 		if page := renderProduct(t, bandProduct(1), locale); !strings.Contains(page, ">"+want+"<") {
 			t.Errorf("locale %s: the empty reviews sentence is not %q", locale, want)
