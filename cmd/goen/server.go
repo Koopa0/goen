@@ -368,6 +368,9 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("GET /account/orders/{number}", customers.RequireUser(customers.OrderPage))
 	mux.HandleFunc("POST /account/profile", customers.RequireUser(customers.UpdateProfile))
 	mux.HandleFunc("POST /account/addresses", customers.RequireUser(customers.AddAddress))
+	mux.HandleFunc("GET /account/addresses/{address}/edit", customers.RequireUser(customers.EditAddress))
+	// The handler redirects an expired session without returning sign-in to a POST-only URL.
+	mux.HandleFunc("POST /account/addresses/update", customers.UpdateAddress)
 	mux.HandleFunc("POST /account/addresses/default", customers.RequireUser(customers.MakeDefaultAddress))
 	mux.HandleFunc("POST /account/addresses/delete", customers.RequireUser(customers.DeleteAddress))
 	mux.HandleFunc("POST /account/sessions/others/end", customers.RequireUser(customers.SignOutOtherDevices))
