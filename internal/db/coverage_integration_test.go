@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"maps"
 	"os"
 	"regexp"
@@ -14,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/jackc/pgx/v5/pgconn"
 

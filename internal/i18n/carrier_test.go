@@ -1,8 +1,9 @@
 package i18n
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 )
 
 func TestEveryCarrierHasANameInBothLanguages(t *testing.T) {

@@ -1,12 +1,13 @@
 package pages
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"

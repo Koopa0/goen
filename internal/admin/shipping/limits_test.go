@@ -1,9 +1,10 @@
 package shipping
 
 import (
-	shippingrules "github.com/koopa0/goen/internal/shipping"
 	"math"
 	"testing"
+
+	shippingrules "github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 )

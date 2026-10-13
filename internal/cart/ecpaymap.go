@@ -7,11 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/url"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"

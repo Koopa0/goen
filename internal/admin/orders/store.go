@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

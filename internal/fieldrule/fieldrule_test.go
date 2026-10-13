@@ -1,11 +1,12 @@
 package fieldrule_test
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"

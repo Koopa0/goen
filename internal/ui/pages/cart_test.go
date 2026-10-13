@@ -2,12 +2,13 @@ package pages
 
 import (
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"

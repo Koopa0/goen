@@ -2,11 +2,12 @@ package admin
 
 import (
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"html"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"

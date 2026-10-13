@@ -1,10 +1,11 @@
 package orders
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"html"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 

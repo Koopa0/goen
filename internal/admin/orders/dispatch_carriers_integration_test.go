@@ -4,13 +4,14 @@ package orders_test
 
 import (
 	"errors"
-	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 

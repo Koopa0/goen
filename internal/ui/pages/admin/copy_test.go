@@ -2,9 +2,10 @@ package admin
 
 import (
 	"bytes"
-	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"

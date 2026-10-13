@@ -1,9 +1,10 @@
 package order
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 )
 
 // TestDeliveryValidateRejects covers what the server must catch even though the

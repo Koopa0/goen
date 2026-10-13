@@ -2,9 +2,10 @@ package admin
 
 import (
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"

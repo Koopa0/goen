@@ -3,9 +3,10 @@ package orders
 import (
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"net/url"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 

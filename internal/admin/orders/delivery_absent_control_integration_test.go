@@ -3,12 +3,13 @@
 package orders_test
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"html"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"

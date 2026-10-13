@@ -3,13 +3,14 @@ package cart
 import (
 	"bytes"
 	"encoding/base64"
-	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/ui/pages"
 )

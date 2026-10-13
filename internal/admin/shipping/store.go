@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	shippingrules "github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	shippingrules "github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

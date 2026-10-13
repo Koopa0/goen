@@ -1,7 +1,6 @@
 package cart
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"

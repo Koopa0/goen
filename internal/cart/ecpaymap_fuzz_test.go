@@ -1,13 +1,14 @@
 package cart
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/web"
 )

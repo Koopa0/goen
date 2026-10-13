@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 

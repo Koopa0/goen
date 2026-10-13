@@ -1,7 +1,6 @@
 package cart
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"

@@ -1,10 +1,11 @@
 package admin
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/ui/layouts"
 )

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

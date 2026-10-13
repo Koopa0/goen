@@ -5,11 +5,12 @@ package cart_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/koopa0/goen/internal/shipping"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 

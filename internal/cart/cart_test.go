@@ -3,13 +3,14 @@ package cart
 import (
 	"bytes"
 	"errors"
-	"github.com/koopa0/goen/internal/shipping"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 

@@ -1,10 +1,11 @@
 package pages
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 )

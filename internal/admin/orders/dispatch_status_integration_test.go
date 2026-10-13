@@ -4,13 +4,14 @@ package orders_test
 
 import (
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 

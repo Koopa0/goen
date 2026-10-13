@@ -1,9 +1,10 @@
 package order
 
 import (
-	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"

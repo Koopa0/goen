@@ -3,7 +3,6 @@ package products
 import (
 	"cmp"
 	"fmt"
-	"github.com/koopa0/goen/internal/shipping"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
