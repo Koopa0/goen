@@ -206,6 +206,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
+		Shipments: o.Shipments, Pickup: o.Pickup, Now: o.Now,
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
@@ -245,6 +246,9 @@ func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.Fi
 }
 
 func returnRefusals(o *Order, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
+	if o.HasOpen {
+		return nil
+	}
 	for _, refusal := range refusals {
 		switch refusal.MessageKey {
 		case i18n.KeyReturnTooMany:
