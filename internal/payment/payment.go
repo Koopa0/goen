@@ -102,12 +102,15 @@ type HoldSpan struct {
 	SweptAt time.Time
 }
 
-// Line is one item as the ORDER recorded it, not as the catalogue reads today.
+// Line keeps the recorded names and prices; only its photo follows the current catalogue.
 type Line struct {
-	Name      string
-	Label     string
-	UnitCents int64
-	Quantity  int32
+	ImageKey   string
+	ImageWidth int32
+	ImageAlt   string
+	Name       string
+	Label      string
+	UnitCents  int64
+	Quantity   int32
 }
 
 // Capture is what a verified webhook says Stripe took.

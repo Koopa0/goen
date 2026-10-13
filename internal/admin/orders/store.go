@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
@@ -278,7 +279,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		}
 		return admin.OrderView{}, fmt.Errorf("read order: %w", err)
 	}
-	lines, err := s.q.OrderLinesByOrder(ctx, o.ID)
+	lines, err := s.q.OrderLinesByOrder(ctx, db.OrderLinesByOrderParams{OrderID: o.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
 		return admin.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
@@ -348,6 +349,9 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		view.Lines = append(view.Lines, pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
+			ImageURL:    assets.ProductImageURL(l.ImageKey),
+			ImageSrcset: assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
+			ImageAlt:    l.ImageAlt,
 		})
 	}
 
