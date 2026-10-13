@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"html"
 	"strings"
 	"testing"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -67,8 +67,8 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		Correctable:       true,
 		PickupDestination: true,
 		PickupChains:      pages.KnownPickupChainChoices(),
-		Address:           pages.Delivery{PickupChain: pickup.FamilyMart}.Line(),
-		Delivery:          Delivery{PickupChain: pickup.FamilyMart},
+		Address:           pages.Delivery{PickupChain: shipping.ChainFamilyMart}.Line(),
+		Delivery:          Delivery{PickupChain: shipping.ChainFamilyMart},
 	}))
 
 	for _, id := range []string{"d-store-code", "d-store-name"} {
@@ -81,7 +81,7 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		t.Errorf("the chain stopped being required: %s", tag)
 	}
 
-	chain := pages.Delivery{PickupChain: pickup.FamilyMart}.Line()
+	chain := pages.Delivery{PickupChain: shipping.ChainFamilyMart}.Line()
 	if !strings.Contains(body, chain) {
 		t.Errorf("the order detail does not name the chain %q", chain)
 	}
@@ -259,11 +259,11 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 		for _, tc := range []struct {
 			name   string
 			pickup bool
-			chain  pickup.Chain
+			chain  shipping.Chain
 			errors map[string]i18n.Key
 		}{
 			{name: "phone", errors: map[string]i18n.Key{"phone": i18n.KeyPhoneMalformed}},
-			{name: "pickup pair", pickup: true, chain: pickup.FamilyMart, errors: map[string]i18n.Key{"pickup_store_name": i18n.KeyAddressIncomplete}},
+			{name: "pickup pair", pickup: true, chain: shipping.ChainFamilyMart, errors: map[string]i18n.Key{"pickup_store_name": i18n.KeyAddressIncomplete}},
 			{name: "all address fields", errors: map[string]i18n.Key{
 				"recipient": i18n.KeyNameRequired, "phone": i18n.KeyPhoneMalformed, "email": i18n.KeyCheckoutEmailMalformed,
 				"postal_code": i18n.KeyPostalCodeMalformed, "city": i18n.KeyCityRequired,

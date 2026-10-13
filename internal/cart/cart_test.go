@@ -3,6 +3,7 @@ package cart
 import (
 	"bytes"
 	"errors"
+	"github.com/koopa0/goen/internal/shipping"
 	"math"
 	"slices"
 	"strconv"
@@ -15,11 +16,9 @@ import (
 	"github.com/google/uuid"
 
 	accountpkg "github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -383,7 +382,7 @@ func TestABlankPostcodeIsAskedForRatherThanCorrected(t *testing.T) {
 		{"11", i18n.KeyPostalCodeMalformed},
 	} {
 		a := order.Delivery{
-			To:    destination.Address,
+			To:    shipping.DestinationAddress,
 			Email: "a@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: tt.postal, City: "台北市", District: "信義區", Street: "松高路 1 號",
 		}
@@ -462,7 +461,7 @@ func TestSavedHomeAddressContractMatchesCheckout(t *testing.T) {
 			}
 			saved.Trim()
 			checkout := order.Delivery{
-				To: destination.Address, Email: "buyer@example.com",
+				To: shipping.DestinationAddress, Email: "buyer@example.com",
 				RecipientName: saved.Name, Phone: saved.Phone, PostalCode: saved.PostalCode,
 				City: saved.City, District: saved.District, Street: saved.Street,
 			}
@@ -489,13 +488,13 @@ func TestAddressValidateAccepts(t *testing.T) {
 	t.Parallel()
 
 	for _, a := range []order.Delivery{
-		{To: destination.Address, Email: "a@example.com", RecipientName: "王小明", Phone: "0912345678",
+		{To: shipping.DestinationAddress, Email: "a@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"},
-		{To: destination.Address, Email: "someone.long+tag@sub.example.co.uk", RecipientName: "Li Hua", Phone: "+886 2 2700-1234",
+		{To: shipping.DestinationAddress, Email: "someone.long+tag@sub.example.co.uk", RecipientName: "Li Hua", Phone: "+886 2 2700-1234",
 			PostalCode: "10041", City: "台北市", District: "中正區", Street: "重慶南路一段 122 號",
 			Note: "請放管理室"},
 		// Convenience-store pickup, which has no street at all.
-		{To: destination.PickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
+		{To: shipping.DestinationPickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
 			PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市"},
 	} {
 		if errs := a.Validate(); len(errs) != 0 {
@@ -513,7 +512,7 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// The phone is malformed AND carries a control character, in that order.
 	addr := &order.Delivery{
-		To: destination.Address, Email: "a@example.com", RecipientName: "王小明",
+		To: shipping.DestinationAddress, Email: "a@example.com", RecipientName: "王小明",
 		Phone: "09\x0712345678", PostalCode: "110", City: "台北市",
 		District: "信義區", Street: "松高路 1 號",
 	}
@@ -529,13 +528,13 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 }
 
 func TestEveryKnownPickupChainPassesAddressValidation(t *testing.T) {
-	chains := pickup.KnownChains()
+	chains := shipping.Chains()
 	if len(chains) == 0 {
-		t.Fatal("pickup.KnownChains() is empty; the test needs a known chain")
+		t.Fatal("shipping.Chains() is empty; the test needs a known chain")
 	}
 	for _, chain := range chains {
 		address := order.Delivery{
-			To: destination.PickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
+			To: shipping.DestinationPickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
 			PickupChain: chain, PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 		}
 		if errs := address.Validate(); len(errs) != 0 {
@@ -544,7 +543,7 @@ func TestEveryKnownPickupChainPassesAddressValidation(t *testing.T) {
 	}
 
 	address := order.Delivery{
-		To: destination.PickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
+		To: shipping.DestinationPickupPoint, Email: "pick@example.com", RecipientName: "陳小明", Phone: "0933444555",
 		PickupChain: "other_chain", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
 	errs := address.Validate()
@@ -641,40 +640,40 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		to    destination.Kind
+		to    shipping.Destination
 		fill  []func(*order.Delivery)
 		wants []string // the fields that must be reported, and no others
 	}{
 		{
 			name: "an address order with an address",
-			to:   destination.Address,
+			to:   shipping.DestinationAddress,
 			fill: []func(*order.Delivery){contact, address},
 		},
 		{
 			name: "a pickup order with a store",
-			to:   destination.PickupPoint,
+			to:   shipping.DestinationPickupPoint,
 			fill: []func(*order.Delivery){contact, pickupAddress},
 		},
 		{
 			name:  "an address order carrying only a store",
-			to:    destination.Address,
+			to:    shipping.DestinationAddress,
 			fill:  []func(*order.Delivery){contact, pickupAddress},
 			wants: []string{"postal_code", "city", "district", "street"},
 		},
 		{
 			name: "a pickup order carrying the chain alone",
-			to:   destination.PickupPoint,
+			to:   shipping.DestinationPickupPoint,
 			fill: []func(*order.Delivery){contact, chainOnly},
 		},
 		{
 			name:  "a pickup order carrying only an address",
-			to:    destination.PickupPoint,
+			to:    shipping.DestinationPickupPoint,
 			fill:  []func(*order.Delivery){contact, address},
 			wants: []string{"pickup_chain"},
 		},
 		{
 			name:  "a method whose destination is unknown here",
-			to:    destination.Kind("depot"),
+			to:    shipping.Destination("depot"),
 			fill:  []func(*order.Delivery){contact, address, pickupAddress},
 			wants: []string{"shipping"},
 		},
@@ -706,7 +705,7 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 	cases := []struct {
 		name   string
-		chain  pickup.Chain
+		chain  shipping.Chain
 		code   string
 		refuse bool
 	}{
@@ -736,7 +735,7 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 				storeName = ""
 			}
 			a := &order.Delivery{
-				To:              destination.PickupPoint,
+				To:              shipping.DestinationPickupPoint,
 				Email:           "who@example.com",
 				RecipientName:   "王小明",
 				Phone:           "0912345678",
@@ -770,7 +769,7 @@ func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
 	t.Parallel()
 
 	base := order.Delivery{
-		To: destination.PickupPoint, Email: "who@example.com", RecipientName: "王小明", Phone: "0912345678",
+		To: shipping.DestinationPickupPoint, Email: "who@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PickupChain: "seven_eleven",
 	}
 
@@ -809,7 +808,7 @@ func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
 // carrying both, so this is what stops the pair reaching
 // order_private_data_one_destination.
 func TestForDestinationDropsTheOtherHalf(t *testing.T) {
-	both := func(to destination.Kind) *order.Delivery {
+	both := func(to shipping.Destination) *order.Delivery {
 		return &order.Delivery{
 			To: to, Email: "e@example.com", RecipientName: "n", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -817,7 +816,7 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 		}
 	}
 
-	a := both(destination.PickupPoint)
+	a := both(shipping.DestinationPickupPoint)
 	a.DropOtherDestination()
 	if a.Street != "" || a.City != "" || a.District != "" || a.PostalCode != "" {
 		t.Errorf("a pickup order kept an address: %q %q %q %q",
@@ -827,7 +826,7 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 		t.Errorf("the pickup point was dropped: %q", a.PickupStoreCode)
 	}
 
-	b := both(destination.Address)
+	b := both(shipping.DestinationAddress)
 	b.DropOtherDestination()
 	if b.PickupChain != "" || b.PickupStoreCode != "" || b.PickupStoreName != "" {
 		t.Errorf("an address order kept a pickup point: %q %q %q",
@@ -842,13 +841,13 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 // shipping_methods with an unknown destination must not collect a street.
 func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
 	for _, kind := range []string{"address", "pickup_point"} {
-		if d, ok := destination.For(kind); !ok || string(d) != kind {
-			t.Errorf("destination.For(%q) = %q, %v; want it recognised", kind, d, ok)
+		if d, ok := shipping.ParseDestination(kind); !ok || string(d) != kind {
+			t.Errorf("shipping.ParseDestination(%q) = %q, %v; want it recognised", kind, d, ok)
 		}
 	}
 	for _, kind := range []string{"", "depot", "Address", "pickup"} {
-		if d, ok := destination.For(kind); ok {
-			t.Errorf("destination.For(%q) = %q, true; want it refused", kind, d)
+		if d, ok := shipping.ParseDestination(kind); ok {
+			t.Errorf("shipping.ParseDestination(%q) = %q, true; want it refused", kind, d)
 		}
 	}
 }
@@ -942,9 +941,9 @@ func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
 func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, addr := range map[string]*order.Delivery{
-		"hi_life":  {To: destination.PickupPoint, PickupChain: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
-		"ok_mart":  {To: destination.PickupPoint, PickupChain: "ok_mart"},
-		"no store": {To: destination.PickupPoint, PickupChain: "seven_eleven"},
+		"hi_life":  {To: shipping.DestinationPickupPoint, PickupChain: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
+		"ok_mart":  {To: shipping.DestinationPickupPoint, PickupChain: "ok_mart"},
+		"no store": {To: shipping.DestinationPickupPoint, PickupChain: "seven_eleven"},
 	} {
 		got := checkoutErrors(ctx, addr, nil, &Invoice{})
 		if got["pickup_chain"] == "" && got["pickup_store"] == "" {
@@ -955,7 +954,7 @@ func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.
 
 func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T) {
 	addr := order.Delivery{
-		To: destination.Address, Email: "a@example.com", RecipientName: "王小明",
+		To: shipping.DestinationAddress, Email: "a@example.com", RecipientName: "王小明",
 		Phone: "０９１２３４５６７８", PostalCode: "１１０",
 		City: "台北市", District: "信義區", Street: "市府路1號",
 	}
@@ -1102,7 +1101,7 @@ func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testin
 func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
 	t.Parallel()
 
-	addr := order.Delivery{To: destination.Address, PostalCode: "110", District: "信義區", Street: "松高路 1 號"}
+	addr := order.Delivery{To: shipping.DestinationAddress, PostalCode: "110", District: "信義區", Street: "松高路 1 號"}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var got string
 	for _, e := range addr.Validate() {

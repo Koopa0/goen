@@ -1,10 +1,10 @@
 package admin
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -20,8 +20,8 @@ func TestLaterParcelArrivalActionBelongsToItsUndeliveredParcel(t *testing.T) {
 				view := OrderView{
 					Number: "GO-261012-000001", Status: status,
 					Shipments: []Shipment{
-						{ID: "11111111-1111-4111-8111-111111111111", Carrier: carrier.BlackCat, Tracking: "FIRST", ShippedAt: "2026-10-10 09:00", DeliveredAt: "2026-10-11 09:00"},
-						{ID: "22222222-2222-4222-8222-222222222222", Carrier: carrier.BlackCat, Tracking: "SECOND", ShippedAt: "2026-10-12 09:00"},
+						{ID: "11111111-1111-4111-8111-111111111111", Carrier: shipping.CarrierBlackCat, Tracking: "FIRST", ShippedAt: "2026-10-10 09:00", DeliveredAt: "2026-10-11 09:00"},
+						{ID: "22222222-2222-4222-8222-222222222222", Carrier: shipping.CarrierBlackCat, Tracking: "SECOND", ShippedAt: "2026-10-12 09:00"},
 					},
 				}
 				page := renderComponent(t, ctx, Order(layouts.Page{}, &view))

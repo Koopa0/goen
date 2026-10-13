@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -15,7 +16,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -513,7 +512,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	back := "/checkout?draft=1"
-	if !h.storeMap.Enabled() || destinationOf(view.Shipping, view.Chosen) != destination.PickupPoint {
+	if !h.storeMap.Enabled() || destinationOf(view.Shipping, view.Chosen) != shipping.DestinationPickupPoint {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
@@ -594,7 +593,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) 
 	}
 	q := r.URL.Query()
 	posted := PostedStore{
-		Chain: pickup.Chain(q.Get("pickup_chain")),
+		Chain: shipping.Chain(q.Get("pickup_chain")),
 		Code:  q.Get("pickup_store_code"),
 		Name:  q.Get("pickup_store_name"),
 		Nonce: q.Get("pickup_n"),
@@ -740,7 +739,7 @@ func (h *Handler) pickupSession(
 }
 
 func (h *Handler) mapRequest(
-	r *http.Request, chain pickup.Chain, nonce string,
+	r *http.Request, chain shipping.Chain, nonce string,
 ) (pages.CheckoutMapForm, bool) {
 	tradeNo, err := NewMerchantTradeNo()
 	if err != nil {
@@ -884,7 +883,7 @@ func (h *Handler) checkoutSubmission(
 		City:            r.PostFormValue("city"),
 		District:        r.PostFormValue("district"),
 		Street:          r.PostFormValue("street"),
-		PickupChain:     pickup.Chain(r.PostFormValue("pickup_chain")),
+		PickupChain:     shipping.Chain(r.PostFormValue("pickup_chain")),
 		PickupStoreCode: r.PostFormValue("pickup_store_code"),
 		PickupStoreName: r.PostFormValue("pickup_store_name"),
 		Note:            r.PostFormValue("note"),
@@ -1360,7 +1359,7 @@ func checkoutErrors(
 		refusals = append(refusals,
 			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
-	if addr.To == destination.PickupPoint {
+	if addr.To == shipping.DestinationPickupPoint {
 		if !addr.PickupChain.AtCheckout() {
 			refusals = append(refusals,
 				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
@@ -1404,8 +1403,8 @@ func (h *Handler) offeredShipping(
 		return choices, err
 	}
 	return slices.DeleteFunc(choices, func(c pages.ShippingChoice) bool {
-		to, ok := destination.For(c.DestinationKind)
-		return ok && to == destination.PickupPoint
+		to, ok := shipping.ParseDestination(c.DestinationKind)
+		return ok && to == shipping.DestinationPickupPoint
 	}), nil
 }
 
@@ -1444,10 +1443,10 @@ func fillFromBook(view *pages.CheckoutView, addr *order.Delivery, wanted string)
 }
 
 // destinationOf reads the choices the server built, not the form.
-func destinationOf(choices []pages.ShippingChoice, versionID string) destination.Kind {
+func destinationOf(choices []pages.ShippingChoice, versionID string) shipping.Destination {
 	for i := range choices {
 		if choices[i].VersionID == versionID {
-			if d, ok := destination.For(choices[i].DestinationKind); ok {
+			if d, ok := shipping.ParseDestination(choices[i].DestinationKind); ok {
 				return d
 			}
 			return ""

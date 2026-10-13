@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"net/url"
 	"strings"
 	"time"
@@ -15,15 +16,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -596,7 +594,7 @@ func lockCheckoutTerms(
 
 	// The destination is re-derived from the method just read and the address
 	// trimmed to it, as the fee is recomputed rather than trusted.
-	to, ok := destination.For(ship.DestinationKind)
+	to, ok := shipping.ParseDestination(ship.DestinationKind)
 	if !ok {
 		return nil, fmt.Errorf("shipping method %s has an unknown destination %q",
 			ship.Code, ship.DestinationKind)
@@ -995,7 +993,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		OwedCents:    o.OwedCents,
 		DeliveryTo: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		SubtotalCents: o.SubtotalCents,
@@ -1086,7 +1084,7 @@ func cutParcels(
 	for i := range shipments {
 		sh := &shipments[i]
 		parcel := pages.OrderShipment{
-			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
+			Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
 		}
 		if sh.DeliveredAt.Valid {
 			parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = sh.DeliveredAt.Time, sh.RescissionEnds, sh.GoodwillEnds

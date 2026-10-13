@@ -1,13 +1,13 @@
 package pages
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -20,9 +20,9 @@ func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, &OrderView{
 		Number: "GO-1",
 		Shipments: []OrderShipment{
-			{Carrier: carrier.BlackCat, Tracking: "903221488720", ShippedAt: dispatched},
-			{Carrier: carrier.HCT, Tracking: "1234567890", ShippedAt: dispatched},
-			{Carrier: carrier.OKMart, Tracking: "OK123", ShippedAt: dispatched},
+			{Carrier: shipping.CarrierBlackCat, Tracking: "903221488720", ShippedAt: dispatched},
+			{Carrier: shipping.CarrierHCT, Tracking: "1234567890", ShippedAt: dispatched},
+			{Carrier: shipping.CarrierOKMart, Tracking: "OK123", ShippedAt: dispatched},
 		},
 	}))
 
@@ -52,8 +52,8 @@ func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	t.Parallel()
 
-	home, _ := carrier.ForDelivery("", false)
-	stores, _ := carrier.ForDelivery("", true)
+	home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
+	stores, _ := shipping.CarriersFor("", shipping.DestinationPickupPoint)
 	every := slices.Concat(home, stores)
 	shipments := make([]OrderShipment, 0, len(every))
 	for _, c := range every {

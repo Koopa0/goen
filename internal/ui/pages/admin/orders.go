@@ -3,18 +3,17 @@ package admin
 import (
 	"context"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -270,7 +269,7 @@ type OrderView struct {
 	// ShipCarriers are the carriers the dispatch form lists, which is the ones
 	// that can carry this order's parcel. ShipCarrier holds the one the order
 	// implies until staff choose, or what they chose when a dispatch was refused.
-	ShipCarriers      []carrier.Carrier
+	ShipCarriers      []shipping.Carrier
 	TrackingError     string
 	ShipCarrierError  string
 	ShipQtyError      string
@@ -300,7 +299,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -377,7 +376,7 @@ func (e TimelineEntry) By(ctx context.Context) string {
 
 type Shipment struct {
 	ID          string
-	Carrier     carrier.Carrier
+	Carrier     shipping.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string

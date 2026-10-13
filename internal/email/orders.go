@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -63,7 +63,7 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if p.Pickup {
 		body = i18n.KeyMailShippedPickupBody
 	}
-	code := carrier.Carrier(p.Carrier)
+	code := shipping.Carrier(p.Carrier)
 	letterBody := fmt.Sprintf(i18n.T(ctx, body),
 		p.OrderNumber, i18n.CarrierName(ctx, code), p.Tracking, n.orderURL(p.OrderNumber))
 	// A carrier outside the closed set, from a notice queued before it was

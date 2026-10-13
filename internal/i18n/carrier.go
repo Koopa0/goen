@@ -2,8 +2,7 @@ package i18n
 
 import (
 	"context"
-
-	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/shipping"
 )
 
 var (
@@ -40,23 +39,23 @@ var (
 // CarrierName is a carrier's name in this request's language. A value outside
 // the closed set, such as a notice queued before it was closed, is returned as
 // stored rather than hidden.
-func CarrierName(ctx context.Context, c carrier.Carrier) string {
+func CarrierName(ctx context.Context, c shipping.Carrier) string {
 	switch c {
-	case carrier.BlackCat:
+	case shipping.CarrierBlackCat:
 		return T(ctx, keyCarrierBlackCat)
-	case carrier.HCT:
+	case shipping.CarrierHCT:
 		return T(ctx, keyCarrierHCT)
-	case carrier.ChunghwaPost:
+	case shipping.CarrierChunghwaPost:
 		return T(ctx, keyCarrierChunghwaPost)
-	case carrier.KerryTJ:
+	case shipping.CarrierKerryTJ:
 		return T(ctx, keyCarrierKerryTJ)
-	case carrier.SevenEleven:
+	case shipping.CarrierSevenEleven:
 		return T(ctx, keyCarrierSevenEleven)
-	case carrier.FamilyMart:
+	case shipping.CarrierFamilyMart:
 		return T(ctx, keyCarrierFamilyMart)
-	case carrier.HiLife:
+	case shipping.CarrierHiLife:
 		return T(ctx, keyCarrierHiLife)
-	case carrier.OKMart:
+	case shipping.CarrierOKMart:
 		return T(ctx, keyCarrierOKMart)
 	default:
 		return string(c)

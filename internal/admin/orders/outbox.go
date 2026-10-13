@@ -3,11 +3,11 @@ package orders
 import (
 	"context"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -22,8 +22,8 @@ func enqueueOrderShipped(ctx context.Context, q *db.Queries, orderID uuid.UUID, 
 	}
 	// The CUSTOMER's language, off the order, never the staff member's.
 	m.Email, m.Name, m.Locale = to.Email, to.RecipientName, to.Locale
-	dest, _ := destination.For(to.DestinationKind)
-	m.Pickup = dest == destination.PickupPoint
+	dest, _ := shipping.ParseDestination(to.DestinationKind)
+	m.Pickup = dest == shipping.DestinationPickupPoint
 
 	// Keyed on the CARRIER and the tracking number together, which is what
 	// order_shipments is unique on: two carriers may legitimately issue the same

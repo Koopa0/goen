@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -83,7 +83,7 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 		PickupChains: pages.CheckoutPickupChainChoices(),
 		Address: pages.CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
-			PickupChain: pickup.FamilyMart,
+			PickupChain: shipping.ChainFamilyMart,
 		},
 	}
 

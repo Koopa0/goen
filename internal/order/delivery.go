@@ -1,13 +1,12 @@
 package order
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -16,7 +15,7 @@ import (
 type Delivery struct {
 	// To picks which half is real; it comes from the shipping method, never the
 	// form.
-	To destination.Kind
+	To shipping.Destination
 
 	Email         string
 	RecipientName string
@@ -27,7 +26,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 
@@ -84,7 +83,7 @@ func (a *Delivery) destinationErrors() []web.FieldRefusal {
 	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
 
 	switch a.To {
-	case destination.Address:
+	case shipping.DestinationAddress:
 		switch {
 		case strings.TrimSpace(a.PostalCode) == "":
 			add("postal_code", i18n.KeyPostalCodeRequired)
@@ -109,7 +108,7 @@ func (a *Delivery) destinationErrors() []web.FieldRefusal {
 		case utf8.RuneCountInString(a.Street) > maxStreetRunes:
 			add("street", i18n.KeyStreetTooLong)
 		}
-	case destination.PickupPoint:
+	case shipping.DestinationPickupPoint:
 		errs = append(errs, a.pickupPointErrors()...)
 	default:
 		add("shipping", i18n.KeyChooseShipping)
@@ -135,7 +134,7 @@ func (a *Delivery) pickupPointErrors() []web.FieldRefusal {
 		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
 	case a.PickupStoreCode != "" && a.PickupStoreName == "":
 		add("pickup_store_name", i18n.KeyAddressIncomplete)
-	case a.PickupStoreCode != "" && !pickup.ValidStoreCode(a.PickupStoreCode):
+	case a.PickupStoreCode != "" && !shipping.ValidStoreCode(a.PickupStoreCode):
 		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
 	}
 	if utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes {
@@ -148,9 +147,9 @@ func (a *Delivery) pickupPointErrors() []web.FieldRefusal {
 // order_private_data_one_destination refuses a row carrying both.
 func (a *Delivery) DropOtherDestination() {
 	switch a.To {
-	case destination.Address:
+	case shipping.DestinationAddress:
 		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""
-	case destination.PickupPoint:
+	case shipping.DestinationPickupPoint:
 		a.PostalCode, a.City, a.District, a.Street = "", "", "", ""
 	}
 }
@@ -216,7 +215,7 @@ func isPostalCode(s string) bool {
 }
 
 // Trim folds full-width digits in the phone and postal code and uppercases the
-// store code, which pickup.ValidStoreCode will not fold.
+// store code, which shipping.ValidStoreCode will not fold.
 func (a *Delivery) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.RecipientName = strings.TrimSpace(a.RecipientName)
@@ -225,7 +224,7 @@ func (a *Delivery) Trim() {
 	a.City = strings.TrimSpace(a.City)
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)
-	a.PickupChain = pickup.Chain(strings.TrimSpace(string(a.PickupChain)))
+	a.PickupChain = shipping.Chain(strings.TrimSpace(string(a.PickupChain)))
 	a.PickupStoreCode = strings.ToUpper(strings.TrimSpace(a.PickupStoreCode))
 	a.PickupStoreName = strings.TrimSpace(a.PickupStoreName)
 	a.Note = strings.TrimSpace(a.Note)

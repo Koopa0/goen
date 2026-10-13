@@ -3,6 +3,7 @@ package orders
 import (
 	"context"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -13,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -93,7 +93,7 @@ func pickingSlip(r *db.PickingSlipsRow) *admin.OrderView {
 		CustomerNote: r.CustomerNote, Email: r.Email, Recipient: r.RecipientName, Phone: r.Phone,
 		Address: pages.Delivery{
 			PostalCode: r.PostalCode, City: r.City, District: r.District, Street: r.Street,
-			PickupChain: pickup.Chain(r.PickupChain), PickupStoreCode: r.PickupStoreCode,
+			PickupChain: shipping.Chain(r.PickupChain), PickupStoreCode: r.PickupStoreCode,
 			PickupStoreName: r.PickupStoreName,
 		}.Line(),
 		InvoiceType: invoice.Preference(r.InvoiceType), InvoiceMobileBarcode: r.InvoiceMobileBarcode,

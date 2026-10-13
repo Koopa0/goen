@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,12 +14,9 @@ import (
 	htmlparse "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -125,7 +123,7 @@ func TestKnownPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.
 	if diff := cmp.Diff(want, KnownPickupChainChoices()); diff != "" {
 		t.Errorf("mutating KnownPickupChainChoices() changed the next result (-want +got):\n%s", diff)
 	}
-	if pickup.Chain("other_chain").Known() {
+	if shipping.Chain("other_chain").Known() {
 		t.Error("mutating KnownPickupChainChoices() changed KnownPickupChain")
 	}
 }
@@ -239,12 +237,12 @@ func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
 	if !ok {
 		t.Fatal("the cart has no summary")
 	}
-	shipping := strings.Index(summary, "<dt>"+i18n.T(ctx, i18n.KeyShippingFee)+"</dt>")
+	shippingAt := strings.Index(summary, "<dt>"+i18n.T(ctx, i18n.KeyShippingFee)+"</dt>")
 	total := strings.Index(summary, `goen-summary__row--total"><dt>`+i18n.T(ctx, i18n.KeySubtotal)+"</dt>")
-	if shipping < 0 || total < 0 {
-		t.Fatalf("the summary lacks a row: shipping at %d, total at %d", shipping, total)
+	if shippingAt < 0 || total < 0 {
+		t.Fatalf("the summary lacks a row: shipping at %d, total at %d", shippingAt, total)
 	}
-	if total < shipping {
+	if total < shippingAt {
 		t.Error("the cart summary opens on its total, so the total's rule has nothing above it")
 	}
 }
@@ -323,8 +321,8 @@ func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
 	t.Parallel()
 
 	want := []PickupChainChoice{
-		{Value: pickup.SevenEleven, Label: "7-ELEVEN"},
-		{Value: pickup.FamilyMart, Label: "全家 FamilyMart"},
+		{Value: shipping.ChainSevenEleven, Label: "7-ELEVEN"},
+		{Value: shipping.ChainFamilyMart, Label: "全家 FamilyMart"},
 	}
 	got := CheckoutPickupChainChoices()
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -335,7 +333,7 @@ func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
 			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
 		}
 	}
-	if len(KnownPickupChainChoices()) != len(pickup.KnownChains()) {
+	if len(KnownPickupChainChoices()) != len(shipping.Chains()) {
 		t.Error("the back office no longer offers every chain the shop can accept")
 	}
 }
@@ -354,13 +352,13 @@ func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
 	}{
 		{
 			name: "the chain alone", pickup: true,
-			d:    Delivery{PickupChain: pickup.SevenEleven},
+			d:    Delivery{PickupChain: shipping.ChainSevenEleven},
 			want: "7-ELEVEN",
 		},
 		{
 			name: "a chain whose store is known", pickup: true,
 			d: Delivery{
-				PickupChain: pickup.FamilyMart, PickupStoreCode: "012345",
+				PickupChain: shipping.ChainFamilyMart, PickupStoreCode: "012345",
 				PickupStoreName: "台北車站門市",
 			},
 			want: "全家 FamilyMart 台北車站門市(012345)",
@@ -409,7 +407,7 @@ func TestTheAddressBookIsOnlyOfferedForAnAddress(t *testing.T) {
 	book := []SavedAddress{{ID: "a"}}
 	for _, tt := range []struct {
 		name        string
-		destination destination.Kind
+		destination shipping.Destination
 		book        []SavedAddress
 		want        bool
 	}{
@@ -740,7 +738,7 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 				Committed: true, ShowWarrantyLink: true, Lines: []OrderLine{line},
 			}
 			if tt.status != "pending" && tt.status != "picking" {
-				parcel := OrderShipment{Carrier: carrier.BlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []OrderLine{line}}
+				parcel := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []OrderLine{line}}
 				if tt.delivered {
 					parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = orderNow.AddDate(0, 0, -3), orderDay(13), orderDay(20)
 				}
@@ -766,7 +764,7 @@ func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		ShowWarrantyLink: false, Now: orderNow, Lines: []OrderLine{line},
 		Shipments: []OrderShipment{{
-			Carrier: carrier.BlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), DeliveredAt: orderNow.AddDate(0, 0, -3),
+			Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), DeliveredAt: orderNow.AddDate(0, 0, -3),
 			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []OrderLine{line},
 		}},
 	}

@@ -1,10 +1,9 @@
 package order
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/goen/internal/destination"
 )
 
 // TestDeliveryValidateRejects covers what the server must catch even though the
@@ -14,7 +13,7 @@ func TestDeliveryValidateRejects(t *testing.T) {
 	t.Parallel()
 
 	valid := Delivery{
-		To:    destination.Address,
+		To:    shipping.DestinationAddress,
 		Email: "a@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}

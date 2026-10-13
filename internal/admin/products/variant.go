@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -11,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -62,17 +62,17 @@ func (f *VariantForm) validateFulfilment(ctx context.Context, errs map[string]st
 	if f.SafetyStock < 0 || f.SafetyStock > safetyStockCeiling {
 		errs["safety"] = i18n.T(ctx, i18n.KeyFormSafetyStock)
 	}
-	if f.ParcelLongestMM < 0 || f.ParcelLongestMM > carrier.MaxParcelLongestMM {
+	if f.ParcelLongestMM < 0 || f.ParcelLongestMM > shipping.MaxParcelLongestMM {
 		errs["parcel_longest"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelLongestMM)
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelLongestMM)
 	}
-	if f.ParcelSumMM < 0 || f.ParcelSumMM > carrier.MaxParcelSumMM {
+	if f.ParcelSumMM < 0 || f.ParcelSumMM > shipping.MaxParcelSumMM {
 		errs["parcel_sum"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelSumMM)
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelSumMM)
 	}
-	if f.ParcelWeightG < 0 || f.ParcelWeightG > carrier.MaxParcelWeightG {
+	if f.ParcelWeightG < 0 || f.ParcelWeightG > shipping.MaxParcelWeightG {
 		errs["parcel_weight"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelWeightG)
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelWeightG)
 	}
 	if f.ParcelLongestMM != 0 && f.ParcelSumMM != 0 && f.ParcelSumMM < f.ParcelLongestMM {
 		errs["parcel_sum"] = i18n.T(ctx, i18n.KeyFormParcelSumShort)
@@ -162,15 +162,15 @@ func variantWriteError(ctx context.Context, slug string, err error) (map[string]
 	}
 	if pgerr.IsConstraint(err, "product_variants_parcel_longest_sane") {
 		return map[string]string{"parcel_longest": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelLongestMM)}, nil
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelLongestMM)}, nil
 	}
 	if pgerr.IsConstraint(err, "product_variants_parcel_sum_sane") {
 		return map[string]string{"parcel_sum": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelSumMM)}, nil
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelSumMM)}, nil
 	}
 	if pgerr.IsConstraint(err, "product_variants_parcel_weight_sane") {
 		return map[string]string{"parcel_weight": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormParcelMeasurement), carrier.MaxParcelWeightG)}, nil
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), shipping.MaxParcelWeightG)}, nil
 	}
 	if pgerr.IsConstraint(err, "product_variants_parcel_sum_covers_longest") {
 		return map[string]string{"parcel_sum": i18n.T(ctx, i18n.KeyFormParcelSumShort)}, nil

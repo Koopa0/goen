@@ -4,6 +4,7 @@ package orders_test
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
@@ -141,7 +141,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 			if w.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("a dispatch for an order %s under it answered %d, want 422", tc.name, w.Code)
 			}
-			want := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDispatchRefused), i18n.CarrierName(ctx, carrier.BlackCat), tracking)
+			want := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDispatchRefused), i18n.CarrierName(ctx, shipping.CarrierBlackCat), tracking)
 			if body := w.Body.String(); !strings.Contains(body, want) {
 				t.Errorf("the refused dispatch is missing %q", want)
 			}

@@ -1,10 +1,10 @@
 package shipping
 
 import (
+	shippingrules "github.com/koopa0/goen/internal/shipping"
 	"math"
 	"testing"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -31,15 +31,15 @@ func TestMethodParcelLimitsStopAtTheSchemaCeilings(t *testing.T) {
 	}{
 		{name: "method longest", field: "max_parcel_longest", errs: func() map[string]string {
 			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelLongestMM: carrier.MaxParcelLongestMM + 1}).Validate(ctx)
+				MaxParcelLongestMM: shippingrules.MaxParcelLongestMM + 1}).Validate(ctx)
 		}},
 		{name: "method sum", field: "max_parcel_sum", errs: func() map[string]string {
 			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelSumMM: carrier.MaxParcelSumMM + 1}).Validate(ctx)
+				MaxParcelSumMM: shippingrules.MaxParcelSumMM + 1}).Validate(ctx)
 		}},
 		{name: "method weight", field: "max_parcel_weight", errs: func() map[string]string {
 			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelWeightG: carrier.MaxParcelWeightG + 1}).Validate(ctx)
+				MaxParcelWeightG: shippingrules.MaxParcelWeightG + 1}).Validate(ctx)
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -52,8 +52,8 @@ func TestMethodParcelLimitsStopAtTheSchemaCeilings(t *testing.T) {
 
 	atCeilings := (&NewMethod{
 		Code: "bound", Destination: "address", Name: "Bound",
-		MaxParcelLongestMM: carrier.MaxParcelLongestMM, MaxParcelSumMM: carrier.MaxParcelSumMM,
-		MaxParcelWeightG: carrier.MaxParcelWeightG,
+		MaxParcelLongestMM: shippingrules.MaxParcelLongestMM, MaxParcelSumMM: shippingrules.MaxParcelSumMM,
+		MaxParcelWeightG: shippingrules.MaxParcelWeightG,
 	}).Validate(ctx)
 	for _, field := range []string{"max_parcel_longest", "max_parcel_sum", "max_parcel_weight"} {
 		if atCeilings[field] != "" {

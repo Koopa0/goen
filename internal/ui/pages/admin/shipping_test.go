@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"slices"
 	"strings"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -25,8 +25,8 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 				message := i18n.T(ctx, i18n.KeyAdminShipVersionChanged)
 				view := ShippingView{
 					Methods: []ShippingMethod{
-						{MethodID: "one", VersionID: "current", Destination: destination.Address, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 10000}, {ZoneID: "other", Cents: 30000}}},
-						{MethodID: "two", VersionID: "neighbour", Destination: destination.Address, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 40000}}},
+						{MethodID: "one", VersionID: "current", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 10000}, {ZoneID: "other", Cents: 30000}}},
+						{MethodID: "two", VersionID: "neighbour", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 40000}}},
 					},
 					Zones:          []ShippingZone{{ID: "offshore"}, {ID: "other"}},
 					Errors:         map[string]string{"surcharge": message},
@@ -85,12 +85,12 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 	} {
 		for _, tt := range []struct {
 			name        string
-			destination destination.Kind
+			destination shipping.Destination
 			unavailable bool
 		}{
-			{name: "unavailable pickup", destination: destination.PickupPoint, unavailable: true},
-			{name: "working pickup", destination: destination.PickupPoint},
-			{name: "home delivery", destination: destination.Address},
+			{name: "unavailable pickup", destination: shipping.DestinationPickupPoint, unavailable: true},
+			{name: "working pickup", destination: shipping.DestinationPickupPoint},
+			{name: "home delivery", destination: shipping.DestinationAddress},
 		} {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -316,7 +316,7 @@ func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{
 		Methods: []ShippingMethod{{
-			MethodID: "home", VersionID: "v1", Destination: destination.Address,
+			MethodID: "home", VersionID: "v1", Destination: shipping.DestinationAddress,
 			Name: "宅配到府", NameEn: "Home delivery", EffectiveAt: "2026-10-07", VersionCount: 1,
 		}},
 		Zones: []ShippingZone{

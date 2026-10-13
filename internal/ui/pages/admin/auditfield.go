@@ -3,9 +3,9 @@ package admin
 import (
 	"context"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -201,7 +201,7 @@ func centsText(_ context.Context, _ AuditEntry, value string) string {
 }
 
 func carrierText(ctx context.Context, _ AuditEntry, value string) string {
-	return i18n.CarrierName(ctx, carrier.Carrier(value))
+	return i18n.CarrierName(ctx, shipping.Carrier(value))
 }
 
 func fulfillmentText(ctx context.Context, _ AuditEntry, value string) string {

@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -100,7 +100,7 @@ func TestAddFromTheWishlistComesBackToTheWishlist(t *testing.T) {
 
 func TestUnavailableCheckoutDoesNotRenderAnObsoletePickupDestination(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
-	view := &pages.CheckoutView{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: destination.PickupPoint}
+	view := &pages.CheckoutView{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: shipping.DestinationPickupPoint}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)
 	res := httptest.NewRecorder()
 	h.renderCheckout(res, req, http.StatusOK, view)

@@ -1,12 +1,12 @@
 package pages
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pickup"
 )
 
 // ecpayMapFields is every request parameter ECPay's 門市電子地圖 documents. It is
@@ -51,7 +51,7 @@ func aCheckoutWithAStore() *CheckoutView {
 		PickupChains: CheckoutPickupChainChoices(),
 		Address: CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
-			PickupChain: pickup.SevenEleven, PickupStoreCode: "131386",
+			PickupChain: shipping.ChainSevenEleven, PickupStoreCode: "131386",
 			PickupStoreName: "南港園區",
 		},
 		PickupStoreAddr: "台北市南港區三重路19-2號",

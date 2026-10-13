@@ -7,12 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 	"net/http"
 	"net/url"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -43,14 +43,14 @@ const (
 
 // mapSubtypes is what CheckoutPickupChainChoices offers; a chain outside it has
 // no subtype rather than a guessed one.
-var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
+var mapSubtypes = map[LogisticsMode]map[shipping.Chain]string{
 	ModeB2C: {
-		pickup.SevenEleven: "UNIMART",
-		pickup.FamilyMart:  "FAMI",
+		shipping.ChainSevenEleven: "UNIMART",
+		shipping.ChainFamilyMart:  "FAMI",
 	},
 	ModeC2C: {
-		pickup.SevenEleven: "UNIMARTC2C",
-		pickup.FamilyMart:  "FAMIC2C",
+		shipping.ChainSevenEleven: "UNIMARTC2C",
+		shipping.ChainFamilyMart:  "FAMIC2C",
 	},
 }
 
@@ -120,7 +120,7 @@ func (m *StoreMap) Origin() string {
 	return m.origin
 }
 
-func (m *StoreMap) Subtype(chain pickup.Chain) (string, bool) {
+func (m *StoreMap) Subtype(chain shipping.Chain) (string, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -130,7 +130,7 @@ func (m *StoreMap) Subtype(chain pickup.Chain) (string, bool) {
 
 // ChainFor refuses a subtype from the other contract: it cannot have come from
 // a map call this deployment made.
-func (m *StoreMap) ChainFor(subtype string) (pickup.Chain, bool) {
+func (m *StoreMap) ChainFor(subtype string) (shipping.Chain, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -146,7 +146,7 @@ func (m *StoreMap) ChainFor(subtype string) (pickup.Chain, bool) {
 // checkout's name, phone, e-mail and address must never ride to a third party.
 // tradeNo is fresh per render; the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
-func (m *StoreMap) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
+func (m *StoreMap) Request(chain shipping.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
 	subtype, ok := m.Subtype(chain)
 	if !ok {
 		return pages.CheckoutMapForm{}, false
@@ -317,7 +317,7 @@ func clearPickupCookie(w http.ResponseWriter, secure bool) {
 // PostedStore is no evidence: the map callback carries no signature, and the
 // map is run by the chain rather than by ECPay.
 type PostedStore struct {
-	Chain pickup.Chain
+	Chain shipping.Chain
 	Code  string
 	Name  string
 	// Nonce is the only field with weight; the rest is a delivery address a
@@ -355,7 +355,7 @@ const (
 )
 
 type callback struct {
-	Chain   pickup.Chain
+	Chain   shipping.Chain
 	Code    string
 	Name    string
 	Address string
@@ -378,7 +378,7 @@ func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	// Uppercased first, as Delivery.Trim does before placement checks the same
 	// shape, so the return cannot refuse a code the order accepts.
 	code := strings.ToUpper(strings.TrimSpace(r.PostFormValue("CVSStoreID")))
-	if !pickup.ValidStoreCode(code) {
+	if !shipping.ValidStoreCode(code) {
 		return callback{}, false
 	}
 	name := strings.TrimSpace(r.PostFormValue("CVSStoreName"))

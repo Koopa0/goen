@@ -1,13 +1,13 @@
 package pages
 
 import (
+	"github.com/koopa0/goen/internal/shipping"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -21,7 +21,7 @@ func orderDay(day int) time.Time { return time.Date(2026, 10, day, 0, 0, 0, 0, t
 
 func deliveredOn(day int, lines ...OrderLine) OrderShipment {
 	return OrderShipment{
-		Carrier: carrier.BlackCat, Tracking: "T" + strconv.Itoa(day),
+		Carrier: shipping.CarrierBlackCat, Tracking: "T" + strconv.Itoa(day),
 		ShippedAt:      time.Date(2026, 10, day-1, 2, 0, 0, 0, time.UTC),
 		DeliveredAt:    time.Date(2026, 10, day, 7, 20, 0, 0, time.UTC),
 		RescissionEnds: orderDay(day + 7), GoodwillEnds: orderDay(day + 14),
@@ -136,7 +136,7 @@ func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
 
 func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	t.Parallel()
-	waiting := OrderShipment{Carrier: carrier.BlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), Lines: []OrderLine{headphones()}}
+	waiting := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), Lines: []OrderLine{headphones()}}
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentShipped, ShowWarrantyLink: true,
 		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{waiting},
