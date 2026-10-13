@@ -78,6 +78,21 @@ UPDATE categories
 SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = @slug::text;
 
+-- Keep the current image in the same write: an alt-only save must not restore
+-- a photograph that another staff member replaced or removed.
+-- name: SetCategoryImageText :one
+WITH category AS MATERIALIZED (
+    SELECT id, image_key FROM categories WHERE slug = @slug::text FOR UPDATE
+), updated AS (
+    UPDATE categories c
+    SET image_alt = @image_alt::text, image_alt_en = nullif(@image_alt_en::text, '')
+    FROM category
+    WHERE c.id = category.id AND category.image_key IS NOT NULL
+    RETURNING c.id
+)
+SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
+       EXISTS (SELECT 1 FROM updated)::boolean AS changed;
+
 -- The stored width comes from media_objects, and is 0 for a key that is not an
 -- upload.
 -- name: AdminCategoryImage :one

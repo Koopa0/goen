@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -29,10 +31,9 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -154,7 +155,7 @@ func checkoutQuote(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 ) cart.CheckoutQuoteID {
 	t.Helper()
@@ -174,7 +175,7 @@ func checkoutQuoteFacts(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 ) cart.CheckoutQuote {
 	t.Helper()
@@ -182,11 +183,11 @@ func checkoutQuoteFacts(
 	if err != nil {
 		t.Fatalf("read cart quote: %v", err)
 	}
-	delivery, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, addr.PostalCode)
+	quote, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, addr.PostalCode)
 	if err != nil {
 		t.Fatalf("quote delivery: %v", err)
 	}
-	shipping, discount := quoteTotal(t, delivery), int64(0)
+	shippingFee, discount := quoteTotal(t, quote), int64(0)
 	if couponCode != "" {
 		coupon, findErr := s.CouponByCode(t.Context(), couponCode)
 		if findErr != nil {
@@ -198,10 +199,10 @@ func checkoutQuoteFacts(
 			t.Fatalf("apply coupon to quote: %v", err)
 		}
 		if free {
-			shipping = delivery.Surcharge
+			shippingFee = quote.Surcharge
 		}
 	}
-	gross := view.SubtotalCents + shipping - discount
+	gross := view.SubtotalCents + shippingFee - discount
 	balance, err := s.AvailableCredit(t.Context(), owner)
 	if err != nil {
 		t.Fatalf("read quoted credit: %v", err)
@@ -223,7 +224,7 @@ func checkoutQuoteFacts(
 		CartID:            cartID,
 		Lines:             lines,
 		ShippingVersionID: shippingID,
-		ShippingCents:     shipping,
+		ShippingCents:     shippingFee,
 		CouponCode:        cart.NormaliseCode(couponCode),
 		DiscountCents:     discount,
 		CreditCents:       min(balance, gross),
@@ -237,7 +238,7 @@ func placeOrder(
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 	key string,
 ) (string, error) {
@@ -310,7 +311,7 @@ func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 		t.Fatalf("store role adds cart line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "role-quote@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -332,7 +333,7 @@ func TestCompanyInvoiceSnapshotsTheRegisteredBuyerNotTheRecipient(t *testing.T) 
 		t.Fatalf("add company invoice line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "company-buyer@example.com", RecipientName: "收件人李大華", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -421,7 +422,7 @@ func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("lock inventory ledger: %v", lockErr)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "infra@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -475,7 +476,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("hold the last unit: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "soldout@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -531,7 +532,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 	shipID := shipVersionFor(t, "home_delivery")
 	key := checkoutAttemptKey("credit-race-" + uuid.NewString())
-	checkoutAddress := &order.Delivery{
+	checkoutAddress := &delivery.Details{
 		Email: "credit-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 88 號",
 	}
@@ -1124,7 +1125,7 @@ func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "setqty-checkout@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
@@ -1360,7 +1361,7 @@ func TestPlaceOrderIsIdempotent(t *testing.T) {
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "idem@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1399,7 +1400,7 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	if err := s.Add(ctx, firstCart, freshVariant(t, "key-owner"), 1); err != nil {
 		t.Fatalf("add first cart: %v", err)
 	}
-	firstAddress := &order.Delivery{
+	firstAddress := &delivery.Details{
 		Email: "key-owner@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1416,7 +1417,7 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	if err := s.Add(ctx, secondCart, freshVariant(t, "key-collision"), 1); err != nil {
 		t.Fatalf("add second cart: %v", err)
 	}
-	secondAddress := &order.Delivery{
+	secondAddress := &delivery.Details{
 		Email: "key-collision@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 2 號",
 	}
@@ -1461,7 +1462,7 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "empty@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
@@ -1485,7 +1486,7 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	if err := s.Add(ctx, id, freshVariant(t, "fabricated-shipping-version"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "x@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1507,7 +1508,7 @@ func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "x@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1536,7 +1537,7 @@ func TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "quote-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1605,7 +1606,7 @@ func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "coupon-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1747,7 +1748,7 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 				t.Fatalf("add: %v", err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
-			addr := &order.Delivery{
+			addr := &delivery.Details{
 				Email:         "attempt-" + tt.name + "@example.com",
 				RecipientName: "王小明", Phone: "0912345678", PostalCode: "110",
 				City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -1827,7 +1828,7 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "replay@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -1907,7 +1908,7 @@ func TestRetiringAProductLinearizesBeforeStaleCartCheckout(t *testing.T) {
 
 	checkoutPool := applicationPool(t, "checkout-behind-product-retirement")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &order.Delivery{
+	checkoutAddress := &delivery.Details{
 		Email: "retired@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2018,7 +2019,7 @@ func TestCheckoutAndFeaturedVariantMutationShareTheCatalogueLockOrder(t *testing
 
 	checkoutPool := applicationPool(t, "checkout-behind-featured-variant")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &order.Delivery{
+	checkoutAddress := &delivery.Details{
 		Email: "featured@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2070,7 +2071,7 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "price@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2114,7 +2115,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "enumerate@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2174,7 +2175,7 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "owned@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2268,7 +2269,7 @@ func TestCheckoutHoldsStock(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "hold@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2336,7 +2337,7 @@ func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
 	}
 
 	shippingID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "shared-hold@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -3029,7 +3030,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	}
 
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
-		shipVersionFor(t, "home_delivery"), &order.Delivery{
+		shipVersionFor(t, "home_delivery"), &delivery.Details{
 			Email: "creditcap@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		}, "CREDITCAP", "creditcap-"+uuid.NewString())
@@ -3084,7 +3085,7 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	placed := make(chan error, 1)
 	go func() {
 		_, placeErr := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-			shipVersionFor(t, "home_delivery"), &order.Delivery{
+			shipVersionFor(t, "home_delivery"), &delivery.Details{
 				Email: "double@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 			}, "", key)
@@ -3153,7 +3154,7 @@ func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "c@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -3203,7 +3204,7 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "c2@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -3264,7 +3265,7 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "g@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -3344,7 +3345,7 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "ob@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
@@ -3473,10 +3474,10 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		// The destination the CALLER claims is deliberately wrong: PlaceOrder re-reads
 		// the method and overrides it.
-		To:    destination.Address,
+		To:    shipping.DestinationAddress,
 		Email: "pickup@example.com", RecipientName: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
@@ -3508,8 +3509,8 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+	addr := &delivery.Details{
+		To:    shipping.DestinationPickupPoint,
 		Email: "chain@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3560,8 +3561,8 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+	addr := &delivery.Details{
+		To:    shipping.DestinationPickupPoint,
 		Email: "named@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3593,8 +3594,8 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &order.Delivery{
-		To:    destination.PickupPoint,
+	addr := &delivery.Details{
+		To:    shipping.DestinationPickupPoint,
 		Email: "home@example.com", RecipientName: "王大明", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
@@ -3621,7 +3622,7 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "shown@example.com", RecipientName: "李小華", Phone: "0933444555",
 		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}
@@ -4197,7 +4198,7 @@ func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "kinmen@example.com", RecipientName: "金門", Phone: "0912345678",
 		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
 	}
@@ -4250,7 +4251,7 @@ func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 			t.Fatalf("find the coupon: %v", err)
 		}
 		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-			shipVersionFor(t, "home_delivery"), &order.Delivery{
+			shipVersionFor(t, "home_delivery"), &delivery.Details{
 				Email: "ship@example.com", RecipientName: "測試", Phone: "0912345678",
 				PostalCode: postal, City: city, District: district, Street: "路 1 號",
 			}, "FREESHIPZONE", key)
@@ -4352,7 +4353,7 @@ func TestCheckoutAndReorderSerializeTheCartAggregate(t *testing.T) {
 	reorderPool := applicationPool(t, "reorder-cart-aggregate")
 	shippingVersionID := shipVersionFor(t, "home_delivery")
 	checkoutStore := cart.NewStore(checkoutPool)
-	checkoutAddress := &order.Delivery{
+	checkoutAddress := &delivery.Details{
 		Email: "aggregate@example.com", RecipientName: "購物車鎖", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -5363,7 +5364,7 @@ func placeOrderInLocale(
 		Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "snapshot@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -5825,7 +5826,7 @@ func placeOrderOfUnits(t *testing.T, s *cart.Store, address string, units int32)
 		Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: address, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -5905,7 +5906,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 		"street":         {"松仁路 200 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
 		"idempotency":    {key},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
@@ -6023,7 +6024,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find the coupon: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "spender@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -6051,7 +6052,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 		"street":         {"松仁路 100 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, second, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkoutQuote(t, s, second, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
 		"idempotency":    {checkoutAttemptKey("late-" + uuid.NewString())},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
@@ -6354,7 +6355,7 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "grant-fail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -6545,7 +6546,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 		t.Fatalf("shipping: %v", err)
 	}
 
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "second-touch@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 2 號",
 	}

@@ -1,6 +1,10 @@
 package i18n
 
 var (
+	KeyAdminHomeBannerMessageEnExample = key("admin.home.banner.message.en.example", Message{ZhHant: "Free delivery over NT$3,000", En: "Free delivery over NT$3,000"})
+
+	KeyAdminHomeBannerCTAEnExample = key("admin.home.banner.cta.en.example", Message{ZhHant: "Shop", En: "Shop"})
+
 	KeyFormBannerMessage = key("form.banner.message", Message{
 		ZhHant: "請填寫訊息，不超過 60 個字。",
 		En:     "A message is required, 60 characters at most.",

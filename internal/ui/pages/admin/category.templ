@@ -43,7 +43,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						name="image"
 						type="file"
 						accept="image/*"
-						required
+						required?={ !v.Image.Has() }
 						if v.HasErr("image") {
 							aria-invalid="true"
 							aria-describedby="cat-image-error"
@@ -57,7 +57,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 				</div>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "cat-alt"}) {
-						{ i18n.T(ctx, i18n.KeyAdminAltText) }
+						{ i18n.T(ctx, i18n.KeyAdminCatAlt) }
 					}
 					<input
 						class="goen-input"
@@ -68,16 +68,19 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						required
 						if v.HasErr("alt") {
 							aria-invalid="true"
-							aria-describedby="cat-alt-error"
+							aria-describedby="cat-alt-hint cat-alt-error"
+						} else {
+							aria-describedby="cat-alt-hint"
 						}
 					/>
+					<p class="goen-admin__hint" id="cat-alt-hint">{ i18n.T(ctx, i18n.KeyAdminCatAltHint) }</p>
 					if v.HasErr("alt") {
 						<p class="ui-error-text" id="cat-alt-error" role="alert">{ v.Err("alt") }</p>
 					}
 				</div>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "cat-alt-en"}) {
-						{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }
+						{ i18n.T(ctx, i18n.KeyAdminCatAltEn) }
 					}
 					<input
 						class="goen-input"
@@ -87,9 +90,12 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						maxlength="200"
 						if v.HasErr("alt_en") {
 							aria-invalid="true"
-							aria-describedby="cat-alt-en-error"
+							aria-describedby="cat-alt-en-hint cat-alt-en-error"
+						} else {
+							aria-describedby="cat-alt-en-hint"
 						}
 					/>
+					<p class="goen-admin__hint" id="cat-alt-en-hint">{ i18n.T(ctx, i18n.KeyAdminCatAltHint) }</p>
 					if v.HasErr("alt_en") {
 						<p class="ui-error-text" id="cat-alt-en-error" role="alert">{ v.Err("alt_en") }</p>
 					}

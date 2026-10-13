@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -37,7 +37,7 @@ func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
 			t.Fatalf("add: %v", err)
 		}
 		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
-			&order.Delivery{
+			&delivery.Details{
 				Email: "due@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 			}, "", key)
@@ -57,11 +57,11 @@ func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
 		t.Fatalf("credit paying all of %s queued %+v, want one due with its commit", whole, got)
 	}
 
-	gateway, err := invoice.NewGateway("", "", "", "")
+	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	if err := invoice.NewStore(adminRole(t), gateway).ClaimDue(ctx, &got[0]); err != nil {
+	if err := issuer.NewStore(adminRole(t), gateway).ClaimDue(ctx, &got[0]); err != nil {
 		t.Fatalf("claim the invoice of a pending order credit paid in full: %v", err)
 	}
 	var kind, status string

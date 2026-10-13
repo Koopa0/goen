@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 func TestStoreRoleRefusesMixedTaxCheckoutWithoutLeavingAnOrder(t *testing.T) {
@@ -39,7 +39,7 @@ func TestStoreRoleRefusesMixedTaxCheckoutWithoutLeavingAnOrder(t *testing.T) {
 			t.Errorf("cart line %s tax exempt = %t, want %t", line.VariantID, line.TaxExempt, want)
 		}
 	}
-	addr := &order.Delivery{Email: "tax@example.com", RecipientName: "王小明", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
+	addr := &delivery.Details{Email: "tax@example.com", RecipientName: "王小明", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 	key := checkoutAttemptKey("mixed-tax-" + uuid.NewString())
 	_, err = placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)
 	if !errors.Is(err, cart.ErrMixedTaxTypes) {

@@ -43,12 +43,15 @@ You need Go 1.27, Docker, and `psql`.
 cp .env.example .env
 make db-up        # PostgreSQL in Docker on 127.0.0.1:5433
 make migrate-up
-make db-seed      # without a catalogue the storefront is correct and empty
+PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 make run          # http://127.0.0.1:9700
 ```
 
+Skip the catalogue seed to run an empty shop. The seed accepts only an explicit
+development marker; it does not infer the deployment environment.
+
 `migrations/001` is amended in place while nothing is deployed, so after pulling
-a change to it run `make db-reset`, which rebuilds and re-seeds. The symptom of
+a change to it run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, which rebuilds and re-seeds. The symptom of
 not doing so is a back-office page answering 500 for a column that exists in
 the file and not in your database.
 
@@ -146,7 +149,7 @@ one.
 The demo restores a snapshot nightly, so editing `001` costs nothing there. From
 the first production deploy `001` is frozen: every change becomes a new numbered
 migration, and a function it changes is re-created in that migration with
-`CREATE OR REPLACE`. Until then, run `make db-reset` after pulling a change.
+`CREATE OR REPLACE`. Until then, run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` after pulling a change.
 
 **Uploads live in PostgreSQL.** Product images are stored in `media_objects`,
 re-encoded and capped at 8 MB each and 2400 px on the longest side. That keeps

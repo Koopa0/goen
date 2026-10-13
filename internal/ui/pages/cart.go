@@ -8,15 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -226,7 +225,7 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination    destination.Kind
+	Destination    shipping.Destination
 	Address        CheckoutAddress
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
@@ -397,32 +396,32 @@ type CheckoutAddress struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 
 	Note string
 }
 
-func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == destination.PickupPoint }
+func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == shipping.DestinationPickupPoint }
 
 type PickupChainChoice struct {
-	Value pickup.Chain
+	Value shipping.Chain
 	Label string
 }
 
 // KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
 func KnownPickupChainChoices() []PickupChainChoice {
-	return choicesFor(pickup.KnownChains())
+	return choicesFor(shipping.Chains())
 }
 
 // CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
 func CheckoutPickupChainChoices() []PickupChainChoice {
-	chains := pickup.KnownChains()
-	return choicesFor(slices.DeleteFunc(chains, func(chain pickup.Chain) bool { return !chain.AtCheckout() }))
+	chains := shipping.Chains()
+	return choicesFor(slices.DeleteFunc(chains, func(chain shipping.Chain) bool { return !chain.AtCheckout() }))
 }
 
-func choicesFor(chains []pickup.Chain) []PickupChainChoice {
+func choicesFor(chains []shipping.Chain) []PickupChainChoice {
 	out := make([]PickupChainChoice, 0, len(chains))
 	for _, c := range chains {
 		out = append(out, PickupChainChoice{Value: c, Label: pickupChainLabel(c)})
@@ -430,17 +429,17 @@ func choicesFor(chains []pickup.Chain) []PickupChainChoice {
 	return out
 }
 
-func pickupChainLabel(code pickup.Chain) string {
+func pickupChainLabel(code shipping.Chain) string {
 	switch code {
 	case "":
 		return ""
-	case pickup.SevenEleven:
+	case shipping.ChainSevenEleven:
 		return "7-ELEVEN"
-	case pickup.FamilyMart:
+	case shipping.ChainFamilyMart:
 		return "全家 FamilyMart" // i18n-exempt: a chain's own name, already bilingual
-	case pickup.HiLife:
+	case shipping.ChainHiLife:
 		return "萊爾富 Hi-Life" // i18n-exempt: a chain's own name, already bilingual
-	case pickup.OKMart:
+	case shipping.ChainOKMart:
 		return "OK mart"
 	default:
 		panic("pages: unknown pickup chain: " + string(code))
@@ -453,7 +452,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -704,7 +703,7 @@ func (e OrderEvent) LookupLabelKey() (i18n.Key, bool) {
 
 // OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
 type OrderShipment struct {
-	Carrier   carrier.Carrier
+	Carrier   shipping.Carrier
 	Tracking  string
 	ShippedAt time.Time
 	// DeliveredAt is zero until the parcel arrives, or is collected from a store.

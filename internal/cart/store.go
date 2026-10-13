@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -15,15 +17,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -139,7 +140,7 @@ func addCartItem(
 	if err != nil {
 		return false, fmt.Errorf("count cart lines: %w", err)
 	}
-	if !capacity.AlreadyPresent && capacity.LineCount >= invoicepkg.MaxIssueProductLines {
+	if !capacity.AlreadyPresent && capacity.LineCount >= issuer.MaxIssueProductLines {
 		return false, ErrTooManyItems
 	}
 	wanted := capacity.ExistingQuantity + requested
@@ -462,7 +463,7 @@ func (s *Store) placeOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	inv *Invoice,
 	couponCode string,
 	shown checkoutQuoteID,
@@ -572,7 +573,7 @@ func lockCheckoutTerms(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 	shown checkoutQuoteID,
 ) (*checkoutTerms, error) {
@@ -580,7 +581,7 @@ func lockCheckoutTerms(
 	if err != nil {
 		return nil, err
 	}
-	if len(lines) > invoicepkg.MaxIssueProductLines {
+	if len(lines) > issuer.MaxIssueProductLines {
 		return nil, ErrTooManyItems
 	}
 
@@ -596,7 +597,7 @@ func lockCheckoutTerms(
 
 	// The destination is re-derived from the method just read and the address
 	// trimmed to it, as the fee is recomputed rather than trusted.
-	to, ok := destination.For(ship.DestinationKind)
+	to, ok := shipping.ParseDestination(ship.DestinationKind)
 	if !ok {
 		return nil, fmt.Errorf("shipping method %s has an unknown destination %q",
 			ship.Code, ship.DestinationKind)
@@ -721,7 +722,7 @@ type orderParts struct {
 	invoice       *Invoice
 	coupon        *Coupon
 	orderNumber   string
-	address       *order.Delivery
+	address       *delivery.Details
 	totalCents    int64
 	creditCents   int64
 }
@@ -772,7 +773,7 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	// Store credit paying the whole order is money received now, and 營業稅法 §32
 	// invoices money received before dispatch; picking is too late.
 	if p.creditCents > 0 && p.creditCents == p.totalCents {
-		if dueErr := invoicepkg.EnqueueDue(ctx, q, &outbox.InvoiceDue{
+		if dueErr := issuer.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 			OrderNumber: p.orderNumber, Trigger: "commit:" + p.orderNumber,
 		}); dueErr != nil {
 			return dueErr
@@ -790,7 +791,7 @@ func writeInvoicePreference(
 	q *db.Queries,
 	orderID uuid.UUID,
 	inv *Invoice,
-	addr *order.Delivery,
+	addr *delivery.Details,
 ) error {
 	if inv == nil {
 		inv = &Invoice{Type: invoicepkg.PreferenceMember}
@@ -851,7 +852,7 @@ func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
 	orderID, cartID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	attemptID checkoutAttemptID,
 ) error {
 	if err := q.CreateOrderPrivateData(ctx, db.CreateOrderPrivateDataParams{
@@ -995,7 +996,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		OwedCents:    o.OwedCents,
 		DeliveryTo: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		SubtotalCents: o.SubtotalCents,
@@ -1086,7 +1087,7 @@ func cutParcels(
 	for i := range shipments {
 		sh := &shipments[i]
 		parcel := pages.OrderShipment{
-			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
+			Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
 		}
 		if sh.DeliveredAt.Valid {
 			parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = sh.DeliveredAt.Time, sh.RescissionEnds, sh.GoodwillEnds

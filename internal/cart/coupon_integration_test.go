@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 // coupon inserts one and returns its code.
@@ -322,7 +322,7 @@ func placeWithCoupon(t *testing.T, s *cart.Store, code string, n int) (string, e
 	if err := s.Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "cp@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -48,6 +49,7 @@ var auditFields = map[string]auditField{
 	"active":                           {i18n.KeyAuditFieldActive, nil, nil},
 	"allowance":                        {i18n.KeyAdminDocAllowance, nil, nil},
 	"alt":                              {i18n.KeyAuditFieldImageAlt, nil, nil},
+	"alt_en":                           {i18n.KeyAdminCatAltEn, nil, nil},
 	"assessment_version":               {i18n.KeyAuditFieldAssessmentVersion, nil, nil},
 	"attempt_no":                       {i18n.KeyAuditFieldRefundAttempt, nil, nil},
 	"brand_id":                         {i18n.KeyAdminProdBrand, nil, nil},
@@ -201,7 +203,7 @@ func centsText(_ context.Context, _ AuditEntry, value string) string {
 }
 
 func carrierText(ctx context.Context, _ AuditEntry, value string) string {
-	return i18n.CarrierName(ctx, carrier.Carrier(value))
+	return i18n.CarrierName(ctx, shipping.Carrier(value))
 }
 
 func fulfillmentText(ctx context.Context, _ AuditEntry, value string) string {

@@ -13,7 +13,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -146,7 +146,7 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
-	LabelFacts  *productlabel.Facts
+	LabelFacts  *labelling.Facts
 	Saved       bool
 	Slug        string
 	Name        string
@@ -631,8 +631,41 @@ func (v *ProductView) ArrivalText() string {
 	return v.ExpectedArrivalText
 }
 
-func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
-	return v.LabelFacts.Rows(ctx)
+// LabelRow is one term and its value in the product page's labelling section.
+type LabelRow struct {
+	Term  i18n.Key
+	Value string
+}
+
+// LabelRows lays out the facts the shop declared, leaving out what it left
+// empty. A minimum age of zero is kept: it reads "all ages".
+func (v *ProductView) LabelRows(ctx context.Context) []LabelRow {
+	f := v.LabelFacts
+	if f == nil {
+		return nil
+	}
+	var rows []LabelRow
+	for _, r := range []LabelRow{
+		{Term: i18n.KeyProductLabelOrigin, Value: f.Origin},
+		{Term: i18n.KeyProductLabelDomesticPartyName, Value: f.DomesticPartyName},
+		{Term: i18n.KeyProductLabelDomesticPartyPhone, Value: f.DomesticPartyPhone},
+		{Term: i18n.KeyProductLabelDomesticPartyAddress, Value: f.DomesticPartyAddress},
+	} {
+		if r.Value != "" {
+			rows = append(rows, r)
+		}
+	}
+	if f.NetQuantity != "" && f.NetUnit.Known() {
+		rows = append(rows, LabelRow{Term: i18n.KeyProductLabelNetContent, Value: f.NetQuantity + " " + f.NetUnit.Symbol(ctx)})
+	}
+	if f.MinAgeMonths != nil {
+		value := i18n.T(ctx, i18n.KeyProductLabelAgeAll)
+		if *f.MinAgeMonths != 0 {
+			value = i18n.Count(ctx, i18n.KeyProductLabelAgeMonths, int64(*f.MinAgeMonths), *f.MinAgeMonths)
+		}
+		rows = append(rows, LabelRow{Term: i18n.KeyProductLabelMinAge, Value: value})
+	}
+	return rows
 }
 
 // ProductCampaign is the running campaign that features a product, or the zero value.

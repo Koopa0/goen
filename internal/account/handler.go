@@ -498,6 +498,10 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
 	}
 	view.PaymentsEnabled = h.carts != nil && h.carts.TakesPayment()
+	if r.Method == http.MethodGet {
+		completed := h.consumePasswordSetupNotice(w, r, u)
+		view.PasswordSetupSent = completed && r.URL.Query().Get("password_setup") == "sent"
+	}
 	if refused != nil {
 		refused(&view)
 	}

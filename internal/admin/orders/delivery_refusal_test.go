@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -37,7 +38,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 				draft := DeliveryCorrection{
 					Email: " proposed@example.com ", Recipient: " Proposed <recipient> ", Phone: " 123 ",
 					PostalCode: "110", City: " New city ", District: " New district ", Street: " Proposed <street> ",
-					PickupChain: pickup.SevenEleven, PickupStoreCode: " a123 ", PickupStoreName: " Proposed <store> ",
+					PickupChain: shipping.ChainSevenEleven, PickupStoreCode: " a123 ", PickupStoreName: " Proposed <store> ",
 				}
 				before := draft
 				view := admin.OrderView{

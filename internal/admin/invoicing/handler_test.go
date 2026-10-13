@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -30,7 +31,7 @@ func (s stubInvoiceWriter) Issue(context.Context, string) (invoice.Document, err
 	if s.issueErr != nil {
 		return invoice.Document{}, s.issueErr
 	}
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 func (s stubInvoiceWriter) Void(context.Context, string, string) error {
@@ -43,7 +44,7 @@ func (s stubInvoiceWriter) FileAllowance(
 	if s.allowanceErr != nil {
 		return invoice.Document{}, s.allowanceErr
 	}
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 const invoiceNoticeOrder = "GO-260901-000001"
@@ -98,8 +99,8 @@ func TestVoidClaimErrorsAreNotA500(t *testing.T) {
 		err  error
 		want string
 	}{
-		{name: "blank reason", err: invoice.ErrReason, want: "?voidreason=1"},
-		{name: "already voided", err: invoice.ErrNotFound, want: "?noinvoice=1"},
+		{name: "blank reason", err: issuer.ErrReason, want: "?voidreason=1"},
+		{name: "already voided", err: issuer.ErrNotFound, want: "?noinvoice=1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,14 +134,14 @@ func TestAnUnmappedVoidClaimIsA500(t *testing.T) {
 func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 	t.Parallel()
 
-	voidRes := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{voidErr: invoice.ErrRejected}), "資料錯誤")
+	voidRes := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{voidErr: issuer.ErrRejected}), "資料錯誤")
 	if voidRes.Code != http.StatusSeeOther ||
 		!strings.HasSuffix(voidRes.Header().Get("Location"), "?voidfailed=1") {
 		t.Fatalf("Void provider refusal = %d %q, want 303 ?voidfailed=1",
 			voidRes.Code, voidRes.Header().Get("Location"))
 	}
 
-	allowRes := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: invoice.ErrRejected}))
+	allowRes := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: issuer.ErrRejected}))
 	if allowRes.Code != http.StatusSeeOther ||
 		!strings.HasSuffix(allowRes.Header().Get("Location"), "?allowfailed=1") {
 		t.Fatalf("Allowance provider refusal = %d %q, want 303 ?allowfailed=1",
@@ -153,7 +154,7 @@ func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
 	t.Parallel()
 
-	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", invoice.ErrPending, invoice.ErrAwaitingBuyer)
+	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", issuer.ErrPending, issuer.ErrAwaitingBuyer)
 	res := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: sent}))
 	if res.Code != http.StatusSeeOther || !strings.HasSuffix(res.Header().Get("Location"), "?allowsent=1") {
 		t.Fatalf("Allowance e-mailed to the buyer = %d %q, want 303 ?allowsent=1",
@@ -186,7 +187,7 @@ func TestVoidAndAllowanceUnconfiguredIssuerHasItsOwnNotice(t *testing.T) {
 	}
 
 	disabled := invoiceNoticeHandler(stubInvoiceWriter{
-		voidErr: invoice.ErrDisabled, allowanceErr: invoice.ErrDisabled,
+		voidErr: issuer.ErrDisabled, allowanceErr: issuer.ErrDisabled,
 	})
 	issueReq := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
 		"/admin/orders/"+invoiceNoticeOrder+"/invoice", http.NoBody)
@@ -218,11 +219,11 @@ type recordingInvoiceWriter struct {
 }
 
 func (*recordingInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 func (*recordingInvoiceWriter) Void(context.Context, string, string) error {
-	return invoice.ErrDisabled
+	return issuer.ErrDisabled
 }
 
 func (w *recordingInvoiceWriter) FileAllowance(

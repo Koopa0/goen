@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -26,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -476,7 +477,7 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 				}
 				want := admin.Delivery{Recipient: "Proposed recipient", Email: "proposed@example.com", Phone: "0922333444"}
 				if tc.pickup {
-					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = pickup.SevenEleven, "A123", "Proposed store"
+					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = shipping.ChainSevenEleven, "A123", "Proposed store"
 				} else {
 					want.PostalCode, want.City, want.District, want.Street = f.oldPostal, "New city", "New district", "Proposed <street>"
 				}
@@ -496,7 +497,7 @@ func setPickupDeliveryDraft(t *testing.T, ctx context.Context, f deliveryPriceOr
 	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart',pickup_store_code='SAVED1',pickup_store_name='Saved store' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
-	values.Set("pickup_chain", string(pickup.SevenEleven))
+	values.Set("pickup_chain", string(shipping.ChainSevenEleven))
 	if codeWithoutName {
 		values.Set("pickup_store_code", " a123 ")
 	} else {
