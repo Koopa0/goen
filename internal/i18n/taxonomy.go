@@ -45,7 +45,7 @@ var (
 	// KeyAdminTaxComparableOf labels the comparison control on one department's row.
 	KeyAdminTaxComparableOf = key("admin.tax.comparableof", Message{
 		ZhHant: "%s 開放商品比較",
-		En:     "Offer comparison in %s",
+		En:     "Product comparison in %s",
 	})
 
 	// KeyAdminToneInherit is the empty choice: the category takes its department's.
