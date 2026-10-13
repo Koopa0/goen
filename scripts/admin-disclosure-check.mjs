@@ -56,8 +56,8 @@ try {
             focused: document.activeElement === summary };
         })()`);
         assert.deepEqual(state, { locale, open: false, visible: true, focused: true }, label);
-        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
         assert.equal(await evaluate(`(() => {
           const details = document.querySelector(${JSON.stringify(selector)});
           const panel = details.querySelector('.goen-disclosure__panel');
