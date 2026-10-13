@@ -1731,11 +1731,12 @@ th {
 
 .goen-footer__field > .goen-btn {
   border-radius: var(--r-md);
+  flex-wrap: wrap;
   grid-area: 1 / 2;
   margin: 4px;
   max-width: 100%;
   min-height: 2.75rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   z-index: 1;
 }
 
@@ -1749,7 +1750,7 @@ th {
   container-type: inline-size;
 }
 
-@container (max-width: 17rem) {
+@container (max-width: 24rem) {
   .goen-footer__field {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1763,6 +1764,11 @@ th {
     grid-area: auto;
     justify-self: start;
     margin: 0.25rem 0 0;
+    width: 100%;
+  }
+
+  .goen-footer__field > .goen-btn.goen-btn--ghost {
+    padding-inline: 0.25rem;
   }
 }
 

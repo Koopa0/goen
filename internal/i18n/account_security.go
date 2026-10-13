@@ -52,9 +52,20 @@ var (
 	})
 
 	KeyGoogleOnlyMethod = key("account.linked.only", Message{
-		ZhHant: "Google 是目前唯一的登入方式，所以不能取消連結。先用「忘記密碼」設定一組密碼就可以。",
-		En: "Google is currently the only way in, so it cannot be unlinked. Set a password " +
-			"first with \u0022forgot password\u0022.",
+		ZhHant: "Google 是目前唯一的登入方式，所以不能取消連結。先%s就可以。",
+		En:     "Google is your only way to sign in, so it can't be unlinked. %s first.",
+	})
+
+	KeySetPassword = key("account.password.setup", Message{ZhHant: "設定密碼", En: "Set a password"})
+
+	KeySendPasswordSetupLink = key("account.password.setup.send", Message{
+		ZhHant: "寄送設定連結",
+		En:     "Send a set-up link",
+	})
+
+	KeyPasswordSetupSent = key("account.password.setup.sent", Message{
+		ZhHant: "設定密碼的連結已寄到 %s。",
+		En:     "A link to set your password was sent to %s.",
 	})
 
 	KeyGoogleUnlinked = key("account.notice.unlinked", Message{
