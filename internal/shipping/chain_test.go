@@ -1,4 +1,4 @@
-package pickup
+package shipping
 
 import (
 	"slices"
@@ -8,20 +8,20 @@ import (
 func TestKnownChainsIsTheClosedSetAndReturnsFreshStorage(t *testing.T) {
 	t.Parallel()
 
-	want := []Chain{SevenEleven, FamilyMart, HiLife, OKMart}
-	got := KnownChains()
+	want := []Chain{ChainSevenEleven, ChainFamilyMart, ChainHiLife, ChainOKMart}
+	got := Chains()
 	if !slices.Equal(got, want) {
-		t.Fatalf("KnownChains() = %v, want %v", got, want)
+		t.Fatalf("Chains() = %v, want %v", got, want)
 	}
 	for _, chain := range got {
 		if !chain.Known() {
-			t.Errorf("KnownChains() contains unknown chain %q", chain)
+			t.Errorf("Chains() contains unknown chain %q", chain)
 		}
 	}
 
 	got[0] = Chain("mutated")
-	if !slices.Equal(KnownChains(), want) {
-		t.Error("mutating KnownChains() changed the canonical set")
+	if !slices.Equal(Chains(), want) {
+		t.Error("mutating Chains() changed the canonical set")
 	}
 	if Chain("other_chain").Known() {
 		t.Error("an unknown chain is Known")
@@ -34,7 +34,7 @@ func TestOnlyCurrentPickupChainsAreAtCheckout(t *testing.T) {
 		chain Chain
 		want  bool
 	}{
-		{SevenEleven, true}, {FamilyMart, true}, {HiLife, false}, {OKMart, false}, {"other_chain", false}, {"", false},
+		{ChainSevenEleven, true}, {ChainFamilyMart, true}, {ChainHiLife, false}, {ChainOKMart, false}, {"other_chain", false}, {"", false},
 	} {
 		t.Run(string(tc.chain), func(t *testing.T) {
 			t.Parallel()

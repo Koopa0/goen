@@ -5,7 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/destination"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/postcode"
@@ -111,14 +112,14 @@ func (v *ShippingView) ZonePrefixesValue(z ShippingZone) string {
 }
 
 func (v *ShippingView) PickupSelected() bool {
-	return destination.Kind(v.MethodDraft.Destination) == destination.PickupPoint
+	return shipping.Destination(v.MethodDraft.Destination) == shipping.DestinationPickupPoint
 }
 
 type ShippingMethod struct {
 	MethodID      string
 	VersionID     string
 	Code          string
-	Destination   destination.Kind
+	Destination   shipping.Destination
 	Name          string
 	Carrier       string
 	NameEn        string
@@ -173,9 +174,9 @@ func (m *ShippingMethod) FreeOver(ctx context.Context) string {
 
 func (m *ShippingMethod) DestinationText(ctx context.Context) string {
 	switch m.Destination {
-	case destination.Address:
+	case shipping.DestinationAddress:
 		return i18n.T(ctx, i18n.KeyAdminDestAddress)
-	case destination.PickupPoint:
+	case shipping.DestinationPickupPoint:
 		return i18n.T(ctx, i18n.KeyAdminDestPickup)
 	default:
 		panic("pages: no label for destination kind " + string(m.Destination))
@@ -194,7 +195,7 @@ func (m *ShippingMethod) OtherName(ctx context.Context) string {
 }
 
 // Zoned is false for pickup, which has no postal code to match a zone on.
-func (m *ShippingMethod) Zoned() bool { return m.Destination == destination.Address }
+func (m *ShippingMethod) Zoned() bool { return m.Destination == shipping.DestinationAddress }
 
 func (m *ShippingMethod) SurchargeDollars(zoneID string) string {
 	for _, s := range m.Surcharges {

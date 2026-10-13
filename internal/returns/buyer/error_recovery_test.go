@@ -1,4 +1,4 @@
-package returnpage
+package buyer
 
 import (
 	"log/slog"

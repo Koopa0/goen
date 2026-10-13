@@ -8,7 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -43,7 +44,7 @@ func FuzzReadCallback(f *testing.F) {
 		if !ok {
 			return
 		}
-		if merchant != aMerchantID || !pickup.ValidStoreCode(c.Code) || !validNonce(c.Nonce) {
+		if merchant != aMerchantID || !shipping.ValidStoreCode(c.Code) || !validNonce(c.Nonce) {
 			t.Fatalf("accepted merchant %q code %q nonce %q", merchant, c.Code, c.Nonce)
 		}
 		if c.Name == "" || utf8.RuneCountInString(c.Name) > maxCallbackStoreNameRunes || web.HasControlChars(c.Name) {

@@ -5,15 +5,21 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/productlabel"
 )
 
 func TestRefusedLabelFormRetainsOptionalValues(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		input := &productlabel.Input{Origin: `<origin>`, DomesticPartyName: `"maker"`, NetQuantity: "1.001", NetUnit: "oz", MinAgeMonths: "217"}
-		view := ProductView{Slug: "label", LabelInput: input, Errors: input.Validate(ctx)}
+		input := &LabelInput{Origin: `<origin>`, DomesticPartyName: `"maker"`, NetQuantity: "1.001", NetUnit: "oz", MinAgeMonths: "217"}
+		// What the handler's validator reports for this input; the validator
+		// lives in admin/products, which imports this package.
+		refusals := map[string]string{
+			"net_quantity":   i18n.T(ctx, i18n.KeyProductLabelNetInvalid),
+			"net_unit":       i18n.T(ctx, i18n.KeyProductLabelNetInvalid),
+			"min_age_months": i18n.T(ctx, i18n.KeyProductLabelAgeInvalid),
+		}
+		view := ProductView{Slug: "label", LabelInput: input, Errors: refusals}
 		var body strings.Builder
 		if err := productLabel(view).Render(ctx, &body); err != nil {
 			t.Fatal(err)

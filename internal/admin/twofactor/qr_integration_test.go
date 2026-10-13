@@ -17,8 +17,8 @@ import (
 	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )

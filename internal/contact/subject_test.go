@@ -1,19 +1,17 @@
-package contactsubject_test
+package contact
 
 import (
 	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/goen/internal/contactsubject"
 )
 
 var durableSubjects = []string{"訂單問題", "退換貨", "保固維修", "商品諮詢", "合作提案"}
 
 func TestChoicesPreserveTheDurableSubjects(t *testing.T) {
 	t.Parallel()
-	choices := contactsubject.Choices()
+	choices := Choices()
 	got := make([]string, 0, len(choices))
 	for _, choice := range choices {
 		got = append(got, string(choice.Value))
@@ -32,7 +30,7 @@ func FuzzSubjectKnown(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, value string) {
 		want := slices.Contains(durableSubjects, value)
-		if got := contactsubject.Subject(value).Known(); got != want {
+		if got := Subject(value).Known(); got != want {
 			t.Errorf("Subject(%q).Known() = %t, want %t", value, got, want)
 		}
 	})

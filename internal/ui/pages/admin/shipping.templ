@@ -2,8 +2,8 @@ package admin
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -282,8 +282,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								aria-describedby="m-destination-error"
 							}
 						>
-							<option value={ string(destination.Address) } selected?={ !v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminShipToAddress) }</option>
-							<option value={ string(destination.PickupPoint) } selected?={ v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminDestPickup) }</option>
+							<option value={ string(shipping.DestinationAddress) } selected?={ !v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminShipToAddress) }</option>
+							<option value={ string(shipping.DestinationPickupPoint) } selected?={ v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminDestPickup) }</option>
 						</select>
 						if v.HasErr("destination") {
 							<p class="ui-error-text" id="m-destination-error">{ v.Err("destination") }</p>
@@ -452,22 +452,22 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			</form>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
-			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipZones) }</h2>
+			<h2 class="goen-admin__heading" id="shipping-zones-heading">{ i18n.T(ctx, i18n.KeyAdminShipZones) }</h2>
 			<div class="goen-admin__tablewrap">
-				<table class="ui-table goen-admin__table goen-admin__zones">
-					<thead>
-						<tr>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminShipColZone) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }</th>
-							<th class="goen-admin__cellactions" scope="col">
+				<table class="ui-table goen-admin__table goen-admin__zones" role="table" aria-labelledby="shipping-zones-heading">
+					<thead role="rowgroup">
+						<tr role="row">
+							<th role="columnheader" scope="col">{ i18n.T(ctx, i18n.KeyAdminShipColZone) }</th>
+							<th role="columnheader" scope="col">{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }</th>
+							<th role="columnheader" class="goen-admin__cellactions" scope="col">
 								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
 							</th>
 						</tr>
 					</thead>
-					<tbody>
+					<tbody role="rowgroup">
 						for _, z := range v.Zones {
-							<tr>
-								<td class="goen-admin__cellkey">
+							<tr role="row">
+								<td role="cell" class="goen-admin__cellkey">
 									{ z.DisplayName(ctx) }
 									if other := z.OtherName(ctx); other != "" {
 										<span class="goen-admin__othername" lang={ otherTag(ctx) }>{ other }</span>
@@ -479,7 +479,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										}
 									}
 								</td>
-								<td class="goen-admin__prefixes">
+								<td role="cell" class="goen-admin__prefixes">
 									<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
 										<label class="ui-label" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.DisplayName(ctx)) }</label>
 										<textarea
@@ -504,7 +504,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										}
 									</form>
 								</td>
-								<td class="goen-admin__cellactions">
+								<td role="cell" class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/delete") }>
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleGhost,
