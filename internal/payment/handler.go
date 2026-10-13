@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -59,7 +59,7 @@ type webhookOutcome struct {
 	refundFailure       refundFailure
 	isRefundFailure     bool
 	// refundStatus is goen's own row for the failed refund, "" when goen has none.
-	refundStatus refundstate.State
+	refundStatus refund.Status
 }
 
 type Handler struct {
@@ -580,7 +580,7 @@ func (o *webhookOutcome) applyRefundFailure(ctx context.Context, tx *webhookTx) 
 		return err
 	}
 	o.refundStatus = status
-	if status != refundstate.Succeeded {
+	if status != refund.Succeeded {
 		return nil
 	}
 	// The sentence a person reads is on /admin/health, in the viewer's language.
@@ -614,7 +614,7 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome
 		h.log.ErrorContext(ctx,
 			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
 			"event", ev.ID, "session", outcome.unsettledSession)
-	case outcome.isRefundFailure && outcome.refundStatus == refundstate.Succeeded:
+	case outcome.isRefundFailure && outcome.refundStatus == refund.Succeeded:
 		h.log.ErrorContext(ctx,
 			"a refund goen recorded as succeeded failed at Stripe — repay the customer another way",
 			"event", ev.ID, "refund", outcome.refundFailure.refundID,

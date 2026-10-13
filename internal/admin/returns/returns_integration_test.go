@@ -40,7 +40,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returnpage"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -942,7 +942,7 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 		},
 		{
 			name:            "a provider refusal offers a successor",
-			refunder:        admintest.Refunder{State: refundstate.Failed},
+			refunder:        admintest.Refunder{State: refund.Failed},
 			wantOutstanding: true,
 		},
 		{
@@ -1022,10 +1022,10 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
-	s := storeOver(pool, admintest.Refunder{State: refundstate.Failed})
+	s := storeOver(pool, admintest.Refunder{State: refund.Failed})
 	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", "")
-	if !errors.Is(decideErr, refundstate.ErrIncomplete) || errors.Is(decideErr, returns.ErrRefused) || errors.Is(decideErr, refundstate.ErrRefused) {
-		t.Fatalf("terminal decision = %v, want only refundstate.ErrIncomplete", decideErr)
+	if !errors.Is(decideErr, refund.ErrIncomplete) || errors.Is(decideErr, returns.ErrRefused) || errors.Is(decideErr, refund.ErrRefused) {
+		t.Fatalf("terminal decision = %v, want only refund.ErrIncomplete", decideErr)
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -1119,7 +1119,7 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
-	h := handlerOver(storeOver(pool, admintest.Refunder{State: refundstate.Cancelled}))
+	h := handlerOver(storeOver(pool, admintest.Refunder{State: refund.Cancelled}))
 	form := url.Values{
 		"decision":   {"approved"},
 		"confirm":    {"approved"},
@@ -1176,10 +1176,10 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	tests := []struct {
 		name  string
-		state refundstate.State
+		state refund.Status
 	}{
-		{name: "stripe accepted it and has not settled it", state: refundstate.Pending},
-		{name: "stripe needs something else to happen first", state: refundstate.RequiresAction},
+		{name: "stripe accepted it and has not settled it", state: refund.Pending},
+		{name: "stripe needs something else to happen first", state: refund.RequiresAction},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1973,7 +1973,7 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 		name     string
 		refunder admintest.Refunder
 	}{
-		{name: "provider object failed", refunder: admintest.Refunder{State: refundstate.Failed}},
+		{name: "provider object failed", refunder: admintest.Refunder{State: refund.Failed}},
 		{name: "create API rejected", refunder: admintest.Refunder{RefundErr: fmt.Errorf(
 			"%w: provider rejected create", refunds.ErrCreateRejected)}},
 	}
@@ -1984,8 +1984,8 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 			s := storeOver(pool, tt.refunder)
 
 			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", "")
-			if !errors.Is(err, refundstate.ErrIncomplete) || errors.Is(err, returns.ErrRefused) || errors.Is(err, refundstate.ErrRefused) {
-				t.Fatalf("split terminal decision = %v, want only refundstate.ErrIncomplete", err)
+			if !errors.Is(err, refund.ErrIncomplete) || errors.Is(err, returns.ErrRefused) || errors.Is(err, refund.ErrRefused) {
+				t.Fatalf("split terminal decision = %v, want only refund.ErrIncomplete", err)
 			}
 			if got := creditBalanceOf(t, accountID); got != 60000 {
 				t.Errorf("credit after terminal card outcome = %d, want frozen 60000", got)
@@ -2030,7 +2030,7 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 
 func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{State: refundstate.Pending})
+	s := storeOver(pool, admintest.Refunder{State: refund.Pending})
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", ""); err != nil {
@@ -2581,7 +2581,7 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 	}
 	before := admintest.CreditBalance(t, pool, accountID)
 
-	failed := storeOver(pool, admintest.Refunder{State: refundstate.Failed})
+	failed := storeOver(pool, admintest.Refunder{State: refund.Failed})
 	if err := failed.Decide(ctx, requestID.String(), "approved", "erasure retry", ""); err == nil {
 		t.Fatal("known-failed card attempt was reported as settled")
 	}
@@ -2632,7 +2632,7 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 // generation with a fresh DB-derived key.
 func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refundstate.Failed})
+	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refund.Failed})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", ""); err == nil {
