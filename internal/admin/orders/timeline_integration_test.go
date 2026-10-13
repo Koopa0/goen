@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -110,7 +110,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		&email.OrderShipped{OrderNumber: number, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue the dispatch mail: %v", err)
 	}
-	if err := ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: orderID, Kind: email.TerminalDelivered}); err != nil {
+	if err := notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: orderID, Kind: email.TerminalDelivered}); err != nil {
 		t.Fatalf("queue the delivery notice: %v", err)
 	}
 

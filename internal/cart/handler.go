@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -33,7 +33,7 @@ import (
 
 type Handler struct {
 	store  *Store
-	access *orderaccess.Store
+	access *access.Store
 	log    *slog.Logger
 	secure bool
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
@@ -63,10 +63,10 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || access == nil || log == nil || findLimit == nil {
+	if store == nil || grants == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
 	}
 	if len(checkers) > 1 {
@@ -78,7 +78,7 @@ func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secur
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, access: access, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: grants, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
@@ -1462,7 +1462,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
-		if orderaccess.ReloadSameSite(w, r, h.log) {
+		if access.ReloadSameSite(w, r, h.log) {
 			return
 		}
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))

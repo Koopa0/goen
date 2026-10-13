@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -407,7 +407,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:              {zh: "購物車", en: "your cart"},
 		account.SessionCookieName:    {zh: "登入狀態", en: "your sign-in"},
-		orderaccess.CookieName:       {zh: "訂單瀏覽權限", en: "permission to view an order"},
+		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},
 		home.DismissCookie:           {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"},

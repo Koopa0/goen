@@ -255,7 +255,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 領域 | 入口 |
 | --- | --- |
 | 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[外部服務設定][provider-posture] |
-| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/orderaccess`][orderaccess] |
+| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
@@ -275,7 +275,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [checkout]: internal/cart/store.go
 [cart-sweeper]: internal/cart/sweeper.go
 [cart-cancel]: internal/cart/cancel.go
-[orderaccess]: internal/orderaccess
+[orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
 [stripe]: internal/payment/stripe.go
