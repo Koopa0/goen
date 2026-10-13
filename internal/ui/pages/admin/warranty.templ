@@ -30,15 +30,16 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 				value={ v.Term }
 				placeholder={ i18n.T(ctx, i18n.KeyAdminWarrantyPlaceholder) }
 				autocomplete="off"
+				if v.TermTooShort() {
+					aria-describedby="warranty-search-hint"
+				}
 			/>
 			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearchButton) }
 			}
 		</form>
 		if v.TermTooShort() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
-				{ i18n.T(ctx, i18n.KeyAdminSearchShort) }
-			}
+			<p class="ui-hint" id="warranty-search-hint">{ i18n.T(ctx, i18n.KeyAdminSearchShort) }</p>
 		}
 		if v.Searching() && v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
@@ -77,7 +78,13 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 									<a href={ templ.SafeURL(w.OrderHref()) }>{ w.Order }</a>
 									<span class="goen-admin__meta">{ w.OrderStatus }</span>
 								</td>
-								<td>{ w.Customer(ctx) }</td>
+								<td>
+									if w.CustomerID != "" {
+										<a href={ templ.SafeURL(w.CustomerHref()) }>{ w.Customer(ctx) }</a>
+									} else {
+										{ w.Customer(ctx) }
+									}
+								</td>
 								<td>{ w.RegisteredAt }</td>
 								<td>
 									{ w.ExpiresOn }

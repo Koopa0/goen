@@ -16,8 +16,8 @@ var (
 	})
 
 	KeyAdminCustSearchShort = key("admin.cust.searchshort", Message{
-		ZhHant: "搜尋字串太短，至少要兩個字。",
-		En:     "That search is too short — two characters at least.",
+		ZhHant: "請至少輸入兩個字。",
+		En:     "Please enter at least two characters.",
 	})
 
 	KeyAdminCustNoneFound = key("admin.cust.nonefound", Message{
@@ -29,18 +29,16 @@ var (
 
 	KeyAdminCustSince = key("admin.cust.since", Message{ZhHant: "註冊於", En: "Signed up"})
 
-	KeyAdminCustUnconfirmed = key("admin.cust.unconfirmed", Message{ZhHant: "未確認", En: "Unconfirmed"})
-
 	KeyAdminCustEmailUnconfirmed = key("admin.cust.email.unconfirmed", Message{
-		ZhHant: "電子郵件未確認",
-		En:     "Email not confirmed",
+		ZhHant: "電子郵件未驗證",
+		En:     "Email not verified",
 	})
 
 	KeyAdminCustStatOrders = key("admin.cust.stat.orders", Message{ZhHant: "訂單數", En: "Orders"})
 
 	KeyAdminCustStatSpent = key("admin.cust.stat.spent", Message{
-		ZhHant: "已完成消費",
-		En:     "Completed spend",
+		ZhHant: "已成立訂單金額（扣除退款）",
+		En:     "Confirmed orders, net of refunds",
 	})
 
 	KeyAdminCustStatCredit = key("admin.cust.stat.credit", Message{

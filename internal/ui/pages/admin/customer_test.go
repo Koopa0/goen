@@ -24,3 +24,25 @@ func TestACustomerShowsItsFiguresAsOneStatLine(t *testing.T) {
 		}
 	}
 }
+
+func TestCustomerSpendAndCreditLeadToTheirRecords(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		v := &CustomerView{ID: "11111111-2222-3333-4444-555555555555", Email: "ada+credit@example.test", SpentCents: 12300, CreditCents: 4500}
+		var rendered strings.Builder
+		if err := Customer(Meta(ctx), v).Render(ctx, &rendered); err != nil {
+			t.Fatal(err)
+		}
+		body := rendered.String()
+		label := "已成立訂單金額（扣除退款）"
+		if locale == i18n.En {
+			label = "Confirmed orders, net of refunds"
+		}
+		for _, want := range []string{label, `href="/admin/credit?customer=` + v.ID + `"`, `href="/admin/credit?customer=` + v.ID + `#credit-email"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s profile lacks %q", locale.Tag(), want)
+			}
+		}
+	}
+}
