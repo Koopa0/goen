@@ -1,4 +1,4 @@
-package db_test
+package repocheck_test
 
 import (
 	"encoding/json"
@@ -47,7 +47,7 @@ type ciStep struct {
 
 func readCIWorkflow(t *testing.T, name string) ciWorkflow {
 	t.Helper()
-	body, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", name)) //nolint:gosec // The name comes from the repository workflow inventory or a fixed literal.
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", name)) //nolint:gosec // The name comes from the repository workflow inventory or a fixed literal.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func readCIWorkflow(t *testing.T, name string) ciWorkflow {
 func TestCIWorkflowsKeepUntrustedCodeUnprivileged(t *testing.T) {
 	t.Parallel()
 	pinned := regexp.MustCompile(`^[\w.-]+/[\w./-]+@[0-9a-f]{40}$`)
-	paths, err := filepath.Glob(filepath.Join("..", "..", ".github", "workflows", "*.yml"))
+	paths, err := filepath.Glob(filepath.Join(repoRoot(t), ".github", "workflows", "*.yml"))
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("workflow inventory: %v (%d files)", err, len(paths))
 	}
@@ -190,7 +190,7 @@ func TestCIRulesetNamesRealFailClosedGates(t *testing.T) {
 	if !initFound || !analyzeFound || !buildFound {
 		t.Fatal("CodeQL must initialize, trace the production Go build and publish analysis")
 	}
-	body, err := os.ReadFile(filepath.Join("..", "..", ".github", "branch-protection.json"))
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "branch-protection.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestCIRulesetNamesRealFailClosedGates(t *testing.T) {
 
 func TestCICodeScanningBlocksHighSeverityFindings(t *testing.T) {
 	t.Parallel()
-	body, err := os.ReadFile(filepath.Join("..", "..", ".github", "branch-protection.json"))
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "branch-protection.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

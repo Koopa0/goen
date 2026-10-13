@@ -644,8 +644,10 @@ demo-restore-check:
 
 workflow-check:
 	$(ACTIONLINT) -shellcheck=
-	go test ./internal/db -run '^TestCI' -count=1
-	go test ./internal/db -run '^TestCommitAttribution' -count=1
+	@go test -list '^TestCI' ./internal/repocheck | grep -q '^TestCI' || { echo 'workflow-check: no TestCI tests in internal/repocheck' >&2; exit 1; }
+	@go test -list '^TestCommitAttribution' ./internal/repocheck | grep -q '^TestCommitAttribution' || { echo 'workflow-check: no TestCommitAttribution tests in internal/repocheck' >&2; exit 1; }
+	go test ./internal/repocheck -run '^TestCI' -count=1
+	go test ./internal/repocheck -run '^TestCommitAttribution' -count=1
 
 .PHONY: test-filter-feedback
 test-filter-feedback:
