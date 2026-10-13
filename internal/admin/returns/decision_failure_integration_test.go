@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -55,14 +56,20 @@ func TestReturnDecisionAuditFailureDoesNotClaimApproval(t *testing.T) {
 		title, retry string
 		committed    string
 	}{
-		{locale: i18n.ZhHant, title: "暫時無法處理", retry: "請稍後再試。", committed: "這筆退貨已核准"},
+		{locale: i18n.ZhHant, title: "暫時無法處理", retry: "請稍後再試。", committed: "這筆退貨已同意"},
 		{locale: i18n.En, title: "Temporarily unavailable", retry: "Please try again shortly.", committed: "This return is approved"},
 	} {
 		for _, decision := range []string{"approved", "rejected"} {
 			t.Run(string(locale.locale)+"/"+decision, func(t *testing.T) {
 				staff, _ := admintest.StaffContext(t, pool)
 				ctx := i18n.WithLocale(staff, locale.locale)
-				id, _ := admintest.ReturnedOrder(t, pool, 1)
+				var id uuid.UUID
+				if decision == "rejected" {
+					id = admintest.ReturnedOrderAtWithReason(t, pool,
+						admintest.ShopNoonDaysAgo(t, 15), time.Now(), "late return")
+				} else {
+					id, _ = admintest.ReturnedOrder(t, pool, 1)
+				}
 				fault := &failedDecisionAudit{returnID: id}
 				cfg := pool.Config().Copy()
 				cfg.MaxConns = 2

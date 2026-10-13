@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -110,7 +110,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		&email.OrderShipped{OrderNumber: number, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue the dispatch mail: %v", err)
 	}
-	if err := ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: orderID, Kind: email.TerminalDelivered}); err != nil {
+	if err := notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: orderID, Kind: email.TerminalDelivered}); err != nil {
 		t.Fatalf("queue the delivery notice: %v", err)
 	}
 
@@ -255,5 +255,70 @@ func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
 		if diff := cmp.Diff([]i18n.Key{tc.want}, got); diff != "" {
 			t.Errorf("%s: statuses of the invoice issue entries (-want +got):\n%s", tc.name, diff)
 		}
+	}
+}
+
+func TestTheOrderTimelineShowsOnlyRefusedInvoiceProviderCodes(t *testing.T) {
+	ctx, staff := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	for _, tc := range []struct {
+		name      string
+		kind      string
+		status    string
+		lastError string
+		wantNote  string
+	}{
+		{"refused issue", "issue", "rejected", "issue_provider_rejected_2000006", "2000006"},
+		{"refused allowance", "allowance", "rejected", "allowance_provider_rejected_2000040", "2000040"},
+		{"refused void", "void", "rejected", "void_provider_rejected", ""},
+		{"void with numeric tail", "void", "rejected", "void_provider_rejected_2000006", ""},
+		{"local refusal", "issue", "rejected", "issue_invalid", ""},
+		{"missing code", "issue", "rejected", "issue_provider_rejected_", ""},
+		{"malformed code", "issue", "rejected", "issue_provider_rejected_2000006_message", ""},
+		{"wrong category", "issue", "rejected", "allowance_provider_rejected_2000006", ""},
+		{"attention", "issue", "attention", "issue_provider_rejected_2000006", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			number := admintest.PlaceUnpaidOrder(t, pool)
+			var orderID uuid.UUID
+			if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
+				t.Fatalf("read order: %v", err)
+			}
+			var target uuid.NullUUID
+			if tc.kind != "issue" {
+				if err := pool.QueryRow(ctx, `
+					INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+					VALUES ($1, 'invoice', 'GD-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8), 100000)
+					RETURNING id`, orderID).Scan(&target.UUID); err != nil {
+					t.Fatalf("record original invoice: %v", err)
+				}
+				target.Valid = true
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO invoice_operations
+				    (order_id, kind, target_document_id, provider_key, amount_cents, request_payload,
+				     actor_user_id, actor_id_snapshot, request_id, status, last_error)
+				VALUES ($1, $2, $3, replace($4, '-', ''), 100000, '{}', $5, $5, $4, $6, $7)`,
+				orderID, tc.kind, target, number, staff, tc.status, tc.lastError); err != nil {
+				t.Fatalf("record invoice operation: %v", err)
+			}
+			view, err := s.Order(ctx, number)
+			if err != nil {
+				t.Fatalf("Order(%s): %v", number, err)
+			}
+			var found bool
+			for _, entry := range view.Timeline {
+				if entry.Label != admin.InvoiceOperationLabels[tc.kind] {
+					continue
+				}
+				found = true
+				if entry.Note != tc.wantNote {
+					t.Errorf("Order(%s) invoice note = %q, want %q", number, entry.Note, tc.wantNote)
+				}
+			}
+			if !found {
+				t.Fatal("order timeline lacks its invoice operation")
+			}
+		})
 	}
 }

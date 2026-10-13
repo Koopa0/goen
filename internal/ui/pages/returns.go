@@ -75,6 +75,7 @@ type ReturnsView struct {
 	Existing      []ReturnsExisting
 	HasOpen       bool
 	HasDraft      bool
+	Filed         bool
 	FormRefusal   string
 	ReasonRefusal string
 }

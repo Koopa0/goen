@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -52,7 +52,7 @@ func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
 				}
 			}
 			appPool := storeRolePool(t)
-			h := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
+			h := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 				ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 			before := stockOf(t, variant)
 			for _, locale := range i18n.Locales() {
