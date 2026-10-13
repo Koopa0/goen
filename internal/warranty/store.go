@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
@@ -35,7 +36,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 		return pages.WarrantyOrderView{}, ErrNotFound
 	}
 	rows, err := s.q.RegistrableLines(ctx, db.RegistrableLinesParams{
-		OrderNumber: orderNumber, UserID: uuid.NullUUID{UUID: owner, Valid: true},
+		OrderNumber: pgtype.Text{String: orderNumber, Valid: true}, UserID: uuid.NullUUID{UUID: owner, Valid: true},
 	})
 	if err != nil {
 		return pages.WarrantyOrderView{}, fmt.Errorf("read registrable lines: %w", err)
@@ -55,8 +56,71 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 			Delivered: int(r.DeliveredUnits), Returned: int(r.ReturnedUnits),
 			Registered: int(r.RegisteredUnits),
 		})
+		view.Lines[len(view.Lines)-1].CoverEnds = warrantyCoverEnd(r.ExpiresOn, r.HasExpiry)
+	}
+	registered, err := s.Mine(ctx, userID)
+	if err != nil {
+		return pages.WarrantyOrderView{}, err
+	}
+	lastUnits := make(map[string]int)
+	for i := range registered {
+		item := &registered[i]
+		if item.Order == orderNumber {
+			view.Registered = append(view.Registered, *item)
+			for i := range view.Lines {
+				line := &view.Lines[i]
+				if line.ID == item.LineID && line.Remaining() == 0 && item.Unit > lastUnits[line.ID] {
+					day := item.ExpiresOn
+					line.CoverEnds = &day
+					lastUnits[line.ID] = item.Unit
+				}
+			}
+		}
 	}
 	return view, nil
+}
+
+func warrantyLine(r *db.RegistrableLinesRow) pages.WarrantyLine {
+	line := pages.WarrantyLine{
+		ID: r.OrderLineID.String(), Name: r.ProductName,
+		Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
+		Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
+		HasTerm:   r.WarrantyMonths.Valid,
+		Delivered: int(r.DeliveredUnits), Returned: int(r.ReturnedUnits),
+		Registered: int(r.RegisteredUnits),
+		CoverEnds:  warrantyCoverEnd(r.ExpiresOn, r.HasExpiry),
+	}
+	return line
+}
+
+func warrantyCoverEnd(date time.Time, hasExpiry bool) *shoptime.Date {
+	if !hasExpiry {
+		return nil
+	}
+	day := shoptime.DateOf(date, date)
+	return &day
+}
+
+func (s *Store) Ready(ctx context.Context, userID string) ([]pages.WarrantyReady, error) {
+	owner, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	rows, err := s.q.RegistrableLines(ctx, db.RegistrableLinesParams{
+		UserID: uuid.NullUUID{UUID: owner, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	ready := make([]pages.WarrantyReady, 0, len(rows))
+	for i := range rows {
+		row := &rows[i]
+		line := warrantyLine(row)
+		if line.Registrable() && line.CoverEnds != nil {
+			ready = append(ready, pages.WarrantyReady{Number: row.OrderNumber, Line: line})
+		}
+	}
+	return ready, nil
 }
 
 // Register decides ownership, delivery and the term in the statement's WHERE
@@ -129,7 +193,8 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 		r := &rows[i]
 		gone := slices.Contains(returned, r.OrderID)
 		out = append(out, pages.Warranty{
-			Name: r.ProductName, Label: r.VariantLabel.String,
+			LineID: r.OrderLineID.String(),
+			Name:   r.ProductName, Label: r.VariantLabel.String,
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
 			RegisteredAt: shoptime.DateText(ctx, shoptime.DateOf(r.RegisteredAt, now)),

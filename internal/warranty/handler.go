@@ -39,9 +39,15 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	ready, err := h.store.Ready(r.Context(), u.ID)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read ready warranties", "error", err)
+		h.serverError(w, r)
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.WarrantyList(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWarrantyTitle)},
-		pages.WarrantyListView{Rows: rows, Notice: noticeFor(r)}))
+		pages.WarrantyListView{Rows: rows, Ready: ready}))
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +60,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.RegisteredUnit = registeredUnitFor(r, view.Registered)
 	web.Render(w, r, h.log, http.StatusOK, pages.WarrantyOrder(
 		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
@@ -96,7 +102,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.Register(r.Context(), number, r.PostFormValue("line"), u.ID,
 		r.PostFormValue("serial"), unit); {
 	case err == nil:
-		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
+		query := url.Values{"ok": {"1"}, "line": {r.PostFormValue("line")}, "unit": {strconv.Itoa(unit)}}
+		http.Redirect(w, r, back+"?"+query.Encode(), http.StatusSeeOther)
 	case errors.Is(err, ErrSerialTaken):
 		h.rejectRegistration(w, r, u.ID, i18n.KeyWarrantyDuplicateSerial)
 	case errors.Is(err, ErrSerialTooLong):
@@ -123,11 +130,11 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 	view.Refusal = message
 	for i := range view.Lines {
 		line := &view.Lines[i]
-		if line.ID != r.PostFormValue("line") || !line.Registrable() {
+		if line.ID != r.PostFormValue("line") {
 			continue
 		}
 		line.DraftSerial = r.PostFormValue("serial")
-		if refusal != i18n.KeyWarrantyRefused {
+		if line.Registrable() && refusal != i18n.KeyWarrantyRefused {
 			line.SerialRefusal = message
 			view.Refusal = ""
 		}
@@ -144,9 +151,18 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 }
 
-func noticeFor(r *http.Request) string {
+func registeredUnitFor(r *http.Request, rows []pages.Warranty) *pages.Warranty {
 	if r.URL.Query().Get("ok") != "1" {
-		return ""
+		return nil
 	}
-	return i18n.T(r.Context(), i18n.KeyWarrantyAlready)
+	unit, err := strconv.Atoi(r.URL.Query().Get("unit"))
+	if err != nil || unit < 1 || unit > maxUnits {
+		return nil
+	}
+	for i := range rows {
+		if rows[i].LineID == r.URL.Query().Get("line") && rows[i].Unit == unit && !rows[i].Returned {
+			return &rows[i]
+		}
+	}
+	return nil
 }
