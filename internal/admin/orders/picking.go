@@ -45,6 +45,7 @@ func pickingSnapshot(ctx context.Context, q *db.Queries, after []string) (admin.
 	from, resumed := web.ResumeKeyset(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := q.PickingSlips(ctx, db.PickingSlipsParams{
 		HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit,
+		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
 		return admin.PickingView{}, fmt.Errorf("read picking slips: %w", err)

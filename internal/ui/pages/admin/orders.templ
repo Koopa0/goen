@@ -502,7 +502,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
 									if e.Note != "" {
-										<span class="goen-admin__meta">{ e.Note }</span>
+										<span class="goen-admin__meta">{ e.noteText(ctx) }</span>
 									}
 								</li>
 							}

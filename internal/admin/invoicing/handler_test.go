@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -20,11 +21,15 @@ import (
 )
 
 type stubInvoiceWriter struct {
+	issueErr     error
 	voidErr      error
 	allowanceErr error
 }
 
-func (stubInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
+func (s stubInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
+	if s.issueErr != nil {
+		return invoice.Document{}, s.issueErr
+	}
 	return invoice.Document{}, invoice.ErrDisabled
 }
 
@@ -269,6 +274,35 @@ func TestAllowanceHTTPDoesNotAcceptCallerControlledMoney(t *testing.T) {
 			if writer.orders[at] != number || writer.operations[at] != operationID {
 				t.Fatalf("writer calls = orders %v operations %v, want %s/%s",
 					writer.orders, writer.operations, number, operationID)
+			}
+		})
+	}
+}
+
+func TestRefusedIssueItemisationIsANoticeAndOtherFailuresRemainErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		code         string
+		constraint   string
+		wantStatus   int
+		wantLocation string
+	}{
+		{"itemisation refused", "23514", "invoice_issue_itemisation", http.StatusSeeOther, "/admin/orders/" + invoiceNoticeOrder + "?refused=1"},
+		{"other constraint", "23514", "invoice_issue_filing_snapshot", http.StatusInternalServerError, ""},
+		{"other error code", "XX000", "invoice_issue_itemisation", http.StatusInternalServerError, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := fmt.Errorf("claim invoice: %w", &pgconn.PgError{Code: tc.code, ConstraintName: tc.constraint})
+			h := invoiceNoticeHandler(stubInvoiceWriter{issueErr: err})
+			req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodPost,
+				"/admin/orders/"+invoiceNoticeOrder+"/invoice", nil)
+			req.SetPathValue("number", invoiceNoticeOrder)
+			res := httptest.NewRecorder()
+			h.Issue(res, req)
+			if res.Code != tc.wantStatus || res.Header().Get("Location") != tc.wantLocation {
+				t.Errorf("Issue(%s) = %d %q, want %d %q", tc.name, res.Code, res.Header().Get("Location"), tc.wantStatus, tc.wantLocation)
 			}
 		})
 	}

@@ -1,7 +1,7 @@
-// Package orderaccess decides who may open a placed order's pages: a browser
+// Package access decides who may open a placed order's pages: a browser
 // granted it by placing or finding the order, or the signed-in account that
 // owns it.
-package orderaccess
+package access
 
 import (
 	"context"
@@ -35,7 +35,7 @@ const Retain = 30 * 24 * time.Hour
 const SweepInterval = 24 * time.Hour
 
 // ErrNotFound means the order number names no order.
-var ErrNotFound = errors.New("orderaccess: order not found")
+var ErrNotFound = errors.New("access: order not found")
 
 const (
 	maxGrants = 10
@@ -50,7 +50,7 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool, secure bool) *Store {
 	if pool == nil {
-		panic("orderaccess: NewStore requires a pool")
+		panic("access: NewStore requires a pool")
 	}
 	return &Store{pool: pool, q: db.New(pool), secure: secure}
 }

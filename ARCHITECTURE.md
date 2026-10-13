@@ -255,7 +255,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Area | Entry points |
 | --- | --- |
 | Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [provider posture][provider-posture] |
-| Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/orderaccess`][orderaccess] |
+| Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
@@ -275,7 +275,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [checkout]: internal/cart/store.go
 [cart-sweeper]: internal/cart/sweeper.go
 [cart-cancel]: internal/cart/cancel.go
-[orderaccess]: internal/orderaccess
+[orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
 [stripe]: internal/payment/stripe.go
