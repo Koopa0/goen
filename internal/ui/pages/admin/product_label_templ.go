@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -367,7 +367,7 @@ func productLabel(v ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			for _, unit := range productlabel.Units() {
+			for _, unit := range labelling.Units() {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<option value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
