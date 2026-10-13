@@ -96,7 +96,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 				if !v.HideRegister {
 					<p class="goen-auth__alt">
 						{ i18n.T(ctx, i18n.KeyNoAccountYet) }
-						<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
+						<a href={ templ.SafeURL(v.authPageLink("/register")) }>{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
 					</p>
 				}
 			</div>
@@ -177,7 +177,7 @@ templ Register(p layouts.Page, v AuthView) {
 					</form>
 					if v.HasNotice() {
 						<p class="goen-auth__alt">
-							<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
+							<a href={ templ.SafeURL(v.authPageLink("/register")) }>{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
 						</p>
 					}
 				} else {
@@ -271,7 +271,7 @@ templ Register(p layouts.Page, v AuthView) {
 				}
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyHaveAccount) }
-					<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+					<a href={ templ.SafeURL(v.authPageLink("/signin")) }>{ i18n.T(ctx, i18n.KeySignIn) }</a>
 				</p>
 			</div>
 		</div>

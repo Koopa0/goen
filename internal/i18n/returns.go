@@ -4,8 +4,8 @@ var (
 	KeyReturnTitle = key("returns.title", Message{ZhHant: "退貨申請", En: "Return request"})
 
 	KeyReturnSub = key("returns.sub", Message{
-		ZhHant: "已經出貨、還沒申請退貨的商品，都可以在這裡申請。",
-		En:     "You can request a return here for anything that has shipped and is not already in a return.",
+		ZhHant: "送出後，審核結果會顯示在這筆訂單的頁面上。同意後，款項依原付款方式退回。",
+		En:     "Once you send it, the decision appears on this order's page. If we approve it, the money goes back the way you paid.",
 	})
 
 	KeyReturnHistory = key("returns.history", Message{ZhHant: "申請紀錄", En: "Previous requests"})
@@ -80,7 +80,7 @@ var (
 
 	KeyReturnMeta = key("returns.meta", Message{ZhHant: "退貨申請 %s", En: "Return request — %s"})
 
-	KeyReturnStateOpen = key("returns.state.open", Message{ZhHant: "已送出，等待處理", En: "Sent, awaiting a decision"})
+	KeyReturnStateOpen = key("returns.state.open", Message{ZhHant: "待審核", En: "Awaiting review"})
 
 	KeyReturnStateApproved = key("returns.state.approved", Message{ZhHant: "已同意退貨", En: "Approved"})
 

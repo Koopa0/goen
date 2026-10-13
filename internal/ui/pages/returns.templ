@@ -14,11 +14,19 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyReturnTitle) }</p>
 				<h1 class="goen-pagehead__title">{ v.Number }</h1>
-				<p class="goen-pagehead__sub">
-					{ i18n.T(ctx, i18n.KeyReturnSub) }
-				</p>
+				for i, parcel := range v.Shipments {
+					if len(v.Shipments) > 1 {
+						<p class="goen-returns__meta">{ v.parcelTitle(ctx, i) }</p>
+					}
+					<p class="goen-pagehead__sub">{ v.returnWindow(ctx, parcel) }</p>
+				}
+				if !v.HasOpen && v.AnyReturnable() {
+					<p class="goen-pagehead__sub">
+						{ i18n.T(ctx, i18n.KeyReturnSub) }
+					</p>
+				}
 			</div>
-			if v.FormRefusal != "" {
+			if !v.HasOpen && v.FormRefusal != "" {
 				<p class="goen-notice goen-notice--danger" role="alert" id="return-form-error">{ v.FormRefusal }</p>
 			}
 			if len(v.Existing) > 0 {

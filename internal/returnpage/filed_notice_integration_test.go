@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/returnpage"
 )
 
@@ -27,7 +27,7 @@ func TestReturnLandingConfirmsOnlyTheFiledFlagAfterTheNativePOST(t *testing.T) {
 				t.Fatalf("native return POST = %d to %q, want its filed landing", posted.Code, posted.Header().Get("Location"))
 			}
 			app := returnsApplicationPool(t, "filed-landing-"+uuid.NewString())
-			h := returnpage.NewHandler(returnpage.NewStore(app), orderaccess.NewStore(app, false), slog.New(slog.DiscardHandler))
+			h := returnpage.NewHandler(returnpage.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler))
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /orders/{number}/return", h.Page)
 			for _, query := range []string{"", "?filed=0", "?filed=unknown", "?filed=1"} {

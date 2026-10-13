@@ -11049,21 +11049,29 @@ func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (O
 }
 
 const orderForReturn = `-- name: OrderForReturn :one
-SELECT o.id, o.order_number, o.fulfillment_status
-FROM orders o WHERE o.order_number = $1
+SELECT o.id, o.order_number, o.fulfillment_status, coalesce(pd.pickup_chain, '') <> '' AS pickup
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.order_number = $1
 `
 
 type OrderForReturnRow struct {
 	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
+	Pickup            bool
 }
 
 // The order a return is being asked for.
 func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (OrderForReturnRow, error) {
 	row := q.db.QueryRow(ctx, orderForReturn, orderNumber)
 	var i OrderForReturnRow
-	err := row.Scan(&i.ID, &i.OrderNumber, &i.FulfillmentStatus)
+	err := row.Scan(
+		&i.ID,
+		&i.OrderNumber,
+		&i.FulfillmentStatus,
+		&i.Pickup,
+	)
 	return i, err
 }
 
