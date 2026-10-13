@@ -68,13 +68,16 @@ func (s *Store) SetCategoryImageText(ctx context.Context, slug, alt, altEn strin
 		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
 		After: map[string]any{"category": slug, "alt": alt, "alt_en": altEn},
 	}, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.SetCategoryImageText(ctx, db.SetCategoryImageTextParams{
+		result, err := q.SetCategoryImageText(ctx, db.SetCategoryImageTextParams{
 			Slug: strings.TrimSpace(slug), ImageAlt: alt, ImageAltEn: altEn,
 		})
 		if err != nil {
 			return pgerr.WrapRefusal(err, ErrRefused)
 		}
-		if n == 0 {
+		if !result.Found {
+			return ErrNotFound
+		}
+		if !result.Changed {
 			return ErrImageRequired
 		}
 		return nil

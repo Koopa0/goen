@@ -328,10 +328,10 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	// Without alt text the photograph is refused at that field and nothing is stored.
 	refused := httptest.NewRecorder()
 	h.SetCategoryImage(refused, categoryImageRequest(t, root, "  ").WithContext(ctx))
-	if refused.Code != http.StatusUnprocessableEntity ||
-		!strings.Contains(refused.Body.String(), `aria-describedby="cat-alt-error"`) {
+	if refused.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("no alt answered %d, want 422 with the alt field flagged", refused.Code)
 	}
+	assertCategoryImageRefusal(t, refused.Body.String(), "cat-alt", "  ")
 
 	ok := httptest.NewRecorder()
 	h.SetCategoryImage(ok, categoryImageRequest(t, root, "館別照片").WithContext(ctx))
