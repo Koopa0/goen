@@ -72,3 +72,22 @@ func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 		}
 	}
 }
+
+func TestPickingSlipLinesRenderNoPhotoBlock(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			slip := &OrderView{OutstandingQuantities: true, Number: "GO-1", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "Slip line", Quantity: 2, UnitCents: 100}}}
+			out := renderOrder(t, locale, slip)
+			for _, banned := range []string{"goen-order__photo", "goen-line__ph", "goen-order__image"} {
+				if strings.Contains(out, banned) {
+					t.Errorf("picking slip line renders %q, want no photo block", banned)
+				}
+			}
+			if !strings.Contains(out, "Slip line") {
+				t.Error("picking slip line name missing from render")
+			}
+		})
+	}
+}
