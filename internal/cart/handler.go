@@ -1462,7 +1462,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
-		if access.ReloadSameSite(w, r, h.log) {
+		if web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
 			return
 		}
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))

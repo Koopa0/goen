@@ -1,4 +1,4 @@
-package access_test
+package web_test
 
 import (
 	"html"
