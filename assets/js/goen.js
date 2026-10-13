@@ -26,6 +26,7 @@
     if (!track || track.children.length < 2) return;
 
     const slides = [...track.children];
+    const tabRow = root.querySelector(".goen-hero__tabs");
     const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
     const count = root.querySelector("[data-count]");
     let current = 0;
@@ -45,6 +46,13 @@
           if (index === current) tab.setAttribute("aria-current", "true");
           else tab.removeAttribute("aria-current");
         });
+        if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
+          const tab = tabs[current];
+          const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
+          // The row's end padding reserves the room under its fade mask.
+          const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
+          tabRow.scrollLeft = at - (visible - tab.offsetWidth) / 2;
+        }
         if (count) count.textContent = `${current + 1} / ${slides.length}`;
       }
     }, { root: track, threshold: 0.6 });
