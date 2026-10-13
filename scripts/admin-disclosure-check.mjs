@@ -8,8 +8,17 @@ try {
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   let id = 0;
   const pending = new Map();
+  let currentCase = "initialization";
+  let dialogError = null;
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
+    if (message.method === "Page.javascriptDialogOpening") {
+      dialogError = new Error(`${currentCase}: unexpected native dialog ${JSON.stringify(message.params)}`);
+      console.error(dialogError.message);
+      for (const request of pending.values()) { clearTimeout(request.timer); request.reject(dialogError); }
+      pending.clear();
+      return;
+    }
     const request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id);
@@ -18,8 +27,9 @@ try {
     else request.resolve(message.result);
   };
   const send = (method, params = {}) => new Promise((resolve, reject) => {
+    if (dialogError) { reject(dialogError); return; }
     const current = ++id;
-    const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${method} timed out`)); }, 20000);
+    const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${currentCase}: ${method} ${JSON.stringify(params)} timed out`)); }, 20000);
     pending.set(current, { resolve, reject, timer });
     socket.send(JSON.stringify({ id: current, method, params }));
   });
@@ -36,14 +46,18 @@ try {
     for (const width of [375, 1024, 1440]) {
       for (const path of ['/health', '/twofactor']) {
         const label = `${path} ${locale} ${width}px`;
+        currentCase = label;
+        console.log(`BEGIN ${label}`);
         const selector = path === '/health' ? '#system-status' : '.goen-twofa details';
         await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
         const url = `${origin}${path}?lang=${locale}`;
+        await send('Page.bringToFront');
         await send('Page.navigate', { url });
         for (let attempt = 0; !await evaluate(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`); attempt++) {
           if (attempt === 100) throw new Error(`${label}: disclosure fixture did not load`);
           await new Promise(resolve => setTimeout(resolve, 30));
         }
+        assert.equal(await evaluate('document.visibilityState'), 'visible', `${label}: native keyboard document must be foreground`);
         await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(resolve)))');
         const state = await evaluate(`(() => {
           const details = document.querySelector(${JSON.stringify(selector)});
