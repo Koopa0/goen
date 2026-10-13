@@ -285,9 +285,9 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
-[invoice-store]: internal/invoice/store.go
-[invoice-recovery]: internal/invoice/recovery.go
-[invoice-cancellation]: internal/invoice/cancellation.go
+[invoice-store]: internal/invoice/issuer/store.go
+[invoice-recovery]: internal/invoice/issuer/recovery.go
+[invoice-cancellation]: internal/invoice/issuer/cancellation.go
 [invoicing]: internal/admin/invoicing
 [outbox]: internal/outbox/outbox.go
 [outbox-sql]: internal/outbox/query.sql
