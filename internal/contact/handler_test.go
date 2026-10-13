@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestHTMXOverLimitKeepsTheContactPanel(t *testing.T) {
@@ -127,5 +128,20 @@ func TestTheContactLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	}
 	if got := submit("[2001:db8:1:3::1]:1002"); got != http.StatusUnprocessableEntity {
 		t.Errorf("an address in another /64 answered %d, want 422; it shared a bucket", got)
+	}
+}
+
+func TestTheSentPageOffersOrdersOnlyToASignedInSender(t *testing.T) {
+	for _, signedIn := range []bool{false, true} {
+		h := &Handler{log: slog.New(slog.DiscardHandler)}
+		req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.ZhHant), http.MethodGet, "/contact?sent=1", http.NoBody)
+		if signedIn {
+			req = req.WithContext(user.NewContext(req.Context(), user.User{ID: "reader", Role: user.RoleCustomer}))
+		}
+		res := httptest.NewRecorder()
+		h.Page(res, req)
+		if got := strings.Contains(res.Body.String(), `href="/account#orders-heading"`); got != signedIn {
+			t.Errorf("signed in %t: own-orders link = %t", signedIn, got)
+		}
 	}
 }

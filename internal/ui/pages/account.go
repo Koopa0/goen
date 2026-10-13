@@ -122,20 +122,22 @@ type AccountView struct {
 	ReturnAfterWelcome string
 	CartAdjusted       bool
 
-	EmailVerified   bool
-	PendingEmail    string
-	Email           string
-	Name            string
-	Phone           string
-	Orders          []AccountOrder
-	OrdersBound     web.Bound
-	Addresses       []AccountAddress
-	CreditCents     int64
-	Standing        MemberStanding
-	Notice          string
-	GoogleLinked    bool
-	CanUnlinkGoogle bool
-	PaymentsEnabled bool
+	EmailVerified              bool
+	EmailConfirmationRequested bool
+	EmailReentry               bool
+	PendingEmail               string
+	Email                      string
+	Name                       string
+	Phone                      string
+	Orders                     []AccountOrder
+	OrdersBound                web.Bound
+	Addresses                  []AccountAddress
+	CreditCents                int64
+	Standing                   MemberStanding
+	Notice                     string
+	GoogleLinked               bool
+	CanUnlinkGoogle            bool
+	PaymentsEnabled            bool
 	// Both are nil on a plain visit.
 	AddressDraft  *AddressDraft
 	AddressErrors map[string]string

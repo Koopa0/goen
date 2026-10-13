@@ -268,8 +268,8 @@ func TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T
 	if takenRec.Code != http.StatusSeeOther || freeRec.Code != takenRec.Code {
 		t.Fatalf("statuses taken/free = %d/%d, want 303 for both", takenRec.Code, freeRec.Code)
 	}
-	if loc := freeRec.Header().Get("Location"); loc != "/account?email=sent" {
-		t.Errorf("a change lands at %q, want /account?email=sent", loc)
+	if loc := freeRec.Header().Get("Location"); loc != "/account?address=c%2A%2A%2A%40example.com&email=sent" {
+		t.Errorf("a change lands at %q, want the masked destination at /account", loc)
 	}
 	if diff := cmp.Diff(takenRec.Header(), freeRec.Header()); diff != "" {
 		t.Errorf("changes to a taken and a free address answer different headers (-taken +free):\n%s", diff)
@@ -456,7 +456,7 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.Authenticate(route).ServeHTTP(rec, req)
 			switch {
-			case rec.Code == http.StatusSeeOther && rec.Header().Get("Location") == "/account?email=sent":
+			case rec.Code == http.StatusSeeOther && rec.Header().Get("Location") == "/account?address=c%2A%2A%2A%40example.com&email=sent":
 				if deliver(asker.ID) {
 					letters++
 				}

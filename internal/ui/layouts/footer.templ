@@ -1,6 +1,8 @@
 package layouts
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -87,7 +89,22 @@ templ NewsletterForm(s NewsletterState) {
 		hx-swap="outerHTML"
 	>
 		if s.Done {
-			<p class="goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
+			<p class="goen-footer__signup-done" role="status">
+				if s.Email != "" {
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterSentTo), s.Email) }
+				} else {
+					{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }
+				}
+			</p>
+			<a
+				class="goen-footer__link"
+				href="/#newsletter-form"
+				hx-get="/"
+				hx-select="#newsletter-form"
+				hx-target="#newsletter-form"
+				hx-swap="outerHTML"
+				data-focus-after-swap="newsletter-email"
+			>{ i18n.T(ctx, i18n.KeyEmailReenter) }</a>
 		} else {
 			<label class="goen-label goen-footer__signuplabel" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
 			<div class="goen-footer__field">

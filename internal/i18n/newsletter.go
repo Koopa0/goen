@@ -1,15 +1,9 @@
 package i18n
 
 var (
-	KeyNewsletterSent = key("news.sent", Message{
-		ZhHant: "確認信已寄出",
-		En:     "Check your inbox",
-	})
-
 	KeyNewsletterSentBody = key("news.sent.body", Message{
-		ZhHant: "請到信箱點一下確認連結，訂閱才會生效。兩天內有效。沒有收到的話，看一下垃圾信件匣。",
-		En: "Follow the link we just sent to finish subscribing. It works for two days. " +
-			"If it has not arrived, check your spam folder.",
+		ZhHant: "如果你填寫的信箱還沒訂閱，請到信箱點一下確認連結，訂閱才會生效。兩天內有效。沒收到請看看垃圾郵件。",
+		En:     "If the address you entered is not already subscribed, check its inbox for the confirmation link. It works for two days. If it has not arrived, check your spam folder.",
 	})
 
 	KeyNewsletterSentMeta = key("news.sent.meta", Message{
@@ -117,8 +111,8 @@ var (
 	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
 
 	KeyNewsletterInlineDone = key("site.newsletter.done", Message{
-		ZhHant: "確認信已寄出，請到信箱點一下連結。",
-		En:     "Check your inbox and follow the link to finish.",
+		ZhHant: "如果你填寫的信箱還沒訂閱，請到信箱點一下確認連結。",
+		En:     "If the address you entered is not already subscribed, check its inbox for the confirmation link.",
 	})
 )
 
@@ -185,3 +179,8 @@ var (
 		En:     "That issue has already been sent.",
 	})
 )
+
+var KeyNewsletterSentTo = key("news.sent.to", Message{
+	ZhHant: "如果 %s 還沒訂閱，請到信箱點一下確認連結，訂閱才會生效。兩天內有效。沒收到請看看垃圾郵件。",
+	En:     "If %s is not already subscribed, check its inbox for the confirmation link. It works for two days. If it has not arrived, check your spam folder.",
+})

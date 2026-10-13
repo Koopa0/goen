@@ -1,0 +1,30 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ NewsletterSent(p layouts.Page, address string) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCheckInbox) }</h1>
+			<p class="notice__body" role="status">
+				if address != "" {
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterSentTo), address) }
+				} else {
+					{ i18n.T(ctx, i18n.KeyNewsletterSentBody) }
+				}
+			</p>
+			<p class="goen-auth__alt"><a href="/#newsletter-form">{ i18n.T(ctx, i18n.KeyEmailReenter) }</a></p>
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/") {
+					{ i18n.T(ctx, i18n.KeyBackToShop) }
+				}
+			</div>
+		</div>
+	}
+}
