@@ -7,7 +7,7 @@ export async function checkAdminActionReflow({ send, evaluate, navigate, fail, o
   const { cookies: priorCookies } = await send('Network.getCookies', { urls: [origin] });
   const pages = [
     [`/admin/orders/${placedOrder}`, 'form[action$="/delivery"] button[type="submit"]'],
-    ['/admin/returns', 'form[action$="/inspect"] button[type="submit"]'],
+    ['/admin/returns', 'form[action*="/inspect"] button[type="submit"]'],
   ];
   try {
     for (const lang of ['zh', 'en']) {
