@@ -190,7 +190,7 @@ SQL 速率     ≈ Σ(路由請求率 × 每請求查詢數) + 背景查詢
 | 飽和與重啟 | 連線池全滿、持續的 webhook、實例重疊。 | 確認、readiness、取消，以及負載下降後的恢復。 |
 | 外部結果遺失 | 外部服務已接受，goen 卻在記錄前中止。 | 以原操作識別碼恢復。 |
 
-飽和時優先測 webhook 與 readiness。webhook 以呼叫端的 context 取得連線，不受請求預算限制；readiness 在同一個 2 秒內依序檢查 `store` 與 `admin`，admin 連線池飽和時可能讓整個實例被移出服務。見[付款處理][payment-store]與[探針][probe]。
+飽和時優先測 webhook 與 readiness。webhook 以呼叫端的 context 取得連線，不受請求預算限制；readiness 在 2 秒內只檢查 `store`，admin 連線池故障或飽和不會讓顧客路由被移出服務。啟動時會驗證 admin 連線，執行期間的健康狀態仍顯示在 `/admin/health`。見[付款處理][payment-store]與[探針][probe]。
 
 競爭與故障實驗在隔離的資料上進行，搭配可控制的外部服務與排定的連線。同時使用固定使用者數（closed）與固定到達率（open）模型，並記錄預定、送出、完成、拒絕與丟棄的工作，避免系統變慢時測試器也跟著放慢。見 [k6 負載模型][k6-models]與[丟棄的迭代][k6-dropped]。
 
@@ -255,7 +255,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 領域 | 入口 |
 | --- | --- |
 | 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[外部服務設定][provider-posture] |
-| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/orderaccess`][orderaccess] |
+| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
@@ -275,7 +275,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [checkout]: internal/cart/store.go
 [cart-sweeper]: internal/cart/sweeper.go
 [cart-cancel]: internal/cart/cancel.go
-[orderaccess]: internal/orderaccess
+[orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
 [stripe]: internal/payment/stripe.go

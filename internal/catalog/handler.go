@@ -45,6 +45,10 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if redirectUnknownFilters(w, r, view.Facets) || redirectPastLastPage(w, r, int(view.Page), view.Pages()) {
+		return
+	}
+
 	// A partial swap never draws the rules or the head, so it does not read them.
 	var rules *pages.ShopRules
 	if web.IsHTMX(r) {
@@ -83,6 +87,9 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if redirectPastLastPage(w, r, view.Page, view.Pages()) {
+		return
+	}
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
 	}
@@ -208,7 +215,8 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
 				i18n.T(r.Context(), i18n.KeyCampaignNotFound),
-				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody)))
+				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody),
+				pages.NoticeActions{Primary: pages.NoticeLink{Href: "/deals", Label: i18n.KeyCurrentDeals}}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load campaign", "error", err, "slug", slug)
@@ -255,4 +263,70 @@ func compareCandidates(found []pages.ProductTile, view pages.CompareView) []page
 		out = append(out, pages.CompareCandidate{Slug: found[i].Slug, Name: found[i].Name, Brand: found[i].Brand})
 	}
 	return out
+}
+
+func redirectPastLastPage(w http.ResponseWriter, r *http.Request, page, last int) bool {
+	q := r.URL.Query()
+	requestedPage, err := strconv.Atoi(q.Get("page"))
+	if page <= last && (err != nil || requestedPage <= last) {
+		return false
+	}
+	q.Set("page", strconv.Itoa(last))
+	target := *r.URL
+	target.RawQuery = q.Encode()
+	http.Redirect(w, r, target.RequestURI(), http.StatusSeeOther) //nolint:gosec // G710: this request's own path with only its query changed
+	return true
+}
+
+func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, facets []pages.FacetGroup) bool {
+	q := r.URL.Query()
+	if len(q["brand"]) == 0 && len(q["opt"]) == 0 {
+		return false
+	}
+	// Facets include zero-count choices, so an existing value that the other
+	// filters exclude remains a legitimate filter.
+	known := map[string]map[string]bool{"brand": {}, "opt": {}}
+	for _, group := range facets {
+		choices, relevant := known[group.Param()]
+		if !relevant {
+			continue
+		}
+		for _, option := range group.Options {
+			choices[option.Value] = true
+		}
+	}
+	changed := false
+	for _, param := range []string{"brand", "opt"} {
+		kept := make([]string, 0, len(q[param]))
+		for _, value := range q[param] {
+			if known[param][filterIdentity(param, value)] {
+				kept = append(kept, value)
+			} else {
+				changed = true
+			}
+		}
+		if len(kept) == 0 {
+			q.Del(param)
+		} else {
+			q[param] = kept
+		}
+	}
+	if !changed {
+		return false
+	}
+	target := *r.URL
+	target.RawQuery = q.Encode()
+	http.Redirect(w, r, target.RequestURI(), http.StatusSeeOther) //nolint:gosec // G710: this request's own path with only its query changed
+	return true
+}
+
+func filterIdentity(param, value string) string {
+	if param != "opt" {
+		return value
+	}
+	pairs := boundedOptionValues([]string{value})
+	if len(pairs) != 1 {
+		return ""
+	}
+	return pairs[0].Name + ":" + pairs[0].Value
 }

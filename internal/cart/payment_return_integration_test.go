@@ -13,7 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 )
 
 // paymentsOn makes the handler a shop that takes payment, which is what shows
@@ -32,7 +32,7 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 				t.Fatalf("return handler role = %q, want store: %v", role, err)
 			}
 			s := cart.NewStore(asStore)
-			h := cart.NewHandler(s, orderaccess.NewStore(asStore, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
+			h := cart.NewHandler(s, access.NewStore(asStore, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
 			number := placeUnpaidOrderFor(t, s, "return@example.com")
 			cookie := placedCookie(t, number)
 			path := "/orders/" + number

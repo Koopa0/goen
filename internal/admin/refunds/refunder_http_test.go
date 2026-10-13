@@ -16,7 +16,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 type refundStripeCall struct {
@@ -211,7 +211,7 @@ func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refund() error = %v", err)
 	}
-	if id != "re_original_request_9" || state != refundstate.Pending {
+	if id != "re_original_request_9" || state != refund.Pending {
 		t.Errorf("Refund() = (%q, %q), want (re_original_request_9, pending)", id, state)
 	}
 	if len(*log) != 2 {
@@ -376,7 +376,7 @@ func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refund() error = %v", err)
 	}
-	if id != "re_created_12" || state != refundstate.Succeeded {
+	if id != "re_created_12" || state != refund.Succeeded {
 		t.Errorf("Refund() = (%q, %q), want (re_created_12, succeeded)", id, state)
 	}
 	if len(*log) != 2 {

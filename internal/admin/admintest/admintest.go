@@ -29,7 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -322,7 +322,7 @@ func WaitForBlockedApplication(
 type Refunder struct {
 	FailIntent bool
 	RefundErr  error
-	State      refundstate.State
+	State      refund.Status
 	// Sent counts calls to Refund. Local rows prove durable outcomes, but only
 	// this provider-side counter can prove a retry did not execute twice.
 	Sent *atomic.Int64
@@ -335,7 +335,7 @@ func (f Refunder) PaymentIntentFor(_ context.Context, sessionID string) (string,
 	return "pi_for_" + sessionID, nil
 }
 
-func (f Refunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, refundstate.State, error) {
+func (f Refunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, refund.Status, error) {
 	if f.Sent != nil {
 		f.Sent.Add(1)
 	}
@@ -344,7 +344,7 @@ func (f Refunder) Refund(_ context.Context, intentID, requestKey string, _ int64
 	}
 	state := f.State
 	if state == "" {
-		state = refundstate.Succeeded
+		state = refund.Succeeded
 	}
 	return "re_" + requestKey + "_" + intentID[:6], state, nil
 }

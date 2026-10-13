@@ -21,6 +21,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			</div>
 		</div>
 		@Announce(v.Notice)
+		for _, refusal := range v.InspectionRefusals() {
+			@RefusalSummary(refusal)
+		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
@@ -49,7 +52,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 								</span>
-							} else if r.Goodwill() || r.Mixed() {
+							} else if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<span class="goen-admin__meta">
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
@@ -97,7 +100,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							// together on the order page, never one at a time here.
 							<p class="goen-admin__hint"><a href={ templ.SafeURL(r.OrderAction()) }>{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</a></p>
 						} else if !r.Decided {
-							if r.Goodwill() || r.Mixed() {
+							if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>
 									if stamp := r.AssessmentStamp(ctx); stamp != "" {
@@ -162,7 +165,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
 										}
 									}
-									if r.Goodwill() || r.Mixed() || r.Late() {
+									if (r.Goodwill() || r.Mixed() || r.Late()) && !r.mixedStatutoryApproval() {
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
@@ -170,7 +173,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
 										}
 									}
-									if !r.Rescission() {
+									if r.CanReject() {
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
@@ -194,7 +197,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutStranded) }</p>
 						}
 						if r.AwaitingGoods() {
-							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>
+							<form class="goen-admin__decide" id={ "inspect-" + r.ID } method="post" action={ templ.SafeURL(r.InspectAction() + "#inspect-" + r.ID) }>
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
 								for _, l := range r.Lines {
 									<fieldset class="goen-admin__inspectline">
@@ -204,17 +207,21 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<input
 												class="ui-input"
 												id={ "recv-" + r.ID + "-" + l.OrderLineID }
-												type="number"
+												type={ dollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
+												inputmode="numeric"
 												name={ "received_" + l.OrderLineID }
-												value={ l.ReceivedField() }
+												value={ l.ReceivedField(v.FieldInvalid(r.ID, "inspect")) }
 												min="0"
 												max={ l.MaxQuantityText() }
 												required
-												if v.FieldInvalid(r.ID, "inspect") {
+												if v.FieldRefusal(r.ID,"inspect")!="" {
 													aria-invalid="true"
-													aria-describedby={ "inspect-error-" + r.ID }
+													aria-describedby={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }
 												}
 											/>
+											if message:=v.FieldRefusal(r.ID,"inspect"); message!="" {
+												<p class="ui-error-text" id={ "recv-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
+											}
 										</div>
 										if l.Restockable {
 											<div class="ui-field">
@@ -222,16 +229,20 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												<input
 													class="ui-input"
 													id={ "stock-" + r.ID + "-" + l.OrderLineID }
-													type="number"
+													type={ dollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
+													inputmode="numeric"
 													name={ "restocked_" + l.OrderLineID }
-													value={ l.RestockedField() }
+													value={ l.RestockedField(v.FieldInvalid(r.ID, "inspect")) }
 													min="0"
 													max={ l.MaxQuantityText() }
-													if v.FieldInvalid(r.ID, "inspect") {
+													if v.FieldRefusal(r.ID,"inspect")!="" {
 														aria-invalid="true"
-														aria-describedby={ "inspect-error-" + r.ID }
+														aria-describedby={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }
 													}
 												/>
+												if message:=v.FieldRefusal(r.ID,"inspect"); message!="" {
+													<p class="ui-error-text" id={ "stock-" + r.ID + "-" + l.OrderLineID + "-error" }>{ message }</p>
+												}
 											</div>
 										} else {
 											<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetNoVariant) }</p>

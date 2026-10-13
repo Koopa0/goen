@@ -343,13 +343,7 @@ func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
 	if subtle.ConstantTimeCompare([]byte(p.Nonce), []byte(state.Nonce)) != 1 {
 		return false
 	}
-	return offeredAtCheckout(p.Chain)
-}
-
-// offeredAtCheckout is narrower than the back office, where an order already
-// placed at another chain must stay correctable.
-func offeredAtCheckout(chain pickup.Chain) bool {
-	return chain == pickup.SevenEleven || chain == pickup.FamilyMart
+	return p.Chain.AtCheckout()
 }
 
 // ECPay's published caps for the posted fields; a value over them did not come

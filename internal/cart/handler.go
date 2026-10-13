@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -33,14 +33,14 @@ import (
 
 type Handler struct {
 	store  *Store
-	access *orderaccess.Store
+	access *access.Store
 	log    *slog.Logger
 	secure bool
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
 	// half of a credential whose other half is guessable.
 	findLimit *ratelimit.Limiter
-	// sessions is nil on a deployment with no Stripe key, where there is no
-	// session to close.
+	// sessions is nil on a deployment with no Stripe key, where the checkout
+	// takes no payment.
 	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
@@ -63,10 +63,10 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || access == nil || log == nil || findLimit == nil {
+	if store == nil || grants == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
 	}
 	if len(checkers) > 1 {
@@ -78,7 +78,7 @@ func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secur
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, access: access, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: grants, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
@@ -684,7 +684,7 @@ func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
 		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
 		"nonce_valid", validNonce(posted.Nonce),
 		"nonce_matched", pickupNonceMatched(r, h.secure, posted.Nonce),
-		"chain_offered", offeredAtCheckout(posted.Chain))
+		"chain_offered", posted.Chain.AtCheckout())
 }
 
 // renderCheckout refreshes the pickup cookie first: it must be written before
@@ -1361,7 +1361,7 @@ func checkoutErrors(
 			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == destination.PickupPoint {
-		if !offeredAtCheckout(addr.PickupChain) {
+		if !addr.PickupChain.AtCheckout() {
 			refusals = append(refusals,
 				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
@@ -1462,11 +1462,9 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
-		if orderaccess.ReloadSameSite(w, r, h.log) {
+		if web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
 			return
 		}
-		// Its own page rather than a bare Notice: this is the one 404 with a
-		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
@@ -1531,9 +1529,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1570,23 +1566,23 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
-	sessions, err := h.store.CancelOrder(r.Context(), number)
+	err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody)))
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), pages.NoticeActions{
+				Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
 		h.serverError(w, r)
@@ -1869,6 +1865,38 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error) {
 	id, ok, _, err := h.lookupCart(ctx, r)
 	return id, ok, err
+}
+
+func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error) {
+	u, ok := user.FromContext(ctx)
+	if !ok {
+		return pages.CartRecoveryContents{}, ErrNotFound
+	}
+	var contents pages.CartRecoveryContents
+	accountID, err := h.store.ForUser(ctx, u.ID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return contents, err
+	}
+	if err == nil {
+		view, viewErr := h.store.View(ctx, accountID)
+		if viewErr != nil {
+			return contents, viewErr
+		}
+		contents.Account = view.Lines
+	}
+	guestID, err := h.store.ByToken(ctx, ReadCookie(r, h.secure), uuid.NullUUID{})
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotYourCart) {
+		return contents, nil
+	}
+	if err != nil {
+		return contents, err
+	}
+	view, err := h.store.View(ctx, guestID)
+	if err != nil {
+		return contents, err
+	}
+	contents.BeforeSignIn = view.Lines
+	return contents, nil
 }
 
 // ForgetCart keeps the cookie only for a guest cart no account owns: an

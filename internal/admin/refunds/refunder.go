@@ -8,14 +8,14 @@ import (
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 type Refunder interface {
 	PaymentIntentFor(ctx context.Context, sessionID string) (string, error)
 	// Refund is keyed on requestKey so a retry cannot pay twice, and answers what
 	// the provider says the refund IS: a real one is often 'pending'.
-	Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, refundstate.State, error)
+	Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, refund.Status, error)
 }
 
 var ErrNoRefunder = errors.New("refunds: stripe is not configured")
@@ -65,12 +65,12 @@ const refundKeyTag = "goen_request_key"
 
 func (s StripeRefunder) refundFor(
 	ctx context.Context, paymentIntentID, requestKey string, amountCents int64,
-) (id string, state refundstate.State, found bool, err error) {
+) (id string, state refund.Status, found bool, err error) {
 	list := s.client.V1Refunds.List(ctx, &stripe.RefundListParams{
 		PaymentIntent: stripe.String(paymentIntentID),
 	})
 	var matchedID string
-	var matchedState refundstate.State
+	var matchedState refund.Status
 	for ref, listErr := range list.All(ctx) {
 		if listErr != nil {
 			return "", "", false, fmt.Errorf(
@@ -100,7 +100,7 @@ func (s StripeRefunder) refundFor(
 	return matchedID, matchedState, matchedID != "", nil
 }
 
-func (s StripeRefunder) Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, refundstate.State, error) {
+func (s StripeRefunder) Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, refund.Status, error) {
 	if s.client == nil {
 		return "", "", ErrNoRefunder
 	}
@@ -172,19 +172,19 @@ func refundMatchesClaim(
 
 // refundState maps Stripe's status; an unknown one errors rather than panics,
 // because the set belongs to a third party.
-func refundState(status stripe.RefundStatus) (refundstate.State, error) {
+func refundState(status stripe.RefundStatus) (refund.Status, error) {
 	switch status {
 	case stripe.RefundStatusSucceeded:
-		return refundstate.Succeeded, nil
+		return refund.Succeeded, nil
 	case stripe.RefundStatusPending:
-		return refundstate.Pending, nil
+		return refund.Pending, nil
 	case stripe.RefundStatusRequiresAction:
-		return refundstate.RequiresAction, nil
+		return refund.RequiresAction, nil
 	case stripe.RefundStatusFailed:
-		return refundstate.Failed, nil
+		return refund.Failed, nil
 	case stripe.RefundStatusCanceled:
 		// Stripe spells it "canceled" and this schema spells it "cancelled".
-		return refundstate.Cancelled, nil
+		return refund.Cancelled, nil
 	default:
 		return "", fmt.Errorf("stripe refund status %q is not one goen records", status)
 	}

@@ -40,7 +40,7 @@ func TestTheCampaignPageIsTitledAndEditsItsDatesAndAddsProductsBySearch(t *testi
 			Title: "秋季精選", StartsAtInput: "2026-10-01T09:00", EndsAtInput: "2026-10-31T23:59", Active: true,
 		},
 		Term:    "mug",
-		Matches: []CampaignProduct{{Slug: "ceramic-mug", Name: "陶瓷馬克杯"}},
+		Matches: []CampaignProduct{{Slug: "ceramic-mug", Name: "陶瓷馬克杯", HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 1}},
 	}))
 	_, afterH1, _ := strings.Cut(page, `<h1 class="ui-page-head__title">`)
 	if h1, _, _ := strings.Cut(afterH1, "</h1>"); h1 != "秋季精選" {

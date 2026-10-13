@@ -28,6 +28,7 @@ type CartLine struct {
 	Brand        string
 	SKU          string
 	Label        string
+	TaxExempt    bool
 	UnitCents    int64
 	CompareCents int64
 	Quantity     int32
@@ -410,16 +411,15 @@ type PickupChainChoice struct {
 	Label string
 }
 
-// PickupChainChoices is every chain the shop can accept, so an order placed at one
-// of them stays correctable in the back office.
-func PickupChainChoices() []PickupChainChoice {
-	return choicesFor(pickup.Offered())
+// KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
+func KnownPickupChainChoices() []PickupChainChoice {
+	return choicesFor(pickup.KnownChains())
 }
 
-// CheckoutPickupChainChoices is the part shoppers may choose today: the two chains
-// whose store picker the shop integrates first.
+// CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
 func CheckoutPickupChainChoices() []PickupChainChoice {
-	return choicesFor([]pickup.Chain{pickup.SevenEleven, pickup.FamilyMart})
+	chains := pickup.KnownChains()
+	return choicesFor(slices.DeleteFunc(chains, func(chain pickup.Chain) bool { return !chain.AtCheckout() }))
 }
 
 func choicesFor(chains []pickup.Chain) []PickupChainChoice {

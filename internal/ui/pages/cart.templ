@@ -180,6 +180,11 @@ templ cartLine(l CartLine) {
 				<span class="goen-line__meta">{ l.Label }</span>
 			}
 			<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
+			if l.TaxExempt {
+				@components.Badge(components.BadgeProps{}) {
+					{ i18n.T(ctx, i18n.KeyInvoiceExempt) }
+				}
+			}
 			if l.Unavailable {
 				@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
 					{ i18n.T(ctx, i18n.KeySoldOut) }

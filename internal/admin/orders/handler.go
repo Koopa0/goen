@@ -47,6 +47,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))
+	mux.HandleFunc("POST /admin/orders/{number}/shipments/{shipment}/delivered", ac.RequireStaff(h.DeliverShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/note", ac.RequireStaff(h.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", ac.RequireStaff(h.CorrectDelivery))
 }
@@ -292,6 +293,7 @@ var notices = map[string]web.NoticeEntry{
 	"ok":              web.Done(i18n.KeyAdminNoticeOK),
 	"refused":         web.Refused(i18n.KeyAdminNoticeRefused),
 	"shipped":         web.Done(i18n.KeyAdminNoticeShipped),
+	"parceldelivered": web.Done(i18n.KeyAdminNoticeShipmentDelivered),
 	"toolate":         web.Refused(i18n.KeyAdminNoticeTooLate),
 	"deliveryneeds":   web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
 	"paidcancel":      web.Refused(i18n.KeyAdminNoticePaidCancel),

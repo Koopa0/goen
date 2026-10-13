@@ -10,7 +10,9 @@ import (
 templ Base(p Page) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-		@documentHead(p, assets.AppCSS)
+		@documentHead(p, assets.AppCSS) {
+			<meta name="text-scale" content="scale"/>
+		}
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@promoBanner()
@@ -31,6 +33,7 @@ templ documentHead(p Page, surfaceCSS string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		{ children... }
 		<meta name="htmx-config" content={ htmxConfig }/>
 		<title>{ p.title(ctx) }</title>
 		if p.Description != "" {

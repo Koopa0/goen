@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -164,7 +164,7 @@ func (s *Store) FillPayouts(
 			item.CreditRefundCents = facts.CreditRefundCents
 		}
 		if payoutErr := fillReturnPayoutState(item.Status, payoutFacts[id], item); payoutErr != nil {
-			if !errors.Is(payoutErr, refundstate.ErrRefused) {
+			if !errors.Is(payoutErr, refund.ErrRefused) {
 				return nil, payoutErr
 			}
 			if blocked == nil {
@@ -183,7 +183,7 @@ func fillReturnPayoutState(
 		return nil
 	}
 	position, err := facts.position()
-	if errors.Is(err, refundstate.ErrRefused) {
+	if errors.Is(err, refund.ErrRefused) {
 		// A payout that no longer fits its sources is not a reason to hide
 		// the queue. It is exactly the row a person must investigate.
 		item.PayoutOutstanding = true
@@ -313,7 +313,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 		}
 	}
 	if payoutErr != nil {
-		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, payoutErr)
+		return fmt.Errorf("%w: %w", refund.ErrIncomplete, payoutErr)
 	}
 	// The retry path passes only the outstanding half. Therefore zero here also
 	// means that source settled on an earlier attempt; if this attempt returned
@@ -325,7 +325,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	// without duplicating the customer timeline.
 	if payoutDone {
 		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
-			return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
+			return fmt.Errorf("%w: %w", refund.ErrIncomplete, err)
 		}
 		if err := s.reverseReturnPoints(ctx, row); err != nil {
 			return err
@@ -345,7 +345,7 @@ func (s *Store) payReturnCardSource(
 	}
 	// Stripe accepting a refund is not the same as settling it. Only a succeeded
 	// outcome is money moved and permits the aggregate payout to finish.
-	settled := state == refundstate.Succeeded
+	settled := state == refund.Succeeded
 	return settled, settled, nil
 }
 
@@ -387,7 +387,7 @@ func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisi
 	}
 	if _, err := s.q.ReverseReturnPoints(ctx, row.ID); err != nil {
 		return fmt.Errorf("%w: reverse points for return %s: %w",
-			refundstate.ErrIncomplete, row.ID, err)
+			refund.ErrIncomplete, row.ID, err)
 	}
 	return nil
 }
@@ -397,14 +397,14 @@ func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisi
 // 'requires_action', and recording either as succeeded asserts money moved.
 func (s *Store) refundCard(
 	ctx context.Context, returnID uuid.UUID,
-) (string, refundstate.State, error) {
+) (string, refund.Status, error) {
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
 		return "", "", fmt.Errorf("%w: refund provider attempt", audit.ErrNoActor)
 	}
 	requestID := web.RequestID(ctx)
 	if requestID == "" {
-		return "", "", fmt.Errorf("%w: refund provider attempt has no request id", refundstate.ErrRefused)
+		return "", "", fmt.Errorf("%w: refund provider attempt has no request id", refund.ErrRefused)
 	}
 
 	claim, err := s.claimReturnRefundExecution(ctx, returnID, actorID, requestID)
@@ -445,7 +445,7 @@ func (s *Store) claimReturnRefundExecution(
 	})
 	if err != nil {
 		return db.RefundExecutionRow{}, pgerr.WrapRefusal(
-			fmt.Errorf("claim refund execution for return %s: %w", returnID, err), refundstate.ErrRefused)
+			fmt.Errorf("claim refund execution for return %s: %w", returnID, err), refund.ErrRefused)
 	}
 	claim, err := s.q.RefundExecution(ctx, refundID)
 	if err != nil {
@@ -480,26 +480,26 @@ func (s *Store) recordReturnRefundOutcome(
 	providerRef string,
 	actorID uuid.UUID,
 	requestID string,
-	state refundstate.State,
+	state refund.Status,
 ) error {
 	params := db.RecordRefundPendingParams{
 		RefundID: refundID, ProviderRef: providerRef,
 		ActorUserID: actorID, RequestID: requestID,
 	}
 	switch state {
-	case refundstate.Pending:
+	case refund.Pending:
 		_, err := s.q.RecordRefundPending(ctx, params)
 		return err
-	case refundstate.RequiresAction:
+	case refund.RequiresAction:
 		_, err := s.q.RecordRefundRequiresAction(ctx, db.RecordRefundRequiresActionParams(params))
 		return err
-	case refundstate.Succeeded:
+	case refund.Succeeded:
 		_, err := s.q.RecordRefundSucceeded(ctx, db.RecordRefundSucceededParams(params))
 		return err
-	case refundstate.Failed:
+	case refund.Failed:
 		_, err := s.q.RecordRefundFailed(ctx, db.RecordRefundFailedParams(params))
 		return err
-	case refundstate.Cancelled:
+	case refund.Cancelled:
 		_, err := s.q.RecordRefundCancelled(ctx, db.RecordRefundCancelledParams(params))
 		return err
 	default:
@@ -507,13 +507,13 @@ func (s *Store) recordReturnRefundOutcome(
 	}
 }
 
-func refundProviderResult(providerRef string, state refundstate.State) (string, refundstate.State, error) {
+func refundProviderResult(providerRef string, state refund.Status) (string, refund.Status, error) {
 	switch state {
-	case refundstate.Succeeded, refundstate.Pending, refundstate.RequiresAction:
+	case refund.Succeeded, refund.Pending, refund.RequiresAction:
 		// Stripe ACCEPTED it, so the return is approved either way: the shop took
 		// the goods back, and that decision is not Stripe's to make pending.
 		return providerRef, state, nil
-	case refundstate.Failed, refundstate.Cancelled:
+	case refund.Failed, refund.Cancelled:
 		// Terminal and no money moved. A return is decided once, so closing it
 		// here would leave a settled return, an unpaid customer and no door back.
 		return "", state, fmt.Errorf(

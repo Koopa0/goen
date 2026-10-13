@@ -69,6 +69,8 @@ type NavItem struct {
 	// ProductCount is how many active products the department holds across its
 	// sub-categories; 0 is left unprinted.
 	ProductCount int
+	PhotoURL     string
+	PhotoSrcset  string
 	Children     []NavItem
 	Picks        []NavPick
 }
