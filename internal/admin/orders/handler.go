@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
@@ -172,7 +173,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &shipRefusal{carrier: i18n.KeyAdminCarrierNotForOrder})
 	case errors.Is(err, ErrInvalid):
 		refusal := shipRefusal{}
-		if !carrier.Carrier(strings.TrimSpace(r.PostFormValue("carrier"))).Known() {
+		if !shipping.Carrier(strings.TrimSpace(r.PostFormValue("carrier"))).Known() {
 			refusal.carrier = i18n.KeyAdminNoticeNeeds
 		}
 		if strings.TrimSpace(r.PostFormValue("tracking")) == "" {
@@ -219,7 +220,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	if refusal.notice != "" {
 		text := say(refusal.notice)
 		if refusal.notice == i18n.KeyAdminDispatchRefused {
-			text = fmt.Sprintf(text, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
+			text = fmt.Sprintf(text, i18n.CarrierName(r.Context(), shipping.Carrier(view.ShipCarrier)), view.ShipTracking)
 		}
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
 	}

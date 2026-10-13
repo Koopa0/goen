@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/destination"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -75,8 +76,8 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{Methods: []ShippingMethod{
-		{MethodID: "a", VersionID: "va", Destination: destination.Address, Name: "宅配到府", NameEn: "Home delivery"},
-		{MethodID: "b", VersionID: "vb", Destination: destination.Address, Name: "超商取貨"},
+		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
+		{MethodID: "b", VersionID: "vb", Destination: shipping.DestinationAddress, Name: "超商取貨"},
 	}}
 	for _, tt := range []struct {
 		locale    i18n.Locale

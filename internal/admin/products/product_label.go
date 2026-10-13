@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -19,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -37,8 +39,8 @@ type productLabelState struct {
 	MinAgeMonths         pgtype.Int2    `json:"min_age_months"`
 }
 
-func (s *Store) SetProductLabel(ctx context.Context, slug string, input *productlabel.Input) error {
-	if len(input.Validate(ctx)) != 0 {
+func (s *Store) SetProductLabel(ctx context.Context, slug string, input *admin.LabelInput) error {
+	if len(validateLabel(ctx, input)) != 0 {
 		return ErrInvalid
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -83,26 +85,26 @@ func optionalText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-func productLabelParams(id uuid.UUID, input *productlabel.Input) db.SetProductLabelParams {
+func productLabelParams(id uuid.UUID, input *admin.LabelInput) db.SetProductLabelParams {
 	p := db.SetProductLabelParams{
 		ID: id, Origin: strings.TrimSpace(input.Origin), OriginEn: strings.TrimSpace(input.OriginEn),
 		DomesticPartyName: strings.TrimSpace(input.DomesticPartyName), DomesticPartyPhone: strings.TrimSpace(input.DomesticPartyPhone), DomesticPartyAddress: strings.TrimSpace(input.DomesticPartyAddress),
 		NetUnit: strings.TrimSpace(string(input.NetUnit)),
 	}
-	if n, ok := productlabel.QuantityHundredths(input.NetQuantity); ok {
+	if n, ok := quantityHundredths(input.NetQuantity); ok {
 		p.NetQuantity = pgtype.Numeric{Int: big.NewInt(n), Exp: -2, Valid: true}
 	}
 	if raw := strings.TrimSpace(input.MinAgeMonths); raw != "" {
-		n, _ := productlabel.AgeMonths(raw)
+		n, _ := ageMonths(raw)
 		p.MinAgeMonths = pgtype.Int2{Int16: n, Valid: true}
 	}
 	return p
 }
 
-func productLabelInput(r *db.AdminProductRow) *productlabel.Input {
-	f := &productlabel.Input{
+func productLabelInput(r *db.AdminProductRow) *admin.LabelInput {
+	f := &admin.LabelInput{
 		Origin: r.Origin, OriginEn: r.OriginEn, DomesticPartyName: r.DomesticPartyName, DomesticPartyPhone: r.DomesticPartyPhone, DomesticPartyAddress: r.DomesticPartyAddress,
-		NetQuantity: r.NetQuantity, NetUnit: productlabel.NetUnit(r.NetUnit),
+		NetQuantity: r.NetQuantity, NetUnit: labelling.NetUnit(r.NetUnit),
 	}
 	if r.MinAgeMonths.Valid {
 		f.MinAgeMonths = strconv.FormatInt(int64(r.MinAgeMonths.Int16), 10)
@@ -115,12 +117,12 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	input := &productlabel.Input{
+	input := &admin.LabelInput{
 		Origin: r.PostFormValue("origin"), OriginEn: r.PostFormValue("origin_en"),
 		DomesticPartyName: r.PostFormValue("domestic_party_name"), DomesticPartyPhone: r.PostFormValue("domestic_party_phone"), DomesticPartyAddress: r.PostFormValue("domestic_party_address"),
-		NetQuantity: r.PostFormValue("net_quantity"), NetUnit: productlabel.NetUnit(r.PostFormValue("net_unit")), MinAgeMonths: r.PostFormValue("min_age_months"),
+		NetQuantity: r.PostFormValue("net_quantity"), NetUnit: labelling.NetUnit(r.PostFormValue("net_unit")), MinAgeMonths: r.PostFormValue("min_age_months"),
 	}
-	if errs := input.Validate(r.Context()); len(errs) > 0 {
+	if errs := validateLabel(r.Context(), input); len(errs) > 0 {
 		h.rejectProductLabel(w, r, input, errs)
 		return
 	}
@@ -172,7 +174,7 @@ func productLabelRefusal(ctx context.Context, err error) map[string]string {
 	return map[string]string{"label": i18n.T(ctx, i18n.KeyProductLabelRefused)}
 }
 
-func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *productlabel.Input, errs map[string]string) {
+func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *admin.LabelInput, errs map[string]string) {
 	view, err := h.product(r.Context(), r.PathValue("slug"))
 	if errors.Is(err, ErrNotFound) {
 		access.NotFound(w, r, h.log)
@@ -186,4 +188,72 @@ func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, inp
 	view.LabelInput = input
 	view.Errors = errs
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(layouts.Page{Title: view.Name}, view))
+}
+
+// validateLabel reports each field of the labelling form that the store would
+// refuse, keyed by form name. Free text is bounded by admin.LabelInput.TextFields,
+// the same list the form draws its length hints from.
+func validateLabel(ctx context.Context, f *admin.LabelInput) map[string]string {
+	errs := make(map[string]string)
+	for _, field := range f.TextFields() {
+		if !utf8.ValidString(field.Value) || utf8.RuneCountInString(strings.TrimSpace(field.Value)) > field.Limit || strings.ContainsFunc(field.Value, unicode.IsControl) {
+			errs[field.Name] = i18n.T(ctx, i18n.KeyProductLabelTextInvalid)
+		}
+	}
+	quantity, unit := strings.TrimSpace(f.NetQuantity), strings.TrimSpace(string(f.NetUnit))
+	if quantity != "" || unit != "" {
+		_, ok := quantityHundredths(quantity)
+		if !ok || !labelling.NetUnit(unit).Known() {
+			errs["net_quantity"] = i18n.T(ctx, i18n.KeyProductLabelNetInvalid)
+			errs["net_unit"] = i18n.T(ctx, i18n.KeyProductLabelNetInvalid)
+		}
+	}
+	if _, ok := ageMonths(f.MinAgeMonths); !ok {
+		errs["min_age_months"] = i18n.T(ctx, i18n.KeyProductLabelAgeInvalid)
+	}
+	return errs
+}
+
+// quantityHundredths reads a net quantity with at most two decimals as hundredths,
+// and reports false for zero, a sign, an exponent or more than eight whole digits.
+func quantityHundredths(raw string) (int64, bool) {
+	raw = strings.TrimSpace(raw)
+	whole, fraction, decimal := strings.Cut(raw, ".")
+	if len(whole) < 1 || len(whole) > 8 || (decimal && (len(fraction) < 1 || len(fraction) > 2)) {
+		return 0, false
+	}
+	for _, part := range []string{whole, fraction} {
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return 0, false
+			}
+		}
+	}
+	base, err := strconv.ParseInt(whole, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	fraction += strings.Repeat("0", 2-len(fraction))
+	part, err := strconv.ParseInt(fraction, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	n := base*100 + part
+	return n, n > 0
+}
+
+// ageMonths reads the minimum age in whole months; empty means no minimum
+// and 216 (eighteen years) is the longest the store accepts.
+func ageMonths(raw string) (int16, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, true
+	}
+	for _, r := range raw {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	n, err := strconv.ParseInt(raw, 10, 16)
+	return int16(n), err == nil && n >= 0 && n <= 216
 }
