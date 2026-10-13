@@ -434,6 +434,21 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
 }
 
+func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
+	u, ok := user.FromContext(r.Context())
+	currentToken := ReadSessionCookie(r, h.secure)
+	if !ok || currentToken == "" {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
+		h.log.ErrorContext(r.Context(), "end other sessions", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	http.Redirect(w, r, "/account?other_devices=signed_out", http.StatusSeeOther)
+}
+
 func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.EndSession(r.Context(), ReadSessionCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
@@ -519,6 +534,13 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
 	case q.Get("demo") == "fixed":
 		return i18n.T(ctx, i18n.KeyDemoAccountFixed)
+	}
+	return otherDevicesNotice(r)
+}
+
+func otherDevicesNotice(r *http.Request) string {
+	if r.URL.Query().Get("other_devices") == "signed_out" {
+		return i18n.T(r.Context(), i18n.KeyOtherDevicesSignedOut)
 	}
 	return ""
 }
