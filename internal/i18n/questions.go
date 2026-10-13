@@ -9,8 +9,8 @@ var (
 	})
 
 	KeyQuestionRefused = key("pdp.qa.refused", Message{
-		ZhHant: "問題沒有送出。請確認內容不是空的，並在 300 字以內。",
-		En:     "That question was not posted — check it is not empty and under 300 characters.",
+		ZhHant: "請先寫下你的問題。",
+		En:     "Write your question first.",
 	})
 
 	KeyStaffAnswer = key("pdp.qa.staff", Message{ZhHant: "官方回覆", En: "From goen"})
@@ -28,9 +28,11 @@ var (
 	KeyAskLabel = key("field.question", Message{ZhHant: "想問什麼？", En: "What would you like to know?"})
 
 	KeyAskPlaceholder = key("field.question.placeholder", Message{
-		ZhHant: "例如：這個型號支援哪些快充協定？",
-		En:     "For example: which fast-charge standards does this model support?",
+		ZhHant: "例如：尺寸、材質或使用方式",
+		En:     "For example: size, materials or how to use it",
 	})
+
+	KeyAskLengthHint = key("field.question.length", Message{ZhHant: "最多 300 字", En: "Up to 300 characters"})
 
 	KeySignInToAsk = key("pdp.qa.signin.rest", Message{
 		ZhHant: "後可以發問。",

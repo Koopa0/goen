@@ -111,16 +111,19 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		Title:  r.PostFormValue("title"),
 		Body:   r.PostFormValue("body"),
 	}
+	draft := *review
 	errs, err := h.store.AddReview(r.Context(), slug, u.ID, review)
 	switch {
 	case err == nil && len(errs) == 0:
 		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?reviewed=1#reviews", http.StatusSeeOther)
-	case errors.Is(err, ErrAlreadyReviewed), errors.Is(err, ErrNotDelivered):
-		h.rejectReview(w, r, slug, review, nil)
+	case errors.Is(err, ErrAlreadyReviewed):
+		h.rejectReview(w, r, slug, &draft, nil)
+	case errors.Is(err, ErrNotDelivered):
+		h.rejectReview(w, r, slug, &draft, map[string]i18n.Key{"body": i18n.KeyReviewNotDelivered})
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
 	case len(errs) > 0:
-		h.rejectReview(w, r, slug, review, errs)
+		h.rejectReview(w, r, slug, &draft, errs)
 	default:
 		h.log.ErrorContext(r.Context(), "add review", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(

@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 type Store struct {
@@ -303,6 +304,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	if err != nil {
 		return fmt.Errorf("read reviews of %q: %w", p.Slug, err)
 	}
+	viewer, signedIn := user.FromContext(ctx)
 	for _, r := range reviews {
 		view.Reviews = append(view.Reviews, pages.ProductReview{
 			Rating:   int(r.Rating),
@@ -310,6 +312,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
+			Own:      signedIn && r.UserID.Valid && r.UserID.UUID.String() == viewer.ID,
 			Date:     shoptime.DateOf(r.CreatedAt, s.now()),
 		})
 	}

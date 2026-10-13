@@ -1,11 +1,9 @@
 package i18n
 
 var (
-	// The empty state that makes the first review possible: the form lives
-	// inside the reviews section, which therefore has to render without one.
 	KeyNoReviewsYet = key("pdp.reviews.none", Message{
-		ZhHant: "還沒有人評價這個商品，你可以是第一個。",
-		En:     "Nobody has reviewed this yet. You could be the first.",
+		ZhHant: "還沒有評價。買過這個商品、訂單送達後，就可以在這裡評價。",
+		En:     "No reviews yet. Once an order with this product is delivered, its buyer can review it here.",
 	})
 
 	KeySectionReviews = key("pdp.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
@@ -27,10 +25,9 @@ var (
 
 	KeySignInFirst = key("pdp.reviews.signin", Message{ZhHant: "登入", En: "Sign in"})
 
-	KeySignInToReview = key("pdp.reviews.signin.rest", Message{
-		ZhHant: "後可以留下評價。",
-		En:     " to leave a review.",
-	})
+	KeyYourReview = key("pdp.reviews.own", Message{ZhHant: "你的評價", En: "Your review"})
+
+	KeyReviewNotDelivered = key("pdp.reviews.notdelivered", Message{ZhHant: "訂單送達後才能評價，你寫的內容沒有送出。", En: "You can review this after your order is delivered. What you wrote was not posted."})
 
 	KeyAlreadyReviewed = key("pdp.reviews.already", Message{
 		ZhHant: "你已經評價過這個商品了，每個商品只能評價一次。",
