@@ -1012,7 +1012,7 @@ func TestWarrantyRegistrationSuccessStillRedirects(t *testing.T) {
 				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				w := httptest.NewRecorder()
 				mux.ServeHTTP(w, r)
-				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/account/warranty/"+f.number+"?ok=1" {
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/account/warranty/"+f.number+"?line="+f.lineID.String()+"&ok=1&unit=1" {
 					t.Fatalf("successful warranty status=%d, location=%q; want 303 to its order", w.Code, w.Header().Get("Location"))
 				}
 				var count int

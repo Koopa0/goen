@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"fmt"
 
 	"strconv"
 
@@ -29,6 +30,7 @@ type WarrantyLine struct {
 	Registered    int
 	DraftSerial   string
 	SerialRefusal string
+	CoverEnds     *shoptime.Date
 }
 
 func (l WarrantyLine) serialField(ctx context.Context) components.FieldProps {
@@ -64,7 +66,20 @@ func (l WarrantyLine) TermText(ctx context.Context) string {
 	if !l.HasTerm {
 		return ""
 	}
-	return i18n.Count(ctx, i18n.KeyUnitMonths, int64(l.Months), int64(l.Months))
+	if l.Months > 0 && l.Months%12 == 0 {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyYears), l.Months/12)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyMonths), l.Months)
+}
+
+func (l WarrantyLine) CoverText(ctx context.Context) string {
+	if !l.HasTerm {
+		return ""
+	}
+	if l.CoverEnds == nil {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTermBeforeDelivery), l.TermText(ctx))
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), l.TermText(ctx), l.CoverEnds.ISO())
 }
 
 func (l WarrantyLine) Why(ctx context.Context) string {
@@ -83,10 +98,11 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 }
 
 type WarrantyOrderView struct {
-	Number  string
-	Lines   []WarrantyLine
-	Notice  string
-	Refusal string
+	Number         string
+	Lines          []WarrantyLine
+	Refusal        string
+	Registered     []Warranty
+	RegisteredUnit *Warranty
 }
 
 func (v WarrantyOrderView) AnyRegistrable() bool {
@@ -113,7 +129,18 @@ func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
 			return ""
 		}
 	}
+	if shared == i18n.T(ctx, i18n.KeyWarrantyAllDone) {
+		return i18n.T(ctx, i18n.KeyWarrantyOrderAllDone)
+	}
 	return shared
+}
+
+func (v WarrantyOrderView) lineWhy(ctx context.Context, line WarrantyLine) string {
+	why, hint := line.Why(ctx), v.EmptyHint(ctx)
+	if why == hint || (hint == i18n.T(ctx, i18n.KeyWarrantyOrderAllDone) && why == i18n.T(ctx, i18n.KeyWarrantyAllDone)) {
+		return ""
+	}
+	return why
 }
 
 func (v WarrantyOrderView) waitingOnDelivery() bool {
@@ -132,6 +159,7 @@ func (v WarrantyOrderView) waitingOnDelivery() bool {
 func (v WarrantyOrderView) Action() string { return "/account/warranty/" + v.Number }
 
 type Warranty struct {
+	LineID       string
 	Name         string
 	Label        string
 	Slug         string
@@ -168,8 +196,17 @@ func (w Warranty) Href() string {
 }
 
 type WarrantyListView struct {
-	Rows   []Warranty
-	Notice string
+	Rows  []Warranty
+	Ready []WarrantyReady
+}
+
+type WarrantyReady struct {
+	Number string
+	Line   WarrantyLine
+}
+
+func (w WarrantyReady) Href() string {
+	return "/account/warranty/" + w.Number + "#serial-" + w.Line.ID
 }
 
 func (v WarrantyListView) Empty() bool { return len(v.Rows) == 0 }

@@ -48,7 +48,15 @@ var (
 		En:     "Registration opens on delivery.",
 	})
 
-	KeyWarrantyTerm = key("warranty.term", Message{ZhHant: "保固 %s", En: "%s warranty"})
+	KeyWarrantyTerm               = key("warranty.term", Message{ZhHant: "保固 %s，到 %s（從送達日起算）", En: "%s warranty, until %s (from delivery)"})
+	KeyWarrantyTermBeforeDelivery = key("warranty.term.before_delivery", Message{ZhHant: "保固 %s，從送達日起算", En: "%s warranty, from delivery"})
+	KeyWarrantyYears              = key("warranty.term.years", Message{ZhHant: "%d 年", En: "%d-year"})
+	KeyWarrantyMonths             = key("warranty.term.months", Message{ZhHant: "%d 個月", En: "%d-month"})
+	KeyWarrantyReady              = key("warranty.ready", Message{ZhHant: "可以登錄", En: "Ready to register"})
+	KeyWarrantyRegisterReady      = key("warranty.ready.register", Message{ZhHant: "登錄保固", En: "Register warranty"})
+	KeyWarrantyRegisteredUnit     = key("warranty.registered_unit", Message{ZhHant: "已登錄：%s，保固到 %s。", En: "Registered: %s, under warranty until %s."})
+	KeyWarrantyViewAll            = key("warranty.view_all", Message{ZhHant: "查看所有保固", En: "View all warranties"})
+	KeyWarrantyOrderAllDone       = key("warranty.order.all_done", Message{ZhHant: "這筆訂單的商品都已登錄保固。", En: "Every item on this order has been registered for warranty."})
 
 	KeyFieldSerialOpt = key("field.serial.optional", Message{
 		ZhHant: "機身序號（選填）",
@@ -73,8 +81,8 @@ var (
 	})
 
 	KeyWarrantyNoTerm = key("warranty.noterm", Message{
-		ZhHant: "這項商品沒有設定保固期限。",
-		En:     "No warranty term is set for this product.",
+		ZhHant: "這項商品沒有保固。",
+		En:     "This product has no warranty.",
 	})
 
 	KeyWarrantyNotDelivered = key("warranty.notdelivered", Message{
@@ -95,11 +103,6 @@ var (
 	KeyWarrantyActive = key("warranty.active", Message{ZhHant: "保固中", En: "In warranty"})
 
 	KeyWarrantyExpired = key("warranty.expired", Message{ZhHant: "已過期", En: "Expired"})
-
-	KeyWarrantyAlready = key("warranty.notice.already", Message{
-		ZhHant: "已經登錄了。保固期限可以在保固登錄頁看到。",
-		En:     "Registered. The cover dates are on your warranty page.",
-	})
 
 	KeyWarrantyDuplicateSerial = key("warranty.notice.duplicate", Message{
 		ZhHant: "這個序號已經登錄過了。請再確認一次機身上的號碼。",
