@@ -10427,6 +10427,7 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 
 const myWarranties = `-- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.order_line_id,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,
@@ -10443,6 +10444,7 @@ type MyWarrantiesRow struct {
 	ID           uuid.UUID
 	UnitNo       int16
 	SerialNumber string
+	OrderLineID  uuid.UUID
 	RegisteredAt time.Time
 	ExpiresOn    time.Time
 	InForce      bool
@@ -10467,6 +10469,7 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.ID,
 			&i.UnitNo,
 			&i.SerialNumber,
+			&i.OrderLineID,
 			&i.RegisteredAt,
 			&i.ExpiresOn,
 			&i.InForce,
@@ -10735,21 +10738,28 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 const newsletterCounts = `-- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,
+    count(*) FILTER (WHERE unsubscribed_at IS NULL AND locale = 'en') AS english_active,
     count(*) FILTER (WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
     (SELECT count(*) FROM newsletter_confirmations WHERE expires_at > now()) AS awaiting
 FROM newsletter_subscribers
 `
 
 type NewsletterCountsRow struct {
-	Active       int64
-	Unsubscribed int64
-	Awaiting     int64
+	Active        int64
+	EnglishActive int64
+	Unsubscribed  int64
+	Awaiting      int64
 }
 
 func (q *Queries) NewsletterCounts(ctx context.Context) (NewsletterCountsRow, error) {
 	row := q.db.QueryRow(ctx, newsletterCounts)
 	var i NewsletterCountsRow
-	err := row.Scan(&i.Active, &i.Unsubscribed, &i.Awaiting)
+	err := row.Scan(
+		&i.Active,
+		&i.EnglishActive,
+		&i.Unsubscribed,
+		&i.Awaiting,
+	)
 	return i, err
 }
 
@@ -11386,9 +11396,28 @@ func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, err
 }
 
 const orderLinesByOrder = `-- name: OrderLinesByOrder :many
-SELECT sku, product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesByOrderParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesByOrderRow struct {
 	SKU            string
@@ -11396,10 +11425,13 @@ type OrderLinesByOrderRow struct {
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
-func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderLinesByOrderRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesByOrder, orderID)
+func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderParams) ([]OrderLinesByOrderRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesByOrder, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11413,6 +11445,9 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -11425,21 +11460,43 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 }
 
 const orderLinesForPayment = `-- name: OrderLinesForPayment :many
-SELECT product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesForPaymentParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesForPaymentRow struct {
 	ProductName    string
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
 // Named from the order rather than the catalogue: a renamed or repriced product
 // must not move at payment.
-func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) ([]OrderLinesForPaymentRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesForPayment, orderID)
+func (q *Queries) OrderLinesForPayment(ctx context.Context, arg OrderLinesForPaymentParams) ([]OrderLinesForPaymentRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesForPayment, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11452,6 +11509,9 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -14225,11 +14285,15 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 const registrableLines = `-- name: RegistrableLines :many
 SELECT
     ol.id AS order_line_id,
+    o.order_number,
     ol.product_name,
     ol.variant_label,
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
+    -- sqlc types the lateral date as non-null, so retain its presence separately.
+    (parcel.expires_on IS NOT NULL)::boolean AS has_expiry,
+    coalesce(parcel.expires_on, shop_today())::date AS expires_on,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
     coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
@@ -14254,23 +14318,45 @@ LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
 ) registered ON true
-WHERE o.order_number = $1::text
+LEFT JOIN LATERAL (
+    SELECT (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE coalesce(registered.units, 0) + 1 > p.units_before
+      AND coalesce(registered.units, 0) + 1 <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+      AND coalesce(registered.units, 0) + 1 <= greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)
+      AND NOT EXISTS (
+          SELECT 1 FROM warranty_registrations w
+          WHERE w.order_line_id = ol.id
+            AND w.unit_no = coalesce(registered.units, 0) + 1
+      )
+) parcel ON true
+WHERE ($1::text IS NULL OR o.order_number = $1::text)
   AND o.user_id = $2
-ORDER BY ol.position, ol.id
+ORDER BY o.placed_at DESC, o.id, ol.position, ol.id
 `
 
 type RegistrableLinesParams struct {
-	OrderNumber string
+	OrderNumber pgtype.Text
 	UserID      uuid.NullUUID
 }
 
 type RegistrableLinesRow struct {
 	OrderLineID     uuid.UUID
+	OrderNumber     string
 	ProductName     string
 	VariantLabel    pgtype.Text
 	ProductSlug     pgtype.Text
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
+	HasExpiry       bool
+	ExpiresOn       time.Time
 	DeliveredUnits  int32
 	ReturnedUnits   int32
 	RegisteredUnits int32
@@ -14292,11 +14378,14 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		var i RegistrableLinesRow
 		if err := rows.Scan(
 			&i.OrderLineID,
+			&i.OrderNumber,
 			&i.ProductName,
 			&i.VariantLabel,
 			&i.ProductSlug,
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
+			&i.HasExpiry,
+			&i.ExpiresOn,
 			&i.DeliveredUnits,
 			&i.ReturnedUnits,
 			&i.RegisteredUnits,

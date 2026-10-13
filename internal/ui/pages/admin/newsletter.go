@@ -7,13 +7,14 @@ import (
 )
 
 type NewsletterView struct {
-	Active       int64
-	Unsubscribed int64
-	Awaiting     int64
-	Issues       []NewsletterIssue
-	Draft        NewsletterDraft
-	Errors       map[string]string
-	Notice       components.Result
+	Active        int64
+	EnglishActive int64
+	Unsubscribed  int64
+	Awaiting      int64
+	Issues        []NewsletterIssue
+	Draft         NewsletterDraft
+	Errors        map[string]string
+	Notice        components.Result
 }
 
 type NewsletterDraft struct {

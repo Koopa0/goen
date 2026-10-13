@@ -214,9 +214,10 @@ func (s *Store) Issues(ctx context.Context, limit int32) ([]Issue, error) {
 }
 
 type Counts struct {
-	Active       int64
-	Unsubscribed int64
-	Awaiting     int64
+	Active        int64
+	EnglishActive int64
+	Unsubscribed  int64
+	Awaiting      int64
 }
 
 func (s *Store) Counts(ctx context.Context) (Counts, error) {
@@ -224,5 +225,5 @@ func (s *Store) Counts(ctx context.Context) (Counts, error) {
 	if err != nil {
 		return Counts{}, fmt.Errorf("counting the list: %w", err)
 	}
-	return Counts{Active: row.Active, Unsubscribed: row.Unsubscribed, Awaiting: row.Awaiting}, nil
+	return Counts{Active: row.Active, EnglishActive: row.EnglishActive, Unsubscribed: row.Unsubscribed, Awaiting: row.Awaiting}, nil
 }

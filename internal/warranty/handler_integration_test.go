@@ -60,7 +60,7 @@ func TestWarrantyRegistrationBindsTheOrderURL(t *testing.T) {
 					t.Fatalf("Register status = %d, want %d; body=%s", rec.Code, tc.status, rec.Body.String())
 				}
 				if tc.status == http.StatusSeeOther {
-					if got, want := rec.Header().Get("Location"), "/account/warranty/"+url.PathEscape(mine.number)+"?ok=1"; got != want {
+					if got, want := rec.Header().Get("Location"), "/account/warranty/"+url.PathEscape(mine.number)+"?line="+mine.lineID.String()+"&ok=1&unit=1"; got != want {
 						t.Errorf("Register redirect = %q, want %q", got, want)
 					}
 					var savedSerial, savedOwner string
@@ -116,7 +116,7 @@ func TestPostingTheRegistrationFormRegistersTheUnitAndReturnsToItsOrder(t *testi
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("Register answered %d, want 303; body=%s", w.Code, w.Body.String())
 	}
-	if got, want := w.Header().Get("Location"), "/account/warranty/"+url.PathEscape(f.number)+"?ok=1"; got != want {
+	if got, want := w.Header().Get("Location"), "/account/warranty/"+url.PathEscape(f.number)+"?line="+f.lineID.String()+"&ok=1&unit=1"; got != want {
 		t.Errorf("Register redirects to %q, want %q", got, want)
 	}
 	var serial string

@@ -22,10 +22,24 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</h1>
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyWarrantySub) }</p>
 			</div>
-			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "warranty-notice"}) {
-					{ v.Notice }
-				}
+			if len(v.Ready) > 0 {
+				<section aria-labelledby="warranty-ready-heading">
+					<h2 class="goen-account__heading" id="warranty-ready-heading">{ i18n.T(ctx, i18n.KeyWarrantyReady) }</h2>
+					<ul class="goen-warranty" role="list">
+						for _, item := range v.Ready {
+							<li class="goen-warranty__item">
+								<span class="goen-warranty__name">{ item.Line.Name }</span>
+								if item.Line.Label != "" {
+									<span class="goen-warranty__meta">{ item.Line.Label }</span>
+								}
+								<p class="goen-warranty__meta">{ item.Line.CoverText(ctx) }</p>
+								@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(item.Href())) {
+									{ i18n.T(ctx, i18n.KeyWarrantyRegisterReady) }
+								}
+							</li>
+						}
+					</ul>
+				</section>
 			}
 			if v.Empty() {
 				<div class="goen-empty">
@@ -85,10 +99,14 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 					{ v.Refusal }
 				}
 			}
-			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "warranty-notice"}) {
-					{ v.Notice }
-				}
+			if v.RegisteredUnit != nil {
+				<p role="status" id="warranty-registered">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyRegisteredUnit), v.RegisteredUnit.Name, v.RegisteredUnit.ExpiresOn.ISO()) }
+					if v.RegisteredUnit.Serial != "" {
+						<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), v.RegisteredUnit.Serial) }</span>
+					}
+					<a href="/account/warranty">{ i18n.T(ctx, i18n.KeyWarrantyViewAll) }</a>
+				</p>
 			}
 			if !v.AnyRegistrable() {
 				<div class="goen-empty">
@@ -103,9 +121,9 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 					<li class="goen-warranty__item">
 						<div class="goen-warranty__head">
 							<span class="goen-warranty__name">{ line.Name }</span>
-							if line.TermText(ctx) != "" {
+							if line.CoverText(ctx) != "" {
 								@components.Badge(components.BadgeProps{}) {
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), line.TermText(ctx)) }
+									{ line.CoverText(ctx) }
 								}
 							}
 						</div>
@@ -135,8 +153,19 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegister) }
 								}
 							</form>
-						} else {
-							<p class="goen-warranty__meta">{ line.Why(ctx) }</p>
+						} else if v.lineWhy(ctx, line) != "" {
+							<p class="goen-warranty__meta">{ v.lineWhy(ctx, line) }</p>
+						}
+						if !line.Registrable() && line.DraftSerial != "" {
+							<div class="goen-field goen-warranty__field">
+								@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
+									{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
+								}
+								@components.Input(components.FieldProps{
+									ID: "serial-" + line.ID, Name: "serial", Value: line.DraftSerial,
+									Attrs: templ.Attributes{"readonly": true},
+								})
+							</div>
 						}
 					</li>
 				}

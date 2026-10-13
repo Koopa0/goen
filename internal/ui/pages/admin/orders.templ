@@ -1015,7 +1015,16 @@ templ orderItemsAndDelivery(v *OrderView) {
 		<ul class="goen-order__lines" role="list">
 			for _, l := range v.Lines {
 				<li class="goen-order__line">
-					<div>
+					if !v.OutstandingQuantities {
+						<span class="goen-order__photo">
+							if l.HasImage() {
+								<img class="goen-order__image" src={ l.ImageURL } srcset={ l.ImageSrcset } sizes="40px" alt={ l.ImageAlt } width="40" height="40" loading="lazy" decoding="async"/>
+							} else {
+								<span class="goen-line__ph" aria-hidden="true"></span>
+							}
+						</span>
+					}
+					<div class="goen-order__linebody">
 						<p class="goen-order__name">{ l.Name }</p>
 						if l.Label != "" {
 							<span class="goen-admin__meta">{ l.Label }</span>
