@@ -838,7 +838,8 @@ CREATE UNIQUE INDEX store_credit_entries_reverses_key
 
 CREATE UNIQUE INDEX store_credit_entries_idempotency_key
     ON store_credit_entries (idempotency_key);
-CREATE INDEX store_credit_entries_account_idx ON store_credit_entries (account_id, created_at DESC);
+CREATE INDEX store_credit_entries_account_idx ON store_credit_entries (account_id, created_at DESC, id DESC);
+CREATE INDEX store_credit_entries_created_idx ON store_credit_entries (created_at DESC, id DESC);
 CREATE INDEX store_credit_entries_order_idx ON store_credit_entries (order_id);
 CREATE INDEX store_credit_entries_actor_idx ON store_credit_entries (actor_user_id);
 

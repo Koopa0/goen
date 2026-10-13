@@ -15,6 +15,10 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
+		"RecentCredit": "accounting positions in deterministic (created_at, id) ledger order, " +
+			"not transaction-completion balances. The bounded page reads canonical totals " +
+			"for its accounts and subtracts newer entries; the first position reconciles " +
+			"with store_credit_balances",
 		"ReturnPayoutFacts": "spent and returned on ONE order, split by " +
 			"sign — a position rather than a balance, and the refund split needs both " +
 			"halves. It leaves out one return's own compensation because that is what " +

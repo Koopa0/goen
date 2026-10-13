@@ -30,7 +30,13 @@ templ GlanceStatLine(stats []LinkedStat) {
 
 templ statValue(s Stat) {
 	<dd>
-		@figure(s.Value)
+		if s.ValueHref != "" {
+			<a href={ templ.SafeURL(s.ValueHref) }>
+				@figure(s.Value)
+			</a>
+		} else {
+			@figure(s.Value)
+		}
 		if s.Note != "" {
 			<span class="ui-statline__note">{ s.Note }</span>
 		}

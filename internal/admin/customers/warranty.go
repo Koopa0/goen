@@ -56,6 +56,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
 			OrderStatus:   status,
 			CustomerName:  r.CustomerName,
+			CustomerID:    r.CustomerID,
 			CustomerEmail: r.CustomerEmail,
 			RegisteredAt:  shoptime.Day(r.RegisteredAt),
 			ExpiresOn:     shoptime.Day(r.ExpiresOn),
