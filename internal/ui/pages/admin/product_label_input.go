@@ -37,11 +37,11 @@ func (f *LabelInput) TextFields() []LabelField {
 		f = &LabelInput{}
 	}
 	return []LabelField{
-		{Name: "origin", Caption: i18n.KeyProductLabelOrigin, Value: f.Origin, Limit: 100},
-		{Name: "origin_en", Caption: i18n.KeyProductLabelOriginEn, Value: f.OriginEn, Limit: 100},
-		{Name: "domestic_party_name", Caption: i18n.KeyProductLabelDomesticPartyName, Value: f.DomesticPartyName, Limit: 200},
-		{Name: "domestic_party_phone", Caption: i18n.KeyProductLabelDomesticPartyPhone, Value: f.DomesticPartyPhone, Limit: 40},
-		{Name: "domestic_party_address", Caption: i18n.KeyProductLabelDomesticPartyAddress, Value: f.DomesticPartyAddress, Limit: 500},
+		{Name: "origin", Caption: i18n.KeyProductLabelOrigin, Value: f.Origin, Limit: labelling.MaxOriginRunes},
+		{Name: "origin_en", Caption: i18n.KeyProductLabelOriginEn, Value: f.OriginEn, Limit: labelling.MaxOriginEnRunes},
+		{Name: "domestic_party_name", Caption: i18n.KeyProductLabelDomesticPartyName, Value: f.DomesticPartyName, Limit: labelling.MaxPartyNameRunes},
+		{Name: "domestic_party_phone", Caption: i18n.KeyProductLabelDomesticPartyPhone, Value: f.DomesticPartyPhone, Limit: labelling.MaxPartyPhoneRunes},
+		{Name: "domestic_party_address", Caption: i18n.KeyProductLabelDomesticPartyAddress, Value: f.DomesticPartyAddress, Limit: labelling.MaxPartyAddressRunes},
 	}
 }
 

@@ -48,6 +48,21 @@ func (u NetUnit) Symbol(ctx context.Context) string {
 	}
 }
 
+// The longest free-text values the store accepts, in characters (runes), as the
+// schema bounds them with char_length.
+const (
+	// MaxOriginRunes mirrors CHECK products_label_origin_valid.
+	MaxOriginRunes = 100
+	// MaxOriginEnRunes mirrors CHECK products_label_origin_en_valid.
+	MaxOriginEnRunes = 100
+	// MaxPartyNameRunes mirrors CHECK products_label_domestic_name_valid.
+	MaxPartyNameRunes = 200
+	// MaxPartyPhoneRunes mirrors CHECK products_label_domestic_phone_valid.
+	MaxPartyPhoneRunes = 40
+	// MaxPartyAddressRunes mirrors CHECK products_label_domestic_address_valid.
+	MaxPartyAddressRunes = 500
+)
+
 type Facts struct {
 	Origin               string
 	DomesticPartyName    string
