@@ -46,6 +46,7 @@ try {
   for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
     const label = `carousel ${locale} ${width}px`;
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
+    await send('Emulation.setTouchEmulationEnabled', { enabled: width < 768, maxTouchPoints: 1 });
     const url = `${origin}/carousel?lang=${locale}&width=${width}`;
     await send('Page.navigate', { url });
     await send('Page.bringToFront');
@@ -58,7 +59,7 @@ try {
     const before = await evaluate(`(() => {
       const track = document.querySelector('.goen-hero__track').getBoundingClientRect();
       return { y: scrollY, x: scrollX, left: track.left, width: track.width,
-        gestureY: track.top + track.height / 2, distance: track.width * 0.75 };
+        distance: track.width * 0.75 };
     })()`);
     assert.equal(before.y, 64, `${label}: nonzero reading position`);
     // One native gesture per slide: scroll-snap-stop prevents skipping a snap point.
