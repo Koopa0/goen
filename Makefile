@@ -52,7 +52,7 @@ run: gen
 	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
 		case $$status in \
 		0) ;; \
-		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run PGOPTIONS="-c goen.catalogue_seed=development" make db-reset' >&2; exit 1;; \
 		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
 		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen

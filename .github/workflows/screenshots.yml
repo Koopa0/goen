@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           make migrate-up
-          make db-seed
+          PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
           if [ "$DATA" = layout ]; then
             psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
           else
