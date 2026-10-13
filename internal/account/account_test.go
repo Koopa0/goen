@@ -2,10 +2,14 @@ package account
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	gotoken "go/token"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -898,5 +902,163 @@ func TestRegistrationLandingKeepsTheNextStepAfterWelcome(t *testing.T) {
 				t.Errorf("registration landing = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPasswordCostIsOWASPSecondOption locks the work factor of every stored
+// password hash. HashPassword reads passwordCost, which is declared from these
+// constants and which only export_test.go may lower, so a change here changes
+// what production spends per sign-in and what an attacker must spend per guess.
+func TestPasswordCostIsOWASPSecondOption(t *testing.T) {
+	// No t.Parallel: the third check swaps the package variable.
+	const reference = "OWASP Password Storage Cheat Sheet, Argon2id second option: " +
+		"m=64 MiB (65536 KiB), t=3, p=4; change it deliberately, not by accident"
+
+	t.Run("constants", func(t *testing.T) {
+		for _, c := range []struct {
+			name      string
+			got, want uint64
+		}{
+			{"argonTime", argonTime, 3},
+			{"argonMemory (KiB)", argonMemory, 65536},
+			{"argonThreads", argonThreads, 4},
+		} {
+			if c.got != c.want {
+				t.Errorf("%s = %d, want %d (%s)", c.name, c.got, c.want, reference)
+			}
+		}
+	})
+
+	t.Run("nothing assigns passwordCost", func(t *testing.T) {
+		assertPasswordCostNeverAssigned(t)
+	})
+
+	t.Run("hash carries the declared cost", func(t *testing.T) {
+		// Under -tags integration TestMain has already lowered passwordCost.
+		saved := passwordCost
+		t.Cleanup(func() { passwordCost = saved })
+		passwordCost = argon2Cost{time: argonTime, memory: argonMemory, threads: argonThreads}
+
+		h, err := HashPassword("a password long enough")
+		if err != nil {
+			t.Fatalf("HashPassword: %v", err)
+		}
+		const wantPrefix = "$argon2id$v=19$m=65536,t=3,p=4$"
+		if !strings.HasPrefix(h, wantPrefix) {
+			t.Errorf("hash %q does not start with %q (%s)", h, wantPrefix, reference)
+		}
+		if !VerifyPassword(h, "a password long enough") {
+			t.Error("a hash at the declared cost does not verify")
+		}
+	})
+}
+
+// assertPasswordCostNeverAssigned parses the package's non-test sources and
+// fails unless passwordCost is declared once, from exactly the three argon
+// constants, and is assigned nowhere else. Test files are skipped because
+// export_test.go lowers it on purpose and is never linked into the program.
+func assertPasswordCostNeverAssigned(t *testing.T) {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read package directory: %v", err)
+	}
+	fset := gotoken.NewFileSet()
+	declarations := 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			var written []ast.Expr
+			switch n := n.(type) {
+			case *ast.AssignStmt:
+				written = n.Lhs
+			case *ast.IncDecStmt:
+				written = []ast.Expr{n.X}
+			case *ast.RangeStmt:
+				written = []ast.Expr{n.Key, n.Value}
+			case *ast.UnaryExpr:
+				if n.Op == gotoken.AND {
+					written = []ast.Expr{n.X}
+				}
+			case *ast.ValueSpec:
+				for _, id := range n.Names {
+					if id.Name != "passwordCost" {
+						continue
+					}
+					declarations++
+					if declarations == 1 {
+						assertPasswordCostDeclaredFromConstants(t, fset, n)
+					}
+				}
+			}
+			for _, w := range written {
+				if w != nil && rootIdent(w) == "passwordCost" {
+					t.Errorf("%s assigns passwordCost; only export_test.go may lower it",
+						fset.Position(w.Pos()))
+				}
+			}
+			return true
+		})
+	}
+	if declarations != 1 {
+		t.Errorf("passwordCost is declared %d times in non-test files, want exactly 1", declarations)
+	}
+}
+
+// rootIdent names the variable an assignable expression writes through, so
+// that passwordCost.time = 1 counts as an assignment to passwordCost.
+func rootIdent(e ast.Expr) string {
+	for {
+		switch x := e.(type) {
+		case *ast.Ident:
+			return x.Name
+		case *ast.SelectorExpr:
+			e = x.X
+		case *ast.IndexExpr:
+			e = x.X
+		case *ast.ParenExpr:
+			e = x.X
+		case *ast.StarExpr:
+			e = x.X
+		default:
+			return ""
+		}
+	}
+}
+
+func assertPasswordCostDeclaredFromConstants(t *testing.T, fset *gotoken.FileSet, spec *ast.ValueSpec) {
+	t.Helper()
+
+	if len(spec.Values) != 1 {
+		t.Fatalf("%s: passwordCost needs exactly one initial value", fset.Position(spec.Pos()))
+	}
+	lit, ok := spec.Values[0].(*ast.CompositeLit)
+	if !ok {
+		t.Fatalf("%s: passwordCost must be initialised by an argon2Cost literal", fset.Position(spec.Pos()))
+	}
+	want := map[string]string{"time": "argonTime", "memory": "argonMemory", "threads": "argonThreads"}
+	got := map[string]string{}
+	for _, el := range lit.Elts {
+		kv, ok := el.(*ast.KeyValueExpr)
+		if !ok {
+			t.Fatalf("%s: every field of the passwordCost literal must be keyed", fset.Position(el.Pos()))
+		}
+		key, _ := kv.Key.(*ast.Ident)
+		val, _ := kv.Value.(*ast.Ident)
+		if key == nil || val == nil {
+			t.Fatalf("%s: passwordCost fields must be named constants", fset.Position(kv.Pos()))
+		}
+		got[key.Name] = val.Name
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("passwordCost is not declared from the argon constants (-want +got):\n%s", diff)
 	}
 }
