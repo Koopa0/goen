@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
 
 class Connection {
   pending = new Map();
@@ -112,11 +111,12 @@ async function key(name, modifiers = 0) {
  await connection.send('Input.dispatchKeyEvent', { type: 'keyDown', ...params });
  await connection.send('Input.dispatchKeyEvent', { type: 'keyUp', ...params });
 }
-async function capture(name) {
- if (!process.env.EVIDENCE_DIR) return;
- mkdirSync(process.env.EVIDENCE_DIR, { recursive: true });
- const { data } = await connection.send('Page.captureScreenshot', { format: 'png' });
- writeFileSync(process.env.EVIDENCE_DIR + '/' + name + '.png', Buffer.from(data, 'base64'));
+async function press(point, description) {
+ await connection.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+ await connection.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
+ assert.equal(await evaluate('checkedPopover.open'), true, description + ': pointerdown keeps the panel open');
+ await connection.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+ assert.equal(await evaluate('checkedPopover.open'), true, description + ': pointer release keeps the panel open');
 }
 
 async function filterShell() {
@@ -145,12 +145,23 @@ try {
   await evaluate("window.checkedPopover = document.querySelector('.goen-filters__group:has(input[name=brand])'); checkedPopover.querySelector('summary').focus()");
   await key('Enter');
   assert.equal(await evaluate('checkedPopover.open'), true, label + ': Enter opens the group');
+  const checked = await evaluate("checkedPopover.querySelector('input').checked");
+  const optionText = await evaluate(`(() => { const e = checkedPopover.querySelector('.goen-filters__label'); const range = document.createRange(); range.selectNodeContents(e); const r = range.getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; })()`);
+  await press(optionText, label + ': option label');
+  assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': native label press toggles its option');
+  await evaluate("checkedPopover.querySelector('summary').focus()");
+  if (width === 1440) {
+   const padding = await evaluate(`(() => { const panel = checkedPopover.querySelector('.goen-filters__options'), r = panel.getBoundingClientRect(), s = getComputedStyle(panel); return {x:r.x + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft) / 2, y:r.y + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) / 2}; })()`);
+   await press(padding, label + ': panel padding');
+   assert.equal(await evaluate("checkedPopover.querySelector('input').checked"), !checked, label + ': padding does not toggle the option');
+   await evaluate("checkedPopover.querySelector('summary').focus()");
+  }
+
   await key('Tab');
   assert.equal(await evaluate('checkedPopover.open && checkedPopover.contains(document.activeElement)'), true, label + ': focus within the group keeps it open');
   await evaluate("[...checkedPopover.querySelectorAll('input')].at(-1).focus()");
   await key('Tab');
   const exit = await evaluate('({open:checkedPopover.open,inside:checkedPopover.contains(document.activeElement)})');
-  await capture(label + '-exit');
   assert.equal(exit.inside, false, label + ': Tab leaves the group');
   assert.equal(exit.open, false, label + ': panel must close on keyboard focus leaving: ' + JSON.stringify(exit));
   for (let step = 0; step < 30; step++) {
@@ -159,13 +170,13 @@ try {
   }
   assert.equal(await evaluate("document.activeElement.matches('.goen-filters__chip-remove')"), true, label + ': applied chip is keyboard reachable');
   const chip = await visibleFocus();
-  await capture(label + '-chip');
   assert.ok(chip.uncovered && chip.focusVisible && chip.outlineWidth > 0 && chip.outlineStyle !== 'none' && chip.targetWidth >= 24 && chip.targetHeight >= 24 && chip.right <= chip.viewport, label + ': focused chip must be visible: ' + JSON.stringify(chip));
 
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab'); await key('Escape');
   assert.equal(await evaluate("!checkedPopover.open && document.activeElement === checkedPopover.querySelector('summary')"), true, label + ': Escape returns focus to summary');
   await key('Enter'); await key('Tab'); await evaluate('document.activeElement.blur()');
-  assert.equal(await evaluate('checkedPopover.open'), false, label + ': null relatedTarget closes the group');
+  assert.equal(await evaluate('checkedPopover.open'), true, label + ': null relatedTarget keeps the group open');
+  await evaluate('checkedPopover.open = false');
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter'); await key('Tab', 8);
   assert.equal(await evaluate('checkedPopover.open'), false, label + ': reverse Tab out closes the group');
   await evaluate("checkedPopover.querySelector('summary').focus()"); await key('Enter');
