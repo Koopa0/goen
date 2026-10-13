@@ -1139,7 +1139,10 @@ func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([
 const adminOrderByNumber = `-- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
+    o.shipping_cents, o.discount_cents, o.tax_cents,
+    -- A missing translation retains the order's snapshot, not another locale.
+    coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+             o.shipping_method_name)::text AS shipping_method_name,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -1172,10 +1175,16 @@ SELECT
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = $1
+WHERE o.order_number = $2::text
 `
+
+type AdminOrderByNumberParams struct {
+	Locale      string
+	OrderNumber string
+}
 
 type AdminOrderByNumberRow struct {
 	ID                   uuid.UUID
@@ -1212,8 +1221,8 @@ type AdminOrderByNumberRow struct {
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
 // and the FK is ON DELETE RESTRICT, so one join always reaches it.
-func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (AdminOrderByNumberRow, error) {
-	row := q.db.QueryRow(ctx, adminOrderByNumber, orderNumber)
+func (q *Queries) AdminOrderByNumber(ctx context.Context, arg AdminOrderByNumberParams) (AdminOrderByNumberRow, error) {
+	row := q.db.QueryRow(ctx, adminOrderByNumber, arg.Locale, arg.OrderNumber)
 	var i AdminOrderByNumberRow
 	err := row.Scan(
 		&i.ID,
@@ -12145,7 +12154,10 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 
 const pickingSlips = `-- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       o.id, o.order_number, o.placed_at,
+       coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+                o.shipping_method_name)::text AS shipping_method_name,
+       coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -12161,6 +12173,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(ip.donation_code, '') AS invoice_donation_code,
        coalesce(ip.tax_id, '') AS invoice_tax_id
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
@@ -12168,13 +12181,14 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                                           WHERE sl.order_line_id = ol.id), 0))
-  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
-       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
+  AND (NOT $2::boolean OR o.placed_at > $3::timestamptz
+       OR (o.placed_at = $3::timestamptz AND o.id > $4::uuid))
 ORDER BY o.placed_at, o.id
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type PickingSlipsParams struct {
+	Locale    string
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -12206,6 +12220,7 @@ type PickingSlipsRow struct {
 
 func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
 	rows, err := q.db.Query(ctx, pickingSlips,
+		arg.Locale,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
