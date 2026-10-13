@@ -197,7 +197,11 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.
 	}
 	out := make([]admin.CampaignProduct, 0, len(rows))
 	for i := range rows {
-		out = append(out, admin.CampaignProduct{Slug: rows[i].Slug, Name: rows[i].Name})
+		out = append(out, admin.CampaignProduct{
+			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
+			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
+			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
+		})
 	}
 	return out, nil
 }
@@ -354,7 +358,9 @@ func (s *Store) Products(ctx context.Context, slug string) ([]admin.CampaignProd
 	out := make([]admin.CampaignProduct, 0, len(rows))
 	for i := range rows {
 		out = append(out, admin.CampaignProduct{
-			Slug: rows[i].Slug, Name: rows[i].Name,
+			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
+			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
+			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
 		})
 	}
 	return out, nil

@@ -285,6 +285,13 @@ func RegisterCompleteMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
 }
 
+func (v AuthView) authPageLink(path string) string {
+	if v.Next == "" || v.Next == "/account" {
+		return path
+	}
+	return path + "?next=" + url.QueryEscape(v.Next)
+}
+
 func (v AuthView) GoogleLink() string {
 	if v.Next == "" {
 		return "/auth/google"
