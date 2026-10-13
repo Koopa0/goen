@@ -35,13 +35,16 @@ class Element extends Surface {
 }
 
 class Form extends Element {
-  constructor(filters = false) {
+  constructor(filters = false, search = false) {
     super();
     this.filters = filters;
+    this.search = search;
     this.button = new Element();
   }
 
-  matches(selector) { return this.filters && selector === '.goen-filters'; }
+  matches(selector) {
+    return (this.filters && selector === '.goen-filters') || (this.search && selector === '.goen-search-sort');
+  }
   querySelectorAll() { return [this.button]; }
 }
 
@@ -49,7 +52,9 @@ function page() {
   const document = new Surface();
   const window = new Surface();
   const note = { hidden: true };
-  document.querySelector = (selector) => selector === '.goen-filters__error' ? note : null;
+  const searchNote = { hidden: true };
+  document.querySelector = (selector) => selector === '.goen-filters__error' ? note
+    : selector === '#goen-search-sort-error' ? searchNote : null;
   document.querySelectorAll = () => [];
   document.getElementById = () => null;
   document.documentElement = new Element();
@@ -59,6 +64,8 @@ function page() {
     HTMLDetailsElement: class extends Element {},
   }, { filename: 'assets/js/goen.js' });
   const filters = new Form(true);
+  const search = new Form(false, true);
+  search.setAttribute('hx-sync', 'this:replace');
   const start = (form = filters, method = form.filters ? 'GET' : 'POST') => {
     const controller = new AbortController();
     const ctx = { sourceElement: form, request: { form, method, signal: controller.signal, abort: () => controller.abort() } };
@@ -70,8 +77,65 @@ function page() {
     if (ok !== undefined) ctx.response = { raw: { ok } };
     document.dispatch('htmx:finally:request', { ctx });
   };
-  return { document, window, note, filters, start, finish };
+  return { document, window, note, filters, search, searchNote, start, finish };
 }
+
+test('a failed search sort preserves accepted history and a recovery may change it', () => {
+  for (const status of [400, 500]) {
+    for (const childSource of [false, true]) {
+      const view = page();
+      const failed = view.start(view.search, 'GET').ctx;
+      failed.response = { status, raw: { ok: false } };
+      const sourceElement = childSource ? { form: view.search } : view.search;
+      const history = { type: 'push', path: '/search?q=pixelight&sort=price_desc' };
+      assert.equal(view.document.dispatch('htmx:before:history:update', {
+        sourceElement, response: failed.response, history,
+      }).defaultPrevented, true, `${status} must not change accepted search history`);
+      view.finish(failed);
+      assert.equal(view.searchNote.hidden, false);
+      assert.equal(view.note.hidden, true, 'search failure does not alter filter feedback');
+      const recovery = view.start(view.search, 'GET').ctx;
+      recovery.response = { status: 200, raw: { ok: true } };
+      assert.equal(view.document.dispatch('htmx:before:history:update', {
+        sourceElement, response: recovery.response, history,
+      }).defaultPrevented, false);
+      view.finish(recovery);
+      assert.equal(view.searchNote.hidden, true);
+      assert.equal(view.search.hasAttribute('data-request-pending'), false);
+    }
+  }
+});
+
+test('the latest search transport failure or timeout shows feedback until recovery', () => {
+  for (const timeout of [false, true]) {
+    const view = page();
+    const failed = view.start(view.search, 'GET').ctx;
+    if (timeout) failed.request.abort();
+    view.finish(failed);
+    assert.equal(view.searchNote.hidden, false, `timeout=${timeout} must reveal feedback`);
+    assert.equal(view.search.getAttribute('aria-busy'), null);
+    view.finish(view.start(view.search, 'GET').ctx, true);
+    assert.equal(view.searchNote.hidden, true);
+  }
+});
+
+test('superseded search completions cannot change the latest feedback or busy state', () => {
+  for (const staleOK of [true, false, undefined]) {
+    for (const latestOK of [true, false]) {
+      const view = page();
+      const older = view.start(view.search, 'GET').ctx;
+      const latest = view.start(view.search, 'GET').ctx;
+      view.finish(older, staleOK);
+      assert.equal(view.searchNote.hidden, true, 'superseded failure stays quiet');
+      assert.equal(view.search.getAttribute('aria-busy'), 'true', 'latest request still owns busy state');
+      view.finish(latest, latestOK);
+      assert.equal(view.searchNote.hidden, latestOK, 'feedback describes latest request');
+      view.finish(older, staleOK);
+      assert.equal(view.searchNote.hidden, latestOK, 'late completion cannot overwrite feedback');
+      assert.equal(view.search.getAttribute('aria-busy'), null);
+    }
+  }
+});
 
 test('an explicitly replaceable read keeps its latest request and busy state', () => {
   const view = page();

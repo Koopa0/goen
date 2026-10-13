@@ -225,6 +225,7 @@ jobs:
             layout.log
             server.log
             chrome.log
+            layout-screenshots/
           if-no-files-found: warn
 
   vulnerabilities:
