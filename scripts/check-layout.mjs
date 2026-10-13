@@ -443,11 +443,34 @@ const MIN_SEARCH = 120;
 
 let nextId = 1;
 const pending = new Map();
+let navigation = null;
+
+const documentURL = (raw) => {
+  const url = new URL(raw);
+  url.hash = '';
+  url.searchParams.sort();
+  return url.href;
+};
+
+const featurePath = (raw) => new URL(raw).pathname.replace(/\/$/, '') || '/';
+
+const navigationURLMatches = (href, expected) => {
+  const landed = new URL(href);
+  const wanted = new URL(expected);
+  if (landed.origin !== wanted.origin || landed.origin !== new URL(ORIGIN).origin) return false;
+  if (documentURL(href) === documentURL(expected)) return true;
+  return navigation?.requested === documentURL(expected)
+    && featurePath(href) === featurePath(expected)
+    && navigation.redirects.has(documentURL(href));
+};
 
 // timeoutMs is a parameter because one call is not like the others: axe.run on
 // a back-office table takes longer than every probe in this file put together,
 // and capping it at the default would report a slow audit as a dead socket.
 function send(ws, method, params = {}, timeoutMs = 30000) {
+  if (method === 'Page.navigate') {
+    navigation = { requested: documentURL(params.url), requestID: '', redirects: new Set() };
+  }
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((resolve, reject) => {
@@ -662,11 +685,39 @@ const PROBE = `(() => {
 // against about:blank or a half-built document and throws a TypeError instead
 // of reporting the page as not ready. Polls readyState with a ceiling; a page
 // that never completes is a real failure and says so.
-// Every route this run actually visited, in the order it first saw them, as
-// route -> the URL that reached it. The axe pass at the end reads this rather
-// than a second list of paths: a list would drift from the tables above, and
-// the point of the audit is that it covers what the gate covers.
+// A revisit uses the fixture identity whose populated surface was measured.
+// Incidental cookies are not credentials to retain after later journeys.
 const visited = new Map();
+const SIGNED_OUT_ROUTES = new Set(['/signin', '/register', '/forgot']);
+
+const expectedMarker = (url) => {
+  const path = new URL(url).pathname;
+  const customer = ACCOUNT_PAGES.find((want) => want.path
+    .replace('INVOICE_ORDER', process.env.INVOICE_ORDER || '')
+    .replace('RETURN_FORM_ORDER', process.env.RETURN_FORM_ORDER || '') === path);
+  if (customer) return customer.marker;
+  if (path.startsWith('/admin')) return '.goen-admin';
+  if (path.startsWith('/p/')) return '.goen-pdp';
+  if (/^\/orders\/[^/]+\/pay$/.test(path)) return '.goen-pay';
+  if (/^\/orders\/[^/]+$/.test(path) && path !== '/orders/find') return '.goen-order__lines';
+  return 'main';
+};
+
+const fixtureSession = (persona) => {
+  const value = persona === 'customer' ? process.env.CUST_TOKEN
+    : persona === 'staff' ? process.env.ADMIN_TOKEN : '';
+  return value ? { name: 'goen_session', value, domain: '127.0.0.1', path: '/' } : null;
+};
+
+const restoreSession = async (session) => {
+  await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+  if (session) {
+    await send(ws, 'Network.setCookie', {
+      name: session.name, value: session.value, domain: session.domain, path: session.path,
+      secure: session.secure, httpOnly: session.httpOnly, sameSite: session.sameSite,
+    });
+  }
+};
 
 // A route key has to mean the same thing next week. The fixtures mint a
 // customer id, an order number carrying today's date and a warranty serial from
@@ -695,7 +746,7 @@ const DUPLICATE_TRANSITION_NAMES = `(() => {
   return [...count].filter(([, n]) => n > 1).map(([name, n]) => name + ' x' + n);
 })()`;
 
-const settled = async (ws, label, url) => {
+const settled = async (ws, label, url, marker = expectedMarker(url)) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
       // The URL as well as readyState, and that is the whole trick: immediately
@@ -706,7 +757,7 @@ const settled = async (ws, label, url) => {
       expression: 'document.readyState + " " + location.href', returnByValue: true,
     });
     const [state, href] = String(result.value).split(' ');
-    if (state === 'complete' && href === url) {
+    if (state === 'complete' && navigationURLMatches(href, url)) {
       // One frame more, so layout and web fonts have applied before anything is
       // measured — the geometry assertions are the reason this check exists.
       await new Promise((r) => setTimeout(r, 250));
@@ -717,8 +768,26 @@ const settled = async (ws, label, url) => {
       if (Array.isArray(dup.result?.value) && dup.result.value.length) {
         fail(label, `view-transition-name used more than once on ${routeOf(url)}: ${dup.result.value.join(', ')}`);
       }
-      const route = routeOf(url);
-      if (!visited.has(route)) visited.set(route, url);
+      const route = routeOf(href);
+      const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+      const session = SIGNED_OUT_ROUTES.has(new URL(href).pathname) ? null
+        : cookies.find((cookie) => cookie.name === 'goen_session') || null;
+      const persona = !session ? 'signed-out'
+        : session.value === process.env.CUST_TOKEN ? 'customer'
+          : session.value === process.env.ADMIN_TOKEN ? 'staff' : '';
+      if (!persona) {
+        fail(label, 'the visited identity has no designated fixture persona');
+        return;
+      }
+      if (persona === 'customer' && new URL(href).pathname === '/p/' + process.env.REVIEW_SLUG) {
+        marker = '#write-review .goen-pdp__starrow';
+      }
+      const key = route + '\0' + persona;
+      if (!visited.has(key)) {
+        visited.set(key, { route, url: href, persona, marker });
+      } else if (visited.get(key).marker === 'main' && marker !== 'main') {
+        visited.get(key).marker = marker;
+      }
       return;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -837,6 +906,17 @@ const ws = new WebSocket(await pageSocket());
 await new Promise((r) => (ws.onopen = r));
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
+  if (msg.method === 'Network.requestWillBeSent' && msg.params.type === 'Document' && navigation) {
+    const { requestId, request, redirectResponse } = msg.params;
+    if (!redirectResponse && documentURL(request.url) === navigation.requested) {
+      navigation.requestID = requestId;
+    } else if (redirectResponse && navigation.requestID === requestId) {
+      const from = documentURL(redirectResponse.url);
+      if (from === navigation.requested || navigation.redirects.has(from)) {
+        navigation.redirects.add(documentURL(request.url));
+      }
+    }
+  }
   if (msg.id && pending.has(msg.id)) {
     const { resolve, reject, timer } = pending.get(msg.id);
     pending.delete(msg.id);
@@ -846,6 +926,7 @@ ws.onmessage = (ev) => {
 };
 
 await send(ws, 'Page.enable');
+await send(ws, 'Network.enable');
 
 // The cart pages need the browser to carry the cart cookie
 // scripts/check-layout.sql minted. Without it /cart is empty and its check
@@ -880,7 +961,7 @@ for (const want of EXPECTED) {
   });
   const target = ORIGIN + '/';
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
   await imagesFetched(want.label);
 
   const evaluated = await send(ws, 'Runtime.evaluate', { expression: PROBE, returnByValue: true });
@@ -1252,7 +1333,7 @@ for (const want of LISTING) {
   });
   const target = ORIGIN + '/c/phones';
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
 
   const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
   const got = result.value;
@@ -1318,7 +1399,7 @@ for (const want of LISTING_AUDIO) {
   });
   const target = ORIGIN + want.path;
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
 
   const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
   const got = result.value;
@@ -1799,7 +1880,7 @@ for (const want of [
   });
   const target = ORIGIN + want.path.replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
   const got = await evalPage(DRAWER_PROBE);
   if (got.threw || !got.ok) {
     fail(want.label, `the drawer probe did not run — ${got.why}`);
@@ -1859,7 +1940,7 @@ for (const want of HEADER_EN) {
   });
   const target = ORIGIN + want.path;
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
 
   const evaluated = await send(ws, 'Runtime.evaluate', {
     expression: HEADER_EN_PROBE, returnByValue: true,
@@ -2109,7 +2190,7 @@ for (const want of [...CART, ...PAGES]) {
     .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '')
     .replace('CUSTOMER_ID', process.env.CUSTOMER_ID || '');
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
 
   const { result } = await send(ws, 'Runtime.evaluate', {
     expression: CART_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),
@@ -2473,7 +2554,7 @@ for (const want of COMPARE) {
     .replace('COMPARE_SLUG', process.env.COMPARE_SLUG || '')
     .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
   await send(ws, 'Page.navigate', { url: target });
-  await settled(ws, want.label, target);
+  await settled(ws, want.label, target, want.marker);
 
   const evaluated = await send(ws, 'Runtime.evaluate', {
     expression: COMPARE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),
@@ -2816,7 +2897,7 @@ if (process.env.CUST_TOKEN) {
     });
     const target = ORIGIN + '/account/points';
     await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, want.label, target);
+    await settled(ws, want.label, target, want.marker);
 
     const refused = new Promise((resolve) => {
       let requestID = '', status = null, loaded = false;
@@ -2855,7 +2936,7 @@ if (process.env.CUST_TOKEN) {
       fail(want.label, `native missing-operation POST returned ${status}, want 422`);
       continue;
     }
-    await settled(ws, want.label, target);
+    await settled(ws, want.label, target, want.marker);
 
     const evaluated = await send(ws, 'Runtime.evaluate', {
       expression: ACCOUNT_BADFORM_PROBE, returnByValue: true,
@@ -2912,7 +2993,7 @@ if (process.env.CUST_TOKEN) {
       .replace('INVOICE_ORDER', process.env.INVOICE_ORDER || '')
       .replace('RETURN_FORM_ORDER', process.env.RETURN_FORM_ORDER || '');
     await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, want.label, target);
+    await settled(ws, want.label, target, want.marker);
 
     const probe = want.wishlist ? WISHLIST_PAGE_PROBE
       : want.points ? POINTS_PAGE_PROBE
@@ -3084,7 +3165,7 @@ if (process.env.ADMIN_TOKEN) {
       .replace('LAYOUT_SERIAL', process.env.LAYOUT_SERIAL || '')
       .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
     await send(ws, 'Page.navigate', { url: target });
-    await settled(ws, want.label, target);
+    await settled(ws, want.label, target, want.marker);
 
     const { result } = await send(ws, 'Runtime.evaluate', {
       expression: ADMIN_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),
@@ -4088,13 +4169,13 @@ for (const width of [375, 768, 1023]) {
   console.log(`${label.padEnd(24)} cards=${Math.round(got.a.width)}+${Math.round(got.b.width)} of ${Math.round(got.row)}px`);
 }
 
-// axe-core, once per route.
+// axe-core, once per route and persona.
 //
 // A separate pass rather than a call inside settled(), and that is deliberate:
 // the journeys above spend a live rate limiter and compare timestamps across a
 // reload, and a second or two of audit inserted between their requests would
-// change what they measure. Running afterwards costs one extra navigation per
-// route and changes nothing any other assertion sees.
+// change what they measure. Running afterwards changes nothing any other
+// assertion sees.
 const AXE_RUN = `axe.run(document, ${JSON.stringify(AXE_OPTIONS)}).then((r) => {
   const finding = (v) => ({
     id: v.id, tags: v.tags, impact: v.impact, help: v.help,
@@ -4128,16 +4209,21 @@ const annotate = (msg) => console.log(
 //
 // It reports rather than exits, unlike settled(), because this pass runs last:
 // an exit here would throw away the failure list everything above built.
-const settledFor = async (pass, route, url) => {
+const settledFor = async (pass, route, url, marker = expectedMarker(url)) => {
   await send(ws, 'Page.navigate', { url: 'about:blank' });
+  let blank = false;
   for (let i = 0; i < 30; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
       expression: 'location.href', returnByValue: true,
     });
-    if (String(result.value) === 'about:blank') break;
+    if (String(result.value) === 'about:blank') { blank = true; break; }
     await new Promise((r) => setTimeout(r, 50));
   }
 
+  if (!blank) {
+    fail(`${pass} ${route}`, 'the previous document did not clear; refusing a stale measurement');
+    return '';
+  }
   await send(ws, 'Page.navigate', { url });
   for (let i = 0; i < 100; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -4146,8 +4232,8 @@ const settledFor = async (pass, route, url) => {
     const [state, href] = String(result.value).split(' ');
     if (state === 'complete' && href !== 'about:blank') {
       await new Promise((r) => setTimeout(r, 150));
-      if (new URL(url).pathname.startsWith('/admin') && !(await evalPage('!!document.querySelector(".goen-admin")'))) {
-        fail(`${pass} ${route}`, 'the staff document did not render; refusing to audit a rejected session');
+      if (!navigationURLMatches(href, url) || !(await evalPage(`!!document.querySelector(${JSON.stringify(marker)})`))) {
+        fail(`${pass} ${route}`, `the intended surface ${marker} did not render at its canonical feature URL; refusing an unrelated redirect, empty account or error page`);
         return '';
       }
       return href;
@@ -4158,7 +4244,36 @@ const settledFor = async (pass, route, url) => {
   return '';
 };
 
-const SIGNED_OUT_ROUTES = new Set(['/signin', '/register', '/forgot']);
+const auditPersonas = async (pass, visits) => {
+  const accepted = new Set(['signed-out']);
+  for (const persona of new Set(visits.map((visit) => visit.persona))) {
+    if (persona === 'signed-out') continue;
+    const session = fixtureSession(persona);
+    if (!session) {
+      fail(`${pass} persona ${persona}`, 'the designated session fixture is absent');
+      continue;
+    }
+    await restoreSession(session);
+    const account = await settledFor(pass, `persona ${persona}`, ORIGIN + '/account', '.goen-account');
+    if (!account) continue;
+    const address = persona === 'customer' ? 'layout-cust@goen.invalid' : 'layout-check@goen.invalid';
+    const ownsAccount = await evalPage(`(() => {
+      const value = document.querySelector('[aria-labelledby="email-heading"] .goen-account__value');
+      return [...(value?.childNodes || [])].filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent).join('').trim() === ${JSON.stringify(address)};
+    })()`);
+    const surface = persona === 'customer'
+      ? await evalPage(`!!document.querySelector('.goen-account__orders')`)
+      : !!(await settledFor(pass, 'persona staff', ORIGIN + '/admin', '.goen-admin'));
+    if (!ownsAccount || !surface) {
+      fail(`${pass} persona ${persona}`, 'the designated authenticated, populated fixture did not render');
+      continue;
+    }
+    accepted.add(persona);
+  }
+  return accepted;
+};
+
 // Adjacent undersized targets distinguish the WCAG 2.2 selection from a 2.0 run.
 const TARGET_SIZE_FIXTURE = `(() => {
   const group = document.createElement('div');
@@ -4217,21 +4332,19 @@ const auditAccessibility = async () => {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
 
-  // The auth pages answer a signed-in visitor with a redirect to /account, so
-  // they are audited first with the session cookie taken off and it is put back
-  // before the first page that needs it.
-  const signedOutOnly = ([asked]) => SIGNED_OUT_ROUTES.has(asked);
-  const visits = [...visited.entries()];
+  // Authentication pages require a signed-out visit; protected pages require
+  // the designated fixture, verified before the pass.
+  const signedOutOnly = (visit) => visit.persona === 'signed-out';
+  const visits = [...visited.values()];
   const requested = [...visits.filter(signedOutOnly), ...visits.filter((v) => !signedOutOnly(v))];
-  console.log(`\naxe-core ${WCAG_LEVEL} (${WCAG_TAGS.join(" + ")}), ${requested.length} routes at ${AXE_WIDTH.width}px; best-practice advisory`);
+  console.log(`\naxe-core ${WCAG_LEVEL} (${WCAG_TAGS.join(" + ")}), ${requested.length} scenarios at ${AXE_WIDTH.width}px; best-practice advisory`);
 
   const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
-  const session = cookies.find((c) => c.name === 'goen_session');
-  if (session) {
-    await send(ws, 'Network.deleteCookies', { name: session.name, domain: session.domain, path: session.path });
-  }
-  let sessionRestored = !session;
+  const current = cookies.find((c) => c.name === 'goen_session');
+  const session = current?.value === process.env.CUST_TOKEN ? fixtureSession('customer')
+    : current?.value === process.env.ADMIN_TOKEN ? fixtureSession('staff') : null;
 
+  const acceptedPersonas = await auditPersonas('axe', requested);
   const observed = {};
   const unaudited = [];
   const audited = new Set();
@@ -4239,14 +4352,11 @@ const auditAccessibility = async () => {
   let selectedRules = null;
   const executedRules = new Set();
 
-  for (const [asked, url] of requested) {
-    if (!sessionRestored && !SIGNED_OUT_ROUTES.has(asked)) {
-      await send(ws, 'Network.setCookie', {
-        name: session.name, value: session.value, domain: session.domain, path: session.path,
-      });
-      sessionRestored = true;
-    }
-    const landed = await settledFor('axe', asked, url);
+  for (const visit of requested) {
+    const asked = visit.route;
+    if (!acceptedPersonas.has(visit.persona)) { unaudited.push(asked); continue; }
+    await restoreSession(fixtureSession(visit.persona));
+    const landed = await settledFor('axe', asked, visit.url, visit.marker);
     if (!landed) {
       unaudited.push(asked);
       continue;
@@ -4255,11 +4365,12 @@ const auditAccessibility = async () => {
     // redirected route audited under the name it was asked for would record
     // one page's debt against another's.
     const route = routeOf(landed);
-    if (audited.has(route)) {
+    const scenario = route + '\0' + visit.persona;
+    if (audited.has(scenario)) {
       console.log(`axe ${asked.padEnd(46).slice(0, 46)} -> ${route}, already audited`);
       continue;
     }
-    audited.add(route);
+    audited.add(scenario);
 
     let audit;
     try {
@@ -4315,20 +4426,23 @@ const auditAccessibility = async () => {
       debtMoved = true;
       fail(`axe ${route}`, detail);
     }
-    observed[route] = [...gating].sort();
+    observed[route] = [...new Set([...(observed[route] || []), ...gating])].sort();
 
-    // A baseline entry that stopped firing is removed by the change that fixed
-    // it, not by the next person to read a stale file. Only routes this run
-    // actually audited are judged, so a skipped back office cannot delete the
-    // debt recorded for it.
-    for (const id of known) {
-      if (observed[route].includes(id)) continue;
+    console.log(`axe ${route.padEnd(46).slice(0, 46)} persona=${visit.persona} ` +
+      `violations=${violations.length} incomplete=${audit.incomplete.length} gating=${observed[route].length}`);
+  }
+
+  // A rule may fire for one identity only; baseline debt belongs to their union.
+  for (const [route, ids] of Object.entries(observed)) {
+    if (unaudited.includes(route)) {
+      observed[route] = [...new Set([...ids, ...(axeBaseline[route] || [])])].sort();
+      continue;
+    }
+    for (const id of axeBaseline[route] || []) {
+      if (ids.includes(id)) continue;
       debtMoved = true;
       fail(`axe ${route}`, `the baseline lists ${id}, which no longer fires here — remove it`);
     }
-
-    console.log(`axe ${route.padEnd(46).slice(0, 46)} ` +
-      `violations=${violations.length} incomplete=${audit.incomplete.length} gating=${observed[route].length}`);
   }
 
   if (selectedRules !== null) {
@@ -4337,6 +4451,8 @@ const auditAccessibility = async () => {
     console.log(`axe executed WCAG rules (${executed.length}): ${executed.join(', ')}`);
     console.log(`axe selected WCAG rules that never ran: ${neverRan.join(', ') || '(none)'}`);
   }
+
+  await restoreSession(session);
 
   if (!debtMoved) return;
 
@@ -4388,21 +4504,19 @@ const auditReflow = async () => {
     width: REFLOW_WIDTH, height: 800, deviceScaleFactor: 1, mobile: true,
   });
 
-  // The auth pages answer a signed-in visitor with a redirect to /account, so
-  // they are measured first with the session cookie taken off, as the axe pass
-  // does.
-  const signedOutOnly = ([asked]) => SIGNED_OUT_ROUTES.has(asked);
-  const visits = [...visited.entries()];
+  // Authentication pages require a signed-out visit; protected pages require
+  // the designated fixture, verified before the pass.
+  const signedOutOnly = (visit) => visit.persona === 'signed-out';
+  const visits = [...visited.values()];
   const requested = [...visits.filter(signedOutOnly), ...visits.filter((v) => !signedOutOnly(v))];
-  console.log(`\nreflow: ${requested.length} routes at ${REFLOW_WIDTH}px and at 200% text`);
+  console.log(`\nreflow: ${requested.length} scenarios at ${REFLOW_WIDTH}px and at 200% text`);
 
   const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
-  const session = cookies.find((c) => c.name === 'goen_session');
-  if (session) {
-    await send(ws, 'Network.deleteCookies', { name: session.name, domain: session.domain, path: session.path });
-  }
-  let sessionRestored = !session;
+  const current = cookies.find((c) => c.name === 'goen_session');
+  const session = current?.value === process.env.CUST_TOKEN ? fixtureSession('customer')
+    : current?.value === process.env.ADMIN_TOKEN ? fixtureSession('staff') : null;
 
+  const acceptedPersonas = await auditPersonas('reflow', requested);
   const observed = {};
   const measured = new Set();
   const unmeasured = [];
@@ -4429,21 +4543,19 @@ const auditReflow = async () => {
     return found;
   };
 
-  for (const [asked, url] of requested) {
-    if (!sessionRestored && !SIGNED_OUT_ROUTES.has(asked)) {
-      await send(ws, 'Network.setCookie', {
-        name: session.name, value: session.value, domain: session.domain, path: session.path,
-      });
-      sessionRestored = true;
-    }
-    const landed = await settledFor('reflow', asked, url);
+  for (const visit of requested) {
+    const asked = visit.route;
+    if (!acceptedPersonas.has(visit.persona)) { unmeasured.push(asked); continue; }
+    await restoreSession(fixtureSession(visit.persona));
+    const landed = await settledFor('reflow', asked, visit.url, visit.marker);
     if (!landed) {
       unmeasured.push(asked);
       continue;
     }
     const route = routeOf(landed);
-    if (measured.has(route)) continue;
-    measured.add(route);
+    const scenario = route + '\0' + visit.persona;
+    if (measured.has(scenario)) continue;
+    measured.add(scenario);
 
     const found = {};
     try {
@@ -4462,16 +4574,23 @@ const auditReflow = async () => {
       debtMoved = true;
       fail(`reflow ${route}`, `${check}: ${detail}`);
     }
-    // A listed check that stopped firing is removed by the change that fixed it,
-    // so this file can only shrink.
-    for (const check of known) {
-      if (check in found) continue;
+    observed[route] = [...new Set([...(observed[route] || []), ...Object.keys(found)])].sort();
+    console.log(`reflow ${route.padEnd(46).slice(0, 46)} persona=${visit.persona} failing=${observed[route].join(',') || '-'}`);
+  }
+
+  for (const [route, checks] of Object.entries(observed)) {
+    if (unmeasured.includes(route)) {
+      observed[route] = [...new Set([...checks, ...(reflowBaseline[route] || [])])].sort();
+      continue;
+    }
+    for (const check of reflowBaseline[route] || []) {
+      if (checks.includes(check)) continue;
       debtMoved = true;
       fail(`reflow ${route}`, `the baseline lists ${check}, which no longer fires here — remove it`);
     }
-    observed[route] = Object.keys(found).sort();
-    console.log(`reflow ${route.padEnd(46).slice(0, 46)} failing=${observed[route].join(',') || '-'}`);
   }
+
+  await restoreSession(session);
 
   if (!debtMoved) return;
 
@@ -4588,6 +4707,15 @@ try {
   console.log('warranty reflow: returned customer state, both locales, 320px, 100%/200% text, scripting on/off passed');
 } catch (err) {
   fail('warranty reflow', err.message);
+}
+
+await restoreSession(null);
+for (const { label, url, marker } of [
+  { label: 'contact canonical URL', url: ORIGIN.replace(/^http/, 'HTTP') + '/contact', marker: '.contact #contact-form' },
+  { label: 'listing last-page redirect', url: ORIGIN + '/c/phones?page=9999', marker: '.goen-listing' },
+]) {
+  if (!(await settledFor('native GET', label, url, marker))) continue;
+  await settled(ws, label, url, marker);
 }
 
 await proveTargetSizeGates();

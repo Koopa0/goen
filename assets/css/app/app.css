@@ -5400,11 +5400,13 @@ input.goen-check {
 .goen-pdp__stars {
   border: 0;
   margin: 0;
+  min-width: 0;
   padding: 0;
 }
 
 .goen-pdp__starrow {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .goen-pdp__star {
