@@ -269,7 +269,9 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 }
 
 func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, error) {
-	o, err := s.q.AdminOrderByNumber(ctx, number)
+	o, err := s.q.AdminOrderByNumber(ctx, db.AdminOrderByNumberParams{
+		OrderNumber: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return admin.OrderView{}, ErrNotFound
