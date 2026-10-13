@@ -421,8 +421,31 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 }
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
-SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name
+SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units
 FROM products p
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || $2::text || '%'
        OR p.name_en ILIKE '%' || $2::text || '%'
@@ -443,8 +466,15 @@ type AdminCampaignProductSearchParams struct {
 }
 
 type AdminCampaignProductSearchRow struct {
-	Slug string
-	Name string
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
 }
 
 // Archived products are left out: a campaign on one shows nothing.
@@ -462,7 +492,17 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 	items := []AdminCampaignProductSearchRow{}
 	for rows.Next() {
 		var i AdminCampaignProductSearchRow
-		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -474,18 +514,48 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 }
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
-SELECT p.slug, p.name, cp.position
+SELECT p.slug, p.name AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units, cp.position
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
 JOIN sale_campaigns c ON c.id = cp.campaign_id
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE c.slug = $1::text
 ORDER BY cp.position, p.id
 `
 
 type AdminCampaignProductsRow struct {
-	Slug     string
-	Name     string
-	Position int32
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
+	Position             int32
 }
 
 func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([]AdminCampaignProductsRow, error) {
@@ -497,7 +567,18 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 	items := []AdminCampaignProductsRow{}
 	for rows.Next() {
 		var i AdminCampaignProductsRow
-		if err := rows.Scan(&i.Slug, &i.Name, &i.Position); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+			&i.Position,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
