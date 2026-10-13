@@ -1044,7 +1044,7 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 				StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), SecureCookies: tt.secure,
+				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""),
 			},
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
