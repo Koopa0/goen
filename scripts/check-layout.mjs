@@ -3335,7 +3335,7 @@ try {
       { path: '/compare?p=' + encodeURIComponent(process.env.PRODUCT_SLUG || ''), selectors: ['#compare-q'], widths: [1440] },
       { path: '/c/phones', selectors: ['#sort'], widths: [1440] },
       { path: '/admin/credit', selectors: ['#credit-email'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
-      { path: '/admin/orders/' + (process.env.RETURN_FORM_ORDER || ''), selectors: ['#staff-note', '#next-status'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/admin/orders/' + (process.env.RETURN_FORM_ORDER || ''), selectors: ['#staff-note', '#order-primary-step'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
       { path: '/checkout', selectors: ['#address-book'], widths: [375, 1440], session: process.env.CUST_TOKEN },
     ]) {
       if ((path.startsWith('/admin/') || path === '/checkout') && !session) {
