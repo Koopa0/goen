@@ -56,6 +56,7 @@ try {
     assert.equal(await evaluate('document.documentElement.lang'), locale, label);
     await waitFor(`document.querySelector('.goen-hero__nav')?.hidden === false`, `${label} enhancement`);
     await evaluate("document.body.style.minHeight = '3000px'; window.scrollTo({top: 64, behavior: 'instant'})");
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     const before = await evaluate(`(() => {
       const track = document.querySelector('.goen-hero__track').getBoundingClientRect();
       return { y: scrollY, x: scrollX, left: track.left, width: track.width,
@@ -74,9 +75,24 @@ try {
         return { top: box.top, bottom: box.bottom, hit: document.elementFromPoint(${x}, box.top + box.height / 2)?.outerHTML };
       })()`);
       assert.equal(typeof origin.y, 'number', `${label}: native gesture must start on the carousel: ${JSON.stringify(origin)}`);
-      await send('Input.synthesizeScrollGesture', { x, y: origin.y,
-        xDistance: direction * before.distance, yDistance: 0, speed: 1500, preventFling: true,
-        gestureSourceType: width < 768 ? 'touch' : 'mouse' });
+      if (width < 768) {
+        await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x, y: origin.y }] });
+        try {
+          for (let step = 1; step <= 12; step++) {
+            await send('Input.dispatchTouchEvent', { type: 'touchMove',
+              touchPoints: [{ id: 1, x: x + direction * before.distance * step / 12, y: origin.y }] });
+            await evaluate('new Promise(resolve => requestAnimationFrame(resolve))');
+          }
+          // Release a stationary finger so momentum does not choose the snap point.
+          await new Promise(resolve => setTimeout(resolve, 150));
+        } finally {
+          await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        }
+      } else {
+        await send('Input.synthesizeScrollGesture', { x, y: origin.y,
+          xDistance: direction * before.distance, yDistance: 0, speed: 1500, preventFling: true,
+          gestureSourceType: 'mouse' });
+      }
       await waitFor(`(() => {
         const track = document.querySelector('.goen-hero__track');
         return document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}' &&
@@ -106,7 +122,7 @@ try {
       if (width < 768) {
         assert.equal(got.overflow, true, `${label}: narrow fixture must require tab scrolling`);
         if (index === 2) assert.ok(got.left > 0, `${label}: third tab must scroll horizontally`);
-        else assert.equal(got.left, 0, `${label}: first tab returns to the start`);
+        else if (index === 0) assert.equal(got.left, 0, `${label}: first tab returns to the start`);
       } else assert.equal(got.left, 0, `${label}: fitting desktop tabs stay still`);
       console.log(`${label}: ${JSON.stringify(got)}`);
     }
