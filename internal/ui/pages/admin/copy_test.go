@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/destination"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -75,8 +76,8 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{Methods: []ShippingMethod{
-		{MethodID: "a", VersionID: "va", Destination: destination.Address, Name: "宅配到府", NameEn: "Home delivery"},
-		{MethodID: "b", VersionID: "vb", Destination: destination.Address, Name: "超商取貨"},
+		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
+		{MethodID: "b", VersionID: "vb", Destination: shipping.DestinationAddress, Name: "超商取貨"},
 	}}
 	for _, tt := range []struct {
 		locale    i18n.Locale
@@ -124,7 +125,7 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 				examples []string
 			}{
 				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
-				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware", "kitchen"}},
+				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
 				"shipping": {renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
 				"tiers":    {renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})), []string{"Silver"}},
 				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},

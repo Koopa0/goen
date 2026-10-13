@@ -3,6 +3,7 @@
 package coupons_test
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +72,20 @@ func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
 				want := make(map[string]couponRefusalControl)
 				got := make(map[string]couponRefusalControl)
 				for _, field := range []string{"code", "description", "value", "cap", "min", "days", "max", "percustomer"} {
-					want[field] = couponRefusalControl{Controls: 1, Tag: "input", Value: form.Get(field)}
+					facts := couponRefusalControl{Controls: 1, Tag: "input", Value: form.Get(field)}
+					if field == "code" || field == "description" || field == "percustomer" {
+						facts.DescribedBy = "c-" + field + "-example"
+						example := "SUMMER20"
+						switch field {
+						case "description":
+							example = i18n.T(ctx, i18n.KeyAdminCoupDescriptionExample)
+						case "percustomer":
+							example = "1"
+						}
+						facts.Examples = 1
+						facts.ExampleText = fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), example)
+					}
+					want[field] = facts
 					got[field] = couponRefusalFacts(doc, field)
 				}
 				facts := want[tt.field]
@@ -115,15 +129,18 @@ func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
 }
 
 type couponRefusalControl struct {
-	Controls    int
-	Tag         string
-	Value       string
-	Invalid     string
-	DescribedBy string
-	Errors      int
-	ErrorTag    string
-	ErrorClass  string
-	ErrorText   string
+	Controls      int
+	Tag           string
+	Value         string
+	Invalid       string
+	DescribedBy   string
+	Errors        int
+	ErrorTag      string
+	ErrorClass    string
+	ErrorText     string
+	Examples      int
+	ExampleText   string
+	ExampleHidden bool
 }
 
 func couponRefusalFacts(doc *html.Node, field string) couponRefusalControl {
@@ -141,6 +158,12 @@ func couponRefusalFacts(doc *html.Node, field string) couponRefusalControl {
 		case id + "-error":
 			facts.Errors++
 			facts.ErrorTag, facts.ErrorClass, facts.ErrorText = node.Data, couponRefusalAttribute(node, "class"), couponRefusalText(node)
+		case id + "-example":
+			facts.Examples++
+			facts.ExampleText = couponRefusalText(node)
+			for _, a := range node.Attr {
+				facts.ExampleHidden = facts.ExampleHidden || a.Key == "hidden" || a.Key == "class" && strings.Contains(a.Val, "sr-only")
+			}
 		}
 	}
 	return facts

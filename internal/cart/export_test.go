@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 // CheckoutQuoteLine exposes a quote line only to black-box integration tests.
@@ -30,7 +30,7 @@ func (s *Store) PlaceOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	inv *Invoice,
 	couponCode string,
 	shown CheckoutQuoteID,

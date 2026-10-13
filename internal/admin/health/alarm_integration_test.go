@@ -27,7 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -715,7 +715,7 @@ func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
 }
 
 // With no 加值中心 an issue a paid sale owes is claimed and waits for one to be
-// configured (invoice.Store.ClaimDue). It is not stranded, so the page and the
+// configured (issuer.Store.ClaimDue). It is not stranded, so the page and the
 // dashboard task must not raise it; an operation already sent still is.
 func TestAnIssueWaitingForNoProviderIsNotAStrandedClaim(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
@@ -725,7 +725,7 @@ func TestAnIssueWaitingForNoProviderIsNotAStrandedClaim(t *testing.T) {
 		VALUES ($1, 'member_carrier', '買受人', 'buyer@example.com')`, orderID); err != nil {
 		t.Fatalf("record invoice preference: %v", err)
 	}
-	if err := invoice.NewStore(pool, &invoice.Gateway{}).ClaimDue(ctx,
+	if err := issuer.NewStore(pool, &issuer.Gateway{}).ClaimDue(ctx,
 		&outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_" + number}); err != nil {
 		t.Fatalf("claim the invoice due: %v", err)
 	}

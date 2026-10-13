@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -126,7 +127,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 				}
 				return
 			}
-			form, ok := m.Request(pickup.SevenEleven, "TRADE", aNonce, false)
+			form, ok := m.Request(shipping.ChainSevenEleven, "TRADE", aNonce, false)
 			if !ok {
 				t.Fatal("a configured map offers no form for a chain the checkout offers")
 			}
@@ -153,19 +154,19 @@ func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
 
 	tests := []struct {
 		mode    LogisticsMode
-		chain   pickup.Chain
+		chain   shipping.Chain
 		want    string
 		offered bool
 	}{
-		{mode: ModeB2C, chain: pickup.SevenEleven, want: "UNIMART", offered: true},
-		{mode: ModeB2C, chain: pickup.FamilyMart, want: "FAMI", offered: true},
-		{mode: ModeC2C, chain: pickup.SevenEleven, want: "UNIMARTC2C", offered: true},
-		{mode: ModeC2C, chain: pickup.FamilyMart, want: "FAMIC2C", offered: true},
+		{mode: ModeB2C, chain: shipping.ChainSevenEleven, want: "UNIMART", offered: true},
+		{mode: ModeB2C, chain: shipping.ChainFamilyMart, want: "FAMI", offered: true},
+		{mode: ModeC2C, chain: shipping.ChainSevenEleven, want: "UNIMARTC2C", offered: true},
+		{mode: ModeC2C, chain: shipping.ChainFamilyMart, want: "FAMIC2C", offered: true},
 		// ECPay's set has no OK mart at all, in either contract, so the checkout
 		// cannot open a map for one and must not pretend it can.
-		{mode: ModeB2C, chain: pickup.OKMart},
-		{mode: ModeC2C, chain: pickup.OKMart},
-		{mode: ModeB2C, chain: pickup.HiLife},
+		{mode: ModeB2C, chain: shipping.ChainOKMart},
+		{mode: ModeC2C, chain: shipping.ChainOKMart},
+		{mode: ModeB2C, chain: shipping.ChainHiLife},
 		{mode: ModeB2C, chain: ""},
 	}
 
@@ -202,7 +203,7 @@ func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
 		})
 	}
 
-	mobile, _ := testMap(t, ModeB2C).Request(pickup.SevenEleven, "TRADE", aNonce, true)
+	mobile, _ := testMap(t, ModeB2C).Request(shipping.ChainSevenEleven, "TRADE", aNonce, true)
 	if mobile.Device != "1" {
 		t.Errorf("Device = %q on a phone, want 1", mobile.Device)
 	}
@@ -286,35 +287,35 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 	}{
 		{
 			name:   "the store this browser went to fetch",
-			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  held, known: true, want: true,
 		},
 		{
 			name:   "the other offered chain, also fine",
-			posted: PostedStore{Chain: pickup.FamilyMart, Code: "012345", Name: "松高店", Nonce: aNonce},
+			posted: PostedStore{Chain: shipping.ChainFamilyMart, Code: "012345", Name: "松高店", Nonce: aNonce},
 			state:  held, known: true, want: true,
 		},
 		{
 			// T1: an attacker page auto-posts a forged store in the victim's
 			// browser. It cannot know the nonce, so the store is dropped.
 			name:   "a forged store carrying a nonce of the attacker's own",
-			posted: PostedStore{Chain: pickup.SevenEleven, Code: "999999", Name: "假門市", Nonce: otherNonce},
+			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "999999", Name: "假門市", Nonce: otherNonce},
 			state:  held, known: true,
 		},
 		{
 			// T2: a crafted /checkout?… link, which carries no nonce at all.
 			name:   "a crafted link with no nonce",
-			posted: PostedStore{Chain: pickup.SevenEleven, Code: "999999", Name: "假門市"},
+			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "999999", Name: "假門市"},
 			state:  held, known: true,
 		},
 		{
 			name:   "the right nonce but no cookie in this browser",
-			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  pickupState{},
 		},
 		{
 			name:   "a chain the checkout does not offer",
-			posted: PostedStore{Chain: pickup.OKMart, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: shipping.ChainOKMart, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  held, known: true,
 		},
 		{
@@ -324,7 +325,7 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 		},
 		{
 			name:   "an empty nonce on both sides is not a match",
-			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區"},
+			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "131386", Name: "南港園區"},
 			state:  pickupState{}, known: true,
 		},
 	}
@@ -361,18 +362,18 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 		name  string
 		edit  func(url.Values)
 		want  bool
-		chain pickup.Chain
+		chain shipping.Chain
 	}{
-		{name: "as ECPay posts it", want: true, chain: pickup.SevenEleven},
+		{name: "as ECPay posts it", want: true, chain: shipping.ChainSevenEleven},
 		{
 			name: "7-ELEVEN omits CVSTelephone, which goen never asked for",
 			edit: func(v url.Values) { v.Del("CVSTelephone") },
-			want: true, chain: pickup.SevenEleven,
+			want: true, chain: shipping.ChainSevenEleven,
 		},
 		{
 			name: "the other chain under the same contract",
 			edit: func(v url.Values) { v.Set("LogisticsSubType", "FAMI") },
-			want: true, chain: pickup.FamilyMart,
+			want: true, chain: shipping.ChainFamilyMart,
 		},
 		{
 			name: "another merchant's callback",
@@ -429,7 +430,7 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 		{
 			name: "no address, which is not a refusal",
 			edit: func(v url.Values) { v.Del("CVSAddress") },
-			want: true, chain: pickup.SevenEleven,
+			want: true, chain: shipping.ChainSevenEleven,
 		},
 		{
 			name: "ExtraData that is not a nonce",
@@ -533,7 +534,7 @@ func TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh(t *testing.T) {
 
 	for _, s := range hostile {
 		got := callback{
-			Chain: pickup.SevenEleven, Code: "131386", Name: s, Address: s, Nonce: aNonce,
+			Chain: shipping.ChainSevenEleven, Code: "131386", Name: s, Address: s, Nonce: aNonce,
 		}.refreshTarget()
 
 		if !strings.HasPrefix(got, "/checkout?") {

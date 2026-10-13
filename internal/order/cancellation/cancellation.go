@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -71,7 +71,7 @@ func Settle(ctx context.Context, q *db.Queries, o *Order) (creditReturnedCents i
 	}
 
 	if paidByCredit {
-		err = invoice.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{OrderNumber: o.Number, Trigger: o.VoidTrigger})
+		err = issuer.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{OrderNumber: o.Number, Trigger: o.VoidTrigger})
 		if err != nil {
 			return 0, err
 		}

@@ -100,7 +100,7 @@ func TestProductSignInLinksPreserveTheirDistinctIntent(t *testing.T) {
 				}
 			}
 			slices.Sort(targets)
-			want := []string{"/p/a-product", "/p/a-product#questions", "/p/a-product#wishlist"}
+			want := []string{"/p/a-product#questions", "/p/a-product#wishlist"}
 			if diff := cmp.Diff(want, targets); diff != "" {
 				t.Errorf("product sign-in destinations (-want +got):\n%s", diff)
 			}

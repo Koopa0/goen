@@ -41,7 +41,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -646,12 +646,12 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	orderID, number, lines := twoLineOrderForSequentialReturns(t)
-	customerReturns := returnpage.NewStore(pool)
+	customerReturns := buyer.NewStore(pool)
 	shop := storeOver(pool, admintest.Refunder{})
 
 	openAndApprove := func(reason string, lineID uuid.UUID) int64 {
 		t.Helper()
-		if err := customerReturns.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+		if err := customerReturns.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 			Reason: reason, Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open %s return: %v", reason, err)
