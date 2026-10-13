@@ -56,7 +56,7 @@ func TestReturnDecisionAuditFailureDoesNotClaimApproval(t *testing.T) {
 		title, retry string
 		committed    string
 	}{
-		{locale: i18n.ZhHant, title: "暫時無法處理", retry: "請稍後再試。", committed: "這筆退貨已核准"},
+		{locale: i18n.ZhHant, title: "暫時無法處理", retry: "請稍後再試。", committed: "這筆退貨已同意"},
 		{locale: i18n.En, title: "Temporarily unavailable", retry: "Please try again shortly.", committed: "This return is approved"},
 	} {
 		for _, decision := range []string{"approved", "rejected"} {
