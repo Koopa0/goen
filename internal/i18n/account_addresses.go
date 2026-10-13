@@ -19,7 +19,7 @@ var (
 		En:     "Label (optional)",
 	})
 
-	KeyLabelPlaceholder = key("field.label.placeholder", Message{ZhHant: "家、公司", En: "Home, work"})
+	KeyLabelExample = key("field.label.example", Message{ZhHant: "家、公司", En: "Home, work"})
 
 	KeyFieldRecipient = key("field.recipient", Message{ZhHant: "收件人", En: "Recipient"})
 

@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -86,15 +88,15 @@ templ ContactPanel(f ContactForm) {
 						Name:      "name",
 						Type:      "text",
 						Value:     f.Name,
-						Invalid:   f.err("name") != "",
 						Describes: f.describedBy("name"),
-						Attrs: templ.Attributes{
+						Invalid:   f.err("name") != "",
+						Attrs: f.exampleAttrs("name", templ.Attributes{
 							"autocomplete": "name",
 							"maxlength":    "80",
-							"placeholder":  i18n.T(ctx, i18n.KeyNamePlaceholder),
 							"required":     true,
-						},
+						}),
 					})
+					<p class="goen-auth__hint" id="contact-name-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyNameExample)) }</p>
 					if f.err("name") != "" {
 						<span class="ui-error-text" id={ errorID("name") }>{ f.err("name") }</span>
 					}
@@ -109,15 +111,15 @@ templ ContactPanel(f ContactForm) {
 						Name:      "email",
 						Type:      "email",
 						Value:     f.Email,
-						Invalid:   f.err("email") != "",
 						Describes: f.describedBy("email"),
-						Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+						Invalid:   f.err("email") != "",
+						Attrs: fieldrule.Email.Attrs(ctx, f.exampleAttrs("email", templ.Attributes{
 							"autocomplete": "email",
 							"maxlength":    "254",
-							"placeholder":  "you@example.com",
 							"required":     true,
-						}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID(errorID("email"))),
+						}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID(errorID("email"))),
 					})
+					<p class="goen-auth__hint" id="contact-email-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "you@example.com") }</p>
 					if f.err("email") != "" {
 						<span class="ui-error-text" id={ errorID("email") }>{ f.err("email") }</span>
 					}
@@ -152,14 +154,14 @@ templ ContactPanel(f ContactForm) {
 						Name:      "order_ref",
 						Type:      "text",
 						Value:     f.OrderRef,
-						Invalid:   f.err("order_ref") != "",
 						Describes: f.describedBy("order_ref"),
+						Invalid:   f.err("order_ref") != "",
 						Class:     "contact__ref",
-						Attrs: templ.Attributes{
-							"maxlength":   "32",
-							"placeholder": i18n.T(ctx, i18n.KeyOrderRefPlaceholder),
-						},
+						Attrs: f.exampleAttrs("order_ref", templ.Attributes{
+							"maxlength": "32",
+						}),
 					})
+					<p class="goen-auth__hint" id="contact-order_ref-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyOrderRefExample)) }</p>
 					if f.err("order_ref") != "" {
 						<span class="ui-error-text" id={ errorID("order_ref") }>{ f.err("order_ref") }</span>
 					}

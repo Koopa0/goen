@@ -45,13 +45,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 						Name:      "category",
 						Value:     v.Draft.Category,
 						Invalid:   v.HasErr("category"),
-						Describes: "faq-category-error",
-						Attrs: templ.Attributes{
-							"maxlength":   "40",
-							"placeholder": i18n.T(ctx, i18n.KeyAdminFaqpCategoryPlaceholder),
-							"required":    true,
-						},
+						Describes: v.categoryDescribedBy(),
+						Attrs:     v.categoryAttrs(),
 					})
+					<p class="goen-admin__hint" id="faq-category-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminFaqpCategoryExample)) }</p>
 					if v.HasErr("category") {
 						<p class="ui-error-text" id="faq-category-error" role="alert">{ v.Err("category") }</p>
 					}

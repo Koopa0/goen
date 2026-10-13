@@ -3,6 +3,8 @@ package pages
 import (
 	"context"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -36,10 +38,25 @@ type ContactForm struct {
 func (f ContactForm) err(field string) string { return f.Errors[field] }
 
 func (f ContactForm) describedBy(field string) string {
-	if f.Errors[field] == "" {
-		return ""
+	var ids string
+	switch field {
+	case "name", "email", "order_ref":
+		ids = "contact-" + field + "-example"
 	}
-	return "contact-" + field + "-error"
+	if f.Errors[field] != "" {
+		if ids != "" {
+			ids += " "
+		}
+		ids += errorID(field)
+	}
+	return ids
+}
+
+func (f ContactForm) exampleAttrs(field string, attrs templ.Attributes) templ.Attributes {
+	if f.err(field) == "" {
+		attrs["aria-describedby"] = f.describedBy(field)
+	}
+	return attrs
 }
 
 func errorID(field string) string { return "contact-" + field + "-error" }

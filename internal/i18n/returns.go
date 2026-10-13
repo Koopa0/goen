@@ -328,7 +328,7 @@ var (
 
 	KeyAdminRetNote = key("admin.ret.note", Message{ZhHant: "驗貨說明", En: "Inspection note"})
 
-	KeyAdminRetNotePlaceholder = key("admin.ret.noteplaceholder", Message{
+	KeyAdminRetNoteExample = key("admin.ret.note.example", Message{
 		ZhHant: "例如：外盒破損、配件缺少",
 		En:     "For example: box damaged, accessories missing",
 	})

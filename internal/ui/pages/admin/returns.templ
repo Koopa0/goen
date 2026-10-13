@@ -256,8 +256,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												value={ l.DraftNote }
 												maxlength="500"
 												autocomplete="off"
-												placeholder={ i18n.T(ctx, i18n.KeyAdminRetNotePlaceholder) }
+												aria-describedby={ "note-example-" + r.ID + "-" + l.OrderLineID }
 											/>
+											<p class="goen-admin__hint" id={ "note-example-" + r.ID + "-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetNoteExample) }</p>
 										</div>
 									</fieldset>
 								}

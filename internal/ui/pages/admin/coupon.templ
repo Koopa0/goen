@@ -116,14 +116,16 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							name="code"
 							required
 							maxlength="32"
-							placeholder="SUMMER20"
 							autocomplete="off"
 							value={ v.Draft.Code }
 							if v.HasErr("code") {
 								aria-invalid="true"
-								aria-describedby="c-code-error"
+								aria-describedby="c-code-example c-code-error"
+							} else {
+								aria-describedby="c-code-example"
 							}
 						/>
+						<p class="goen-admin__hint" id="c-code-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "SUMMER20") }</p>
 						if v.HasErr("code") {
 							<p class="ui-error-text" id="c-code-error">{ v.Err("code") }</p>
 						}
@@ -149,13 +151,15 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						name="description"
 						required
 						maxlength="60"
-						placeholder={ i18n.T(ctx, i18n.KeyAdminCoupDescriptionExample) }
 						value={ v.Draft.Description }
 						if v.HasErr("description") {
 							aria-invalid="true"
-							aria-describedby="c-description-error"
+							aria-describedby="c-description-example c-description-error"
+						} else {
+							aria-describedby="c-description-example"
 						}
 					/>
+					<p class="goen-admin__hint" id="c-description-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminCoupDescriptionExample)) }</p>
 					if v.HasErr("description") {
 						<p class="ui-error-text" id="c-description-error">{ v.Err("description") }</p>
 					}
@@ -288,12 +292,14 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							step="1"
 							inputmode="numeric"
 							value={ v.Draft.PerCustomer }
-							placeholder="1"
 							if v.HasErr("percustomer") {
 								aria-invalid="true"
-								aria-describedby="c-percustomer-error"
+								aria-describedby="c-percustomer-example c-percustomer-error"
+							} else {
+								aria-describedby="c-percustomer-example"
 							}
 						/>
+						<p class="goen-admin__hint" id="c-percustomer-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "1") }</p>
 						if v.HasErr("percustomer") {
 							<p class="ui-error-text" id="c-percustomer-error">{ v.Err("percustomer") }</p>
 						}

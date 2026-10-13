@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -178,6 +180,21 @@ func (v *AccountView) AddrDefault() bool { return v.AddressDraft != nil && v.Add
 func (v *AccountView) AddrInvalid(field string) bool { return v.AddressErrors[field] != "" }
 
 func (v *AccountView) AddrErr(field string) string { return v.AddressErrors[field] }
+
+func (v *AccountView) addressLabelDescribedBy() string {
+	if v.AddrInvalid("label") {
+		return "addr-label-example addr-label-error"
+	}
+	return "addr-label-example"
+}
+
+func (v *AccountView) addressLabelAttrs() templ.Attributes {
+	attrs := templ.Attributes{"maxlength": "30", "autocomplete": "off"}
+	if !v.AddrInvalid("label") {
+		attrs["aria-describedby"] = v.addressLabelDescribedBy()
+	}
+	return attrs
+}
 
 func AccountMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}

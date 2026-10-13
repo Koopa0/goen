@@ -39,8 +39,6 @@ func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 	}
 }
 
-// TestTheOrderNumberFieldShowsTheFormatGoenIssues: a placeholder in another
-// shape, like "#GO-", is typed back and refused.
 func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
 	t.Parallel()
 
@@ -50,7 +48,7 @@ func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := b.String()
-		if !strings.Contains(out, `placeholder="GO-260101-000001"`) {
+		if !strings.Contains(out, `id="contact-order_ref-example"`) || !strings.Contains(out, "GO-260101-000001") {
 			t.Errorf("%s: the order number field does not show an order number in the issued format", locale)
 		}
 		if strings.Contains(out, `placeholder="#GO-"`) {

@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -35,11 +37,12 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 							Type:  "text",
 							Value: v.Number,
 							Attrs: templ.Attributes{
-								"placeholder":  "GO-260101-000001",
-								"autocomplete": "off",
-								"required":     true,
+								"aria-describedby": "find-number-example",
+								"autocomplete":     "off",
+								"required":         true,
 							},
 						})
+						<p class="goen-auth__hint" id="find-number-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyOrderRefExample)) }</p>
 					</div>
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "find-email"}) {

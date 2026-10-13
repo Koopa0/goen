@@ -567,13 +567,15 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 											name="invoice_carrier"
 											maxlength="8"
 											autocomplete="off"
-											placeholder="/ABC+123"
 											value={ v.Invoice.MobileBarcode }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {
-												aria-describedby="invoice_carrier-error"
+												aria-describedby="invoice_carrier-example invoice_carrier-error"
+											} else {
+												aria-describedby="invoice_carrier-example"
 											}
 										/>
+										<p class="goen-auth__hint" id="invoice_carrier-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "/ABC+123") }</p>
 										if v.HasErr("invoice_carrier") {
 											<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
 										}
