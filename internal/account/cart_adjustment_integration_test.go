@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -71,7 +71,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						t.Fatal(err)
 					}
 					log := slog.New(slog.DiscardHandler)
-					carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), log, false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+					carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), log, false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 					google, googleErr := account.NewGoogle("client-id", "client-secret", "https://goen.example")
 					if googleErr != nil {
 						t.Fatal(googleErr)

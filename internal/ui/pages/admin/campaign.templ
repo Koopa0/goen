@@ -311,6 +311,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
+											<span class="goen-sr-only">{ " " + item.Name }</span>
 										}
 									</form>
 								</td>
@@ -362,6 +363,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						Size:        components.SizeSmall,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminRemove) }
+						<span class="goen-sr-only">{ " " + i18n.T(ctx, i18n.KeyAdminCampImage) + " " + v.Image.Alt }</span>
 					}
 				</form>
 			}

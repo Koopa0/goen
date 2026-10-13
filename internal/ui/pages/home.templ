@@ -12,6 +12,13 @@ import (
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
 		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
+		if v.AccountErased {
+			<div class="goen-home">
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "account-erased"}) {
+					{ i18n.T(ctx, i18n.KeyAccountErased) }
+				}
+			</div>
+		}
 		if len(v.Slides) > 0 {
 			@heroCarousel(v.Slides)
 		}
