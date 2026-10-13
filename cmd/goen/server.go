@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/access"
+	adminaccess "github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/content"
@@ -37,7 +37,7 @@ import (
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/probe"
@@ -171,7 +171,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
 	}
-	orderAccess := orderaccess.NewStore(pool, secureCookies)
+	orderAccess := access.NewStore(pool, secureCookies)
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies, findLimit,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
@@ -210,7 +210,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // chain and the catch-all read them too.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
-	customers *account.Handler, orderAccess *orderaccess.Store, findLimit *ratelimit.Limiter) {
+	customers *account.Handler, orderAccess *access.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
@@ -438,7 +438,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
-	backOffice := access.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
+	backOffice := adminaccess.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)

@@ -335,10 +335,16 @@ func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
 type CartRecoveryView struct {
-	Welcome bool
-	Next    string
-	Notice  string
-	Retry   string
+	Welcome  bool
+	Next     string
+	Notice   string
+	Retry    string
+	Contents CartRecoveryContents
+}
+
+type CartRecoveryContents struct {
+	BeforeSignIn []CartLine
+	Account      []CartLine
 }
 
 func CartRecoveryMeta(ctx context.Context) layouts.Page {

@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 func TestRefusedOrderLookupOffersContactAndKeepsInput(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
-		h := NewHandler(&Store{}, &orderaccess.Store{}, slog.New(slog.DiscardHandler), false,
+		h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), false,
 			ratelimit.New(ratelimit.Config{Every: time.Hour, Burst: 10, TTL: time.Hour, MaxKeys: 10}), nil, nil)
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/find", strings.NewReader("number=GO-260101-000001&email="))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

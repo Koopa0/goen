@@ -21,7 +21,7 @@ import (
 	"github.com/google/uuid"
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -111,7 +111,7 @@ func TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid(t *testing.T) {
 			ctx := t.Context()
 			s := payment.NewStore(pool)
 			var logs bytes.Buffer
-			h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+			h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 				slog.New(slog.NewTextHandler(&logs, nil)))
 			number, id, session := openOrder(t, s, 100000, "currency")
 
@@ -170,7 +170,7 @@ func TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid(t *testing.T) {
 func TestAWebhookThatDoesNotVerifyChangesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 
 	const owed = 88000
@@ -273,7 +273,7 @@ func TestAWebhookThatDoesNotVerifyChangesNothing(t *testing.T) {
 func TestARedeliveredEventChangesStateOnce(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	number, id, session := openOrder(t, s, 64000, "redelivered")
 
@@ -329,7 +329,7 @@ func TestARedeliveredEventChangesStateOnce(t *testing.T) {
 func TestOnlyTheEventsGoenActsOnMoveMoney(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 
 	for _, eventType := range []string{
@@ -368,7 +368,7 @@ func TestOnlyTheEventsGoenActsOnMoveMoney(t *testing.T) {
 func TestAnEventForASessionGoenNeverOpenedTouchesNoPayment(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	number, id, session := openOrder(t, s, 47000, "bystander")
 
@@ -422,7 +422,7 @@ func TestTheWebhookLogsNoSecretSignatureOrCustomerData(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
 	const (
@@ -584,7 +584,7 @@ func TestAPaidCheckoutRecordsTheCardStripeReports(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	t.Cleanup(stripeStandIn.Close)
-	h := payment.NewHandler(s, gatewayAt(t, stripeStandIn.URL), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, gatewayAt(t, stripeStandIn.URL), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 
 	number, id, session := openOrder(t, s, 87000, "cardfacts")
