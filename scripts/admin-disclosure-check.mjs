@@ -60,6 +60,26 @@ try {
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
   };
+  const layoutReady = async (stage) => {
+    const statuses = await evaluate(`(async () => {
+      const report = (phase) => console.log('DISCLOSURE_LAYOUT ' + JSON.stringify({
+        stage: ${JSON.stringify(stage)}, phase, path: location.pathname + location.search, readyState: document.readyState,
+        visibility: document.visibilityState, focused: document.hasFocus(), fonts: document.fonts.status,
+        statuses: [...document.fonts].reduce((counts, font) => {
+          counts[font.status] = (counts[font.status] || 0) + 1; return counts;
+        }, {}),
+      }));
+      report('fonts-start');
+      await document.fonts.ready;
+      report('fonts-ready');
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      report('frame-ready');
+      return [...document.fonts].map(font => font.status);
+    })()`);
+    assert.equal(statuses.includes('loading'), false, `${currentCase}: ${stage} fonts finished loading`);
+    assert.equal(statuses.includes('error'), false, `${currentCase}: ${stage} fonts loaded without errors`);
+    assert.equal([...fonts.values()].some(font => font.state === 'failed'), false, `${currentCase}: font requests succeeded`);
+  };
   await send('Page.enable');
   await send('Runtime.enable');
   await send('Network.enable');
@@ -81,20 +101,7 @@ try {
           await new Promise(resolve => setTimeout(resolve, 30));
         }
         assert.equal(await evaluate('document.visibilityState'), 'visible', `${label}: native keyboard document must be foreground`);
-        await evaluate(`(async () => {
-          const report = (phase) => console.log('DISCLOSURE_LAYOUT ' + JSON.stringify({
-            phase, path: location.pathname + location.search, readyState: document.readyState,
-            visibility: document.visibilityState, focused: document.hasFocus(), fonts: document.fonts.status,
-            statuses: [...document.fonts].reduce((counts, font) => {
-              counts[font.status] = (counts[font.status] || 0) + 1; return counts;
-            }, {}),
-          }));
-          report('fonts-start');
-          await document.fonts.ready;
-          report('fonts-ready');
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          report('frame-ready');
-        })()`);
+        await layoutReady('initial');
         const state = await evaluate(`(() => {
           const details = document.querySelector(${JSON.stringify(selector)});
           const summary = details?.querySelector('summary');
@@ -113,6 +120,7 @@ try {
           const panel = details.querySelector('.goen-disclosure__panel');
           return details.open && panel.checkVisibility() && panel.getBoundingClientRect().height > 0;
         })()`), true, `${label}: Enter opens visible content`);
+        await layoutReady('revealed-content');
         await send('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 });
         await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 });
         assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector)}).open`), false, `${label}: Space closes content`);
