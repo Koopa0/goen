@@ -16,7 +16,7 @@ func (v *OrderView) nextStepSummary(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminOrderNextAllowanceAttention)
 	case v.AllowanceAwaitingUntil != "":
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderNextAllowanceAwaiting), v.AllowanceAwaitingUntil)
-	case v.Unpaid:
+	case v.Unpaid && v.Status == order.FulfillmentPending:
 		return i18n.T(ctx, i18n.KeyAdminOrderNextUnpaid)
 	case v.Status == order.FulfillmentPending:
 		return i18n.T(ctx, i18n.KeyAdminOrderNextPending)

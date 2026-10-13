@@ -28,6 +28,7 @@ func TestOrderNextStepSummaryUsesTheFirstApplicableFact(t *testing.T) {
 		{"delivered with goods outstanding", OrderView{Status: order.FulfillmentDelivered, Shippable: []ShippableLine{{Remaining: 1}}}, "已送達部分包裹，還有商品待出貨。", "Some parcels have arrived; goods still need to be shipped."},
 		{"completed", OrderView{Status: order.FulfillmentCompleted}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
 		{"cancelled", OrderView{Status: order.FulfillmentCancelled}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
+		{"cancelled and still owing", OrderView{Status: order.FulfillmentCancelled, Unpaid: true, OwedCents: 1000}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
 		{"no status", OrderView{}, "這筆訂單沒有需要處理的事。", "This order needs no further action."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
