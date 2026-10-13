@@ -54,7 +54,8 @@ func Start(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		}
 	}
 
-	url, err := container.ConnectionString(ctx, "sslmode=disable")
+	// Seed scripts pass this DSN to libpq, which accepts custom settings through options.
+	url, err := container.ConnectionString(ctx, "sslmode=disable", "options=-c%20goen.catalogue_seed%3Ddevelopment")
 	if err != nil {
 		terminate()
 		return nil, nil, fmt.Errorf("connection string: %w", err)

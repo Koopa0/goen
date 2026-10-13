@@ -40,12 +40,12 @@ var (
 
 	// KeyAdminColComparable labels the department's answer to "compare products
 	// here"; a sub-category shows no control, it takes its department's.
-	KeyAdminColComparable = key("admin.col.comparable", Message{ZhHant: "開放商品比較", En: "Offer comparison"})
+	KeyAdminColComparable = key("admin.col.comparable", Message{ZhHant: "商品比較", En: "Product comparison"})
 
 	// KeyAdminTaxComparableOf labels the comparison control on one department's row.
 	KeyAdminTaxComparableOf = key("admin.tax.comparableof", Message{
 		ZhHant: "%s 開放商品比較",
-		En:     "Offer comparison in %s",
+		En:     "Product comparison in %s",
 	})
 
 	// KeyAdminToneInherit is the empty choice: the category takes its department's.
@@ -72,7 +72,10 @@ var (
 	// KeyAdminTaxHeader links a category's row to the page that holds its photograph.
 	KeyAdminTaxHeader = key("admin.tax.header", Message{ZhHant: "頁首圖片", En: "Header photo"})
 
-	KeyAdminCatImage = key("admin.cat.image", Message{ZhHant: "分類頁首圖片", En: "Category header photograph"})
+	KeyAdminCatImage   = key("admin.cat.image", Message{ZhHant: "分類頁首圖片", En: "Category header photograph"})
+	KeyAdminCatAlt     = key("admin.cat.alt", Message{ZhHant: "替代文字（中文）", En: "Alt text (Chinese)"})
+	KeyAdminCatAltEn   = key("admin.cat.alt.en", Message{ZhHant: "替代文字（英文）", En: "Alt text (English)"})
+	KeyAdminCatAltHint = key("admin.cat.alt.hint", Message{ZhHant: "給看不到圖片的人閱讀。", En: "For people who cannot see the image."})
 
 	KeyAdminCatImageHint = key("admin.cat.imagehint", Message{
 		ZhHant: "顯示在首頁、館別頁標題旁和選單裡，各處都從中央裁切，主體請放在中間。建議 1200×800。子分類沿用上層的圖片。",
@@ -119,7 +122,8 @@ var (
 		En:     "Cannot be changed once created.",
 	})
 
-	KeyAdminTaxParent = key("admin.tax.parent", Message{ZhHant: "上層分類（選填）", En: "Parent category (optional)"})
+	KeyAdminTaxParent   = key("admin.tax.parent", Message{ZhHant: "上層分類（選填）", En: "Parent category (optional)"})
+	KeyAdminTaxTopLevel = key("admin.tax.toplevel", Message{ZhHant: "最上層", En: "Top level"})
 
 	KeyAdminTaxParentHint = key("admin.tax.parent.hint", Message{
 		ZhHant: "留空就是最上層。",
