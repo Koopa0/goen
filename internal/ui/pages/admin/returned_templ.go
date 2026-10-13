@@ -175,7 +175,7 @@ func returnedProducts(v *ReportView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						if item.ShowsRate() {
-							templ_7745c5c3_Err = chart.Bar(chart.BarProps{Value: item.Returned, Max: item.Sold}).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = chart.Bar(chart.BarProps{Value: item.returnedPermille(), Max: returnedRateScale}).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
