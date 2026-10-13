@@ -2299,7 +2299,7 @@ CREATE TABLE order_shipments (
     estimated_delivery_on date,
     -- A closed set: (carrier, tracking_number) is the dedupe key, and one parcel
     -- typed under two spellings of a carrier would be recorded twice. These are
-    -- the codes of internal/carrier, not display names.
+    -- the codes of internal/shipping, not display names.
     CONSTRAINT order_shipments_carrier_known CHECK (carrier IN (
         'black_cat', 'hct', 'chunghwa_post', 'kerry_tj',
         'seven_eleven', 'family_mart', 'hi_life', 'ok_mart'
@@ -4658,7 +4658,7 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT contact_messages_email_present CHECK (email ~ '[^[:space:]]'),
     -- The stored value is a durable category, not free text. Keep this aligned
-    -- with the constants in internal/contactsubject: every writer, including
+    -- with the constants in internal/contact: every writer, including
     -- the store DB role, must be unable to persist a value the application cannot
     -- render or validate.
     CONSTRAINT contact_messages_subject_known CHECK (subject IN (

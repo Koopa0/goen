@@ -9,13 +9,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -48,7 +49,7 @@ func TestDeliveryCorrectionShowsAbsentControlRefusals(t *testing.T) {
 					}
 					values.Set("pickup_store_name", " Proposed <store> ")
 					controls["d-store-code"], controls["d-store-name"] = values.Get("pickup_store_code"), values.Get("pickup_store_name")
-					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = pickup.SevenEleven, "A123", "Proposed <store>"
+					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = shipping.ChainSevenEleven, "A123", "Proposed <store>"
 				} else {
 					for id, field := range map[string]string{"d-postal": "postal_code", "d-city": "city", "d-district": "district", "d-street": "street"} {
 						controls[id] = values.Get(field)

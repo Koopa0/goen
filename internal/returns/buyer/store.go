@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
@@ -30,12 +29,18 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
+// Parcel is the delivery and right-to-cancel facts of one shipment that the return form needs.
+type Parcel struct {
+	DeliveredAt    time.Time
+	RescissionEnds time.Time
+}
+
 type Order struct {
 	ID          uuid.UUID
 	Number      string
 	Fulfillment string
 	Pickup      bool
-	Shipments   []pages.OrderShipment
+	Shipments   []Parcel
 	Now         time.Time
 	Lines       []Line
 	HasOpen     bool
@@ -104,7 +109,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	o.Now = now
 	for i := range shipments {
 		shipment := &shipments[i]
-		parcel := pages.OrderShipment{}
+		parcel := Parcel{}
 		if shipment.DeliveredAt.Valid {
 			parcel.DeliveredAt = shipment.DeliveredAt.Time
 			parcel.RescissionEnds = shipment.RescissionEnds

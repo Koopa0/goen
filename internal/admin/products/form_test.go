@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/web"
@@ -39,11 +40,11 @@ func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
 		{name: "negative", raw: "-3", max: MaxWarrantyMonths},
 		{name: "inner space", raw: "2 4", max: MaxWarrantyMonths},
 		{name: "non ASCII digits", raw: "١٢", max: MaxWarrantyMonths},
-		{name: "longest ceiling", raw: "5000", max: carrier.MaxParcelLongestMM, want: 5000, ok: true},
-		{name: "longest over ceiling", raw: "6000", max: carrier.MaxParcelLongestMM},
-		{name: "sum ceiling", raw: "15000", max: carrier.MaxParcelSumMM, want: 15000, ok: true},
-		{name: "weight ceiling", raw: "200000", max: carrier.MaxParcelWeightG, want: 200000, ok: true},
-		{name: "comma", raw: "10,000", max: carrier.MaxParcelWeightG},
+		{name: "longest ceiling", raw: "5000", max: shipping.MaxParcelLongestMM, want: 5000, ok: true},
+		{name: "longest over ceiling", raw: "6000", max: shipping.MaxParcelLongestMM},
+		{name: "sum ceiling", raw: "15000", max: shipping.MaxParcelSumMM, want: 15000, ok: true},
+		{name: "weight ceiling", raw: "200000", max: shipping.MaxParcelWeightG, want: 200000, ok: true},
+		{name: "comma", raw: "10,000", max: shipping.MaxParcelWeightG},
 		{name: "safety ceiling", raw: "1000000", max: safetyStockCeiling, want: 1000000, ok: true},
 		{name: "safety over ceiling", raw: "1000001", max: safetyStockCeiling},
 	} {
@@ -64,8 +65,8 @@ func FuzzParseBoundedInt(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, raw string, choice uint8) {
 		maxima := [...]int32{
-			MaxWarrantyMonths, carrier.MaxParcelLongestMM, carrier.MaxParcelSumMM,
-			carrier.MaxParcelWeightG, safetyStockCeiling,
+			MaxWarrantyMonths, shipping.MaxParcelLongestMM, shipping.MaxParcelSumMM,
+			shipping.MaxParcelWeightG, safetyStockCeiling,
 		}
 		ceiling := maxima[int(choice)%len(maxima)]
 		got, ok := web.ParseBounded(raw, ceiling)
@@ -125,15 +126,15 @@ func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
 		}},
 		{name: "variant longest", field: "parcel_longest", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelLongestMM: carrier.MaxParcelLongestMM + 1}).Validate(ctx)
+				ParcelLongestMM: shipping.MaxParcelLongestMM + 1}).Validate(ctx)
 		}},
 		{name: "variant sum", field: "parcel_sum", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelSumMM: carrier.MaxParcelSumMM + 1}).Validate(ctx)
+				ParcelSumMM: shipping.MaxParcelSumMM + 1}).Validate(ctx)
 		}},
 		{name: "variant weight", field: "parcel_weight", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelWeightG: carrier.MaxParcelWeightG + 1}).Validate(ctx)
+				ParcelWeightG: shipping.MaxParcelWeightG + 1}).Validate(ctx)
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -146,8 +147,8 @@ func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
 
 	variantAtCeilings := (&VariantForm{
 		SKU: "BOUND", PriceCents: 100, SafetyStock: safetyStockCeiling,
-		ParcelLongestMM: carrier.MaxParcelLongestMM, ParcelSumMM: carrier.MaxParcelSumMM,
-		ParcelWeightG: carrier.MaxParcelWeightG,
+		ParcelLongestMM: shipping.MaxParcelLongestMM, ParcelSumMM: shipping.MaxParcelSumMM,
+		ParcelWeightG: shipping.MaxParcelWeightG,
 	}).Validate(ctx)
 	for _, field := range []string{
 		"safety", "parcel_longest", "parcel_sum", "parcel_weight",
