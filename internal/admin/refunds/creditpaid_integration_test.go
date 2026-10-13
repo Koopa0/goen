@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -169,7 +169,7 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 		replay.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {
 		t.Errorf("replayed POST = %d %s, want the cancelled sentence", replay.Code, replay.Header().Get("Location"))
 	}
-	if _, err := s.RefundBeforeShipment(ctx, number, "顧客來電取消"); !errors.Is(err, refundstate.ErrRefused) {
+	if _, err := s.RefundBeforeShipment(ctx, number, "顧客來電取消"); !errors.Is(err, refund.ErrRefused) {
 		t.Errorf("a second cancellation = %v, want ErrRefused", err)
 	}
 	check(t, "after the replays")
@@ -274,7 +274,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 
 			select {
 			case err := <-result:
-				if !errors.Is(err, refundstate.ErrRefused) ||
+				if !errors.Is(err, refund.ErrRefused) ||
 					(tc.changed && !errors.Is(err, refunds.ErrOrderChanged)) ||
 					(!tc.changed && !pgerr.IsConstraint(err, tc.constraint)) {
 					t.Errorf("cancellation after %s = %v, want ErrRefused from %s", tc.name, err, tc.constraint)
