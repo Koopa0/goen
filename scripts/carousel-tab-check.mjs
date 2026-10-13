@@ -34,7 +34,13 @@ try {
       if (await evaluate(expression)) return;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    throw new Error(`${label} did not settle`);
+    const state = await evaluate(`(() => {
+      const track = document.querySelector('.goen-hero__track');
+      return { current: document.querySelector('.goen-hero__tabs [aria-current="true"]')?.getAttribute('href'),
+        pageX: scrollX, pageY: scrollY, trackX: track?.scrollLeft,
+        trackWidth: track?.clientWidth, slideWidths: [...(track?.children ?? [])].map(slide => slide.getBoundingClientRect().width) };
+    })()`);
+    throw new Error(`${label} did not settle: ${JSON.stringify(state)}`);
   };
   await send('Page.enable');
   for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
@@ -58,7 +64,16 @@ try {
     // One native gesture per slide: scroll-snap-stop prevents skipping a snap point.
     for (const [index, direction] of [[1, -1], [2, -1], [1, 1], [0, 1]]) {
       const x = before.left + before.width * (direction < 0 ? 0.875 : 0.125);
-      await send('Input.synthesizeScrollGesture', { x, y: before.gestureY,
+      const origin = await evaluate(`(() => {
+        const track = document.querySelector('.goen-hero__track'), box = track.getBoundingClientRect();
+        for (const fraction of [0.5, 0.75, 0.9, 0.25, 0.1]) {
+          const y = box.top + box.height * fraction;
+          if (document.elementFromPoint(${x}, y)?.closest('.goen-hero__track') === track) return { y };
+        }
+        return { top: box.top, bottom: box.bottom, hit: document.elementFromPoint(${x}, box.top + box.height / 2)?.outerHTML };
+      })()`);
+      assert.equal(typeof origin.y, 'number', `${label}: native gesture must start on the carousel: ${JSON.stringify(origin)}`);
+      await send('Input.synthesizeScrollGesture', { x, y: origin.y,
         xDistance: direction * before.distance, yDistance: 0, speed: 1500, preventFling: true,
         gestureSourceType: width < 768 ? 'touch' : 'mouse' });
       await waitFor(`(() => {
