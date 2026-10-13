@@ -415,7 +415,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = @order_number
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed');
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed', 'cancelled');
 
 -- name: OrderDestinationKind :one
 SELECT sm.destination_kind, o.fulfillment_status
