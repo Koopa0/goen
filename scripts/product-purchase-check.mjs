@@ -110,11 +110,17 @@ try {
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
+  async function click(selector) {
+    const point = await evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); e.scrollIntoView({block: 'center'}); const r = e.getBoundingClientRect(); return {x: r.x + r.width / 2, y: r.y + r.height / 2}; })()`);
+    await send('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point}, sessionId);
+    await send('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...point}, sessionId);
+    await send('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...point}, sessionId);
+  }
   const problems = [];
   for (const locale of ['en', 'zh-Hant']) {
     for (const initial of ['blue', 'black']) {
       const latest = initial === 'blue' ? 'black' : 'blue';
-      for (const firstResponse of ['purchase', 'choice']) {
+      for (const firstRequest of ['choice', 'purchase']) for (const firstResponse of ['choice', 'purchase']) {
         for (const cancelRead of [false, true]) {
           requests = [];
           purchases = [];
@@ -123,27 +129,36 @@ try {
           await evaluate(`window.purchaseProbe = { requests: [], finished: new Set(), errors: [] };
             document.addEventListener('htmx:before:request', event => { if (!event.defaultPrevented) purchaseProbe.requests.push(event.detail.ctx); });
             document.addEventListener('htmx:finally:request', event => purchaseProbe.finished.add(event.detail.ctx));
-            document.addEventListener('htmx:error', event => purchaseProbe.errors.push(String(event.detail.error)));
-            document.querySelector('#pdp-add button[type="submit"]').click();
-            document.querySelector('#pdp-add button[type="submit"]').click()`);
-          await until(() => purchases.length === 1, 'held purchase POST');
-          await evaluate(`document.querySelector('[href="/p/two-colours?colour=${latest}&locale=${locale}"]').click()`);
-          await until(() => requests.length === 1, 'choice GET after purchase started');
+            document.addEventListener('htmx:error', event => purchaseProbe.errors.push(String(event.detail.error)))`);
+          const choiceSelector = `[href="/p/two-colours?colour=${latest}&locale=${locale}"]`;
+          const purchase = async () => {
+            await click('#pdp-add button[type="submit"]');
+            await click('#pdp-add button[type="submit"]');
+            await until(() => purchases.length === 1, 'held purchase POST');
+          };
+          const choice = async () => {
+            await click(choiceSelector);
+            await until(() => requests.length === 1, 'held choice GET');
+          };
+          if (firstRequest === 'choice') { await choice(); await purchase(); }
+          else { await purchase(); await choice(); }
+          const purchaseIndex = firstRequest === 'purchase' ? 0 : 1;
+          let choiceIndex = firstRequest === 'choice' ? 0 : 1;
           if (cancelRead) {
-            await evaluate('purchaseProbe.requests[1].request.abort()');
-            await until(() => evaluate('purchaseProbe.finished.has(purchaseProbe.requests[1])'), 'cancelled read settled');
-            assert.equal(await evaluate('purchaseProbe.requests[0].request.signal.aborted'), false, 'cancelling a read must not cancel the purchase');
-            await evaluate(`document.querySelector('[href="/p/two-colours?colour=${latest}&locale=${locale}"]').click()`);
+            await evaluate(`purchaseProbe.requests[${choiceIndex}].request.abort()`);
+            await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${choiceIndex}])`), 'cancelled read settled');
+            assert.equal(await evaluate(`purchaseProbe.requests[${purchaseIndex}].request.signal.aborted`), false, 'cancelling a read must not cancel the purchase');
+            await click(choiceSelector);
             await until(() => requests.length === 2, 'replacement choice GET');
+            choiceIndex = 2;
           }
           assert.equal(purchases[0].variant, initial, 'POST keeps the submitted variant');
           assert.equal(purchases[0].quantity, '1', 'POST keeps the submitted quantity');
-          const choiceIndex = cancelRead ? 2 : 1;
           const responses = firstResponse === 'purchase' ? [purchases[0], requests.at(-1)] : [requests.at(-1), purchases[0]];
           release(responses[0]);
-          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${firstResponse === 'purchase' ? 0 : choiceIndex}])`), 'first response settled');
+          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${firstResponse === 'purchase' ? purchaseIndex : choiceIndex}])`), 'first response settled');
           release(responses[1]);
-          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[0]) && purchaseProbe.finished.has(purchaseProbe.requests[${choiceIndex}])`), 'both responses settled');
+          await until(() => evaluate(`purchaseProbe.finished.has(purchaseProbe.requests[${purchaseIndex}]) && purchaseProbe.finished.has(purchaseProbe.requests[${choiceIndex}])`), 'both responses settled');
           const state = await evaluate(`({
             variant: document.querySelector('#pdp-add [name="variant"]').value,
             selected: document.querySelector('#buybox [aria-current="true"]').textContent.trim().toLowerCase(),
@@ -159,15 +174,14 @@ try {
             disabled: document.querySelector('#add-to-cart').getAttribute('aria-disabled'),
             requests: purchaseProbe.requests.length, errors: purchaseProbe.errors
           })`);
-          const at = `${locale}: purchase=${initial}, choice=${latest}, ${firstResponse} response first, read cancelled=${cancelRead}`;
+          const at = `${locale}: purchase=${initial}, choice=${latest}, ${firstRequest} request first, ${firstResponse} response first, read cancelled=${cancelRead}`;
           try {
             assert.equal(state.variant, latest, 'final purchase variant follows the last choice');
             assert.equal(state.selected, latest, 'selected option follows the last choice');
             assert.equal(state.price, state.stickyPrice, 'sticky price agrees with the displayed choice');
             assert.equal(state.image, `/${latest}.webp`, 'gallery agrees with the displayed choice');
             assert.equal(state.colour, latest, 'history agrees with the displayed choice');
-            assert.equal(state.notices, 1, 'one live purchase confirmation');
-            assert.ok(state.notice?.includes(locale === 'en' ? 'Added to your cart.' : '已加入購物車。'), 'accepted purchase remains confirmed');
+            assert.equal(state.notices, 0, 'a purchase of the old variant must not confirm the newly selected variant');
             assert.equal(state.cartCount, '1', 'accepted purchase updates the cart once');
             assert.equal(state.boxes, 1, 'one live buy box');
             assert.equal(state.busy, false, 'the live purchase form is no longer pending');
@@ -184,6 +198,22 @@ try {
       }
     }
   }
+  for (const locale of ['en', 'zh-Hant']) {
+    purchases = [];
+    await send('Page.navigate', {url: `${origin}/p/two-colours?locale=${locale}&colour=blue`}, sessionId);
+    await until(() => evaluate(`document.readyState === 'complete' && !!document.querySelector('#pdp-add') && typeof htmx !== 'undefined'`), 'unchallenged product ready');
+    await click('#pdp-add button[type="submit"]');
+    await until(() => purchases.length === 1, 'unchallenged purchase POST');
+    release(purchases[0]);
+    await until(() => evaluate(`!!document.querySelector('#added') && !document.querySelector('#pdp-add').hasAttribute('data-request-pending')`), 'unchallenged purchase settled');
+    assert.equal(purchases[0].variant, 'blue', 'unchallenged POST has the displayed variant');
+    const accepted = await evaluate(`({variant:document.querySelector('#pdp-add [name=variant]').value, notice:document.querySelector('#added').textContent.trim(), role:document.querySelector('#added').getAttribute('role'), count:document.querySelector('#cart-count').textContent.trim()})`);
+    assert.equal(accepted.variant, 'blue', 'unchallenged confirmation remains beside its purchased variant');
+    assert.equal(accepted.count, '1', 'unchallenged purchase updates the cart once');
+    assert.equal(accepted.role, 'status', 'a successful purchase retains its factual status announcement');
+    assert.ok(accepted.notice.includes(locale === 'en' ? 'Added to your cart.' : '已加入購物車。'), 'the displayed purchased variant keeps its confirmation');
+    console.log('PASS displayed-variant confirmation ' + locale);
+  }
   assert.deepEqual(problems, [], problems.join('\n'));
   // Native links still reach the selected form when enhancement is unavailable.
   await send('Emulation.setScriptExecutionDisabled', { value: true }, sessionId);
@@ -191,7 +221,7 @@ try {
   await until(() => evaluate(`document.readyState === 'complete' && document.querySelector('#pdp-add [name="variant"]')?.value === 'black'`), 'native selected product');
   console.log('PASS native option URL renders the selected purchase form');
   purchases = [];
-  await evaluate(`document.querySelector('#pdp-add button[type="submit"]').click()`);
+  await click('#pdp-add button[type="submit"]');
   await until(() => purchases.length === 1, 'native purchase POST');
   assert.equal(purchases[0].variant, 'black', 'native POST keeps the selected variant');
   release(purchases[0]);
