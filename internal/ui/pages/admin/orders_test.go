@@ -338,3 +338,51 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 		}
 	}
 }
+
+func TestTheTimelineLabelsRefusedInvoiceCodesInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		label  i18n.Key
+		status i18n.Key
+		note   string
+		zh     string
+		en     string
+	}{
+		{"issue", i18n.KeyAuditInvoiceIssue, i18n.KeyAdminTimelineInvoiceRejected, "2000006", "綠界代碼 2000006", "ECPay code 2000006"},
+		{"allowance", i18n.KeyAuditInvoiceAllowance, i18n.KeyAdminTimelineInvoiceRejected, "2000040", "綠界代碼 2000040", "ECPay code 2000040"},
+		{"void", i18n.KeyAuditInvoiceVoid, i18n.KeyAdminTimelineInvoiceRejected, "", "", ""},
+		{"local refusal", i18n.KeyAuditInvoiceIssue, i18n.KeyAdminTimelineInvoiceRejected, "", "", ""},
+		{"staff note", i18n.KeyStatusPlaced, "", "Keep this note", "Keep this note", "Keep this note"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+				body := renderOrder(t, locale, &OrderView{Number: "GO-261012-000001", Timeline: []TimelineEntry{{
+					Label: tc.label, Status: tc.status, Note: tc.note,
+				}}})
+				want := tc.en
+				if locale == i18n.ZhHant {
+					want = tc.zh
+				}
+				if want == "" {
+					if strings.Contains(body, "ECPay code") || strings.Contains(body, "綠界代碼") {
+						t.Errorf("%s %s HTML invents a provider code", tc.name, locale)
+					}
+					continue
+				}
+				noteAt := strings.Index(body, want)
+				if noteAt < 0 {
+					t.Fatalf("%s %s HTML lacks %q", tc.name, locale, want)
+				}
+				if tc.status != "" {
+					ctx := i18n.WithLocale(t.Context(), locale)
+					statusAt := strings.Index(body, i18n.T(ctx, tc.status))
+					if statusAt < 0 || statusAt >= noteAt {
+						t.Errorf("%s %s HTML does not show refusal before its code", tc.name, locale)
+					}
+				}
+			}
+		})
+	}
+}

@@ -351,6 +351,14 @@ func (e TimelineEntry) StatusText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineNowSince), i18n.T(ctx, e.Status), e.DoneAt)
 }
 
+func (e TimelineEntry) noteText(ctx context.Context) string {
+	if e.Note != "" && e.Status == i18n.KeyAdminTimelineInvoiceRejected &&
+		(e.Label == i18n.KeyAuditInvoiceIssue || e.Label == i18n.KeyAuditInvoiceAllowance) {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineInvoiceProviderCode), e.Note)
+	}
+	return e.Note
+}
+
 func (e TimelineEntry) By(ctx context.Context) string {
 	switch e.ActorKind {
 	case ActorStaff:
