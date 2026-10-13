@@ -10,8 +10,30 @@ try {
   const pending = new Map();
   let currentCase = "initialization";
   let dialogError = null;
+  const fonts = new Map();
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
+    if (message.method === 'Runtime.consoleAPICalled') {
+      const value = message.params.args[0]?.value;
+      if (typeof value === 'string' && value.startsWith('DISCLOSURE_LAYOUT ')) console.log(value);
+      return;
+    }
+    if (message.method === 'Network.requestWillBeSent' && message.params.type === 'Font') {
+      fonts.set(message.params.requestId, { case: currentCase, url: message.params.request.url, state: 'pending' });
+      console.log(`DISCLOSURE_FONT ${JSON.stringify(fonts.get(message.params.requestId))}`);
+      return;
+    }
+    if (message.method === 'Network.responseReceived' && fonts.has(message.params.requestId)) {
+      fonts.get(message.params.requestId).status = message.params.response.status;
+      return;
+    }
+    if ((message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') && fonts.has(message.params.requestId)) {
+      const font = fonts.get(message.params.requestId);
+      font.state = message.method === 'Network.loadingFinished' ? 'finished' : 'failed';
+      font.error = message.params.errorText;
+      console.log(`DISCLOSURE_FONT ${JSON.stringify(font)}`);
+      return;
+    }
     if (message.method === "Page.javascriptDialogOpening") {
       dialogError = new Error(`${currentCase}: unexpected native dialog ${JSON.stringify(message.params)}`);
       console.error(dialogError.message);
@@ -39,6 +61,7 @@ try {
     return result.result.value;
   };
   await send('Page.enable');
+  await send('Runtime.enable');
   await send('Network.enable');
   await send('Network.setBlockedURLs', { urls: ['*/static/js/*'] });
   assert.equal(await evaluate('CSS.supports("selector(::details-content)")'), true, 'Chrome must exercise the desktop rail rule');
@@ -58,7 +81,20 @@ try {
           await new Promise(resolve => setTimeout(resolve, 30));
         }
         assert.equal(await evaluate('document.visibilityState'), 'visible', `${label}: native keyboard document must be foreground`);
-        await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(resolve)))');
+        await evaluate(`(async () => {
+          const report = (phase) => console.log('DISCLOSURE_LAYOUT ' + JSON.stringify({
+            phase, path: location.pathname + location.search, readyState: document.readyState,
+            visibility: document.visibilityState, focused: document.hasFocus(), fonts: document.fonts.status,
+            statuses: [...document.fonts].reduce((counts, font) => {
+              counts[font.status] = (counts[font.status] || 0) + 1; return counts;
+            }, {}),
+          }));
+          report('fonts-start');
+          await document.fonts.ready;
+          report('fonts-ready');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          report('frame-ready');
+        })()`);
         const state = await evaluate(`(() => {
           const details = document.querySelector(${JSON.stringify(selector)});
           const summary = details?.querySelector('summary');
