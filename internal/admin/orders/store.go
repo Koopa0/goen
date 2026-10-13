@@ -9,16 +9,16 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -29,7 +29,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -300,14 +299,14 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		Delivery: admin.Delivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
 			District: o.District, Street: o.Street,
-			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
@@ -328,7 +327,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		CreditCents:          o.CreditCents,
 	}
 
-	carriers, implied := carrier.ForDelivery(pickup.Chain(o.PickupChain), destination.Kind(o.DestinationKind) == destination.PickupPoint)
+	carriers, implied := shipping.CarriersFor(shipping.Chain(o.PickupChain), shipping.Destination(o.DestinationKind))
 	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
@@ -369,7 +368,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	for i := range shipments {
 		sh := &shipments[i]
 		view.Shipments = append(view.Shipments, admin.Shipment{
-			ID: sh.ID.String(), Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
+			ID: sh.ID.String(), Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
 		})
@@ -470,7 +469,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 // without a lock, so another staff member can move it on first;
 // shipment_order_in_fulfilment re-reads it under the order's lock and refuses
 // the parcel of an order that no longer takes one.
-func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c carrier.Carrier, tracking string) (uuid.UUID, error) {
+func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c shipping.Carrier, tracking string) (uuid.UUID, error) {
 	id, err := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: orderID, Carrier: string(c), TrackingNumber: tracking,
 	})
@@ -551,13 +550,13 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 		if err != nil {
 			return fmt.Errorf("read terminal order destination: %w", err)
 		}
-		to, ok := destination.For(row.DestinationKind)
+		to, ok := shipping.ParseDestination(row.DestinationKind)
 		if !ok {
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				e.number, row.DestinationKind)
 		}
 		kind := email.TerminalDelivered
-		if to == destination.PickupPoint {
+		if to == shipping.DestinationPickupPoint {
 			if e.status != order.FulfillmentCompleted {
 				return nil
 			}
@@ -713,7 +712,7 @@ type Dispatch struct {
 // those is wrong on its own.
 func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.NullUUID) error {
 	// The carrier is one of the closed set; its display name is not stored.
-	carrierCode, tracking := carrier.Carrier(strings.TrimSpace(d.Carrier)), strings.TrimSpace(d.Tracking)
+	carrierCode, tracking := shipping.Carrier(strings.TrimSpace(d.Carrier)), strings.TrimSpace(d.Tracking)
 	if !carrierCode.Known() || tracking == "" {
 		return ErrInvalid
 	}
@@ -791,13 +790,13 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 }
 
 func requireCarrierFor(
-	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code carrier.Carrier,
+	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code shipping.Carrier,
 ) error {
 	dest, err := q.OrderDispatchDestination(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("read destination of %s: %w", number, err)
 	}
-	valid, _ := carrier.ForDelivery(pickup.Chain(dest.PickupChain), destination.Kind(dest.DestinationKind) == destination.PickupPoint)
+	valid, _ := shipping.CarriersFor(shipping.Chain(dest.PickupChain), shipping.Destination(dest.DestinationKind))
 	if !slices.Contains(valid, code) {
 		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, code, number)
 	}

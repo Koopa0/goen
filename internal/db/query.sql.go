@@ -16413,6 +16413,40 @@ func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImagePara
 	return result.RowsAffected(), nil
 }
 
+const setCategoryImageText = `-- name: SetCategoryImageText :one
+WITH category AS MATERIALIZED (
+    SELECT id, image_key FROM categories WHERE slug = $1::text FOR UPDATE
+), updated AS (
+    UPDATE categories c
+    SET image_alt = $2::text, image_alt_en = nullif($3::text, '')
+    FROM category
+    WHERE c.id = category.id AND category.image_key IS NOT NULL
+    RETURNING c.id
+)
+SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
+       EXISTS (SELECT 1 FROM updated)::boolean AS changed
+`
+
+type SetCategoryImageTextParams struct {
+	Slug       string
+	ImageAlt   string
+	ImageAltEn string
+}
+
+type SetCategoryImageTextRow struct {
+	Found   bool
+	Changed bool
+}
+
+// Keep the current image in the same write: an alt-only save must not restore
+// a photograph that another staff member replaced or removed.
+func (q *Queries) SetCategoryImageText(ctx context.Context, arg SetCategoryImageTextParams) (SetCategoryImageTextRow, error) {
+	row := q.db.QueryRow(ctx, setCategoryImageText, arg.Slug, arg.ImageAlt, arg.ImageAltEn)
+	var i SetCategoryImageTextRow
+	err := row.Scan(&i.Found, &i.Changed)
+	return i, err
+}
+
 const setCouponActive = `-- name: SetCouponActive :execrows
 UPDATE coupons SET is_active = $1::boolean WHERE upper(code) = upper($2::text)
 `

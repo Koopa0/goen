@@ -28,7 +28,7 @@ templ returnedProducts(v *ReportView) {
 								}
 							</p>
 							if item.ShowsRate() {
-								@chart.Bar(chart.BarProps{Value: item.Returned, Max: item.Sold})
+								@chart.Bar(chart.BarProps{Value: item.returnedPermille(), Max: returnedRateScale})
 							}
 						</div>
 					}

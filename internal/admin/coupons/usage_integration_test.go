@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) {
@@ -131,11 +132,11 @@ func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, 
 	if len(view.Lines) != 1 || view.SubtotalCents < 50000 {
 		t.Fatalf("checkout fixture = %+v, want one line worth at least NT$500", view)
 	}
-	delivery := &order.Delivery{
+	details := &delivery.Details{
 		Email: "coupon-usage@example.com", RecipientName: "Coupon buyer", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
-	quote, err := s.QuoteShipping(ctx, shipping, view.SubtotalCents, delivery.PostalCode)
+	quote, err := s.QuoteShipping(ctx, shipping, view.SubtotalCents, details.PostalCode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +152,7 @@ func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, 
 		t.Fatal(err)
 	}
 	attempt := uuid.New()
-	number, err := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipping, delivery, nil, code, shown,
+	number, err := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipping, details, nil, code, shown,
 		base64.RawURLEncoding.EncodeToString(attempt[:]))
 	if err != nil {
 		t.Fatalf("PlaceOrder with reusable one-use coupon: %v", err)

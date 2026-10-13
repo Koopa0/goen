@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -219,9 +219,9 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 }
 
 func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
-	view.LabelFacts = &productlabel.Facts{
+	view.LabelFacts = &labelling.Facts{
 		Origin: p.Origin, DomesticPartyName: p.DomesticPartyName, DomesticPartyPhone: p.DomesticPartyPhone, DomesticPartyAddress: p.DomesticPartyAddress,
-		NetQuantity: p.NetQuantity, NetUnit: productlabel.NetUnit(p.NetUnit),
+		NetQuantity: p.NetQuantity, NetUnit: labelling.NetUnit(p.NetUnit),
 	}
 	if p.MinAgeMonths.Valid {
 		age := p.MinAgeMonths.Int16

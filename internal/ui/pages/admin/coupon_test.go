@@ -203,7 +203,7 @@ func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
 					"days":        {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupDays)}},
 					"max":         {Controls: 1, Tag: "input", Value: "001000001", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem)}},
 					"cap":         {Controls: 1, Tag: "input", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupCap)}},
-					"percustomer": {Controls: 1, Tag: "input", Value: "01", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupPerCustomer)}},
+					"percustomer": {Controls: 1, Tag: "input", Value: "01", DescribedBy: "c-percustomer-example", Labels: []string{i18n.T(ctx, i18n.KeyAdminCoupPerCustomer)}},
 				}
 				for _, field := range refused {
 					facts := want[field]
