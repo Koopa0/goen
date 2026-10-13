@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"net/url"

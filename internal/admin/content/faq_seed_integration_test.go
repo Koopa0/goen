@@ -8,14 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/invoice"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -36,7 +35,7 @@ func TestSeededInvoiceFAQMatchesTheWiredIssuer(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	siteStore := site.NewStore(pool)
 
-	if _, err := invoice.NewGateway("", "", "", ""); err != nil {
+	if _, err := issuer.NewGateway("", "", "", ""); err != nil {
 		t.Fatalf("an empty configuration must be legal: %v", err)
 	}
 

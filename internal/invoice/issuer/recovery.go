@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"context"
@@ -17,23 +17,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
 type frozenRequest struct {
-	RelateNumber  string     `json:"relate_number"`
-	InvoiceNumber string     `json:"invoice_number"`
-	InvoiceDate   string     `json:"invoice_date"`
-	RandomNumber  string     `json:"random_number"`
-	Reason        string     `json:"reason"`
-	CustomerName  string     `json:"customer_name"`
-	Email         string     `json:"email"`
-	Preference    Preference `json:"preference"`
-	MobileBarcode string     `json:"carrier_code"`
-	DonationCode  string     `json:"donation_code"`
-	TaxID         string     `json:"tax_id"`
-	AmountCents   int64      `json:"amount_cents"`
-	Lines         []Line     `json:"lines"`
+	RelateNumber  string             `json:"relate_number"`
+	InvoiceNumber string             `json:"invoice_number"`
+	InvoiceDate   string             `json:"invoice_date"`
+	RandomNumber  string             `json:"random_number"`
+	Reason        string             `json:"reason"`
+	CustomerName  string             `json:"customer_name"`
+	Email         string             `json:"email"`
+	Preference    invoice.Preference `json:"preference"`
+	MobileBarcode string             `json:"carrier_code"`
+	DonationCode  string             `json:"donation_code"`
+	TaxID         string             `json:"tax_id"`
+	AmountCents   int64              `json:"amount_cents"`
+	Lines         []invoice.Line     `json:"lines"`
 }
 
 type operation struct {
@@ -88,26 +89,26 @@ func decodeOperation(row *db.InvoiceOperationRow) (operation, error) {
 	}, nil
 }
 
-func (s *Store) processClaim(ctx context.Context, operationID uuid.UUID) (Document, error) {
+func (s *Store) processClaim(ctx context.Context, operationID uuid.UUID) (invoice.Document, error) {
 	op, err := s.operation(ctx, operationID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return Document{}, ErrNotFound
+			return invoice.Document{}, ErrNotFound
 		}
-		return Document{}, fmt.Errorf("read invoice operation %s: %w", operationID, err)
+		return invoice.Document{}, fmt.Errorf("read invoice operation %s: %w", operationID, err)
 	}
 	switch op.Status {
 	case OperationSucceeded:
 		return s.operationDocument(ctx, operationID)
 	case OperationRejected:
-		return Document{}, fmt.Errorf("%w: operation %s was rejected (%s)",
+		return invoice.Document{}, fmt.Errorf("%w: operation %s was rejected (%s)",
 			ErrRejected, operationID, op.LastError)
 	case OperationAttention:
-		return Document{}, fmt.Errorf("%w: operation %s needs reconciliation (%s)",
+		return invoice.Document{}, fmt.Errorf("%w: operation %s needs reconciliation (%s)",
 			ErrPending, operationID, op.LastError)
 	case OperationPending:
 	default:
-		return Document{}, fmt.Errorf("invoice operation %s has unknown status %q", operationID, op.Status)
+		return invoice.Document{}, fmt.Errorf("invoice operation %s has unknown status %q", operationID, op.Status)
 	}
 
 	owner := uuid.New()
@@ -115,19 +116,19 @@ func (s *Store) processClaim(ctx context.Context, operationID uuid.UUID) (Docume
 		OperationID: operationID, LeaseOwner: owner, LeaseFor: interval(operationLease),
 	})
 	if err != nil {
-		return Document{}, fmt.Errorf("lease invoice operation %s: %w", operationID, err)
+		return invoice.Document{}, fmt.Errorf("lease invoice operation %s: %w", operationID, err)
 	}
 	if leased == uuid.Nil {
-		return Document{}, fmt.Errorf("%w: operation %s is already being reconciled",
+		return invoice.Document{}, fmt.Errorf("%w: operation %s is already being reconciled",
 			ErrPending, operationID)
 	}
 	return s.processLeased(ctx, leased, owner)
 }
 
-func (s *Store) processLeased(ctx context.Context, operationID, owner uuid.UUID) (Document, error) {
+func (s *Store) processLeased(ctx context.Context, operationID, owner uuid.UUID) (invoice.Document, error) {
 	op, err := s.operation(ctx, operationID)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 	switch op.Kind {
 	case OperationIssue:
@@ -138,11 +139,11 @@ func (s *Store) processLeased(ctx context.Context, operationID, owner uuid.UUID)
 		return s.processVoid(ctx, &op, owner)
 	default:
 		cause := fmt.Errorf("invoice operation %s has unknown kind %q", op.ID, op.Kind)
-		return Document{}, s.alarm(ctx, &op, owner, "unknown_operation_kind", cause)
+		return invoice.Document{}, s.alarm(ctx, &op, owner, "unknown_operation_kind", cause)
 	}
 }
 
-func (s *Store) processIssue(ctx context.Context, op *operation, owner uuid.UUID) (Document, error) {
+func (s *Store) processIssue(ctx context.Context, op *operation, owner uuid.UUID) (invoice.Document, error) {
 	in := IssueRequest{
 		OrderNumber: op.Request.RelateNumber, CustomerName: op.Request.CustomerName,
 		Email: op.Request.Email, Preference: op.Request.Preference,
@@ -152,70 +153,70 @@ func (s *Store) processIssue(ctx context.Context, op *operation, owner uuid.UUID
 	if err := in.validate(); err != nil || op.ProviderKey != in.OrderNumber ||
 		op.AmountCents != in.AmountCents {
 		cause := fmt.Errorf("%w: frozen Issue operation is invalid", ErrRejected)
-		return Document{}, s.alarm(ctx, op, owner, "frozen_issue_request_invalid", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "frozen_issue_request_invalid", cause)
 	}
 
 	lookup, found, lookupErr := s.gateway.FetchIssue(ctx, op.ProviderKey)
 	if lookupErr != nil {
-		return Document{}, s.retry(ctx, op, owner, "issue_lookup_failed", lookupErr)
+		return invoice.Document{}, s.retry(ctx, op, owner, "issue_lookup_failed", lookupErr)
 	}
 	if found {
 		if !issueMatches(in, lookup, false) {
 			cause := fmt.Errorf("%w: provider Issue differs from frozen request", ErrPending)
-			return Document{}, s.alarm(ctx, op, owner, "issue_lookup_mismatch", cause)
+			return invoice.Document{}, s.alarm(ctx, op, owner, "issue_lookup_mismatch", cause)
 		}
 		return s.settleIssue(ctx, op, owner, lookup.Document)
 	}
 
 	if markErr := s.markSent(ctx, op, owner); markErr != nil {
-		return Document{}, markErr
+		return invoice.Document{}, markErr
 	}
 	_, sendErr := s.gateway.Issue(ctx, in)
 	if sendErr != nil {
 		if providerErr, ok := errors.AsType[*providerError](sendErr); ok && providerErr.Code != 5070357 {
 			category := "issue_provider_rejected_" + strconv.Itoa(providerErr.Code)
-			return Document{}, s.reject(ctx, op, owner, category, sendErr)
+			return invoice.Document{}, s.reject(ctx, op, owner, category, sendErr)
 		}
-		return Document{}, s.retry(ctx, op, owner, "issue_send_ambiguous", sendErr)
+		return invoice.Document{}, s.retry(ctx, op, owner, "issue_send_ambiguous", sendErr)
 	}
 	// Issue's success reply has no itemisation. Never infer provider truth from a
 	// header-only response; FetchIssue is the settlement authority.
 	lookup, found, lookupErr = s.gateway.FetchIssue(ctx, op.ProviderKey)
 	if lookupErr != nil {
-		return Document{}, s.retry(ctx, op, owner, "issue_post_send_lookup_failed", lookupErr)
+		return invoice.Document{}, s.retry(ctx, op, owner, "issue_post_send_lookup_failed", lookupErr)
 	}
 	if !found {
-		return Document{}, s.retry(ctx, op, owner, "issue_not_yet_visible", ErrPending)
+		return invoice.Document{}, s.retry(ctx, op, owner, "issue_not_yet_visible", ErrPending)
 	}
 	if !issueMatches(in, lookup, false) {
 		cause := fmt.Errorf("%w: provider Issue differs from frozen request", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, "issue_lookup_mismatch", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "issue_lookup_mismatch", cause)
 	}
 	return s.settleIssue(ctx, op, owner, lookup.Document)
 }
 
-func (s *Store) processAllowance(ctx context.Context, op *operation, owner uuid.UUID) (Document, error) {
+func (s *Store) processAllowance(ctx context.Context, op *operation, owner uuid.UUID) (invoice.Document, error) {
 	in, valid := frozenAllowanceRequest(op)
 	if !valid {
 		cause := fmt.Errorf("%w: frozen Allowance operation is invalid", ErrRejected)
-		return Document{}, s.alarm(ctx, op, owner, "frozen_allowance_request_invalid", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "frozen_allowance_request_invalid", cause)
 	}
 	all, err := s.gateway.FetchAllowances(ctx, in.InvoiceNumber, in.InvoiceDate)
 	if err != nil {
-		return Document{}, s.retry(ctx, op, owner, "allowance_lookup_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "allowance_lookup_failed", err)
 	}
 	knownRows, err := s.q.KnownAllowances(ctx, op.TargetDocumentID)
 	if err != nil {
-		return Document{}, s.retry(ctx, op, owner, "allowance_known_facts_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "allowance_known_facts_failed", err)
 	}
 	known, invalidCategory := indexKnownAllowances(knownRows)
 	if invalidCategory != "" {
 		cause := fmt.Errorf("%w: local Allowance facts are invalid", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, invalidCategory, cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, invalidCategory, cause)
 	}
 	unknown, err := s.unresolvedAllowances(ctx, op, owner, in.InvoiceNumber, all, known)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 	switch len(unknown) {
 	case 0:
@@ -224,7 +225,7 @@ func (s *Store) processAllowance(ctx context.Context, op *operation, owner uuid.
 		return s.processAllowanceCandidate(ctx, op, owner, in, &unknown[0])
 	default:
 		cause := fmt.Errorf("%w: multiple unknown provider allowances", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, CategoryMultipleCandidates, cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, invoice.CategoryMultipleCandidates, cause)
 	}
 }
 
@@ -259,7 +260,7 @@ func indexKnownAllowances(
 		}
 		known[row.Number] = knownAllowance{
 			ID: row.ID, Number: row.Number, AmountCents: row.AmountCents,
-			Status: DocumentStatus(row.Status), IssuedAt: row.IssuedAt, Lines: lines,
+			Status: invoice.DocumentStatus(row.Status), IssuedAt: row.IssuedAt, Lines: lines,
 		}
 	}
 	return known, ""
@@ -300,7 +301,7 @@ func (s *Store) reconcileKnownAllowance(
 	remote *AllowanceLookup,
 ) error {
 	switch local.Status {
-	case DocumentIssued:
+	case invoice.DocumentIssued:
 		if !remote.Invalid {
 			return nil
 		}
@@ -310,7 +311,7 @@ func (s *Store) reconcileKnownAllowance(
 			return s.alarm(ctx, op, owner, "allowance_invalid_after_current_send", cause)
 		}
 		return s.reconcileKnownInvalidAllowance(ctx, op, owner, local, remote)
-	case DocumentVoided:
+	case invoice.DocumentVoided:
 		if remote.Invalid {
 			return nil
 		}
@@ -328,23 +329,23 @@ func (s *Store) processAllowanceCandidate(
 	owner uuid.UUID,
 	in AllowanceRequest,
 	remote *AllowanceLookup,
-) (Document, error) {
+) (invoice.Document, error) {
 	if op.Sends == 0 {
 		// The pre-send stamp is the attribution boundary. Without it, this
 		// candidate predates (or was created outside) this operation and must
 		// never be filed under the current actor/request merely because its
 		// amount happens to match.
 		cause := fmt.Errorf("%w: provider Allowance has no send attribution", ErrPending)
-		return Document{}, s.alarm(
+		return invoice.Document{}, s.alarm(
 			ctx, op, owner, "allowance_candidate_without_send_evidence", cause,
 		)
 	}
 	if !allowanceRequestFactsMatch(in, remote) {
 		cause := fmt.Errorf("%w: provider Allowance differs from frozen request", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, "allowance_lookup_mismatch", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "allowance_lookup_mismatch", cause)
 	}
 	if remote.Invalid {
-		return Document{}, s.recordUnknownInvalidAllowance(ctx, op, owner, remote)
+		return invoice.Document{}, s.recordUnknownInvalidAllowance(ctx, op, owner, remote)
 	}
 	return s.settleAllowance(ctx, op, owner, remote)
 }
@@ -354,18 +355,18 @@ func (s *Store) sendAllowance(
 	op *operation,
 	owner uuid.UUID,
 	in AllowanceRequest,
-) (Document, error) {
+) (invoice.Document, error) {
 	if op.Sends > op.ResendAuthorizations {
-		return Document{}, s.awaitBuyer(ctx, op, owner, time.Now())
+		return invoice.Document{}, s.awaitBuyer(ctx, op, owner, time.Now())
 	}
 
 	if markErr := s.markSent(ctx, op, owner); markErr != nil {
-		return Document{}, markErr
+		return invoice.Document{}, markErr
 	}
 	if sendErr := s.gateway.RequestAllowance(ctx, in); sendErr != nil {
-		return Document{}, s.handleAllowanceSendError(ctx, op, owner, sendErr)
+		return invoice.Document{}, s.handleAllowanceSendError(ctx, op, owner, sendErr)
 	}
-	return Document{}, s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
+	return invoice.Document{}, s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
 }
 
 // handleAllowanceSendError ends the operation on ECPay's answer, except a held
@@ -377,11 +378,11 @@ func (s *Store) handleAllowanceSendError(
 	providerErr, answered := errors.AsType[*providerError](cause)
 	switch {
 	case answered && providerErr.Code == ecpayAmountHeld:
-		return s.alarm(ctx, op, owner, CategoryAmountStillHeld, cause)
+		return s.alarm(ctx, op, owner, invoice.CategoryAmountStillHeld, cause)
 	case answered:
 		return s.reject(ctx, op, owner, "allowance_provider_rejected_"+strconv.Itoa(providerErr.Code), cause)
 	case errors.Is(cause, errProviderIdentity):
-		return s.alarm(ctx, op, owner, CategorySuccessMismatch, cause)
+		return s.alarm(ctx, op, owner, invoice.CategorySuccessMismatch, cause)
 	}
 	return s.retry(ctx, op, owner, "allowance_send_ambiguous", cause)
 }
@@ -395,28 +396,13 @@ func (s *Store) awaitBuyer(ctx context.Context, op *operation, owner uuid.UUID, 
 		return s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
 	}
 	cause := fmt.Errorf("%w: the buyer did not agree to the allowance in time", ErrPending)
-	return s.alarm(ctx, op, owner, CategoryBuyerUnconfirmed, cause)
+	return s.alarm(ctx, op, owner, invoice.CategoryBuyerUnconfirmed, cause)
 }
-
-// CategoryBuyerUnconfirmed is the attention an allowance enters once its
-// consent link lapsed with no agreement.
-const CategoryBuyerUnconfirmed = "allowance_buyer_unconfirmed"
 
 // ecpayAmountHeld is ECPay's answer when an earlier request, such as a lapsed
 // online allowance, still holds the invoice's remaining amount. Nothing was
 // filed, and the earlier request is not goen's to cancel, so a person decides.
 const ecpayAmountHeld = 2000034
-
-// CategoryAmountStillHeld is the attention an allowance enters on that answer.
-const CategoryAmountStillHeld = "allowance_amount_still_held"
-
-// CategoryMultipleCandidates is the attention an allowance enters when ECPay
-// lists more than one allowance that could be the one goen sent.
-const CategoryMultipleCandidates = "allowance_multiple_unknown_candidates"
-
-// CategorySuccessMismatch is the attention an allowance enters when ECPay's
-// success reply names another document.
-const CategorySuccessMismatch = "allowance_success_mismatch"
 
 // BuyerConsentWindow is how long ECPay's consent link lives.
 const BuyerConsentWindow = 72 * time.Hour
@@ -500,15 +486,15 @@ func (s *Store) recordUnknownInvalidAllowance(
 		ErrRejected, remote.Document.Number)
 }
 
-func (s *Store) processVoid(ctx context.Context, op *operation, owner uuid.UUID) (Document, error) {
+func (s *Store) processVoid(ctx context.Context, op *operation, owner uuid.UUID) (invoice.Document, error) {
 	issuedAt, valid := frozenVoidDate(op)
 	if !valid {
 		cause := fmt.Errorf("%w: frozen Void operation is invalid", ErrRejected)
-		return Document{}, s.alarm(ctx, op, owner, "frozen_void_request_invalid", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "frozen_void_request_invalid", cause)
 	}
 	lookup, found, err := s.gateway.FetchIssue(ctx, op.Request.RelateNumber)
 	if err != nil {
-		return Document{}, s.retry(ctx, op, owner, "void_lookup_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "void_lookup_failed", err)
 	}
 	expected := IssueRequest{
 		OrderNumber: op.Request.RelateNumber, AmountCents: op.Request.AmountCents,
@@ -516,7 +502,7 @@ func (s *Store) processVoid(ctx context.Context, op *operation, owner uuid.UUID)
 	}
 	if !voidLookupMatches(op, expected, lookup, found) {
 		cause := fmt.Errorf("%w: provider invoice cannot be matched to Void operation", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, "void_lookup_mismatch", cause)
+		return invoice.Document{}, s.alarm(ctx, op, owner, "void_lookup_mismatch", cause)
 	}
 	if lookup.Invalid {
 		return s.settleVoid(ctx, op, owner)
@@ -527,12 +513,12 @@ func (s *Store) processVoid(ctx context.Context, op *operation, owner uuid.UUID)
 	// safe. Every pass first reads FetchIssue above, so an already propagated call
 	// settles without another send.
 	if markErr := s.markSent(ctx, op, owner); markErr != nil {
-		return Document{}, markErr
+		return invoice.Document{}, markErr
 	}
 	if sendErr := s.gateway.Void(
 		ctx, op.Request.InvoiceNumber, issuedAt, op.Request.Reason,
 	); sendErr != nil {
-		return Document{}, s.handleVoidSendError(ctx, op, owner, sendErr)
+		return invoice.Document{}, s.handleVoidSendError(ctx, op, owner, sendErr)
 	}
 	return s.settleVoid(ctx, op, owner)
 }
@@ -575,21 +561,21 @@ func (s *Store) handleVoidSendError(
 	return s.retry(ctx, op, owner, "void_send_needs_lookup", cause)
 }
 
-func (s *Store) operationDocument(ctx context.Context, operationID uuid.UUID) (Document, error) {
+func (s *Store) operationDocument(ctx context.Context, operationID uuid.UUID) (invoice.Document, error) {
 	row, err := s.q.InvoiceOperationDocument(ctx, operationID)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
-	return Document{
-		ID: row.ID.String(), Kind: DocumentKind(row.Kind), Number: row.Number,
-		AmountCents: row.AmountCents, Status: DocumentStatus(row.Status),
+	return invoice.Document{
+		ID: row.ID.String(), Kind: invoice.DocumentKind(row.Kind), Number: row.Number,
+		AmountCents: row.AmountCents, Status: invoice.DocumentStatus(row.Status),
 		ProviderRef: row.ProviderRef, IssuedAt: row.IssuedAt,
 	}, nil
 }
 
 func (s *Store) settleIssue(
-	ctx context.Context, op *operation, owner uuid.UUID, doc Document,
-) (Document, error) {
+	ctx context.Context, op *operation, owner uuid.UUID, doc invoice.Document,
+) (invoice.Document, error) {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
 	descriptions, quantities, unitPrices, amounts := invoiceLineArrays(doc.Lines)
@@ -600,7 +586,7 @@ func (s *Store) settleIssue(
 		UnitPriceCents: unitPrices, AmountCents: amounts,
 	})
 	if err != nil || documentID == uuid.Nil {
-		return Document{}, s.retry(ctx, op, owner, "issue_local_settlement_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "issue_local_settlement_failed", err)
 	}
 	doc.ID = documentID.String()
 	return doc, nil
@@ -608,7 +594,7 @@ func (s *Store) settleIssue(
 
 func (s *Store) settleAllowance(
 	ctx context.Context, op *operation, owner uuid.UUID, remote *AllowanceLookup,
-) (Document, error) {
+) (invoice.Document, error) {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
 	doc := remote.Document
@@ -616,7 +602,7 @@ func (s *Store) settleAllowance(
 		AgreedAt: shoptime.Second(doc.IssuedAt), IP: remote.BuyerIP, Email: remote.NotifyMail,
 	})
 	if err != nil {
-		return Document{}, s.retry(ctx, op, owner, "allowance_consent_encoding_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "allowance_consent_encoding_failed", err)
 	}
 	descriptions, quantities, unitPrices, amounts := invoiceLineArrays(doc.Lines)
 	documentID, err := s.q.SettleInvoiceAllowance(ctx, db.SettleInvoiceAllowanceParams{
@@ -625,20 +611,20 @@ func (s *Store) settleAllowance(
 		UnitPriceCents: unitPrices, AmountCents: amounts, BuyerConsent: consent,
 	})
 	if err != nil || documentID == uuid.Nil {
-		return Document{}, s.retry(ctx, op, owner, "allowance_local_settlement_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "allowance_local_settlement_failed", err)
 	}
 	doc.ID = documentID.String()
 	return doc, nil
 }
 
-func (s *Store) settleVoid(ctx context.Context, op *operation, owner uuid.UUID) (Document, error) {
+func (s *Store) settleVoid(ctx context.Context, op *operation, owner uuid.UUID) (invoice.Document, error) {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
 	documentID, err := s.q.SettleInvoiceVoid(ctx, db.SettleInvoiceVoidParams{
 		OperationID: op.ID, LeaseOwner: owner,
 	})
 	if err != nil || documentID == uuid.Nil {
-		return Document{}, s.retry(ctx, op, owner, "void_local_settlement_failed", err)
+		return invoice.Document{}, s.retry(ctx, op, owner, "void_local_settlement_failed", err)
 	}
 	return s.operationDocument(ctx, op.ID)
 }

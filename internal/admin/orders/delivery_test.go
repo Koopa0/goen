@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -96,18 +96,18 @@ func TestValidatedDeliveryNormalizesOnlyItsSuccessfulCopy(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		to   shipping.Destination
-		want order.Delivery
+		want delivery.Details
 	}{
 		{
 			name: "address", to: shipping.DestinationAddress,
-			want: order.Delivery{
+			want: delivery.Details{
 				To: shipping.DestinationAddress, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
 				PostalCode: "110", City: "City", District: "District", Street: "1 Street",
 			},
 		},
 		{
 			name: "pickup", to: shipping.DestinationPickupPoint,
-			want: order.Delivery{
+			want: delivery.Details{
 				To: shipping.DestinationPickupPoint, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
 				PickupChain: shipping.ChainSevenEleven, PickupStoreCode: "A123", PickupStoreName: "Store",
 			},

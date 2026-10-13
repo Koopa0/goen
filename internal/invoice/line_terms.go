@@ -64,14 +64,3 @@ func (facts LineTerms) Validate(ctx context.Context) map[string]string {
 	}
 	return errs
 }
-
-func (tax TaxType) ecpayCode() string {
-	switch tax {
-	case Taxable:
-		return "1"
-	case Exempt:
-		return "3"
-	default:
-		return ""
-	}
-}

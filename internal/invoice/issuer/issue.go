@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -26,12 +27,12 @@ var (
 
 // Issue files a uniform invoice for one order, against the invoice preference
 // the customer chose at checkout. goen never prints, so Print is always '0'.
-func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) {
+func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (invoice.Document, error) {
 	if !g.Enabled() {
-		return Document{}, ErrDisabled
+		return invoice.Document{}, ErrDisabled
 	}
 	if err := in.validate(); err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 
 	req := issueRequest{
@@ -43,7 +44,7 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		CustomerEmail: truncate(in.Email, 80),
 		Print:         "0",
 		Donation:      "0",
-		TaxType:       in.Lines[0].TaxType.ecpayCode(),
+		TaxType:       taxCode(in.Lines[0].TaxType),
 		SalesAmount:   wholeDollars(in.AmountCents),
 		// vat='1' says the ITEM prices already include tax, which a Taiwanese
 		// shelf price does. Without it ECPay adds 5% and the invoice disagrees
@@ -54,23 +55,23 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		CarrierT: InvoiceCarrierNone,
 	}
 
-	if in.Lines[0].TaxType == Exempt {
+	if in.Lines[0].TaxType == invoice.Exempt {
 		req.SpecialTaxType = 8
 	}
 	switch in.Preference {
-	case PreferenceCompany:
+	case invoice.PreferenceCompany:
 		// A business-tax-number invoice STILL needs an invoice carrier or a printed copy
 		// (ECPay RtnCode 5000028). The number says who it is FOR; the carrier
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
 		req.CarrierT = InvoiceCarrierMember
-	case PreferenceDonate:
+	case invoice.PreferenceDonate:
 		req.Donation = "1"
 		req.LoveCode = in.DonationCode
-	case PreferenceMobile:
+	case invoice.PreferenceMobile:
 		req.CarrierT = InvoiceCarrierMobileBarcode
 		req.CarrierNum = in.MobileBarcode
-	case PreferenceMember:
+	case invoice.PreferenceMember:
 		// Member carrier: ECPay holds it against the customer's email.
 		req.CarrierT = InvoiceCarrierMember
 	default:
@@ -79,25 +80,25 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 
 	res, err := g.call[issueResult](ctx, "/B2CInvoice/Issue", req)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 	issuedAt, err := parseECPayTime(res.InvoiceDate)
 	if err != nil {
-		return Document{}, fmt.Errorf(
+		return invoice.Document{}, fmt.Errorf(
 			"ECPay Issue returned an invalid success payload (invoice %q, date %q, random number %q): %w",
 			res.InvoiceNo, res.InvoiceDate, res.RandomNumber, err)
 	}
 	if !invoiceNumberPattern.MatchString(res.InvoiceNo) ||
 		!randomNumberPattern.MatchString(res.RandomNumber) {
-		return Document{}, fmt.Errorf(
+		return invoice.Document{}, fmt.Errorf(
 			"ECPay Issue returned an invalid success payload (invoice %q, date %q, random number %q)",
 			res.InvoiceNo, res.InvoiceDate, res.RandomNumber)
 	}
-	return Document{
-		Kind:        DocumentInvoice,
+	return invoice.Document{
+		Kind:        invoice.DocumentInvoice,
 		Number:      res.InvoiceNo,
 		AmountCents: in.AmountCents,
-		Status:      DocumentIssued,
+		Status:      invoice.DocumentIssued,
 		IssuedAt:    issuedAt,
 		ProviderRef: res.RandomNumber,
 	}, nil
@@ -108,14 +109,14 @@ type IssueRequest struct {
 	CustomerName string
 	Email        string
 	// Preference is invoice_preferences.invoice_type.
-	Preference    Preference
+	Preference    invoice.Preference
 	MobileBarcode string
 	DonationCode  string
 	TaxID         string
 	// AmountCents is the order's total, tax included: what the customer was
 	// charged, which is what the invoice records.
 	AmountCents int64
-	Lines       []Line
+	Lines       []invoice.Line
 }
 
 // validate refuses what ECPay would refuse, in words rather than a code.
@@ -134,7 +135,7 @@ func (r IssueRequest) validate() error {
 		return fmt.Errorf("%w: an invoice has %d items; ECPay accepts at most %d",
 			ErrRejected, len(r.Lines), MaxIssueItems)
 	}
-	if !ValidBuyerName(r.CustomerName) {
+	if !invoice.ValidBuyerName(r.CustomerName) {
 		return fmt.Errorf("%w: an invoice needs a buyer name of at most 60 characters",
 			ErrRejected)
 	}
@@ -154,22 +155,22 @@ func (r IssueRequest) validatePreference() error {
 			ErrRejected, r.Preference)
 	}
 	switch r.Preference {
-	case PreferenceCompany:
-		if !ValidTaxID(r.TaxID) {
+	case invoice.PreferenceCompany:
+		if !invoice.ValidTaxID(r.TaxID) {
 			// i18n-exempt: reached from /admin only, and the back office is the
 			// staff of one Taiwanese shop — the category exemption the chrome
 			// rule already names.
 			return fmt.Errorf("%w: a 公司戶 invoice needs a valid eight-digit 統編, got %q",
 				ErrRejected, r.TaxID)
 		}
-	case PreferenceMobile:
-		if !ValidMobileBarcode(r.MobileBarcode) {
+	case invoice.PreferenceMobile:
+		if !invoice.ValidMobileBarcode(r.MobileBarcode) {
 			// i18n-exempt: back office only, as above.
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
 				ErrRejected, r.MobileBarcode)
 		}
-	case PreferenceDonate:
-		if !ValidDonationCode(r.DonationCode) {
+	case invoice.PreferenceDonate:
+		if !invoice.ValidDonationCode(r.DonationCode) {
 			return fmt.Errorf("%w: a donation code is three to seven digits, got %q",
 				ErrRejected, r.DonationCode)
 		}
@@ -177,7 +178,7 @@ func (r IssueRequest) validatePreference() error {
 			return fmt.Errorf("%w: a donation invoice takes neither a tax ID nor a mobile barcode",
 				ErrRejected)
 		}
-	case PreferenceMember:
+	case invoice.PreferenceMember:
 	}
 	return nil
 }
@@ -266,7 +267,7 @@ type AllowanceRequest struct {
 	CustomerName  string
 	Email         string
 	AmountCents   int64
-	Lines         []Line
+	Lines         []invoice.Line
 }
 
 type issueRequest struct {
@@ -379,42 +380,42 @@ func (n providerDecimal) cents() (int64, error) {
 }
 
 type lookupItem struct {
-	Unit    ItemUnit        `json:"ItemWord"`
-	Name    string          `json:"ItemName"`
-	Count   providerDecimal `json:"ItemCount"`
-	Price   providerDecimal `json:"ItemPrice"`
-	Amount  providerDecimal `json:"ItemAmount"`
-	TaxType providerDecimal `json:"ItemTaxType"`
+	Unit    invoice.ItemUnit `json:"ItemWord"`
+	Name    string           `json:"ItemName"`
+	Count   providerDecimal  `json:"ItemCount"`
+	Price   providerDecimal  `json:"ItemPrice"`
+	Amount  providerDecimal  `json:"ItemAmount"`
+	TaxType providerDecimal  `json:"ItemTaxType"`
 }
 
-func (i lookupItem) line() (Line, error) {
+func (i lookupItem) line() (invoice.Line, error) {
 	count, err := i.Count.integer()
 	if err != nil || count <= 0 || count > math.MaxInt32 {
-		return Line{}, fmt.Errorf("invalid provider item count %q", i.Count)
+		return invoice.Line{}, fmt.Errorf("invalid provider item count %q", i.Count)
 	}
 	price, err := i.Price.cents()
 	if err != nil || price < 0 {
-		return Line{}, fmt.Errorf("invalid provider item price %q", i.Price)
+		return invoice.Line{}, fmt.Errorf("invalid provider item price %q", i.Price)
 	}
 	amount, err := i.Amount.cents()
 	if err != nil || amount < 0 {
-		return Line{}, fmt.Errorf("invalid provider item amount %q", i.Amount)
+		return invoice.Line{}, fmt.Errorf("invalid provider item amount %q", i.Amount)
 	}
 	tax, err := i.TaxType.integer()
 	if err != nil || (tax != 1 && tax != 3) {
-		return Line{}, fmt.Errorf("provider item has unsupported tax type %q", i.TaxType)
+		return invoice.Line{}, fmt.Errorf("provider item has unsupported tax type %q", i.TaxType)
 	}
 	if !i.Unit.Valid() {
-		return Line{}, fmt.Errorf("provider item has invalid unit %q", i.Unit)
+		return invoice.Line{}, fmt.Errorf("provider item has invalid unit %q", i.Unit)
 	}
-	taxType := Taxable
+	taxType := invoice.Taxable
 	if tax == 3 {
-		taxType = Exempt
+		taxType = invoice.Exempt
 	}
 	if price > math.MaxInt64/count || price*count != amount {
-		return Line{}, errors.New("provider item arithmetic is inconsistent")
+		return invoice.Line{}, errors.New("provider item arithmetic is inconsistent")
 	}
-	return Line{
+	return invoice.Line{
 		Description: i.Name, Quantity: int32(count), TaxType: taxType, Unit: i.Unit,
 		UnitPriceCents: price, AmountCents: amount,
 	}, nil
@@ -437,7 +438,7 @@ type getIssueResult struct {
 // frozen Issue operation.
 type IssueLookup struct {
 	RelateNumber string
-	Document     Document
+	Document     invoice.Document
 	Issued       bool
 	Invalid      bool
 }
@@ -489,7 +490,7 @@ func issueLookupFrom(res getIssueResult) (IssueLookup, error) {
 	if err != nil {
 		return IssueLookup{}, err
 	}
-	lines := make([]Line, len(res.Items))
+	lines := make([]invoice.Line, len(res.Items))
 	for i := range res.Items {
 		lines[i], err = res.Items[i].line()
 		if err != nil {
@@ -499,9 +500,9 @@ func issueLookupFrom(res getIssueResult) (IssueLookup, error) {
 	return IssueLookup{
 		RelateNumber: res.RelateNumber,
 		Issued:       issued, Invalid: invalid,
-		Document: Document{
-			Kind: DocumentInvoice, Number: res.InvoiceNo, AmountCents: amount,
-			Status: DocumentIssued, IssuedAt: issuedAt,
+		Document: invoice.Document{
+			Kind: invoice.DocumentInvoice, Number: res.InvoiceNo, AmountCents: amount,
+			Status: invoice.DocumentIssued, IssuedAt: issuedAt,
 			ProviderRef: res.RandomNumber, Lines: lines,
 		},
 	}, nil
@@ -532,7 +533,7 @@ type getAllowanceListResult struct {
 
 type AllowanceLookup struct {
 	InvoiceNumber string
-	Document      Document
+	Document      invoice.Document
 	Invalid       bool
 	// BuyerIP and NotifyMail are ECPay's record of the buyer agreeing online:
 	// from where, and the mailbox it wrote to. When is the document's IssuedAt.
@@ -580,7 +581,7 @@ func (g *Gateway) FetchAllowances(
 		if parseErr != nil || amount <= 0 {
 			return nil, fmt.Errorf("ECPay GetAllowanceList returned malformed amount at %d", i+1)
 		}
-		lines := make([]Line, len(row.Items))
+		lines := make([]invoice.Line, len(row.Items))
 		for lineAt := range row.Items {
 			lines[lineAt], parseErr = row.Items[lineAt].line()
 			if parseErr != nil {
@@ -590,9 +591,9 @@ func (g *Gateway) FetchAllowances(
 		out[i] = AllowanceLookup{
 			InvoiceNumber: row.InvoiceNo, Invalid: invalid == 1,
 			BuyerIP: row.BuyerIP, NotifyMail: row.NotifyMail,
-			Document: Document{
-				Kind: DocumentAllowance, Number: row.AllowanceNo,
-				AmountCents: amount, Status: DocumentIssued, IssuedAt: issuedAt, Lines: lines,
+			Document: invoice.Document{
+				Kind: invoice.DocumentAllowance, Number: row.AllowanceNo,
+				AmountCents: amount, Status: invoice.DocumentIssued, IssuedAt: issuedAt, Lines: lines,
 			},
 		}
 	}
@@ -613,12 +614,12 @@ func parseECPayTime(s string) (time.Time, error) {
 	return t, nil
 }
 
-func validateLineTerms(lines []Line) error {
+func validateLineTerms(lines []invoice.Line) error {
 	if len(lines) == 0 {
 		return fmt.Errorf("%w: invoice lines are missing", ErrRejected)
 	}
 	tax := lines[0].TaxType
-	if tax != Taxable && tax != Exempt {
+	if tax != invoice.Taxable && tax != invoice.Exempt {
 		return fmt.Errorf("%w: invoice tax type %q is not offered", ErrRejected, tax)
 	}
 	for i := range lines {

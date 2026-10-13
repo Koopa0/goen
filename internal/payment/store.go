@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
@@ -288,7 +288,7 @@ func AttributeCompleteCapture(
 	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture); err != nil {
 		return false, err
 	}
-	if err := invoice.EnqueueDue(ctx, q, &outbox.InvoiceDue{
+	if err := issuer.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: providerRef,
 	}); err != nil {
 		return false, err
@@ -449,7 +449,7 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
 		return "", err
 	}
-	if err := invoice.EnqueueDue(ctx, w.q, &outbox.InvoiceDue{
+	if err := issuer.EnqueueDue(ctx, w.q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: w.eventID,
 	}); err != nil {
 		return "", err

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 type CheckoutQuoteLine = checkoutQuoteLine
@@ -25,7 +25,7 @@ func (s *Store) PlaceOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	inv *Invoice,
 	couponCode string,
 	shown CheckoutQuoteID,
