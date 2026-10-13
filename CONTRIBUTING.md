@@ -178,7 +178,9 @@ store before anything else.
   several source files and uses the package's domain words, never an issue or PR.
 - Every integration test file has both `//go:build integration` and the
   `_integration_test.go` suffix. Keep `TestMain` and shared setup in
-  `main_integration_test.go`.
+  `main_integration_test.go`; `internal/db` (`schema_integration_test.go`),
+  `internal/contact` and `internal/home` (`handler_integration_test.go`) keep
+  theirs beside the tests it serves.
 - Use the external test package (`package foo_test`) unless the test needs
   unexported names.
 - Put a helper shared by several packages in the area's helper package, such
