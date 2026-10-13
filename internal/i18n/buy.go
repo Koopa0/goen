@@ -14,7 +14,7 @@ var (
 
 	KeyAddRefused = key("buy.add.refused", Message{
 		ZhHant: "這個款式剛剛被買走了，沒有加入購物車。",
-		En:     "That option has just sold out, so nothing was added.",
+		En:     "That variant has just sold out, so nothing was added.",
 	})
 
 	KeyCartLineLimit = key("buy.cart.line_limit", Message{

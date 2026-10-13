@@ -80,7 +80,7 @@ var (
 
 	KeyRestockUnavailable = key("pdp.restock.unavailable", Message{
 		ZhHant: "這個款式目前不需要補貨通知（已經有貨，或已不存在）。請確認款式後再試。",
-		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
+		En:     "This variant needs no restock notice (it is in stock, or it is gone). Check the variant and try again.",
 	})
 
 	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "有貨時通知我", En: "Notify me"})

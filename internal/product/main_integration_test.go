@@ -404,7 +404,7 @@ func TestUnknownCombinationSaysSo(t *testing.T) {
 	if !strings.Contains(body, "NT$33,900 起") {
 		t.Error("an impossible combination lost the catalogue's starting price")
 	}
-	if !strings.Contains(body, "請選擇款式") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
+	if !strings.Contains(body, "請選擇選項") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
 		t.Error("an impossible combination must request a choice without offering a purchase variant")
 	}
 }
@@ -414,7 +414,7 @@ func TestPartialSelectionOffersNoButton(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "請選擇款式") {
+	if !strings.Contains(body, "請選擇選項") {
 		t.Error("a partial selection does not ask for the rest")
 	}
 	if !strings.Contains(body, `type="submit" disabled`) {
