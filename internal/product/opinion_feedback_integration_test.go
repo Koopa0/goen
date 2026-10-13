@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -143,7 +144,7 @@ func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.
 						t.Fatalf("review GET = %d, want 200", res.Code)
 					}
 					body := feedbackText(feedbackDocument(t, res.Body.String()))
-					if got := strings.Count(body, i18n.T(ctx, i18n.KeyYourReview)); got != wantMarked {
+					if got := feedbackExactTexts(feedbackDocument(t, res.Body.String()), i18n.T(ctx, i18n.KeyYourReview)); got != wantMarked {
 						t.Errorf("rendered ownership tags = %d, want %d", got, wantMarked)
 					}
 					if strings.Count(body, i18n.T(ctx, i18n.KeyReviewThanks)) != 1 || strings.Contains(body, i18n.T(ctx, i18n.KeyAlreadyReviewed)) {
@@ -203,6 +204,43 @@ func TestQuestionRefusalPOSTKeepsTheDraftAndReturnsToItsSection(t *testing.T) {
 	}
 }
 
+func TestOverLimitQuestionPOSTNamesTheLimitAndKeepsTheDraft(t *testing.T) {
+	slug := activeSlug(t)
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			who := reviewer(t, "long-question")
+			h := product.NewHandler(product.NewStore(opinionStorePool(t), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
+			draft := strings.Repeat("問", product.MaxQuestionRunes+1)
+			form := url.Values{"body": {draft}}
+			req := httptest.NewRequestWithContext(user.NewContext(ctx, user.User{ID: who.String()}), http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetPathValue("slug", slug)
+			res := httptest.NewRecorder()
+			h.Ask(res, req)
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("over-limit question POST = %d, want 422", res.Code)
+			}
+			doc := feedbackDocument(t, res.Body.String())
+			field := feedbackElement(doc, "ask-body")
+			if field == nil || feedbackText(field) != draft || feedbackAttribute(field, "aria-invalid") != "true" {
+				t.Fatal("over-limit refusal loses the draft or field refusal")
+			}
+			reason := i18n.T(ctx, i18n.KeyQuestionTooLong)
+			if !strings.Contains(reason, strconv.Itoa(product.MaxQuestionRunes)) {
+				t.Fatalf("too-long message %q does not name the limit %d", reason, product.MaxQuestionRunes)
+			}
+			errorText := feedbackElement(doc, "ask-body-error")
+			if errorText == nil || feedbackText(errorText) != reason {
+				t.Error("over-limit refusal does not show the too-long message")
+			}
+			if strings.Contains(res.Body.String(), i18n.T(ctx, i18n.KeyQuestionRefused)) {
+				t.Error("over-limit refusal tells the shopper to write a question they already wrote")
+			}
+		})
+	}
+}
+
 func opinionStorePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
@@ -250,6 +288,19 @@ func feedbackAttribute(n *html.Node, name string) string {
 		}
 	}
 	return ""
+}
+
+// feedbackExactTexts counts text nodes that are exactly want, so the badge is
+// not confused with longer sentences containing the same words.
+func feedbackExactTexts(n *html.Node, want string) int {
+	count := 0
+	if n.Type == html.TextNode && strings.TrimSpace(n.Data) == want {
+		count++
+	}
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		count += feedbackExactTexts(child, want)
+	}
+	return count
 }
 
 func feedbackText(n *html.Node) string {

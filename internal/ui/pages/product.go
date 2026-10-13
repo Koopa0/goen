@@ -511,7 +511,9 @@ func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
 
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
-func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
+func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskTooLong() }
+
+func (v *ProductView) AskTooLong() bool { return v.AskOutcome == "long" }
 
 // AddOutcome is carried in ?added= back to the page the form was on.
 type AddOutcome string

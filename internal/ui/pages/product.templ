@@ -743,7 +743,11 @@ templ askForm(v *ProductView) {
 				}
 				<p class="goen-pdp__reviewnote" id="ask-body-hint">{ i18n.T(ctx, i18n.KeyAskLengthHint) }</p>
 				if v.AskRefused() {
-					<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
+					if v.AskTooLong() {
+						<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionTooLong) }</p>
+					} else {
+						<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
+					}
 				}
 			</div>
 			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {

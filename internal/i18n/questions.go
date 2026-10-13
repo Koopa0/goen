@@ -13,6 +13,11 @@ var (
 		En:     "Write your question first.",
 	})
 
+	KeyQuestionTooLong = key("pdp.qa.toolong", Message{
+		ZhHant: "問題請控制在 300 字以內。",
+		En:     "Keep your question under 300 characters.",
+	})
+
 	KeyStaffAnswer = key("pdp.qa.staff", Message{ZhHant: "官方回覆", En: "From goen"})
 
 	KeyNoAnswerYet = key("pdp.qa.noanswer", Message{

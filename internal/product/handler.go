@@ -288,8 +288,10 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
+	case errors.Is(err, ErrQuestionTooLong):
+		h.rejectAsk(w, r, slug, body, "long")
 	case errors.Is(err, ErrQuestionInvalid):
-		h.rejectAsk(w, r, slug, body)
+		h.rejectAsk(w, r, slug, body, "bad")
 	default:
 		h.log.ErrorContext(r.Context(), "ask question", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
@@ -299,7 +301,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body string) {
+func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, outcome string) {
 	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
@@ -310,7 +312,7 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body s
 		return
 	}
 	h.fillForViewer(r, slug, &view)
-	view.AskOutcome = "bad"
+	view.AskOutcome = outcome
 	view.AskDraft = body
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.Product(pages.ProductMeta(&view), &view))

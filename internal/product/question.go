@@ -21,10 +21,18 @@ const (
 
 var ErrQuestionInvalid = errors.New("product: the question or answer is not usable")
 
+// ErrQuestionTooLong is a question over MaxQuestionRunes, kept apart from an
+// empty one so the refusal can name the limit instead of asking for a question
+// the shopper already wrote.
+var ErrQuestionTooLong = fmt.Errorf("%w: over the length limit", ErrQuestionInvalid)
+
 func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	body = strings.TrimSpace(body)
-	if body == "" || utf8.RuneCountInString(body) > MaxQuestionRunes {
+	if body == "" {
 		return ErrQuestionInvalid
+	}
+	if utf8.RuneCountInString(body) > MaxQuestionRunes {
+		return ErrQuestionTooLong
 	}
 	asker, err := uuid.Parse(userID)
 	if err != nil {
