@@ -208,7 +208,10 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
-		Shipments: o.Shipments, Pickup: o.Pickup, Now: o.Now,
+		Pickup: o.Pickup, Now: o.Now,
+	}
+	for _, p := range o.Shipments {
+		v.Shipments = append(v.Shipments, pages.OrderShipment{DeliveredAt: p.DeliveredAt, RescissionEnds: p.RescissionEnds})
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
