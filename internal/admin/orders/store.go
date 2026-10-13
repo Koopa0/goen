@@ -312,7 +312,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		// whether to offer the form.
 		Correctable:          correctable(fulfillment),
 		PickupDestination:    o.PickupChain != "",
-		PickupChains:         pages.PickupChainChoices(),
+		PickupChains:         pages.KnownPickupChainChoices(),
 		CustomerNote:         o.CustomerNote.String,
 		StaffNote:            o.StaffNote.String,
 		InvoiceType:          invoice.Preference(o.InvoiceType),

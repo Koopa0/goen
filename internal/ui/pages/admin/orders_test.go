@@ -66,7 +66,7 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		Number:            "GO-PICKUP",
 		Correctable:       true,
 		PickupDestination: true,
-		PickupChains:      pages.PickupChainChoices(),
+		PickupChains:      pages.KnownPickupChainChoices(),
 		Address:           pages.Delivery{PickupChain: pickup.FamilyMart}.Line(),
 		Delivery:          Delivery{PickupChain: pickup.FamilyMart},
 	}))
@@ -283,7 +283,7 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 				}
 				v := OrderView{
 					Number: "GO-DRAFT", Correctable: true, PickupDestination: tc.pickup,
-					PickupChains: pages.PickupChainChoices(), DeliveryErrors: messages,
+					PickupChains: pages.KnownPickupChainChoices(), DeliveryErrors: messages,
 					Recipient: "Saved recipient", Phone: "0912345678", Email: "saved@example.com", Address: "Saved destination",
 					Delivery: Delivery{Recipient: " Proposed recipient ", Phone: "123", Email: "proposed@example.com",
 						PostalCode: "110", City: "New city", District: "New district", Street: " Proposed <street> ",

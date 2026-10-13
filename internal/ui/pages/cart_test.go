@@ -103,30 +103,30 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 	}
 }
 
-func TestPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
+func TestKnownPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
 	want := []PickupChainChoice{
 		{Value: "seven_eleven", Label: "7-ELEVEN"},
 		{Value: "family_mart", Label: "全家 FamilyMart"},
 		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
 		{Value: "ok_mart", Label: "OK mart"},
 	}
-	got := PickupChainChoices()
+	got := KnownPickupChainChoices()
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("PickupChainChoices() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("KnownPickupChainChoices() mismatch (-want +got):\n%s", diff)
 	}
 	for _, choice := range got {
 		if !choice.Value.Known() {
-			t.Errorf("PickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
+			t.Errorf("KnownPickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
 		}
 	}
 
 	got[0].Value = "other_chain"
 	got[0].Label = "Other"
-	if diff := cmp.Diff(want, PickupChainChoices()); diff != "" {
-		t.Errorf("mutating PickupChainChoices() changed the next result (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, KnownPickupChainChoices()); diff != "" {
+		t.Errorf("mutating KnownPickupChainChoices() changed the next result (-want +got):\n%s", diff)
 	}
 	if pickup.Chain("other_chain").Known() {
-		t.Error("mutating PickupChainChoices() changed KnownPickupChain")
+		t.Error("mutating KnownPickupChainChoices() changed KnownPickupChain")
 	}
 }
 
@@ -335,7 +335,7 @@ func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
 			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
 		}
 	}
-	if len(PickupChainChoices()) != len(pickup.Offered()) {
+	if len(KnownPickupChainChoices()) != len(pickup.KnownChains()) {
 		t.Error("the back office no longer offers every chain the shop can accept")
 	}
 }

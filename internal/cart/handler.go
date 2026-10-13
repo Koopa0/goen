@@ -684,7 +684,7 @@ func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
 		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
 		"nonce_valid", validNonce(posted.Nonce),
 		"nonce_matched", pickupNonceMatched(r, h.secure, posted.Nonce),
-		"chain_offered", offeredAtCheckout(posted.Chain))
+		"chain_offered", posted.Chain.AtCheckout())
 }
 
 // renderCheckout refreshes the pickup cookie first: it must be written before
@@ -1361,7 +1361,7 @@ func checkoutErrors(
 			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == destination.PickupPoint {
-		if !offeredAtCheckout(addr.PickupChain) {
+		if !addr.PickupChain.AtCheckout() {
 			refusals = append(refusals,
 				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
