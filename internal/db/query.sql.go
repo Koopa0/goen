@@ -11206,9 +11206,28 @@ func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, err
 }
 
 const orderLinesByOrder = `-- name: OrderLinesByOrder :many
-SELECT sku, product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesByOrderParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesByOrderRow struct {
 	SKU            string
@@ -11216,10 +11235,13 @@ type OrderLinesByOrderRow struct {
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
-func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderLinesByOrderRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesByOrder, orderID)
+func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderParams) ([]OrderLinesByOrderRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesByOrder, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11233,6 +11255,9 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -11245,21 +11270,43 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 }
 
 const orderLinesForPayment = `-- name: OrderLinesForPayment :many
-SELECT product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesForPaymentParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesForPaymentRow struct {
 	ProductName    string
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
 // Named from the order rather than the catalogue: a renamed or repriced product
 // must not move at payment.
-func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) ([]OrderLinesForPaymentRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesForPayment, orderID)
+func (q *Queries) OrderLinesForPayment(ctx context.Context, arg OrderLinesForPaymentParams) ([]OrderLinesForPaymentRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesForPayment, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11272,6 +11319,9 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}

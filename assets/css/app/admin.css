@@ -787,6 +787,28 @@ input.goen-check {
   padding: 14px 0;
 }
 
+.goen-order__photo {
+  background: var(--photo);
+  border-radius: var(--r-md);
+  flex: 0 0 40px;
+  height: 40px;
+  overflow: hidden;
+  width: 40px;
+}
+
+.goen-order__image,
+.goen-order__photo .goen-line__ph {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-order__linebody {
+  flex: 1;
+  min-width: 0;
+}
+
 .goen-order__name {
   color: var(--fg);
   font-size: var(--fs-14);

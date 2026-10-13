@@ -13,11 +13,16 @@ import (
 )
 
 type PayLine struct {
-	Name      string
-	Label     string
-	UnitCents int64
-	Quantity  int32
+	ImageURL    string
+	ImageSrcset string
+	ImageAlt    string
+	Name        string
+	Label       string
+	UnitCents   int64
+	Quantity    int32
 }
+
+func (l PayLine) HasImage() bool { return l.ImageURL != "" }
 
 func (l PayLine) UnitPrice() string { return twd(l.UnitCents) }
 

@@ -5838,6 +5838,11 @@ input.goen-check {
   width: 100%;
 }
 
+.goen-pay__lines .goen-line__thumb {
+  flex: 0 0 96px;
+  width: 96px;
+}
+
 .goen-line__img,
 .goen-line__ph {
   display: block;
