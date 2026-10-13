@@ -523,7 +523,7 @@ func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoid
 // invoice is owed all the same.
 func (v *OrderView) CanIssueInvoice() bool {
 	funded := v.Committed || (v.Status == order.FulfillmentPending && !v.Unpaid)
-	if !v.InvoicingEnabled || !funded {
+	if !v.InvoicingEnabled || !funded || v.SubtotalCents-v.DiscountCents+v.ShippingCents+v.TaxCents <= 0 {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {
