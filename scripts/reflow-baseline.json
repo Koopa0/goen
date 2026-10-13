@@ -5,6 +5,22 @@
       "scroll-200",
       "text-200:span.goen-admin__meta"
     ],
+    "/admin/orders/{order}": [
+      "scroll-200",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?allowfailed=1": [
+      "scroll-200",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?voidfailed=1": [
+      "scroll-200",
+      "text-200:span.goen-admin__eventhead"
+    ],
+    "/admin/orders/{order}?voidreason=1": [
+      "scroll-200",
+      "text-200:span.goen-admin__eventhead"
+    ],
     "/admin/taxonomy": [
       "scroll-200"
     ]
