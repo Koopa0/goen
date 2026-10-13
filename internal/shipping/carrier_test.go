@@ -1,17 +1,15 @@
-package carrier
+package shipping
 
 import (
 	"slices"
 	"testing"
-
-	"github.com/koopa0/goen/internal/pickup"
 )
 
 func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
 	t.Parallel()
 
-	home, _ := ForDelivery("", false)
-	stores, _ := ForDelivery("", true)
+	home, _ := CarriersFor("", DestinationAddress)
+	stores, _ := CarriersFor("", DestinationPickupPoint)
 	got := slices.Concat(home, stores)
 	if len(got) != 8 {
 		t.Fatalf("a home and a store order offer %d carriers between them, want 8: %v", len(got), got)
@@ -38,12 +36,12 @@ func TestTrackingURL(t *testing.T) {
 		want    string
 		deepens bool
 	}{
-		{"black cat opens the parcel", BlackCat, "903-2214 8872", "https://www.t-cat.com.tw/Inquire/TraceDetail.aspx?BillID=903-2214+8872", true},
-		{"black cat with no number falls back to the page", BlackCat, " ", "https://www.t-cat.com.tw/inquire/trace.aspx", true},
-		{"hct is the lookup page", HCT, "1234567890", "https://www.hct.com.tw/Search/SearchGoods_n.aspx", false},
-		{"seven eleven is the lookup page", SevenEleven, "X", "https://eservice.7-11.com.tw/e-tracking/search.aspx", false},
-		{"hi-life publishes none goen could confirm", HiLife, "X", "", false},
-		{"ok mart publishes none goen could confirm", OKMart, "X", "", false},
+		{"black cat opens the parcel", CarrierBlackCat, "903-2214 8872", "https://www.t-cat.com.tw/Inquire/TraceDetail.aspx?BillID=903-2214+8872", true},
+		{"black cat with no number falls back to the page", CarrierBlackCat, " ", "https://www.t-cat.com.tw/inquire/trace.aspx", true},
+		{"hct is the lookup page", CarrierHCT, "1234567890", "https://www.hct.com.tw/Search/SearchGoods_n.aspx", false},
+		{"seven eleven is the lookup page", CarrierSevenEleven, "X", "https://eservice.7-11.com.tw/e-tracking/search.aspx", false},
+		{"hi-life publishes none goen could confirm", CarrierHiLife, "X", "", false},
+		{"ok mart publishes none goen could confirm", CarrierOKMart, "X", "", false},
 		{"unknown carrier", Carrier("黑貓"), "X", "", false},
 	}
 	for _, tt := range tests {
@@ -59,17 +57,17 @@ func TestTrackingURL(t *testing.T) {
 	}
 }
 
-func TestForDeliveryNamesTheCarriersAnOrderCanUse(t *testing.T) {
+func TestCarriersForNamesTheCarriersAnOrderCanUse(t *testing.T) {
 	t.Parallel()
 
-	for _, chain := range []pickup.Chain{pickup.SevenEleven, pickup.FamilyMart, pickup.HiLife, pickup.OKMart} {
-		valid, implied := ForDelivery(chain, true)
-		if implied != Carrier(chain) || len(valid) != 1 || valid[0] != implied {
+	for _, chain := range []Chain{ChainSevenEleven, ChainFamilyMart, ChainHiLife, ChainOKMart} {
+		valid, implied := CarriersFor(chain, DestinationPickupPoint)
+		if implied != chain.Carrier() || len(valid) != 1 || valid[0] != implied {
 			t.Errorf("a %s order: valid %v implied %q, want only the chain's own carrier", chain, valid, implied)
 		}
 	}
 
-	home, implied := ForDelivery("", false)
+	home, implied := CarriersFor("", DestinationAddress)
 	if implied != "" {
 		t.Errorf("a home delivery implies %q: nothing on the order names a carrier code", implied)
 	}
@@ -77,12 +75,12 @@ func TestForDeliveryNamesTheCarriersAnOrderCanUse(t *testing.T) {
 		if !c.Known() {
 			t.Errorf("home delivery lists %q, which is not a carrier", c)
 		}
-		if slices.Contains([]Carrier{SevenEleven, FamilyMart, HiLife, OKMart}, c) {
+		if slices.Contains([]Carrier{CarrierSevenEleven, CarrierFamilyMart, CarrierHiLife, CarrierOKMart}, c) {
 			t.Errorf("home delivery lists the convenience-store carrier %q", c)
 		}
 	}
-	stores, none := ForDelivery("", true)
-	if none != "" || len(stores) != 4 || slices.Contains(stores, BlackCat) {
+	stores, none := CarriersFor("", DestinationPickupPoint)
+	if none != "" || len(stores) != 4 || slices.Contains(stores, CarrierBlackCat) {
 		t.Errorf("a store order with no chain lists %v implying %q, want the four store carriers and none implied", stores, none)
 	}
 	if len(home) != 4 {

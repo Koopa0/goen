@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -1493,9 +1493,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var92 string
-				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(destination.Address))
+				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(shipping.DestinationAddress))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 285, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 285, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var92)
 				if templ_7745c5c3_Err != nil {
@@ -1518,7 +1518,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 				var templ_7745c5c3_Var93 string
 				templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminShipToAddress))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 285, Col: 128}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 285, Col: 136}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 				if templ_7745c5c3_Err != nil {
@@ -1529,9 +1529,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var94 string
-				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(destination.PickupPoint))
+				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(shipping.DestinationPickupPoint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 286, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 286, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var94)
 				if templ_7745c5c3_Err != nil {
@@ -1554,7 +1554,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 				var templ_7745c5c3_Var95 string
 				templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminDestPickup))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 286, Col: 128}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 286, Col: 136}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 				if templ_7745c5c3_Err != nil {

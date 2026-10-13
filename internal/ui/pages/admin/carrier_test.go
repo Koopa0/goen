@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -13,8 +14,8 @@ import (
 func optionsOffered(t *testing.T, html string) []string {
 	t.Helper()
 	var out []string
-	home, _ := carrier.ForDelivery("", false)
-	stores, _ := carrier.ForDelivery("", true)
+	home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
+	stores, _ := shipping.CarriersFor("", shipping.DestinationPickupPoint)
 	for _, c := range slices.Concat(home, stores) {
 		if strings.Contains(html, `<option value="`+string(c)+`"`) {
 			out = append(out, string(c))
@@ -30,7 +31,7 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 		t.Parallel()
 		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-1", CanShip: true,
-			ShipCarriers: []carrier.Carrier{carrier.FamilyMart}, ShipCarrier: string(carrier.FamilyMart),
+			ShipCarriers: []shipping.Carrier{shipping.CarrierFamilyMart}, ShipCarrier: string(shipping.CarrierFamilyMart),
 		}))
 		tag := tagWithID(t, html, "ship-carrier")
 		if !strings.HasPrefix(tag, "<select") {
@@ -46,14 +47,14 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 
 	t.Run("a home delivery lists the home carriers and a refused choice stays selected", func(t *testing.T) {
 		t.Parallel()
-		home, _ := carrier.ForDelivery("", false)
+		home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
 		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
-			Number: "GO-1", CanShip: true, ShipCarriers: home, ShipCarrier: string(carrier.KerryTJ),
+			Number: "GO-1", CanShip: true, ShipCarriers: home, ShipCarrier: string(shipping.CarrierKerryTJ),
 		}))
 		if got := optionsOffered(t, html); len(got) != len(home) {
 			t.Errorf("a home delivery is offered %v, want %d home carriers", got, len(home))
 		}
-		for _, store := range []carrier.Carrier{carrier.SevenEleven, carrier.FamilyMart, carrier.HiLife, carrier.OKMart} {
+		for _, store := range []shipping.Carrier{shipping.CarrierSevenEleven, shipping.CarrierFamilyMart, shipping.CarrierHiLife, shipping.CarrierOKMart} {
 			if strings.Contains(html, `<option value="`+string(store)+`"`) {
 				t.Errorf("a home delivery offers the convenience-store carrier %q", store)
 			}
@@ -65,7 +66,7 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 
 	t.Run("with nothing implied the placeholder is the selected option", func(t *testing.T) {
 		t.Parallel()
-		home, _ := carrier.ForDelivery("", false)
+		home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
 		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-1", CanShip: true, ShipCarriers: home,
 		}))
