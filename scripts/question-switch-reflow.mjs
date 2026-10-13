@@ -1,8 +1,10 @@
+import { controlLabelReflow } from './control-label-reflow.mjs';
+
 export async function checkQuestionSwitchReflow({ send, evaluate, navigate, fail, origin, adminToken }) {
   if (!adminToken) { fail('question switch reflow', 'staff fixture is missing'); return; }
   const { cookies: priorCookies } = await send('Network.getCookies', { urls: [origin] });
   try {
-    for (const lang of ['zh-Hant', 'en']) for (const width of [320, 375, 1440]) for (const scale of [100, 200]) {
+    for (const lang of ['zh-Hant', 'en']) for (const width of [320, 375, 1024, 1440]) for (const scale of [100, 200]) {
       for (const hidden of [false, true]) {
         const path = '/admin/questions' + (hidden ? '?hidden=1' : '');
         const label = `question switch ${lang} ${width} text${scale} hidden=${hidden}`;
@@ -17,6 +19,7 @@ export async function checkQuestionSwitchReflow({ send, evaluate, navigate, fail
           const link = document.querySelector('.goen-admin .ui-page-head > a');
           const faults = [];
           if (!link) return { faults: ['queue switch is missing'] };
+          faults.push(...(${controlLabelReflow.toString()})(link));
           const box = link.getBoundingClientRect(), head = link.parentElement.getBoundingClientRect();
           const range = document.createRange(); range.selectNodeContents(link);
           const rects = [...range.getClientRects()].filter(r => r.width);
