@@ -3,6 +3,8 @@ package admin
 import (
 	"strconv"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -52,6 +54,21 @@ func (v *FAQView) Empty() bool { return len(v.Rows) == 0 }
 func (v *FAQView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 func (v *FAQView) Err(f string) string { return v.Errors[f] }
+
+func (v *FAQView) categoryDescribedBy() string {
+	if v.HasErr("category") {
+		return "faq-category-example faq-category-error"
+	}
+	return "faq-category-example"
+}
+
+func (v *FAQView) categoryAttrs() templ.Attributes {
+	attrs := templ.Attributes{"maxlength": "40", "required": true}
+	if !v.HasErr("category") {
+		attrs["aria-describedby"] = v.categoryDescribedBy()
+	}
+	return attrs
+}
 
 func (v *FAQView) Untranslated() int {
 	n := 0

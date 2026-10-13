@@ -154,6 +154,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 		return
 	}
 	view.Notice, view.Errors = notice, errs
+	view.ImageAltDraft, view.ImageAltEnDraft = view.Image.Alt, view.Image.AltEn
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		view.ImageAltDraft, view.ImageAltEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
@@ -162,18 +163,30 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	obj, err := h.images.StoreUpload(w, r, "image")
+	upload, err := h.images.OpenUpload(w, r, "image")
 	if err != nil {
 		h.respondToUploadError(w, r, err)
 		return
 	}
-	err = h.store.SetCategoryImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
+	if upload == nil {
+		err = h.store.SetCategoryImageText(r.Context(), slug, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
+	} else {
+		defer upload.Close()
+		obj, uploadErr := upload.Store(r.Context())
+		if uploadErr != nil {
+			h.respondToUploadError(w, r, uploadErr)
+			return
+		}
+		err = h.store.SetCategoryImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
+	}
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrImageRequired):
+		h.respondToUploadError(w, r, media.ErrNotAnImage)
 	case errors.Is(err, ErrInvalid):
 		field, reason := "alt", i18n.KeyFormHeroAlt
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {

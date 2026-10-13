@@ -327,7 +327,7 @@ func assertCouponRefusedWithoutDelivery(t *testing.T, body string, locale i18n.L
 			}
 		}
 	}
-	want := refusalFacts{Invalid: "true", Describes: "coupon-error", Live: "polite", Message: i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyCouponUnknown)}
+	want := refusalFacts{Invalid: "true", Describes: "coupon-hint coupon-error", Live: "polite", Message: i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyCouponUnknown)}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("coupon refusal without delivery (-want +got):\n%s", diff)
 	}

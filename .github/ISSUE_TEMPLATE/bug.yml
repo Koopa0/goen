@@ -14,7 +14,7 @@ body:
         never in a public issue.
 
         **A back-office page answers 500 right after you pulled.** Run
-        `make db-reset` first: `migrations/001` is amended in place, and a
+        `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` first: `migrations/001` is amended in place, and a
         database built from an older copy is missing what the code reads.
 
   - type: textarea
@@ -37,7 +37,7 @@ body:
     attributes:
       label: How to reproduce it
       description: >-
-        The shortest path from `make db-reset && make run` to the wrong
+        The shortest path from `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset && make run` to the wrong
         behaviour. Forms and URLs are better than prose: which page, which
         fields, which button.
       placeholder: |

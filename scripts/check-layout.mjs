@@ -2538,6 +2538,33 @@ const ADMIN_PROBE = `(() => {
   // A field is one column: its label is not squeezed beside the control, and no
   // child starts away from the field's left edge or sits on a sibling.
   const fieldFaults = (${fieldFaults.toString()})(document.querySelectorAll('.goen-admin__field'));
+  const categoryFaults = [];
+  const categoryRows = [...document.querySelectorAll('form[action^="/admin/taxonomy/categories/"]')];
+  if (categoryRows.length) {
+    const heading = document.querySelector('.goen-admin__taxonhead');
+    if (!heading) categoryFaults.push('category headings are missing');
+    if (de.clientWidth >= 1024) {
+      const headings = heading ? [...heading.children] : [];
+      for (const row of categoryRows) {
+        const fields = [...row.querySelectorAll(':scope > .goen-admin__taxonfield')];
+        if (headings.length !== 5 || fields.length !== 5) categoryFaults.push('five category columns are missing');
+        else headings.forEach((label, i) => {
+          const a = label.getBoundingClientRect(), b = fields[i].getBoundingClientRect();
+          if (a.height === 0 || Math.abs(a.left - b.left) > 1 || Math.abs(a.width - b.width) > 1) {
+            categoryFaults.push('category depth ' + row.closest('[data-depth]').dataset.depth +
+              ' column ' + (i + 1) + ' is not aligned with its heading');
+          }
+        });
+      }
+    } else {
+      for (const row of categoryRows) {
+        for (const field of row.querySelectorAll('input:not([type=hidden]), select')) {
+          const label = field.closest('label') || (field.id ? document.querySelector('label[for="' + field.id + '"]') : null);
+          if (!label || label.getBoundingClientRect().height === 0) categoryFaults.push(field.name + ' has no visible label');
+        }
+      }
+    }
+  }
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
@@ -2546,6 +2573,7 @@ const ADMIN_PROBE = `(() => {
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
     fieldFaults: fieldFaults.slice(0, 4),
+    categoryFaults: categoryFaults.slice(0, 4),
     controls: taps.length,
     ${ACCESSIBILITY}
   };
@@ -3081,6 +3109,7 @@ if (process.env.ADMIN_TOKEN) {
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
     }
     if (got.fieldFaults.length) fail(at, `form field laid out wrong: ${got.fieldFaults.join("; ")}`);
+    if (got.categoryFaults.length) fail(at, `category controls are not identified: ${got.categoryFaults.join("; ")}`);
     if (got.controls === 0) {
       fail(at, 'no controls found — the probe measured nothing');
     } else if (got.minTap < MIN_TAP) {

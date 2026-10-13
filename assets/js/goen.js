@@ -135,8 +135,8 @@
   /*
    * Small menus built on <details data-popover>, such as the language menu.
    * The element opens itself; what it does not ship with is closing on Escape
-   * with the focus returned to its button, closing on a click elsewhere, and
-   * one open at a time.
+   * with the focus returned to its button, closing when focus leaves or on a
+   * click elsewhere, and one open at a time.
    */
   function popovers() {
     const pops = document.querySelectorAll("details[data-popover]");
@@ -157,6 +157,9 @@
       }
     });
     for (const pop of pops) {
+      pop.addEventListener("focusout", (event) => {
+        if (event.relatedTarget && !pop.contains(event.relatedTarget)) pop.open = false;
+      });
       pop.addEventListener("toggle", () => {
         if (!pop.open) return;
         for (const other of pops) if (other !== pop) other.open = false;
@@ -485,6 +488,77 @@
   }
 
   requestFeedback();
+
+  // A choice changes the view, while a purchase keeps its submitted identity.
+  function productResponseOrder() {
+    let revision = 0;
+    let outcome = null;
+    const writes = new Set();
+    const submissions = new WeakMap();
+    const appendOutcome = (root) => {
+      const form = root.querySelector("#pdp-add");
+      form?.querySelector("#added")?.remove();
+      if (outcome && outcome.variant === form?.querySelector('[name="variant"]')?.value)
+        form.append(outcome.notice.cloneNode(true));
+    };
+    const isChoice = (ctx) => ctx?.sourceElement?.matches("a.goen-swatch[hx-get]");
+    const isPurchase = (ctx) => ctx?.request?.method === "POST" && ctx.request.form?.id === "pdp-add";
+    document.addEventListener("htmx:before:request", (event) => {
+      if (event.defaultPrevented) return;
+      const ctx = event.detail?.ctx;
+      if (isChoice(ctx)) {
+        if (writes.size === 0) outcome = null;
+        revision++;
+      } else if (isPurchase(ctx)) {
+        submissions.set(ctx, {
+          revision,
+          variant: ctx.request.form.querySelector('[name="variant"]')?.value,
+        });
+        writes.add(ctx);
+      }
+    });
+    document.addEventListener("htmx:after:request", (event) => {
+      if (event.defaultPrevented) return;
+      const ctx = event.detail?.ctx;
+      if (!isChoice(ctx) && !isPurchase(ctx)) return;
+      const live = document.getElementById("buybox");
+      if (!live || !ctx.text) return;
+      const response = new DOMParser().parseFromString(ctx.text, "text/html");
+      if (!response.getElementById("buybox")) return;
+      // Each request captured a target that another response may have replaced.
+      ctx.target = live;
+      if (isPurchase(ctx)) {
+        const submitted = ctx.request.form;
+        const submission = submissions.get(ctx);
+        const notice = response.getElementById("added");
+        outcome = notice && submission?.variant ? { variant: submission.variant, notice: notice.cloneNode(true) } : null;
+        if (submission?.revision !== revision || submitted !== live.querySelector("#pdp-add")) {
+          ctx.swap = "none";
+          ctx.selectOOB = "#cart-link";
+          // Retire the submitted form just as a normal response swap would.
+          // A queued second press must not post from this still-connected form.
+          if (submitted.isConnected && submitted === live.querySelector("#pdp-add")) {
+            const replacement = submitted.cloneNode(true);
+            replacement.removeAttribute("aria-busy");
+            replacement.removeAttribute("data-request-pending");
+            replacement.classList.remove(htmx.config.requestClass);
+            for (const button of replacement.querySelectorAll('button[type="submit"]:not([data-feedback-skip]), input[type="submit"]')) {
+              button.removeAttribute("aria-disabled");
+            }
+            submitted.replaceWith(replacement);
+            htmx.process(replacement);
+          }
+          appendOutcome(live);
+        }
+      } else if (outcome) {
+        appendOutcome(response);
+        ctx.text = response.documentElement.outerHTML;
+      }
+    });
+    document.addEventListener("htmx:finally:request", (event) => writes.delete(event.detail?.ctx));
+  }
+
+  productResponseOrder();
 
   /*
    * A field that carries a rule says so in its markup (data-rule, a pattern, the

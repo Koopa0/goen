@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pickup"
 )
 
 // DraftTTL covers a trip to the carrier's map, which takes minutes; the rest of
@@ -32,29 +33,29 @@ const maxDraftBytes = 7000
 // checkoutDraft is personal data, so it holds only what the form asks for: no
 // store (the map chooses that), no payment, no quote and no idempotency key.
 type checkoutDraft struct {
-	Email         string       `json:"email,omitempty"`
-	Name          string       `json:"name,omitempty"`
-	Phone         string       `json:"phone,omitempty"`
-	PostalCode    string       `json:"postal_code,omitempty"`
-	City          string       `json:"city,omitempty"`
-	District      string       `json:"district,omitempty"`
-	Street        string       `json:"street,omitempty"`
-	Note          string       `json:"note,omitempty"`
-	Chain         pickup.Chain `json:"chain,omitempty"`
-	Shipping      string       `json:"shipping,omitempty"`
-	SavedAddress  string       `json:"saved_address,omitempty"`
-	InvoiceType   string       `json:"invoice_type,omitempty"`
-	MobileBarcode string       `json:"invoice_carrier,omitempty"`
-	DonationCode  string       `json:"invoice_donation_code,omitempty"`
-	CompanyName   string       `json:"invoice_company_name,omitempty"`
-	TaxID         string       `json:"invoice_tax_id,omitempty"`
+	Email         string         `json:"email,omitempty"`
+	Name          string         `json:"name,omitempty"`
+	Phone         string         `json:"phone,omitempty"`
+	PostalCode    string         `json:"postal_code,omitempty"`
+	City          string         `json:"city,omitempty"`
+	District      string         `json:"district,omitempty"`
+	Street        string         `json:"street,omitempty"`
+	Note          string         `json:"note,omitempty"`
+	Chain         shipping.Chain `json:"chain,omitempty"`
+	Shipping      string         `json:"shipping,omitempty"`
+	SavedAddress  string         `json:"saved_address,omitempty"`
+	InvoiceType   string         `json:"invoice_type,omitempty"`
+	MobileBarcode string         `json:"invoice_carrier,omitempty"`
+	DonationCode  string         `json:"invoice_donation_code,omitempty"`
+	CompanyName   string         `json:"invoice_company_name,omitempty"`
+	TaxID         string         `json:"invoice_tax_id,omitempty"`
 	// Coupon is saved only when accepted, so restoring it cannot be used to try
 	// codes.
 	Coupon string `json:"coupon,omitempty"`
 }
 
 func (d *checkoutDraft) clipped() {
-	d.Chain = pickup.Chain(clip(string(d.Chain)))
+	d.Chain = shipping.Chain(clip(string(d.Chain)))
 	for _, p := range []*string{
 		&d.Email, &d.Name, &d.Phone, &d.PostalCode, &d.City, &d.District, &d.Street,
 		&d.Note, &d.Shipping, &d.SavedAddress, &d.InvoiceType, &d.MobileBarcode,

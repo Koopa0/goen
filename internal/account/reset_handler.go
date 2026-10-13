@@ -63,6 +63,34 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
 
+func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
+	u, ok := user.FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseDemoChange(w, r, u) {
+		return
+	}
+	if EmailError(email.Clean(u.Email)) != "" {
+		h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
+			v.Notice = i18n.T(r.Context(), i18n.KeyEmailInvalidNotice)
+		})
+		return
+	}
+	if retryAfter, allowed := h.resetLimit.Allow("forgot:" + email.Clean(u.Email)); !allowed {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
+	if err := h.store.requestReset(r.Context(), u.Email); err != nil {
+		h.log.ErrorContext(r.Context(), "queue password setup request", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	h.writePasswordSetupNotice(w, u)
+	http.Redirect(w, r, "/account?password_setup=sent#password-heading", http.StatusSeeOther)
+}
+
 // ResetPage does not check the token: that would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)

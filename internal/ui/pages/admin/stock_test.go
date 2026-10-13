@@ -43,7 +43,7 @@ func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
 	}}
 	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
 
-	for _, want := range []string{`name="delta" value="12x"`, `aria-describedby="adj-error-A-1"`, `id="adj-error-A-1"`} {
+	for _, want := range []string{`name="delta" value="12x"`, `aria-describedby="adj-example-A-1 adj-error-A-1"`, `id="adj-error-A-1"`} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the refused adjustment row is missing %q", want)
 		}

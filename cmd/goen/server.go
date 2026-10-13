@@ -29,11 +29,12 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -43,9 +44,8 @@ import (
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
@@ -102,7 +102,7 @@ type StorefrontConfig struct {
 	SecureCookies bool
 	// Invoices checks mobile barcodes at checkout, or is disabled and the
 	// checkout accepts none.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
@@ -131,7 +131,7 @@ type BackOfficeConfig struct {
 	// enrolment.
 	TOTPKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	StoreMap *cart.StoreMap
 }
 
@@ -250,7 +250,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
-	sendbacks := returnpage.NewHandler(returnpage.NewStore(pool), orderAccess, log)
+	sendbacks := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log)
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
@@ -335,6 +335,9 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
 	mux.HandleFunc("GET /forgot", customers.ForgotPage)
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
+	// RequireUser's sign-in return URL would issue GET to this POST-only action.
+	mux.HandleFunc("POST /account/password/setup",
+		ratelimit.Guard(authLimit, log, customers.RequestPasswordSetup))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
 	// Open to a signed-out visitor, who is sent on rather than refused: a
@@ -401,9 +404,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	// invoice store exists either way.
 	invoiceGateway := cfg.Invoices
 	if invoiceGateway == nil {
-		invoiceGateway = &invoice.Gateway{}
+		invoiceGateway = &issuer.Gateway{}
 	}
-	invoices := invoice.NewStore(adminPool, invoiceGateway)
+	invoices := issuer.NewStore(adminPool, invoiceGateway)
 	var invoiceWriter invoicing.Writer
 	if invoices.Enabled() {
 		invoiceWriter = invoices

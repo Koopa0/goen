@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -270,7 +270,7 @@ type OrderView struct {
 	// ShipCarriers are the carriers the dispatch form lists, which is the ones
 	// that can carry this order's parcel. ShipCarrier holds the one the order
 	// implies until staff choose, or what they chose when a dispatch was refused.
-	ShipCarriers      []carrier.Carrier
+	ShipCarriers      []shipping.Carrier
 	TrackingError     string
 	ShipCarrierError  string
 	ShipQtyError      string
@@ -300,7 +300,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -377,7 +377,7 @@ func (e TimelineEntry) By(ctx context.Context) string {
 
 type Shipment struct {
 	ID          string
-	Carrier     carrier.Carrier
+	Carrier     shipping.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
@@ -567,17 +567,29 @@ func (v *OrderView) AllowanceOpen() bool {
 
 // AllowanceAttentionText says why a sent allowance needs a person.
 func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
+	return i18n.T(ctx, v.allowanceAttentionKey())
+}
+
+func (v *OrderView) allowanceAttentionKey() i18n.Key {
 	switch v.AllowanceAttention {
 	case invoice.CategoryBuyerUnconfirmed:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)
+		return i18n.KeyAdminQueueAllowanceUnconfirmed
 	case invoice.CategoryAmountStillHeld:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)
+		return i18n.KeyAdminQueueAllowanceAmountHeld
 	case invoice.CategorySuccessMismatch:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)
+		return i18n.KeyAdminQueueAllowanceMismatch
 	case invoice.CategoryMultipleCandidates:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)
+		return i18n.KeyAdminQueueAllowanceCandidates
+	default:
+		return i18n.KeyAdminQueueAllowanceAttention
 	}
-	return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention)
+}
+
+func (v *OrderView) allowanceAttentionDetail() string {
+	if v.allowanceAttentionKey() == i18n.KeyAdminQueueAllowanceAttention {
+		return v.AllowanceAttention
+	}
+	return ""
 }
 
 // AllowanceAmount is display only; no amount is posted back to the server.

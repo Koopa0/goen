@@ -1,3 +1,5 @@
+import { controlLabelReflow } from './control-label-reflow.mjs';
+
 export const reflowProbe = (width) => `(async () => {
   await document.fonts.ready;
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -6,6 +8,13 @@ export const reflowProbe = (width) => `(async () => {
   const clips = (o) => o === 'hidden' || o === 'clip';
   const cuts = (lo, hi, boxLo, boxHi) => lo < boxHi && hi > boxLo && (lo < boxLo - 0.5 || hi > boxHi + 0.5);
   const text = [];
+  const controlLabelReflow = ${controlLabelReflow.toString()};
+  for (const control of document.querySelectorAll('.goen-footer__field > .goen-btn, .goen-admin__form .goen-btn, .goen-admin__decidebtns .goen-btn, .goen-modqueue__switch')) {
+    for (const detail of controlLabelReflow(control)) {
+      const owner = control.tagName.toLowerCase() + '.' + control.classList[0];
+      text.push({ owner, detail });
+    }
+  }
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {

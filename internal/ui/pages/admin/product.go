@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -84,7 +83,7 @@ func (v ProductVariant) StockText(ctx context.Context) string {
 }
 
 type ProductView struct {
-	LabelInput        *productlabel.Input
+	LabelInput        *LabelInput
 	InvoiceTerms      *invoice.LineTerms
 	IsNew             bool
 	Slug              string
@@ -288,9 +287,9 @@ const (
 
 func (v *ProductView) LabelAction() string { return "/admin/products/" + v.Slug + "/label" }
 
-func (v *ProductView) labelInput() *productlabel.Input {
+func (v *ProductView) labelInput() *LabelInput {
 	if v.LabelInput == nil {
-		return &productlabel.Input{}
+		return &LabelInput{}
 	}
 	return v.LabelInput
 }
