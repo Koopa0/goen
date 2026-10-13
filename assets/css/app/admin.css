@@ -1782,7 +1782,7 @@ input.goen-check {
   }
 
   @supports selector(::details-content) {
-    .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav > .goen-disclosure__summary {
       display: none;
     }
 
