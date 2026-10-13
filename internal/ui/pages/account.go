@@ -122,6 +122,8 @@ type AccountView struct {
 	ReturnAfterWelcome string
 	CartAdjusted       bool
 
+	PasswordSetupSent          bool
+	HasPassword                bool
 	EmailVerified              bool
 	EmailConfirmationRequested bool
 	EmailReentry               bool
@@ -220,6 +222,11 @@ func (v *AccountView) HasOrders() bool { return len(v.Orders) > 0 }
 func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
 
 func (v *AccountView) HasNotice() bool { return v.Notice != "" }
+
+func googlePasswordSetupText(ctx context.Context) (before, after string) {
+	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyGoogleOnlyMethod), "%s")
+	return before, after
+}
 
 type SignInRecovery uint8
 
