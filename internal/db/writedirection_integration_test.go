@@ -497,7 +497,7 @@ var storefrontPackages = []string{
 
 // backOfficePackages run on the pool that does SET ROLE admin.
 var backOfficePackages = []string{
-	"admin", "media", "newsletter", "order/notice", "outbox", "twofactor", "invoice",
+	"admin", "media", "newsletter", "order/notice", "outbox", "invoice",
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.

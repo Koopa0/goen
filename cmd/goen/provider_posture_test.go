@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 )
 
 const (
@@ -20,7 +20,7 @@ func liveReady(c *config) {
 	c.ECPayMerchantID = "live-merchant"
 	c.ECPayHashKey = "0123456789abcdef"
 	c.ECPayHashIV = "fedcba9876543210"
-	c.ECPayBaseURL = invoice.ProductionBaseURL
+	c.ECPayBaseURL = issuer.ProductionBaseURL
 	c.SMTPFrom = "shop@merchant.example"
 }
 
@@ -45,7 +45,7 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 		{"no credentials", func(c *config) { c.ECPayMerchantID, c.ECPayHashKey, c.ECPayHashIV = "", "", "" }, "GOEN_ECPAY_MERCHANT_ID"},
 		{"half credentials", func(c *config) { c.ECPayHashIV = "" }, "GOEN_ECPAY_HASH_IV"},
 		{"implicit invoice endpoint", func(c *config) { c.ECPayBaseURL = "" }, "GOEN_ECPAY_BASE_URL"},
-		{"staging invoice endpoint", func(c *config) { c.ECPayBaseURL = invoice.StagingBaseURL }, "GOEN_ECPAY_BASE_URL"},
+		{"staging invoice endpoint", func(c *config) { c.ECPayBaseURL = issuer.StagingBaseURL }, "GOEN_ECPAY_BASE_URL"},
 		{"staging invoice endpoint respelled", func(c *config) { c.ECPayBaseURL = "HTTP://EINVOICE-STAGE.ecpay.com.tw/" }, "GOEN_ECPAY_BASE_URL"},
 		{"staging map", func(c *config) { c.ECPayLogisticsBaseURL = cart.MapStagingBaseURL }, "GOEN_ECPAY_LOGISTICS_BASE_URL"},
 		{"placeholder sender", func(c *config) { c.SMTPFrom = "goen <no-reply@goen.example>" }, "GOEN_SMTP_FROM"},
@@ -93,7 +93,7 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 	t.Run("sandbox keeps every staging and placeholder setting", func(t *testing.T) {
 		_, err := prepare(t, func(c *config) {
 			c.StripeAPIKey = testKey
-			c.ECPayBaseURL = invoice.StagingBaseURL
+			c.ECPayBaseURL = issuer.StagingBaseURL
 			c.ECPayLogisticsBaseURL = cart.MapStagingBaseURL
 			c.SMTPFrom = "goen <no-reply@goen.example>"
 		})

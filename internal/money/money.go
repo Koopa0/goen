@@ -1,9 +1,10 @@
 // Package money renders amounts in the shop's currency.
 //
-// It is a package rather than a helper because two callers that cannot import
-// each other both print prices: internal/ui/pages and internal/email, where the
-// edge would close a cycle through internal/invoice. Left apart they grew two
-// implementations that disagreed about a negative amount.
+// It is a package rather than a helper because two callers that share no
+// package both print prices: internal/ui/pages and internal/email. Neither
+// should import the other, so the formatting lives in a leaf both can reach.
+// Left apart they grew two implementations that disagreed about a negative
+// amount.
 package money
 
 import (

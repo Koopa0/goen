@@ -2,7 +2,7 @@ package admin
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -67,7 +67,7 @@ templ productLabel(v ProductView) {
 					if v.labelInput().NetUnit!="" && !v.labelInput().NetUnit.Known() {
 						<option value={ string(v.labelInput().NetUnit) } selected>{ string(v.labelInput().NetUnit) }</option>
 					}
-					for _, unit := range productlabel.Units() {
+					for _, unit := range labelling.Units() {
 						<option value={ string(unit) } selected?={ unit==v.labelInput().NetUnit }>{ unit.Symbol(ctx) }</option>
 					}
 				</select>

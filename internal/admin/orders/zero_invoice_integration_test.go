@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/invoicing"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 )
 
 func TestAZeroGrossInvoicePostIsRefusedBeforeTheProviderIsCalled(t *testing.T) {
@@ -24,12 +24,12 @@ func TestAZeroGrossInvoicePostIsRefusedBeforeTheProviderIsCalled(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(provider.Close)
-	gateway, err := invoice.NewGateway("2000132", "ejCk326UnaZWKisg", "q9jcZX8Ib9LM8wYk", provider.URL)
+	gateway, err := issuer.NewGateway("2000132", "ejCk326UnaZWKisg", "q9jcZX8Ib9LM8wYk", provider.URL)
 	if err != nil {
 		t.Fatalf("NewGateway: %v", err)
 	}
 	adminPool := admintest.AdminRolePool(t, pool)
-	writer := invoice.NewStore(adminPool, gateway)
+	writer := issuer.NewStore(adminPool, gateway)
 	store := invoicing.NewStore(adminPool, writer, writer)
 	mux := http.NewServeMux()
 	invoicing.NewHandler(store, slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
