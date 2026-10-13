@@ -34,7 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -1794,11 +1794,11 @@ func invoiceDue(t *testing.T, number string) outbox.InvoiceDue {
 // the outbox drains on the store pool, which holds no EXECUTE on the claim.
 func claimDue(t *testing.T, due outbox.InvoiceDue) {
 	t.Helper()
-	gateway, err := invoice.NewGateway("", "", "", "")
+	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	if err := invoice.NewStore(adminRolePool(t), gateway).ClaimDue(t.Context(), &due); err != nil {
+	if err := issuer.NewStore(adminRolePool(t), gateway).ClaimDue(t.Context(), &due); err != nil {
 		t.Fatalf("claim the invoice %s owes: %v", due.OrderNumber, err)
 	}
 }

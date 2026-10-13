@@ -21,6 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
@@ -57,7 +58,7 @@ type Handler struct {
 }
 
 type MobileBarcodeChecker interface {
-	CheckBarcode(context.Context, string) (invoicepkg.BarcodeStatus, error)
+	CheckBarcode(context.Context, string) (issuer.BarcodeStatus, error)
 }
 
 // NewHandler reads a nil sessions as no provider configured, and a nil or

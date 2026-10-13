@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/order/notice"
@@ -170,7 +170,7 @@ func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.
 	}
 	ctx, cancel := invoiceShare(ctx)
 	defer cancel()
-	filing := invoice.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
+	filing := issuer.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
 	if err := s.invoices.CorrectForCancellation(filing, number); err != nil {
 		return fmt.Errorf("correct the invoice of %s: %w", number, err)
 	}
@@ -196,7 +196,7 @@ func (s *Store) fileRefundAllowance(
 	}
 	ctx, cancel := invoiceShare(ctx)
 	defer cancel()
-	filing := invoice.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
+	filing := issuer.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
 	operationID := uuid.NewSHA1(returnID, []byte("allowance"))
 	if err := s.invoices.FileCancellationAllowance(filing, number, operationID); err != nil {
 		return fmt.Errorf("file the allowance of %s: %w", number, err)

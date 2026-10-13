@@ -258,7 +258,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
-| 發票與延後寄送 | [`internal/invoice`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
+| 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-banner]、[`internal/recommend`][recommend]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
