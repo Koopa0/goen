@@ -96,6 +96,9 @@ func TestCustomerOrderAndWarrantyStatusSayRefundedOnceTheWholeOrdersRefundHasSet
 						if row.OrderStatus != wantText {
 							t.Errorf("%s warranty order status=%q, want %q", locale.Tag(), row.OrderStatus, wantText)
 						}
+						if row.InForce == tc.wantReturned {
+							t.Errorf("%s warranty in force=%t, want %t", locale.Tag(), row.InForce, !tc.wantReturned)
+						}
 					}
 				}
 			}

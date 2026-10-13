@@ -47,7 +47,8 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 	for i := range rows {
 		r := &rows[i]
 		status := admin.FulfillmentLabel(ctx, order.FulfillmentStatus(r.FulfillmentStatus))
-		if slices.Contains(returned, r.OrderID) {
+		gone := slices.Contains(returned, r.OrderID)
+		if gone {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)
 		}
 		view.Rows = append(view.Rows, admin.WarrantyRow{
@@ -58,7 +59,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 			CustomerEmail: r.CustomerEmail,
 			RegisteredAt:  shoptime.Day(r.RegisteredAt),
 			ExpiresOn:     shoptime.Day(r.ExpiresOn),
-			InForce:       r.InForce,
+			InForce:       r.InForce && !gone,
 		})
 	}
 	return view, nil
