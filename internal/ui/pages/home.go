@@ -115,11 +115,12 @@ type DepartmentBand struct {
 }
 
 type HomeView struct {
-	Slides     []HeroSlide
-	Categories []HomeCategory
-	Row        ProductRow
-	Band       *DepartmentBand
-	Rules      ShopRules
+	AccountErased bool
+	Slides        []HeroSlide
+	Categories    []HomeCategory
+	Row           ProductRow
+	Band          *DepartmentBand
+	Rules         ShopRules
 }
 
 // ShowsDirectory reports whether the department list is drawn. With one

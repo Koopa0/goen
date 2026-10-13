@@ -2330,9 +2330,9 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var130 string
-							templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(e.Note)
+							templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(e.noteText(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/orders.templ`, Line: 505, Col: 49}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/orders.templ`, Line: 505, Col: 58}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 							if templ_7745c5c3_Err != nil {

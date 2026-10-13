@@ -30,7 +30,7 @@ func TestLateApprovalCannotClaimPolicyEntitlement(t *testing.T) {
 		{returnrules.WindowGoodwill, returnrules.DecisionApprove, "", true},
 		{returnrules.WindowLate, returnrules.DecisionApprove, "", true},
 		{returnrules.WindowLate, returnrules.DecisionException, returnrules.EntitlementException, false},
-		{returnrules.WindowUndelivered, returnrules.DecisionApprove, returnrules.EntitlementException, false},
+		{returnrules.WindowUndelivered, returnrules.DecisionApprove, returnrules.EntitlementStatutory, false},
 		{returnrules.WindowStatutory, returnrules.DecisionApprove, returnrules.EntitlementStatutory, false},
 	}
 	for _, tc := range tests {

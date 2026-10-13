@@ -285,16 +285,17 @@ func refusalMessage(r *http.Request, kind returnrules.RefusalKind) string {
 }
 
 var refusalKeys = map[returnrules.RefusalKind]i18n.Key{
-	returnrules.RefuseStatutoryReject: i18n.KeyAdminRetErrStatutoryReject,
-	returnrules.RefuseIncomplete:      i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseNeedException:   i18n.KeyAdminRetErrNeedException,
-	returnrules.RefuseUnmetApprove:    i18n.KeyAdminRetErrUnmetApprove,
-	returnrules.RefuseNoUnmet:         i18n.KeyAdminRetErrNoUnmet,
-	returnrules.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
-	returnrules.RefuseStale:           i18n.KeyAdminRetErrStale,
-	returnrules.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
-	returnrules.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
+	returnrules.RefuseStatutoryReject:   i18n.KeyAdminRetErrStatutoryReject,
+	returnrules.RefuseUndeliveredReject: i18n.KeyAdminRetErrUndeliveredReject,
+	returnrules.RefuseIncomplete:        i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseNeedException:     i18n.KeyAdminRetErrNeedException,
+	returnrules.RefuseUnmetApprove:      i18n.KeyAdminRetErrUnmetApprove,
+	returnrules.RefuseNoUnmet:           i18n.KeyAdminRetErrNoUnmet,
+	returnrules.RefuseUseApprove:        i18n.KeyAdminRetErrUseApprove,
+	returnrules.RefuseStale:             i18n.KeyAdminRetErrStale,
+	returnrules.RefuseEmpty:             i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseExceptionReason:   i18n.KeyAdminRetErrExceptionReason,
+	returnrules.RefuseRejectionReason:   i18n.KeyAdminRetErrRejectionReason,
 }
 
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
