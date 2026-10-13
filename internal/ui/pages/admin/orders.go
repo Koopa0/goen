@@ -580,17 +580,29 @@ func (v *OrderView) AllowanceOpen() bool {
 
 // AllowanceAttentionText says why a sent allowance needs a person.
 func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
+	return i18n.T(ctx, v.allowanceAttentionKey())
+}
+
+func (v *OrderView) allowanceAttentionKey() i18n.Key {
 	switch v.AllowanceAttention {
 	case invoice.CategoryBuyerUnconfirmed:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)
+		return i18n.KeyAdminQueueAllowanceUnconfirmed
 	case invoice.CategoryAmountStillHeld:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)
+		return i18n.KeyAdminQueueAllowanceAmountHeld
 	case invoice.CategorySuccessMismatch:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)
+		return i18n.KeyAdminQueueAllowanceMismatch
 	case invoice.CategoryMultipleCandidates:
-		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)
+		return i18n.KeyAdminQueueAllowanceCandidates
+	default:
+		return i18n.KeyAdminQueueAllowanceAttention
 	}
-	return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention)
+}
+
+func (v *OrderView) allowanceAttentionDetail() string {
+	if v.allowanceAttentionKey() == i18n.KeyAdminQueueAllowanceAttention {
+		return v.AllowanceAttention
+	}
+	return ""
 }
 
 // AllowanceAmount is display only; no amount is posted back to the server.

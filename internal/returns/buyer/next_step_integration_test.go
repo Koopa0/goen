@@ -1,6 +1,6 @@
 //go:build integration
 
-package returnpage_test
+package buyer_test
 
 import (
 	"html"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -32,7 +32,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		t.Fatal(err)
 	}
 	appPool := returnsApplicationPool(t, "return-next-step")
-	store := returnpage.NewStore(appPool)
+	store := buyer.NewStore(appPool)
 	order, err := store.Order(ctx, number)
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	if len(order.Shipments) != 1 || !order.Shipments[0].RescissionEnds.Equal(expected) {
 		t.Fatalf("return form parcels = %+v, want the existing database deadline %v", order.Shipments, expected)
 	}
-	handler := returnpage.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
 	mux.HandleFunc("POST /orders/{number}/return", handler.Submit)
@@ -51,7 +51,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, request)
 		orderPage := pages.OrderView{Now: order.Now}
-		date := orderPage.RescissionLastDay(local, order.Shipments[0])
+		date := orderPage.RescissionLastDay(local, pages.OrderShipment{RescissionEnds: order.Shipments[0].RescissionEnds})
 		body := html.UnescapeString(response.Body.String())
 		if response.Code != http.StatusOK || !strings.Contains(body, date) || !strings.Contains(body, i18n.T(local, i18n.KeyReturnSub)) {
 			t.Errorf("return lead locale %s status = %d, missing deadline or next step", locale, response.Code)
@@ -60,7 +60,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	if _, err := pool.Exec(ctx, `UPDATE order_shipments SET delivered_at=now() WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{Lines: map[string]int32{lineID.String(): 2}}); err != nil {
+	if err := store.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{Lines: map[string]int32{lineID.String(): 2}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -92,8 +92,8 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 		t.Fatal(err)
 	}
 	appPool := returnsApplicationPool(t, "return-pickup")
-	store := returnpage.NewStore(appPool)
-	handler := returnpage.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	store := buyer.NewStore(appPool)
+	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
 	for _, tc := range []struct {
