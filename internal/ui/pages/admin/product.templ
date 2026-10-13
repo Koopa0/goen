@@ -424,6 +424,13 @@ templ productImages(v ProductView) {
 								Size:        components.SizeSmall,
 							}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminRemove) }
+								<span class="goen-sr-only">
+									if img.Alt != "" {
+										{ " " + img.Alt }
+									} else {
+										{ " " + img.Key }
+									}
+								</span>
 							}
 						</form>
 					</li>
@@ -1081,6 +1088,7 @@ templ productSpecs(v ProductView) {
 											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
+											<span class="goen-sr-only">{ " " + sp.Label }</span>
 										}
 									</form>
 								</td>
