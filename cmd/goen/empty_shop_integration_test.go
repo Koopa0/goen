@@ -12,9 +12,9 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/twofactor"
 )
 
 func TestSchemaOnlyShopRendersStorefrontAndBackOffice(t *testing.T) {
