@@ -15,17 +15,32 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (s *Store) Reviews(ctx context.Context, after ...string) (admin.ReviewsView, error) {
-	const scope = "/admin/reviews"
+type ReviewFilter uint8
+
+const (
+	AllReviews ReviewFilter = iota
+	ThreeStarsAndBelowReviews
+)
+
+func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (admin.ReviewsView, error) {
+	if filter != AllReviews && filter != ThreeStarsAndBelowReviews {
+		return admin.ReviewsView{}, ErrInvalid
+	}
+	threeStarsAndBelow := filter == ThreeStarsAndBelowReviews
+	scope := "/admin/reviews"
+	if threeStarsAndBelow {
+		scope = web.ScopeURL(scope, "rating", "3")
+	}
 	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{ThreeStarsAndBelow: threeStarsAndBelow, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.ReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
 	view := admin.ReviewsView{
-		Bound: bound,
-		Rows:  make([]admin.Review, 0, len(rows)),
+		ThreeStarsAndBelow: threeStarsAndBelow,
+		Bound:              bound,
+		Rows:               make([]admin.Review, 0, len(rows)),
 	}
 	for i := range rows {
 		r := &rows[i]

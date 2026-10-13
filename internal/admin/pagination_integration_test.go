@@ -188,7 +188,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"reviews", "SELECT count(*) FROM product_reviews", func(after string) (result, error) {
-			v, e := inboxStore.Reviews(ctx, after)
+			v, e := inboxStore.Reviews(ctx, feedback.AllReviews, after)
 			r := result{bound: v.Bound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)

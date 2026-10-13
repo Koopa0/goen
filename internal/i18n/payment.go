@@ -7,9 +7,8 @@ var (
 	})
 
 	KeyPayBody = key("pay.body", Message{
-		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會立即安排出貨。",
-		En: "The order is placed and the stock is held for you. We pack it as soon as the " +
-			"payment goes through.",
+		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會盡快安排出貨。",
+		En:     "The order is placed and the stock is held for you. We will arrange shipment shortly after payment.",
 	})
 
 	KeyPayCancelled = key("pay.cancelled", Message{

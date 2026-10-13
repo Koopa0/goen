@@ -594,7 +594,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 	number := admintest.PlaceHeldOrder(t, pool, vid)
 
-	if _, err := basket.CancelOrder(ctx, number); err != nil {
+	if err := basket.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 

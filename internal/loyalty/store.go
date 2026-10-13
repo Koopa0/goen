@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -135,7 +136,16 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		return pages.PointsView{}, fmt.Errorf("read expiring points: %w", err)
 	}
 
+	standing, err := s.q.MemberStanding(ctx, db.MemberStandingParams{
+		UserID: owner, WindowDays: int32(MembershipWindow / (24 * time.Hour)), Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return pages.PointsView{}, fmt.Errorf("read points member standing: %w", err)
+	}
+
 	view := pages.PointsView{
+		TierName:       standing.TierName,
+		MultiplierBP:   standing.MultiplierBp,
 		Balance:        balance,
 		Redeemable:     Redeemable(balance),
 		CreditCents:    CreditFor(Redeemable(balance)),
@@ -165,22 +175,25 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		view.ExpiringOn = shoptime.DateText(ctx, shoptime.DateOf(soon.Soonest, now))
 	}
 	for i := range rows {
-		r := &rows[i]
-		kind := pages.PointsEntryKind(r.Kind)
-		entry := pages.PointsEntry{
-			Points: r.Points, Kind: kind, Order: r.OrderNumber,
-			At: shoptime.DateText(ctx, shoptime.DateOf(r.CreatedAt, now)), Expired: r.Expired.Bool,
-		}
-		switch kind {
-		case pages.PointsClawedBack:
-			entry.RequestedPoints = r.RequestedPoints
-			entry.ShortfallPoints = r.RequestedPoints + r.Points
-		case pages.PointsAwarded:
-			entry.ExpiresOn = shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now))
-		case pages.PointsSpent:
-			// Neither: the expiry lives on the award lot the spend consumed.
-		}
-		view.Entries = append(view.Entries, entry)
+		view.Entries = append(view.Entries, pointsHistoryEntry(ctx, rows[i], now))
 	}
 	return view, nil
+}
+
+func pointsHistoryEntry(ctx context.Context, r db.PointsHistoryRow, now time.Time) pages.PointsEntry {
+	kind := pages.PointsEntryKind(r.Kind)
+	entry := pages.PointsEntry{
+		Points: r.Points, Kind: kind, Reason: pages.PointsReversalReason(r.Reason), Order: r.OrderNumber,
+		At: shoptime.DateText(ctx, shoptime.DateOf(r.CreatedAt, now)), Expired: r.Expired.Bool,
+	}
+	switch kind {
+	case pages.PointsClawedBack:
+		entry.RequestedPoints = r.RequestedPoints
+		entry.ShortfallPoints = r.RequestedPoints + r.Points
+	case pages.PointsAwarded:
+		entry.ExpiresOn = shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now))
+	case pages.PointsSpent:
+		entry.CreditCents = CreditFor(-r.Points)
+	}
+	return entry
 }

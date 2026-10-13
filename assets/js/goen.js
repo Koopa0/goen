@@ -379,6 +379,9 @@
     const pending = new Map();
     const requests = new WeakMap();
     const reads = new WeakMap();
+    // The buy box is replaced by each choice; ownership must survive its DOM node.
+    let productChoice = null;
+    const isProductChoice = (ctx) => ctx?.sourceElement?.matches("a.goen-swatch[hx-get]");
     const replacesRead = (form, ctx) => form instanceof HTMLFormElement && ctx?.request?.method === "GET"
       && form.getAttribute("hx-sync") === "this:replace";
     const restoreAttribute = (element, name, value) => {
@@ -412,6 +415,11 @@
     });
     document.addEventListener("htmx:before:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (isProductChoice(ctx)) {
+        productChoice?.request?.abort?.();
+        productChoice = ctx;
+        return;
+      }
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
       // htmx's replaced request can release its queue after the next one
@@ -436,6 +444,7 @@
     });
     document.addEventListener("htmx:after:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (isProductChoice(ctx) && productChoice !== ctx) event.preventDefault();
       const form = ctx?.request?.form;
       if ((form?.matches(".goen-filters") || replacesRead(form, ctx)) && reads.get(form) !== ctx) event.preventDefault();
     });
@@ -449,6 +458,7 @@
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
+      if (productChoice === ctx) productChoice = null;
       // A timeout and a replaced request both abort without a response. Only
       // the latest request may change the feedback beside the filters.
       const requestForm = ctx?.request?.form;
@@ -792,6 +802,32 @@
       const line = fig.querySelector(".goen-chart__readout");
       if (!line) continue;
 
+      const rowText = (row) => {
+        const series = [];
+        const notes = [];
+        for (const [i, head] of heads.entries()) {
+          const text = row.cells[i]?.textContent.trim();
+          if (!text) continue;
+          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
+          else if (head.dataset.readout === "note") notes.push(text);
+        }
+        return [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+      };
+      // Overlapping hidden rows reserve the tallest readout at the current
+      // width and font size; a fixed line count cannot bound campaign names.
+      const space = document.createElement("div");
+      space.className = "goen-chart__readout-space";
+      const size = line.cloneNode(false);
+      size.classList.add("goen-chart__readout-size");
+      size.setAttribute("aria-hidden", "true");
+      for (const row of body.rows) {
+        const sample = document.createElement("span");
+        sample.textContent = rowText(row);
+        size.append(sample);
+      }
+      line.replaceWith(space);
+      space.append(line, size);
+
       const plot = hits[0].ownerSVGElement;
       const crosshair = hits[0].dataset.x === undefined ? null : document.createElementNS(NS, "line");
       if (crosshair) {
@@ -814,15 +850,7 @@
         if (!row) return;
         on?.classList.remove("goen-chart__hit--on");
         on = hit;
-        const series = [];
-        const notes = [];
-        for (const [i, head] of heads.entries()) {
-          const text = row.cells[i]?.textContent.trim();
-          if (!text) continue;
-          if (head.dataset.readout === "series") series.push(text + " " + head.textContent.trim());
-          else if (head.dataset.readout === "note") notes.push(text);
-        }
-        line.textContent = [...series, row.cells[0].textContent.trim(), ...notes].join(" · ");
+        line.textContent = rowText(row);
         if (crosshair) {
           crosshair.setAttribute("x1", hit.dataset.x);
           crosshair.setAttribute("x2", hit.dataset.x);
@@ -861,6 +889,63 @@
     });
   }
 
+  /*
+   * A press that loads a new page is answered at once rather than when that
+   * page paints: the pressed link is marked, and the root carries
+   * data-navigating, from which app.css draws a bar if the load outlasts a
+   * moment. Only plain same-origin loads in this tab; a click or a submit that
+   * something else took over (htmx, the duplicate-submit refusal) arrives here
+   * already prevented, which is why this listens after every other handler.
+   */
+  function navigationPending() {
+    const root = document.documentElement;
+    let pressed = null;
+    let presses = 0;
+    const start = (link) => {
+      presses++;
+      pressed?.removeAttribute("data-navigation-pending");
+      pressed = link;
+      link?.setAttribute("data-navigation-pending", "");
+      root.setAttribute("data-navigating", "");
+    };
+    const clear = () => {
+      pressed?.removeAttribute("data-navigation-pending");
+      pressed = null;
+      root.removeAttribute("data-navigating");
+    };
+
+    document.addEventListener("click", (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target.closest?.("a[href]");
+      if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+      const url = new URL(link.href);
+      if (url.origin !== location.origin) return;
+      if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
+      start(link);
+    });
+    document.addEventListener("submit", (e) => {
+      if (e.defaultPrevented) return;
+      const form = e.target;
+      const by = e.submitter;
+      const method = (by?.getAttribute("formmethod") ?? form.getAttribute("method") ?? "get").toLowerCase();
+      const target = by?.getAttribute("formtarget") ?? form.getAttribute("target");
+      if (method === "dialog" || (target && target !== "_self")) return;
+      // A button's formAction falls back to the page's URL, not the form's action.
+      const action = by?.hasAttribute("formaction") ? by.formAction : form.getAttribute("action") ?? "";
+      if (new URL(action, location.href).origin === location.origin) start(null);
+    });
+    // Back to a page the browser kept: it returns as it was left, mid-press.
+    window.addEventListener("pageshow", clear);
+    // A stopped load aborts its navigation. So does a second press, which has
+    // marked its own link by then and must keep it.
+    window.navigation?.addEventListener("navigate", (e) => {
+      const at = presses;
+      e.signal.addEventListener("abort", () => {
+        if (presses === at) clear();
+      });
+    });
+  }
+
   recipientBox();
   demoAccount();
   handoff();
@@ -872,4 +957,5 @@
   stepper();
   carousel();
   chartReadout();
+  navigationPending();
 })();

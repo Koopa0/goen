@@ -71,7 +71,10 @@ FROM orders GROUP BY fulfillment_status, funded;
 -- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
+    o.shipping_cents, o.discount_cents, o.tax_cents,
+    -- A missing translation retains the order's snapshot, not another locale.
+    coalesce(CASE WHEN @locale::text = 'en' THEN sv.name_en ELSE sv.name END,
+             o.shipping_method_name)::text AS shipping_method_name,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -104,15 +107,25 @@ SELECT
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = $1;
+WHERE o.order_number = @order_number::text;
 
 -- Only parcels with no stamp, so a re-run cannot move a recorded date, and never
 -- earlier than shipped_at, which order_shipments_delivered_after_shipped refuses.
 -- name: MarkShipmentsDelivered :exec
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
+
+-- name: OrderShipment :one
+SELECT id, carrier, tracking_number, delivered_at
+FROM order_shipments WHERE order_id = @order_id AND id = @shipment_id;
+
+-- name: MarkShipmentDelivered :one
+UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
+WHERE order_id = @order_id AND id = @shipment_id AND delivered_at IS NULL
+RETURNING delivered_at;
 
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
@@ -310,7 +323,12 @@ FROM (
                 WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT @invoicing_enabled::boolean
                 THEN 'not_sent'
                 ELSE op.status END,
-           op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.completed_at,
+           CASE WHEN op.status = 'rejected' AND op.kind IN ('issue', 'allowance')
+                     AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
+                THEN substring(op.last_error FROM '[0-9]+$')
+                ELSE '' END,
+           op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = @order_id
@@ -333,7 +351,7 @@ FROM (
 ORDER BY at, precedence, tie;
 
 -- name: OrderShipments :many
-SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
+SELECT id, carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Written with the shipment: a return has to be bounded by what actually went
@@ -411,7 +429,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = @order_number
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed');
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed', 'cancelled');
 
 -- name: OrderDestinationKind :one
 SELECT sm.destination_kind, o.fulfillment_status
@@ -447,7 +465,10 @@ WHERE pd.order_id = @order_id;
 
 -- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       o.id, o.order_number, o.placed_at,
+       coalesce(CASE WHEN @locale::text = 'en' THEN sv.name_en ELSE sv.name END,
+                o.shipping_method_name)::text AS shipping_method_name,
+       coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -463,6 +484,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(ip.donation_code, '') AS invoice_donation_code,
        coalesce(ip.tax_id, '') AS invoice_tax_id
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')

@@ -967,7 +967,7 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
-	if _, err := basket.CancelOrder(ctx, number); err != nil {
+	if err := basket.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("the customer cancels: %v", err)
 	}
 

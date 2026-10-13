@@ -173,9 +173,14 @@ JOIN products p ON p.id = s.product_id
 WHERE p.slug = $1
 ORDER BY s.position, s.label;
 
--- The position is computed IN the insert: product_specs_position_key is unique
--- on (product_id, position), so reading max(position) in Go and then writing it
--- is a race two staff members editing one product would meet.
+-- name: LockProductSpecAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:product_specs:' || p.id::text, 628471039582915603::bigint))
+FROM products p
+WHERE p.slug = @slug::text;
+
+-- Read the maximum in a separate statement after LockProductSpecAppendPosition:
+-- a statement that waits for the lock keeps its pre-wait snapshot.
 -- name: AddProductSpec :one
 INSERT INTO product_specs (product_id, label, value, label_en, value_en, position)
 SELECT p.id, @label::text, @value::text,

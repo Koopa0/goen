@@ -78,9 +78,8 @@ func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) 
 			assertCouponUsage(t, ctx, desk, mux, code, 1, 10000)
 			assertRedemptionHistory(t, owner, code, ledger)
 			if n < 3 {
-				sessions, err := checkout.CancelOrder(t.Context(), number)
-				if err != nil || len(sessions) != 0 {
-					t.Fatalf("CancelOrder = %v, %v", sessions, err)
+				if err := checkout.CancelOrder(t.Context(), number); err != nil {
+					t.Fatalf("CancelOrder: %v", err)
 				}
 				if err := owner.QueryRow(ctx, `SELECT fulfillment_status FROM orders WHERE id=$1`, id).Scan(&state); err != nil {
 					t.Fatal(err)

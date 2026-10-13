@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -71,6 +72,9 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 			router.ServeHTTP(res, req)
 			if res.Code != http.StatusBadRequest {
 				t.Errorf("GET %s answered %d, want 400", target, res.Code)
+			}
+			if !strings.HasPrefix(res.Header().Get("Content-Type"), "text/html") || !strings.Contains(res.Body.String(), `class="notice__actions"`) {
+				t.Errorf("GET %s did not render the shop's error page", target)
 			}
 		}
 	}

@@ -197,6 +197,8 @@ func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 		`<tfoot><tr><th scope="row">Total</th><td>NT$10,000</td><td></td><td>NT$5,000</td></tr></tfoot>`,
 		`<p class="goen-chart__note">Counted up to 15:20.</p>`,
 		">Today<",
+		`class="goen-chart__endkey goen-chart__endkey--current"`,
+		`class="goen-chart__endkey goen-chart__endkey--previous"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("RunningTotal does not contain %s", want)

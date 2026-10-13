@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -91,7 +91,7 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?cancelinvoice=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrCancellationIncomplete):
 		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}, true
-	case errors.Is(err, refundstate.ErrIncomplete):
+	case errors.Is(err, refund.ErrIncomplete):
 		return refundOutcome{Query: "?refundretry=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrShipped):
 		return refundOutcome{Query: "?refundshipped=1", Level: slog.LevelWarn}, true
@@ -115,7 +115,7 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refundmismatch=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrInvalid):
 		return refundOutcome{Query: "?refundreason=1", Level: slog.LevelWarn}, true
-	case errors.Is(err, refundstate.ErrRefused):
+	case errors.Is(err, refund.ErrRefused):
 		return refundOutcome{Query: "?refundunsure=1", Level: slog.LevelError}, true
 	}
 	return refundOutcome{}, false
@@ -127,7 +127,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 		return true
-	case errors.Is(err, refundstate.ErrRefused):
+	case errors.Is(err, refund.ErrRefused):
 		outcome, _ := refundNotice(err)
 		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+outcome.Query, http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber

@@ -1,14 +1,17 @@
 package loyalty
 
 import (
+	"crypto/rand"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -18,13 +21,15 @@ import (
 type Handler struct {
 	store *Store
 	log   *slog.Logger
+	// Rotation discards a displayed confirmation, never a ledger entry.
+	confirmationKey string
 }
 
 func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("loyalty: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, log: log}
+	return &Handler{store: store, log: log, confirmationKey: rand.Text()}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +44,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = h.noticeFor(r, u.ID)
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
@@ -67,15 +72,17 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 		operationID = uuid.Nil
 	}
 
-	switch _, err := h.store.Redeem(
+	cents, err := h.store.Redeem(
 		r.Context(), u.ID, points, operationID,
-	); {
+	)
+	switch {
 	case err == nil:
-		http.Redirect(w, r, "/account/points?ok=1", http.StatusSeeOther)
+		token := encodeRedemptionConfirmation(h.confirmationKey, u.ID, redemptionConfirmation{OperationID: operationID, Points: points, CreditCents: cents, IssuedAt: time.Now().Unix()})
+		http.Redirect(w, r, "/account/points?redeemed="+token, http.StatusSeeOther)
 	case errors.Is(err, ErrTooSmall):
-		http.Redirect(w, r, "/account/points?small=1", http.StatusSeeOther)
+		h.renderFormRefusal(w, r, u.ID, operationID, pointsAmountReason(r))
 	case errors.Is(err, ErrInvalidOperation):
-		http.Redirect(w, r, "/account/points?badform=1", http.StatusSeeOther)
+		h.renderFormRefusal(w, r, u.ID, operationID, i18n.T(r.Context(), i18n.KeyPointsBadForm))
 	case errors.Is(err, ErrReturnUnsettled):
 		h.renderRefusal(w, r, u.ID, i18n.KeyPointsReturnUnsettled)
 	case errors.Is(err, ErrNotEnough), errors.Is(err, ErrNoAccount):
@@ -110,18 +117,40 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
-func noticeFor(r *http.Request) string {
+func (h *Handler) noticeFor(r *http.Request, owner string) string {
 	ctx := r.Context()
 	switch {
-	case r.URL.Query().Get("ok") == "1":
-		return i18n.T(ctx, i18n.KeyPointsRedeemed)
-	case r.URL.Query().Get("small") == "1":
-		return i18n.T(ctx, i18n.KeyPointsBadAmount)
-	case r.URL.Query().Get("badform") == "1":
-		return i18n.T(ctx, i18n.KeyPointsBadForm)
+	case r.URL.Query().Get("redeemed") != "":
+		result, valid := readRedemptionConfirmation(h.confirmationKey, owner, r.URL.Query().Get("redeemed"), time.Now())
+		if !valid {
+			return ""
+		}
+		return i18n.Count(ctx, i18n.KeyPointsRedeemed, result.Points, strconv.FormatInt(result.Points, 10), money.TWD(result.CreditCents))
 	case r.URL.Query().Get("short") == "1":
 		return i18n.T(ctx, i18n.KeyPointsShort)
 	default:
 		return ""
 	}
+}
+
+func pointsAmountReason(r *http.Request) string {
+	return i18n.Count(r.Context(), i18n.KeyPointsBadAmount, MinRedemption, strconv.FormatInt(MinRedemption, 10), strconv.FormatInt(PointsPerCredit, 10))
+}
+
+func (h *Handler) renderFormRefusal(w http.ResponseWriter, r *http.Request, owner string, operation uuid.UUID, reason string) {
+	view, err := h.store.History(r.Context(), owner, "")
+	if err != nil && !errors.Is(err, ErrNoAccount) {
+		h.log.ErrorContext(r.Context(), "read points after form refusal", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	raw := r.PostFormValue("points")
+	view.DraftPoints = &raw
+	view.FieldError = reason
+	if operation != uuid.Nil {
+		view.OperationID = operation.String()
+	} else {
+		view.OperationID = uuid.NewString()
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }

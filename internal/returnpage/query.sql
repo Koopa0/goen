@@ -18,8 +18,10 @@ ORDER BY ol.position, ol.id;
 
 -- The order a return is being asked for.
 -- name: OrderForReturn :one
-SELECT o.id, o.order_number, o.fulfillment_status
-FROM orders o WHERE o.order_number = $1;
+SELECT o.id, o.order_number, o.fulfillment_status, coalesce(pd.pickup_chain, '') <> '' AS pickup
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.order_number = $1;
 
 -- name: CreateReturnRequest :one
 INSERT INTO return_requests (order_id, requested_by_user_id, reason)

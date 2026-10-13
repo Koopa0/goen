@@ -28,8 +28,8 @@ var (
 	})
 
 	KeyImagePlaceholder = key("pdp.image.placeholder", Message{
-		ZhHant: "商品照待實拍素材",
-		En:     "Photography pending",
+		ZhHant: "暫無商品照片",
+		En:     "No photo yet",
 	})
 
 	KeyVariantUnavailable = key("pdp.variant.unavailable", Message{

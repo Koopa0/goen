@@ -214,9 +214,8 @@ type AddProductSpecParams struct {
 	Slug    string
 }
 
-// The position is computed IN the insert: product_specs_position_key is unique
-// on (product_id, position), so reading max(position) in Go and then writing it
-// is a race two staff members editing one product would meet.
+// Read the maximum in a separate statement after LockProductSpecAppendPosition:
+// a statement that waits for the lock keeps its pre-wait snapshot.
 func (q *Queries) AddProductSpec(ctx context.Context, arg AddProductSpecParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductSpec,
 		arg.Label,
@@ -244,6 +243,46 @@ type AddWishlistItemParams struct {
 func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams) error {
 	_, err := q.db.Exec(ctx, addWishlistItem, arg.UserID, arg.Slug)
 	return err
+}
+
+const addressForUser = `-- name: AddressForUser :one
+SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
+FROM addresses
+WHERE user_id = $1::uuid AND id = $2::uuid
+`
+
+type AddressForUserParams struct {
+	UserID    uuid.UUID
+	AddressID uuid.UUID
+}
+
+type AddressForUserRow struct {
+	ID            uuid.UUID
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	IsDefault     bool
+}
+
+func (q *Queries) AddressForUser(ctx context.Context, arg AddressForUserParams) (AddressForUserRow, error) {
+	row := q.db.QueryRow(ctx, addressForUser, arg.UserID, arg.AddressID)
+	var i AddressForUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Label,
+		&i.RecipientName,
+		&i.Phone,
+		&i.PostalCode,
+		&i.City,
+		&i.District,
+		&i.Street,
+		&i.IsDefault,
+	)
+	return i, err
 }
 
 const addressesForUser = `-- name: AddressesForUser :many
@@ -422,8 +461,31 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 }
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
-SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name
+SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units
 FROM products p
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || $2::text || '%'
        OR p.name_en ILIKE '%' || $2::text || '%'
@@ -444,8 +506,15 @@ type AdminCampaignProductSearchParams struct {
 }
 
 type AdminCampaignProductSearchRow struct {
-	Slug string
-	Name string
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
 }
 
 // Archived products are left out: a campaign on one shows nothing.
@@ -463,7 +532,17 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 	items := []AdminCampaignProductSearchRow{}
 	for rows.Next() {
 		var i AdminCampaignProductSearchRow
-		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -475,18 +554,48 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 }
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
-SELECT p.slug, p.name, cp.position
+SELECT p.slug, p.name AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units, cp.position
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
 JOIN sale_campaigns c ON c.id = cp.campaign_id
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE c.slug = $1::text
 ORDER BY cp.position, p.id
 `
 
 type AdminCampaignProductsRow struct {
-	Slug     string
-	Name     string
-	Position int32
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
+	Position             int32
 }
 
 func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([]AdminCampaignProductsRow, error) {
@@ -498,7 +607,18 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 	items := []AdminCampaignProductsRow{}
 	for rows.Next() {
 		var i AdminCampaignProductsRow
-		if err := rows.Scan(&i.Slug, &i.Name, &i.Position); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+			&i.Position,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -829,7 +949,7 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 }
 
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
-SELECT o.order_number, o.fulfillment_status, o.placed_at,
+SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
@@ -847,6 +967,7 @@ type AdminCustomerOrdersParams struct {
 }
 
 type AdminCustomerOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -868,6 +989,7 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 	for rows.Next() {
 		var i AdminCustomerOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,
@@ -1140,7 +1262,10 @@ func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([
 const adminOrderByNumber = `-- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
+    o.shipping_cents, o.discount_cents, o.tax_cents,
+    -- A missing translation retains the order's snapshot, not another locale.
+    coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+             o.shipping_method_name)::text AS shipping_method_name,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -1173,10 +1298,16 @@ SELECT
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = $1
+WHERE o.order_number = $2::text
 `
+
+type AdminOrderByNumberParams struct {
+	Locale      string
+	OrderNumber string
+}
 
 type AdminOrderByNumberRow struct {
 	ID                   uuid.UUID
@@ -1213,8 +1344,8 @@ type AdminOrderByNumberRow struct {
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
 // and the FK is ON DELETE RESTRICT, so one join always reaches it.
-func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (AdminOrderByNumberRow, error) {
-	row := q.db.QueryRow(ctx, adminOrderByNumber, orderNumber)
+func (q *Queries) AdminOrderByNumber(ctx context.Context, arg AdminOrderByNumberParams) (AdminOrderByNumberRow, error) {
+	row := q.db.QueryRow(ctx, adminOrderByNumber, arg.Locale, arg.OrderNumber)
 	var i AdminOrderByNumberRow
 	err := row.Scan(
 		&i.ID,
@@ -1313,7 +1444,12 @@ FROM (
                 WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT $2::boolean
                 THEN 'not_sent'
                 ELSE op.status END,
-           op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.completed_at,
+           CASE WHEN op.status = 'rejected' AND op.kind IN ('issue', 'allowance')
+                     AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
+                THEN substring(op.last_error FROM '[0-9]+$')
+                ELSE '' END,
+           op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = $1
@@ -1979,17 +2115,19 @@ SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r
 FROM product_reviews r
 JOIN products p ON p.id = r.product_id
 LEFT JOIN users u ON u.id = r.user_id
-WHERE (NOT $1::boolean OR (r.created_at < $2::timestamptz)
-       OR (r.created_at = $2::timestamptz AND r.id < $3::uuid))
+WHERE (NOT $1::boolean OR r.rating <= 3)
+  AND (NOT $2::boolean OR (r.created_at < $3::timestamptz)
+       OR (r.created_at = $3::timestamptz AND r.id < $4::uuid))
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type AdminReviewsParams struct {
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	ThreeStarsAndBelow bool
+	HasCursor          bool
+	AfterAt            time.Time
+	AfterID            uuid.UUID
+	RowLimit           int32
 }
 
 type AdminReviewsRow struct {
@@ -2010,6 +2148,7 @@ type AdminReviewsRow struct {
 // possible from a list that cannot show it.
 func (q *Queries) AdminReviews(ctx context.Context, arg AdminReviewsParams) ([]AdminReviewsRow, error) {
 	rows, err := q.db.Query(ctx, adminReviews,
+		arg.ThreeStarsAndBelow,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -2221,7 +2360,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
-       o.order_number, o.fulfillment_status,
+       o.id AS order_id, o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
@@ -2253,6 +2392,7 @@ type AdminSearchWarrantiesRow struct {
 	InForce           bool
 	ProductName       string
 	VariantLabel      string
+	OrderID           uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	CustomerName      string
@@ -2287,6 +2427,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 			&i.InForce,
 			&i.ProductName,
 			&i.VariantLabel,
+			&i.OrderID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.CustomerName,
@@ -3784,13 +3925,27 @@ func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, e
 
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE id = $1
-  AND fulfillment_status = 'pending'
-  AND NOT order_is_committed(id)
+WHERE orders.id = $1
+  AND orders.fulfillment_status = 'pending'
+  AND NOT order_is_committed(orders.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = orders.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = orders.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
 `
 
-// Both predicates are load-bearing: `pending` refuses a second cancellation,
-// `not committed` refuses one somebody has paid for. Run it after
+// Pending refuses a second cancellation; committed and unresolved payment
+// facts protect stock when money has arrived or may still arrive. Run it after
 // LockOrderByNumber: a capture holds the order lock without updating the row,
 // so an UPDATE that waited for it would judge payment by the snapshot taken
 // before the wait and reach the transition trigger, which store may not run.
@@ -7155,6 +7310,21 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 	return err
 }
 
+const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
+DELETE FROM sessions
+WHERE user_id = $1 AND token_hash <> $2::bytea
+`
+
+type DeleteOtherUserSessionsParams struct {
+	UserID           uuid.UUID
+	CurrentTokenHash []byte
+}
+
+func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentTokenHash)
+	return err
+}
+
 const deleteOutstandingEmailVerificationMessage = `-- name: DeleteOutstandingEmailVerificationMessage :exec
 DELETE FROM outbox_messages m
 USING email_verifications v
@@ -7825,17 +7995,24 @@ func (q *Queries) ExpiredReservations(ctx context.Context, limit int32) ([]uuid.
 }
 
 const fAQEntries = `-- name: FAQEntries :many
-SELECT localized_name(category, category_en, $1::text) AS category,
+SELECT category AS canonical_category,
+       -- Translations are optional per entry; the first available one in staff
+       -- order supplies a single label for the whole canonical category.
+       localized_name(category, first_value(category_en) OVER (
+           PARTITION BY category
+           ORDER BY category_en IS NULL, position, id
+       ), $1::text) AS category,
        localized_name(question, question_en, $1::text) AS question,
        localized_name(answer, answer_en, $1::text) AS answer
 FROM faq_entries
-ORDER BY category, position, id
+ORDER BY faq_entries.category, position, id
 `
 
 type FAQEntriesRow struct {
-	Category string
-	Question string
-	Answer   string
+	CanonicalCategory string
+	Category          string
+	Question          string
+	Answer            string
 }
 
 // The FAQ, grouped by category in the order the back office set.
@@ -7851,7 +8028,12 @@ func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRo
 	items := []FAQEntriesRow{}
 	for rows.Next() {
 		var i FAQEntriesRow
-		if err := rows.Scan(&i.Category, &i.Question, &i.Answer); err != nil {
+		if err := rows.Scan(
+			&i.CanonicalCategory,
+			&i.Category,
+			&i.Question,
+			&i.Answer,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -9615,6 +9797,18 @@ func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProduc
 	return i, err
 }
 
+const lockProductSpecAppendPosition = `-- name: LockProductSpecAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:product_specs:' || p.id::text, 628471039582915603::bigint))
+FROM products p
+WHERE p.slug = $1::text
+`
+
+func (q *Queries) LockProductSpecAppendPosition(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, lockProductSpecAppendPosition, slug)
+	return err
+}
+
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id
@@ -10074,6 +10268,24 @@ UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
 func (q *Queries) MarkSessionVerified(ctx context.Context, tokenHash []byte) error {
 	_, err := q.db.Exec(ctx, markSessionVerified, tokenHash)
 	return err
+}
+
+const markShipmentDelivered = `-- name: MarkShipmentDelivered :one
+UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
+WHERE order_id = $1 AND id = $2 AND delivered_at IS NULL
+RETURNING delivered_at
+`
+
+type MarkShipmentDeliveredParams struct {
+	OrderID    uuid.UUID
+	ShipmentID uuid.UUID
+}
+
+func (q *Queries) MarkShipmentDelivered(ctx context.Context, arg MarkShipmentDeliveredParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, markShipmentDelivered, arg.OrderID, arg.ShipmentID)
+	var delivered_at pgtype.Timestamptz
+	err := row.Scan(&delivered_at)
+	return delivered_at, err
 }
 
 const markShipmentsDelivered = `-- name: MarkShipmentsDelivered :exec
@@ -10976,21 +11188,29 @@ func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (O
 }
 
 const orderForReturn = `-- name: OrderForReturn :one
-SELECT o.id, o.order_number, o.fulfillment_status
-FROM orders o WHERE o.order_number = $1
+SELECT o.id, o.order_number, o.fulfillment_status, coalesce(pd.pickup_chain, '') <> '' AS pickup
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.order_number = $1
 `
 
 type OrderForReturnRow struct {
 	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
+	Pickup            bool
 }
 
 // The order a return is being asked for.
 func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (OrderForReturnRow, error) {
 	row := q.db.QueryRow(ctx, orderForReturn, orderNumber)
 	var i OrderForReturnRow
-	err := row.Scan(&i.ID, &i.OrderNumber, &i.FulfillmentStatus)
+	err := row.Scan(
+		&i.ID,
+		&i.OrderNumber,
+		&i.FulfillmentStatus,
+		&i.Pickup,
+	)
 	return i, err
 }
 
@@ -11568,12 +11788,42 @@ func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderR
 	return items, nil
 }
 
+const orderShipment = `-- name: OrderShipment :one
+SELECT id, carrier, tracking_number, delivered_at
+FROM order_shipments WHERE order_id = $1 AND id = $2
+`
+
+type OrderShipmentParams struct {
+	OrderID    uuid.UUID
+	ShipmentID uuid.UUID
+}
+
+type OrderShipmentRow struct {
+	ID             uuid.UUID
+	Carrier        string
+	TrackingNumber string
+	DeliveredAt    pgtype.Timestamptz
+}
+
+func (q *Queries) OrderShipment(ctx context.Context, arg OrderShipmentParams) (OrderShipmentRow, error) {
+	row := q.db.QueryRow(ctx, orderShipment, arg.OrderID, arg.ShipmentID)
+	var i OrderShipmentRow
+	err := row.Scan(
+		&i.ID,
+		&i.Carrier,
+		&i.TrackingNumber,
+		&i.DeliveredAt,
+	)
+	return i, err
+}
+
 const orderShipments = `-- name: OrderShipments :many
-SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
+SELECT id, carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
 type OrderShipmentsRow struct {
+	ID                  uuid.UUID
 	Carrier             string
 	TrackingNumber      string
 	ShippedAt           time.Time
@@ -11591,6 +11841,7 @@ func (q *Queries) OrderShipments(ctx context.Context, orderID uuid.UUID) ([]Orde
 	for rows.Next() {
 		var i OrderShipmentsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Carrier,
 			&i.TrackingNumber,
 			&i.ShippedAt,
@@ -12105,7 +12356,10 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 
 const pickingSlips = `-- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       o.id, o.order_number, o.placed_at,
+       coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+                o.shipping_method_name)::text AS shipping_method_name,
+       coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -12121,6 +12375,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(ip.donation_code, '') AS invoice_donation_code,
        coalesce(ip.tax_id, '') AS invoice_tax_id
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
@@ -12128,13 +12383,14 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                                           WHERE sl.order_line_id = ol.id), 0))
-  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
-       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
+  AND (NOT $2::boolean OR o.placed_at > $3::timestamptz
+       OR (o.placed_at = $3::timestamptz AND o.id > $4::uuid))
 ORDER BY o.placed_at, o.id
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type PickingSlipsParams struct {
+	Locale    string
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -12166,6 +12422,7 @@ type PickingSlipsRow struct {
 
 func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
 	rows, err := q.db.Query(ctx, pickingSlips,
+		arg.Locale,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -13920,6 +14177,7 @@ JOIN LATERAL (
       AND p.delivered_at IS NOT NULL
 ) parcel ON true
 WHERE ol.id = $4
+  AND o.order_number = $5::text
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
   AND $1::smallint <= (
@@ -13940,6 +14198,7 @@ type RegisterWarrantyParams struct {
 	UserID       uuid.NullUUID
 	SerialNumber string
 	OrderLineID  uuid.UUID
+	OrderNumber  string
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
@@ -13953,6 +14212,7 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 		arg.UserID,
 		arg.SerialNumber,
 		arg.OrderLineID,
+		arg.OrderNumber,
 	)
 	if err != nil {
 		return 0, err
@@ -14108,6 +14368,23 @@ WITH RECURSIVE up AS (
     SELECT id FROM up WHERE parent_id IS NULL
     UNION ALL
     SELECT c.id FROM categories c JOIN department d ON c.parent_id = d.id
+), reference_product AS (
+    SELECT p.brand_id,
+           (SELECT min(pv.price_cents) FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active) AS price_cents
+    FROM products p WHERE p.id = $2
+), reference_specs AS (
+    SELECT label, value FROM product_specs WHERE product_id = $2
+), reference_options AS (
+    SELECT o.name, v.value
+    FROM product_options o
+    JOIN product_option_values v ON v.option_id = o.id
+    WHERE o.product_id = $2
+      AND EXISTS (
+          SELECT 1 FROM variant_option_values vov
+          JOIN product_variants pv ON pv.id = vov.variant_id
+          WHERE vov.option_value_id = v.id AND pv.is_active
+      )
 )
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
@@ -14167,9 +14444,12 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
+JOIN reference_product reference ON true
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
-    SELECT price_cents, compare_at_price_cents FROM product_variants
+    SELECT price_cents, compare_at_price_cents,
+           min(price_cents) OVER () AS min_active_price_cents
+    FROM product_variants
     WHERE product_id = p.id AND is_active
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents LIMIT 1
 ) mv ON true
@@ -14184,7 +14464,27 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id IN (SELECT id FROM department)
   AND p.id <> $2
-ORDER BY (p.category_id = $3) DESC, in_stock DESC, p.published_at DESC, p.id DESC
+ORDER BY (p.category_id = $3) DESC, in_stock DESC,
+         -- A shared attribute outweighs price proximity. Without specs the
+         -- reference product keeps the existing newest-first fallback.
+         CASE WHEN EXISTS (SELECT 1 FROM reference_specs) THEN
+             2 * (SELECT count(*) FROM product_specs ps
+                  JOIN reference_specs rs ON rs.label = ps.label AND rs.value = ps.value
+                  WHERE ps.product_id = p.id)
+             + 2 * (SELECT count(*) FROM product_options o
+                    JOIN product_option_values v ON v.option_id = o.id
+                    JOIN reference_options ro ON ro.name = o.name AND ro.value = v.value
+                    WHERE o.product_id = p.id
+                      AND EXISTS (
+                          SELECT 1 FROM variant_option_values vov
+                          JOIN product_variants pv ON pv.id = vov.variant_id
+                          WHERE vov.option_value_id = v.id AND pv.is_active
+                      ))
+             + CASE WHEN p.brand_id = reference.brand_id THEN 1 ELSE 0 END
+             + coalesce(1 - abs(mv.min_active_price_cents - reference.price_cents)::numeric
+                        / greatest(mv.min_active_price_cents, reference.price_cents, 1), 0)
+         ELSE 0 END DESC,
+         p.published_at DESC, p.id DESC
 LIMIT $4::integer
 `
 
@@ -17176,7 +17476,7 @@ JOIN LATERAL (
     SELECT coalesce(sum(ol.quantity), 0) AS units, count(DISTINCT o.id) AS orders
     FROM order_lines ol
     JOIN orders o ON o.id = ol.order_id
-    JOIN committed_orders c ON c.id = o.id
+    JOIN sold_orders c ON c.id = o.id
     WHERE ol.variant_id = pv.id
       AND o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ) sold ON true
@@ -17468,21 +17768,46 @@ func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Inte
 	return result.RowsAffected(), nil
 }
 
-const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :many
 DELETE FROM outbox_messages
 WHERE delivered_at IS NULL
   AND created_at < now() - $1::interval
+RETURNING id, topic, attempts, created_at
 `
+
+type SweepUndeliveredMessagesRow struct {
+	ID        uuid.UUID
+	Topic     string
+	Attempts  int32
+	CreatedAt time.Time
+}
 
 // An undelivered message past the same window goes too: its payload can carry a
 // token that nothing will ever mail, and it may not outlive that token. Keyed on
 // created_at because available_at moves on every claim.
-func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
-	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) ([]SweepUndeliveredMessagesRow, error) {
+	rows, err := q.db.Query(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []SweepUndeliveredMessagesRow{}
+	for rows.Next() {
+		var i SweepUndeliveredMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Topic,
+			&i.Attempts,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const tOTPCredential = `-- name: TOTPCredential :one
@@ -17853,6 +18178,49 @@ func (q *Queries) UnsubscribeNewsletter(ctx context.Context, unsubscribeToken st
 	return email, err
 }
 
+const updateAddress = `-- name: UpdateAddress :execrows
+UPDATE addresses
+SET label = $1::text,
+    recipient_name = $2::text,
+    phone = $3::text,
+    postal_code = $4::text,
+    city = $5::text,
+    district = $6::text,
+    street = $7::text
+WHERE user_id = $8::uuid AND id = $9::uuid
+`
+
+type UpdateAddressParams struct {
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	UserID        uuid.UUID
+	AddressID     uuid.UUID
+}
+
+// Keeping is_default out of the edit preserves a concurrent default selection.
+func (q *Queries) UpdateAddress(ctx context.Context, arg UpdateAddressParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateAddress,
+		arg.Label,
+		arg.RecipientName,
+		arg.Phone,
+		arg.PostalCode,
+		arg.City,
+		arg.District,
+		arg.Street,
+		arg.UserID,
+		arg.AddressID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateFAQEntry = `-- name: UpdateFAQEntry :execrows
 UPDATE faq_entries
 SET question = $1::text, answer = $2::text,
@@ -17905,7 +18273,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = $11
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed')
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed', 'cancelled')
 `
 
 type UpdateOrderDeliveryParams struct {

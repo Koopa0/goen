@@ -203,6 +203,8 @@ var (
 		En:     "Your password is reset. Sign in with the new one.",
 	})
 
+	KeyPasswordChanged = key("auth.password.changed", Message{ZhHant: "你的密碼已變更。請使用新密碼登入。", En: "Your password is changed. Sign in with the new one."})
+
 	KeyDemoAccount = key("auth.demo", Message{ZhHant: "示範帳號", En: "Demo account"})
 
 	KeyDemoAccountShared = key("auth.demo.shared", Message{
@@ -228,4 +230,6 @@ var (
 	KeySignInReturnPage            = key("auth.return.page", Message{ZhHant: "請先登入，登入後會回到你剛剛開啟的頁面。", En: "Please sign in. You will return to the page you opened after signing in."})
 	KeyDemoSignInPassword          = key("auth.demo.password", Message{ZhHant: "示範帳號只能用帳號密碼登入。", En: "Sign in to the demo account with its email address and password."})
 	KeyDemoPasswordNoReset         = key("auth.demo.reset", Message{ZhHant: "示範帳號的密碼不能重設。", En: "The demo account password cannot be reset."})
+
+	KeyGoogleUnavailable = key("auth.google.unavailable", Message{ZhHant: "Google 登入目前未開放。請用電子郵件和密碼登入。", En: "Google sign-in is unavailable. Sign in with your email address and password."})
 )

@@ -329,6 +329,7 @@ templ productBuy(v *ProductView) {
 								hx-get={ val.Href }
 								hx-select="#buybox"
 								hx-target="#buybox"
+								hx-sync="#buybox:replace"
 								hx-select-oob={ v.ChoiceSwap() }
 								hx-swap="outerHTML"
 								hx-push-url="true"

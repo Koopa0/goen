@@ -143,7 +143,7 @@ var (
 	KeyNoPhoto = key("card.nophoto", Message{ZhHant: "沒有照片", En: "No photo"})
 
 	// KeyColourCount is said to a screen reader, which cannot see the dots.
-	KeyColourCount = key("card.colours", Message{ZhHant: "%d 種顏色", En: "%d colours"})
+	KeyColourCount = countKey("card.colours", "%d 種顏色", "%d colour", "%d colours")
 
 	KeyRatingSummary = countKey("card.rating",
 		"評分 %s 分，共 %s 則評價",

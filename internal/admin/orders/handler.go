@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -48,6 +47,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))
+	mux.HandleFunc("POST /admin/orders/{number}/shipments/{shipment}/delivered", ac.RequireStaff(h.DeliverShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/note", ac.RequireStaff(h.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", ac.RequireStaff(h.CorrectDelivery))
 }
@@ -88,10 +88,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderHead),
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderBody)))
+			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
+				admin.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
@@ -294,6 +293,7 @@ var notices = map[string]web.NoticeEntry{
 	"ok":              web.Done(i18n.KeyAdminNoticeOK),
 	"refused":         web.Refused(i18n.KeyAdminNoticeRefused),
 	"shipped":         web.Done(i18n.KeyAdminNoticeShipped),
+	"parceldelivered": web.Done(i18n.KeyAdminNoticeShipmentDelivered),
 	"toolate":         web.Refused(i18n.KeyAdminNoticeTooLate),
 	"deliveryneeds":   web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
 	"paidcancel":      web.Refused(i18n.KeyAdminNoticePaidCancel),

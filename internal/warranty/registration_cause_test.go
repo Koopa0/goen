@@ -29,7 +29,7 @@ func TestRegistrationRefusalIdentifiesTheFirstInvalidArgument(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Every case is refused before a database query; no fake store is needed.
-			err := (&Store{}).Register(t.Context(), tt.line, tt.owner, tt.serial, tt.unit)
+			err := (&Store{}).Register(t.Context(), "20261010-000001", tt.line, tt.owner, tt.serial, tt.unit)
 			type causes struct{ Invalid, SerialTooLong, NotFound bool }
 			want := causes{tt.invalid, tt.serialTooLong, tt.notFound}
 			got := causes{errors.Is(err, ErrInvalid), errors.Is(err, ErrSerialTooLong), errors.Is(err, ErrNotFound)}

@@ -28,6 +28,7 @@ import (
 // which decides whether an unpaid order offers 付款.
 type CartFinder interface {
 	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error)
+	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
 	TakesPayment() bool
@@ -137,6 +138,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	case r.URL.Query().Get("changed") == "1":
+		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordChanged)
 	case r.URL.Query().Get("reauth") == "erase":
 		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
 		view.HideRegister = true
@@ -431,6 +434,21 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
 }
 
+func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
+	u, ok := user.FromContext(r.Context())
+	currentToken := ReadSessionCookie(r, h.secure)
+	if !ok || currentToken == "" {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
+		h.log.ErrorContext(r.Context(), "end other sessions", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	http.Redirect(w, r, "/account?other_devices=signed_out", http.StatusSeeOther)
+}
+
 func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.EndSession(r.Context(), ReadSessionCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
@@ -517,6 +535,13 @@ func accountNotice(r *http.Request) string {
 	case q.Get("demo") == "fixed":
 		return i18n.T(ctx, i18n.KeyDemoAccountFixed)
 	}
+	return otherDevicesNotice(r)
+}
+
+func otherDevicesNotice(r *http.Request) string {
+	if r.URL.Query().Get("other_devices") == "signed_out" {
+		return i18n.T(r.Context(), i18n.KeyOtherDevicesSignedOut)
+	}
 	return ""
 }
 
@@ -525,13 +550,24 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
+	var contents pages.CartRecoveryContents
+	if h.carts != nil {
+		var err error
+		contents, err = h.carts.RecoveryContents(r.Context(), r)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "read carts for recovery", "error", err)
+			h.serverError(w, r)
+			return
+		}
+	}
 	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
 	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
 		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
-			Next:    next,
-			Welcome: r.URL.Query().Get("welcome") == "1",
-			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
-			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Next:     next,
+			Welcome:  r.URL.Query().Get("welcome") == "1",
+			Notice:   i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:    i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Contents: contents,
 		}))
 }
 
@@ -621,7 +657,11 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if errors.Is(err, ErrQuantityAdjusted) {
 		return cartAdoptionAdjusted
 	}
-	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	if errors.Is(err, ErrCartMergeRefused) || errors.Is(err, ErrNotFound) {
+		h.log.WarnContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	} else {
+		h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	}
 	return cartAdoptionFailed
 }
 
@@ -750,6 +790,92 @@ func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Addre
 			v.Notice = notice
 		}
 	})
+}
+
+func (h *Handler) EditAddress(w http.ResponseWriter, r *http.Request) {
+	u, ok := user.FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	a, err := h.store.addressForUser(r.Context(), u.ID, r.PathValue("address"))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.addressNotFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "read address for edit", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	h.overview(w, r, http.StatusOK, func(v *pages.AccountView) {
+		v.AddressDraft = &pages.AddressDraft{
+			ID: a.ID, Label: a.Label, Name: a.Name, Phone: a.Phone,
+			PostalCode: a.PostalCode, City: a.City, District: a.District, Street: a.Street, Default: a.Default,
+		}
+	})
+}
+
+func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
+	u, ok := user.FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	saved, err := h.store.addressForUser(r.Context(), u.ID, r.PostFormValue("address"))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.addressNotFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "read address before edit", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	a := &Address{
+		Label: r.PostFormValue("label"), Name: r.PostFormValue("name"),
+		Phone: r.PostFormValue("phone"), PostalCode: r.PostFormValue("postal_code"),
+		City: r.PostFormValue("city"), District: r.PostFormValue("district"),
+		Street: r.PostFormValue("street"), Default: saved.Default,
+	}
+	bounded := *a
+	bounded.Trim()
+	if errs := bounded.Validate(); len(errs) > 0 {
+		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), errs))
+		return
+	}
+	switch err := h.store.updateAddress(r.Context(), u.ID, saved.ID, &bounded); {
+	case err == nil:
+		http.Redirect(w, r, "/account?saved=1#addresses-heading", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.addressNotFound(w, r)
+	case errors.Is(err, ErrInvalidInput):
+		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), bounded.Validate()))
+	default:
+		h.log.ErrorContext(r.Context(), "update address", "error", err)
+		h.serverError(w, r)
+	}
+}
+
+func (h *Handler) refuseAddressEdit(w http.ResponseWriter, r *http.Request, id string, a *Address, errs map[string]string) {
+	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
+		v.AddressDraft = &pages.AddressDraft{
+			ID: id, Label: a.Label, Name: a.Name, Phone: a.Phone, PostalCode: a.PostalCode,
+			City: a.City, District: a.District, Street: a.Street, Default: a.Default,
+		}
+		v.AddressErrors = errs
+	})
+}
+
+func (h *Handler) addressNotFound(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)}, "404",
+		i18n.T(r.Context(), i18n.KeyPageNotFound), i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
+		pages.NoticeActions{Primary: pages.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
 }
 
 func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
@@ -1179,7 +1305,7 @@ func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 
 func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
-		http.NotFound(w, r)
+		h.googleUnavailable(w, r)
 		return
 	}
 	if retryAfter, ok := h.signinLimit.Allow("oauth:" + ratelimit.ClientKey(r)); !ok {
@@ -1202,7 +1328,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 // error page: the customer is mid-sign-in.
 func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
-		http.NotFound(w, r)
+		h.googleUnavailable(w, r)
 		return
 	}
 	state, ok := readOAuthState(r, h.secure)
@@ -1258,6 +1384,13 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	next := state.Next
 	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
+		i18n.T(r.Context(), i18n.KeySignIn), i18n.T(r.Context(), i18n.KeyGoogleUnavailable),
+		pages.NoticeActions{Primary: pages.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
 }
 
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {

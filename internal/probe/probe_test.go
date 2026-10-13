@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -14,71 +13,38 @@ type stubPinger struct{ err error }
 
 func (p stubPinger) Ping(context.Context) error { return p.err }
 
-func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
-	down := errors.New("dial tcp 127.0.0.1:59999: connect: connection refused")
-
-	tests := []struct {
+func TestReadinessDependsOnTheStorefrontPool(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
 		name       string
-		storefront error
-		admin      error
+		err        error
 		wantStatus int
 		wantBody   string
 	}{
-		{
-			name: "both reachable", wantStatus: http.StatusOK, wantBody: "ready",
-		},
-		{
-			name: "storefront down", storefront: down,
-			wantStatus: http.StatusServiceUnavailable, wantBody: "storefront",
-		},
-		{
-			name: "admin down", admin: down,
-			wantStatus: http.StatusServiceUnavailable, wantBody: "admin",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler(slog.New(slog.DiscardHandler),
-				Dependency{Name: "storefront", DB: stubPinger{err: tt.storefront}},
-				Dependency{Name: "admin", DB: stubPinger{err: tt.admin}},
-			)
-
-			w := httptest.NewRecorder()
-			h.Ready(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", http.NoBody))
-
-			if w.Code != tt.wantStatus {
-				t.Errorf("Ready() status = %d, want %d", w.Code, tt.wantStatus)
+		{"reachable", nil, http.StatusOK, "ready\n"},
+		{"unreachable", errors.New("connection refused"), http.StatusServiceUnavailable, "storefront database unreachable\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := NewHandler(slog.New(slog.DiscardHandler), stubPinger{err: tc.err})
+			res := httptest.NewRecorder()
+			h.Ready(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
+			if res.Code != tc.wantStatus || res.Body.String() != tc.wantBody {
+				t.Errorf("Ready = %d %q, want %d %q", res.Code, res.Body.String(), tc.wantStatus, tc.wantBody)
 			}
-			if body := w.Body.String(); !strings.Contains(body, tt.wantBody) {
-				t.Errorf("Ready() body = %q, want it to mention %q", body, tt.wantBody)
+			if res.Header().Get("Cache-Control") != "no-store" || res.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+				t.Errorf("Ready headers = %v, want uncached plain text", res.Header())
 			}
 		})
 	}
 }
 
-func TestNewHandlerOwnsItsValidatedDependencies(t *testing.T) {
-	deps := []Dependency{{Name: "storefront", DB: stubPinger{}}}
-	h := NewHandler(slog.New(slog.DiscardHandler), deps...)
-
-	deps[0] = Dependency{DB: stubPinger{err: errors.New("caller mutation")}}
-
-	w := httptest.NewRecorder()
-	h.Ready(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", http.NoBody))
-	if w.Code != http.StatusOK {
-		t.Errorf("Ready() status after caller mutated its input = %d, want %d", w.Code, http.StatusOK)
-	}
-}
-
 func TestLivenessIgnoresTheDatabase(t *testing.T) {
-	h := NewHandler(slog.New(slog.DiscardHandler),
-		Dependency{Name: "storefront", DB: stubPinger{err: errors.New("down")}},
-	)
-
-	w := httptest.NewRecorder()
-	h.Live(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody))
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Live() status = %d with the database down, want %d — a liveness "+
-			"probe that tests the database restarts a healthy process", w.Code, http.StatusOK)
+	t.Parallel()
+	h := NewHandler(slog.New(slog.DiscardHandler), stubPinger{err: errors.New("down")})
+	res := httptest.NewRecorder()
+	h.Live(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
+	if res.Code != http.StatusOK || res.Body.String() != "ok\n" {
+		t.Errorf("Live with the database down = %d %q, want 200 ok", res.Code, res.Body.String())
 	}
 }

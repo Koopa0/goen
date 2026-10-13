@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,51 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestReturnInspectionCountsRestockedUnitsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, count := range []int32{0, 1, 2, 1000} {
+			t.Run(fmt.Sprintf("%s/%d", locale, count), func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				rendered := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returns.StatusApproved, Window: "within",
+						Lines: []ReturnLine{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
+				}))
+				want := fmt.Sprintf("Inspection finished — %d units went back into stock.", count)
+				if count == 1 {
+					want = "Inspection finished — 1 unit went back into stock."
+				}
+				if locale == i18n.ZhHant {
+					want = fmt.Sprintf("驗貨已完成，共 %d 件回到庫存。", count)
+				}
+				if !strings.Contains(rendered, want) {
+					t.Errorf("inspection notice does not contain %q", want)
+				}
+			})
+		}
+	}
+}
+
+func TestSellerFactsCountUnitsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, count := range []int64{0, 1, 2, 1000} {
+			want := fmt.Sprintf("%d units sold", count)
+			if count == 1 {
+				want = "1 unit sold"
+			}
+			if locale == i18n.ZhHant {
+				want = fmt.Sprintf("售出 %d 件", count)
+			}
+			got := (Seller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
+			if !strings.Contains(got, want) {
+				t.Errorf("Facts(%s, %d) = %q, want %q", locale, count, got, want)
+			}
+		}
+	}
+}
 
 func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
 	t.Parallel()
@@ -57,7 +103,7 @@ func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
 				}
 			}
 			for _, returnID := range []string{"return-a", "return-b"} {
-				action := "/admin/returns/" + returnID + "/inspect"
+				action := "/admin/returns/" + returnID + "/inspect#inspect-" + returnID
 				form := forms[action]
 				if form == nil {
 					t.Fatalf("inspection form %q is missing", action)
@@ -441,6 +487,83 @@ func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the decision form no longer carries %s", want)
+		}
+	}
+}
+
+func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name       string
+			window     returns.PolicyWindow
+			lines      []ReturnLine
+			wantReject bool
+		}{
+			{name: "undelivered", window: returns.WindowUndelivered},
+			{name: "statutory", window: returns.WindowStatutory},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowLate}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowGoodwill}}},
+			{name: "goodwill", window: returns.WindowGoodwill, wantReject: true},
+			{name: "late", window: returns.WindowLate, wantReject: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				page := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
+				}))
+				if got := strings.Contains(page, `name="decision" value="rejected"`); got != tt.wantReject {
+					t.Errorf("queue offers Reject = %t, want %t", got, tt.wantReject)
+				}
+			})
+		}
+	}
+}
+
+func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name             string
+			window           returns.PolicyWindow
+			lines            []ReturnLine
+			wantAssessment   bool
+			wantException    bool
+			wantGoodwillHint bool
+		}{
+			{name: "undelivered", window: returns.WindowUndelivered, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}}},
+			{name: "statutory", window: returns.WindowStatutory, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}}},
+			{name: "mixed statutory undelivered", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowUndelivered}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed statutory goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				page := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
+				}))
+				if !strings.Contains(page, `name="decision" value="approved"`) {
+					t.Error("the queue does not offer ordinary approval")
+				}
+				for _, item := range []struct {
+					name string
+					text string
+					want bool
+				}{
+					{name: "assessment", text: `action="/admin/returns/open-row/assess"`, want: tt.wantAssessment},
+					{name: "exception", text: `name="decision" value="exception"`, want: tt.wantException},
+					{name: "goodwill hint", text: i18n.T(ctx, i18n.KeyAdminRetGoodwillHint), want: tt.wantGoodwillHint},
+				} {
+					if got := strings.Contains(page, item.text); got != item.want {
+						t.Errorf("queue offers %s = %t, want %t", item.name, got, item.want)
+					}
+				}
+				if tt.window == returns.WindowMixed && !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)) {
+					t.Error("the mixed request lost its factual window label")
+				}
+			})
 		}
 	}
 }
