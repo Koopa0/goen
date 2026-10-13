@@ -117,6 +117,7 @@ type ProductReview struct {
 	Body     string
 	Author   string
 	Verified bool
+	Own      bool
 	Date     shoptime.Date
 }
 
@@ -171,7 +172,9 @@ type ProductView struct {
 	Campaign ProductCampaign
 
 	SelectionOK bool
-	Exact       bool
+	// FallbackPrice keeps catalogue pricing visible without making an unknown combination purchasable.
+	FallbackPrice bool
+	Exact         bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
 	PriceVaries         bool
 	AnySellable         bool
@@ -299,7 +302,7 @@ func (v *ProductView) InStock() bool {
 	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
 }
 
-func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
+func (v *ProductView) NeedsChoice() bool { return (v.SelectionOK || v.FallbackPrice) && !v.Exact }
 
 func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
@@ -380,6 +383,27 @@ type ReviewDraft struct {
 }
 
 func (d ReviewDraft) IsRating(n int) bool { return d.Rating == n }
+
+func (v *ProductView) reviewBodyDescribedBy() string {
+	if v.HasReviewErr("body") {
+		return "review-body-error"
+	}
+	return "review-body-hint"
+}
+
+func (v *ProductView) askBodyDescribedBy() string {
+	if v.AskRefused() {
+		return "ask-body-hint ask-body-error"
+	}
+	return "ask-body-hint"
+}
+
+func (v *ProductView) askBodyAttrs(attrs templ.Attributes) templ.Attributes {
+	if !v.AskRefused() {
+		attrs["aria-describedby"] = v.askBodyDescribedBy()
+	}
+	return attrs
+}
 
 // ReviewBodyMaxRunes is the same number as product.MaxReviewBodyRunes.
 const ReviewBodyMaxRunes = 2000
@@ -487,7 +511,9 @@ func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
 
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
-func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
+func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskTooLong() }
+
+func (v *ProductView) AskTooLong() bool { return v.AskOutcome == "long" }
 
 // AddOutcome is carried in ?added= back to the page the form was on.
 type AddOutcome string
@@ -512,7 +538,7 @@ func (v *ProductView) AddRefused() bool {
 
 func (v *ProductView) CartFull() bool { return v.AddedOutcome == AddOutcomeFull }
 
-func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }
+func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions#questions" }
 
 // AskSignInHref writes the hash as %23 in the query so it is part of next, not a fragment on /signin.
 func (v *ProductView) AskSignInHref() string {
@@ -540,6 +566,10 @@ func (v *ProductView) CompareHref() string {
 
 func (v *ProductView) AlreadyComparing() bool {
 	return slices.Contains(v.Comparing, v.Slug)
+}
+
+func (v *ProductView) CurrentCompareHref() string {
+	return "/compare?" + url.Values{"p": v.Comparing}.Encode()
 }
 
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }

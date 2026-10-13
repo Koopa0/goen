@@ -2,14 +2,23 @@ package pages
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 type ForgotView struct {
 	// Sent is true for any address, so accounts cannot be enumerated.
-	Sent   bool
-	Notice string
+	Sent    bool
+	Address string
+	Notice  string
+}
+
+func (v ForgotView) SentMessage(ctx context.Context) string {
+	if v.Address != "" {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyForgotSentTo), v.Address)
+	}
+	return i18n.T(ctx, i18n.KeyForgotSent)
 }
 
 type ResetView struct {

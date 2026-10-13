@@ -142,8 +142,9 @@ func TestRelatedProductsRankContentBeforeRecency(t *testing.T) {
 			defer pgtx.Rollback(ctx, tx)
 
 			var categoryID, brandID uuid.UUID
-			if err := tx.QueryRow(ctx, `INSERT INTO categories (slug, name)
-				VALUES ($1, 'Ranking') RETURNING id`, "ranking-"+uuid.NewString()).Scan(&categoryID); err != nil {
+			if err := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, position)
+				SELECT $1, 'Ranking', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL
+				RETURNING id`, "ranking-"+uuid.NewString()).Scan(&categoryID); err != nil {
 				t.Fatal(err)
 			}
 			if err := tx.QueryRow(ctx, `INSERT INTO brands (slug, name)

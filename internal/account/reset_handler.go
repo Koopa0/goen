@@ -3,6 +3,7 @@ package account
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -18,7 +19,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
-	view := pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1"}
+	view := pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1", Address: email.ReadMasked(r.URL.Query().Get("address"))}
 	if r.URL.Query().Get("demo") == "fixed" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
 	}
@@ -55,7 +56,11 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
+	destination := "/forgot?sent=1"
+	if masked := email.Mask(normalised); masked != "" {
+		destination = "/forgot?" + url.Values{"sent": {"1"}, "address": {masked}}.Encode()
+	}
+	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
 
 // ResetPage does not check the token: that would tell a guesser it is real.

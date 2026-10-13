@@ -83,7 +83,7 @@ func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 
 		frame := strings.Index(html, `<div class="goen-admin">`)
 		rail := strings.Index(html, "goen-admin__nav")
-		column := strings.Index(html, `<div class="goen-admin__main">`)
+		column := strings.Index(html, `class="goen-admin__main"`)
 		work := strings.Index(html, `class="ui-page-head"`)
 		if frame < 0 || rail < 0 || column < 0 || work < 0 {
 			t.Fatalf("%s: rendered no back-office frame at all (frame=%d rail=%d "+
@@ -96,7 +96,7 @@ func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 				"the rail and the grid puts the rail on a row of its own",
 				name, frame, rail, column, work)
 		}
-		if n := strings.Count(html, `<div class="goen-admin__main">`); n != 1 {
+		if n := strings.Count(html, `class="goen-admin__main"`); n != 1 {
 			t.Errorf("%s: %d content columns, want exactly 1 — a second one is a "+
 				"second grid child and the same defect one level down", name, n)
 		}

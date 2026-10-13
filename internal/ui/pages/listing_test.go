@@ -413,7 +413,7 @@ func TestQAAskSurface(t *testing.T) {
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
 		PriceCents: 3690000,
 	}
-	askAction := `action="/p/pixelight-9-pro/questions"`
+	askAction := `action="/p/pixelight-9-pro/questions#questions"`
 	signInHint := i18n.T(ctx, i18n.KeySignInToAsk)
 
 	out := base
@@ -629,6 +629,46 @@ func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("the search lacks %q:\n%s", want, html)
 		}
+	}
+}
+
+func TestSearchKeepsFailedSortFeedbackOutsideResults(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+		text   string
+	}{
+		{name: "english", locale: i18n.En, text: "We cannot show the product list right now. Please try again shortly."},
+		{name: "traditional chinese", locale: i18n.ZhHant, text: "商品列表暫時無法顯示，請稍後再試。"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			view := SearchView{Query: "pro", Products: shelf(2), Total: 2, Page: 1, PageSize: 24}
+			page := renderComponent(t, ctx, Search(SearchMeta(ctx, view.Query), view))
+			const errorID = `id="goen-search-sort-error"`
+			if got := strings.Count(page, errorID); got != 1 {
+				t.Fatalf("Search() error region count = %d, want 1", got)
+			}
+			want := `<p id="goen-search-sort-error" class="goen-filters__error" role="alert" hidden>` + tt.text + `</p>`
+			if !strings.Contains(page, want) {
+				t.Fatalf("Search() lacks the initially hidden localized alert %q", want)
+			}
+			_, afterForm, ok := strings.Cut(page, `<form class="goen-search-sort"`)
+			if !ok {
+				t.Fatal("Search() has no sort form")
+			}
+			_, afterForm, ok = strings.Cut(afterForm, `</form>`)
+			if !ok {
+				t.Fatal("Search() has no closing sort form")
+			}
+			beforeResults, _, ok := strings.Cut(afterForm, `<div id="search-results">`)
+			if !ok || !strings.Contains(beforeResults, want) {
+				t.Error("Search() alert is not between the sort form and replaceable results")
+			}
+		})
 	}
 }
 

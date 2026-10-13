@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 type Store struct {
@@ -96,6 +97,13 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 	if view.SelectionOK {
 		s.showChosenVariant(ctx, &view, &chosen)
+	} else {
+		fallback, _ := Resolve(variants, nil)
+		view.FallbackPrice = fallback.SKU != ""
+		view.PriceCents = fallback.PriceCents
+		view.PriceVaries = dearerThan(fallback.PriceCents, variants)
+		// A new choice must not carry the impossible combination into its next URL.
+		sel = nil
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -303,6 +311,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	if err != nil {
 		return fmt.Errorf("read reviews of %q: %w", p.Slug, err)
 	}
+	viewer, signedIn := user.FromContext(ctx)
 	for _, r := range reviews {
 		view.Reviews = append(view.Reviews, pages.ProductReview{
 			Rating:   int(r.Rating),
@@ -310,6 +319,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
+			Own:      signedIn && r.UserID.Valid && r.UserID.UUID.String() == viewer.ID,
 			Date:     shoptime.DateOf(r.CreatedAt, s.now()),
 		})
 	}

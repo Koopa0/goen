@@ -33,6 +33,8 @@ var (
 
 	KeyBackToShop = key("nav.back", Message{ZhHant: "回到商店", En: "Back to the shop"})
 
+	KeyCheckInbox = key("mail.check_inbox", Message{ZhHant: "請到信箱收信", En: "Check your inbox"})
+
 	// The mirror of KeyBackToShop: that one leaves the back office, this one
 	// enters it. Two keys rather than one reused label, because the storefront's
 	// entrance and the admin chrome's own eyebrow are different sentences that
@@ -71,8 +73,8 @@ var (
 	KeyTermsPolicy = key("footer.terms", Message{ZhHant: "服務條款", En: "Terms"})
 
 	KeyContentNotice = key("notice.content", Message{
-		ZhHant: "部分商品說明只有繁體中文。",
-		En:     "Some product descriptions are in Traditional Chinese only.",
+		ZhHant: "部分商品說明只有繁體中文。政策文件的中英文版本如有不同，以繁體中文版為準。",
+		En:     "Some product descriptions are in Traditional Chinese only. Where the English and Traditional Chinese policies differ, the Traditional Chinese version applies.",
 	})
 )
 

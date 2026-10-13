@@ -105,6 +105,8 @@ templ Product(p layouts.Page, v *ProductView) {
 						}
 					</ul>
 				</section>
+			} else if v.CategorySlug != "" {
+				<p><a href={ templ.URL("/c/" + v.CategorySlug) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseCategory), v.CategoryName) } <span aria-hidden="true">&rarr;</span></a></p>
 			}
 			if v.HasRecommendations() {
 				<section class="goen-pdp__also" aria-labelledby="also-heading">
@@ -236,11 +238,7 @@ templ productBuy(v *ProductView) {
 			<div class="goen-pdp__titlerow">
 				<h1 class="goen-pdp__title">{ v.Name }</h1>
 				if v.SelectionOK {
-					if v.LowStock() {
-						@components.Badge(components.BadgeProps{}) {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
-						}
-					} else if v.InStock() {
+					if v.InStock() {
 						@components.Badge(components.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeyInStock) }
 						}
@@ -262,7 +260,7 @@ templ productBuy(v *ProductView) {
 				</a>
 			}
 		</div>
-		if v.SelectionOK {
+		if v.SelectionOK || v.FallbackPrice {
 			<div class="goen-pdp__pricebox">
 				<span class="goen-pdp__price">
 					if v.PriceFrom() {
@@ -303,6 +301,8 @@ templ productBuy(v *ProductView) {
 					<legend class="goen-pdp__optname">
 						if o.SelectedLabel() != "" {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+						} else if o.HasSwatches() {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ i18n.T(ctx, i18n.KeyOptionChoose) }</span>
 						} else {
 							{ o.Label }
 						}
@@ -349,12 +349,14 @@ templ productBuy(v *ProductView) {
 											<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
 										}
 									</svg>
-									<span class="goen-sr-only">{ val.Label }</span>
+									<span class="goen-swatch__label">{ val.Label }</span>
+								} else if !val.Available {
+									<s>{ val.Label }</s>
 								} else {
 									{ val.Label }
 								}
 								if !val.Available {
-									if v.AllSoldOut() && !o.HasSwatches() {
+									if !o.HasSwatches() {
 										<small class="goen-swatch__note">{ v.ValueSoldOut(ctx) }</small>
 									} else {
 										<span class="goen-sr-only">{ v.ValueSoldOut(ctx) }</span>
@@ -451,17 +453,22 @@ templ productAddForm(v *ProductView) {
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
+			if v.CanBuy() && v.LowStock() {
+				<p class="goen-pdp__lowstock">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }</p>
+			}
 			<div class="goen-pdp__buyrow">
-				@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
-					{ i18n.T(ctx, i18n.KeyQuantity) }
+				if !v.SoldOut() && !v.AllSoldOut() {
+					@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
+						{ i18n.T(ctx, i18n.KeyQuantity) }
+					}
+					@components.Stepper(components.StepperProps{
+						ID: "quantity", Name: "quantity", Value: "1",
+						Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
+						DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+						IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
+						Class:         "goen-pdp__qty",
+					})
 				}
-				@components.Stepper(components.StepperProps{
-					ID: "quantity", Name: "quantity", Value: "1",
-					Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
-					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
-					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
-					Class:         "goen-pdp__qty",
-				})
 				@components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStylePrimary,
 					Class:       "goen-pdp__add",
@@ -558,7 +565,10 @@ templ productCompare(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyViewCompare) }
 				}
 			} else {
-				<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
+				<p class="goen-pdp__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }
+					<a href={ templ.SafeURL(v.CurrentCompareHref()) }>{ i18n.T(ctx, i18n.KeyViewCompare) }</a>
+				</p>
 			}
 		</div>
 	}
@@ -632,6 +642,11 @@ templ productReviews(v *ProductView) {
 						<article class="goen-pdp__review">
 							<div class="goen-pdp__reviewhead">
 								<span class="goen-pdp__reviewname">{ r.DisplayAuthor(ctx) }</span>
+								if r.Own {
+									@components.Badge(components.BadgeProps{}) {
+										{ i18n.T(ctx, i18n.KeyYourReview) }
+									}
+								}
 								<span class="goen-pdp__reviewstars" aria-hidden="true">
 									@ratingStars(r.Rating * 2)
 								</span>
@@ -718,16 +733,21 @@ templ askForm(v *ProductView) {
 				}
 				@components.Textarea(components.FieldProps{
 					ID: "ask-body", Name: "body",
-					Invalid: v.AskRefused(), Describes: "ask-body-error",
-					Attrs: templ.Attributes{
+					Invalid: v.AskRefused(), Describes: v.askBodyDescribedBy(),
+					Attrs: v.askBodyAttrs(templ.Attributes{
 						"rows": "3", "required": true, "maxlength": "300",
 						"placeholder": i18n.T(ctx, i18n.KeyAskPlaceholder),
-					},
+					}),
 				}) {
 					{ v.AskDraft }
 				}
+				<p class="goen-pdp__reviewnote" id="ask-body-hint">{ i18n.T(ctx, i18n.KeyAskLengthHint) }</p>
 				if v.AskRefused() {
-					<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
+					if v.AskTooLong() {
+						<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionTooLong) }</p>
+					} else {
+						<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
+					}
 				}
 			</div>
 			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
@@ -738,15 +758,13 @@ templ askForm(v *ProductView) {
 }
 
 templ reviewForm(v *ProductView) {
-	if v.ReviewStanding == ReviewSignedOut {
-		<p class="goen-pdp__reviewnote">
-			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToReview) }
-		</p>
-	} else if v.ReviewStanding == ReviewNotDelivered {
+	if v.ReviewStanding == ReviewNotDelivered && len(v.ReviewErrors) == 0 {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
 	} else if v.ReviewStanding == ReviewAlreadyWritten {
-		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
-	} else {
+		if !v.ReviewPosted {
+			<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
+		}
+	} else if v.ReviewStanding != ReviewSignedOut {
 		<div class="goen-pdp__reviewform">
 			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
@@ -780,8 +798,12 @@ templ reviewForm(v *ProductView) {
 					}
 					@components.Input(components.FieldProps{
 						ID: "review-title", Name: "title", Value: v.ReviewDraft.Title,
+						Invalid: v.HasReviewErr("title"), Describes: "review-title-error",
 						Attrs: templ.Attributes{"maxlength": "80"},
 					})
+					if v.HasReviewErr("title") {
+						<p class="ui-error-text" id="review-title-error">{ v.ReviewErr("title") }</p>
+					}
 				</div>
 				<div class="goen-field">
 					@components.Label(components.LabelProps{For: "review-body"}) {
@@ -789,14 +811,15 @@ templ reviewForm(v *ProductView) {
 					}
 					@components.Textarea(components.FieldProps{
 						ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
-						Invalid: v.HasReviewErr("body"), Describes: "review-body-error review-body-hint",
+						Invalid: v.HasReviewErr("body"), Describes: v.reviewBodyDescribedBy(),
 						Attrs: v.reviewBodyAttrs(),
 					}) {
 						{ v.ReviewDraft.Body }
 					}
-					<p class="goen-pdp__reviewnote" id="review-body-hint">{ v.ReviewBodyHint(ctx) }</p>
 					if v.HasReviewErr("body") {
 						<p class="ui-error-text" id="review-body-error">{ v.ReviewErr("body") }</p>
+					} else {
+						<p class="goen-pdp__reviewnote" id="review-body-hint">{ v.ReviewBodyHint(ctx) }</p>
 					}
 				</div>
 				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {

@@ -82,12 +82,20 @@ var (
 	})
 
 	KeyEmailSent = key("account.notice.email.sent", Message{
-		ZhHant: "確認信已寄出，請到信箱點一下連結。",
-		En:     "Confirmation sent. Follow the link in it to finish.",
+		ZhHant: "如果這個信箱可以用於你的帳號，請到信箱開啟確認連結，點過才會生效。",
+		En:     "If that address can be used for your account, check its inbox for the confirmation link. It takes effect after you follow the link.",
 	})
 
 	KeyEmailInvalidNotice = key("account.notice.email.invalid", Message{
 		ZhHant: "信箱格式看起來不正確。",
 		En:     "That does not look like an email address.",
 	})
+)
+
+var (
+	KeyEmailSentTo = key("account.notice.email.sent.to", Message{
+		ZhHant: "如果 %s 可以用於你的帳號，請到這個信箱開啟確認連結，點過才會生效。",
+		En:     "If %s can be used for your account, check that inbox for the confirmation link. It takes effect after you follow the link.",
+	})
+	KeyEmailReenter = key("email.reenter", Message{ZhHant: "填錯了？重新填", En: "Wrong address? Enter it again"})
 )

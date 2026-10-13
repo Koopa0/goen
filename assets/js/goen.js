@@ -455,7 +455,7 @@
       const { sourceElement, response } = event.detail || {};
       const form = sourceElement instanceof HTMLFormElement ? sourceElement : sourceElement?.form;
       // DropEmptyParams may leave HX-Push-Url on an error response.
-      if (form?.matches(".goen-filters") && response?.status >= 400) event.preventDefault();
+      if ((form?.matches(".goen-filters") || form?.matches(".goen-search-sort")) && response?.status >= 400) event.preventDefault();
     });
     // On document, because the source element may be detached by the swap
     // before this fires and an event on a detached node never reaches us.
@@ -463,13 +463,14 @@
       const ctx = event.detail?.ctx;
       if (productChoice === ctx) productChoice = null;
       // A timeout and a replaced request both abort without a response. Only
-      // the latest request may change the feedback beside the filters.
+      // the latest request may change the feedback beside the form.
       const requestForm = ctx?.request?.form;
       const ownsRead = requestForm && reads.get(requestForm) === ctx;
       if (ownsRead) {
         reads.delete(requestForm);
-        if (requestForm.matches(".goen-filters")) {
-          const note = document.querySelector(".goen-filters__error");
+        if (requestForm.matches(".goen-filters") || requestForm.matches(".goen-search-sort")) {
+          const note = document.querySelector(requestForm.matches(".goen-search-sort")
+            ? "#goen-search-sort-error" : ".goen-filters__error");
           const raw = ctx.response?.raw;
           if (note) note.hidden = raw?.ok === true;
         }
@@ -764,6 +765,20 @@
   }
 
   /*
+   * A control that swaps itself away takes keyboard focus with it, and focus
+   * falls to <body>. Such a control names, in data-focus-after-swap, the id the
+   * swapped-in content should hand focus to. On document, because the source
+   * element is detached by the swap and an event on it never reaches us.
+   */
+  function focusAfterSwap() {
+    document.addEventListener("htmx:finally:request", (event) => {
+      const source = event.detail?.ctx?.sourceElement;
+      const id = source?.getAttribute?.("data-focus-after-swap");
+      if (id && !source.isConnected) document.getElementById(id)?.focus();
+    });
+  }
+
+  /*
    * The sign-in page's demo account. Its credentials are printed as text for a
    * browser without this file; here the button appears, puts them in the form
    * and signs in with it, as its label says.
@@ -953,6 +968,7 @@
   demoAccount();
   handoff();
   buyBar();
+  focusAfterSwap();
   headerMenu();
   departmentRow();
   departmentPanels();

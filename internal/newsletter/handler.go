@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
@@ -77,25 +78,21 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, http.StatusOK, layouts.NewsletterForm(layouts.NewsletterState{Done: true}))
+		web.Render(w, r, h.log, http.StatusOK, layouts.NewsletterForm(layouts.NewsletterState{Done: true, Email: email.Mask(addr)}))
 		return
 	}
-	http.Redirect(w, r, "/newsletter/thanks", http.StatusSeeOther)
+	http.Redirect(w, r, "/newsletter/thanks?"+url.Values{"address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
 }
 
-// Thanks says a letter is on its way, not that the subscription is done.
+// Thanks answers the plain POST. Active subscriptions enqueue no letter; the
+// acknowledgement must not reveal whether this address subscribed before.
 func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	meta := layouts.Page{
-		Title:       i18n.T(ctx, i18n.KeyNewsletterSent),
+		Title:       i18n.T(ctx, i18n.KeyCheckInbox),
 		Description: i18n.T(ctx, i18n.KeyNewsletterSentMeta),
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Notice(
-		meta,
-		"",
-		i18n.T(ctx, i18n.KeyNewsletterSent),
-		i18n.T(ctx, i18n.KeyNewsletterSentBody),
-	))
+	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
 }
 
 // ConfirmPage echoes the token into a form rather than acting on it: a
