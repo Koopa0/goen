@@ -333,7 +333,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, t := range v.Products {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"goen-wish goen-tile__cell\" aria-live=\"invalid\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"goen-wish goen-tile__cell\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
