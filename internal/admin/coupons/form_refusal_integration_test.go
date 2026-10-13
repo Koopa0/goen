@@ -76,9 +76,10 @@ func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
 					if field == "code" || field == "description" || field == "percustomer" {
 						facts.DescribedBy = "c-" + field + "-example"
 						example := "SUMMER20"
-						if field == "description" {
+						switch field {
+						case "description":
 							example = i18n.T(ctx, i18n.KeyAdminCoupDescriptionExample)
-						} else if field == "percustomer" {
+						case "percustomer":
 							example = "1"
 						}
 						facts.Examples = 1
@@ -128,17 +129,17 @@ func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
 }
 
 type couponRefusalControl struct {
-	Controls    int
-	Tag         string
-	Value       string
-	Invalid     string
-	DescribedBy string
-	Errors      int
-	ErrorTag    string
-	ErrorClass  string
-	ErrorText   string
-	Examples    int
-	ExampleText string
+	Controls      int
+	Tag           string
+	Value         string
+	Invalid       string
+	DescribedBy   string
+	Errors        int
+	ErrorTag      string
+	ErrorClass    string
+	ErrorText     string
+	Examples      int
+	ExampleText   string
 	ExampleHidden bool
 }
 

@@ -28,8 +28,8 @@ func TestNewsletterExampleStaysVisibleWithItsDraftAndRefusal(t *testing.T) {
 				}
 				type facts struct {
 					Value, Placeholder, Descriptions, Hint, Refusal string
-					DescriptionAttributes                         int
-					HintHidden                                    bool
+					DescriptionAttributes                           int
+					HintHidden                                      bool
 				}
 				var got facts
 				z := html.NewTokenizer(strings.NewReader(markup.String()))

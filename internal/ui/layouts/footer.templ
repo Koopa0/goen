@@ -3,6 +3,7 @@ package layouts
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -114,7 +115,11 @@ templ NewsletterForm(s NewsletterState) {
 					Value:     s.Email,
 					Invalid:   s.FieldRefusal != "",
 					Describes: "newsletter-email-example newsletter-error",
-					Attrs: s.emailAttrs(ctx),
+					Attrs: fieldrule.Email.Attrs(ctx, s.emailAttrs(templ.Attributes{
+						"required":     true,
+						"autocomplete": "email",
+						"maxlength":    "254",
+					}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
 				})
 				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }

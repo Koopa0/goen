@@ -327,8 +327,8 @@ func assertHomeExampleRefusal(t *testing.T, body, id string) {
 	input := admintest.InputElementByID(t, body, id)
 	type inputFacts struct{ Value, Invalid, Descriptions string }
 	got := inputFacts{
-		Value: admintest.InputAttribute(t, input, "value"),
-		Invalid: admintest.InputAttribute(t, input, "aria-invalid"),
+		Value:        admintest.InputAttribute(t, input, "value"),
+		Invalid:      admintest.InputAttribute(t, input, "aria-invalid"),
 		Descriptions: admintest.InputAttribute(t, input, "aria-describedby"),
 	}
 	want := inputFacts{Invalid: "true", Descriptions: id + "-example " + id + "-error"}

@@ -305,6 +305,7 @@ func TestNewsletterFailuresDoNotRefuseTheAddress(t *testing.T) {
 				want := newsletterRefusalFacts{
 					Forms: 1, Inputs: 1, Labels: 1, Messages: 1,
 					Method: "post", Action: "/newsletter", Value: tt.addr,
+					Describes:   "newsletter-email-example",
 					MessageRole: "alert", OwnMessage: true,
 					MessageHidden: true, Notices: 1, Notice: message, NoticeRole: "alert", OwnNotice: true,
 				}
