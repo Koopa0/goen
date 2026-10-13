@@ -1,5 +1,4 @@
-// Package contactsubject owns the durable categories of a contact message.
-package contactsubject
+package contact
 
 import (
 	"slices"
