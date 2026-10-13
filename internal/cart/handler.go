@@ -1867,6 +1867,38 @@ func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID,
 	return id, ok, err
 }
 
+func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error) {
+	u, ok := user.FromContext(ctx)
+	if !ok {
+		return pages.CartRecoveryContents{}, ErrNotFound
+	}
+	var contents pages.CartRecoveryContents
+	accountID, err := h.store.ForUser(ctx, u.ID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return contents, err
+	}
+	if err == nil {
+		view, viewErr := h.store.View(ctx, accountID)
+		if viewErr != nil {
+			return contents, viewErr
+		}
+		contents.Account = view.Lines
+	}
+	guestID, err := h.store.ByToken(ctx, ReadCookie(r, h.secure), uuid.NullUUID{})
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotYourCart) {
+		return contents, nil
+	}
+	if err != nil {
+		return contents, err
+	}
+	view, err := h.store.View(ctx, guestID)
+	if err != nil {
+		return contents, err
+	}
+	contents.BeforeSignIn = view.Lines
+	return contents, nil
+}
+
 // ForgetCart keeps the cookie only for a guest cart no account owns: an
 // account's cart must not stay reachable for the next person at the browser,
 // but a guest cart's cookie is the only way back to it.

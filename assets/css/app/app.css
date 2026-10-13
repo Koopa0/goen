@@ -8288,6 +8288,17 @@ input.goen-check {
   width: 100%;
 }
 
+.goen-cart-recovery__cart {
+  text-align: start;
+  width: 100%;
+}
+
+.goen-line--recovery {
+  align-items: start;
+  display: grid;
+  grid-template-columns: min(6rem, 24%) minmax(0, 1fr);
+}
+
 .notice__actions {
   display: flex;
   flex-direction: column;

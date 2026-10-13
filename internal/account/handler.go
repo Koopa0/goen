@@ -28,6 +28,7 @@ import (
 // which decides whether an unpaid order offers 付款.
 type CartFinder interface {
 	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error)
+	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
 	TakesPayment() bool
@@ -525,13 +526,24 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
+	var contents pages.CartRecoveryContents
+	if h.carts != nil {
+		var err error
+		contents, err = h.carts.RecoveryContents(r.Context(), r)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "read carts for recovery", "error", err)
+			h.serverError(w, r)
+			return
+		}
+	}
 	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
 	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
 		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
-			Next:    next,
-			Welcome: r.URL.Query().Get("welcome") == "1",
-			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
-			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Next:     next,
+			Welcome:  r.URL.Query().Get("welcome") == "1",
+			Notice:   i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:    i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Contents: contents,
 		}))
 }
 
