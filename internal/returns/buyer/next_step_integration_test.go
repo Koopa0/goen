@@ -51,7 +51,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, request)
 		orderPage := pages.OrderView{Now: order.Now}
-		date := orderPage.RescissionLastDay(local, order.Shipments[0])
+		date := orderPage.RescissionLastDay(local, pages.OrderShipment{RescissionEnds: order.Shipments[0].RescissionEnds})
 		body := html.UnescapeString(response.Body.String())
 		if response.Code != http.StatusOK || !strings.Contains(body, date) || !strings.Contains(body, i18n.T(local, i18n.KeyReturnSub)) {
 			t.Errorf("return lead locale %s status = %d, missing deadline or next step", locale, response.Code)
