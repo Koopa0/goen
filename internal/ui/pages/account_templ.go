@@ -514,7 +514,7 @@ func authDoor() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" sizes=\"(min-width: 64rem) 57vw, 1px\" alt=\"\" width=\"1600\" height=\"1200\" decoding=\"async\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" sizes=\"(min-width: 64rem) 57vw, 1px\" alt=\"\" width=\"1600\" height=\"1200\" loading=\"lazy\" decoding=\"async\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -551,7 +551,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyDemoAccount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 126, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 127, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -564,7 +564,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 129, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 130, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -577,7 +577,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(v.DemoEmail)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 130, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 131, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -590,7 +590,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPassword))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 133, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 134, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -603,7 +603,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(v.DemoPassword)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 134, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 135, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -616,7 +616,7 @@ func demoAccountNote(v AuthView) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyDemoAccountShared))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 137, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 138, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -641,7 +641,7 @@ func demoAccountNote(v AuthView) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyDemoAccountSignIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 149, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 150, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -711,7 +711,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCreateAccount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 158, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 159, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -737,7 +737,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 161, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 162, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -766,7 +766,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var43 string
 					templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFormHasErrors))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 166, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 167, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 					if templ_7745c5c3_Err != nil {
@@ -787,7 +787,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 171, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 172, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 				if templ_7745c5c3_Err != nil {
@@ -805,7 +805,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var45 string
 					templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Email)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 173, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 174, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 					if templ_7745c5c3_Err != nil {
@@ -835,7 +835,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 						var templ_7745c5c3_Var47 string
 						templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 177, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 178, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 						if templ_7745c5c3_Err != nil {
@@ -879,7 +879,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var49 string
 					templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterResend))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 191, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 192, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 					if templ_7745c5c3_Err != nil {
@@ -903,7 +903,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var50 string
 					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterOtherAddress))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 196, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 197, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 					if templ_7745c5c3_Err != nil {
@@ -922,7 +922,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 				var templ_7745c5c3_Var51 string
 				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 201, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 202, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 				if templ_7745c5c3_Err != nil {
@@ -947,7 +947,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var53 string
 					templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 204, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 205, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 					if templ_7745c5c3_Err != nil {
@@ -983,7 +983,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var54 string
 					templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("email"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 220, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 221, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 					if templ_7745c5c3_Err != nil {
@@ -1013,7 +1013,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var56 string
 					templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldNameOpt))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 225, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 226, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 					if templ_7745c5c3_Err != nil {
@@ -1048,7 +1048,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var57 string
 					templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("name"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 240, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 241, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 					if templ_7745c5c3_Err != nil {
@@ -1078,7 +1078,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var59 string
 					templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPassword))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 245, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 246, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 					if templ_7745c5c3_Err != nil {
@@ -1112,7 +1112,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyPasswordHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 259, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 260, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
@@ -1130,7 +1130,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var61 string
 					templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("password"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 261, Col: 85}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 262, Col: 85}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 					if templ_7745c5c3_Err != nil {
@@ -1160,7 +1160,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var63 string
 					templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldConfirmPassword))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 266, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 267, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 					if templ_7745c5c3_Err != nil {
@@ -1194,7 +1194,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var64 string
 					templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("confirm"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 280, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 281, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 					if templ_7745c5c3_Err != nil {
@@ -1224,7 +1224,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					var templ_7745c5c3_Var66 string
 					templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCreateAccount))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 284, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 285, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 					if templ_7745c5c3_Err != nil {
@@ -1248,7 +1248,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 			var templ_7745c5c3_Var67 string
 			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyHaveAccount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 289, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 290, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 			if templ_7745c5c3_Err != nil {
@@ -1261,7 +1261,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 			var templ_7745c5c3_Var68 string
 			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySignIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 290, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 291, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 			if templ_7745c5c3_Err != nil {
@@ -1329,7 +1329,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var71 string
 			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterCompleteTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 302, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 303, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {
@@ -1342,7 +1342,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var72 string
 			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterCompleteLede))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 303, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 304, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1355,7 +1355,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterCompleteWhy))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 304, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 305, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
@@ -1368,7 +1368,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var74 string
 			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Token)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 306, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 307, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 			if templ_7745c5c3_Err != nil {
@@ -1381,7 +1381,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var75 string
 			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 307, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 308, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var75)
 			if templ_7745c5c3_Err != nil {
@@ -1406,7 +1406,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 				var templ_7745c5c3_Var77 string
 				templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 310, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 311, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 				if templ_7745c5c3_Err != nil {
@@ -1441,7 +1441,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 				var templ_7745c5c3_Var78 string
 				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 325, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 326, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -1471,7 +1471,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 				var templ_7745c5c3_Var80 string
 				templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterCompleteSubmit))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 329, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 330, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 				if templ_7745c5c3_Err != nil {
@@ -1490,7 +1490,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var81 string
 			templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRegisterCompleteNotYou))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 333, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 334, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 			if templ_7745c5c3_Err != nil {
@@ -1503,7 +1503,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 			var templ_7745c5c3_Var82 string
 			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyForgotPassword))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 334, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 335, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 			if templ_7745c5c3_Err != nil {
@@ -1563,7 +1563,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 			var templ_7745c5c3_Var85 string
 			templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 344, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 345, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 			if templ_7745c5c3_Err != nil {
@@ -1589,7 +1589,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 					var templ_7745c5c3_Var87 string
 					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAccountWelcome))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 347, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 348, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
@@ -1617,7 +1617,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 				var templ_7745c5c3_Var89 string
 				templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 351, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 352, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 				if templ_7745c5c3_Err != nil {
@@ -1636,7 +1636,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 			var templ_7745c5c3_Var90 string
 			templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 354, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 355, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var90)
 			if templ_7745c5c3_Err != nil {
@@ -1661,7 +1661,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 				var templ_7745c5c3_Var92 string
 				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(v.Retry)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 356, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 357, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 				if templ_7745c5c3_Err != nil {
@@ -1692,7 +1692,7 @@ func CartRecovery(p layouts.Page, v CartRecoveryView) templ.Component {
 				var templ_7745c5c3_Var94 string
 				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToShop))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 360, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 361, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 				if templ_7745c5c3_Err != nil {
@@ -1747,7 +1747,7 @@ func accountNavItem(href, label, hint string) templ.Component {
 		var templ_7745c5c3_Var96 templ.SafeURL
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 368, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 369, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 		if templ_7745c5c3_Err != nil {
@@ -1760,7 +1760,7 @@ func accountNavItem(href, label, hint string) templ.Component {
 		var templ_7745c5c3_Var97 string
 		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 369, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 370, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 		if templ_7745c5c3_Err != nil {
@@ -1778,7 +1778,7 @@ func accountNavItem(href, label, hint string) templ.Component {
 			var templ_7745c5c3_Var98 string
 			templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(hint)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 371, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 372, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 			if templ_7745c5c3_Err != nil {
@@ -1837,7 +1837,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var101 string
 			templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAccountTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 381, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 382, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 			if templ_7745c5c3_Err != nil {
@@ -1850,7 +1850,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var102 string
 			templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(v.DisplayName())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 382, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 383, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 			if templ_7745c5c3_Err != nil {
@@ -1875,7 +1875,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var104 string
 				templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySignOut))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 386, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 387, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 				if templ_7745c5c3_Err != nil {
@@ -1907,7 +1907,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var106 string
 					templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 392, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 393, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
 					if templ_7745c5c3_Err != nil {
@@ -1936,7 +1936,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var108 string
 					templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCartQuantityAdjusted))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 397, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 398, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 					if templ_7745c5c3_Err != nil {
@@ -1965,7 +1965,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var110 string
 					templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWelcomeReturn))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 402, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 403, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 					if templ_7745c5c3_Err != nil {
@@ -1985,7 +1985,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var111 string
 			templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAccountNav))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 406, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 407, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var111)
 			if templ_7745c5c3_Err != nil {
@@ -2058,7 +2058,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var112 string
 			templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyMembershipTier))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 427, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 428, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 			if templ_7745c5c3_Err != nil {
@@ -2076,7 +2076,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var113 string
 				templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(v.Standing.TierName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 430, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 431, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 				if templ_7745c5c3_Err != nil {
@@ -2089,7 +2089,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var114 string
 				templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsMultiplier), v.Standing.Multiplier(ctx)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 432, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 433, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 				if templ_7745c5c3_Err != nil {
@@ -2107,7 +2107,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var115 string
 				templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNoTierYet))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 435, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 436, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 				if templ_7745c5c3_Err != nil {
@@ -2125,7 +2125,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var116 string
 			templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeySpendLastYear), v.Standing.Spend()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 438, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 439, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 			if templ_7745c5c3_Err != nil {
@@ -2143,7 +2143,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var117 string
 				templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyNextTier), v.Standing.NextNeeds(), v.Standing.NextName))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 442, Col: 98}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 443, Col: 98}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 				if templ_7745c5c3_Err != nil {
@@ -2166,7 +2166,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var118 string
 				templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyStoreCredit))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 448, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 449, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 				if templ_7745c5c3_Err != nil {
@@ -2179,7 +2179,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var119 string
 				templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(v.Credit())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 449, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 450, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 				if templ_7745c5c3_Err != nil {
@@ -2197,7 +2197,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var120 string
 			templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyOrderHistory2))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 454, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 455, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 			if templ_7745c5c3_Err != nil {
@@ -2215,7 +2215,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var121 string
 				templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldOrderNumber))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 459, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 460, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 				if templ_7745c5c3_Err != nil {
@@ -2228,7 +2228,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var122 string
 				templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColStatus))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 460, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 461, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 				if templ_7745c5c3_Err != nil {
@@ -2246,7 +2246,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var123 templ.SafeURL
 					templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/orders/" + o.Number))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 467, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 468, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 					if templ_7745c5c3_Err != nil {
@@ -2259,7 +2259,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var124 string
 					templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(o.Number)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 468, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 469, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 					if templ_7745c5c3_Err != nil {
@@ -2272,7 +2272,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var125 string
 					templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 471, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 472, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 					if templ_7745c5c3_Err != nil {
@@ -2305,7 +2305,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var127 string
 						templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(o.StatusText(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 477, Col: 32}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 478, Col: 32}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 						if templ_7745c5c3_Err != nil {
@@ -2325,7 +2325,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var128 templ.SafeURL
 						templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/orders/" + o.Number + "/pay"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 480, Col: 99}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 481, Col: 99}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 						if templ_7745c5c3_Err != nil {
@@ -2338,7 +2338,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var129 string
 						templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyPay))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 480, Col: 128}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 481, Col: 128}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 						if templ_7745c5c3_Err != nil {
@@ -2366,7 +2366,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var130 string
 				templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNoOrdersYet))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 489, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 490, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 				if templ_7745c5c3_Err != nil {
@@ -2379,7 +2379,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var131 string
 				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNoOrdersLink))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 490, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 491, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 				if templ_7745c5c3_Err != nil {
@@ -2401,7 +2401,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var132 string
 			templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyProfile))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 496, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 497, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 			if templ_7745c5c3_Err != nil {
@@ -2426,7 +2426,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var134 string
 				templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldFullName))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 501, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 502, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 				if templ_7745c5c3_Err != nil {
@@ -2467,7 +2467,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var136 string
 				templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPhone))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 513, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 514, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 				if templ_7745c5c3_Err != nil {
@@ -2508,7 +2508,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySave))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 526, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 527, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2527,7 +2527,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var139 string
 			templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddresses))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 532, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 533, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 			if templ_7745c5c3_Err != nil {
@@ -2550,7 +2550,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var140 string
 					templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(a.DisplayLabel(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 539, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 540, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 					if templ_7745c5c3_Err != nil {
@@ -2576,7 +2576,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 							var templ_7745c5c3_Var142 string
 							templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyDefaultBadge))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 542, Col: 49}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 543, Col: 49}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 							if templ_7745c5c3_Err != nil {
@@ -2596,7 +2596,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var143 string
 					templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinStringErrs(a.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 546, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 547, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 					if templ_7745c5c3_Err != nil {
@@ -2609,7 +2609,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var144 string
 					templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(a.Phone)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 546, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 547, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 					if templ_7745c5c3_Err != nil {
@@ -2622,7 +2622,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var145 string
 					templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(a.Line())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 547, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 548, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 					if templ_7745c5c3_Err != nil {
@@ -2640,7 +2640,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var146 string
 						templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.ResolveAttributeValue(a.ID)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 552, Col: 61}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 553, Col: 61}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var146)
 						if templ_7745c5c3_Err != nil {
@@ -2665,7 +2665,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 							var templ_7745c5c3_Var148 string
 							templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyMakeDefault))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 554, Col: 48}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 555, Col: 48}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 							if templ_7745c5c3_Err != nil {
@@ -2689,7 +2689,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var149 string
 					templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.ResolveAttributeValue(a.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 559, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 560, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var149)
 					if templ_7745c5c3_Err != nil {
@@ -2714,7 +2714,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var151 string
 						templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyDelete))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 561, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 562, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 						if templ_7745c5c3_Err != nil {
@@ -2743,7 +2743,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var152 string
 				templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNoAddresses))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 569, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 570, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 				if templ_7745c5c3_Err != nil {
@@ -2771,7 +2771,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var153 string
 			templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddAddress))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 572, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 573, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 			if templ_7745c5c3_Err != nil {
@@ -2796,7 +2796,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var155 string
 				templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldLabelOpt))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 577, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 578, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 				if templ_7745c5c3_Err != nil {
@@ -2832,7 +2832,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var156 string
 				templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("label"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 593, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 594, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 				if templ_7745c5c3_Err != nil {
@@ -2862,7 +2862,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var158 string
 				templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldRecipient))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 598, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 599, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 				if templ_7745c5c3_Err != nil {
@@ -2894,7 +2894,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var159 string
 				templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("name"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 610, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 611, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 				if templ_7745c5c3_Err != nil {
@@ -2924,7 +2924,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var161 string
 				templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPhoneShort))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 615, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 616, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 				if templ_7745c5c3_Err != nil {
@@ -2956,7 +2956,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var162 string
 				templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("phone"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 627, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 628, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 				if templ_7745c5c3_Err != nil {
@@ -2986,7 +2986,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var164 string
 				templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPostalCode))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 632, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 633, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 				if templ_7745c5c3_Err != nil {
@@ -3022,7 +3022,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var165 string
 				templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("postal_code"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 648, Col: 98}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 649, Col: 98}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 				if templ_7745c5c3_Err != nil {
@@ -3052,7 +3052,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var167 string
 				templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldCity))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 653, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 654, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var167))
 				if templ_7745c5c3_Err != nil {
@@ -3084,7 +3084,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var168 string
 				templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("city"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 665, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 666, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 				if templ_7745c5c3_Err != nil {
@@ -3114,7 +3114,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var170 string
 				templ_7745c5c3_Var170, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldDistrict))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 670, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 671, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var170))
 				if templ_7745c5c3_Err != nil {
@@ -3146,7 +3146,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var171 string
 				templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("district"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 682, Col: 97}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 683, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 				if templ_7745c5c3_Err != nil {
@@ -3176,7 +3176,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var173 string
 				templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldStreet))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 687, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 688, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 				if templ_7745c5c3_Err != nil {
@@ -3208,7 +3208,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var174 string
 				templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.JoinStringErrs(v.AddrErr("street"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 699, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 700, Col: 93}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var174))
 				if templ_7745c5c3_Err != nil {
@@ -3236,7 +3236,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var175 string
 			templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySetAsDefault))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 705, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 706, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var175))
 			if templ_7745c5c3_Err != nil {
@@ -3261,7 +3261,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var177 string
 				templ_7745c5c3_Var177, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySaveAddress))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 709, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 710, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var177))
 				if templ_7745c5c3_Err != nil {
@@ -3280,7 +3280,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var178 string
 			templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailSection))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 716, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 717, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var178))
 			if templ_7745c5c3_Err != nil {
@@ -3293,7 +3293,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var179 string
 			templ_7745c5c3_Var179, templ_7745c5c3_Err = templ.JoinStringErrs(v.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 718, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 719, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var179))
 			if templ_7745c5c3_Err != nil {
@@ -3319,7 +3319,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var181 string
 					templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailVerified))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 721, Col: 45}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 722, Col: 45}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 					if templ_7745c5c3_Err != nil {
@@ -3347,7 +3347,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var183 string
 					templ_7745c5c3_Var183, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailUnverified))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 725, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 726, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var183))
 					if templ_7745c5c3_Err != nil {
@@ -3372,7 +3372,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var184 string
 				templ_7745c5c3_Var184, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailUnverifiedHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 730, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 731, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var184))
 				if templ_7745c5c3_Err != nil {
@@ -3397,7 +3397,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var186 string
 					templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailResend))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 734, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 735, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 					if templ_7745c5c3_Err != nil {
@@ -3422,7 +3422,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var187 string
 				templ_7745c5c3_Var187, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailPending), v.PendingEmail))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 741, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 742, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var187))
 				if templ_7745c5c3_Err != nil {
@@ -3440,7 +3440,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var188 string
 			templ_7745c5c3_Var188, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailChange))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 745, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 746, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var188))
 			if templ_7745c5c3_Err != nil {
@@ -3453,7 +3453,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var189 string
 			templ_7745c5c3_Var189, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailChangeHint))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 747, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 748, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var189))
 			if templ_7745c5c3_Err != nil {
@@ -3478,7 +3478,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var191 string
 				templ_7745c5c3_Var191, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldNewEmail))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 751, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 752, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var191))
 				if templ_7745c5c3_Err != nil {
@@ -3518,7 +3518,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var193 string
 				templ_7745c5c3_Var193, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldCurrentPassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 762, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 763, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var193))
 				if templ_7745c5c3_Err != nil {
@@ -3558,7 +3558,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var195 string
 				templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEmailChange))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 774, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 775, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 				if templ_7745c5c3_Err != nil {
@@ -3577,7 +3577,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var196 string
 			templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyChangePassword))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 781, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 782, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 			if templ_7745c5c3_Err != nil {
@@ -3590,7 +3590,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var197 string
 			templ_7745c5c3_Var197, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyChangePassword))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 783, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 784, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var197))
 			if templ_7745c5c3_Err != nil {
@@ -3615,7 +3615,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var199 string
 				templ_7745c5c3_Var199, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldCurrentPassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 788, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 789, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var199))
 				if templ_7745c5c3_Err != nil {
@@ -3655,7 +3655,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var201 string
 				templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldNewPassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 799, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 800, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 				if templ_7745c5c3_Err != nil {
@@ -3688,7 +3688,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var202 string
 			templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyPasswordHintEndsSessions))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 812, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 813, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 			if templ_7745c5c3_Err != nil {
@@ -3713,7 +3713,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var204 string
 				templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldConfirmNewPassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 816, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 817, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 				if templ_7745c5c3_Err != nil {
@@ -3753,7 +3753,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var206 string
 				templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyChangePassword))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 828, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 829, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
 				if templ_7745c5c3_Err != nil {
@@ -3777,7 +3777,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var207 string
 				templ_7745c5c3_Var207, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyLinkedAccounts))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 836, Col: 98}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 837, Col: 98}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var207))
 				if templ_7745c5c3_Err != nil {
@@ -3790,7 +3790,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var208 string
 				templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyGoogleLinked))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 837, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 838, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var208))
 				if templ_7745c5c3_Err != nil {
@@ -3820,7 +3820,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						var templ_7745c5c3_Var210 string
 						templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyUnlinkGoogle))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 842, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 843, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
 						if templ_7745c5c3_Err != nil {
@@ -3844,7 +3844,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 					var templ_7745c5c3_Var211 string
 					templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyGoogleOnlyMethod))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 847, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 848, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 					if templ_7745c5c3_Err != nil {
@@ -3867,7 +3867,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var212 string
 			templ_7745c5c3_Var212, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEraseAccount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 852, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 853, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var212))
 			if templ_7745c5c3_Err != nil {
@@ -3880,7 +3880,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var213 string
 			templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEraseWarning))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 853, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 854, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var213))
 			if templ_7745c5c3_Err != nil {
@@ -3893,7 +3893,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			var templ_7745c5c3_Var214 string
 			templ_7745c5c3_Var214, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEraseDisclosure))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 855, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 856, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var214))
 			if templ_7745c5c3_Err != nil {
@@ -3918,7 +3918,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var216 string
 				templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 859, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 860, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var216))
 				if templ_7745c5c3_Err != nil {
@@ -3958,7 +3958,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 				var templ_7745c5c3_Var218 string
 				templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyEraseSubmit))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 870, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 871, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
 				if templ_7745c5c3_Err != nil {

@@ -40,6 +40,13 @@ func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
 			if tt.photo && loc[0] < strings.LastIndex(tt.body, `class="goen-auth__form"`) {
 				t.Error("the photo comes before the form")
 			}
+			if tt.photo {
+				// display:none below 64rem does not stop an eager fetch.
+				img := tt.body[loc[0] : loc[0]+strings.Index(tt.body[loc[0]:], ">")]
+				if !strings.Contains(img, ` loading="lazy"`) {
+					t.Errorf("the photo is fetched eagerly on a phone: %s", img)
+				}
+			}
 			if strings.Contains(tt.body, "goen-auth__divider") {
 				t.Error("the Google divider rule is back")
 			}
