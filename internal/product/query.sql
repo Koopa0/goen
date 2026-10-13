@@ -114,7 +114,7 @@ WHERE o.product_id = $1
 ORDER BY o.position, o.id, v.position, v.id;
 
 -- name: ProductReviews :many
-SELECT r.rating, r.title, r.body, r.is_verified_purchase, r.created_at,
+SELECT r.rating, r.title, r.body, r.is_verified_purchase, r.created_at, r.user_id,
        coalesce(u.full_name, '') AS author
 FROM visible_reviews r
 LEFT JOIN users u ON u.id = r.user_id
