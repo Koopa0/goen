@@ -36,9 +36,19 @@ func TestDemoCatalogueRequiresNoProductsOrOrders(t *testing.T) {
 			prepare: `INSERT INTO shipping_methods (code) VALUES ('kept');
 				INSERT INTO shipping_method_versions (method_id, name, fee_cents)
 				SELECT id, 'Kept', 0 FROM shipping_methods WHERE code = 'kept';
-				INSERT INTO orders (shipping_version_id, shipping_method_code, shipping_method_name)
-				SELECT v.id, sm.code, v.name FROM shipping_method_versions v
-				JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.code = 'kept'`,
+				WITH kept_order AS (
+					INSERT INTO orders (shipping_version_id, shipping_method_code, shipping_method_name)
+					SELECT v.id, sm.code, v.name FROM shipping_method_versions v
+					JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.code = 'kept'
+					RETURNING id
+				), kept_line AS (
+					INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+					SELECT id, 'KEPT-1', 'Historical purchase', 0, 1 FROM kept_order
+				)
+				INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+				                                postal_code, city, district, street)
+				SELECT id, 'kept@example.com', 'Kept recipient', '0912345678',
+				       '110', 'Taipei', 'Xinyi', '1 Kept Road' FROM kept_order`,
 		},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {

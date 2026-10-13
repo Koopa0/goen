@@ -74,7 +74,7 @@ schema，沒有商品目錄、示範帳號或範例訂單。到 `/forgot` 輸入
 
 ```sh
 make migrate-up
-make db-seed
+PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT upsert_staff('you@example.com', '', 'admin')"
 ```
 
@@ -88,7 +88,7 @@ psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<資料庫名�
 make run          # http://127.0.0.1:9700
 ```
 
-`make db-seed` 會拒絕已經有商品或訂單的資料庫，示範目錄請載入全新的資料庫。
+示範目錄需要以上指令明確指定開發用途，也會拒絕已經有商品或訂單的資料庫。這個設定表達載入示範資料的意圖，並不會自動判別正式資料庫。示範目錄請載入全新的資料庫。
 示範歷史與日期平移的操作方式請見 [English README 的 Try the demo](README.md#try-the-demo)。
 
 測試與設定請見 [CONTRIBUTING.md](CONTRIBUTING.md)。

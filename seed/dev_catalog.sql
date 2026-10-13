@@ -6,6 +6,10 @@ BEGIN;
 
 DO $$
 BEGIN
+    IF current_setting('goen.catalogue_seed', true) IS DISTINCT FROM 'development' THEN
+        RAISE EXCEPTION 'demo catalogue requires explicit development intent: set PGOPTIONS to -c goen.catalogue_seed=development'
+            USING ERRCODE = '23514', CONSTRAINT = 'dev_catalog_requires_development';
+    END IF;
     IF EXISTS (SELECT 1 FROM products) OR EXISTS (SELECT 1 FROM orders) THEN
         RAISE EXCEPTION 'demo catalogue requires a database without products or orders'
             USING ERRCODE = '23514', CONSTRAINT = 'dev_catalog_requires_empty_shop';

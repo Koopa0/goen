@@ -59,7 +59,7 @@ If you keep that database as a snapshot and restore it on a later day, its histo
 psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<its name> -v anchor_day=<YYYY-MM-DD> -f seed/demo_shift.sql
 ```
 
-The seed's two campaigns run from 20 and 3 days before the day it ran until 10 and 4 days after, so a local database seeded longer ago shows none running: rebuild it with `make db-reset`, or move it to today the same way, naming its date: the last day it was seeded, given a history or moved. Any other day is refused, and the refusal names the date. Whatever you wrote after that date moves too, so an order you placed since then ends up after today.
+The seed's two campaigns run from 20 and 3 days before the day it ran until 10 and 4 days after, so a local database seeded longer ago shows none running: rebuild it with `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, or move it to today the same way, naming its date: the last day it was seeded, given a history or moved. Any other day is refused, and the refusal names the date. Whatever you wrote after that date moves too, so an order you placed since then ends up after today.
 
 ## Run it locally
 
@@ -92,7 +92,7 @@ Add the shop's departments and products in the back office.
 
 ```sh
 make migrate-up
-make db-seed
+PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT upsert_staff('you@example.com', '', 'admin')"
 ```
 
@@ -102,7 +102,7 @@ then start `make run` to set the owner's password through `/forgot` and enrol
 the second factor on first entry to `/admin`. Stop goen, load the history using
 the command under **Try the demo**, then restart `make run`.
 
-`make db-seed` refuses a database that already contains products or orders.
+The catalogue seed requires the explicit development setting shown above; it also refuses a database that already contains products or orders. The setting declares seed intent and does not detect a production database automatically.
 Use a fresh database for the demo catalogue; the history and date-shift scripts
 operate on an existing demo as described above.
 
