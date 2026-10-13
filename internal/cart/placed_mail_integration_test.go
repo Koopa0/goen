@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -69,7 +69,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if funding.balance > 0 {
 						owner = uuid.NullUUID{UUID: creditedCustomer(t, funding.balance), Valid: true}
 					}
-					addr := &order.Delivery{To: kind, Email: "placed-snapshot@example.com", RecipientName: "Alex", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "Recorded Road 1", Note: "Recorded delivery note"}
+					addr := &delivery.Details{To: kind, Email: "placed-snapshot@example.com", RecipientName: "Alex", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "Recorded Road 1", Note: "Recorded delivery note"}
 					deliveryTo := "110 TaipeiXinyiRecorded Road 1"
 					if kind == shipping.DestinationPickupPoint {
 						addr.PickupChain, addr.PickupStoreCode, addr.PickupStoreName = shipping.ChainSevenEleven, "012345", "Recorded store"
@@ -190,7 +190,7 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	shipID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "placed-mail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -44,24 +44,24 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoiced=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrAlreadyIssued):
+	case errors.Is(err, issuer.ErrAlreadyIssued):
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled):
+	case errors.Is(err, issuer.ErrDisabled):
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicingoff=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrRejected):
+	case errors.Is(err, issuer.ErrRejected):
 		// The provider's own reason, logged in full because it names the field to
 		// fix; the page says one thing, because nobody can act on an RtnCode.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the invoice",
 			"order", number, "error", err)
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrPending):
+	case errors.Is(err, issuer.ErrPending):
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	default:
@@ -87,19 +87,19 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, orderPage+"?voided=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrReason):
+	case errors.Is(err, issuer.ErrReason):
 		http.Redirect(w, r, orderPage+"?voidreason=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrNotFound):
+	case errors.Is(err, issuer.ErrNotFound):
 		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrPending):
+	case errors.Is(err, issuer.ErrPending):
 		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrRejected):
+	case errors.Is(err, issuer.ErrRejected):
 		// invoicefailed names 統編 and carrier codes. A void form collects a
 		// reason; the provider refusal belongs on 綠界, not checkout tax ids.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the void",
 			"order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?voidfailed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled):
+	case errors.Is(err, issuer.ErrDisabled):
 		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
@@ -136,23 +136,23 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, orderPage+"?allowed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrNotFound):
+	case errors.Is(err, issuer.ErrNotFound):
 		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrClaimed):
+	case errors.Is(err, issuer.ErrClaimed):
 		http.Redirect(w, r, orderPage+"?allowclaimed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrAwaitingBuyer):
+	case errors.Is(err, issuer.ErrAwaitingBuyer):
 		http.Redirect(w, r, orderPage+"?allowsent=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrPending):
+	case errors.Is(err, issuer.ErrPending):
 		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrTooMuch):
+	case errors.Is(err, issuer.ErrTooMuch):
 		http.Redirect(w, r, orderPage+"?allowtoomuch=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrRejected):
+	case errors.Is(err, issuer.ErrRejected):
 		// invoicefailed names 統編 and carrier codes, which is right for ISSUING.
 		// An allowance form does not collect those fields.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the allowance",
 			"order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?allowfailed=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrDisabled):
+	case errors.Is(err, issuer.ErrDisabled):
 		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)

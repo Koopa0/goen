@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"encoding/json"
@@ -7,17 +7,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
-		preference        Preference
+		preference        invoice.Preference
 		barcode, donation string
 		wireCarrier       InvoiceCarrier
 		wireDonation      string
 	}{
-		{"donation", PreferenceDonate, "", "00123", "", "1"},
+		{"donation", invoice.PreferenceDonate, "", "00123", "", "1"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var seen issueRequest
@@ -52,7 +54,7 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, AmountCents: 10000, Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
+			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, AmountCents: 10000, Lines: []invoice.Line{{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
 			if err != nil {
 				t.Fatalf("Issue: %v", err)
 			}
@@ -66,18 +68,18 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 func TestDonationPreferenceRefusesMalformedProviderRequests(t *testing.T) {
 	for _, tt := range []struct {
 		name                     string
-		preference               Preference
+		preference               invoice.Preference
 		barcode, donation, taxID string
 	}{
-		{"missing donation", PreferenceDonate, "", "", ""},
-		{"short donation", PreferenceDonate, "", "12", ""},
-		{"long donation", PreferenceDonate, "", "12345678", ""},
-		{"non-digit donation", PreferenceDonate, "", "12A", ""},
-		{"donation with mobile barcode", PreferenceDonate, "/ABC+123", "00123", ""},
-		{"donation with tax ID", PreferenceDonate, "", "00123", "04595252"},
+		{"missing donation", invoice.PreferenceDonate, "", "", ""},
+		{"short donation", invoice.PreferenceDonate, "", "12", ""},
+		{"long donation", invoice.PreferenceDonate, "", "12345678", ""},
+		{"non-digit donation", invoice.PreferenceDonate, "", "12A", ""},
+		{"donation with mobile barcode", invoice.PreferenceDonate, "/ABC+123", "00123", ""},
+		{"donation with tax ID", invoice.PreferenceDonate, "", "00123", "04595252"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []Line{{TaxType: Taxable, Unit: DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
+			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []invoice.Line{{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit, Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
 			if err := req.validate(); !errors.Is(err, ErrRejected) {
 				t.Fatalf("validation=%v, want ErrRejected", err)
 			}

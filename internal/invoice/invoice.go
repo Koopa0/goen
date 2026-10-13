@@ -1,10 +1,12 @@
-// Package invoice issues uniform invoices through ECPay's B2C e-invoice API.
-// An unconfigured deployment issues nothing and says so; half a configuration
-// does not start.
+// Package invoice is the vocabulary of Taiwanese uniform invoices: the
+// buyer's preference, the document and its lines, tax types and units, the
+// identifier checks and the attention categories. It imports nothing but the
+// standard library and i18n, so a page can name an invoice without reaching
+// the database, the outbox or the mail sender. Issuing them is
+// invoice/issuer's work.
 package invoice
 
 import (
-	"errors"
 	"regexp"
 	"slices"
 	"strings"
@@ -13,44 +15,8 @@ import (
 	"unicode/utf8"
 )
 
-var (
-	ErrDisabled = errors.New("invoice: no issuer configured")
-	// ErrRejected is the provider refusing the document, carrying their own
-	// reason.
-	ErrRejected = errors.New("invoice: refused by the provider")
-	// ErrAlreadyIssued is the caller-facing form of
-	// invoice_documents_one_active_invoice_per_order.
-	ErrAlreadyIssued = errors.New("invoice: order already has an invoice")
-	ErrNotFound      = errors.New("invoice: not found")
-	// ErrTooMuch means no authoritative whole-dollar refunded room remains for
-	// another 折讓. It is a stable branch for a stale or concurrent form, not a
-	// provider rejection; the amount itself is always derived by PostgreSQL.
-	ErrTooMuch = errors.New("invoice: no refunded amount remains to relieve")
-	// ErrClaimed is a 折讓 for this refund already filed or in flight. The way
-	// out is ECPay's console, not a different figure.
-	ErrClaimed = errors.New("invoice: already claimed")
-	// ErrPending means the durable operation remains safe but has not converged:
-	// another replica owns its lease, the provider result is not visible yet, or
-	// an ambiguity needs the background reconciler/operator alarm.
-	ErrPending = errors.New("invoice: reconciliation pending")
-	// ErrAwaitingBuyer is an allowance ECPay has e-mailed the buyer to agree to;
-	// it is opened only once they do.
-	ErrAwaitingBuyer = errors.New("invoice: the allowance awaits the buyer's agreement")
-	// ErrReason is a void claimed without a reason the 財政部 will accept.
-	// claim_invoice_void raises invoice_void_reason; the handler must not 500.
-	ErrReason = errors.New("invoice: void reason is required")
-)
-
 // TaxRate is Taiwan's business tax, 5%.
 const TaxRate = 5
-
-// MaxIssueItems is ECPay's maximum Items array length and therefore the
-// highest ItemSeq it can represent. A sale reserves two positions for the
-// canonical delivery and whole-dollar adjustment lines.
-const (
-	MaxIssueItems        = 999
-	MaxIssueProductLines = MaxIssueItems - 2
-)
 
 // ValidTaxID applies the Ministry of Finance's current business-tax-number
 // checksum. Since April 2023 the product sum is divisible by 5 (formerly 10).
@@ -140,32 +106,6 @@ func (p Preference) Known() bool {
 func (p Preference) NeedsMobileBarcode() bool { return p == PreferenceMobile }
 
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
-
-// InvoiceCarrier is the 載具 an invoice is filed under, in ECPay's CarrierType
-// spelling. It is never the parcel company.
-type InvoiceCarrier string
-
-const (
-	// InvoiceCarrierNone is a printed invoice or one held in the shop's own account.
-	InvoiceCarrierNone          InvoiceCarrier = ""
-	InvoiceCarrierMember        InvoiceCarrier = "1"
-	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
-)
-
-type OperationKind string
-
-type OperationStatus string
-
-const (
-	OperationIssue     OperationKind = "issue"
-	OperationAllowance OperationKind = "allowance"
-	OperationVoid      OperationKind = "void"
-
-	OperationPending   OperationStatus = "pending"
-	OperationAttention OperationStatus = "attention"
-	OperationSucceeded OperationStatus = "succeeded"
-	OperationRejected  OperationStatus = "rejected"
-)
 
 // DocumentKind is invoice_documents.kind, closed by invoice_documents_kind_known.
 type DocumentKind string
