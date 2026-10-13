@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -20,16 +20,16 @@ import (
 )
 
 type Handler struct {
-	access *orderaccess.Store
+	access *access.Store
 	store  *Store
 	log    *slog.Logger
 }
 
-func NewHandler(s *Store, access *orderaccess.Store, log *slog.Logger) *Handler {
-	if s == nil || access == nil || log == nil {
+func NewHandler(s *Store, grants *access.Store, log *slog.Logger) *Handler {
+	if s == nil || grants == nil || log == nil {
 		panic("returnpage: NewHandler requires a store, an access check and a logger")
 	}
-	return &Handler{store: s, access: access, log: log}
+	return &Handler{store: s, access: grants, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {

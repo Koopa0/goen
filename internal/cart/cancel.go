@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/ordercancel"
+	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/pgtx"
 )
 
@@ -43,7 +43,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) error {
 	if cancelled == 0 {
 		return ErrNotCancellable
 	}
-	if _, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+	if _, err := cancellation.Settle(ctx, q, &cancellation.Order{
 		ID: orderID, Number: number, Kind: email.TerminalCancelledByCustomer, VoidTrigger: "cancel:" + number,
 	}); err != nil {
 		return err

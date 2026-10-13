@@ -23,8 +23,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ordercancel"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/cancellation"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
@@ -521,7 +521,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
 	case order.FulfillmentCancelled:
-		_, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+		_, err := cancellation.Settle(ctx, q, &cancellation.Order{
 			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: email.TerminalCancelledByStaff,
 			VoidTrigger: web.RequestID(ctx),
 		})
@@ -566,7 +566,7 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
-		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
+		return notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
 	default:
 		return nil
 	}
