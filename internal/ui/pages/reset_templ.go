@@ -351,7 +351,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					Describes: "reset-error",
 					Attrs: v.PasswordAttrs(templ.Attributes{
 						"autocomplete": "new-password",
-						"autofocus":    true,
+						"autofocus":    !v.Invalid("confirm"),
 						"minlength":    "10",
 						"required":     true,
 					}),
@@ -435,6 +435,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					Describes: "reset-error",
 					Attrs: templ.Attributes{
 						"autocomplete": "new-password",
+						"autofocus":    v.Invalid("confirm"),
 						"minlength":    "10",
 						"required":     true,
 					},
@@ -450,7 +451,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 104, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 105, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -468,7 +469,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetEndsSessions))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 107, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 108, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -493,7 +494,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetTitle))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 109, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 110, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {
