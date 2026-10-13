@@ -20,9 +20,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 					}
 					<p class="goen-pagehead__sub">{ v.returnWindow(ctx, parcel) }</p>
 				}
-				<p class="goen-pagehead__sub">
-					{ i18n.T(ctx, i18n.KeyReturnSub) }
-				</p>
+				if !v.HasOpen && v.AnyReturnable() {
+					<p class="goen-pagehead__sub">
+						{ i18n.T(ctx, i18n.KeyReturnSub) }
+					</p>
+				}
 			</div>
 			if !v.HasOpen && v.FormRefusal != "" {
 				<p class="goen-notice goen-notice--danger" role="alert" id="return-form-error">{ v.FormRefusal }</p>

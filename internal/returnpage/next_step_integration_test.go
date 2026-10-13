@@ -72,11 +72,47 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, request)
 		body := html.UnescapeString(response.Body.String())
-		if response.Code != http.StatusUnprocessableEntity || strings.Count(body, i18n.T(local, i18n.KeyReturnInFlight)) != 1 || strings.Contains(body, i18n.T(local, i18n.KeyReturnTooMany)) || strings.Contains(body, `role="alert"`) {
+		if response.Code != http.StatusUnprocessableEntity || strings.Count(body, i18n.T(local, i18n.KeyReturnInFlight)) != 1 || strings.Contains(body, i18n.T(local, i18n.KeyReturnTooMany)) || strings.Contains(body, `id="return-form-error"`) {
 			t.Errorf("open request locale %s status = %d, wrong refusal", locale, response.Code)
 		}
 		if !strings.Contains(body, `value="2"`) || !strings.Contains(body, "Keep this reason") {
 			t.Error("open-request422 lost submitted input")
+		}
+	}
+}
+
+func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
+	ctx := t.Context()
+	home, _ := shippedOrder(t, 1, 1)
+	pickup, _ := shippedOrder(t, 1, 1)
+	if _, err := pool.Exec(ctx, `
+		UPDATE order_private_data
+		SET postal_code = NULL, city = NULL, district = NULL, street = NULL, pickup_chain = 'seven_eleven'
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, pickup); err != nil {
+		t.Fatal(err)
+	}
+	appPool := returnsApplicationPool(t, "return-pickup")
+	store := returnpage.NewStore(appPool)
+	handler := returnpage.NewHandler(store, orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
+	for _, tc := range []struct {
+		number string
+		key    i18n.Key
+	}{
+		{home, i18n.KeyOrderRescissionAwaits},
+		{pickup, i18n.KeyOrderRescissionAwaitsPickup},
+	} {
+		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+			local := i18n.WithLocale(ctx, locale)
+			request := httptest.NewRequestWithContext(local, http.MethodGet, "/orders/"+tc.number+"/return", http.NoBody)
+			placedBy(t, request, tc.number)
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			sentence := i18n.Count(local, tc.key, pages.RescissionDays, pages.RescissionDays)
+			if response.Code != http.StatusOK || !strings.Contains(html.UnescapeString(response.Body.String()), sentence) {
+				t.Errorf("order %s locale %s status = %d, missing %q", tc.number, locale, response.Code, sentence)
+			}
 		}
 	}
 }

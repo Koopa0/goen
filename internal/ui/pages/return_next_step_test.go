@@ -15,11 +15,11 @@ func TestReturnFormExplainsEachParcelsDeadlineAndNextStep(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 12, 10, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
-		locale      i18n.Locale
-		next, state string
+		locale i18n.Locale
+		state  string
 	}{
-		{i18n.ZhHant, "送出後，審核結果會顯示在這筆訂單的頁面上。同意後，款項依原付款方式退回。", "待審核"},
-		{i18n.En, "Once you send it, the decision appears on this order's page. If we approve it, the money goes back the way you paid.", "Awaiting review"},
+		{i18n.ZhHant, "待審核"},
+		{i18n.En, "Awaiting review"},
 	} {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			t.Parallel()
@@ -40,13 +40,38 @@ func TestReturnFormExplainsEachParcelsDeadlineAndNextStep(t *testing.T) {
 					t.Errorf("parcel %d missing its existing order-page deadline sentence or label", i+1)
 				}
 			}
-			if !strings.Contains(body, tc.next) {
-				t.Error("missing owner-quoted next-step sentence")
-			}
 			if !strings.Contains(body, tc.state) {
 				t.Errorf("rendered open request state lacks %q", tc.state)
 			}
 		})
+	}
+}
+
+func TestReturnFormSaysWhatHappensNextOnlyWhenARequestCanBeSent(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		view ReturnsView
+		want bool
+	}{
+		{"returnable", ReturnsView{Number: "GO-NEXT", Lines: []ReturnsLine{{ID: "line", Returnable: 1}}}, true},
+		{"open request", ReturnsView{Number: "GO-NEXT", HasOpen: true, Lines: []ReturnsLine{{ID: "line", Returnable: 1}}}, false},
+		{"nothing returnable", ReturnsView{Number: "GO-NEXT", Lines: []ReturnsLine{{ID: "line"}}}, false},
+	} {
+		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+			t.Run(tc.name+"/"+string(locale), func(t *testing.T) {
+				t.Parallel()
+				ctx := i18n.WithLocale(t.Context(), locale)
+				var rendered strings.Builder
+				if err := Returns(ReturnsMeta(ctx, tc.view.Number), tc.view).Render(ctx, &rendered); err != nil {
+					t.Fatal(err)
+				}
+				got := strings.Contains(html.UnescapeString(rendered.String()), i18n.T(ctx, i18n.KeyReturnSub))
+				if got != tc.want {
+					t.Errorf("next-step sentence shown = %v, want %v", got, tc.want)
+				}
+			})
+		}
 	}
 }
 
