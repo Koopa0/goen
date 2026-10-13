@@ -881,6 +881,13 @@ templ Account(p layouts.Page, v *AccountView) {
 							}
 						</section>
 					}
+					<form class="goen-card goen-account__section goen-account__form" method="post" action="/account/sessions/others/end" aria-label={ i18n.T(ctx, i18n.KeySignOutOtherDevices) }>
+						<div class="goen-account__actions">
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+								{ i18n.T(ctx, i18n.KeySignOutOtherDevices) }
+							}
+						</div>
+					</form>
 					<section class="goen-card goen-account__section goen-account__section--danger" aria-labelledby="erase-heading">
 						<h2 class="goen-account__heading" id="erase-heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
 						<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEraseWarning) }</p>

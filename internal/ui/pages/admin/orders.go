@@ -376,6 +376,7 @@ func (e TimelineEntry) By(ctx context.Context) string {
 }
 
 type Shipment struct {
+	ID          string
 	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string

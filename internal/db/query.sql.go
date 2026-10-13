@@ -7310,6 +7310,21 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 	return err
 }
 
+const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
+DELETE FROM sessions
+WHERE user_id = $1 AND token_hash <> $2::bytea
+`
+
+type DeleteOtherUserSessionsParams struct {
+	UserID           uuid.UUID
+	CurrentTokenHash []byte
+}
+
+func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentTokenHash)
+	return err
+}
+
 const deleteOutstandingEmailVerificationMessage = `-- name: DeleteOutstandingEmailVerificationMessage :exec
 DELETE FROM outbox_messages m
 USING email_verifications v
@@ -10255,6 +10270,24 @@ func (q *Queries) MarkSessionVerified(ctx context.Context, tokenHash []byte) err
 	return err
 }
 
+const markShipmentDelivered = `-- name: MarkShipmentDelivered :one
+UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
+WHERE order_id = $1 AND id = $2 AND delivered_at IS NULL
+RETURNING delivered_at
+`
+
+type MarkShipmentDeliveredParams struct {
+	OrderID    uuid.UUID
+	ShipmentID uuid.UUID
+}
+
+func (q *Queries) MarkShipmentDelivered(ctx context.Context, arg MarkShipmentDeliveredParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, markShipmentDelivered, arg.OrderID, arg.ShipmentID)
+	var delivered_at pgtype.Timestamptz
+	err := row.Scan(&delivered_at)
+	return delivered_at, err
+}
+
 const markShipmentsDelivered = `-- name: MarkShipmentsDelivered :exec
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL
@@ -11755,12 +11788,42 @@ func (q *Queries) OrderReturns(ctx context.Context, orderID uuid.UUID) ([]OrderR
 	return items, nil
 }
 
+const orderShipment = `-- name: OrderShipment :one
+SELECT id, carrier, tracking_number, delivered_at
+FROM order_shipments WHERE order_id = $1 AND id = $2
+`
+
+type OrderShipmentParams struct {
+	OrderID    uuid.UUID
+	ShipmentID uuid.UUID
+}
+
+type OrderShipmentRow struct {
+	ID             uuid.UUID
+	Carrier        string
+	TrackingNumber string
+	DeliveredAt    pgtype.Timestamptz
+}
+
+func (q *Queries) OrderShipment(ctx context.Context, arg OrderShipmentParams) (OrderShipmentRow, error) {
+	row := q.db.QueryRow(ctx, orderShipment, arg.OrderID, arg.ShipmentID)
+	var i OrderShipmentRow
+	err := row.Scan(
+		&i.ID,
+		&i.Carrier,
+		&i.TrackingNumber,
+		&i.DeliveredAt,
+	)
+	return i, err
+}
+
 const orderShipments = `-- name: OrderShipments :many
-SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
+SELECT id, carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
 type OrderShipmentsRow struct {
+	ID                  uuid.UUID
 	Carrier             string
 	TrackingNumber      string
 	ShippedAt           time.Time
@@ -11778,6 +11841,7 @@ func (q *Queries) OrderShipments(ctx context.Context, orderID uuid.UUID) ([]Orde
 	for rows.Next() {
 		var i OrderShipmentsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Carrier,
 			&i.TrackingNumber,
 			&i.ShippedAt,
