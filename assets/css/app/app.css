@@ -4987,29 +4987,27 @@ input.goen-check {
 
 .goen-pdp__notifyrow .goen-input {
   flex: 1 1 14ch;
-  min-width: 14ch;
+  min-width: min(14ch, 100%);
 }
 
-/* Wishlist and compare: text buttons. The row is pulled out by the buttons'
-   own padding so the first label lines up with the column's edge. */
 .goen-pdp__links,
 .goen-pdp__similar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0 0.5rem;
-  margin: -0.75rem 0 0 -0.75rem;
+  margin: -0.75rem 0 0 0px;
 }
 
 /* With the specs, not pulled up into the buy column's rhythm. */
 .goen-pdp__similar {
-  margin: 0.5rem 0 0 -0.75rem;
+  margin: 0.5rem 0 0 0px;
 }
 
 .goen-pdp__links .goen-btn,
 .goen-pdp__similar .goen-btn {
   color: var(--n-700);
-  padding: 0 0.75rem;
+  padding: 0 0px;
 }
 
 .goen-pdp__wish {
@@ -5083,6 +5081,8 @@ input.goen-check {
   font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-pdp__accpanel {
