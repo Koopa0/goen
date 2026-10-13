@@ -46,7 +46,7 @@ func TestReturnDeskDecisionWording(t *testing.T) {
 func TestReturnDeskDoesNotUseOldDecisionOrCreditTerms(t *testing.T) {
 	t.Parallel()
 	for k, message := range messages {
-		if !strings.HasPrefix(string(k), "admin.ret.") && !strings.HasPrefix(string(k), "admin.return.") && k != KeyAdminNoticeRefundFailed && k != KeyAdminNoticeAssessed {
+		if !strings.HasPrefix(string(k), "admin.ret.") && !strings.HasPrefix(string(k), "admin.return.") && k != KeyAdminNoticeRefundFailed && k != KeyAdminNoticeAssessed && k != KeyPointsReturnUnsettled {
 			continue
 		}
 		for _, term := range []string{"店儲", "額度", "核准"} {
