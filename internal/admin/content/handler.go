@@ -440,7 +440,8 @@ func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) 
 	}
 	view := admin.NewsletterView{
 		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
-		Issues: make([]admin.NewsletterIssue, 0, len(issues)),
+		EnglishActive: counts.EnglishActive,
+		Issues:        make([]admin.NewsletterIssue, 0, len(issues)),
 	}
 	for i := range issues {
 		it := &issues[i]
