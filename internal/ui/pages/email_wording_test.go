@@ -9,34 +9,36 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRefusedEmailFormsKeepTheChineseFieldName(t *testing.T) {
+func TestRefusedEmailFormsAttachCompleteFieldMessages(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tc := range []struct {
-		name string
-		key  i18n.Key
-		want string
+		name   string
+		locale i18n.Locale
+		key    i18n.Key
+		want   string
 	}{
-		{"required", i18n.KeyEmailRequired, "請填寫電子郵件"},
-		{"malformed", i18n.KeyEmailMalformed, "電子郵件格式看起來不正確"},
+		{name: "required Chinese", locale: i18n.ZhHant, key: i18n.KeyEmailRequired, want: "請填寫電子郵件。"},
+		{name: "malformed Chinese", locale: i18n.ZhHant, key: i18n.KeyEmailMalformed, want: "電子郵件格式看起來不正確。"},
+		{name: "required English", locale: i18n.En, key: i18n.KeyEmailRequired, want: "Enter an email address."},
+		{name: "malformed English", locale: i18n.En, key: i18n.KeyEmailMalformed, want: "That does not look like an email address."},
 	} {
-		t.Run("checkout/"+tc.name, func(t *testing.T) {
+		t.Run("contact/"+tc.name, func(t *testing.T) {
 			t.Parallel()
-			view := couponTestView()
-			view.Address.Email = "invalid"
-			view.Errors = map[string]string{"email": i18n.T(ctx, tc.key)}
-			markup := renderComponent(t, ctx, Checkout(CheckoutMeta(ctx), &view))
-			assertChineseEmailRefusal(t, markup, "email", tc.want)
+			localized := i18n.WithLocale(t.Context(), tc.locale)
+			view := ContactForm{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
+			markup := renderComponent(t, localized, Contact(ContactMeta(localized), view))
+			assertEmailRefusal(t, markup, "contact-email", tc.want)
 		})
 	}
 	t.Run("restock", func(t *testing.T) {
 		view := ProductView{Slug: "sold-out", VariantID: "v1", SelectionOK: true, Exact: true, NotifyOutcome: NotifyBadAddress, NotifyEmail: "invalid"}
 		markup := renderComponent(t, ctx, productNotifyForm(&view))
-		assertChineseEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
+		assertEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
 	})
 }
 
-func assertChineseEmailRefusal(t *testing.T, markup, inputID, sentence string) {
+func assertEmailRefusal(t *testing.T, markup, inputID, sentence string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(markup))
 	if err != nil {
