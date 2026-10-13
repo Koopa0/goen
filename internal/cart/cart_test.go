@@ -1110,8 +1110,8 @@ func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
 			got = i18n.T(ctx, e.MessageKey)
 		}
 	}
-	if got != "請填寫縣市" {
-		t.Errorf("a blank city is refused with %q, want 請填寫縣市", got)
+	if got != "請填寫縣市。" {
+		t.Errorf("a blank city is refused with %q, want 請填寫縣市。", got)
 	}
 }
 
