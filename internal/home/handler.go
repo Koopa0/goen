@@ -33,5 +33,6 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 			i18n.T(r.Context(), i18n.KeyCannotLoadHome)))
 		return
 	}
+	view.AccountErased = r.URL.Query().Get("erased") == "1"
 	web.Render(w, r, h.log, http.StatusOK, pages.Home(pages.HomeMeta(r.Context()), view))
 }

@@ -37,8 +37,10 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	view := viewOf(r.Context(), o, nil, nil)
+	view.Filed = r.URL.Query().Get("filed") == "1"
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, nil)))
+		pages.ReturnsMeta(r.Context(), o.Number), view))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
