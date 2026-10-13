@@ -644,7 +644,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	if !ok {
-		if !access.ReloadSameSite(w, r, h.log) {
+		if !web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
 			h.notFound(w, r)
 		}
 		return nil, false
