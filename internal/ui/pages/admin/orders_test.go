@@ -66,7 +66,7 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		Number:            "GO-PICKUP",
 		Correctable:       true,
 		PickupDestination: true,
-		PickupChains:      pages.PickupChainChoices(),
+		PickupChains:      pages.KnownPickupChainChoices(),
 		Address:           pages.Delivery{PickupChain: pickup.FamilyMart}.Line(),
 		Delivery:          Delivery{PickupChain: pickup.FamilyMart},
 	}))
@@ -151,9 +151,7 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 	}
 }
 
-// TestTheIssueButtonFollowsTheMoney: the button is offered for every order
-// whose money has arrived, including a pending one store credit paid in full,
-// and for no order still owing.
+// A positive sale paid wholly with store credit still owes an invoice before picking.
 func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -161,8 +159,12 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		view OrderView
 		want bool
 	}{
-		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true}, want: true},
-		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending}, want: true},
+		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000}, want: true},
+		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, CreditCents: 100000}, want: true},
+		{name: "zero gross, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
+		{name: "zero gross, committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
+		{name: "shipping remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, ShippingCents: 8000}, want: true},
+		{name: "tax remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, TaxCents: 5000}, want: true},
 		{name: "still owing", view: OrderView{Status: order.FulfillmentPending, Unpaid: true}, want: false},
 		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled}, want: false},
 	} {
@@ -283,7 +285,7 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 				}
 				v := OrderView{
 					Number: "GO-DRAFT", Correctable: true, PickupDestination: tc.pickup,
-					PickupChains: pages.PickupChainChoices(), DeliveryErrors: messages,
+					PickupChains: pages.KnownPickupChainChoices(), DeliveryErrors: messages,
 					Recipient: "Saved recipient", Phone: "0912345678", Email: "saved@example.com", Address: "Saved destination",
 					Delivery: Delivery{Recipient: " Proposed recipient ", Phone: "123", Email: "proposed@example.com",
 						PostalCode: "110", City: "New city", District: "New district", Street: " Proposed <street> ",
@@ -336,5 +338,53 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestTheTimelineLabelsRefusedInvoiceCodesInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		label  i18n.Key
+		status i18n.Key
+		note   string
+		zh     string
+		en     string
+	}{
+		{"issue", i18n.KeyAuditInvoiceIssue, i18n.KeyAdminTimelineInvoiceRejected, "2000006", "綠界代碼 2000006", "ECPay code 2000006"},
+		{"allowance", i18n.KeyAuditInvoiceAllowance, i18n.KeyAdminTimelineInvoiceRejected, "2000040", "綠界代碼 2000040", "ECPay code 2000040"},
+		{"void", i18n.KeyAuditInvoiceVoid, i18n.KeyAdminTimelineInvoiceRejected, "", "", ""},
+		{"local refusal", i18n.KeyAuditInvoiceIssue, i18n.KeyAdminTimelineInvoiceRejected, "", "", ""},
+		{"staff note", i18n.KeyStatusPlaced, "", "Keep this note", "Keep this note", "Keep this note"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+				body := renderOrder(t, locale, &OrderView{Number: "GO-261012-000001", Timeline: []TimelineEntry{{
+					Label: tc.label, Status: tc.status, Note: tc.note,
+				}}})
+				want := tc.en
+				if locale == i18n.ZhHant {
+					want = tc.zh
+				}
+				if want == "" {
+					if strings.Contains(body, "ECPay code") || strings.Contains(body, "綠界代碼") {
+						t.Errorf("%s %s HTML invents a provider code", tc.name, locale)
+					}
+					continue
+				}
+				noteAt := strings.Index(body, want)
+				if noteAt < 0 {
+					t.Fatalf("%s %s HTML lacks %q", tc.name, locale, want)
+				}
+				if tc.status != "" {
+					ctx := i18n.WithLocale(t.Context(), locale)
+					statusAt := strings.Index(body, i18n.T(ctx, tc.status))
+					if statusAt < 0 || statusAt >= noteAt {
+						t.Errorf("%s %s HTML does not show refusal before its code", tc.name, locale)
+					}
+				}
+			}
+		})
 	}
 }

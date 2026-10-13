@@ -1,6 +1,11 @@
 package i18n
 
 var (
+	KeyAdminCampProductPrice      = key("admin.camp.product.price", Message{ZhHant: "原價 %s → %s（−%d%%）", En: "Was %s → %s (−%d%%)"})
+	KeyAdminCampProductNoOriginal = key("admin.camp.product.no_original", Message{ZhHant: "沒有原價", En: "No original price"})
+	KeyAdminCampProductDraft      = key("admin.camp.product.draft", Message{ZhHant: "未上架", En: "Not published"})
+	KeyAdminCampProductStock      = countKey("admin.camp.product.stock", "可售 %d 件", "%d sellable unit", "%d sellable units")
+
 	KeyCampaignsRunning = key("campaign.running", Message{ZhHant: "進行中的活動", En: "Running campaigns"})
 
 	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "活動", En: "Campaign"})
@@ -67,6 +72,8 @@ var (
 	KeyDealsTitle = key("deals.title", Message{ZhHant: "優惠", En: "Deals"})
 
 	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
+
+	KeyCurrentDeals = key("campaign.currentdeals", Message{ZhHant: "看目前的優惠", En: "See current deals"})
 )
 
 var (

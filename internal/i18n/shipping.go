@@ -9,8 +9,8 @@ var (
 	})
 
 	KeyShippingSub = key("shipping.sub", Message{
-		ZhHant: "以下金額直接來自系統實際計費的設定。",
-		En:     "These figures come straight from what the checkout actually charges.",
+		ZhHant: "以下為結帳時的配送費用。",
+		En:     "These are the delivery charges shown at checkout.",
 	})
 
 	KeyShippingMethods = key("shipping.methods", Message{

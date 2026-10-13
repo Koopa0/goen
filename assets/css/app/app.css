@@ -4426,7 +4426,6 @@ input.goen-check {
 .goen-pdp__thumb {
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  grid-row: 2;
   min-width: 0;
   padding-bottom: 0.375rem;
 }
@@ -8262,6 +8261,17 @@ input.goen-check {
 .notice__form {
   display: flex;
   width: 100%;
+}
+
+.goen-cart-recovery__cart {
+  text-align: start;
+  width: 100%;
+}
+
+.goen-line--recovery {
+  align-items: start;
+  display: grid;
+  grid-template-columns: min(6rem, 24%) minmax(0, 1fr);
 }
 
 .notice__actions {

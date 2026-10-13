@@ -7,6 +7,10 @@ var (
 
 	KeyAuditNewsletterCompose = key("audit.newsletter.compose", Message{ZhHant: "撰寫電子報", En: "Compose newsletter"})
 
+	KeyAuditShipmentDelivered = key("audit.shipment.delivered", Message{ZhHant: "標記包裹已送達", En: "Mark parcel delivered"})
+
+	KeyAuditFieldDeliveredAt = key("audit.field.delivered_at", Message{ZhHant: "送達時間", En: "Delivered at"})
+
 	KeyAuditOrderShip = key("audit.order.ship", Message{ZhHant: "出貨", En: "Ship order"})
 
 	KeyAuditOrderAdvance = key("audit.order.advance", Message{ZhHant: "訂單狀態", En: "Order status"})

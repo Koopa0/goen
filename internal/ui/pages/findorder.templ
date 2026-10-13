@@ -20,6 +20,7 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 					}) {
 						{ v.Error }
 					}
+					<p><a href="/contact">{ i18n.T(ctx, i18n.KeyFindOrderContact) }</a></p>
 				}
 				<form class="goen-auth__form" method="post" action="/orders/find">
 					<div class="goen-field">

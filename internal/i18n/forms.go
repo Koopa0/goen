@@ -30,6 +30,8 @@ var (
 		ZhHant: "這個網址無法解析",
 		En:     "That web address could not be read",
 	})
+
+	KeyAddressRecovery = key("request.unreadable.recovery", Message{ZhHant: "請確認網址是否完整，或回到商店繼續瀏覽。", En: "Check that the address is complete, or return to the shop to keep browsing."})
 )
 
 var (

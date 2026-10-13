@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -437,17 +439,17 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 	})
 
-	t.Run("undelivered keeps the existing decide path", func(t *testing.T) {
+	t.Run("undelivered cannot be rejected", func(t *testing.T) {
 		requestID, _ := admintest.ReturnedOrder(t, isolated, 1)
 		if window := queueWindow(t, s, requestID); window != "undelivered" {
 			t.Fatalf("window = %q, want undelivered", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", ""); err != nil {
-			t.Fatalf("reject undelivered return: %v", err)
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", ""); !errors.Is(err, returns.ErrRefused) {
+			t.Fatalf("reject undelivered return = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
-		if status != "rejected" || refunds != 0 {
-			t.Errorf("undelivered rejection is %q with %d refunds, want rejected/0", status, refunds)
+		if status != "requested" || refunds != 0 {
+			t.Errorf("undelivered rejection is %q with %d refunds, want requested/0", status, refunds)
 		}
 	})
 
@@ -743,6 +745,105 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 	})
 }
 
+func TestUndeliveredReturnCannotBeDeclinedAndApprovesExactlyOnce(t *testing.T) {
+	isolated := admintest.Pool(t)
+	staff, _ := admintest.StaffContext(t, isolated)
+	appPool := admintest.AdminRolePool(t, isolated)
+	for _, locale := range i18n.Locales() {
+		for _, tt := range []struct {
+			name    string
+			days    int
+			approve bool
+		}{
+			{name: "undelivered", approve: true},
+			{name: "undelivered statutory", days: 3, approve: true},
+			{name: "undelivered goodwill", days: 10},
+			{name: "undelivered late", days: 15},
+		} {
+			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(staff, locale)
+				var id uuid.UUID
+				if tt.days == 0 {
+					id, _ = admintest.ReturnedOrder(t, isolated, 1)
+				} else {
+					id, _, _ = mixedWindowReturnOn(t, isolated, time.Time{}, admintest.ShopNoonDaysAgo(t, tt.days), time.Now())
+				}
+				var paid atomic.Int64
+				s := storeOver(appPool, admintest.Refunder{Sent: &paid})
+				mux := http.NewServeMux()
+				handlerOver(s).Routes(mux, admintest.BackOffice)
+				queue := httptest.NewRecorder()
+				mux.ServeHTTP(queue, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/returns", nil))
+				if queue.Code != http.StatusOK || strings.Contains(queue.Body.String(), `name="decision" value="rejected"`) {
+					t.Fatalf("queue = %d; undelivered request must not offer Reject", queue.Code)
+				}
+				post := func(decision string) *httptest.ResponseRecorder {
+					t.Helper()
+					form := url.Values{"decision": {decision}, "confirm": {decision}, "resolution": {"Recorded decision"}}
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/returns/"+id.String()+"/decide", strings.NewReader(form.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					res := httptest.NewRecorder()
+					mux.ServeHTTP(res, req)
+					return res
+				}
+				type decisionState struct {
+					Status          string
+					Decided         bool
+					Resolution      string
+					Audits, Refunds int
+					Paid            int64
+				}
+				state := func() decisionState {
+					t.Helper()
+					var got decisionState
+					if err := isolated.QueryRow(ctx, `
+						SELECT r.status, r.decided_at IS NOT NULL, coalesce(r.resolution, ''),
+						       (SELECT count(*) FROM audit_events WHERE entity_id = r.id AND action = 'return.decide'),
+						       (SELECT count(*) FROM refunds WHERE return_request_id = r.id)
+						FROM return_requests r WHERE r.id = $1`, id).Scan(&got.Status, &got.Decided, &got.Resolution, &got.Audits, &got.Refunds); err != nil {
+						t.Fatalf("read return decision: %v", err)
+					}
+					got.Paid = paid.Load()
+					return got
+				}
+				res := post("rejected")
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("confirmed Reject = %d, want 422: %s", res.Code, res.Body.String())
+				}
+				wantMessage := "A request made before the goods arrive, or within your seven-day right to cancel, is never declined."
+				if locale == i18n.ZhHant {
+					wantMessage = "商品送達前，或在猶豫期內提出的申請，我們不會拒絕。"
+				}
+				if !strings.Contains(res.Body.String(), wantMessage) {
+					t.Errorf("refusal does not contain %q", wantMessage)
+				}
+				field := admintest.InputElementByID(t, res.Body.String(), "res-"+id.String())
+				if got := admintest.InputAttribute(t, field, "value"); got != "Recorded decision" {
+					t.Errorf("refused resolution = %q, want Recorded decision", got)
+				}
+				if diff := cmp.Diff(decisionState{Status: "requested"}, state()); diff != "" {
+					t.Fatalf("refused decision state (-want +got):\n%s", diff)
+				}
+				if !tt.approve {
+					return
+				}
+				for range 2 {
+					if res := post("approved"); res.Code != http.StatusSeeOther {
+						t.Fatalf("Approve = %d, want 303: %s", res.Code, res.Body.String())
+					}
+				}
+				if got := decisionClaimOn(t, isolated, id); got != "statutory" {
+					t.Errorf("approval entitlement = %q, want statutory", got)
+				}
+				want := decisionState{Status: "approved", Decided: true, Resolution: "Recorded decision", Audits: 1, Refunds: 1, Paid: 1}
+				if diff := cmp.Diff(want, state()); diff != "" {
+					t.Errorf("repeated approval state (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
 func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
@@ -937,11 +1038,17 @@ func mixedWindowReturnOn(t *testing.T, p *pgxpool.Pool, statutoryDelivered, good
 	admintest.MoveOrderToShipped(t, tx, orderID)
 
 	var firstShipment, secondShipment uuid.UUID
+	firstDelivery := &statutoryDelivered
+	firstShipped := statutoryDelivered.Add(-48 * time.Hour)
+	if statutoryDelivered.IsZero() {
+		firstDelivery = nil
+		firstShipped = requested.Add(-48 * time.Hour)
+	}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
 		) VALUES ($1, 'black_cat', 'T-MIX-S-' || $2, $3, $4)
-		RETURNING id`, orderID, number, statutoryDelivered.Add(-48*time.Hour), statutoryDelivered).
+		RETURNING id`, orderID, number, firstShipped, firstDelivery).
 		Scan(&firstShipment); err != nil {
 		t.Fatalf("create statutory parcel: %v", err)
 	}

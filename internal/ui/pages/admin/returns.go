@@ -144,6 +144,20 @@ func ReturnLineWindowText(ctx context.Context, window returns.PolicyWindow) stri
 
 func (r *Return) Rescission() bool { return r.Window == returns.WindowStatutory }
 
+// CanReject excludes requests whose undelivered lines have no recorded start
+// for the statutory clock, including requests with other line windows.
+func (r *Return) CanReject() bool {
+	if r.Rescission() || r.Window == returns.WindowUndelivered {
+		return false
+	}
+	for i := range r.Lines {
+		if r.Lines[i].Window == returns.WindowUndelivered {
+			return false
+		}
+	}
+	return true
+}
+
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
 func (r *Return) Goodwill() bool { return r.Window == returns.WindowGoodwill }
@@ -151,6 +165,20 @@ func (r *Return) Goodwill() bool { return r.Window == returns.WindowGoodwill }
 func (r *Return) Late() bool { return r.Window == returns.WindowLate }
 
 func (r *Return) Mixed() bool { return r.Window == returns.WindowMixed }
+
+func (r *Return) mixedStatutoryApproval() bool {
+	if !r.Mixed() || len(r.Lines) == 0 {
+		return false
+	}
+	for i := range r.Lines {
+		switch r.Lines[i].Window {
+		case returns.WindowStatutory, returns.WindowUndelivered:
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 func (r *Return) WindowText(ctx context.Context) string {
 	switch r.Window {
@@ -253,19 +281,19 @@ type ReturnLine struct {
 	Packaging   string
 	Accessories string
 	// DraftReceived, DraftRestocked and DraftNote are what staff typed on an
-	// inspection that was refused; empty means the form's own defaults.
+	// inspection that was refused, including empty submitted counts.
 	DraftReceived, DraftRestocked, DraftNote string
 }
 
-func (l *ReturnLine) ReceivedField() string {
-	if l.DraftReceived != "" {
+func (l *ReturnLine) ReceivedField(refused bool) string {
+	if refused || l.DraftReceived != "" {
 		return l.DraftReceived
 	}
 	return l.MaxQuantityText()
 }
 
-func (l *ReturnLine) RestockedField() string {
-	if l.DraftRestocked != "" {
+func (l *ReturnLine) RestockedField(refused bool) string {
+	if refused || l.DraftRestocked != "" {
 		return l.DraftRestocked
 	}
 	return "0"
