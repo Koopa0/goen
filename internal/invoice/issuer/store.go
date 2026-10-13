@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -71,13 +72,13 @@ func (s *Store) Enabled() bool { return s.gateway.Enabled() }
 
 // Issue durably freezes and claims a request before any provider call. ECPay's
 // allocated number is attached only after FetchIssue proves the remote truth.
-func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error) {
+func (s *Store) Issue(ctx context.Context, orderNumber string) (invoice.Document, error) {
 	if !s.Enabled() {
-		return Document{}, ErrDisabled
+		return invoice.Document{}, ErrDisabled
 	}
 	actorID, requestID, err := filingAuditIdentity(ctx)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 	operationID, err := s.q.ClaimInvoiceIssue(ctx, db.ClaimInvoiceIssueParams{
 		OrderNumber: orderNumber, ActorUserID: actorID, RequestID: requestID,
@@ -85,11 +86,11 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 	if err != nil {
 		switch constraintName(err) {
 		case "invoice_issue_order":
-			return Document{}, ErrNotFound
+			return invoice.Document{}, ErrNotFound
 		case "invoice_documents_one_active_invoice_per_order":
-			return Document{}, ErrAlreadyIssued
+			return invoice.Document{}, ErrAlreadyIssued
 		}
-		return Document{}, fmt.Errorf("claim invoice for %s: %w", orderNumber, err)
+		return invoice.Document{}, fmt.Errorf("claim invoice for %s: %w", orderNumber, err)
 	}
 	return s.processClaim(ctx, operationID)
 }
@@ -178,24 +179,24 @@ func mapVoidClaim(documentNumber string, err error) error {
 // allowances while holding the original document lock; callers supply no money.
 func (s *Store) FileAllowance(
 	ctx context.Context, orderNumber string, operationID uuid.UUID,
-) (Document, error) {
+) (invoice.Document, error) {
 	if !s.Enabled() {
-		return Document{}, ErrDisabled
+		return invoice.Document{}, ErrDisabled
 	}
 	actorID, requestID, err := filingAuditIdentity(ctx)
 	if err != nil {
-		return Document{}, err
+		return invoice.Document{}, err
 	}
 	if operationID == uuid.Nil {
-		return Document{}, fmt.Errorf("%w: an allowance needs a non-zero operation id",
+		return invoice.Document{}, fmt.Errorf("%w: an allowance needs a non-zero operation id",
 			ErrRejected)
 	}
 	live, err := s.q.LiveInvoice(ctx, orderNumber)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return Document{}, ErrNotFound
+			return invoice.Document{}, ErrNotFound
 		}
-		return Document{}, fmt.Errorf("read the invoice of %s: %w", orderNumber, err)
+		return invoice.Document{}, fmt.Errorf("read the invoice of %s: %w", orderNumber, err)
 	}
 	operationID, err = s.q.ClaimInvoiceAllowance(ctx, db.ClaimInvoiceAllowanceParams{
 		OriginalID: live.ID, OperationID: operationID,
@@ -204,19 +205,19 @@ func (s *Store) FileAllowance(
 	if err != nil {
 		switch constraintName(err) {
 		case "invoice_allowance_within_refund":
-			return Document{}, fmt.Errorf("%w: concurrent allowances exhausted the refunded amount", ErrTooMuch)
+			return invoice.Document{}, fmt.Errorf("%w: concurrent allowances exhausted the refunded amount", ErrTooMuch)
 		case "invoice_operations_one_active_allowance":
-			return Document{}, fmt.Errorf("%w: an allowance for order %s is still unresolved",
+			return invoice.Document{}, fmt.Errorf("%w: an allowance for order %s is still unresolved",
 				ErrClaimed, orderNumber)
 		case "invoice_allowance_claim_attribution":
-			return Document{}, fmt.Errorf("%w: allowance operation belongs to different facts", ErrRejected)
+			return invoice.Document{}, fmt.Errorf("%w: allowance operation belongs to different facts", ErrRejected)
 		}
-		return Document{}, fmt.Errorf("claim an allowance for %s: %w", orderNumber, err)
+		return invoice.Document{}, fmt.Errorf("claim an allowance for %s: %w", orderNumber, err)
 	}
 	return s.processClaim(ctx, operationID)
 }
 
-func invoiceLineArrays(lines []Line) (
+func invoiceLineArrays(lines []invoice.Line) (
 	descriptions []string,
 	quantities []int32,
 	unitPrices []int64,
@@ -235,7 +236,7 @@ func invoiceLineArrays(lines []Line) (
 	return descriptions, quantities, unitPrices, amounts
 }
 
-func (s *Store) Documents(ctx context.Context, orderNumber string) ([]Document, error) {
+func (s *Store) Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error) {
 	rows, err := s.q.InvoiceDocuments(ctx, orderNumber)
 	if err != nil {
 		return nil, fmt.Errorf("read the invoices of %s: %w", orderNumber, err)
@@ -248,22 +249,22 @@ func (s *Store) Documents(ctx context.Context, orderNumber string) ([]Document, 
 	if err != nil {
 		return nil, fmt.Errorf("read the lines of %s's invoices: %w", orderNumber, err)
 	}
-	byDocument := make(map[uuid.UUID][]Line, len(rows))
+	byDocument := make(map[uuid.UUID][]invoice.Line, len(rows))
 	for i := range lineRows {
 		l := &lineRows[i]
-		byDocument[l.DocumentID] = append(byDocument[l.DocumentID], Line{
+		byDocument[l.DocumentID] = append(byDocument[l.DocumentID], invoice.Line{
 			Description: l.Description, Quantity: l.Quantity,
 			UnitPriceCents: l.UnitPriceCents, AmountCents: l.AmountCents,
-			TaxType: TaxType(l.TaxType), Unit: ItemUnit(l.Unit),
+			TaxType: invoice.TaxType(l.TaxType), Unit: invoice.ItemUnit(l.Unit),
 		})
 	}
 
-	out := make([]Document, 0, len(rows))
+	out := make([]invoice.Document, 0, len(rows))
 	for i := range rows {
 		d := &rows[i]
-		out = append(out, Document{
-			ID: d.ID.String(), Kind: DocumentKind(d.Kind), Number: d.Number,
-			AmountCents: d.AmountCents, Status: DocumentStatus(d.Status),
+		out = append(out, invoice.Document{
+			ID: d.ID.String(), Kind: invoice.DocumentKind(d.Kind), Number: d.Number,
+			AmountCents: d.AmountCents, Status: invoice.DocumentStatus(d.Status),
 			IssuedAt: d.IssuedAt, ProviderRef: d.ProviderRef,
 			Lines: byDocument[d.ID],
 		})

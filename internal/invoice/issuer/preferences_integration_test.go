@@ -1,6 +1,6 @@
 //go:build integration
 
-package invoice
+package issuer
 
 import (
 	"encoding/json"
@@ -8,10 +8,12 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 func TestDonationPreferenceSurvivesCanonicalSnapshotAndIssue(t *testing.T) {
-	for _, preference := range []Preference{PreferenceDonate} {
+	for _, preference := range []invoice.Preference{invoice.PreferenceDonate} {
 		t.Run(string(preference), func(t *testing.T) {
 			ctx := t.Context()
 			var seen issueRequest

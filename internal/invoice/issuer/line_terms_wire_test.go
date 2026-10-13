@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"encoding/json"
@@ -7,17 +7,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 func TestIssuingUsesTheFrozenLineTaxTypeAndUnit(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		tax     TaxType
+		tax     invoice.TaxType
 		wireTax string
 		special bool
 	}{
-		{name: "taxable", tax: Taxable, wireTax: "1"},
-		{name: "exempt", tax: Exempt, wireTax: "3", special: true},
+		{name: "taxable", tax: invoice.Taxable, wireTax: "1"},
+		{name: "exempt", tax: invoice.Exempt, wireTax: "3", special: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sent := make(chan map[string]any, 1)
@@ -56,9 +58,9 @@ func TestIssuingUsesTheFrozenLineTaxTypeAndUnit(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = g.Issue(t.Context(), IssueRequest{
-				OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: PreferenceMember,
+				OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: invoice.PreferenceMember,
 				AmountCents: 30000,
-				Lines: []Line{
+				Lines: []invoice.Line{
 					{Description: "First", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: tc.tax, Unit: "包"},
 					{Description: "Second", Quantity: 1, UnitPriceCents: 20000, AmountCents: 20000, TaxType: tc.tax, Unit: "六字中文單位"},
 				},
@@ -95,10 +97,10 @@ func TestLookupPreservesTheLineTaxTypeAndUnit(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		wireTax providerDecimal
-		tax     TaxType
+		tax     invoice.TaxType
 	}{
-		{name: "taxable", wireTax: "1", tax: Taxable},
-		{name: "exempt", wireTax: "3", tax: Exempt},
+		{name: "taxable", wireTax: "1", tax: invoice.Taxable},
+		{name: "exempt", wireTax: "3", tax: invoice.Exempt},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := (lookupItem{Name: "First", Count: "1", Price: "100", Amount: "100", TaxType: tc.wireTax, Unit: "包"}).line()
@@ -115,14 +117,14 @@ func TestLookupPreservesTheLineTaxTypeAndUnit(t *testing.T) {
 func TestProviderNeverReceivesUnsupportedOrMixedLineTerms(t *testing.T) {
 	for _, mutate := range []struct {
 		name   string
-		change func([]Line)
+		change func([]invoice.Line)
 	}{
-		{"mixed", func(lines []Line) { lines[1].TaxType = Exempt }},
-		{"zero rated", func(lines []Line) { lines[0].TaxType = ZeroRated; lines[1].TaxType = ZeroRated }},
-		{"unknown", func(lines []Line) { lines[0].TaxType = "unknown" }},
-		{"blank unit", func(lines []Line) { lines[0].Unit = "" }},
-		{"long unit", func(lines []Line) { lines[0].Unit = "七個字中文單位" }},
-		{"control in unit", func(lines []Line) { lines[0].Unit = "個\n" }},
+		{"mixed", func(lines []invoice.Line) { lines[1].TaxType = invoice.Exempt }},
+		{"zero rated", func(lines []invoice.Line) { lines[0].TaxType = invoice.ZeroRated; lines[1].TaxType = invoice.ZeroRated }},
+		{"unknown", func(lines []invoice.Line) { lines[0].TaxType = "unknown" }},
+		{"blank unit", func(lines []invoice.Line) { lines[0].Unit = "" }},
+		{"long unit", func(lines []invoice.Line) { lines[0].Unit = "七個字中文單位" }},
+		{"control in unit", func(lines []invoice.Line) { lines[0].Unit = "個\n" }},
 	} {
 		for _, endpoint := range []string{"issue", "allowance"} {
 			t.Run(endpoint+"/"+mutate.name, func(t *testing.T) {
@@ -136,10 +138,10 @@ func TestProviderNeverReceivesUnsupportedOrMixedLineTerms(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				lines := []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: Taxable, Unit: DefaultUnit}, {Description: "Other", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: Taxable, Unit: DefaultUnit}}
+				lines := []invoice.Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}, {Description: "Other", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}}
 				mutate.change(lines)
 				if endpoint == "issue" {
-					_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: PreferenceMember, AmountCents: 20000, Lines: lines})
+					_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: invoice.PreferenceMember, AmountCents: 20000, Lines: lines})
 				} else {
 					err = g.RequestAllowance(t.Context(), AllowanceRequest{InvoiceNumber: "AB12345678", CustomerName: "Buyer", Email: "buyer@example.com", AmountCents: 20000, Lines: lines})
 				}

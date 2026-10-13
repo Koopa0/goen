@@ -39,7 +39,7 @@ sql:
       - "internal/admin/returns/query.sql"
       - "internal/admin/reports/query.sql"
       - "internal/admin/reports/orders_export.sql"
-      - "internal/invoice/query.sql"
+      - "internal/invoice/issuer/query.sql"
     gen:
       go:
         package: "db"

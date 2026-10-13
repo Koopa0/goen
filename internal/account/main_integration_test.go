@@ -31,8 +31,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages/pagestest"
@@ -239,7 +239,7 @@ func accountCheckoutQuote(
 	if err != nil {
 		t.Fatalf("read account checkout cart: %v", err)
 	}
-	delivery, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
+	quote, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
 	if err != nil {
 		t.Fatalf("quote account checkout delivery: %v", err)
 	}
@@ -258,7 +258,7 @@ func accountCheckoutQuote(
 			VariantID: variantID, Quantity: line.Quantity, UnitCents: line.UnitCents,
 		})
 	}
-	shipping, err := delivery.Total()
+	shipping, err := quote.Total()
 	if err != nil {
 		t.Fatalf("total account checkout shipping: %v", err)
 	}
@@ -1691,7 +1691,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2417,7 +2417,7 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}

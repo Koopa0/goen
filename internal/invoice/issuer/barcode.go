@@ -1,9 +1,11 @@
-package invoice
+package issuer
 
 import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 // BarcodeStatus is an existence verdict, separate from a successful API call.
@@ -21,7 +23,7 @@ const barcodeCheckTimeout = 3 * time.Second
 // invoice. ECPay calls this an auxiliary check because Ministry maintenance can
 // prevent a verdict: https://developers.ecpay.com.tw/7886/.
 func (g *Gateway) CheckBarcode(ctx context.Context, barcode string) (BarcodeStatus, error) {
-	if !ValidMobileBarcode(barcode) {
+	if !invoice.ValidMobileBarcode(barcode) {
 		return BarcodeUnknown, errors.New("invoice: malformed mobile barcode")
 	}
 	if !g.Enabled() {

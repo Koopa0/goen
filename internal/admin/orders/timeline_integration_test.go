@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
@@ -229,7 +229,7 @@ func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
 		VALUES ($1, 'member_carrier', '買受人', 'buyer@example.com')`, orderID); err != nil {
 		t.Fatalf("record invoice preference: %v", err)
 	}
-	if err := invoice.NewStore(pool, &invoice.Gateway{}).ClaimDue(ctx,
+	if err := issuer.NewStore(pool, &issuer.Gateway{}).ClaimDue(ctx,
 		&outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_" + number}); err != nil {
 		t.Fatalf("claim the invoice due: %v", err)
 	}
