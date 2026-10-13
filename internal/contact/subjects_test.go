@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/contactsubject"
+	"github.com/koopa0/goen/internal/contact/subject"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestEveryOfferedSubjectIsAcceptedAndTranslated(t *testing.T) {
 	t.Parallel()
 
-	for _, choice := range contactsubject.Choices() {
+	for _, choice := range subject.Choices() {
 		offered := choice.Value
 		t.Run(string(offered), func(t *testing.T) {
 			t.Parallel()

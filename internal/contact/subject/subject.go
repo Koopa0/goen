@@ -1,5 +1,5 @@
-// Package contactsubject owns the durable categories of a contact message.
-package contactsubject
+// Package subject owns the durable categories of a contact message.
+package subject
 
 import (
 	"slices"
@@ -11,15 +11,15 @@ type Subject string
 
 const (
 	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectOrder Subject = "訂單問題"
+	Order Subject = "訂單問題"
 	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectReturns Subject = "退換貨"
+	Returns Subject = "退換貨"
 	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectWarranty Subject = "保固維修"
+	Warranty Subject = "保固維修"
 	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectProduct Subject = "商品諮詢"
+	Product Subject = "商品諮詢"
 	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectPartnership Subject = "合作提案"
+	Partnership Subject = "合作提案"
 )
 
 type Choice struct {
@@ -28,11 +28,11 @@ type Choice struct {
 }
 
 var choices = [...]Choice{
-	{SubjectOrder, i18n.KeySubjectOrder},
-	{SubjectReturns, i18n.KeySubjectReturns},
-	{SubjectWarranty, i18n.KeySubjectWarranty},
-	{SubjectProduct, i18n.KeySubjectProduct},
-	{SubjectPartnership, i18n.KeySubjectPartnership},
+	{Order, i18n.KeySubjectOrder},
+	{Returns, i18n.KeySubjectReturns},
+	{Warranty, i18n.KeySubjectWarranty},
+	{Product, i18n.KeySubjectProduct},
+	{Partnership, i18n.KeySubjectPartnership},
 }
 
 func Choices() []Choice {

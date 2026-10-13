@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/contactsubject"
+	"github.com/koopa0/goen/internal/contact/subject"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -48,7 +48,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	msg := Clean(Message{
 		Name:     r.PostFormValue("name"),
 		Email:    r.PostFormValue("email"),
-		Subject:  contactsubject.Subject(r.PostFormValue("subject")),
+		Subject:  subject.Subject(r.PostFormValue("subject")),
 		OrderRef: r.PostFormValue("order_ref"),
 		Body:     r.PostFormValue("message"),
 	})
@@ -112,7 +112,7 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 }
 
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
-	choices := contactsubject.Choices()
+	choices := subject.Choices()
 	out := make([]pages.ContactSubject, 0, len(choices))
 	for _, choice := range choices {
 		out = append(out, pages.ContactSubject{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})

@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/contact"
-	"github.com/koopa0/goen/internal/contactsubject"
+	"github.com/koopa0/goen/internal/contact/subject"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -136,7 +136,7 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 					t.Errorf("unknown subject stored rows = %d, %v, want 0, nil", count, err)
 				}
 				if err := writer.Create(ctx, contact.Message{
-					Name: "Reader", Email: email, Subject: contactsubject.Subject("An order"), Body: "An original customer note.",
+					Name: "Reader", Email: email, Subject: subject.Subject("An order"), Body: "An original customer note.",
 				}); err == nil {
 					t.Error("Create(unknown subject) = nil, want refusal")
 				} else if _, driverError := errors.AsType[*pgconn.PgError](err); driverError {
