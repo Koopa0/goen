@@ -28,7 +28,7 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
+	mux.Handle("GET "+assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	localeHandler := &site.Handler{}
 	mux.HandleFunc("POST /locale", localeHandler.SetLocale)
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
