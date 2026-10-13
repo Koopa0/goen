@@ -28,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
@@ -399,8 +399,8 @@ func reachableAdminPool(ctx context.Context, url string, secureCookies bool, log
 	return pool, nil
 }
 
-func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
-	g, err := invoice.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
+func openInvoicing(cfg *config, log *slog.Logger) (*issuer.Gateway, error) {
+	g, err := issuer.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
 		cfg.ECPayHashIV, cfg.ECPayBaseURL)
 	if err != nil {
 		return nil, err
@@ -430,7 +430,7 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
 // openProviders builds the outside services goen talks to and says when any is
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
-	payments *payment.Gateway, invoices *invoice.Gateway,
+	payments *payment.Gateway, invoices *issuer.Gateway,
 	googleSignIn *account.Google, storeMap *cart.StoreMap, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
@@ -774,7 +774,7 @@ type workerDeps struct {
 	maintenance *pgxpool.Pool
 	log         *slog.Logger
 	notifier    email.Notifier
-	invoices    *invoice.Gateway
+	invoices    *issuer.Gateway
 	run         func(func())
 }
 
@@ -795,7 +795,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	// hour, quietly, and nothing is ever reclaimed.
 	d.run(func() { media.NewStore(d.admin).SweepForever(ctx, d.log) })
 	if d.invoices != nil && d.invoices.Enabled() {
-		d.run(func() { invoice.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
+		d.run(func() { issuer.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
 	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
@@ -828,13 +828,13 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 
 // invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the
 // invoice doors.
-func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceDue) error {
-	return invoice.NewStore(adminPool, gateway).ClaimDue
+func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) func(context.Context, *outbox.InvoiceDue) error {
+	return issuer.NewStore(adminPool, gateway).ClaimDue
 }
 
 // invoiceVoidDueHandler claims on the ADMIN pool, as invoiceDueHandler does.
-func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
-	return invoice.NewStore(adminPool, gateway).ClaimVoidDue
+func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
+	return issuer.NewStore(adminPool, gateway).ClaimVoidDue
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY

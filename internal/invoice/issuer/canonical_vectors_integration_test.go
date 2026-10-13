@@ -1,6 +1,6 @@
 //go:build integration
 
-package invoice
+package issuer
 
 import (
 	"testing"

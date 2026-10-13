@@ -7,7 +7,7 @@
 // the fake provider has to SEAL its replies with the gateway's own AES envelope,
 // and seal is unexported by design. Re-implementing the cipher in a test would
 // be a second copy of the thing most worth having exactly one of.
-package invoice
+package issuer
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 )
@@ -54,7 +55,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	pool = p
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		slog.Error("read seed", "error", err)
 		os.Exit(1)
@@ -185,7 +186,7 @@ func agreedAllowance(request allowanceRequest, number, agreedAt string) map[stri
 // once the provider lists it as agreed to.
 func fileAgreedAllowance(
 	t *testing.T, s *Store, ctx context.Context, orderNumber string, operationID uuid.UUID,
-) (Document, error) {
+) (invoice.Document, error) {
 	t.Helper()
 	if _, err := s.FileAllowance(ctx, orderNumber, operationID); !errors.Is(err, ErrAwaitingBuyer) {
 		t.Fatalf("Allowance for %s = %v, want it e-mailed to the buyer", orderNumber, err)
@@ -195,7 +196,7 @@ func fileAgreedAllowance(
 
 // passAgain runs an operation's next reconciliation pass now, as the
 // reconciler does once its backoff has passed.
-func passAgain(t *testing.T, s *Store, ctx context.Context, operationID uuid.UUID) (Document, error) {
+func passAgain(t *testing.T, s *Store, ctx context.Context, operationID uuid.UUID) (invoice.Document, error) {
 	t.Helper()
 	if _, err := pool.Exec(ctx,
 		`UPDATE invoice_operations SET available_at = now() WHERE id = $1`, operationID); err != nil {
@@ -1004,7 +1005,7 @@ func TestPendingIssueSettlementPreservesAnErasedFilingActor(t *testing.T) {
 func TestErasedCustomerCommittedOrderStillIssuesFromFilingSnapshot(t *testing.T) {
 	ctx := t.Context()
 	owner := invoiceCustomer(t, "即將刪除的顧客", true)
-	number := ownedOrderToInvoice(t, owner, 100000, 0, 0, PreferenceMember, "王小明", "")
+	number := ownedOrderToInvoice(t, owner, 100000, 0, 0, invoice.PreferenceMember, "王小明", "")
 	eraseInvoiceCustomer(t, owner.UUID)
 
 	var sent issueRequest
@@ -1580,14 +1581,14 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 		return orderID
 	}
 
-	for _, preference := range OfferedPreferences() {
+	for _, preference := range invoice.OfferedPreferences() {
 		t.Run(string(preference), func(t *testing.T) {
 			var barcode, taxID, donationCode *string
 			if preference.NeedsMobileBarcode() {
 				value := "/AB12345"
 				barcode = &value
 			}
-			if preference == PreferenceDonate {
+			if preference == invoice.PreferenceDonate {
 				value := "00123"
 				donationCode = &value
 			}
@@ -2779,11 +2780,11 @@ func insertAllowanceOperation(
 	t *testing.T, orderNumber string, amountCents int64, sendAttempts int,
 ) uuid.UUID {
 	t.Helper()
-	return insertAllowanceOperationWithUnit(t, orderNumber, amountCents, sendAttempts, DefaultUnit)
+	return insertAllowanceOperationWithUnit(t, orderNumber, amountCents, sendAttempts, invoice.DefaultUnit)
 }
 
 func insertAllowanceOperationWithUnit(
-	t *testing.T, orderNumber string, amountCents int64, sendAttempts int, unit ItemUnit,
+	t *testing.T, orderNumber string, amountCents int64, sendAttempts int, unit invoice.ItemUnit,
 ) uuid.UUID {
 	t.Helper()
 	operationID := uuid.New()
@@ -3568,9 +3569,9 @@ func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 		FROM invoice_operations WHERE id=$1`, operationID).Scan(&status, &category, &sends); err != nil {
 		t.Fatalf("read the lapsed allowance: %v", err)
 	}
-	if status != "attention" || category != CategoryBuyerUnconfirmed || sends != 1 {
+	if status != "attention" || category != invoice.CategoryBuyerUnconfirmed || sends != 1 {
 		t.Fatalf("lapsed allowance = %s/%s after %d sends, want attention/%s after one",
-			status, category, sends, CategoryBuyerUnconfirmed)
+			status, category, sends, invoice.CategoryBuyerUnconfirmed)
 	}
 }
 
@@ -3639,7 +3640,7 @@ func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
 	}{
 		{name: "the buyer is asked again", wantStatus: "pending", wantError: "allowance_awaiting_buyer"},
 		{name: "the lapsed request still holds the amount", held: true,
-			wantStatus: "attention", wantError: CategoryAmountStillHeld},
+			wantStatus: "attention", wantError: invoice.CategoryAmountStillHeld},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -4080,7 +4081,7 @@ func orderToInvoice(t *testing.T, itemCents, shippingCents, discountCents int64)
 	t.Helper()
 	return orderToInvoiceFor(
 		t, itemCents, shippingCents, discountCents,
-		PreferenceMember, "王小明", "",
+		invoice.PreferenceMember, "王小明", "",
 	)
 }
 
@@ -4088,13 +4089,13 @@ func companyOrderToInvoice(
 	t *testing.T, companyName, taxID string,
 ) string {
 	t.Helper()
-	return orderToInvoiceFor(t, 100000, 0, 0, PreferenceCompany, companyName, taxID)
+	return orderToInvoiceFor(t, 100000, 0, 0, invoice.PreferenceCompany, companyName, taxID)
 }
 
 func orderToInvoiceFor(
 	t *testing.T,
 	itemCents, shippingCents, discountCents int64,
-	preference Preference,
+	preference invoice.Preference,
 	buyerName, taxID string,
 ) string {
 	t.Helper()
@@ -4107,16 +4108,16 @@ func orderToInvoiceFor(
 func ownedOrderToInvoice(
 	t *testing.T, owner uuid.NullUUID,
 	itemCents, shippingCents, discountCents int64,
-	preference Preference, buyerName, taxID string,
+	preference invoice.Preference, buyerName, taxID string,
 ) string {
 	t.Helper()
-	return ownedOrderToInvoiceWithLineTerms(t, owner, itemCents, shippingCents, discountCents, preference, buyerName, taxID, LineTerms{TaxType: Taxable, Unit: DefaultUnit})
+	return ownedOrderToInvoiceWithLineTerms(t, owner, itemCents, shippingCents, discountCents, preference, buyerName, taxID, invoice.LineTerms{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit})
 }
 
 func ownedOrderToInvoiceWithLineTerms(
 	t *testing.T, owner uuid.NullUUID,
 	itemCents, shippingCents, discountCents int64,
-	preference Preference, buyerName, taxID string, terms LineTerms,
+	preference invoice.Preference, buyerName, taxID string, terms invoice.LineTerms,
 ) string {
 	t.Helper()
 	ctx := t.Context()
@@ -4141,7 +4142,7 @@ func ownedOrderToInvoiceWithLineTerms(
 		Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}
-	if terms == (LineTerms{TaxType: Taxable, Unit: DefaultUnit}) {
+	if terms == (invoice.LineTerms{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}) {
 		if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 		                         unit_price_cents, quantity, position)
@@ -4215,7 +4216,7 @@ func TestTaxIDChecksumAgreesWithTheSchema(t *testing.T) {
 		if err := rows.Scan(&value, &sql); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
-		if goValid := ValidTaxID(value); goValid != sql {
+		if goValid := invoice.ValidTaxID(value); goValid != sql {
 			t.Errorf("%q: ValidTaxID = %t, valid_business_tax_id = %t", value, goValid, sql)
 		}
 		agreed++

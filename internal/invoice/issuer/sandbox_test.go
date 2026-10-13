@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 func TestSandboxExemptInvoicePreservesSixCharacterChineseUnit(t *testing.T) {
@@ -18,9 +20,9 @@ func TestSandboxExemptInvoicePreservesSixCharacterChineseUnit(t *testing.T) {
 	}
 	relate := "GT" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	request := IssueRequest{
-		OrderNumber: relate, CustomerName: "Sandbox Buyer", Email: "buyer@example.com", Preference: PreferenceMember,
+		OrderNumber: relate, CustomerName: "Sandbox Buyer", Email: "buyer@example.com", Preference: invoice.PreferenceMember,
 		AmountCents: 10000,
-		Lines:       []Line{{Description: "Sandbox Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: Exempt, Unit: "六字中文單位"}},
+		Lines:       []invoice.Line{{Description: "Sandbox Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: invoice.Exempt, Unit: "六字中文單位"}},
 	}
 	document, err := g.Issue(t.Context(), request)
 	if err != nil {

@@ -1,4 +1,4 @@
-package invoice
+package issuer
 
 import (
 	"bytes"
@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 // ECPay's B2C e-invoice endpoints; staging is the default.
@@ -281,7 +283,7 @@ var dotNetLiterals = strings.NewReplacer(
 	"%2a", "*",
 )
 
-func itemsFor(lines []Line) []item {
+func itemsFor(lines []invoice.Line) []item {
 	out := make([]item, 0, len(lines))
 	for i, l := range lines {
 		out = append(out, item{
@@ -295,7 +297,7 @@ func itemsFor(lines []Line) []item {
 			ItemWord:    string(l.Unit),
 			ItemPrice:   wholeDollars(l.UnitPriceCents),
 			ItemAmount:  wholeDollars(l.AmountCents),
-			ItemTaxType: l.TaxType.ecpayCode(),
+			ItemTaxType: taxCode(l.TaxType),
 		})
 	}
 	return out
