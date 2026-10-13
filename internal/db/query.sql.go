@@ -14273,6 +14273,12 @@ LEFT JOIN LATERAL (
     WHERE coalesce(registered.units, 0) + 1 > p.units_before
       AND coalesce(registered.units, 0) + 1 <= p.units_before + p.quantity
       AND p.delivered_at IS NOT NULL
+      AND coalesce(registered.units, 0) + 1 <= greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)
+      AND NOT EXISTS (
+          SELECT 1 FROM warranty_registrations w
+          WHERE w.order_line_id = ol.id
+            AND w.unit_no = coalesce(registered.units, 0) + 1
+      )
 ) parcel ON true
 WHERE ($1::text IS NULL OR o.order_number = $1::text)
   AND o.user_id = $2

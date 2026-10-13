@@ -121,7 +121,7 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 					<li class="goen-warranty__item">
 						<div class="goen-warranty__head">
 							<span class="goen-warranty__name">{ line.Name }</span>
-							if line.TermText(ctx) != "" {
+							if line.CoverText(ctx) != "" {
 								@components.Badge(components.BadgeProps{}) {
 									{ line.CoverText(ctx) }
 								}
@@ -155,6 +155,17 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 							</form>
 						} else if v.lineWhy(ctx, line) != "" {
 							<p class="goen-warranty__meta">{ v.lineWhy(ctx, line) }</p>
+						}
+						if !line.Registrable() && line.DraftSerial != "" {
+							<div class="goen-field goen-warranty__field">
+								@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
+									{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
+								}
+								@components.Input(components.FieldProps{
+									ID: "serial-" + line.ID, Name: "serial", Value: line.DraftSerial,
+									Attrs: templ.Attributes{"readonly": true},
+								})
+							</div>
 						}
 					</li>
 				}

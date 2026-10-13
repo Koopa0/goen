@@ -117,10 +117,7 @@ func TestWarrantyReadyListKeepsOwnershipDeliveryAndReturnBoundaries(t *testing.T
 			registered := newFixtureForCustomer(t, owner, 1, 24, parcel{units: 1, arrived: true})
 			returned := newFixtureForCustomer(t, owner, 1, 24, parcel{units: 1, arrived: true})
 			foreign := newFixture(t, 1, 24, parcel{units: 1, arrived: true})
-			guest := newFixture(t, 1, 24, parcel{units: 1, arrived: true})
-			if _, err := pool.Exec(t.Context(), `UPDATE orders SET user_id = NULL WHERE order_number = $1`, guest.number); err != nil {
-				t.Fatal(err)
-			}
+			guest := newFixtureForGuest(t, 1, 24, parcel{units: 1, arrived: true})
 			if err := store.Register(t.Context(), registered.number, registered.lineID.String(), registered.userID, "", 1); err != nil {
 				t.Fatal(err)
 			}

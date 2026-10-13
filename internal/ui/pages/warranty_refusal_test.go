@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -26,6 +27,10 @@ func TestWarrantySerialRefusalKeepsOnlyItsOwnDraftAndExplanation(t *testing.T) {
 				{ID: "owned", Name: "Refused item", HasTerm: true, Months: 12, Delivered: 1, DraftSerial: " Raw & \"serial\" ", SerialRefusal: tc.refusal},
 				{ID: "sibling", Name: "Other item", HasTerm: true, Months: 12, Delivered: 1},
 			}}
+			end := shoptime.Date{Year: 2027, Month: 8, Day: 20}
+			for i := range view.Lines {
+				view.Lines[i].CoverEnds = &end
+			}
 			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, view))
 			nodes := warrantyNodesByID(t, body)
 			input := nodes["serial-owned"]

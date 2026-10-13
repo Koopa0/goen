@@ -130,11 +130,11 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 	view.Refusal = message
 	for i := range view.Lines {
 		line := &view.Lines[i]
-		if line.ID != r.PostFormValue("line") || !line.Registrable() {
+		if line.ID != r.PostFormValue("line") {
 			continue
 		}
 		line.DraftSerial = r.PostFormValue("serial")
-		if refusal != i18n.KeyWarrantyRefused {
+		if line.Registrable() && refusal != i18n.KeyWarrantyRefused {
 			line.SerialRefusal = message
 			view.Refusal = ""
 		}

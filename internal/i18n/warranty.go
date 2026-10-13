@@ -52,6 +52,7 @@ var (
 	KeyWarrantyTermBeforeDelivery = key("warranty.term.before_delivery", Message{ZhHant: "保固 %s，從送達日起算", En: "%s warranty, from delivery"})
 	KeyWarrantyYears              = key("warranty.term.years", Message{ZhHant: "%d 年", En: "%d-year"})
 	KeyWarrantyMonths             = key("warranty.term.months", Message{ZhHant: "%d 個月", En: "%d-month"})
+	KeyWarrantyNextUnavailable    = key("warranty.next_unavailable", Message{ZhHant: "目前沒有可登錄的下一件商品。", En: "No next item is available for registration at present."})
 	KeyWarrantyReady              = key("warranty.ready", Message{ZhHant: "可以登錄", En: "Ready to register"})
 	KeyWarrantyRegisterReady      = key("warranty.ready.register", Message{ZhHant: "登錄保固", En: "Register warranty"})
 	KeyWarrantyRegisteredUnit     = key("warranty.registered_unit", Message{ZhHant: "已登錄：%s，保固到 %s。", En: "Registered: %s, under warranty until %s."})

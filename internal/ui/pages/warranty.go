@@ -58,7 +58,7 @@ func (l WarrantyLine) Remaining() int {
 	return left
 }
 
-func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 }
+func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 && l.CoverEnds != nil }
 
 func (l WarrantyLine) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
 
@@ -77,6 +77,9 @@ func (l WarrantyLine) CoverText(ctx context.Context) string {
 		return ""
 	}
 	if l.CoverEnds == nil {
+		if l.Remaining() > 0 {
+			return ""
+		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTermBeforeDelivery), l.TermText(ctx))
 	}
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), l.TermText(ctx), l.CoverEnds.ISO())
@@ -88,6 +91,8 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 		return ""
 	case !l.HasTerm:
 		return i18n.T(ctx, i18n.KeyWarrantyNoTerm)
+	case l.Remaining() > 0:
+		return i18n.T(ctx, i18n.KeyWarrantyNextUnavailable)
 	case l.Delivered == 0 && l.Returned > 0:
 		return i18n.T(ctx, i18n.KeyWarrantyReturned)
 	case l.Delivered == 0:
