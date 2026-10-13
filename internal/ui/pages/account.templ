@@ -562,6 +562,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											<span class="goen-account__meta">{ a.Line() }</span>
 										</div>
 										<div class="goen-account__addractions">
+											@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, templ.SafeURL("/account/addresses/"+a.ID+"/edit#addresses-heading")) {
+												{ i18n.T(ctx, i18n.KeyEditAddress) }
+											}
 											if !a.Default {
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
@@ -570,12 +573,16 @@ templ Account(p layouts.Page, v *AccountView) {
 													}
 												</form>
 											}
-											<form method="post" action="/account/addresses/delete">
-												<input type="hidden" name="address" value={ a.ID }/>
-												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, "submit") {
-													{ i18n.T(ctx, i18n.KeyDelete) }
-												}
-											</form>
+											<details class="goen-account__disclosure">
+												<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyDelete) }</summary>
+												<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyConfirmDeleteAddress), a.DisplayLabel(ctx)) }</p>
+												<form method="post" action="/account/addresses/delete">
+													<input type="hidden" name="address" value={ a.ID }/>
+													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Size: components.SizeSmall}, "submit") {
+														{ i18n.T(ctx, i18n.KeyDeleteAddress) }
+													}
+												</form>
+											</details>
 										</div>
 									</li>
 								}
@@ -584,8 +591,17 @@ templ Account(p layouts.Page, v *AccountView) {
 							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoAddresses) }</p>
 						}
 						<details class="goen-account__disclosure" open?={ v.AddressOpen() }>
-							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyAddAddress) }</summary>
-							<form class="goen-account__form" method="post" action="/account/addresses">
+							<summary class="goen-account__summary">
+								if v.AddressEditing() {
+									{ i18n.T(ctx, i18n.KeyEditAddress) }
+								} else {
+									{ i18n.T(ctx, i18n.KeyAddAddress) }
+								}
+							</summary>
+							<form class="goen-account__form" method="post" action={ v.AddressAction() }>
+								if v.AddressEditing() {
+									<input type="hidden" name="address" value={ v.AddressID() }/>
+								}
 								<div class="goen-account__fields">
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-label"}) {
@@ -715,10 +731,12 @@ templ Account(p layouts.Page, v *AccountView) {
 										}
 									</div>
 								</div>
-								<label class="goen-check">
-									<input class="goen-check__box" type="checkbox" name="default" value="1" checked?={ v.AddrDefault() }/>
-									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
-								</label>
+								if !v.AddressEditing() {
+									<label class="goen-check">
+										<input class="goen-check__box" type="checkbox" name="default" value="1" checked?={ v.AddrDefault() }/>
+										<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
+									</label>
+								}
 								<div class="goen-account__actions">
 									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeySaveAddress) }

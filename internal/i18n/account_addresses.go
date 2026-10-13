@@ -8,11 +8,17 @@ var (
 	KeyMakeDefault = key("account.address.makedefault", Message{ZhHant: "設為預設", En: "Make default"})
 
 	KeyNoAddresses = key("account.addresses.none", Message{
-		ZhHant: "還沒有儲存的地址。結帳時填寫的地址會保留在訂單上。",
-		En:     "No saved addresses yet. What you type at checkout is kept on that order.",
+		ZhHant: "還沒有常用地址。新增後，結帳時可以直接選用。",
+		En:     "No saved addresses yet. Add one to use it at checkout.",
 	})
 
 	KeyAddAddress = key("account.addresses.add", Message{ZhHant: "新增地址", En: "Add an address"})
+
+	KeyEditAddress = key("account.address.edit", Message{ZhHant: "編輯地址", En: "Edit address"})
+
+	KeyConfirmDeleteAddress = key("account.address.delete.confirm", Message{ZhHant: "確定刪除「%s」？", En: "Delete “%s”?"})
+
+	KeyDeleteAddress = key("account.address.delete", Message{ZhHant: "刪除地址", En: "Delete address"})
 
 	KeyFieldLabelOpt = key("field.label.optional", Message{
 		ZhHant: "標籤（選填）",

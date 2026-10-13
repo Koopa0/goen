@@ -245,6 +245,46 @@ func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams
 	return err
 }
 
+const addressForUser = `-- name: AddressForUser :one
+SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
+FROM addresses
+WHERE user_id = $1::uuid AND id = $2::uuid
+`
+
+type AddressForUserParams struct {
+	UserID    uuid.UUID
+	AddressID uuid.UUID
+}
+
+type AddressForUserRow struct {
+	ID            uuid.UUID
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	IsDefault     bool
+}
+
+func (q *Queries) AddressForUser(ctx context.Context, arg AddressForUserParams) (AddressForUserRow, error) {
+	row := q.db.QueryRow(ctx, addressForUser, arg.UserID, arg.AddressID)
+	var i AddressForUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Label,
+		&i.RecipientName,
+		&i.Phone,
+		&i.PostalCode,
+		&i.City,
+		&i.District,
+		&i.Street,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
 const addressesForUser = `-- name: AddressesForUser :many
 SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
 FROM addresses WHERE user_id = $1
@@ -18072,6 +18112,49 @@ func (q *Queries) UnsubscribeNewsletter(ctx context.Context, unsubscribeToken st
 	var email string
 	err := row.Scan(&email)
 	return email, err
+}
+
+const updateAddress = `-- name: UpdateAddress :execrows
+UPDATE addresses
+SET label = $1::text,
+    recipient_name = $2::text,
+    phone = $3::text,
+    postal_code = $4::text,
+    city = $5::text,
+    district = $6::text,
+    street = $7::text
+WHERE user_id = $8::uuid AND id = $9::uuid
+`
+
+type UpdateAddressParams struct {
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	UserID        uuid.UUID
+	AddressID     uuid.UUID
+}
+
+// Keeping is_default out of the edit preserves a concurrent default selection.
+func (q *Queries) UpdateAddress(ctx context.Context, arg UpdateAddressParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateAddress,
+		arg.Label,
+		arg.RecipientName,
+		arg.Phone,
+		arg.PostalCode,
+		arg.City,
+		arg.District,
+		arg.Street,
+		arg.UserID,
+		arg.AddressID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateFAQEntry = `-- name: UpdateFAQEntry :execrows
