@@ -981,13 +981,15 @@ templ variantTable(variants []Variant, back string) {
 								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }
-								placeholder="+10"
 								step="1"
 								if x.DeltaError != "" {
 									aria-invalid="true"
-									aria-describedby={ "adj-error-" + x.SKU }
+									aria-describedby={ "adj-example-" + x.SKU + " adj-error-" + x.SKU }
+								} else {
+									aria-describedby={ "adj-example-" + x.SKU }
 								}
 							/>
+							<p class="goen-admin__hint" id={ "adj-example-" + x.SKU }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "+10") }</p>
 							if x.DeltaError != "" {
 								<p class="ui-error-text" id={ "adj-error-" + x.SKU } role="alert">{ x.DeltaError }</p>
 							}
