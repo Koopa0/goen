@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/orderaccess"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -786,7 +786,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	holds := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
-	d.run(func() { orderaccess.NewStore(d.pool, false).SweepForever(ctx, d.log) })
+	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
@@ -812,7 +812,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	outboxStore.HandleJSON(outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
-	outboxStore.HandleJSON(outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicOrderTerminal, terminalOrderHandler(notice.NewRecipients(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
@@ -899,7 +899,7 @@ func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(c
 	}
 }
 
-func terminalOrderHandler(recipients ordernotice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
+func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
 	return func(ctx context.Context, p *email.OrderTerminal) error {
 		to, ok, err := recipients.Of(ctx, p.OrderID)
 		if err != nil {

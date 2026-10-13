@@ -42,7 +42,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 				before := draft
 				view := admin.OrderView{
 					Number: "GO-REFUSAL", Correctable: true, PickupDestination: tc.pickup,
-					PickupChains: pages.PickupChainChoices(), Recipient: "Saved recipient",
+					PickupChains: pages.KnownPickupChainChoices(), Recipient: "Saved recipient",
 				}
 				applyDeliveryRefusals(ctx, &view, &draft, []web.FieldRefusal{
 					{Field: "phone", MessageKey: i18n.KeyPhoneMalformed},

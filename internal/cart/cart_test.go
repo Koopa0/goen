@@ -528,10 +528,10 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 	}
 }
 
-func TestEveryOfferedPickupChainPassesAddressValidation(t *testing.T) {
-	chains := pickup.Offered()
+func TestEveryKnownPickupChainPassesAddressValidation(t *testing.T) {
+	chains := pickup.KnownChains()
 	if len(chains) == 0 {
-		t.Fatal("pickup.Offered() is empty; the test needs an offered chain")
+		t.Fatal("pickup.KnownChains() is empty; the test needs a known chain")
 	}
 	for _, chain := range chains {
 		address := order.Delivery{
@@ -539,7 +539,7 @@ func TestEveryOfferedPickupChainPassesAddressValidation(t *testing.T) {
 			PickupChain: chain, PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 		}
 		if errs := address.Validate(); len(errs) != 0 {
-			t.Errorf("offered chain %q is invalid: %+v", chain, errs)
+			t.Errorf("known chain %q is invalid: %+v", chain, errs)
 		}
 	}
 

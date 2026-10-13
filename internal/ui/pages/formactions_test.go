@@ -23,6 +23,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	pdp := &pages.ProductView{Slug: "product"}
 	ret := &admin.Return{ID: "return"}
 	return map[string][]string{
+		"pages/account.templ:v.AddressAction()":                                             {(&pages.AccountView{}).AddressAction(), (&pages.AccountView{AddressDraft: &pages.AddressDraft{ID: "address"}}).AddressAction()},
 		"pages/admin/product_label.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
 		"layouts/banner.templ:templ.SafeURL(b.DismissAction())":                             {(layouts.Banner{}).DismissAction()},
 		"pages/email_link.templ:templ.SafeURL(v.Action)":                                    newsletterFormActions(t),

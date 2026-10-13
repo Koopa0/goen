@@ -35,7 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
@@ -2464,7 +2464,7 @@ func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 	req.SetPathValue("number", number)
@@ -2672,7 +2672,7 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 	t.Helper()
 	w := httptest.NewRecorder()
 	grant := httptest.NewRequestWithContext(req.Context(), http.MethodGet, "/", http.NoBody)
-	if err := orderaccess.NewStore(pool, false).Grant(w, grant, number); err != nil {
+	if err := access.NewStore(pool, false).Grant(w, grant, number); err != nil {
 		t.Fatalf("grant access to %s: %v", number, err)
 	}
 	for _, c := range w.Result().Cookies() {
@@ -2815,7 +2815,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	}
 
 	gateway, createCalls := gatewayRecordingCalls(t, "cs_must_not_open")
-	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 	req.SetPathValue("number", number)
@@ -2910,7 +2910,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			gateway := gatewayAt(t, srv.URL)
-			h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+			h := payment.NewHandler(s, gateway, access.NewStore(pool, false),
 				slog.New(slog.DiscardHandler))
 			post := func() *httptest.ResponseRecorder {
 				t.Helper()
@@ -3152,7 +3152,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			sessionEvent(eventID, providerRef, "paid", amount),
 			"checkout.session.completed",
 		))
-		h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+		h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 			slog.New(slog.DiscardHandler))
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/webhooks/stripe", bytes.NewReader(body))
@@ -3182,7 +3182,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 		}
 
 		gateway, calls := gatewayRecordingCalls(t, "cs_must_not_replace_"+uuid.NewString()[:12])
-		start := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+		start := payment.NewHandler(s, gateway, access.NewStore(pool, false),
 			slog.New(slog.DiscardHandler))
 		startReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/orders/"+number+"/pay", http.NoBody)
@@ -3377,7 +3377,7 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	t.Cleanup(srv.Close)
 
 	gateway := gatewayAt(t, srv.URL)
-	h = payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false),
+	h = payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	close(handlerReady)
 
@@ -3630,7 +3630,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	defer srv.Close()
 
 	gateway := gatewayAt(t, srv.URL)
-	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := payment.NewHandler(s, gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -3815,7 +3815,7 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	defer srv.Close()
 
 	gateway := gatewayAt(t, srv.URL)
-	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := payment.NewHandler(s, gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -3924,7 +3924,7 @@ func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 
 	gateway := gatewayAt(t, srv.URL)
 
-	h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := payment.NewHandler(s, gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	reqCtx, disconnect := context.WithCancel(ctx)
 	defer disconnect()
 	req := httptest.NewRequestWithContext(reqCtx, http.MethodPost,
@@ -3965,7 +3965,7 @@ func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 
 	tests := []struct {
@@ -4088,7 +4088,7 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 67000)
@@ -4203,7 +4203,7 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 func TestAPaymentEventIsKeptWithoutTheCustomersDetails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 
 	number, _ := order(t, 45600)
@@ -4308,7 +4308,7 @@ func TestAnUnreadableKnownEventIsRecordedForAPerson(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 67000)
@@ -4422,7 +4422,7 @@ func TestTheWebhookFlagsMoneyItCannotAttribute(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, _ := order(t, 88800)
@@ -4527,7 +4527,7 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 			ctx := t.Context()
 			s := payment.NewStore(pool)
 			var logs bytes.Buffer
-			h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+			h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 				slog.New(slog.NewTextHandler(&logs, nil)))
 
 			number, id := holdableOrder(t, 100000)
@@ -4597,7 +4597,7 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 
 			newSession := "cs_after_reconcile_" + uuid.NewString()[:12]
 			gateway, stripeCalls := gatewayRecordingCalls(t, newSession)
-			start := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false),
+			start := payment.NewHandler(s, gateway, access.NewStore(pool, false),
 				slog.New(slog.DiscardHandler))
 			post := func() *httptest.ResponseRecorder {
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -4748,7 +4748,7 @@ func TestReachableCaptureConstraintsBecomeDurable(t *testing.T) {
 				"/webhooks/stripe", bytes.NewReader(body))
 			req.Header.Set("Stripe-Signature", header)
 			res := httptest.NewRecorder()
-			payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+			payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 				slog.New(slog.DiscardHandler)).Webhook(res, req)
 			if res.Code != http.StatusOK {
 				t.Fatalf("Webhook() status = %d, want 200", res.Code)
@@ -4795,7 +4795,7 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
-	h := payment.NewHandler(s, enabledGateway(t), orderaccess.NewStore(pool, false),
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
 		slog.New(slog.NewTextHandler(&logs, nil)))
 
 	number, id := order(t, 88800)
@@ -4938,7 +4938,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 
 		gateway := gatewayAt(t, srv.URL)
 
-		h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+		h := payment.NewHandler(s, gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 		// 1. Complete session without webhook: Start redirects to /orders/{number}/pay
 		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
@@ -5028,7 +5028,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 
 		gateway := gatewayAt(t, srv.URL)
 
-		h := payment.NewHandler(s, gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+		h := payment.NewHandler(s, gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 		// Complete session without webhook records complete and redirects to pay page
 		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)

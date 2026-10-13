@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/koopa0/goen/internal/ui/layouts"
 
@@ -70,11 +71,15 @@ func (e ReturnsExisting) StatusText(ctx context.Context) string {
 
 type ReturnsView struct {
 	Number        string
+	Shipments     []OrderShipment
+	Pickup        bool
+	Now           time.Time
 	Reason        string
 	Lines         []ReturnsLine
 	Existing      []ReturnsExisting
 	HasOpen       bool
 	HasDraft      bool
+	Filed         bool
 	FormRefusal   string
 	ReasonRefusal string
 }
@@ -92,4 +97,17 @@ func (v ReturnsView) AnyReturnable() bool {
 
 func ReturnsMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnMeta), number)}
+}
+
+func (v ReturnsView) returnWindow(ctx context.Context, parcel OrderShipment) string {
+	order := OrderView{Pickup: v.Pickup, Now: v.Now}
+	if !parcel.Delivered() {
+		return order.ReturnPending(ctx)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), order.RescissionLastDay(ctx, parcel))
+}
+
+func (v ReturnsView) parcelTitle(ctx context.Context, i int) string {
+	order := OrderView{Shipments: v.Shipments}
+	return order.ParcelTitle(ctx, i)
 }
