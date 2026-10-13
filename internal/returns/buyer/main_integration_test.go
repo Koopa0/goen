@@ -1,6 +1,6 @@
 //go:build integration
 
-package returnpage_test
+package buyer_test
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/pgtx"
-	"github.com/koopa0/goen/internal/returnpage"
+	"github.com/koopa0/goen/internal/returns/buyer"
 )
 
 var pool *pgxpool.Pool
@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	pool = p
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		slog.Error("read seed", "error", err)
 		os.Exit(1)
@@ -395,13 +395,13 @@ func assertReturnRowCounts(t *testing.T, orderID uuid.UUID, wantHeaders, wantLin
 
 func openReturnUnits(
 	t *testing.T,
-	s *returnpage.Store,
+	s *buyer.Store,
 	fixture returnErasureOrder,
 	quantity int32,
 	reason string,
 ) uuid.UUID {
 	t.Helper()
-	if err := s.Open(t.Context(), fixture.number, uuid.NullUUID{}, &returnpage.Request{
+	if err := s.Open(t.Context(), fixture.number, uuid.NullUUID{}, &buyer.Request{
 		Reason: reason,
 		Lines:  map[string]int32{fixture.lineID.String(): quantity},
 	}); err != nil {
@@ -432,7 +432,7 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
-	h := returnpage.NewHandler(returnpage.NewStore(pool), access.NewStore(pool, false),
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/return", http.NoBody)
@@ -451,7 +451,7 @@ func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 }
 
 func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 
 	tests := []struct {
 		name             string
@@ -486,7 +486,7 @@ func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *test
 	ctx := t.Context()
 	const shippingCents int64 = 10000
 	orderID, number, lines := shippedTwoLineOrder(t, shippingCents)
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 
 	// now() is the transaction start time in PostgreSQL. Keep this transaction
 	// open so the request inserted below sorts before the request approved first.
@@ -500,7 +500,7 @@ func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *test
 		t.Fatalf("start long-lived return transaction: %v", err)
 	}
 
-	if err := s.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+	if err := s.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 		Reason: "first partial",
 		Lines:  map[string]int32{lines[0].String(): 1},
 	}); err != nil {
@@ -578,7 +578,7 @@ func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *test
 func TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard(t *testing.T) {
 	number, lineID := shippedOrder(t, 1, 1)
 	app := returnsApplicationPool(t, "guest-card-return-"+uuid.NewString()[:8])
-	if err := returnpage.NewStore(app).Open(t.Context(), number, uuid.NullUUID{}, &returnpage.Request{
+	if err := buyer.NewStore(app).Open(t.Context(), number, uuid.NullUUID{}, &buyer.Request{
 		Reason: "card funded guest return",
 		Lines:  map[string]int32{lineID.String(): 1},
 	}); err != nil {
@@ -588,13 +588,13 @@ func TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard(t *testing.T) 
 
 func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 3, 1)
 
-	err := s.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+	err := s.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 		Reason: "不合用", Lines: map[string]int32{lineID.String(): 2},
 	})
-	if !errors.Is(err, returnpage.ErrTooMany) || errors.Is(err, returnpage.ErrInvalid) {
+	if !errors.Is(err, buyer.ErrTooMany) || errors.Is(err, buyer.ErrInvalid) {
 		t.Fatalf("returning 2 of a line that shipped 1 gave %v, want only ErrTooMany", err)
 	}
 
@@ -675,8 +675,8 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 			if err := appPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
 				t.Fatalf("read return backend pid: %v", err)
 			}
-			s := returnpage.NewStore(appPool)
-			h := returnpage.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			s := buyer.NewStore(appPool)
+			h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			done := make(chan struct{})
 			go func() {
@@ -833,8 +833,8 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		openFinished := make(chan struct{})
 		go func() {
 			defer close(openFinished)
-			openResult <- returnpage.NewStore(openPool).Open(
-				context.WithoutCancel(ctx), fixture.number, uuid.NullUUID{}, &returnpage.Request{
+			openResult <- buyer.NewStore(openPool).Open(
+				context.WithoutCancel(ctx), fixture.number, uuid.NullUUID{}, &buyer.Request{
 					Reason: "erase wins return race",
 					Lines:  map[string]int32{fixture.lineID.String(): 1},
 				})
@@ -847,13 +847,13 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		if err := returnsOperationResult(t, eraseResult); err != nil {
 			t.Fatalf("winning erasure: %v", err)
 		}
-		if err := returnsOperationResult(t, openResult); !errors.Is(err, returnpage.ErrAccountErased) {
+		if err := returnsOperationResult(t, openResult); !errors.Is(err, buyer.ErrAccountErased) {
 			t.Fatalf("%s mapped raced guest return to %v, want ErrAccountErased",
 				accountRule, err)
 		}
 		assertReturnRowCounts(t, fixture.orderID, 0, 0)
 
-		h := returnpage.NewHandler(returnpage.NewStore(openPool), access.NewStore(pool, false),
+		h := buyer.NewHandler(buyer.NewStore(openPool), access.NewStore(pool, false),
 			slog.New(slog.DiscardHandler))
 		form := url.Values{
 			"qty_" + fixture.lineID.String(): {"1"},
@@ -880,7 +880,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		ctx := t.Context()
 		fixture := fundedShippedOrderForReturnErasure(t, 2, 100000)
 		storePool := returnsApplicationPool(t, "aggregate-return-"+uuid.NewString()[:8])
-		s := returnpage.NewStore(storePool)
+		s := buyer.NewStore(storePool)
 		firstID := openReturnUnits(t, s, fixture, 1, "aggregate first")
 		if _, err := pool.Exec(ctx, `
 			UPDATE return_requests
@@ -908,7 +908,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		ctx := t.Context()
 		fixture := fundedShippedOrderForReturnErasure(t, 2, 100000)
 		storePool := returnsApplicationPool(t, "post-erase-return-"+uuid.NewString()[:8])
-		s := returnpage.NewStore(storePool)
+		s := buyer.NewStore(storePool)
 		firstID := openReturnUnits(t, s, fixture, 1, "card-only first")
 		if _, err := pool.Exec(ctx, `
 			UPDATE return_requests
@@ -920,11 +920,11 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		if err := account.NewStore(storePool).Erase(ctx, fixture.userID.String()); err != nil {
 			t.Fatalf("erase while the one approved return still fits the card: %v", err)
 		}
-		err := s.Open(ctx, fixture.number, uuid.NullUUID{}, &returnpage.Request{
+		err := s.Open(ctx, fixture.number, uuid.NullUUID{}, &buyer.Request{
 			Reason: "second would need credit",
 			Lines:  map[string]int32{fixture.lineID.String(): 1},
 		})
-		if !errors.Is(err, returnpage.ErrAccountErased) {
+		if !errors.Is(err, buyer.ErrAccountErased) {
 			t.Fatalf("%s mapped post-erasure second return to %v, want ErrAccountErased",
 				accountRule, err)
 		}
@@ -934,10 +934,10 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 
 func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 3, 2)
 
-	if err := s.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+	if err := s.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 		Reason: "尺寸不合", Lines: map[string]int32{lineID.String(): 2},
 	}); err != nil {
 		t.Fatalf("open: %v", err)
@@ -975,15 +975,15 @@ func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 
 func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 4, 4)
 
-	first := &returnpage.Request{Reason: "不合用", Lines: map[string]int32{lineID.String(): 1}}
+	first := &buyer.Request{Reason: "不合用", Lines: map[string]int32{lineID.String(): 1}}
 	if err := s.Open(ctx, number, uuid.NullUUID{}, first); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	second := &returnpage.Request{Reason: "還是不合用", Lines: map[string]int32{lineID.String(): 1}}
-	if err := s.Open(ctx, number, uuid.NullUUID{}, second); !errors.Is(err, returnpage.ErrAlreadyOpen) {
+	second := &buyer.Request{Reason: "還是不合用", Lines: map[string]int32{lineID.String(): 1}}
+	if err := s.Open(ctx, number, uuid.NullUUID{}, second); !errors.Is(err, buyer.ErrAlreadyOpen) {
 		t.Errorf("second request gave %v, want ErrAlreadyOpen", err)
 	}
 }
@@ -1014,7 +1014,7 @@ func TestOneOpenReturnPerOrder(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- returnpage.NewStore(pool).Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+		done <- buyer.NewStore(pool).Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 			Reason: "second line", Lines: map[string]int32{lines[1].String(): 1},
 		})
 	}()
@@ -1027,7 +1027,7 @@ func TestOneOpenReturnPerOrder(t *testing.T) {
 	if err := tx1.Commit(ctx); err != nil {
 		t.Fatalf("commit first return: %v", err)
 	}
-	if err := <-done; !errors.Is(err, returnpage.ErrAlreadyOpen) {
+	if err := <-done; !errors.Is(err, buyer.ErrAlreadyOpen) {
 		t.Fatalf("competing return gave %v, want ErrAlreadyOpen", err)
 	}
 
@@ -1045,25 +1045,25 @@ func TestOneOpenReturnPerOrder(t *testing.T) {
 // A blank reason is legal (§19 I); a request with no lines is not a return.
 func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
 	id := lineID.String()
 
 	tests := []struct {
 		name string
-		req  *returnpage.Request
+		req  *buyer.Request
 	}{
-		{"no lines", &returnpage.Request{Reason: "不合用", Lines: map[string]int32{}}},
-		{"all zero", &returnpage.Request{Reason: "不合用", Lines: map[string]int32{id: 0}}},
-		{"negative", &returnpage.Request{Reason: "不合用", Lines: map[string]int32{id: -1}}},
-		{"unknown line", &returnpage.Request{Reason: "不合用", Lines: map[string]int32{
+		{"no lines", &buyer.Request{Reason: "不合用", Lines: map[string]int32{}}},
+		{"all zero", &buyer.Request{Reason: "不合用", Lines: map[string]int32{id: 0}}},
+		{"negative", &buyer.Request{Reason: "不合用", Lines: map[string]int32{id: -1}}},
+		{"unknown line", &buyer.Request{Reason: "不合用", Lines: map[string]int32{
 			"00000000-0000-4000-8000-000000000000": 1}}},
-		{"control character in reason", &returnpage.Request{
+		{"control character in reason", &buyer.Request{
 			Reason: "不合用\x00", Lines: map[string]int32{id: 1}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := s.Open(ctx, number, uuid.NullUUID{}, tt.req); !errors.Is(err, returnpage.ErrInvalid) {
+			if err := s.Open(ctx, number, uuid.NullUUID{}, tt.req); !errors.Is(err, buyer.ErrInvalid) {
 				t.Errorf("got %v, want ErrInvalid", err)
 			}
 		})
@@ -1073,7 +1073,7 @@ func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
-	h := returnpage.NewHandler(returnpage.NewStore(pool), access.NewStore(pool, false),
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	form := url.Values{"reason": {""}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -1103,11 +1103,11 @@ func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 // inside seven days needs no reason, and §19 V makes that unwaivable.
 func TestAReturnNeedsNoReason(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 
 	for _, reason := range []string{"", "   \t "} {
 		number, lineID := shippedOrder(t, 2, 2)
-		req := &returnpage.Request{
+		req := &buyer.Request{
 			Reason: reason,
 			Lines:  map[string]int32{lineID.String(): 1},
 		}
@@ -1122,23 +1122,23 @@ func TestAReturnNeedsNoReason(t *testing.T) {
 // so a Chinese customer is not cut off at a third of an English one's room.
 func TestReasonIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
-	s := returnpage.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
 	id := lineID.String()
 
 	// 500 runes, 1500 bytes: at the limit, so accepted.
-	atLimit := strings.Repeat("退", returnpage.MaxReasonRunes)
-	if err := s.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
+	atLimit := strings.Repeat("退", buyer.MaxReasonRunes)
+	if err := s.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
 		Reason: atLimit, Lines: map[string]int32{id: 1},
 	}); err != nil {
-		t.Errorf("a %d-rune reason was refused: %v", returnpage.MaxReasonRunes, err)
+		t.Errorf("a %d-rune reason was refused: %v", buyer.MaxReasonRunes, err)
 	}
 
 	number2, lineID2 := shippedOrder(t, 2, 2)
-	if err := s.Open(ctx, number2, uuid.NullUUID{}, &returnpage.Request{
+	if err := s.Open(ctx, number2, uuid.NullUUID{}, &buyer.Request{
 		Reason: atLimit + "退", Lines: map[string]int32{lineID2.String(): 1},
-	}); !errors.Is(err, returnpage.ErrInvalid) {
-		t.Errorf("a %d-rune reason was accepted, want ErrInvalid", returnpage.MaxReasonRunes+1)
+	}); !errors.Is(err, buyer.ErrInvalid) {
+		t.Errorf("a %d-rune reason was accepted, want ErrInvalid", buyer.MaxReasonRunes+1)
 	}
 }
 
@@ -1165,7 +1165,7 @@ func TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn(t *testing.T) {
 		`SELECT open_refund_before_shipment($1, '顧客取消', $2, 'before-shipment')`, number, staff); err != nil {
 		t.Fatalf("refund before shipment: %v", err)
 	}
-	o, err := returnpage.NewStore(pool).Order(ctx, number)
+	o, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("read order: %v", err)
 	}
@@ -1197,7 +1197,7 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 			req.SetPathValue("number", number)
 			placedBy(t, req, number)
 			appPool := returnsApplicationPool(t, "return-form-"+uuid.NewString())
-			h := returnpage.NewHandler(returnpage.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			h.Submit(res, req)
 			if res.Code != tt.status {
@@ -1338,7 +1338,7 @@ func postReasonThroughRoute(t *testing.T, ctx context.Context, number string, li
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	placedBy(t, req, number)
 	appPool := returnsApplicationPool(t, "reason-refusal-"+uuid.NewString())
-	h := returnpage.NewHandler(returnpage.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/{number}/return", h.Submit)
 	res := httptest.NewRecorder()
