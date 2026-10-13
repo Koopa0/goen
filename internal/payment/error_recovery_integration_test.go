@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -20,7 +20,7 @@ func TestDisabledPaymentStartOffersOrderAndContact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
 		r.SetPathValue("number", number)

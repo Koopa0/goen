@@ -492,65 +492,55 @@ func stripSQLComments(src string) string {
 // storefrontPackages run on the pool that does SET ROLE store, mirroring cmd/goen's wiring.
 var storefrontPackages = []string{
 	"account", "cart", "catalog", "contact", "home", "loyalty", "media",
-	"newsletter", "orderaccess", "ordernotice", "outbox", "payment", "product", "returnpage", "site", "warranty",
+	"newsletter", "order/access", "order/notice", "outbox", "payment", "product", "returnpage", "site", "warranty",
 }
 
 // backOfficePackages run on the pool that does SET ROLE admin.
 var backOfficePackages = []string{
-	"admin", "media", "newsletter", "ordernotice", "outbox", "twofactor", "invoice",
+	"admin", "media", "newsletter", "order/notice", "outbox", "twofactor", "invoice",
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
 var maintenancePackages = []string{"recommend"}
 
-// TestThePoolMapIsComplete refuses a feature package on no pool map, which opts it out entirely.
+// TestThePoolMapIsComplete refuses a directory that ships a query.sql and is on no pool map, which
+// opts it out entirely. An entry covers its own directory and everything below it, so a nested
+// package (order/access) is named by its path and a parent entry (admin) covers its desks.
 func TestThePoolMapIsComplete(t *testing.T) {
-	named := map[string]bool{}
-	for _, pkg := range storefrontPackages {
-		named[pkg] = true
-	}
-	for _, pkg := range backOfficePackages {
-		named[pkg] = true
-	}
-	for _, pkg := range maintenancePackages {
-		named[pkg] = true
-	}
+	var named []string
+	named = append(named, storefrontPackages...)
+	named = append(named, backOfficePackages...)
+	named = append(named, maintenancePackages...)
 
-	entries, err := os.ReadDir(filepath.Join("..", "..", "internal"))
-	if err != nil {
-		t.Fatalf("read internal/: %v", err)
-	}
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "db" {
-			continue
+	root := filepath.Join("..", "..", "internal")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if !shipsQueries(t, filepath.Join("..", "..", "internal", e.Name())) {
-			continue
+		if d.IsDir() && path == filepath.Join(root, "db") {
+			return filepath.SkipDir
 		}
-		if !named[e.Name()] {
-			t.Errorf("internal/%s ships a query.sql and is on no role's pool map, so "+
-				"its writes are checked against nothing. Add it to the map that matches "+
-				"the pool cmd/goen constructs its store on.", e.Name())
+		if d.IsDir() || d.Name() != "query.sql" {
+			return nil
 		}
-	}
-}
-
-// shipsQueries reports whether a query.sql lies anywhere in dir's tree, where
-// calledQueries also looks.
-func shipsQueries(t *testing.T, dir string) bool {
-	t.Helper()
-	found := false
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && d.Name() == "query.sql" {
-			found = true
-			return filepath.SkipAll
+		rel, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
 		}
-		return err
+		rel = filepath.ToSlash(rel)
+		for _, pkg := range named {
+			if rel == pkg || strings.HasPrefix(rel, pkg+"/") {
+				return nil
+			}
+		}
+		t.Errorf("internal/%s ships a query.sql and is on no role's pool map, so "+
+			"its writes are checked against nothing. Add it to the map that matches "+
+			"the pool cmd/goen constructs its store on.", rel)
+		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk %s: %v", dir, err)
+		t.Fatalf("walk internal/: %v", err)
 	}
-	return found
 }
 
 // TestNoStaleWriteExemption refuses a writeExemptions entry whose privilege is no longer held.

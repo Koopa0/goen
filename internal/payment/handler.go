@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/refundstate"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -63,13 +63,13 @@ type webhookOutcome struct {
 }
 
 type Handler struct {
-	access  *orderaccess.Store
+	access  *access.Store
 	store   *Store
 	gateway *Gateway
 	log     *slog.Logger
 }
 
-func NewHandler(s *Store, g *Gateway, access *orderaccess.Store, log *slog.Logger) *Handler {
+func NewHandler(s *Store, g *Gateway, access *access.Store, log *slog.Logger) *Handler {
 	if s == nil || g == nil || access == nil || log == nil {
 		panic("payment: NewHandler requires a store, a gateway, an access check and a logger")
 	}
@@ -644,7 +644,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	if !ok {
-		if !orderaccess.ReloadSameSite(w, r, h.log) {
+		if !access.ReloadSameSite(w, r, h.log) {
 			h.notFound(w, r)
 		}
 		return nil, false

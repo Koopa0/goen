@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 )
 
 // A sold-out line stays in the cart, is left out of the count and the subtotal,
@@ -16,7 +16,7 @@ import (
 func TestASoldOutLineIsNotCountedAndBlocksCheckout(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	cartID, token := newCartSession(t, s)
 
 	kept, gone, _ := variantsOf(t, "soldout-line", 2)

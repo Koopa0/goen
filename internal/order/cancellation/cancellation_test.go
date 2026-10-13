@@ -1,4 +1,4 @@
-package ordercancel
+package cancellation
 
 import (
 	"context"

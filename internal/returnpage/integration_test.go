@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returnpage"
 )
@@ -421,7 +421,7 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 	t.Helper()
 	w := httptest.NewRecorder()
 	grant := httptest.NewRequestWithContext(req.Context(), http.MethodGet, "/", http.NoBody)
-	if err := orderaccess.NewStore(pool, false).Grant(w, grant, number); err != nil {
+	if err := access.NewStore(pool, false).Grant(w, grant, number); err != nil {
 		t.Fatalf("grant access to %s: %v", number, err)
 	}
 	for _, c := range w.Result().Cookies() {
@@ -432,7 +432,7 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
-	h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false),
+	h := returnpage.NewHandler(returnpage.NewStore(pool), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/return", http.NoBody)
@@ -676,7 +676,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 				t.Fatalf("read return backend pid: %v", err)
 			}
 			s := returnpage.NewStore(appPool)
-			h := returnpage.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			h := returnpage.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			done := make(chan struct{})
 			go func() {
@@ -853,7 +853,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		}
 		assertReturnRowCounts(t, fixture.orderID, 0, 0)
 
-		h := returnpage.NewHandler(returnpage.NewStore(openPool), orderaccess.NewStore(pool, false),
+		h := returnpage.NewHandler(returnpage.NewStore(openPool), access.NewStore(pool, false),
 			slog.New(slog.DiscardHandler))
 		form := url.Values{
 			"qty_" + fixture.lineID.String(): {"1"},
@@ -1073,7 +1073,7 @@ func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
-	h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false),
+	h := returnpage.NewHandler(returnpage.NewStore(pool), access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
 	form := url.Values{"reason": {""}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -1197,7 +1197,7 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 			req.SetPathValue("number", number)
 			placedBy(t, req, number)
 			appPool := returnsApplicationPool(t, "return-form-"+uuid.NewString())
-			h := returnpage.NewHandler(returnpage.NewStore(appPool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			h := returnpage.NewHandler(returnpage.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			h.Submit(res, req)
 			if res.Code != tt.status {
@@ -1338,7 +1338,7 @@ func postReasonThroughRoute(t *testing.T, ctx context.Context, number string, li
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	placedBy(t, req, number)
 	appPool := returnsApplicationPool(t, "reason-refusal-"+uuid.NewString())
-	h := returnpage.NewHandler(returnpage.NewStore(appPool), orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := returnpage.NewHandler(returnpage.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/{number}/return", h.Submit)
 	res := httptest.NewRecorder()

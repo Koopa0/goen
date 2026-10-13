@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -33,7 +33,7 @@ import (
 
 type Handler struct {
 	store  *Store
-	access *orderaccess.Store
+	access *access.Store
 	log    *slog.Logger
 	secure bool
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
@@ -63,7 +63,7 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, access *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || access == nil || log == nil || findLimit == nil {
@@ -1462,7 +1462,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
-		if orderaccess.ReloadSameSite(w, r, h.log) {
+		if access.ReloadSameSite(w, r, h.log) {
 			return
 		}
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))

@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -120,7 +120,7 @@ func healthEvent(t *testing.T, ctx context.Context, eventID string) (admin.Unrec
 func storeWebhook(t *testing.T) *payment.Handler {
 	t.Helper()
 	return payment.NewHandler(payment.NewStore(rolePool(t, "store")), enabledGateway(t),
-		orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
+		access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 }
 
 // TestARefundStripeFailedAfterGoenRecordedItSucceededAlarmsOnce holds the one

@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/returnpage"
 	"github.com/koopa0/goen/internal/user"
@@ -25,7 +25,7 @@ func TestRefusedCancellationLinksBackToTheOrderAndContact(t *testing.T) {
 	orderID := heldOrder(t, vid, -time.Hour, true)
 	number := numberOf(t, orderID)
 	appPool := storeRolePool(t)
-	h := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	cookie := placedCookie(t, number)
 	before := stockOf(t, vid)
 	for _, locale := range i18n.Locales() {
@@ -57,7 +57,7 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	appPool := storeRolePool(t)
-	access := orderaccess.NewStore(appPool, false)
+	access := access.NewStore(appPool, false)
 	log := slog.New(slog.DiscardHandler)
 	basket := cart.NewHandler(cart.NewStore(appPool), access, log, false, testLimiter(), nil, nil)
 	gateway, err := payment.NewGateway("", "", "http://goen.example")

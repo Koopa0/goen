@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -30,7 +30,7 @@ import (
 func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	access := orderaccess.NewStore(pool, false)
+	access := access.NewStore(pool, false)
 	log := slog.New(slog.DiscardHandler)
 	orders := cart.NewHandler(s, access, log, false, testLimiter(), nil, nil)
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")

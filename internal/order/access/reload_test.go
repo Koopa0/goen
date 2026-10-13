@@ -1,4 +1,4 @@
-package orderaccess_test
+package access_test
 
 import (
 	"html"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/orderaccess"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -23,7 +23,7 @@ import (
 func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	access := &orderaccess.Store{}
+	access := &access.Store{}
 	orders := cart.NewHandler(&cart.Store{}, access, log, true, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	}), nil, nil)
@@ -82,7 +82,7 @@ func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 func TestTheNextLoadIsTheRequestsOwnPathAndQuery(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, &orderaccess.Store{}, log)
+	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, &access.Store{}, log)
 
 	for _, tt := range []struct {
 		name, target, number, want string
