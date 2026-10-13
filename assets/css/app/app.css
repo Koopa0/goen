@@ -4975,7 +4975,7 @@ input.goen-check {
 
 .goen-pdp__notifyrow .goen-input {
   flex: 1 1 14ch;
-  min-width: 14ch;
+  min-width: min(14ch, 100%);
 }
 
 .goen-pdp__links,
@@ -5069,6 +5069,8 @@ input.goen-check {
   font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-pdp__accpanel {
