@@ -401,8 +401,11 @@ func TestUnknownCombinationSaysSo(t *testing.T) {
 	if !strings.Contains(body, "找不到這個組合") {
 		t.Error("an impossible combination did not say so")
 	}
-	if strings.Contains(body, "NT$33,900") || strings.Contains(body, "NT$36,900") {
-		t.Error("an impossible combination still quoted a price from some other variant")
+	if !strings.Contains(body, "NT$33,900 起") {
+		t.Error("an impossible combination lost the catalogue's starting price")
+	}
+	if !strings.Contains(body, "請選擇款式") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
+		t.Error("an impossible combination must request a choice without offering a purchase variant")
 	}
 }
 
