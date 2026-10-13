@@ -80,6 +80,7 @@ SELECT id, subject, body, sent_at FROM newsletter_issues WHERE id = $1;
 -- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,
+    count(*) FILTER (WHERE unsubscribed_at IS NULL AND locale = 'en') AS english_active,
     count(*) FILTER (WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
     (SELECT count(*) FROM newsletter_confirmations WHERE expires_at > now()) AS awaiting
 FROM newsletter_subscribers;

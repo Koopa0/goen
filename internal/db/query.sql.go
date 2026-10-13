@@ -10738,21 +10738,28 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 const newsletterCounts = `-- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,
+    count(*) FILTER (WHERE unsubscribed_at IS NULL AND locale = 'en') AS english_active,
     count(*) FILTER (WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
     (SELECT count(*) FROM newsletter_confirmations WHERE expires_at > now()) AS awaiting
 FROM newsletter_subscribers
 `
 
 type NewsletterCountsRow struct {
-	Active       int64
-	Unsubscribed int64
-	Awaiting     int64
+	Active        int64
+	EnglishActive int64
+	Unsubscribed  int64
+	Awaiting      int64
 }
 
 func (q *Queries) NewsletterCounts(ctx context.Context) (NewsletterCountsRow, error) {
 	row := q.db.QueryRow(ctx, newsletterCounts)
 	var i NewsletterCountsRow
-	err := row.Scan(&i.Active, &i.Unsubscribed, &i.Awaiting)
+	err := row.Scan(
+		&i.Active,
+		&i.EnglishActive,
+		&i.Unsubscribed,
+		&i.Awaiting,
+	)
 	return i, err
 }
 

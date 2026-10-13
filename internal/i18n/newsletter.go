@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyAdminNewsAudience = key("admin.news.audience", Message{ZhHant: "會以這份內容寄給全部 %d 位訂閱者（其中 %d 位選擇英文），不分語言。", En: "This goes to all %d subscribers (%d chose English) as written."})
+
 	KeyNewsletterSentBody = key("news.sent.body", Message{
 		ZhHant: "如果你填寫的信箱還沒訂閱，請到信箱點一下確認連結，訂閱才會生效。兩天內有效。沒收到請看看垃圾郵件。",
 		En:     "If the address you entered is not already subscribed, check its inbox for the confirmation link. It works for two days. If it has not arrived, check your spam folder.",
