@@ -11,12 +11,12 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/refundstate"
+	"github.com/koopa0/goen/internal/refund"
 )
 
 func refusedBy(constraint string) error {
 	cause := &pgconn.PgError{Code: "23514", ConstraintName: constraint, Message: "an order is not what a shop assistant can read"}
-	return pgerr.WrapRefusal(fmt.Errorf("a statement: %w", cause), refundstate.ErrRefused)
+	return pgerr.WrapRefusal(fmt.Errorf("a statement: %w", cause), refund.ErrRefused)
 }
 
 func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {
@@ -65,7 +65,7 @@ func TestRefundNoticeKeepsRecoveryAheadOfARefusal(t *testing.T) {
 	}{
 		{"cancellation incomplete after the order was cancelled", errors.Join(
 			fmt.Errorf("%w: %w", ErrCancellationIncomplete, refusedBy("orders_history_frozen")), errors.New("correct the invoice")), "?cancelretry=1"},
-		{"payout incomplete with a mismatch as its cause", fmt.Errorf("%w: %w", refundstate.ErrIncomplete, ErrPayoutUnfit), "?refundretry=1"},
+		{"payout incomplete with a mismatch as its cause", fmt.Errorf("%w: %w", refund.ErrIncomplete, ErrPayoutUnfit), "?refundretry=1"},
 		{"cancellation waits on the invoice", refusedBy("orders_cancel_invoice_resolved"), "?cancelinvoice=1"},
 	} {
 		if got, _ := refundNotice(tc.err); got.Query != tc.want {
@@ -87,7 +87,7 @@ func TestWhyNotRefundableNamesWhatTheOrderIs(t *testing.T) {
 		{"a customer return", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true, HasReturn: true}), ErrHasReturn},
 		{"unpaid", beforeShipmentOf(db.BeforeShipmentRefundRow{FulfillmentStatus: string(order.FulfillmentPending)}), ErrNotPaid},
 	} {
-		if got := whyNotRefundable(&tc.row); !errors.Is(got, tc.want) || !errors.Is(got, refundstate.ErrRefused) {
+		if got := whyNotRefundable(&tc.row); !errors.Is(got, tc.want) || !errors.Is(got, refund.ErrRefused) {
 			t.Errorf("whyNotRefundable(%s) = %v, want %v", tc.name, got, tc.want)
 		}
 	}
@@ -105,7 +105,7 @@ func TestRefundNoticeLogsWhatNeedsAPersonAtError(t *testing.T) {
 		want slog.Level
 	}{
 		{"cancellation incomplete", ErrCancellationIncomplete, slog.LevelError},
-		{"refund incomplete", refundstate.ErrIncomplete, slog.LevelError},
+		{"refund incomplete", refund.ErrIncomplete, slog.LevelError},
 		{"payout does not fit", ErrPayoutUnfit, slog.LevelError},
 		{"constraint mismatch", refusedBy("refunds_return_captured"), slog.LevelError},
 		{"unnamed refusal", refusedBy("refunds_request_attribution"), slog.LevelError},
