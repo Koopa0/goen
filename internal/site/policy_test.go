@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -258,11 +258,11 @@ func TestNoPolicyPromisesALapsedOrderCanBePaid(t *testing.T) {
 func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	t.Parallel()
 
-	g, err := invoice.NewGateway("", "", "", "")
+	g, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("an empty configuration must be legal: %v", err)
 	}
-	if _, issueErr := g.Issue(t.Context(), invoice.IssueRequest{}); !errors.Is(issueErr, invoice.ErrDisabled) {
+	if _, issueErr := g.Issue(t.Context(), issuer.IssueRequest{}); !errors.Is(issueErr, issuer.ErrDisabled) {
 		t.Fatalf("Gateway.Issue is not wired: %v", issueErr)
 	}
 
