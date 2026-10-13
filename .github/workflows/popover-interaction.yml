@@ -43,7 +43,7 @@ jobs:
           defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
           defaults write com.apple.Safari WebKitTabToLinksPreferenceKey -bool true
           safaridriver --port 4444 > safari.log 2>&1 &
-          for attempt in $(seq 1 30); do
+          for _attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4444/status; then exit 0; fi
             sleep 1
           done
@@ -80,7 +80,7 @@ jobs:
         run: |
           chrome=$(scripts/resolve-chrome.sh)
           "$chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --remote-debugging-port=9222 --user-data-dir="$RUNNER_TEMP/popover-chrome" about:blank > chrome.log 2>&1 &
-          for attempt in $(seq 1 30); do
+          for _attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:9222/json/version; then exit 0; fi
             sleep 1
           done
