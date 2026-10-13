@@ -491,7 +491,13 @@
     let revision = 0;
     let outcome = null;
     const writes = new Set();
-    const versions = new WeakMap();
+    const submissions = new WeakMap();
+    const appendOutcome = (root) => {
+      const form = root.querySelector("#pdp-add");
+      form?.querySelector("#added")?.remove();
+      if (outcome && outcome.variant === form?.querySelector('[name="variant"]')?.value)
+        form.append(outcome.notice.cloneNode(true));
+    };
     const isChoice = (ctx) => ctx?.sourceElement?.matches("a.goen-swatch[hx-get]");
     const isPurchase = (ctx) => ctx?.request?.method === "POST" && ctx.request.form?.id === "pdp-add";
     document.addEventListener("htmx:before:request", (event) => {
@@ -501,7 +507,10 @@
         if (writes.size === 0) outcome = null;
         revision++;
       } else if (isPurchase(ctx)) {
-        versions.set(ctx, revision);
+        submissions.set(ctx, {
+          revision,
+          variant: ctx.request.form.querySelector('[name="variant"]')?.value,
+        });
         writes.add(ctx);
       }
     });
@@ -516,13 +525,15 @@
       // Each request captured a target that another response may have replaced.
       ctx.target = live;
       if (isPurchase(ctx)) {
-        outcome = response.getElementById("added")?.cloneNode(true) || null;
-        if (versions.get(ctx) !== revision) {
+        const submitted = ctx.request.form;
+        const submission = submissions.get(ctx);
+        const notice = response.getElementById("added");
+        outcome = notice && submission?.variant ? { variant: submission.variant, notice: notice.cloneNode(true) } : null;
+        if (submission?.revision !== revision || submitted !== live.querySelector("#pdp-add")) {
           ctx.swap = "none";
           ctx.selectOOB = "#cart-link";
           // Retire the submitted form just as a normal response swap would.
           // A queued second press must not post from this still-connected form.
-          const submitted = ctx.request.form;
           if (submitted.isConnected && submitted === live.querySelector("#pdp-add")) {
             const replacement = submitted.cloneNode(true);
             replacement.removeAttribute("aria-busy");
@@ -534,12 +545,10 @@
             submitted.replaceWith(replacement);
             htmx.process(replacement);
           }
-          live.querySelector("#added")?.remove();
-          if (outcome) live.querySelector("#pdp-add")?.append(outcome.cloneNode(true));
+          appendOutcome(live);
         }
       } else if (outcome) {
-        response.querySelector("#pdp-add #added")?.remove();
-        response.querySelector("#pdp-add")?.append(outcome.cloneNode(true));
+        appendOutcome(response);
         ctx.text = response.documentElement.outerHTML;
       }
     });
