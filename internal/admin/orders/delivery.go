@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -32,7 +32,7 @@ type DeliveryCorrection struct {
 	District   string
 	Street     string
 
-	PickupChain     pickup.Chain
+	PickupChain     shipping.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -75,7 +75,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 		case order.FulfillmentPending, order.FulfillmentPicking:
 			// Still correctable; UpdateOrderDelivery's WHERE clause is the authority.
 		}
-		to, ok := destination.For(row.DestinationKind)
+		to, ok := shipping.ParseDestination(row.DestinationKind)
 		if !ok {
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				number, row.DestinationKind)
@@ -106,7 +106,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 	})
 }
 
-func validatedDelivery(d *DeliveryCorrection, to destination.Kind) (*order.Delivery, error) {
+func validatedDelivery(d *DeliveryCorrection, to shipping.Destination) (*order.Delivery, error) {
 	addr := &order.Delivery{
 		To: to, Email: d.Email, RecipientName: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
@@ -125,7 +125,7 @@ func validatedDelivery(d *DeliveryCorrection, to destination.Kind) (*order.Deliv
 // so a waiter compares against the correction before it and not an earlier
 // snapshot. A pickup order has no postcode and no zone to leave.
 func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *order.Delivery) error {
-	if addr.To != destination.Address {
+	if addr.To != shipping.DestinationAddress {
 		return nil
 	}
 	cmp, err := q.DeliveryZoneComparison(ctx, db.DeliveryZoneComparisonParams{
@@ -153,7 +153,7 @@ func deliveryFormOf(values func(string) string) *DeliveryCorrection {
 		Email: values("email"), Recipient: values("recipient"), Phone: values("phone"),
 		PostalCode: values("postal_code"), City: values("city"),
 		District: values("district"), Street: values("street"),
-		PickupChain: pickup.Chain(values("pickup_chain")), PickupStoreCode: values("pickup_store_code"),
+		PickupChain: shipping.Chain(values("pickup_chain")), PickupStoreCode: values("pickup_store_code"),
 		PickupStoreName: values("pickup_store_name"),
 	}
 }

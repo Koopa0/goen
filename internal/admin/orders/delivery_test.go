@@ -6,12 +6,12 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -20,36 +20,36 @@ func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {
 	valid := DeliveryCorrection{
 		Email: "shopper@example.com", Recipient: "Recipient", Phone: "0912345678",
 		PostalCode: "110", City: "City", District: "District", Street: "1 Street",
-		PickupChain: pickup.SevenEleven,
+		PickupChain: shipping.ChainSevenEleven,
 	}
 	for _, tt := range []struct {
 		name   string
-		to     destination.Kind
+		to     shipping.Destination
 		change func(*DeliveryCorrection)
 		want   []web.FieldRefusal
 	}{
 		{
-			name: "short phone", to: destination.Address,
+			name: "short phone", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) { d.Phone = " 123 " },
 			want:   []web.FieldRefusal{{Field: "phone", MessageKey: i18n.KeyPhoneMalformed}},
 		},
 		{
-			name: "pickup code without name", to: destination.PickupPoint,
+			name: "pickup code without name", to: shipping.DestinationPickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreCode = " a123 " },
 			want:   []web.FieldRefusal{{Field: "pickup_store_name", MessageKey: i18n.KeyAddressIncomplete}},
 		},
 		{
-			name: "pickup name without code", to: destination.PickupPoint,
+			name: "pickup name without code", to: shipping.DestinationPickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreName = " Store " },
 			want:   []web.FieldRefusal{{Field: "pickup_store_code", MessageKey: i18n.KeyStoreCodeMalformed}},
 		},
 		{
-			name: "recipient field identity", to: destination.Address,
+			name: "recipient field identity", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) { d.Recipient = " " },
 			want:   []web.FieldRefusal{{Field: "name", MessageKey: i18n.KeyNameRequired}},
 		},
 		{
-			name: "postal and non-postal failures", to: destination.Address,
+			name: "postal and non-postal failures", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) {
 				d.Email, d.Recipient, d.Phone, d.PostalCode = "invalid", " ", "123", "11A"
 			},
@@ -95,21 +95,21 @@ func TestValidatedDeliveryNormalizesOnlyItsSuccessfulCopy(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
-		to   destination.Kind
+		to   shipping.Destination
 		want order.Delivery
 	}{
 		{
-			name: "address", to: destination.Address,
+			name: "address", to: shipping.DestinationAddress,
 			want: order.Delivery{
-				To: destination.Address, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
+				To: shipping.DestinationAddress, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
 				PostalCode: "110", City: "City", District: "District", Street: "1 Street",
 			},
 		},
 		{
-			name: "pickup", to: destination.PickupPoint,
+			name: "pickup", to: shipping.DestinationPickupPoint,
 			want: order.Delivery{
-				To: destination.PickupPoint, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
-				PickupChain: pickup.SevenEleven, PickupStoreCode: "A123", PickupStoreName: "Store",
+				To: shipping.DestinationPickupPoint, Email: "shopper@example.com", RecipientName: "Recipient", Phone: "0912345678",
+				PickupChain: shipping.ChainSevenEleven, PickupStoreCode: "A123", PickupStoreName: "Store",
 			},
 		},
 	} {
