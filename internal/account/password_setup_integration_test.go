@@ -198,8 +198,8 @@ func TestPasswordSetupRefusesALegacyInvalidMailboxWithoutQueueing(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, "UPDATE users SET email=$1 WHERE id=$2", "legacy@example..com", person.ID); err != nil {
-		t.Fatal(err)
+	if _, updateErr := pool.Exec(ctx, "UPDATE users SET email=$1 WHERE id=$2", "legacy@example..com", person.ID); updateErr != nil {
+		t.Fatal(updateErr)
 	}
 	token, err := store.StartSession(ctx, person.ID, "legacy setup", "127.0.0.1")
 	if err != nil {

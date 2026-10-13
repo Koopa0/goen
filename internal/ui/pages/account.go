@@ -122,8 +122,8 @@ type AccountView struct {
 	ReturnAfterWelcome string
 	CartAdjusted       bool
 
-	PasswordSetupSent bool
-	HasPassword bool
+	PasswordSetupSent          bool
+	HasPassword                bool
 	EmailVerified              bool
 	EmailConfirmationRequested bool
 	EmailReentry               bool

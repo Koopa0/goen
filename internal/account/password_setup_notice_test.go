@@ -27,6 +27,7 @@ func TestPasswordSetupNoticeRequiresTheCurrentAccountAndMailbox(t *testing.T) {
 			t.Parallel()
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account?password_setup=sent", nil)
 			if tc.value != "" {
+				//nolint:gosec // Request cookies carry only a name and value; response attributes are checked separately.
 				request.AddCookie(&http.Cookie{Name: "goen_password_setup", Value: tc.value})
 			}
 			response := httptest.NewRecorder()
