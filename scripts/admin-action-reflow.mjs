@@ -1,3 +1,5 @@
+import { controlLabelReflow } from './control-label-reflow.mjs';
+
 // Measure the real delivery and inspection forms, including their full labels.
 export async function checkAdminActionReflow({ send, evaluate, navigate, fail, origin, adminToken, placedOrder }) {
   if (!adminToken || !placedOrder) {
@@ -11,7 +13,7 @@ export async function checkAdminActionReflow({ send, evaluate, navigate, fail, o
   ];
   try {
     for (const lang of ['zh', 'en']) {
-      for (const width of [320, 375]) {
+      for (const width of [320, 375, 1024]) {
         for (const scale of [100, 200]) {
           for (const [path, selector] of pages) {
             const label = `admin action ${path} ${lang} ${width} text${scale}`;
@@ -19,7 +21,7 @@ export async function checkAdminActionReflow({ send, evaluate, navigate, fail, o
             for (const [name, value] of [['goen_session', adminToken], ['goen_locale', lang === 'zh' ? 'zh-Hant' : lang]]) {
               await send('Network.setCookie', { name, value, url: origin, path: '/' });
             }
-            await send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
+            await send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: width < 768 });
             await navigate(origin + path);
             await evaluate(`document.documentElement.style.fontSize = '${scale}%'`);
             await evaluate('document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))', true);
@@ -27,6 +29,9 @@ export async function checkAdminActionReflow({ send, evaluate, navigate, fail, o
               const buttons = [...document.querySelectorAll(${JSON.stringify(selector)})];
               const viewport = document.documentElement.clientWidth;
               const faults = [];
+              const controlLabelReflow = ${controlLabelReflow.toString()};
+              for (const control of document.querySelectorAll('.goen-admin__form .goen-btn, .goen-admin__decidebtns .goen-btn'))
+                faults.push(...controlLabelReflow(control));
               const measured = buttons.map(button => {
                 const box = button.getBoundingClientRect();
                 const form = button.closest('form').getBoundingClientRect();
