@@ -161,7 +161,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 			}
 		}
-		<div class="ui-filterbar goen-admin__tabs">
+		<nav class="ui-filterbar goen-admin__tabs" aria-label={ i18n.T(ctx, i18n.KeyAdminOrderStatus) }>
 			for _, t := range v.Tabs {
 				<a
 					class="ui-filter"
@@ -174,7 +174,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 					<span class="ui-filter__count">{ t.CountText() }</span>
 				</a>
 			}
-		</div>
+		</nav>
 		if v.Status == QueuePicking && !v.Searching() {
 			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/orders/picking/slips") {
 				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
@@ -502,7 +502,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
 									if e.Note != "" {
-										<span class="goen-admin__meta">{ e.Note }</span>
+										<span class="goen-admin__meta">{ e.noteText(ctx) }</span>
 									}
 								</li>
 							}

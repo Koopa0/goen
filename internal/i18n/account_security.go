@@ -17,6 +17,8 @@ var (
 		En:     "I want to delete my account",
 	})
 
+	KeyAccountErased = key("account.erase.done", Message{ZhHant: "你的帳號已刪除，個人資料與收件資訊已移除。已完成的訂單以無個資的形式保留，作為交易與稅務紀錄。", En: "Your account has been deleted and your personal details and delivery information removed. Completed orders are kept without them as financial and tax records."})
+
 	KeyEraseConfirmLabel = key("account.erase.confirm", Message{
 		ZhHant: "輸入 %s 以確認",
 		En:     "Type %s to confirm",

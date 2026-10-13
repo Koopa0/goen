@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/ordercancel"
+	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/pgtx"
 )
 
@@ -91,7 +91,7 @@ func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, err
 	}
 	// No Checkout Session is left to close: the predicate refused any order
 	// with a payment that could still take money.
-	if _, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
+	if _, err := cancellation.Settle(ctx, q, &cancellation.Order{
 		ID: orderID, Number: number, Kind: email.TerminalCancelledByPaymentDeadline, VoidTrigger: "cancel:" + number,
 	}); err != nil {
 		return false, err

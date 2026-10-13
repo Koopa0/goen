@@ -245,6 +245,46 @@ func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams
 	return err
 }
 
+const addressForUser = `-- name: AddressForUser :one
+SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
+FROM addresses
+WHERE user_id = $1::uuid AND id = $2::uuid
+`
+
+type AddressForUserParams struct {
+	UserID    uuid.UUID
+	AddressID uuid.UUID
+}
+
+type AddressForUserRow struct {
+	ID            uuid.UUID
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	IsDefault     bool
+}
+
+func (q *Queries) AddressForUser(ctx context.Context, arg AddressForUserParams) (AddressForUserRow, error) {
+	row := q.db.QueryRow(ctx, addressForUser, arg.UserID, arg.AddressID)
+	var i AddressForUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Label,
+		&i.RecipientName,
+		&i.Phone,
+		&i.PostalCode,
+		&i.City,
+		&i.District,
+		&i.Street,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
 const addressesForUser = `-- name: AddressesForUser :many
 SELECT id, label, recipient_name, phone, postal_code, city, district, street, is_default
 FROM addresses WHERE user_id = $1
@@ -421,8 +461,31 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 }
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
-SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name
+SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units
 FROM products p
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || $2::text || '%'
        OR p.name_en ILIKE '%' || $2::text || '%'
@@ -443,8 +506,15 @@ type AdminCampaignProductSearchParams struct {
 }
 
 type AdminCampaignProductSearchRow struct {
-	Slug string
-	Name string
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
 }
 
 // Archived products are left out: a campaign on one shows nothing.
@@ -462,7 +532,17 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 	items := []AdminCampaignProductSearchRow{}
 	for rows.Next() {
 		var i AdminCampaignProductSearchRow
-		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -474,18 +554,48 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 }
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
-SELECT p.slug, p.name, cp.position
+SELECT p.slug, p.name AS name,
+       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(mv.price_cents, 0)::bigint AS price_cents,
+       coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
+       (mv.price_cents IS NOT NULL)::boolean AS has_variant,
+       EXISTS (SELECT 1 FROM product_variants v
+               WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS has_discounted_variant,
+       (p.status = 'draft')::boolean AS is_draft,
+       coalesce((SELECT sum(greatest(v.stock_quantity - v.safety_stock, 0))
+                 FROM product_variants v WHERE v.product_id = p.id AND v.is_active), 0)::bigint AS sellable_units, cp.position
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
 JOIN sale_campaigns c ON c.id = cp.campaign_id
+LEFT JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents
+              AND stock_quantity > safety_stock) DESC,
+             (stock_quantity > safety_stock) DESC,
+             (compare_at_price_cents IS NOT NULL AND compare_at_price_cents > price_cents) DESC,
+             price_cents, id
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
 WHERE c.slug = $1::text
 ORDER BY cp.position, p.id
 `
 
 type AdminCampaignProductsRow struct {
-	Slug     string
-	Name     string
-	Position int32
+	Slug                 string
+	Name                 string
+	ImageKey             string
+	PriceCents           int64
+	CompareAtPriceCents  int64
+	HasVariant           bool
+	HasDiscountedVariant bool
+	IsDraft              bool
+	SellableUnits        int64
+	Position             int32
 }
 
 func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([]AdminCampaignProductsRow, error) {
@@ -497,7 +607,18 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 	items := []AdminCampaignProductsRow{}
 	for rows.Next() {
 		var i AdminCampaignProductsRow
-		if err := rows.Scan(&i.Slug, &i.Name, &i.Position); err != nil {
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.ImageKey,
+			&i.PriceCents,
+			&i.CompareAtPriceCents,
+			&i.HasVariant,
+			&i.HasDiscountedVariant,
+			&i.IsDraft,
+			&i.SellableUnits,
+			&i.Position,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -828,7 +949,7 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 }
 
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
-SELECT o.order_number, o.fulfillment_status, o.placed_at,
+SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
@@ -846,6 +967,7 @@ type AdminCustomerOrdersParams struct {
 }
 
 type AdminCustomerOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -867,6 +989,7 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 	for rows.Next() {
 		var i AdminCustomerOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,
@@ -1139,7 +1262,10 @@ func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([
 const adminOrderByNumber = `-- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
+    o.shipping_cents, o.discount_cents, o.tax_cents,
+    -- A missing translation retains the order's snapshot, not another locale.
+    coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+             o.shipping_method_name)::text AS shipping_method_name,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -1172,10 +1298,16 @@ SELECT
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = $1
+WHERE o.order_number = $2::text
 `
+
+type AdminOrderByNumberParams struct {
+	Locale      string
+	OrderNumber string
+}
 
 type AdminOrderByNumberRow struct {
 	ID                   uuid.UUID
@@ -1212,8 +1344,8 @@ type AdminOrderByNumberRow struct {
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
 // and the FK is ON DELETE RESTRICT, so one join always reaches it.
-func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (AdminOrderByNumberRow, error) {
-	row := q.db.QueryRow(ctx, adminOrderByNumber, orderNumber)
+func (q *Queries) AdminOrderByNumber(ctx context.Context, arg AdminOrderByNumberParams) (AdminOrderByNumberRow, error) {
+	row := q.db.QueryRow(ctx, adminOrderByNumber, arg.Locale, arg.OrderNumber)
 	var i AdminOrderByNumberRow
 	err := row.Scan(
 		&i.ID,
@@ -1312,7 +1444,12 @@ FROM (
                 WHEN op.status = 'pending' AND op.send_attempts = 0 AND NOT $2::boolean
                 THEN 'not_sent'
                 ELSE op.status END,
-           op.completed_at, '', op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.completed_at,
+           CASE WHEN op.status = 'rejected' AND op.kind IN ('issue', 'allowance')
+                     AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
+                THEN substring(op.last_error FROM '[0-9]+$')
+                ELSE '' END,
+           op.actor_kind, coalesce(u.full_name, u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = $1
@@ -2223,7 +2360,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
-       o.order_number, o.fulfillment_status,
+       o.id AS order_id, o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
@@ -2255,6 +2392,7 @@ type AdminSearchWarrantiesRow struct {
 	InForce           bool
 	ProductName       string
 	VariantLabel      string
+	OrderID           uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	CustomerName      string
@@ -2289,6 +2427,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 			&i.InForce,
 			&i.ProductName,
 			&i.VariantLabel,
+			&i.OrderID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.CustomerName,
@@ -11016,21 +11155,29 @@ func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (O
 }
 
 const orderForReturn = `-- name: OrderForReturn :one
-SELECT o.id, o.order_number, o.fulfillment_status
-FROM orders o WHERE o.order_number = $1
+SELECT o.id, o.order_number, o.fulfillment_status, coalesce(pd.pickup_chain, '') <> '' AS pickup
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.order_number = $1
 `
 
 type OrderForReturnRow struct {
 	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
+	Pickup            bool
 }
 
 // The order a return is being asked for.
 func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (OrderForReturnRow, error) {
 	row := q.db.QueryRow(ctx, orderForReturn, orderNumber)
 	var i OrderForReturnRow
-	err := row.Scan(&i.ID, &i.OrderNumber, &i.FulfillmentStatus)
+	err := row.Scan(
+		&i.ID,
+		&i.OrderNumber,
+		&i.FulfillmentStatus,
+		&i.Pickup,
+	)
 	return i, err
 }
 
@@ -12145,7 +12292,10 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 
 const pickingSlips = `-- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       o.id, o.order_number, o.placed_at,
+       coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
+                o.shipping_method_name)::text AS shipping_method_name,
+       coalesce(o.customer_note, '') AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -12161,6 +12311,7 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
        coalesce(ip.donation_code, '') AS invoice_donation_code,
        coalesce(ip.tax_id, '') AS invoice_tax_id
 FROM orders o
+LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
@@ -12168,13 +12319,14 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                                           WHERE sl.order_line_id = ol.id), 0))
-  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
-       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
+  AND (NOT $2::boolean OR o.placed_at > $3::timestamptz
+       OR (o.placed_at = $3::timestamptz AND o.id > $4::uuid))
 ORDER BY o.placed_at, o.id
-LIMIT $4::integer
+LIMIT $5::integer
 `
 
 type PickingSlipsParams struct {
+	Locale    string
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -12206,6 +12358,7 @@ type PickingSlipsRow struct {
 
 func (q *Queries) PickingSlips(ctx context.Context, arg PickingSlipsParams) ([]PickingSlipsRow, error) {
 	rows, err := q.db.Query(ctx, pickingSlips,
+		arg.Locale,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -17963,6 +18116,49 @@ func (q *Queries) UnsubscribeNewsletter(ctx context.Context, unsubscribeToken st
 	return email, err
 }
 
+const updateAddress = `-- name: UpdateAddress :execrows
+UPDATE addresses
+SET label = $1::text,
+    recipient_name = $2::text,
+    phone = $3::text,
+    postal_code = $4::text,
+    city = $5::text,
+    district = $6::text,
+    street = $7::text
+WHERE user_id = $8::uuid AND id = $9::uuid
+`
+
+type UpdateAddressParams struct {
+	Label         pgtype.Text
+	RecipientName string
+	Phone         string
+	PostalCode    string
+	City          string
+	District      string
+	Street        string
+	UserID        uuid.UUID
+	AddressID     uuid.UUID
+}
+
+// Keeping is_default out of the edit preserves a concurrent default selection.
+func (q *Queries) UpdateAddress(ctx context.Context, arg UpdateAddressParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateAddress,
+		arg.Label,
+		arg.RecipientName,
+		arg.Phone,
+		arg.PostalCode,
+		arg.City,
+		arg.District,
+		arg.Street,
+		arg.UserID,
+		arg.AddressID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateFAQEntry = `-- name: UpdateFAQEntry :execrows
 UPDATE faq_entries
 SET question = $1::text, answer = $2::text,
@@ -18015,7 +18211,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = $11
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed')
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed', 'cancelled')
 `
 
 type UpdateOrderDeliveryParams struct {

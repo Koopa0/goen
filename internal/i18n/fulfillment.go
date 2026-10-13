@@ -5,6 +5,8 @@ var (
 
 	KeyAdminTabAll = key("admin.tab.all", Message{ZhHant: "全部", En: "All"})
 
+	KeyAdminOrderStatus = key("admin.order.status", Message{ZhHant: "訂單狀態", En: "Order status"})
+
 	KeyAdminStatusPending = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
 
 	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
@@ -153,6 +155,8 @@ var (
 	KeyAdminTimelineInvoiceAttention = key("admin.timeline.invoice.attention", Message{ZhHant: "需要人工處理", En: "Needs a person"})
 
 	KeyAdminTimelineInvoiceSucceeded = key("admin.timeline.invoice.succeeded", Message{ZhHant: "完成", En: "Done"})
+
+	KeyAdminTimelineInvoiceProviderCode = key("admin.timeline.invoice.provider_code", Message{ZhHant: "綠界代碼 %s", En: "ECPay code %s"})
 
 	KeyAdminTimelineInvoiceRejected = key("admin.timeline.invoice.rejected", Message{ZhHant: "遭拒絕", En: "Refused"})
 

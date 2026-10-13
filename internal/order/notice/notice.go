@@ -1,5 +1,5 @@
-// Package ordernotice queues terminal order facts without retaining delivery PII.
-package ordernotice
+// Package notice queues terminal order facts without retaining delivery PII.
+package notice
 
 import (
 	"context"

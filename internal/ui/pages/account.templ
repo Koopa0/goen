@@ -96,7 +96,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 				if !v.HideRegister {
 					<p class="goen-auth__alt">
 						{ i18n.T(ctx, i18n.KeyNoAccountYet) }
-						<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
+						<a href={ templ.SafeURL(v.authPageLink("/register")) }>{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
 					</p>
 				}
 			</div>
@@ -177,7 +177,7 @@ templ Register(p layouts.Page, v AuthView) {
 					</form>
 					if v.HasNotice() {
 						<p class="goen-auth__alt">
-							<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
+							<a href={ templ.SafeURL(v.authPageLink("/register")) }>{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
 						</p>
 					}
 				} else {
@@ -271,7 +271,7 @@ templ Register(p layouts.Page, v AuthView) {
 				}
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyHaveAccount) }
-					<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+					<a href={ templ.SafeURL(v.authPageLink("/signin")) }>{ i18n.T(ctx, i18n.KeySignIn) }</a>
 				</p>
 			</div>
 		</div>
@@ -333,17 +333,49 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
 				{ v.Notice }
 			}
+			@cartRecoveryList("cart-recovery-before", i18n.KeyCartRecoveryBeforeSignIn, v.Contents.BeforeSignIn)
+			@cartRecoveryList("cart-recovery-account", i18n.KeyCartRecoveryAccount, v.Contents.Account)
 			<form class="notice__form" method="post" action="/account/cart/retry">
 				<input type="hidden" name="next" value={ v.Next }/>
 				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 					{ v.Retry }
 				}
 			</form>
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Class: "notice__back"}, "/") {
-				{ i18n.T(ctx, i18n.KeyBackToShop) }
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "notice__back"}, "/cart") {
+				{ i18n.T(ctx, i18n.KeyCartRecoveryBack) }
 			}
 		</div>
 	}
+}
+
+templ cartRecoveryList(id string, heading i18n.Key, lines []CartLine) {
+	<section class="goen-cart-recovery__cart" aria-labelledby={ id }>
+		<h2 class="goen-account__heading" id={ id }>{ i18n.T(ctx, heading) }</h2>
+		if len(lines) == 0 {
+			<p>{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
+		} else {
+			<ul class="goen-cart__lines" role="list">
+				for _, line := range lines {
+					<li class="goen-line goen-line--recovery">
+						<span class="goen-line__thumb">
+							if line.HasImage() {
+								<img class="goen-line__img" src={ line.ImageURL } srcset={ line.ImageSrcset } sizes="96px" alt={ line.ImageAlt } width="96" height="96" loading="lazy" decoding="async"/>
+							} else {
+								<span class="goen-line__ph" aria-hidden="true"></span>
+							}
+						</span>
+						<div class="goen-line__body">
+							<span class="goen-line__name">{ line.Name }</span>
+							if line.Label != "" {
+								<span class="goen-line__meta">{ line.Label }</span>
+							}
+							<span class="goen-line__meta">{ i18n.T(ctx, i18n.KeyQuantity) } { line.QuantityText() }</span>
+						</div>
+					</li>
+				}
+			</ul>
+		}
+	</section>
 }
 
 // A section of this page needs no hint: it is directly below.
@@ -530,6 +562,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											<span class="goen-account__meta">{ a.Line() }</span>
 										</div>
 										<div class="goen-account__addractions">
+											@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, templ.SafeURL("/account/addresses/"+a.ID+"/edit#addresses-heading")) {
+												{ i18n.T(ctx, i18n.KeyEditAddress) }
+											}
 											if !a.Default {
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
@@ -538,12 +573,16 @@ templ Account(p layouts.Page, v *AccountView) {
 													}
 												</form>
 											}
-											<form method="post" action="/account/addresses/delete">
-												<input type="hidden" name="address" value={ a.ID }/>
-												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, "submit") {
-													{ i18n.T(ctx, i18n.KeyDelete) }
-												}
-											</form>
+											<details class="goen-account__disclosure">
+												<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyDelete) }</summary>
+												<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyConfirmDeleteAddress), a.DisplayLabel(ctx)) }</p>
+												<form method="post" action="/account/addresses/delete">
+													<input type="hidden" name="address" value={ a.ID }/>
+													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Size: components.SizeSmall}, "submit") {
+														{ i18n.T(ctx, i18n.KeyDeleteAddress) }
+													}
+												</form>
+											</details>
 										</div>
 									</li>
 								}
@@ -552,8 +591,17 @@ templ Account(p layouts.Page, v *AccountView) {
 							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoAddresses) }</p>
 						}
 						<details class="goen-account__disclosure" open?={ v.AddressOpen() }>
-							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyAddAddress) }</summary>
-							<form class="goen-account__form" method="post" action="/account/addresses">
+							<summary class="goen-account__summary">
+								if v.AddressEditing() {
+									{ i18n.T(ctx, i18n.KeyEditAddress) }
+								} else {
+									{ i18n.T(ctx, i18n.KeyAddAddress) }
+								}
+							</summary>
+							<form class="goen-account__form" method="post" action={ v.AddressAction() }>
+								if v.AddressEditing() {
+									<input type="hidden" name="address" value={ v.AddressID() }/>
+								}
 								<div class="goen-account__fields">
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-label"}) {
@@ -683,10 +731,12 @@ templ Account(p layouts.Page, v *AccountView) {
 										}
 									</div>
 								</div>
-								<label class="goen-check">
-									<input class="goen-check__box" type="checkbox" name="default" value="1" checked?={ v.AddrDefault() }/>
-									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
-								</label>
+								if !v.AddressEditing() {
+									<label class="goen-check">
+										<input class="goen-check__box" type="checkbox" name="default" value="1" checked?={ v.AddrDefault() }/>
+										<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
+									</label>
+								}
 								<div class="goen-account__actions">
 									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeySaveAddress) }
