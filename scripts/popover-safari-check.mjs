@@ -46,7 +46,9 @@ try {
   await command('POST', `/session/${session}/url`, {url: origin + '/c/audio'});
   for (const locale of ['zh-Hant', 'en']) for (const text of [100, 200]) {
     const at = `${locale}-${text}`;
-    await command('POST', `/session/${session}/cookie`, {cookie: {name: 'goen_locale', value: locale, path: '/'}});
+    // The page script sets the cookie, so the browser stores it for the origin it is on
+    // rather than relying on safaridriver's cookie endpoint, which left the locale at its default.
+    await evaluate(`document.cookie = 'goen_locale=${locale}; path=/'; return document.cookie`);
     await command('POST', `/session/${session}/url`, {url: origin + '/c/audio?brand=nimbus'});
     await until("return document.readyState === 'complete' && typeof htmx !== 'undefined'", at + ': listing did not load');
     await evaluate(`document.documentElement.style.fontSize = '${text * 16 / 100}px'; return true`);
