@@ -6,7 +6,7 @@ var (
 	KeyFormSpecLabelLong = key("form.spec.label.long", Message{ZhHant: "規格名稱太長", En: "That spec label is too long"})
 
 	KeyFormSpecLabelDuplicate = key("form.spec.label.duplicate", Message{
-		ZhHant: "這個商品已經有同名的規格項目",
+		ZhHant: "已有同名的規格項目。",
 		En:     "This product already has a spec with that label.",
 	})
 
