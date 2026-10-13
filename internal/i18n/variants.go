@@ -46,13 +46,13 @@ var (
 	})
 
 	KeyFormOptionsInvalid = key("form.options.invalid", Message{
-		ZhHant: "規格選項有誤，請重新選擇。",
+		ZhHant: "選項值有誤，請重新選擇。",
 		En:     "Those option values do not work together. Choose again.",
 	})
 
-	KeyAdminProdVariantsFrom = countKey("admin.prod.variantsfrom", "%s 個規格 · %s 起", "%s variant · from %s", "%s variants · from %s")
+	KeyAdminProdVariantsFrom = countKey("admin.prod.variantsfrom", "%s 個款式 · %s 起", "%s variant · from %s", "%s variants · from %s")
 
-	KeyAdminProdVariants = key("admin.prod.variants", Message{ZhHant: "規格", En: "Variants"})
+	KeyAdminProdVariants = key("admin.prod.variants", Message{ZhHant: "款式", En: "Variants"})
 
 	KeyAdminProdPrice = key("admin.prod.price", Message{ZhHant: "售價（元）", En: "Price (NT$)"})
 
@@ -75,11 +75,10 @@ var (
 
 	KeyAdminProdWeight = key("admin.prod.weight", Message{ZhHant: "重量（g）", En: "Weight (g)"})
 
-	KeyAdminProdVariantAdd = key("admin.prod.variantadd", Message{ZhHant: "新增規格", En: "Add variant"})
+	KeyAdminProdVariantAdd = key("admin.prod.variantadd", Message{ZhHant: "新增款式", En: "Add variant"})
 
 	KeyAdminProdVariantStockHint = key("admin.prod.variantstockhint", Message{
-		ZhHant: "新規格的庫存是 0。庫存只能從「庫存」頁調整，那裡每一次異動都會寫進帳本。",
-		En: "A new variant starts at zero stock. Stock changes only from the Stock page, where " +
-			"every movement is written to the ledger.",
+		ZhHant: "新款式的庫存是 0。庫存只能從「庫存」頁調整，那裡每一次異動都會寫進帳本。",
+		En:     "A new variant starts at zero stock. Stock changes only from the Stock page, where every movement is written to the ledger.",
 	})
 )

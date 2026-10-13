@@ -343,8 +343,22 @@ WHERE o.order_number = $1
 ORDER BY ol.position, ol.id;
 
 -- name: OrderLinesByOrder :many
-SELECT sku, product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id;
+SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = @order_id ORDER BY ol.position, ol.id;
 
 -- The customer's order page: each line with its photograph and its warranty promise.
 -- name: OrderPageLines :many

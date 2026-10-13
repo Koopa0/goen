@@ -49,6 +49,7 @@ var auditFields = map[string]auditField{
 	"active":                           {i18n.KeyAuditFieldActive, nil, nil},
 	"allowance":                        {i18n.KeyAdminDocAllowance, nil, nil},
 	"alt":                              {i18n.KeyAuditFieldImageAlt, nil, nil},
+	"alt_en":                           {i18n.KeyAdminCatAltEn, nil, nil},
 	"assessment_version":               {i18n.KeyAuditFieldAssessmentVersion, nil, nil},
 	"attempt_no":                       {i18n.KeyAuditFieldRefundAttempt, nil, nil},
 	"brand_id":                         {i18n.KeyAdminProdBrand, nil, nil},

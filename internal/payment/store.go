@@ -64,7 +64,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		return nil, fmt.Errorf("read payment state of order %s: %w", number, err)
 	}
 
-	lines, err := s.q.OrderLinesForPayment(ctx, row.ID)
+	lines, err := s.q.OrderLinesForPayment(ctx, db.OrderLinesForPaymentParams{OrderID: row.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
 		return nil, fmt.Errorf("read lines of order %s: %w", number, err)
 	}
@@ -103,6 +103,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	for i := range lines {
 		l := &lines[i]
 		o.Lines = append(o.Lines, Line{
+			ImageKey: l.ImageKey, ImageWidth: l.ImageWidth, ImageAlt: l.ImageAlt,
 			Name:      l.ProductName,
 			Label:     l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents,

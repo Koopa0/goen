@@ -788,6 +788,28 @@ input.goen-check {
   padding: 14px 0;
 }
 
+.goen-order__photo {
+  background: var(--photo);
+  border-radius: var(--r-md);
+  flex: 0 0 40px;
+  height: 40px;
+  overflow: hidden;
+  width: 40px;
+}
+
+.goen-order__image,
+.goen-order__photo .goen-line__ph {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-order__linebody {
+  flex: 1;
+  min-width: 0;
+}
+
 .goen-order__name {
   color: var(--fg);
   font-size: var(--fs-14);
@@ -1680,6 +1702,11 @@ input.goen-check {
   align-items: start;
 }
 
+.goen-admin__main:has(.goen-admin__layout > .goen-admin__orderpanel) {
+  container-name: order-detail;
+  container-type: inline-size;
+}
+
 .goen-admin__refunds {
   display: grid;
   gap: 12px;
@@ -1777,7 +1804,7 @@ input.goen-check {
   }
 
   @supports selector(::details-content) {
-    .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav > .goen-disclosure__summary {
       display: none;
     }
 
@@ -1822,6 +1849,13 @@ input.goen-check {
   .goen-admin__layout {
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 32px;
+  }
+}
+
+/* A fixed side column must not leave enlarged action labels in a narrow form. */
+@container order-detail (max-width: 40rem) {
+  .goen-admin__layout:has(> .goen-admin__orderpanel) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2334,17 +2368,17 @@ input.goen-check {
   }
 }
 
-/* A button in a column of full-width fields is not a banner: it shrinks to its
-   own label, and the one move the screen is about says so with Block instead. */
+/* Full rows leave room for enlarged action labels to wrap between words. */
 .goen-admin__form .goen-btn {
-  align-self: flex-start;
+  align-self: stretch;
   box-sizing: border-box;
   height: auto;
   max-width: 100%;
   min-height: 44px;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   padding-block: 0.5rem;
+  padding-inline: 0.5rem;
   white-space: normal;
 }
 
@@ -2360,13 +2394,14 @@ input.goen-check {
    refusing are three answers to one question, so none of them leads. */
 .goen-admin__decidebtns .goen-btn {
   box-sizing: border-box;
-  flex: 1 1 auto;
+  flex: 1 1 100%;
   height: auto;
   max-width: 100%;
   min-height: 44px;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   padding-block: 0.5rem;
+  padding-inline: 0.5rem;
   white-space: normal;
 }
 
@@ -2660,8 +2695,9 @@ input.goen-check {
   max-width: 100%;
   min-height: max(44px, 2.75rem);
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   padding-block: 0.5rem;
+  padding-inline: 0.5rem;
   white-space: normal;
 }
 
@@ -2955,28 +2991,34 @@ input.goen-check {
   padding: 8px 0;
 }
 
+.goen-admin__taxonhead {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .goen-admin__taxon[data-depth='1'] {
-  padding-left: 20px;
+  --taxon-indent: 8px;
 }
 
 .goen-admin__taxon[data-depth='2'] {
-  padding-left: 40px;
+  --taxon-indent: 16px;
 }
 
 .goen-admin__taxon[data-depth='3'] {
-  padding-left: 60px;
+  --taxon-indent: 24px;
 }
 
 .goen-admin__taxon[data-depth='4'] {
-  padding-left: 80px;
+  --taxon-indent: 32px;
 }
 
 .goen-admin__taxon[data-depth='5'] {
-  padding-left: 100px;
+  --taxon-indent: 40px;
 }
 
 .goen-admin__taxon[data-depth='6'] {
-  padding-left: 120px;
+  --taxon-indent: 48px;
 }
 
 /* One row of the tree is a rename form: the fields carry the current values and
@@ -2992,6 +3034,52 @@ input.goen-check {
 .goen-admin__taxonform .goen-input {
   flex: 1 1 12ch;
   min-width: 12ch;
+}
+
+.goen-admin__taxonform--category {
+  align-items: start;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goen-admin__taxonform--category .goen-input {
+  min-width: 0;
+  width: 100%;
+}
+
+.goen-admin__taxonfield {
+  min-width: 0;
+}
+
+/* Keep tree depth inside the name column so the other headings stay aligned. */
+.goen-admin__taxonform--category > .goen-admin__taxonfield:first-child {
+  padding-inline-start: var(--taxon-indent, 0px);
+}
+
+.goen-admin__taxonform--category > button {
+  grid-row: 2;
+}
+
+.goen-admin__taxonlabel {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .goen-admin__taxonhead {
+    display: none;
+  }
+
+  .goen-admin__taxonform--category {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-admin__taxonform--category > button {
+    grid-row: auto;
+  }
+
+  .goen-admin__taxonlabel {
+    display: block;
+  }
 }
 
 /* The product's pictures. Fixed-size thumbnails, so a portrait and a landscape

@@ -36,7 +36,7 @@ var (
 
 	KeyAdminFaqpAnswer = key("admin.faqp.answer", Message{ZhHant: "答案", En: "Answer"})
 
-	KeyAdminFaqpCategoryPlaceholder = key("admin.faqp.category.placeholder", Message{
+	KeyAdminFaqpCategoryExample = key("admin.faqp.category.example", Message{
 		ZhHant: "訂單",
 		En:     "Orders",
 	})
