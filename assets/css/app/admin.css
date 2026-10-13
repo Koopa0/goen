@@ -2933,28 +2933,34 @@ input.goen-check {
   padding: 8px 0;
 }
 
+.goen-admin__taxonhead {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .goen-admin__taxon[data-depth='1'] {
-  padding-left: 20px;
+  --taxon-indent: 8px;
 }
 
 .goen-admin__taxon[data-depth='2'] {
-  padding-left: 40px;
+  --taxon-indent: 16px;
 }
 
 .goen-admin__taxon[data-depth='3'] {
-  padding-left: 60px;
+  --taxon-indent: 24px;
 }
 
 .goen-admin__taxon[data-depth='4'] {
-  padding-left: 80px;
+  --taxon-indent: 32px;
 }
 
 .goen-admin__taxon[data-depth='5'] {
-  padding-left: 100px;
+  --taxon-indent: 40px;
 }
 
 .goen-admin__taxon[data-depth='6'] {
-  padding-left: 120px;
+  --taxon-indent: 48px;
 }
 
 /* One row of the tree is a rename form: the fields carry the current values and
@@ -2970,6 +2976,52 @@ input.goen-check {
 .goen-admin__taxonform .goen-input {
   flex: 1 1 12ch;
   min-width: 12ch;
+}
+
+.goen-admin__taxonform--category {
+  align-items: start;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goen-admin__taxonform--category .goen-input {
+  min-width: 0;
+  width: 100%;
+}
+
+.goen-admin__taxonfield {
+  min-width: 0;
+}
+
+/* Keep tree depth inside the name column so the other headings stay aligned. */
+.goen-admin__taxonform--category > .goen-admin__taxonfield:first-child {
+  padding-inline-start: var(--taxon-indent, 0px);
+}
+
+.goen-admin__taxonform--category > button {
+  grid-row: 2;
+}
+
+.goen-admin__taxonlabel {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .goen-admin__taxonhead {
+    display: none;
+  }
+
+  .goen-admin__taxonform--category {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-admin__taxonform--category > button {
+    grid-row: auto;
+  }
+
+  .goen-admin__taxonlabel {
+    display: block;
+  }
 }
 
 /* The product's pictures. Fixed-size thumbnails, so a portrait and a landscape

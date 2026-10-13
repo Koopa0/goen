@@ -511,7 +511,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 						t.Errorf("draft %q = %q, want %q", id, got, want)
 					}
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), tt.field, map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn}[tt.field])
+				assertCategoryImageRefusal(t, res.Body.String(), tt.field, map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn}[tt.field])
 				after, err := s.CategoryHeader(ctx, slug)
 				if err != nil {
 					t.Fatal(err)

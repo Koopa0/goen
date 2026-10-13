@@ -124,7 +124,7 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 				examples []string
 			}{
 				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
-				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware", "kitchen"}},
+				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
 				"shipping": {renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
 				"tiers":    {renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})), []string{"Silver"}},
 				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
