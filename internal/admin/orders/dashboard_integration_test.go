@@ -17,8 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -286,7 +286,7 @@ func TestTheDashboardAgesAnUninspectedReturnFromItsDecision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(t.Context(), tx)
+	defer db.Rollback(t.Context(), tx)
 	// Triggers off only to write a request date older than its own decision.
 	if _, err = tx.Exec(t.Context(), `SET LOCAL session_replication_role = replica`); err != nil {
 		t.Fatalf("disable triggers: %v", err)
@@ -325,7 +325,7 @@ func placeOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	var orderID uuid.UUID
 	if err = tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,

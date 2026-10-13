@@ -20,8 +20,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -134,7 +134,7 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 			VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 			t.Fatalf("issue invoice: %v", err)
 		}
-		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); !pgerr.IsConstraint(err, "orders_cancel_invoice_resolved") {
+		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); !db.IsConstraint(err, "orders_cancel_invoice_resolved") {
 			t.Fatalf("refund with a live invoice = %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {
@@ -160,7 +160,7 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 			}
 			return
 		}
-		if !pgerr.IsConstraint(err, "orders_cancel_invoice_resolved") || admintest.FulfillmentOf(t, pool, orderID) == "cancelled" {
+		if !db.IsConstraint(err, "orders_cancel_invoice_resolved") || admintest.FulfillmentOf(t, pool, orderID) == "cancelled" {
 			t.Fatalf("unresolved invoice let the order cancel: %v", err)
 		}
 	}

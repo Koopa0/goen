@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -66,7 +66,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	if beginErr != nil {
 		t.Fatal(beginErr)
 	}
-	defer pgtx.Rollback(ctx, firstBlock)
+	defer db.Rollback(ctx, firstBlock)
 	holdDefaultAddressWriter(t, ctx, firstBlock, u.ID, firstID, firstKind)
 	var firstPID int
 	if err := firstBlock.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&firstPID); err != nil {
@@ -79,7 +79,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 		if beginErr != nil {
 			t.Fatal(beginErr)
 		}
-		defer pgtx.Rollback(ctx, secondBlock)
+		defer db.Rollback(ctx, secondBlock)
 		holdDefaultAddressWriter(t, ctx, secondBlock, u.ID, secondID, secondKind)
 		if err := secondBlock.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&secondPID); err != nil {
 			t.Fatal(err)

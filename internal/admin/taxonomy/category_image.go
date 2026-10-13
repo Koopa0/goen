@@ -12,7 +12,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -50,7 +49,7 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -72,7 +71,7 @@ func (s *Store) SetCategoryImageText(ctx context.Context, slug, alt, altEn strin
 			Slug: strings.TrimSpace(slug), ImageAlt: alt, ImageAltEn: altEn,
 		})
 		if err != nil {
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return db.WrapRefusal(err, ErrRefused)
 		}
 		if !result.Found {
 			return ErrNotFound
@@ -101,7 +100,7 @@ func (s *Store) ClearCategoryImage(ctx context.Context, slug string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.ClearCategoryImage(ctx, strings.TrimSpace(slug))
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound

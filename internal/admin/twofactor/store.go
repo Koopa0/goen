@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 type Store struct {
@@ -66,7 +65,7 @@ func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byt
 	if err != nil {
 		return nil, "", fmt.Errorf("begin totp enrolment: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	n, err := q.BeginTOTPEnrolment(ctx, db.BeginTOTPEnrolmentParams{

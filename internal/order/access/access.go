@@ -20,7 +20,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -67,7 +66,7 @@ func (s *Store) Grant(w http.ResponseWriter, r *http.Request, number string) err
 	if err != nil {
 		return fmt.Errorf("begin grant order access: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{

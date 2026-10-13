@@ -164,9 +164,10 @@ store before anything else.
 - Package by feature under `internal/<feature>/`: types, handlers, store,
   queries and tests together. There is no `services`, `repositories`, `handlers`
   or `models` directory.
-- `internal/db` and every `*_templ.go` are generated. Edit the `.sql` or
-  `.templ` source and run `make sqlc` or `make gen`; the gate compares the
-  output against a fresh generation.
+- `internal/db/{db,models,query.sql,orders_export.sql}.go` and every
+  `*_templ.go` are generated. Edit the `.sql` or `.templ` source and run
+  `make sqlc` or `make gen`; the gate compares the output against a fresh
+  generation. `tx.go` and `pgerror.go` in that package are hand-written.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
   is a hope. Plant the defect it exists to catch, watch it go red for the stated
   reason, restore, and say so in the pull request.

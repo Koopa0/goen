@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/returns"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 // TestTwoInspectionsOfOneReturnDoNotDeadlock: the inspection form's lines
@@ -30,7 +30,7 @@ func TestTwoInspectionsOfOneReturnDoNotDeadlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin the order holder: %v", err)
 	}
-	defer pgtx.Rollback(ctx, holder)
+	defer db.Rollback(ctx, holder)
 	if _, err = holder.Exec(ctx, `SELECT 1 FROM orders WHERE order_number = $1 FOR UPDATE`, number); err != nil {
 		t.Fatalf("hold order %s: %v", number, err)
 	}
@@ -100,7 +100,7 @@ func approvedTwoLineReturn(t *testing.T) (requestID uuid.UUID, number string, li
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var variantID uuid.UUID
 	var sku, productName string

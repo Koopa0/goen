@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -57,7 +56,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	view, err := reportAt(ctx, q, days, now)
@@ -87,7 +86,7 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 	if err != nil {
 		return fmt.Errorf("begin week snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	current, before := periods(now, admin.WeekDays)
@@ -238,7 +237,7 @@ func returnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.Returne
 	if err != nil {
 		return nil, fmt.Errorf("begin returned products savepoint: %w", err)
 	}
-	defer pgtx.Rollback(ctx, sp)
+	defer db.Rollback(ctx, sp)
 	rows, err := db.New(sp).ReturnedProductsBetween(ctx, db.ReturnedProductsBetweenParams{
 		FromAt: p.from, ToAt: p.to, LimitTo: maxRows,
 	})

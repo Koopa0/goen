@@ -15,7 +15,6 @@ import (
 	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 
 	"github.com/koopa0/goen/internal/db"
 )
@@ -67,7 +66,7 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 	if err != nil {
 		return fmt.Errorf("begin password reset: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.UserForPasswordReset(ctx, id)
@@ -139,7 +138,7 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) (stri
 	if err != nil {
 		return "", fmt.Errorf("begin reset: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if _, lockErr := q.LockUserForPasswordReset(ctx, userID); lockErr != nil {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -19,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -120,11 +120,11 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, ErrPaidCancel), pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+	case errors.Is(err, ErrPaidCancel), db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case pgerr.IsConstraint(err, "orders_funded_to_leave_pending"):
+	case db.IsConstraint(err, "orders_funded_to_leave_pending"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case pgerr.IsConstraint(err, "orders_finished_when_shipped"):
+	case db.IsConstraint(err, "orders_finished_when_shipped"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
@@ -165,7 +165,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
-	case pgerr.IsConstraint(err, "order_shipments_tracking_key"):
+	case db.IsConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})

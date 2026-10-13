@@ -19,8 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -47,7 +45,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *admin.L
 	if err != nil {
 		return fmt.Errorf("begin product label: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	before, err := q.LockProductLabel(ctx, slug)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -58,7 +56,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *admin.L
 	}
 	params := productLabelParams(before.ID, input)
 	if err = q.SetProductLabel(ctx, params); err != nil {
-		return pgerr.WrapRefusal(fmt.Errorf("set product label: %w", err), ErrRefused)
+		return db.WrapRefusal(fmt.Errorf("set product label: %w", err), ErrRefused)
 	}
 	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionSetProductLabel, Table: "products", ID: audit.EntityID(before.ID),
@@ -155,7 +153,7 @@ func productLabelRefusal(ctx context.Context, err error) map[string]string {
 		"products_label_net_unit_known":         {"net_unit"},
 		"products_label_age_sane":               {"min_age_months"},
 	} {
-		if !pgerr.IsConstraint(err, constraint) {
+		if !db.IsConstraint(err, constraint) {
 			continue
 		}
 		key := i18n.KeyProductLabelTextInvalid

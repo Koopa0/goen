@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -21,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // TestADispatchTheOrderMovedPastIsRefused: the dispatch reads the order's status
@@ -114,7 +114,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin the moving transaction: %v", err)
 			}
-			defer pgtx.Rollback(ctx, mover)
+			defer db.Rollback(ctx, mover)
 			for _, move := range tc.moves {
 				if _, err = mover.Exec(ctx, move, number); err != nil {
 					t.Fatalf("move %s: %v", number, err)

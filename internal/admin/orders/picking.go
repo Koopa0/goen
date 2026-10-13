@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -29,7 +28,7 @@ func (s *Store) Picking(ctx context.Context, after ...string) (admin.PickingView
 	if err != nil {
 		return admin.PickingView{}, fmt.Errorf("begin picking snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	view, err := pickingSnapshot(ctx, q, after)
 	if err != nil {

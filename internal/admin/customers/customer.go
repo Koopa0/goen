@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -94,7 +93,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	if err != nil {
 		return admin.CustomerView{}, fmt.Errorf("begin customer read: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.AdminCustomer(ctx, uid)

@@ -15,13 +15,13 @@ import (
 var anyRollback = regexp.MustCompile(`\.Rollback\(`)
 
 // boundedRollback is the one call that outlives the request and still ends.
-var boundedRollback = regexp.MustCompile(`\bpgtx\.Rollback\(`)
+var boundedRollback = regexp.MustCompile(`\bdb\.Rollback\(`)
 
 // rollbackHelper is the one file that calls a transaction's Rollback itself.
-var rollbackHelper = filepath.Join("internal", "pgtx", "pgtx.go")
+var rollbackHelper = filepath.Join("internal", "db", "tx.go")
 
 // unboundedRollback reports a rollback on this line that does not go through
-// pgtx.Rollback: the request's own context under any name, r.Context(), a
+// db.Rollback: the request's own context under any name, r.Context(), a
 // stored context, a helper's result, or context.WithoutCancel with no deadline.
 func unboundedRollback(line string) bool {
 	return len(anyRollback.FindAllStringIndex(line, -1)) >
@@ -36,9 +36,9 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 		`defer func() { _ = tx.Rollback(cleanupCtx) }()`:                       true,
 		`_ = sp.Rollback(c)`:                                                   true,
 		`defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()`:       true,
-		`defer pgtx.Rollback(ctx, tx)`:                                         false,
-		`pgtx.Rollback(ctx, sp)`:                                               false,
-		`pgtx.Rollback(ctx, a); _ = b.Rollback(context.WithoutCancel(ctx))`:    true,
+		`defer db.Rollback(ctx, tx)`:                                           false,
+		`db.Rollback(ctx, sp)`:                                                 false,
+		`db.Rollback(ctx, a); _ = b.Rollback(context.WithoutCancel(ctx))`:      true,
 		`rollbackAfter := context.WithoutCancel(ctx) // no rollback call here`: false,
 	} {
 		if got := unboundedRollback(line); got != want {
@@ -57,7 +57,7 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // client disconnects: the transaction is left for the server to reap and the
 // pooled connection is destroyed. Detached with no deadline instead, a ROLLBACK
 // to a server that stopped answering holds its goroutine and connection until
-// TCP gives up. pgtx.Rollback is detached and bounded.
+// TCP gives up. db.Rollback is detached and bounded.
 func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 	t.Parallel()
 
@@ -92,11 +92,11 @@ func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 	}
 
 	if len(offenders) > 0 {
-		t.Errorf("%d rollback(s) do not go through pgtx.Rollback:\n  %s\n\n"+
+		t.Errorf("%d rollback(s) do not go through db.Rollback:\n  %s\n\n"+
 			"A request-bound context makes pgx fail the ROLLBACK before it reaches the "+
 			"server and destroy the pooled connection; a detached one with no deadline "+
 			"waits on a silent server for as long as TCP does. Use "+
-			"defer pgtx.Rollback(ctx, tx).",
+			"defer db.Rollback(ctx, tx).",
 			len(offenders), strings.Join(offenders, "\n  "))
 	}
 }

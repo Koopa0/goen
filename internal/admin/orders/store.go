@@ -28,8 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -405,7 +403,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	if err != nil {
 		return nil, fmt.Errorf("begin advance: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.LockOrderForAdvance(ctx, number)
@@ -420,7 +418,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(status),
 	}); advanceErr != nil {
-		return nil, pgerr.WrapRefusal(advanceErr, ErrRefused)
+		return nil, db.WrapRefusal(advanceErr, ErrRefused)
 	}
 	if status == order.FulfillmentCancelled {
 		// The database admits cancelling a paid order once its refund before
@@ -477,7 +475,7 @@ func recordShipment(ctx context.Context, q *db.Queries, orderID uuid.UUID, c shi
 	id, err := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: orderID, Carrier: string(c), TrackingNumber: tracking,
 	})
-	if pgerr.IsConstraint(err, "shipment_order_in_fulfilment") {
+	if db.IsConstraint(err, "shipment_order_in_fulfilment") {
 		return uuid.Nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	if err != nil {
@@ -725,7 +723,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if err != nil {
 		return fmt.Errorf("begin ship: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.OrderIDByNumber(ctx, number)
@@ -761,7 +759,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 			OrderNumber: number, Status: string(order.FulfillmentShipped),
 		}); advErr != nil {
-			return pgerr.WrapRefusal(advErr, ErrRefused)
+			return db.WrapRefusal(advErr, ErrRefused)
 		}
 	}
 
@@ -900,7 +898,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	if err != nil {
 		return fmt.Errorf("begin order note: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	prior, err := q.LockOrderForStaffNote(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {

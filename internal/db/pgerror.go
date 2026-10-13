@@ -1,6 +1,4 @@
-// Package pgerr reads the errors PostgreSQL returns, by what the server names
-// and never by the message text.
-package pgerr
+package db
 
 import (
 	"errors"

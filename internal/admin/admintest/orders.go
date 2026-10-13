@@ -19,9 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func PlaceUnpaidOrder(t *testing.T, pool *pgxpool.Pool) string {
@@ -41,7 +41,7 @@ func PlaceUnpaidOrderHolding(t *testing.T, pool *pgxpool.Pool, holding bool) str
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -103,7 +103,7 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
@@ -178,7 +178,7 @@ func PlaceHeldOrder(t *testing.T, pool *pgxpool.Pool, vid uuid.UUID) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -223,7 +223,7 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
@@ -352,7 +352,7 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,

@@ -17,8 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/order/notice"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -145,7 +143,7 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		ActorUserID: actorID, RequestID: web.RequestID(ctx),
 	})
 	if err != nil {
-		return nil, pgerr.WrapRefusal(fmt.Errorf("open refund before shipment of %s: %w", number, err), refund.ErrRefused)
+		return nil, db.WrapRefusal(fmt.Errorf("open refund before shipment of %s: %w", number, err), refund.ErrRefused)
 	}
 
 	// Money never waits on the 加值中心: whatever ECPay answers, the refund goes
@@ -255,7 +253,7 @@ func (s *Store) finishRefundBeforeShipment(
 	if err != nil {
 		return nil, fmt.Errorf("begin refund before shipment: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.LockOrderForAdvance(ctx, number)
@@ -290,7 +288,7 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(order.FulfillmentCancelled),
 	}); err != nil {
-		return pgerr.WrapRefusal(err, refund.ErrRefused)
+		return db.WrapRefusal(err, refund.ErrRefused)
 	}
 	held, err := q.HeldReservationsForOrder(ctx, number)
 	if err != nil {
@@ -302,11 +300,11 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 		}
 	}
 	if _, closeErr := q.CloseUnshippedReturnLines(ctx, returnID); closeErr != nil {
-		return pgerr.WrapRefusal(fmt.Errorf("close the lines of refund %s: %w", returnID, closeErr), refund.ErrRefused)
+		return db.WrapRefusal(fmt.Errorf("close the lines of refund %s: %w", returnID, closeErr), refund.ErrRefused)
 	}
 	closed, err := q.CompleteReturn(ctx, db.CompleteReturnParams{ID: returnID})
 	if err != nil {
-		return pgerr.WrapRefusal(fmt.Errorf("complete refund %s: %w", returnID, err), refund.ErrRefused)
+		return db.WrapRefusal(fmt.Errorf("complete refund %s: %w", returnID, err), refund.ErrRefused)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: refund %s is not open for completion", refund.ErrRefused, returnID)
@@ -356,7 +354,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	if err != nil {
 		return nil, fmt.Errorf("begin cancelling %s: %w", number, err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	orderID, err := q.LockOrderByNumber(ctx, number)
@@ -380,7 +378,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(order.FulfillmentCancelled),
 	}); advanceErr != nil {
-		return nil, pgerr.WrapRefusal(fmt.Errorf("cancel %s: %w", number, advanceErr), refund.ErrRefused)
+		return nil, db.WrapRefusal(fmt.Errorf("cancel %s: %w", number, advanceErr), refund.ErrRefused)
 	}
 	// The note says how the buyer asked for or agreed to the cancellation; with
 	// the audit row it is their consent to the void, so the void's request id is

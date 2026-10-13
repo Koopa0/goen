@@ -25,10 +25,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // TestARefusedHeroSlideStoresNoImage holds the order of the hero form: its copy
@@ -534,7 +534,7 @@ func heroUploadWithStorageFault(t *testing.T, ctx context.Context, owner *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 type campaignVariant struct {
@@ -57,7 +57,7 @@ func TestTheCampaignViewsHoldWhatIsRunningAndWhatIsADeal(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 
 			token := "campaignview" + strings.ReplaceAll(uuid.NewString(), "-", "")
 			var category, product, campaign uuid.UUID

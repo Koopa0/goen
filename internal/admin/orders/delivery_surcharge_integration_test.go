@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -547,7 +547,7 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer pgtx.Rollback(ctx, lock)
+			defer db.Rollback(ctx, lock)
 			if _, err = lock.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, f.id); err != nil {
 				t.Fatal(err)
 			}

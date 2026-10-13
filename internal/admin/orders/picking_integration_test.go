@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -277,7 +277,7 @@ func pickingFixtureOrder(t *testing.T, owner *pgxpool.Pool, sku string, quantity
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `INSERT INTO orders (order_number, placed_at, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents, customer_note)
 SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, 'Gift <note>: no price inside'
 FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id=v.method_id ORDER BY v.effective_at LIMIT 1 RETURNING id`, time.Date(2020, 1, 1, 0, position, 0, 0, time.UTC)).Scan(&orderID); err != nil {

@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/notice"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestTerminalRecipientNeverRecoversErasedAddress(t *testing.T) {
@@ -38,7 +37,7 @@ func shippedParcel(t *testing.T) uuid.UUID {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	var shipmentID uuid.UUID
 	if _, err := tx.Exec(ctx, `UPDATE orders SET fulfillment_status = 'shipped' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
