@@ -338,10 +338,10 @@ var (
 		En:     "Record the inspection and restock",
 	})
 
-	KeyAdminRetRestockedUnits = key("admin.ret.restockedunits", Message{
-		ZhHant: "驗貨已完成，共 %s 件回到庫存。",
-		En:     "Inspection finished — %s units went back into stock.",
-	})
+	KeyAdminRetRestockedUnits = countKey("admin.ret.restockedunits",
+		"驗貨已完成，共 %s 件回到庫存。",
+		"Inspection finished — %s unit went back into stock.",
+		"Inspection finished — %s units went back into stock.")
 
 	KeyAdminRetCloseNote = key("admin.ret.closenote", Message{ZhHant: "結案說明", En: "Closing note"})
 

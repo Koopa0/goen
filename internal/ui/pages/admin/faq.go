@@ -31,8 +31,6 @@ type FAQView struct {
 	EditErrors map[string]string
 }
 
-var faqEditFields = []string{"category", "question", "answer", "category_en", "question_en", "answer_en"}
-
 // Listed is the entry as its own form shows it: the refused submission when
 // this is the entry whose edit was refused, otherwise what is stored.
 func (v *FAQView) Listed(e *FAQEntry) FAQEntry {
@@ -47,16 +45,6 @@ func (v *FAQView) Listed(e *FAQEntry) FAQEntry {
 func (v *FAQView) RowErr(e *FAQEntry, f string) bool {
 	_, refused := v.EditErrors[f]
 	return refused && v.Edit.ID == e.ID
-}
-
-func (v *FAQView) RowErrFields(e *FAQEntry) []string {
-	var out []string
-	for _, f := range faqEditFields {
-		if v.RowErr(e, f) {
-			out = append(out, f)
-		}
-	}
-	return out
 }
 
 func (v *FAQView) Empty() bool { return len(v.Rows) == 0 }

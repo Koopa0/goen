@@ -21,7 +21,7 @@ templ Points(p layouts.Page, v PointsView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyPointsTitle) }</h1>
 				<p class="goen-pagehead__sub">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSub), v.RateText(ctx)) }
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSub), v.MemberRate(ctx), v.RateText(ctx)) }
 				</p>
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
 			</div>
@@ -38,7 +38,7 @@ templ Points(p layouts.Page, v PointsView) {
 				<li class="goen-points__figure">
 					<span class="goen-points__label">{ i18n.T(ctx, i18n.KeyPointsRedeemable) }</span>
 					<span class="goen-points__value">{ v.Credit() }</span>
-					<span class="goen-points__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsUsing), v.RedeemableText()) }</span>
+					<span class="goen-points__meta">{ i18n.Count(ctx, i18n.KeyPointsUsing, v.Redeemable, v.RedeemableText()) }</span>
 				</li>
 			</ul>
 			if v.Expiring() {
@@ -46,7 +46,7 @@ templ Points(p layouts.Page, v PointsView) {
 					{ v.ExpiringText(ctx) }
 				}
 			}
-			if v.CanRedeem() {
+			if v.ShowRedemptionForm() {
 				<form class="goen-card goen-qa__form" method="post" action="/account/points">
 					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<div class="goen-field">
@@ -54,23 +54,22 @@ templ Points(p layouts.Page, v PointsView) {
 							{ i18n.T(ctx, i18n.KeyPointsHowMany) }
 						}
 						@components.Input(components.FieldProps{
-							ID:    "points",
-							Name:  "points",
-							Type:  "number",
-							Value: v.RedeemableText(),
+							ID:        "points",
+							Name:      "points",
+							Type:      "number",
+							Value:     v.PointsValue(),
+							Invalid:   v.FieldError != "",
+							Describes: v.PointsDescribedBy(),
+
 							Class: "ui-input goen-points__field",
-							Attrs: templ.Attributes{
-								"aria-describedby": "points-rule",
-								"inputmode":        "numeric",
-								"max":              v.RedeemableText(),
-								"min":              v.MinimumText(),
-								"required":         true,
-								"step":             v.StepText(),
-							},
+							Attrs: v.pointsFieldAttrs(),
 						})
 						<p class="goen-points__rule" id="points-rule">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.StepAmountText(ctx)) }
+							{ i18n.Count(ctx, i18n.KeyPointsRule, v.Minimum, v.MinimumText(), v.StepAmountText(ctx)) }
 						</p>
+						if v.FieldError != "" {
+							<p class="ui-error-text" id="points-error" role="alert">{ v.FieldError }</p>
+						}
 					</div>
 					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
 						{ i18n.T(ctx, i18n.KeyPointsRedeem) }
@@ -92,9 +91,15 @@ templ Points(p layouts.Page, v PointsView) {
 								<span class="goen-points__meta">
 									if e.Detail(ctx) != "" {
 										{ e.Detail(ctx) }
+										<span aria-hidden="true">{ " · " }</span>
 									}
-									{ e.At }
+									if e.Earned() {
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsEarnedOn), e.At) }
+									} else {
+										{ e.At }
+									}
 									if e.ExpiresOn != "" {
+										<span aria-hidden="true">{ " · " }</span>
 										if e.Expired {
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpired), e.ExpiresOn) }
 										} else {

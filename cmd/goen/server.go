@@ -199,7 +199,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
 	// Before routing and before every middleware that reads the request, so no
 	// path value or query value PostgreSQL refuses reaches a query.
-	handler = web.RefuseUnstorableText(handler, secureCookies)
+	handler = web.RefuseUnstorableText(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
 	handler = securityHeaders(handler, policyWith(front.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)

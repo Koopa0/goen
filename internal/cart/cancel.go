@@ -16,12 +16,12 @@ import (
 // probed for its state.
 var ErrNotCancellable = errors.New("cart: this order cannot be cancelled")
 
-// CancelOrder returns the Checkout Sessions the caller must close at Stripe
-// once this has committed.
-func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error) {
+// CancelOrder refuses an order with an unresolved payment, so no Checkout
+// Session is left for the caller to close.
+func (s *Store) CancelOrder(ctx context.Context, number string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("begin cancel: %w", err)
+		return fmt.Errorf("begin cancel: %w", err)
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
@@ -31,31 +31,26 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	// committed ahead of it.
 	orderID, err := q.LockOrderByNumber(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotCancellable
+		return ErrNotCancellable
 	}
 	if err != nil {
-		return nil, fmt.Errorf("lock %s: %w", number, err)
+		return fmt.Errorf("lock %s: %w", number, err)
 	}
 	cancelled, err := q.CancelOrderByCustomer(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("cancel %s: %w", number, err)
+		return fmt.Errorf("cancel %s: %w", number, err)
 	}
 	if cancelled == 0 {
-		return nil, ErrNotCancellable
+		return ErrNotCancellable
 	}
 	if _, err := ordercancel.Settle(ctx, q, &ordercancel.Order{
 		ID: orderID, Number: number, Kind: email.TerminalCancelledByCustomer, VoidTrigger: "cancel:" + number,
 	}); err != nil {
-		return nil, err
-	}
-
-	sessions, sessErr := q.OpenSessionsForOrder(ctx, number)
-	if sessErr != nil {
-		return nil, fmt.Errorf("read open checkout sessions of %s: %w", number, sessErr)
+		return err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit cancel: %w", err)
+		return fmt.Errorf("commit cancel: %w", err)
 	}
-	return sessions, nil
+	return nil
 }

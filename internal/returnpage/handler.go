@@ -199,10 +199,8 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
-		i18n.T(r.Context(), i18n.KeyOrderNotFound),
-		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
+	web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
 func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {

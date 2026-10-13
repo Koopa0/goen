@@ -222,6 +222,28 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
+// A contrast guarantee is useful only for a colour the stylesheet draws.
+func TestEveryDeclaredToneColourHasAConsumer(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	consumers := regexp.MustCompile(`var\(\s*(--tone-[a-z]+)\s*[,)]`)
+	used := make(map[string]bool)
+	for _, match := range consumers.FindAllStringSubmatch(string(sheet), -1) {
+		used[match[1]] = true
+	}
+	for _, block := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
+		for _, decl := range toneDecl.FindAllStringSubmatch(block[2], -1) {
+			if !used[decl[1]] {
+				t.Errorf("data-tone=%q declares %s without a stylesheet consumer", block[1], decl[1])
+			}
+		}
+	}
+}
+
 // periodOverride finds the colours a head gives the period on its tone, and
 // periodDecl one of them: a tone token, a token of the page's own, or a
 // translucent rgb().
@@ -297,7 +319,7 @@ var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid-
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground, and its edge and mark colours to 3:1
+// shows to 4.5:1 on each tone's ground, and its period fill to 3:1
 // (WCAG 1.4.11). A new tone is a new block, and one
 // whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
@@ -344,7 +366,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 
 	for _, name := range toneNames {
 		decl := blocks[name]
-		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-edge", "--tone-mark"} {
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted", "--tone-mark"} {
 			if len(decl[prop]) != 6 {
 				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
 			}
@@ -380,10 +402,6 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 				}
 			}
 			checkPeriod(t, head, period["fill"], period["track"], "the "+name+" ground", ground)
-		}
-		if got := contrast(decl["--tone-edge"], ground); got < 3 {
-			t.Errorf("--tone-edge (#%s) on the %s ground (#%s) = %.2f:1, want at least 3:1",
-				decl["--tone-edge"], name, ground, got)
 		}
 		if name == "ink" {
 			continue
@@ -583,5 +601,47 @@ func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
 	}
 	if got := len(regexp.MustCompile(`(?m)^\.goen-promo \{`).FindAll(sheet, -1)); got != 1 {
 		t.Errorf(".goen-promo is declared %d times, want once, as the strip", got)
+	}
+}
+
+// The state colours are read from the rules that actually paint the boundary.
+func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
+	t.Parallel()
+	tokens := hexTokens(t)
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	aliases := regexp.MustCompile(`(--[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`)
+	links := make(map[string]string)
+	for _, m := range aliases.FindAllStringSubmatch(string(base), -1) {
+		links[m[1]] = m[2]
+	}
+	for _, state := range []struct{ sheet, name, rule string }{
+		{AppCSS, "storefront invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
+		{AdminCSS, "admin invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
+		{BaseCSS, "read-only hover", `(?s)\.ui-input:read-only:hover\s*\{[^}]*?border-color:\s*var\((--[a-z0-9-]+)\)`},
+	} {
+		sheet, readErr := fs.ReadFile(files, state.sheet)
+		if readErr != nil {
+			t.Fatalf("read %s: %v", state.sheet, readErr)
+		}
+		match := regexp.MustCompile(state.rule).FindStringSubmatch(string(sheet))
+		if match == nil {
+			t.Fatalf("%s has no boundary colour rule", state.name)
+		}
+		name := match[1]
+		for i := 0; tokens[name] == "" && i < len(links); i++ {
+			name = links[name]
+		}
+		if tokens[name] == "" {
+			t.Fatalf("%s: cannot resolve %s to a hex colour", state.name, match[1])
+		}
+		for _, ground := range []string{"--n-0", "--n-50"} {
+			got := contrast(tokens[name], tokens[ground])
+			if math.IsNaN(got) || got < 3 {
+				t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], tokens[name], ground, tokens[ground], got)
+			}
+		}
 	}
 }

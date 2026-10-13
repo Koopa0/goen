@@ -26,8 +26,8 @@ var (
 	KeyShippingFreeOver = key("shipping.freeover", Message{ZhHant: "滿 %s 免運", En: "Free over %s"})
 
 	KeyShippingZoneNote = key("shipping.zonenote", Message{
-		ZhHant: "%s（免運不含）",
-		En:     "%s (not covered by free delivery)",
+		ZhHant: "%s，滿額免運也照收",
+		En:     "%s, even when the order ships free",
 	})
 
 	// KeyFreeShippingExceptZones names the zones a free-delivery claim leaves out; %s is their names.
@@ -55,7 +55,10 @@ var (
 
 	KeyShippingHold = key("shipping.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
 
-	KeyShippingHoldBody = key("shipping.hold.body", Message{ZhHant: "送出訂單時系統會保留庫存 %s 分鐘，請在下單後 %s 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消，商品回到架上供其他人購買。", En: "Placing an order holds the stock for %s minutes; start the payment within %s minutes of ordering. An order still unpaid when the hold ends is cancelled automatically, and the goods go back on the shelf for somebody else."})
+	KeyShippingHoldBody = key("shipping.hold.body", Message{
+		ZhHant: "下單後請在 %[2]s 分鐘內開始付款，並在 %[1]s 分鐘內完成。逾時未付款的訂單會自動取消，商品回到架上，不會收取任何款項。",
+		En:     "Start the payment within %[2]s minutes of ordering and finish it within %[1]s. An order still unpaid after that is cancelled automatically: the goods go back on the shelf and nothing is charged.",
+	})
 
 	KeyShippingTrackingBody = key("shipping.tracking.body", Message{
 		ZhHant: "付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號，你可以在訂單頁看到，系統也會寄信通知。",

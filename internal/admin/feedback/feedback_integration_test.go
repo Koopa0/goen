@@ -155,7 +155,7 @@ func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
 	if err := s.SetReviewHidden(ctx, reviewID, true); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
-	view, err := s.Reviews(ctx)
+	view, err := s.Reviews(ctx, feedback.AllReviews)
 	if err != nil {
 		t.Fatalf("read the queue: %v", err)
 	}

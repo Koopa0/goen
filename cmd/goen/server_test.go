@@ -122,8 +122,14 @@ func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
 				t.Errorf("GET %s answered %d, want 400", target, res.Code)
 				continue
 			}
-			if !strings.HasPrefix(res.Body.String(), "400 ") {
-				t.Errorf("GET %s refusal body = %q, want the plain 400", target, res.Body.String())
+			body := res.Body.String()
+			if !strings.HasPrefix(res.Header().Get("Content-Type"), "text/html") || !strings.Contains(body, `class="notice__actions"`) {
+				t.Errorf("GET %s did not render the shop's 400 page", target)
+			}
+			_, actions, _ := strings.Cut(body, `class="notice__actions"`)
+			actions, _, _ = strings.Cut(actions, "</div>")
+			if !strings.Contains(actions, `href="/"`) {
+				t.Errorf("GET %s has no shop recovery link", target)
 			}
 		}
 	}

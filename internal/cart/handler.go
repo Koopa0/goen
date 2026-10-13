@@ -39,8 +39,8 @@ type Handler struct {
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
 	// half of a credential whose other half is guessable.
 	findLimit *ratelimit.Limiter
-	// sessions is nil on a deployment with no Stripe key, where there is no
-	// session to close.
+	// sessions is nil on a deployment with no Stripe key, where the checkout
+	// takes no payment.
 	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
@@ -1465,8 +1465,6 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		if orderaccess.ReloadSameSite(w, r, h.log) {
 			return
 		}
-		// Its own page rather than a bare Notice: this is the one 404 with a
-		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
@@ -1531,9 +1529,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1570,23 +1566,23 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
-	sessions, err := h.store.CancelOrder(r.Context(), number)
+	err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
-		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody)))
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), pages.NoticeActions{
+				Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
 		h.serverError(w, r)

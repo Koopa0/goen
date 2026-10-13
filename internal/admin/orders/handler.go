@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -88,10 +87,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderHead),
-				i18n.T(r.Context(), i18n.KeyAdminNoOrderBody)))
+			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
+				admin.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)

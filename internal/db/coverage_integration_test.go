@@ -466,6 +466,17 @@ var sharedCleanup = map[string]string{
 		"erase_user deletes a customer's",
 }
 
+type dynamicDefinerContract struct {
+	reason string
+	insert []string
+	update []string
+	delete []string
+}
+
+// Dynamic targets cannot be derived from prosrc. Contracts use regprocedure
+// signatures so an overload cannot inherit another function's exception.
+var dynamicDefinerContracts = map[string]dynamicDefinerContract{}
+
 func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 	t.Helper()
 	var ok bool
@@ -485,6 +496,12 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 		"UPDATE": definerTargetTables(t, `UPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
 		"DELETE": definerTargetTables(t, `DELETE\s+FROM\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
 	}
+	for verb, targets := range dynamicDefinerWriteTargets(t) {
+		byVerb[verb] = append(byVerb[verb], targets...)
+		tables = append(tables, targets...)
+	}
+	slices.Sort(tables)
+	tables = slices.Compact(tables)
 	if len(tables) < 8 {
 		t.Fatalf("only %d definer-written tables found; the catalog query is not "+
 			"finding them and this test would pass on nothing", len(tables))
@@ -536,11 +553,81 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 	}
 }
 
-// definerWrittenTables covers static writes in SECURITY DEFINER bodies.
-// Dynamic SQL needs an explicit contract because its target cannot be read here.
 func definerWrittenTables(t *testing.T) []string {
 	t.Helper()
 	return definerTargetTables(t, `(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+}
+
+func dynamicDefinerWriteTargets(t *testing.T) map[string][]string {
+	t.Helper()
+	targets := map[string][]string{}
+	consulted := map[string]bool{}
+	for _, signature := range dynamicDefiners(t) {
+		contract, ok := dynamicDefinerContracts[signature]
+		if !ok {
+			t.Errorf("SECURITY DEFINER %s uses EXECUTE with no dynamicDefinerContracts entry; "+
+				"declare its reason and INSERT/UPDATE/DELETE targets before trusting the write-target scan", signature)
+			continue
+		}
+		consulted[signature] = true
+		if strings.TrimSpace(contract.reason) == "" {
+			t.Errorf("dynamicDefinerContracts entry for %s has no reason", signature)
+		}
+		for verb, tables := range map[string][]string{
+			"INSERT": contract.insert,
+			"UPDATE": contract.update,
+			"DELETE": contract.delete,
+		} {
+			for _, table := range tables {
+				var exists bool
+				if err := schemaPool(t).QueryRow(t.Context(), `
+					SELECT EXISTS (SELECT 1 FROM pg_tables
+					WHERE schemaname = 'public' AND tablename = $1)`, table).Scan(&exists); err != nil {
+					t.Fatalf("read dynamic write target %q for %s: %v", table, signature, err)
+				}
+				if !exists {
+					t.Errorf("dynamicDefinerContracts entry for %s names absent table %q", signature, table)
+					continue
+				}
+				targets[verb] = append(targets[verb], table)
+			}
+		}
+	}
+	for signature := range dynamicDefinerContracts {
+		if !consulted[signature] {
+			t.Errorf("dynamicDefinerContracts has %q, but no public SECURITY DEFINER uses EXECUTE "+
+				"under that signature any more. Remove the entry.", signature)
+		}
+	}
+	return targets
+}
+
+func dynamicDefiners(t *testing.T) []string {
+	t.Helper()
+	// Even a literal EXECUTE needs a contract: concatenation can append an unseen target.
+	rows, err := schemaPool(t).Query(t.Context(), `
+		SELECT p.oid::regprocedure::text
+		FROM pg_proc p
+		WHERE p.prosecdef AND p.pronamespace = 'public'::regnamespace
+		  AND regexp_replace(regexp_replace(p.prosrc, '/\*.*?\*/', ' ', 'gs'), '--[^\n]*', ' ', 'g')
+		      ~* '\mEXECUTE\M(?!\s+(?:FUNCTION|PROCEDURE)\M)'
+		ORDER BY 1`)
+	if err != nil {
+		t.Fatalf("read dynamic SECURITY DEFINER functions: %v", err)
+	}
+	defer rows.Close()
+	var signatures []string
+	for rows.Next() {
+		var signature string
+		if err := rows.Scan(&signature); err != nil {
+			t.Fatalf("scan dynamic SECURITY DEFINER function: %v", err)
+		}
+		signatures = append(signatures, signature)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate dynamic SECURITY DEFINER functions: %v", err)
+	}
+	return signatures
 }
 
 func definerTargetTables(t *testing.T, pattern string) []string {
@@ -1343,6 +1430,84 @@ func TestDefinerCorpusIncludesUpdateAndDelete(t *testing.T) {
 		if !slices.Contains(tables, want) {
 			t.Errorf("definer corpus omitted %s", want)
 		}
+	}
+}
+
+func TestDefinerCorpusIncludesDynamicSQL(t *testing.T) {
+	ctx := t.Context()
+	before := dynamicDefiners(t)
+	_, err := pool.Exec(ctx, `
+		CREATE TABLE public.guard_dynamic_target (value integer);
+		CREATE FUNCTION public.guard_dynamic_format() RETURNS void
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			EXECUTE format('DELETE FROM %I', 'guard_dynamic_target');
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_concat() RETURNS void
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			EXECUTE'DELETE FROM ' || quote_ident('guard_dynamic_target');
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_altered() RETURNS void
+		LANGUAGE plpgsql AS $$ BEGIN
+			execute /* target chosen at runtime */ format('UPDATE %I SET value = 1', 'guard_dynamic_target');
+		END $$;
+		ALTER FUNCTION public.guard_dynamic_altered() SECURITY DEFINER;
+		CREATE FUNCTION public.guard_dynamic_query() RETURNS SETOF integer
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			RETURN QUERY EXECUTE format('SELECT value FROM %I', 'guard_dynamic_target');
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_literal() RETURNS void
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			EXECUTE 'DELETE FROM guard_dynamic_target';
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_invoker() RETURNS void
+		LANGUAGE plpgsql AS $$ BEGIN
+			EXECUTE format('DELETE FROM %I', 'guard_dynamic_target');
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_commented() RETURNS void
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			-- EXECUTE format('DELETE FROM %I', 'guard_dynamic_target');
+			/* EXECUTE 'DELETE FROM ' || quote_ident('guard_dynamic_target'); */
+			NULL;
+		END $$;
+		CREATE FUNCTION public.guard_dynamic_trigger() RETURNS void
+		LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+			CREATE TRIGGER guard_function AFTER DELETE ON guard_dynamic_target
+				FOR EACH ROW EXECUTE  FUNCTION forbid_change('guard_dynamic_target');
+			CREATE TRIGGER guard_procedure AFTER DELETE ON guard_dynamic_target
+				FOR EACH ROW EXECUTE
+				PROCEDURE forbid_change('guard_dynamic_target');
+		END $$;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drop := func() {
+		_, err := pool.Exec(context.WithoutCancel(ctx), `
+			DROP FUNCTION IF EXISTS public.guard_dynamic_format();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_concat();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_altered();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_query();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_literal();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_invoker();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_commented();
+			DROP FUNCTION IF EXISTS public.guard_dynamic_trigger();
+			DROP TABLE IF EXISTS public.guard_dynamic_target;
+		`)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(drop)
+	want := append(slices.Clone(before),
+		"guard_dynamic_format()", "guard_dynamic_concat()", "guard_dynamic_altered()",
+		"guard_dynamic_query()", "guard_dynamic_literal()")
+	slices.Sort(want)
+	if got := dynamicDefiners(t); !slices.Equal(got, want) {
+		t.Errorf("dynamic SECURITY DEFINER functions = %v, want %v", got, want)
+	}
+	drop()
+	if got := dynamicDefiners(t); !slices.Equal(got, before) {
+		t.Errorf("dynamic SECURITY DEFINER functions after removing fixtures = %v, want %v", got, before)
 	}
 }
 

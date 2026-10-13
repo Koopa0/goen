@@ -1,13 +1,19 @@
 -- The FAQ, grouped by category in the order the back office set.
 -- name: FAQEntries :many
-SELECT localized_name(category, category_en, @locale::text) AS category,
+SELECT category AS canonical_category,
+       -- Translations are optional per entry; the first available one in staff
+       -- order supplies a single label for the whole canonical category.
+       localized_name(category, first_value(category_en) OVER (
+           PARTITION BY category
+           ORDER BY category_en IS NULL, position, id
+       ), @locale::text) AS category,
        localized_name(question, question_en, @locale::text) AS question,
        localized_name(answer, answer_en, @locale::text) AS answer
 FROM faq_entries
 -- Category first, because position is unique only within a category and the
 -- handler groups by adjacency. On the canonical category, never the localized
 -- one, or a half-translated category splits into two headings.
-ORDER BY category, position, id;
+ORDER BY faq_entries.category, position, id;
 
 -- The shipping methods a policy page describes.
 -- name: ShippingPolicy :many

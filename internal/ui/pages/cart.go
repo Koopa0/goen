@@ -28,6 +28,7 @@ type CartLine struct {
 	Brand        string
 	SKU          string
 	Label        string
+	TaxExempt    bool
 	UnitCents    int64
 	CompareCents int64
 	Quantity     int32

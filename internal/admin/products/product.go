@@ -432,6 +432,9 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 		Action: audit.ActionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "label": label},
 	}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.LockProductSpecAppendPosition(ctx, slug); err != nil {
+			return err
+		}
 		if _, err := q.AddProductSpec(ctx, db.AddProductSpecParams{
 			Slug: slug, Label: label, Value: value,
 			LabelEn: labelEn, ValueEn: valueEn,

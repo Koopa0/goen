@@ -208,7 +208,8 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
 				i18n.T(r.Context(), i18n.KeyCampaignNotFound),
-				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody)))
+				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody),
+				pages.NoticeActions{Primary: pages.NoticeLink{Href: "/deals", Label: i18n.KeyCurrentDeals}}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load campaign", "error", err, "slug", slug)

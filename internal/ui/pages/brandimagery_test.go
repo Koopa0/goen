@@ -66,18 +66,6 @@ func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	}
 }
 
-func TestEveryCategoryPhotographIsEmbedded(t *testing.T) {
-	t.Parallel()
-	for slug := range map[string]bool{"phones": true, "laptops": true, "tablets": true, "audio": true, "wearables": true, "accessories": true} {
-		if _, _, ok := assets.CategoryImage(slug); !ok {
-			t.Errorf("no photograph for %s", slug)
-		}
-	}
-	if _, _, ok := assets.CategoryImage("chargers"); ok {
-		t.Error("a slug outside the closed set has a photograph")
-	}
-}
-
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {

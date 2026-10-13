@@ -128,13 +128,15 @@ func (r *Return) CanComplete() bool {
 	return true
 }
 
-func (r *Return) RestockedUnitsText() string {
+func (r *Return) RestockedUnits() int32 {
 	var n int32
 	for i := range r.Lines {
 		n += r.Lines[i].Restocked
 	}
-	return strconv.FormatInt(int64(n), 10)
+	return n
 }
+
+func (r *Return) RestockedUnitsText() string { return strconv.FormatInt(int64(r.RestockedUnits()), 10) }
 
 func ReturnLineWindowText(ctx context.Context, window returns.PolicyWindow) string {
 	return (&Return{Window: window}).WindowText(ctx)
@@ -251,19 +253,19 @@ type ReturnLine struct {
 	Packaging   string
 	Accessories string
 	// DraftReceived, DraftRestocked and DraftNote are what staff typed on an
-	// inspection that was refused; empty means the form's own defaults.
+	// inspection that was refused, including empty submitted counts.
 	DraftReceived, DraftRestocked, DraftNote string
 }
 
-func (l *ReturnLine) ReceivedField() string {
-	if l.DraftReceived != "" {
+func (l *ReturnLine) ReceivedField(refused bool) string {
+	if refused || l.DraftReceived != "" {
 		return l.DraftReceived
 	}
 	return l.MaxQuantityText()
 }
 
-func (l *ReturnLine) RestockedField() string {
-	if l.DraftRestocked != "" {
+func (l *ReturnLine) RestockedField(refused bool) string {
+	if refused || l.DraftRestocked != "" {
 		return l.DraftRestocked
 	}
 	return "0"

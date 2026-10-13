@@ -3,7 +3,9 @@
 package outbox_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -653,10 +655,17 @@ func TestAMessageThatExhaustedItsAttemptsIsRetriedDaily(t *testing.T) {
 func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
-	s := outbox.NewStore(pool, quiet())
+	var logs bytes.Buffer
+	s := outbox.NewStore(pool, slog.New(slog.NewJSONHandler(&logs, nil)))
 
-	for _, k := range []string{"stale", "young", "delivered-old", "delivered-fresh"} {
-		enqueue(t, "sweep.undelivered", k, `{"token":"secret"}`)
+	for _, m := range []struct{ topic, key string }{
+		{outbox.TopicOrderPlaced.Name(), "stale"},
+		{outbox.TopicOrderShipped.Name(), "young"},
+		{"sweep.delivered", "delivered-old"},
+		{"sweep.delivered", "delivered-old-second"},
+		{"sweep.delivered", "delivered-fresh"},
+	} {
+		enqueue(t, m.topic, m.key, `{"token":"secret"}`)
 	}
 	if _, err := pool.Exec(ctx, `
 		UPDATE outbox_messages SET created_at = now() - interval '31 days',
@@ -667,7 +676,7 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE outbox_messages SET created_at = now() - interval '60 days',
 		       delivered_at = now() - interval '31 days'
-		WHERE dedupe_key = 'delivered-old'`); err != nil {
+		WHERE dedupe_key IN ('delivered-old', 'delivered-old-second')`); err != nil {
 		t.Fatalf("age the delivered message: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -676,16 +685,52 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 		WHERE dedupe_key = 'delivered-fresh'`); err != nil {
 		t.Fatalf("stamp the fresh delivered message: %v", err)
 	}
+	var expired struct {
+		ID        uuid.UUID
+		Topic     string
+		Attempts  int32
+		CreatedAt time.Time
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT id, topic, attempts, created_at FROM outbox_messages
+		WHERE dedupe_key = 'stale'`).Scan(
+		&expired.ID, &expired.Topic, &expired.Attempts, &expired.CreatedAt); err != nil {
+		t.Fatalf("read the expiring message: %v", err)
+	}
 
 	n, err := s.Sweep(ctx)
 	if err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
-	if n != 2 {
-		t.Errorf("Sweep deleted %d rows, want 2 (stale undelivered, old delivered)", n)
+	if n != 3 {
+		t.Errorf("Sweep deleted %d rows, want 3 (one stale undelivered, two old delivered)", n)
+	}
+	wantLogs := []map[string]any{
+		{
+			"level": "WARN", "msg": "outbox message expired",
+			"message": expired.ID.String(), "topic": expired.Topic,
+			"attempts": float64(expired.Attempts), "created_at": expired.CreatedAt.Format(time.RFC3339Nano),
+		},
+		{
+			"level": "INFO", "msg": "outbox swept",
+			"delivered": float64(2), "undelivered": float64(1), "retain_days": float64(30),
+		},
+	}
+	gotLogs := make([]map[string]any, 0, len(wantLogs))
+	for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("decode sweep log: %v", err)
+		}
+		delete(record, "time")
+		gotLogs = append(gotLogs, record)
+	}
+	if diff := cmp.Diff(wantLogs, gotLogs); diff != "" {
+		t.Errorf("Sweep logs (-want +got):\n%s", diff)
 	}
 	for key, want := range map[string]bool{
-		"stale": false, "young": true, "delivered-old": false, "delivered-fresh": true,
+		"stale": false, "young": true, "delivered-old": false,
+		"delivered-old-second": false, "delivered-fresh": true,
 	} {
 		var exists bool
 		if err := pool.QueryRow(ctx,
@@ -696,6 +741,13 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 		if exists != want {
 			t.Errorf("%s: exists = %v, want %v", key, exists, want)
 		}
+	}
+	logs.Reset()
+	if n, err := s.Sweep(ctx); err != nil || n != 0 {
+		t.Fatalf("repeat Sweep = %d, %v, want 0, nil", n, err)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("repeat Sweep logged messages it did not expire: %s", &logs)
 	}
 }
 

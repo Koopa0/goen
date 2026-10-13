@@ -10,7 +10,7 @@ import (
 
 templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	@layouts.Base(p) {
-		<div class="goen-account goen-account--narrow">
+		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@components.Breadcrumb(components.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
 				Crumbs: []components.Crumb{
@@ -68,7 +68,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 
 templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 	@layouts.Base(p) {
-		<div class="goen-account goen-account--narrow">
+		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@components.Breadcrumb(components.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
 				Crumbs: []components.Crumb{

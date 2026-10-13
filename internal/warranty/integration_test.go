@@ -24,6 +24,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -71,20 +72,26 @@ const warrantyFixtureNote = "Original coverage promise"
 
 func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	t.Helper()
+	return newFixtureForCustomer(t, uuid.Nil, ordered, months, p)
+}
+
+func newFixtureForCustomer(t *testing.T, userID uuid.UUID, ordered, months int, p parcel) fixture {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer pgtx.Rollback(ctx, tx)
 
-	var userID uuid.UUID
-	if err := tx.QueryRow(ctx, `
+	if userID == uuid.Nil {
+		if err := tx.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name)
 		VALUES ('w-' || gen_random_uuid() || '@goen.invalid', 'customer', '保固測試')
 		RETURNING id`).Scan(&userID); err != nil {
-		t.Fatalf("create user: %v", err)
+			t.Fatalf("create user: %v", err)
+		}
 	}
 
 	// A product and a variant of its own, so a case that changes the term does
@@ -246,7 +253,7 @@ func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t, tt.ordered, 24, tt.p)
-			err := s.Register(t.Context(), f.lineID.String(), f.userID, "", tt.unit)
+			err := s.Register(t.Context(), f.number, f.lineID.String(), f.userID, "", tt.unit)
 			if (err == nil) != tt.wantOK {
 				t.Errorf("register unit %d of a parcel of %d (arrived=%v): err=%v, want ok=%v",
 					tt.unit, tt.p.units, tt.p.arrived, err, tt.wantOK)
@@ -289,7 +296,7 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 	s := warranty.NewStore(pool)
 
 	noTerm := newFixture(t, 1, 0, parcel{units: 1, arrived: true})
-	err := s.Register(t.Context(), noTerm.lineID.String(), noTerm.userID, "", 1)
+	err := s.Register(t.Context(), noTerm.number, noTerm.lineID.String(), noTerm.userID, "", 1)
 	// ErrNotRegistrable specifically: a missing term also trips expires_on's NOT
 	// NULL further down, so "an error happened" stays green with the guard gone.
 	if !errors.Is(err, warranty.ErrNotRegistrable) {
@@ -298,7 +305,7 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 	}
 
 	withTerm := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
-	if err := s.Register(t.Context(), withTerm.lineID.String(), withTerm.userID, "", 1); err != nil {
+	if err := s.Register(t.Context(), withTerm.number, withTerm.lineID.String(), withTerm.userID, "", 1); err != nil {
 		t.Errorf("a product with a term was refused: %v", err)
 	}
 }
@@ -316,7 +323,7 @@ func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 		units: 1, arrived: true, deliveredAt: deliveredAt,
 	})
 
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+	if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
@@ -399,7 +406,7 @@ func TestThePurchasedPromiseSurvivesCatalogueRetirement(t *testing.T) {
 		t.Errorf("variant retirement changed product link to %q, want %q",
 			registrable.Lines[0].Slug, productSlug)
 	}
-	if registerErr := s.Register(ctx, f.lineID.String(), f.userID, "", 1); registerErr != nil {
+	if registerErr := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); registerErr != nil {
 		t.Fatalf("register after variant retirement: %v", registerErr)
 	}
 	registered, err := s.Mine(ctx, f.userID)
@@ -416,7 +423,7 @@ func TestThePurchasedPromiseSurvivesCatalogueRetirement(t *testing.T) {
 	}
 	assertPurchasedPromise("after catalogue retirement")
 
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 2); err != nil {
+	if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 2); err != nil {
 		t.Fatalf("register after catalogue retirement: %v", err)
 	}
 	var keptOriginalTerm bool
@@ -442,7 +449,7 @@ func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
 	mine := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
 	theirs := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
-	if err := s.Register(ctx, mine.lineID.String(), theirs.userID, "", 1); err == nil {
+	if err := s.Register(ctx, mine.number, mine.lineID.String(), theirs.userID, "", 1); err == nil {
 		t.Error("somebody registered a warranty against another customer's order")
 	}
 	if _, err := s.Registrable(ctx, mine.number, theirs.userID); !errors.Is(err, warranty.ErrNotFound) {
@@ -453,7 +460,7 @@ func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
 		t.Errorf("an absent order read as %v, want ErrNotFound", err)
 	}
 
-	if err := s.Register(ctx, mine.lineID.String(), mine.userID, "", 1); err != nil {
+	if err := s.Register(ctx, mine.number, mine.lineID.String(), mine.userID, "", 1); err != nil {
 		t.Errorf("the owner was refused: %v", err)
 	}
 }
@@ -465,13 +472,13 @@ func TestAUnitIsRegisteredOnce(t *testing.T) {
 	s := warranty.NewStore(pool)
 	f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
 
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+	if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err == nil {
+	if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); err == nil {
 		t.Error("the same unit was registered twice")
 	}
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 2); err != nil {
+	if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 2); err != nil {
 		t.Errorf("the second unit was refused: %v", err)
 	}
 }
@@ -485,20 +492,20 @@ func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
 	b := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
 	const serial = "SN-SHARED-0001"
-	if err := s.Register(ctx, a.lineID.String(), a.userID, serial, 1); err != nil {
+	if err := s.Register(ctx, a.number, a.lineID.String(), a.userID, serial, 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	err := s.Register(ctx, b.lineID.String(), b.userID, serial, 1)
+	err := s.Register(ctx, b.number, b.lineID.String(), b.userID, serial, 1)
 	if !errors.Is(err, warranty.ErrSerialTaken) {
 		t.Errorf("a duplicate serial gave %v, want ErrSerialTaken", err)
 	}
 
 	// An EMPTY serial is not a duplicate of another: the unique index is partial.
-	if err := s.Register(ctx, b.lineID.String(), b.userID, "", 1); err != nil {
+	if err := s.Register(ctx, b.number, b.lineID.String(), b.userID, "", 1); err != nil {
 		t.Errorf("a registration with no serial was refused: %v", err)
 	}
 	c := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
-	if err := s.Register(ctx, c.lineID.String(), c.userID, "", 1); err != nil {
+	if err := s.Register(ctx, c.number, c.lineID.String(), c.userID, "", 1); err != nil {
 		t.Errorf("a second registration with no serial was refused: %v", err)
 	}
 }
@@ -510,10 +517,10 @@ func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 	mine := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 	theirs := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
-	if err := s.Register(ctx, mine.lineID.String(), mine.userID, "", 1); err != nil {
+	if err := s.Register(ctx, mine.number, mine.lineID.String(), mine.userID, "", 1); err != nil {
 		t.Fatalf("register mine: %v", err)
 	}
-	if err := s.Register(ctx, theirs.lineID.String(), theirs.userID, "", 1); err != nil {
+	if err := s.Register(ctx, theirs.number, theirs.lineID.String(), theirs.userID, "", 1); err != nil {
 		t.Fatalf("register theirs: %v", err)
 	}
 
@@ -552,7 +559,7 @@ func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, tc.ordered, 12, parcel{units: tc.ordered, arrived: true})
-			if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+			if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); err != nil {
 				t.Fatalf("register: %v", err)
 			}
 			var orderID, returnID uuid.UUID
@@ -624,7 +631,7 @@ func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
 	}
 
 	for unit := 1; unit <= 2; unit++ {
-		if err := s.Register(ctx, f.lineID.String(), f.userID, "", unit); err != nil {
+		if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", unit); err != nil {
 			t.Fatalf("register unit %d: %v", unit, err)
 		}
 	}
@@ -701,11 +708,11 @@ func TestOnlyDecidedReturnsTakeUnitsOffWhatCanBeRegistered(t *testing.T) {
 			if got := view.Lines[0].Delivered; got != tc.wantUnits {
 				t.Errorf("a %s return leaves %d registrable units of 2, want %d", tc.status, got, tc.wantUnits)
 			}
-			second := s.Register(ctx, f.lineID.String(), f.userID, "", 2)
+			second := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 2)
 			if (second == nil) != (tc.wantUnits == 2) {
 				t.Errorf("registering unit 2 under a %s return gave %v, want ok=%v", tc.status, second, tc.wantUnits == 2)
 			}
-			if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+			if err := s.Register(ctx, f.number, f.lineID.String(), f.userID, "", 1); err != nil {
 				t.Errorf("the one unit not returned was refused: %v", err)
 			}
 		})
@@ -744,7 +751,7 @@ func TestWarrantySerialRefusalsRetainOnlyTheAuthorizedLine(t *testing.T) {
 				mine := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
 				other := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 				serial := "duplicate-" + uuid.NewString()
-				if err := s.Register(t.Context(), other.lineID.String(), other.userID, serial, 1); err != nil {
+				if err := s.Register(t.Context(), other.number, other.lineID.String(), other.userID, serial, 1); err != nil {
 					t.Fatalf("register duplicate control: %v", err)
 				}
 				draft := tc.serial

@@ -130,8 +130,8 @@ h3 {
 
 .goen-btn svg {
   flex: none;
-  height: 16px;
-  width: 16px;
+  height: 1.0625em;
+  width: 1.0625em;
 }
 
 .goen-btn:focus-visible,
@@ -437,7 +437,7 @@ h3 {
    colour alone is not a reason. */
 .goen-input--invalid,
 .goen-input[aria-invalid='true'] {
-  outline-color: var(--error-outline);
+  outline-color: var(--error);
 }
 
 .goen-input--invalid:focus-visible,
@@ -1714,16 +1714,6 @@ input.goen-check {
   padding: 0;
 }
 
-.goen-admin__side {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
 .goen-admin__tabs {
   gap: 6px;
 }
@@ -2327,7 +2317,13 @@ input.goen-check {
 .goen-admin__form .goen-btn {
   align-self: flex-start;
   box-sizing: border-box;
+  height: auto;
+  max-width: 100%;
   min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 /* The search's own button, on the component's class rather than the shared
@@ -2343,7 +2339,13 @@ input.goen-check {
 .goen-admin__decidebtns .goen-btn {
   box-sizing: border-box;
   flex: 1 1 auto;
+  height: auto;
+  max-width: 100%;
   min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 /* One operation: a card holding one form and the sentence that explains it.
@@ -2628,6 +2630,17 @@ input.goen-check {
     position: sticky;
     top: 16px;
   }
+}
+
+/* Queue names must remain readable when the heading stacks at enlarged text. */
+.goen-modqueue__switch {
+  height: auto;
+  max-width: 100%;
+  min-height: max(44px, 2.75rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-block: 0.5rem;
+  white-space: normal;
 }
 
 /* Back office — content
@@ -3401,6 +3414,79 @@ form[data-request-pending] [aria-disabled="true"] {
   overflow: visible;
 }
 
+/* Narrow figures put the line-end names below the plot, where enlarged text
+   can wrap without taking away the plot's width. The table is the complete
+   accessible alternative; this repeats the visual SVG end labels only. */
+.goen-chart__endlegend {
+  display: none;
+  font-size: var(--fs-12);
+  margin: 8px 0;
+}
+
+.goen-chart__endlegend > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-chart__endlegend dt {
+  font-weight: var(--fw-medium);
+}
+
+.goen-chart__endlegend dd {
+  font-variant-numeric: tabular-nums lining-nums;
+  margin: 0;
+}
+
+/* A short sample of the line each name belongs to, drawn as the series is. */
+.goen-chart__endkey dt::before {
+  content: "";
+  display: inline-block;
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+  width: 1rem;
+}
+
+.goen-chart__endkey--current dt::before {
+  border-top: 2px solid var(--chart-hue);
+}
+
+.goen-chart__endkey--previous dt::before {
+  border-top: 1.5px solid var(--chart-previous);
+}
+
+/* Dates share the plot's fitted pixel geometry; their enlarged text remains
+   in the complete data table, while the end legend itself grows and wraps. */
+.goen-chart__frame--runningtotal .goen-chart__plot > .goen-chart__label {
+  font-size: 12px;
+}
+
+@container (width < 36rem) {
+  .goen-chart__frame--runningtotal {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .goen-chart__frame--runningtotal .goen-chart__ends {
+    display: none;
+  }
+
+  .goen-chart__endlegend {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep Today on a small enlarged figure; the table still names every day. */
+@container (width < 18rem) {
+  .goen-chart__endlegend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .goen-chart__frame--runningtotal .goen-chart__plot > .goen-chart__label:not(.goen-chart__today) {
+    display: none;
+  }
+}
+
 .goen-chart__label,
 .goen-chart__endvalue {
   fill: var(--chart-label);
@@ -3636,10 +3722,9 @@ form[data-request-pending] [aria-disabled="true"] {
   shape-rendering: crispEdges;
 }
 
-/* Only where scripts run, so a page without them is unchanged. The padding, not
-   a margin, keeps the readout touching the plot's frame, so the pointer never
-   leaves both on the way down to it. Its height is held for the longest line,
-   which runs to two on a narrow figure. */
+/* The padding keeps the readout touching the plot's frame, so the pointer never
+   leaves both on the way down to it. The hidden rows share its grid cell and
+   reserve the tallest wrapped content, including after fonts or width change. */
 .goen-chart__readout {
   display: none;
   font-size: var(--fs-13);
@@ -3648,20 +3733,27 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media (scripting: enabled) {
+  .goen-chart__readout-space,
+  .goen-chart__readout.goen-chart__readout-size {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .goen-chart__readout-space > .goen-chart__readout,
+  .goen-chart__readout-size > span {
+    grid-area: 1 / 1;
+    min-inline-size: 0;
+  }
+
   .goen-chart__readout {
     display: block;
     min-height: calc(var(--fs-13) * var(--lh-normal));
     padding-block-start: 8px;
   }
 
-  .goen-chart__readout:empty {
+  .goen-chart__readout:empty,
+  .goen-chart__readout-size {
     visibility: hidden;
-  }
-
-  @container (max-width: 519px) {
-    .goen-chart__readout {
-      min-height: calc(var(--fs-13) * var(--lh-normal) * 2);
-    }
   }
 }
 
@@ -3681,6 +3773,14 @@ form[data-request-pending] [aria-disabled="true"] {
 
   .goen-chart__previous {
     stroke: GrayText;
+  }
+
+  .goen-chart__endkey--current dt::before {
+    border-top-color: CanvasText;
+  }
+
+  .goen-chart__endkey--previous dt::before {
+    border-top-color: GrayText;
   }
 
   .goen-chart__wash,
@@ -3793,6 +3893,20 @@ form[data-request-pending] [aria-disabled="true"] {
 
 .goen-chart__window {
   fill: var(--chart-previous);
+}
+
+/* Day ticks are fitted to pixel geometry, like the span names below. Keep
+   their fitted size; the complete data table carries enlarged date text. */
+.goen-chart__frame--columns .goen-chart__plot > .goen-chart__label {
+  font-size: 12px;
+}
+
+/* Below the span-fitting threshold, even fixed-size dates share too little
+   room. Keep the final day (Today when present); every date stays in the table. */
+@container (width < 18rem) {
+  .goen-chart__frame--columns .goen-chart__plot > .goen-chart__label:not(:last-of-type) {
+    display: none;
+  }
 }
 
 .goen-chart__open {
