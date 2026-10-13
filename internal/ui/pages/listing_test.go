@@ -413,7 +413,7 @@ func TestQAAskSurface(t *testing.T) {
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
 		PriceCents: 3690000,
 	}
-	askAction := `action="/p/pixelight-9-pro/questions"`
+	askAction := `action="/p/pixelight-9-pro/questions#questions"`
 	signInHint := i18n.T(ctx, i18n.KeySignInToAsk)
 
 	out := base

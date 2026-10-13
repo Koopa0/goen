@@ -13037,7 +13037,7 @@ func (q *Queries) ProductRating(ctx context.Context, productID uuid.UUID) (Produ
 }
 
 const productReviews = `-- name: ProductReviews :many
-SELECT r.rating, r.title, r.body, r.is_verified_purchase, r.created_at,
+SELECT r.rating, r.title, r.body, r.is_verified_purchase, r.created_at, r.user_id,
        coalesce(u.full_name, '') AS author
 FROM visible_reviews r
 LEFT JOIN users u ON u.id = r.user_id
@@ -13057,6 +13057,7 @@ type ProductReviewsRow struct {
 	Body               string
 	IsVerifiedPurchase bool
 	CreatedAt          time.Time
+	UserID             uuid.NullUUID
 	Author             string
 }
 
@@ -13075,6 +13076,7 @@ func (q *Queries) ProductReviews(ctx context.Context, arg ProductReviewsParams) 
 			&i.Body,
 			&i.IsVerifiedPurchase,
 			&i.CreatedAt,
+			&i.UserID,
 			&i.Author,
 		); err != nil {
 			return nil, err
