@@ -794,7 +794,8 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 		t.Errorf("redirect dropped the colour selection: %q", loc)
 	}
 
-	follow := httptest.NewRequestWithContext(t.Context(), http.MethodGet, loc.String(), http.NoBody)
+	// Browsers keep the #buybox fragment locally; it is not part of the GET.
+	follow := httptest.NewRequestWithContext(t.Context(), http.MethodGet, loc.RequestURI(), http.NoBody)
 	follow.SetPathValue("slug", slug)
 	pres := httptest.NewRecorder()
 	product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
@@ -803,6 +804,9 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 		t.Fatalf("follow-up GET answered %d", pres.Code)
 	}
 	body := pres.Body.String()
+	if got, ok := hiddenInputValue(body, "variant"); !ok || got != vid.String() {
+		t.Errorf("returned purchase variant = %q, present = %t, want %s", got, ok, vid)
+	}
 	choose := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyChooseOptions)
 	if strings.Contains(body, choose) {
 		t.Error("the returned page forgot the chosen variant after a successful add")
