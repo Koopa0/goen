@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -134,7 +135,7 @@ func TestFunctionHeaderCheckerFixtures(t *testing.T) {
 		},
 		{
 			name:  "commented-out definitions and ALTERs are ignored",
-			files: []migrationText{{"001.up.sql", "-- CREATE FUNCTION h() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n-- ALTER FUNCTION f() SECURITY DEFINER;\n" + definer}},
+			files: []migrationText{{"001.up.sql", "-- CREATE FUNCTION h() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n-- ALTER FUNCTION f() SECURITY DEFINER;\n/* CREATE FUNCTION k() RETURNS int\nLANGUAGE sql AS $$ SELECT 1 $$;\nALTER FUNCTION f() SECURITY INVOKER; */\n" + definer}},
 		},
 	}
 	for _, tt := range tests {
@@ -205,15 +206,16 @@ func blankSQLComments(src string) string {
 				b[i] = ' '
 			}
 		case b[i] == '/' && i+1 < len(b) && b[i+1] == '*':
-			for ; i < len(b) && !(b[i] == '*' && i+1 < len(b) && b[i+1] == '/'); i++ {
+			stop := len(b)
+			if closing := bytes.Index(b[i+2:], []byte("*/")); closing >= 0 {
+				stop = i + 2 + closing + 2
+			}
+			for ; i < stop; i++ {
 				if b[i] != '\n' {
 					b[i] = ' '
 				}
 			}
-			if i+1 < len(b) {
-				b[i], b[i+1] = ' ', ' '
-				i++
-			}
+			i--
 		}
 	}
 	return string(b)
