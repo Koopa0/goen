@@ -754,8 +754,8 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			term:   "whether a request inside the window can be declined",
 			cite:   "消保法 §19 I — 無須說明理由, and §19 IV ends the contract on dispatch; returns.Evaluate refuses a decline on any statutory line",
 			doc:    "returns",
-			want:   []string{"在猶豫期內提出的申請，我們不會拒絕"},
-			wantEn: []string{"A request made within your seven-day right to cancel is never declined"},
+			want:   []string{"商品送達前，或在猶豫期內提出的申請，我們不會拒絕。"},
+			wantEn: []string{"A request made before the goods arrive, or within your seven-day right to cancel, is never declined."},
 		},
 	}
 

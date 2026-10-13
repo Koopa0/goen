@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -62,7 +63,13 @@ func TestReturnDecisionAuditFailureDoesNotClaimApproval(t *testing.T) {
 			t.Run(string(locale.locale)+"/"+decision, func(t *testing.T) {
 				staff, _ := admintest.StaffContext(t, pool)
 				ctx := i18n.WithLocale(staff, locale.locale)
-				id, _ := admintest.ReturnedOrder(t, pool, 1)
+				var id uuid.UUID
+				if decision == "rejected" {
+					id = admintest.ReturnedOrderAtWithReason(t, pool,
+						admintest.ShopNoonDaysAgo(t, 15), time.Now(), "late return")
+				} else {
+					id, _ = admintest.ReturnedOrder(t, pool, 1)
+				}
 				fault := &failedDecisionAudit{returnID: id}
 				cfg := pool.Config().Copy()
 				cfg.MaxConns = 2

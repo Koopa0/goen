@@ -248,6 +248,11 @@ var (
 		En:     "Assessment version %s · %s",
 	})
 
+	KeyAdminRetErrUndeliveredReject = key("admin.ret.err.undeliveredreject", Message{
+		ZhHant: "商品送達前，或在猶豫期內提出的申請，我們不會拒絕。",
+		En:     "A request made before the goods arrive, or within your seven-day right to cancel, is never declined.",
+	})
+
 	KeyAdminRetErrStatutoryReject = key("admin.ret.err.statutoryreject", Message{
 		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 天條件而拒絕。",
 		En:     "A valid request inside seven days cannot be refused for a missing reason, for opening the parcel, or for the days 8–14 conditions.",

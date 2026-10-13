@@ -52,7 +52,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 								</span>
-							} else if r.Goodwill() || r.Mixed() {
+							} else if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<span class="goen-admin__meta">
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
@@ -100,7 +100,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							// together on the order page, never one at a time here.
 							<p class="goen-admin__hint"><a href={ templ.SafeURL(r.OrderAction()) }>{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</a></p>
 						} else if !r.Decided {
-							if r.Goodwill() || r.Mixed() {
+							if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>
 									if stamp := r.AssessmentStamp(ctx); stamp != "" {
@@ -165,7 +165,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
 										}
 									}
-									if r.Goodwill() || r.Mixed() || r.Late() {
+									if (r.Goodwill() || r.Mixed() || r.Late()) && !r.mixedStatutoryApproval() {
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
@@ -173,7 +173,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
 										}
 									}
-									if !r.Rescission() {
+									if r.CanReject() {
 										@components.Button(components.ButtonProps{
 											ButtonStyle: components.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
