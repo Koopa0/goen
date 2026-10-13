@@ -12,7 +12,8 @@ export function controlLabelReflow(control) {
       faults.push('label exceeds the control');
     }
     // Chinese has native character breaks; Latin words must stay on one line.
-    for (const word of node.nodeValue.matchAll(/[\p{Script=Latin}\d]+(?:['’-][\p{Script=Latin}\d]+)*/gu)) {
+    // A hyphen is a legitimate break point, so each hyphen-separated part is a word.
+    for (const word of node.nodeValue.matchAll(/[\p{Script=Latin}\d]+(?:['’][\p{Script=Latin}\d]+)*/gu)) {
       range.setStart(node, word.index);
       range.setEnd(node, word.index + word[0].length);
       const rects = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0);
