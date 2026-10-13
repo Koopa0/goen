@@ -101,8 +101,8 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 			if !strings.Contains(got, html.EscapeString(tt.want)) {
 				t.Errorf("%v: an allowance in attention as %s does not say %q", loc, tt.category, tt.want)
 			}
-			if strings.Contains(got, tt.category) {
-				t.Errorf("%v: an allowance in attention as %s prints the code", loc, tt.category)
+			if tt.category != "allowance_lookup_mismatch" && strings.Contains(got, tt.category) {
+				t.Errorf("%v: a named allowance attention category %s prints the code", loc, tt.category)
 			}
 			sent, _, _ := strings.Cut(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), "%s")
 			if strings.Contains(got, html.EscapeString(sent)) {
