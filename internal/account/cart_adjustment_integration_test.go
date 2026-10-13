@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -184,7 +184,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						t.Fatal(err)
 					}
 					owner := uuid.NullUUID{UUID: uid, Valid: true}
-					address := &order.Delivery{Email: email, RecipientName: "Fixture", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road"}
+					address := &delivery.Details{Email: email, RecipientName: "Fixture", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road"}
 					store := cart.NewStore(appPool)
 					quote := accountCheckoutQuote(t, store, accountCart, owner, shippingID, address.PostalCode)
 					number, err := store.PlaceOrder(ctx, accountCart, owner, shippingID, address, nil, "", quote, checkoutAttemptKey(suffix))

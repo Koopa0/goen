@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -532,9 +532,9 @@ func TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider(t *testing.T) {
 }
 
 // unconfiguredInvoicing is the gateway a deployment with no 加值中心 runs with.
-func unconfiguredInvoicing(t *testing.T) *invoice.Gateway {
+func unconfiguredInvoicing(t *testing.T) *issuer.Gateway {
 	t.Helper()
-	g, err := invoice.NewGateway("", "", "", "")
+	g, err := issuer.NewGateway("", "", "", "")
 	if err != nil || g.Enabled() {
 		t.Fatalf("an empty 加值中心 configuration = %v, enabled %t; want legal and off", err, g.Enabled())
 	}

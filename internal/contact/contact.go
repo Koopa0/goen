@@ -8,7 +8,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -23,7 +22,7 @@ const (
 type Message struct {
 	Name     string
 	Email    string
-	Subject  contactsubject.Subject
+	Subject  Subject
 	OrderRef string
 	Body     string
 }
@@ -32,7 +31,7 @@ func Clean(m Message) Message {
 	return Message{
 		Name:     strings.TrimSpace(m.Name),
 		Email:    email.Clean(m.Email),
-		Subject:  contactsubject.Subject(strings.TrimSpace(string(m.Subject))),
+		Subject:  Subject(strings.TrimSpace(string(m.Subject))),
 		OrderRef: strings.TrimSpace(m.OrderRef),
 		Body:     strings.TrimSpace(m.Body),
 	}

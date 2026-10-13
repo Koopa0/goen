@@ -39,8 +39,8 @@ func TestOptionFormIsReplacedByTheNoteOnceAProductHasVariants(t *testing.T) {
 				t.Errorf("%s: note text missing", locale)
 			}
 		}
-		if strings.Contains(note, "規格軸") {
-			t.Error("staff copy must say 規格項目, not 規格軸")
+		if locale == i18n.ZhHant && (!strings.Contains(note, "選項組合") || strings.Contains(note, "規格")) {
+			t.Error("staff copy must identify the option combination")
 		}
 	}
 }

@@ -10,8 +10,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
@@ -255,12 +256,12 @@ func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[strin
 	errs := map[string]string{}
 	safety := parseVariantCount(draft.Safety, safetyStockCeiling,
 		"safety", i18n.T(r.Context(), i18n.KeyFormSafetyStock), errs)
-	longest := parseVariantCount(draft.ParcelLongest, carrier.MaxParcelLongestMM,
-		"parcel_longest", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelLongestMM), errs)
-	sum := parseVariantCount(draft.ParcelSum, carrier.MaxParcelSumMM,
-		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelSumMM), errs)
-	weight := parseVariantCount(draft.ParcelWeight, carrier.MaxParcelWeightG,
-		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelWeightG), errs)
+	longest := parseVariantCount(draft.ParcelLongest, shipping.MaxParcelLongestMM,
+		"parcel_longest", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), shipping.MaxParcelLongestMM), errs)
+	sum := parseVariantCount(draft.ParcelSum, shipping.MaxParcelSumMM,
+		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), shipping.MaxParcelSumMM), errs)
+	weight := parseVariantCount(draft.ParcelWeight, shipping.MaxParcelWeightG,
+		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), shipping.MaxParcelWeightG), errs)
 	// ParsePrice, not a parser returning the figure alone: blank is a legitimate
 	// compare-at price and it stores zero, so a collapsed unreadable figure is
 	// indistinguishable from "no discount". /admin/stock prices through this too.

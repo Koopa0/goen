@@ -114,19 +114,19 @@ templ NewsletterForm(s NewsletterState) {
 					Type:      "email",
 					Value:     s.Email,
 					Invalid:   s.FieldRefusal != "",
-					Describes: "newsletter-error",
-					Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
-						"placeholder":  "you@example.com",
+					Describes: "newsletter-email-example newsletter-error",
+					Attrs: fieldrule.Email.Attrs(ctx, s.emailAttrs(templ.Attributes{
 						"required":     true,
 						"autocomplete": "email",
 						"maxlength":    "254",
-					}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
+					}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
 				})
 				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 					<span aria-hidden="true">→</span>
 				}
 			</div>
+			<p class="goen-footer__newsnote goen-footer__signup-example" id="newsletter-email-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "you@example.com") }</p>
 			if s.Notice != "" {
 				<p class="ui-error-text goen-footer__signup-error" id="newsletter-notice" role="alert">{ s.Notice }</p>
 			}

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -22,7 +22,7 @@ func (h *Handler) checkMobileBarcode(w http.ResponseWriter, r *http.Request, inv
 		h.log.WarnContext(r.Context(), "check mobile barcode", "error", err)
 		return true
 	}
-	if status != invoice.BarcodeMissing {
+	if status != issuer.BarcodeMissing {
 		return true
 	}
 	view.Errors = map[string]string{"invoice_carrier": i18n.T(r.Context(), i18n.KeyMobileBarcodeMissing)}

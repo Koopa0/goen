@@ -11,11 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
-	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -29,8 +30,8 @@ func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read store order: %v", err)
 	}
-	if want := []carrier.Carrier{carrier.FamilyMart}; !slices.Equal(store.ShipCarriers, want) ||
-		store.ShipCarrier != string(carrier.FamilyMart) {
+	if want := []shipping.Carrier{shipping.CarrierFamilyMart}; !slices.Equal(store.ShipCarriers, want) ||
+		store.ShipCarrier != string(shipping.CarrierFamilyMart) {
 		t.Errorf("a family_mart order lists %v with %q chosen, want only %v chosen", store.ShipCarriers, store.ShipCarrier, want)
 	}
 
@@ -38,7 +39,7 @@ func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read home order: %v", err)
 	}
-	want, _ := carrier.ForDelivery("", false)
+	want, _ := shipping.CarriersFor("", shipping.DestinationAddress)
 	if !slices.Equal(home.ShipCarriers, want) || home.ShipCarrier != "" {
 		t.Errorf("a home order lists %v with %q chosen, want %v and none chosen", home.ShipCarriers, home.ShipCarrier, want)
 	}

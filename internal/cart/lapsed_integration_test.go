@@ -18,7 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -42,7 +42,7 @@ func lapsedOrder(t *testing.T, label string) (number string, accountID, couponID
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "lapsed@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}

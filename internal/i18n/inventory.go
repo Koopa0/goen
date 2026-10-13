@@ -75,9 +75,8 @@ var (
 	})
 
 	KeyAdminLedgerEmpty = key("admin.ledger.empty", Message{
-		ZhHant: "這個規格還沒有任何異動。新規格的庫存是 0，所有的量都從這張帳本進來。",
-		En: "Nothing has moved for this variant yet. A new variant starts at zero, and every unit it " +
-			"ever holds arrives through this ledger.",
+		ZhHant: "這個款式還沒有任何異動。新款式的庫存是 0，所有的量都從這張帳本進來。",
+		En:     "Nothing has moved for this variant yet. A new variant starts at zero, and every unit it ever holds arrives through this ledger.",
 	})
 
 	KeyAdminLedgerFoot = key("admin.ledger.foot", Message{
