@@ -16406,6 +16406,28 @@ func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImagePara
 	return result.RowsAffected(), nil
 }
 
+const setCategoryImageText = `-- name: SetCategoryImageText :execrows
+UPDATE categories
+SET image_alt = $1::text, image_alt_en = nullif($2::text, '')
+WHERE slug = $3::text AND image_key IS NOT NULL
+`
+
+type SetCategoryImageTextParams struct {
+	ImageAlt   string
+	ImageAltEn string
+	Slug       string
+}
+
+// Keep the current image in the same write: an alt-only save must not restore
+// a photograph that another staff member replaced or removed.
+func (q *Queries) SetCategoryImageText(ctx context.Context, arg SetCategoryImageTextParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCategoryImageText, arg.ImageAlt, arg.ImageAltEn, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setCouponActive = `-- name: SetCouponActive :execrows
 UPDATE coupons SET is_active = $1::boolean WHERE upper(code) = upper($2::text)
 `

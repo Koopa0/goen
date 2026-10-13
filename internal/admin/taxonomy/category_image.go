@@ -18,6 +18,8 @@ import (
 
 const MaxAltRunes = 200
 
+var ErrImageRequired = errors.New("taxonomy: category image required")
+
 func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.CategoryView, error) {
 	row, err := s.q.AdminCategoryImage(ctx, slug)
 	if err != nil {
@@ -35,10 +37,9 @@ func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.Category
 // SetCategoryImage makes a stored upload the category's header photograph. The
 // alt text is required: categories_image_has_alt refuses an image without it.
 func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn string) error {
-	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
-	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes ||
-		utf8.RuneCountInString(altEn) > MaxAltRunes {
-		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
+	alt, altEn, err := categoryImageText(alt, altEn)
+	if err != nil {
+		return err
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
@@ -56,6 +57,36 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 			}
 			return nil
 		})
+}
+
+func (s *Store) SetCategoryImageText(ctx context.Context, slug, alt, altEn string) error {
+	alt, altEn, err := categoryImageText(alt, altEn)
+	if err != nil {
+		return err
+	}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
+		After: map[string]any{"category": slug, "alt": alt, "alt_en": altEn},
+	}, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.SetCategoryImageText(ctx, db.SetCategoryImageTextParams{
+			Slug: strings.TrimSpace(slug), ImageAlt: alt, ImageAltEn: altEn,
+		})
+		if err != nil {
+			return pgerr.WrapRefusal(err, ErrRefused)
+		}
+		if n == 0 {
+			return ErrImageRequired
+		}
+		return nil
+	})
+}
+
+func categoryImageText(rawAlt, rawAltEn string) (alt, altEn string, err error) {
+	alt, altEn = strings.TrimSpace(rawAlt), strings.TrimSpace(rawAltEn)
+	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes || utf8.RuneCountInString(altEn) > MaxAltRunes {
+		return "", "", fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
+	}
+	return alt, altEn, nil
 }
 
 // ClearCategoryImage removes the photograph; the media object itself stays.

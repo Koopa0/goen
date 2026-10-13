@@ -177,29 +177,28 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					@components.Label(components.LabelProps{For: "categories-parent"}) {
 						{ i18n.T(ctx, i18n.KeyAdminTaxParent) }
 					}
-					<input
+					<select
 						class="goen-input"
 						id="categories-parent"
 						name="parent"
-						maxlength="120"
-						list="category-slugs"
-						value={ v.DraftFor(kind, "parent") }
 						if v.HasErr(kind, "parent") {
 							aria-invalid="true"
 							aria-describedby="categories-parent-error"
 						}
-					/>
-					<datalist id="category-slugs">
+					>
+						<option value="">{ i18n.T(ctx, i18n.KeyAdminTaxTopLevel) }</option>
 						for _, c := range v.Categories {
-							<option value={ c.Slug }>{ c.Name }</option>
+							<option value={ c.Slug } selected?={ v.DraftFor(kind, "parent") == c.Slug }>{ c.Name }</option>
 						}
-					</datalist>
+						if v.missingParentChoice() != "" {
+							<option value={ v.missingParentChoice() } selected>{ v.missingParentChoice() }</option>
+						}
+					</select>
 					if v.HasErr(kind, "parent") {
 						<p class="ui-error-text" id="categories-parent-error">{ v.Err(kind, "parent") }</p>
 					}
 					<div class="goen-admin__hints">
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxParentHint) }</p>
-						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "kitchen") }</p>
 					</div>
 				</div>
 			}
@@ -219,60 +218,92 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 			<p class="goen-admin__emptytitle">{ i18n.T(ctx, empty) }</p>
 		</div>
 	} else {
+		if kind == "categories" {
+			<p class="goen-admin__hint goen-admin__taxonhead">
+				<span>{ i18n.T(ctx, i18n.KeyAdminColName) }</span>
+				<span>{ i18n.T(ctx, i18n.KeyAdminTaxNameEn) }</span>
+				<span>{ i18n.T(ctx, i18n.KeyAdminColIcon) }</span>
+				<span>{ i18n.T(ctx, i18n.KeyAdminColTone) }</span>
+				<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
+			</p>
+		}
 		<ul class="goen-admin__taxa" role="list">
 			for _, t := range rows {
 				<li class="goen-admin__taxon" data-depth={ t.DepthText() }>
-					<form class="goen-admin__taxonform" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "/" + t.Slug) }>
-						<input
-							class="goen-input"
-							name="name"
-							value={ t.Name }
-							required
-							maxlength="60"
-							aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name) }
-						/>
+					<form class={ "goen-admin__taxonform", templ.KV("goen-admin__taxonform--category", kind == "categories") } method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "/" + t.Slug) }>
 						if kind == "categories" {
-							// Rendered with its current value: the rename writes what the form carries.
+							<div class="goen-admin__taxonfield">
+								<label class="goen-admin__taxonlabel" for={ "tax-name-" + t.Slug }>{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
+								<input class="goen-input" id={ "tax-name-" + t.Slug } name="name" value={ t.Name } required maxlength="60" aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name) }/>
+							</div>
+						} else {
 							<input
 								class="goen-input"
-								name="name_en"
-								value={ t.NameEn }
+								name="name"
+								value={ t.Name }
+								required
 								maxlength="60"
-								placeholder="English"
-								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name) }
+								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name) }
 							/>
-							<select
-								class="goen-input"
-								name="icon_key"
-								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name) }
-							>
-								<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
-								for _, k := range icons.CategoryKeys() {
-									<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
-								}
-							</select>
-							<select
-								class="goen-input"
-								name="tone"
-								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxToneOf), t.Name) }
-							>
-								<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
-								for _, k := range pages.Tones() {
-									<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
-								}
-							</select>
+						}
+						if kind == "categories" {
+							<div class="goen-admin__taxonfield">
+								<label class="goen-admin__taxonlabel" for={ "tax-name-en-" + t.Slug }>{ i18n.T(ctx, i18n.KeyAdminTaxNameEn) }</label>
+								// Rendered with its current value: the rename writes what the form carries.
+								<input
+									class="goen-input"
+									name="name_en"
+									id={ "tax-name-en-" + t.Slug }
+									value={ t.NameEn }
+									maxlength="60"
+									placeholder="English"
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name) }
+								/>
+							</div>
+							<div class="goen-admin__taxonfield">
+								<label class="goen-admin__taxonlabel" for={ "tax-icon-" + t.Slug }>{ i18n.T(ctx, i18n.KeyAdminColIcon) }</label>
+								<select
+									class="goen-input"
+									name="icon_key"
+									id={ "tax-icon-" + t.Slug }
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name) }
+								>
+									<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
+									for _, k := range icons.CategoryKeys() {
+										<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
+									}
+								</select>
+							</div>
+							<div class="goen-admin__taxonfield">
+								<label class="goen-admin__taxonlabel" for={ "tax-tone-" + t.Slug }>{ i18n.T(ctx, i18n.KeyAdminColTone) }</label>
+								<select
+									class="goen-input"
+									name="tone"
+									id={ "tax-tone-" + t.Slug }
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxToneOf), t.Name) }
+								>
+									<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
+									for _, k := range pages.Tones() {
+										<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
+									}
+								</select>
+							</div>
 							if t.Depth == 0 {
-								<label class="goen-check">
-									<input
-										class="goen-check__box"
-										type="checkbox"
-										name="comparable"
-										value="1"
-										checked?={ t.Comparable }
-										aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxComparableOf), t.Name) }
-									/>
-									<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
-								</label>
+								<div class="goen-admin__taxonfield">
+									<label class="goen-check">
+										<input
+											class="goen-check__box"
+											type="checkbox"
+											name="comparable"
+											value="1"
+											checked?={ t.Comparable }
+											aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxComparableOf), t.Name) }
+										/>
+										<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
+									</label>
+								</div>
+							} else {
+								<span class="goen-admin__taxonfield" aria-hidden="true"></span>
 							}
 						}
 						@components.Button(components.ButtonProps{
