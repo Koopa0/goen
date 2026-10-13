@@ -633,15 +633,12 @@ templ Account(p layouts.Page, v *AccountView) {
 											ID:        "addr-label",
 											Value:     v.AddrValue("label"),
 											Invalid:   v.AddrInvalid("label"),
-											Describes: "addr-label-error",
 											Name:      "label",
 											Type:      "text",
-											Attrs: templ.Attributes{
-												"maxlength":    "30",
-												"autocomplete": "off",
-												"placeholder":  i18n.T(ctx, i18n.KeyLabelPlaceholder),
-											},
+											Describes: v.addressLabelDescribedBy(),
+											Attrs:     v.addressLabelAttrs(),
 										})
+										<p class="goen-auth__hint" id="addr-label-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyLabelExample)) }</p>
 										if v.AddrInvalid("label") {
 											<p class="ui-error-text" id="addr-label-error" role="alert">{ v.AddrErr("label") }</p>
 										}

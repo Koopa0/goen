@@ -308,7 +308,7 @@ func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
 						t.Fatalf("refused %s = %d to %q, want 422 without Location", tt.name, res.Code, res.Header().Get("Location"))
 					}
 					assertHomeEditorQueues(t, ctx, res.Body.String(), heroID, bannerID)
-					admintest.AssertRefusedInput(t, res.Body.String(), tt.errorID, "")
+					assertHomeExampleRefusal(t, res.Body.String(), tt.errorID)
 					draft := admintest.InputElementByID(t, res.Body.String(), tt.draftID)
 					if got := admintest.InputAttribute(t, draft, "value"); got != tt.draft {
 						t.Errorf("refused %s draft = %q, want %q", tt.name, got, tt.draft)
@@ -319,6 +319,57 @@ func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func assertHomeExampleRefusal(t *testing.T, body, id string) {
+	t.Helper()
+	input := admintest.InputElementByID(t, body, id)
+	type inputFacts struct{ Value, Invalid, Descriptions string }
+	got := inputFacts{
+		Value: admintest.InputAttribute(t, input, "value"),
+		Invalid: admintest.InputAttribute(t, input, "aria-invalid"),
+		Descriptions: admintest.InputAttribute(t, input, "aria-describedby"),
+	}
+	want := inputFacts{Invalid: "true", Descriptions: id + "-example " + id + "-error"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("refused home field (-want +got):\n%s", diff)
+	}
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, description := range strings.Fields(want.Descriptions) {
+		var visible int
+		for n := range doc.Descendants() {
+			var nodeID, class string
+			var hidden bool
+			for _, a := range n.Attr {
+				switch a.Key {
+				case "id":
+					nodeID = a.Val
+				case "class":
+					class = a.Val
+				case "hidden":
+					hidden = true
+				}
+			}
+			if nodeID != description {
+				continue
+			}
+			var text strings.Builder
+			for child := range n.Descendants() {
+				if child.Type == html.TextNode {
+					text.WriteString(child.Data)
+				}
+			}
+			if n.Data == "p" && !hidden && !strings.Contains(class, "sr-only") && strings.TrimSpace(text.String()) != "" {
+				visible++
+			}
+		}
+		if visible != 1 {
+			t.Errorf("home field %q description %q has %d visible text elements, want one", id, description, visible)
+		}
 	}
 }
 

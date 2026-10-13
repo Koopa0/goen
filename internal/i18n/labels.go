@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyFieldExample = key("field.example", Message{ZhHant: "例：%s", En: "Example: %s"})
+
 	KeyAdminSearch = key("admin.search", Message{ZhHant: "搜尋", En: "Search"})
 
 	KeyAdminRemove = key("admin.remove", Message{ZhHant: "移除", En: "Remove"})

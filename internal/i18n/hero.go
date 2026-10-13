@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyAdminHomeHeadlineEnExample = key("admin.home.headline.en.example", Message{ZhHant: "Choose one good thing.", En: "Choose one good thing."})
+
 	KeyFormHeroHeadline = key("form.hero.headline", Message{
 		ZhHant: "請填寫標題，不超過 40 個字。",
 		En:     "A headline is required, 40 characters at most.",

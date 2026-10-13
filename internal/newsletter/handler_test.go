@@ -259,7 +259,7 @@ func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
 						want := newsletterRefusalFacts{
 							Forms: 1, Inputs: 1, Labels: 1, Messages: 1,
 							Method: "post", Action: "/newsletter", Value: tt.addr,
-							Invalid: "true", Describes: "newsletter-error", Message: tt.want,
+							Invalid: "true", Describes: "newsletter-email-example newsletter-error", Message: tt.want,
 							MessageRole: "alert", OwnMessage: true,
 						}
 						if diff := cmp.Diff(want, got); diff != "" {

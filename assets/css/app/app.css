@@ -1801,6 +1801,12 @@ th {
   margin: 0;
 }
 
+.goen-footer__signup-example {
+  flex: 0 0 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .goen-footer__signup-error {
   flex: 0 0 100%;
   margin: 0;
