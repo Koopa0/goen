@@ -1,4 +1,4 @@
-package order
+package delivery
 
 import (
 	"strings"
@@ -11,9 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Delivery is where and to whom an order goes: order_private_data's recipient,
+// Details is where and to whom an order goes: order_private_data's recipient,
 // street address or pickup point, and note.
-type Delivery struct {
+type Details struct {
 	// To picks which half is real; it comes from the shipping method, never the
 	// form.
 	To shipping.Destination
@@ -49,7 +49,7 @@ const (
 	maxInvoiceEmailBytes = 80
 )
 
-func (a *Delivery) Validate() []web.FieldRefusal {
+func (a *Details) Validate() []web.FieldRefusal {
 	var errs []web.FieldRefusal
 	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
 
@@ -79,7 +79,7 @@ func (a *Delivery) Validate() []web.FieldRefusal {
 	return append(errs, a.controlCharErrors()...)
 }
 
-func (a *Delivery) destinationErrors() []web.FieldRefusal {
+func (a *Details) destinationErrors() []web.FieldRefusal {
 	var errs []web.FieldRefusal
 	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
 
@@ -121,7 +121,7 @@ func (a *Delivery) destinationErrors() []web.FieldRefusal {
 // come from the back office and are checked only when present, since the
 // carrier's picker supplies them; once either is written,
 // order_private_data_pickup_complete refuses a row without the other.
-func (a *Delivery) pickupPointErrors() []web.FieldRefusal {
+func (a *Details) pickupPointErrors() []web.FieldRefusal {
 	var errs []web.FieldRefusal
 	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
 
@@ -146,7 +146,7 @@ func (a *Delivery) pickupPointErrors() []web.FieldRefusal {
 
 // DropOtherDestination blanks the half of the address that does not apply, because
 // order_private_data_one_destination refuses a row carrying both.
-func (a *Delivery) DropOtherDestination() {
+func (a *Details) DropOtherDestination() {
 	switch a.To {
 	case shipping.DestinationAddress:
 		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""
@@ -157,7 +157,7 @@ func (a *Delivery) DropOtherDestination() {
 
 // controlCharErrors: a newline in a name is how a shipping label gets a line it
 // was never given.
-func (a *Delivery) controlCharErrors() []web.FieldRefusal {
+func (a *Details) controlCharErrors() []web.FieldRefusal {
 	var errs []web.FieldRefusal
 	for _, f := range []struct{ name, value string }{
 		{"email", a.Email}, {"name", a.RecipientName}, {"phone", a.Phone},
@@ -217,7 +217,7 @@ func isPostalCode(s string) bool {
 
 // Trim folds full-width digits in the phone and postal code and uppercases the
 // store code, which shipping.ValidStoreCode will not fold.
-func (a *Delivery) Trim() {
+func (a *Details) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.RecipientName = strings.TrimSpace(a.RecipientName)
 	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
