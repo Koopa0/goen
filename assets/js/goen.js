@@ -26,6 +26,7 @@
     if (!track || track.children.length < 2) return;
 
     const slides = [...track.children];
+    const tabRow = root.querySelector(".goen-hero__tabs");
     const tabs = [...root.querySelectorAll(".goen-hero__tabs a")];
     const count = root.querySelector("[data-count]");
     let current = 0;
@@ -35,7 +36,7 @@
     };
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.6) continue;
         // The first report is the slide already shown; the live region speaks
         // only once the visitor has moved the carousel.
         const index = slides.indexOf(entry.target);
@@ -45,6 +46,15 @@
           if (index === current) tab.setAttribute("aria-current", "true");
           else tab.removeAttribute("aria-current");
         });
+        if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
+          const tab = tabs[current];
+          const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
+          // The row's end padding reserves the room under its fade mask.
+          const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
+          if (tab.offsetWidth > visible || at < tabRow.scrollLeft) tabRow.scrollLeft = at;
+          else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
+            tabRow.scrollLeft = at + tab.offsetWidth - visible;
+        }
         if (count) count.textContent = `${current + 1} / ${slides.length}`;
       }
     }, { root: track, threshold: 0.6 });
