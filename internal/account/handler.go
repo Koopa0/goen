@@ -137,6 +137,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	case r.URL.Query().Get("changed") == "1":
+		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordChanged)
 	case r.URL.Query().Get("reauth") == "erase":
 		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
 		view.HideRegister = true

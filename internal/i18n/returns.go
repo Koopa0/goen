@@ -23,6 +23,8 @@ var (
 			"once it is decided.",
 	})
 
+	KeyReturnRequestSent = key("returns.request.sent", Message{ZhHant: "你的退貨申請已送出。", En: "Your return request is sent."})
+
 	KeyReturnNothing = key("returns.nothing", Message{
 		ZhHant: "這筆訂單目前沒有可以退貨的商品。尚未出貨的訂單請改用取消。",
 		En: "Nothing on this order can be returned. If it has not shipped, cancel it " +
