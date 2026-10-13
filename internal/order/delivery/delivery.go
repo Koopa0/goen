@@ -1,3 +1,6 @@
+// Package delivery is the form that says where and to whom an order goes: the
+// recipient, their contact details, a street address or pickup point, and the
+// note, with the checks the server applies to what the buyer typed.
 package delivery
 
 import (
