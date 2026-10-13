@@ -63,10 +63,10 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, access *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || access == nil || log == nil || findLimit == nil {
+	if store == nil || grants == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
 	}
 	if len(checkers) > 1 {
@@ -78,7 +78,7 @@ func NewHandler(store *Store, access *access.Store, log *slog.Logger, secure boo
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, access: access, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: grants, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.

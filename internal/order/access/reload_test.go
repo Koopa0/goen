@@ -23,11 +23,11 @@ import (
 func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	access := &access.Store{}
-	orders := cart.NewHandler(&cart.Store{}, access, log, true, ratelimit.New(ratelimit.Config{
+	grants := &access.Store{}
+	orders := cart.NewHandler(&cart.Store{}, grants, log, true, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	}), nil, nil)
-	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, access, log)
+	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, grants, log)
 
 	const number = "GO-261007-000004"
 	routes := []struct {

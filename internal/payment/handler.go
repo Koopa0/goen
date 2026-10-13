@@ -69,11 +69,11 @@ type Handler struct {
 	log     *slog.Logger
 }
 
-func NewHandler(s *Store, g *Gateway, access *access.Store, log *slog.Logger) *Handler {
-	if s == nil || g == nil || access == nil || log == nil {
+func NewHandler(s *Store, g *Gateway, grants *access.Store, log *slog.Logger) *Handler {
+	if s == nil || g == nil || grants == nil || log == nil {
 		panic("payment: NewHandler requires a store, a gateway, an access check and a logger")
 	}
-	return &Handler{store: s, gateway: g, access: access, log: log}
+	return &Handler{store: s, gateway: g, access: grants, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {

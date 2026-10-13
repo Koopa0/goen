@@ -57,15 +57,15 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	appPool := storeRolePool(t)
-	access := access.NewStore(appPool, false)
+	grants := access.NewStore(appPool, false)
 	log := slog.New(slog.DiscardHandler)
-	basket := cart.NewHandler(cart.NewStore(appPool), access, log, false, testLimiter(), nil, nil)
+	basket := cart.NewHandler(cart.NewStore(appPool), grants, log, false, testLimiter(), nil, nil)
 	gateway, err := payment.NewGateway("", "", "http://goen.example")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pay := payment.NewHandler(payment.NewStore(appPool), gateway, access, log)
-	returns := returnpage.NewHandler(returnpage.NewStore(appPool), access, log)
+	pay := payment.NewHandler(payment.NewStore(appPool), gateway, grants, log)
+	returns := returnpage.NewHandler(returnpage.NewStore(appPool), grants, log)
 	for _, locale := range i18n.Locales() {
 		for _, route := range []struct {
 			path    string

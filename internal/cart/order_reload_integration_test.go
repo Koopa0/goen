@@ -30,14 +30,14 @@ import (
 func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	access := access.NewStore(pool, false)
+	grants := access.NewStore(pool, false)
 	log := slog.New(slog.DiscardHandler)
-	orders := cart.NewHandler(s, access, log, false, testLimiter(), nil, nil)
+	orders := cart.NewHandler(s, grants, log, false, testLimiter(), nil, nil)
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
-	payments := payment.NewHandler(payment.NewStore(pool), gateway, access, log)
+	payments := payment.NewHandler(payment.NewStore(pool), gateway, grants, log)
 
 	owner, number := placeOwnedOrder(t, s)
 	grant := placedCookie(t, number)

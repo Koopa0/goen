@@ -507,10 +507,7 @@ var maintenancePackages = []string{"recommend"}
 // opts it out entirely. An entry covers its own directory and everything below it, so a nested
 // package (order/access) is named by its path and a parent entry (admin) covers its desks.
 func TestThePoolMapIsComplete(t *testing.T) {
-	var named []string
-	named = append(named, storefrontPackages...)
-	named = append(named, backOfficePackages...)
-	named = append(named, maintenancePackages...)
+	named := slices.Concat(storefrontPackages, backOfficePackages, maintenancePackages)
 
 	root := filepath.Join("..", "..", "internal")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
