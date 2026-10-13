@@ -1,4 +1,4 @@
-package order
+package delivery
 
 import (
 	"strings"
@@ -13,7 +13,7 @@ import (
 func TestDeliveryValidateRejects(t *testing.T) {
 	t.Parallel()
 
-	valid := Delivery{
+	valid := Details{
 		To:    shipping.DestinationAddress,
 		Email: "a@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -21,33 +21,33 @@ func TestDeliveryValidateRejects(t *testing.T) {
 
 	for _, tt := range []struct {
 		name  string
-		mut   func(*Delivery)
+		mut   func(*Details)
 		field string
 	}{
-		{"no email", func(a *Delivery) { a.Email = "" }, "email"},
-		{"email with no @", func(a *Delivery) { a.Email = "nope" }, "email"},
-		{"email with no domain dot", func(a *Delivery) { a.Email = "a@example" }, "email"},
-		{"email with a space", func(a *Delivery) { a.Email = "a b@example.com" }, "email"},
-		{"no name", func(a *Delivery) { a.RecipientName = "  " }, "name"},
-		{"name too long", func(a *Delivery) { a.RecipientName = strings.Repeat("名", maxNameRunes+1) }, "name"},
-		{"no phone", func(a *Delivery) { a.Phone = "" }, "phone"},
-		{"phone with letters", func(a *Delivery) { a.Phone = "09abc12345" }, "phone"},
-		{"phone too short", func(a *Delivery) { a.Phone = "12345" }, "phone"},
-		{"phone too many digits", func(a *Delivery) { a.Phone = "1234567890123456" }, "phone"},
-		{"phone representation too long", func(a *Delivery) {
+		{"no email", func(a *Details) { a.Email = "" }, "email"},
+		{"email with no @", func(a *Details) { a.Email = "nope" }, "email"},
+		{"email with no domain dot", func(a *Details) { a.Email = "a@example" }, "email"},
+		{"email with a space", func(a *Details) { a.Email = "a b@example.com" }, "email"},
+		{"no name", func(a *Details) { a.RecipientName = "  " }, "name"},
+		{"name too long", func(a *Details) { a.RecipientName = strings.Repeat("名", maxNameRunes+1) }, "name"},
+		{"no phone", func(a *Details) { a.Phone = "" }, "phone"},
+		{"phone with letters", func(a *Details) { a.Phone = "09abc12345" }, "phone"},
+		{"phone too short", func(a *Details) { a.Phone = "12345" }, "phone"},
+		{"phone too many digits", func(a *Details) { a.Phone = "1234567890123456" }, "phone"},
+		{"phone representation too long", func(a *Details) {
 			a.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes)
 		}, "phone"},
-		{"postal code not digits", func(a *Delivery) { a.PostalCode = "11A" }, "postal_code"},
-		{"postal code too short", func(a *Delivery) { a.PostalCode = "11" }, "postal_code"},
-		{"postal code too long", func(a *Delivery) { a.PostalCode = "1234567" }, "postal_code"},
-		{"no city", func(a *Delivery) { a.City = "" }, "city"},
-		{"city too long", func(a *Delivery) { a.City = strings.Repeat("市", maxCityRunes+1) }, "city"},
-		{"no district", func(a *Delivery) { a.District = "" }, "district"},
-		{"district too long", func(a *Delivery) { a.District = strings.Repeat("區", maxDistrictRunes+1) }, "district"},
-		{"no street", func(a *Delivery) { a.Street = "" }, "street"},
-		{"street too long", func(a *Delivery) { a.Street = strings.Repeat("路", maxStreetRunes+1) }, "street"},
-		{"newline in the name", func(a *Delivery) { a.RecipientName = "王小明\nX" }, "name"},
-		{"C1 control in the street", func(a *Delivery) { a.Street = "松高路\u0085 1 號" }, "street"},
+		{"postal code not digits", func(a *Details) { a.PostalCode = "11A" }, "postal_code"},
+		{"postal code too short", func(a *Details) { a.PostalCode = "11" }, "postal_code"},
+		{"postal code too long", func(a *Details) { a.PostalCode = "1234567" }, "postal_code"},
+		{"no city", func(a *Details) { a.City = "" }, "city"},
+		{"city too long", func(a *Details) { a.City = strings.Repeat("市", maxCityRunes+1) }, "city"},
+		{"no district", func(a *Details) { a.District = "" }, "district"},
+		{"district too long", func(a *Details) { a.District = strings.Repeat("區", maxDistrictRunes+1) }, "district"},
+		{"no street", func(a *Details) { a.Street = "" }, "street"},
+		{"street too long", func(a *Details) { a.Street = strings.Repeat("路", maxStreetRunes+1) }, "street"},
+		{"newline in the name", func(a *Details) { a.RecipientName = "王小明\nX" }, "name"},
+		{"C1 control in the street", func(a *Details) { a.Street = "松高路\u0085 1 號" }, "street"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

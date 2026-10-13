@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -461,7 +462,7 @@ func (s *Store) placeOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	inv *Invoice,
 	couponCode string,
 	shown checkoutQuoteID,
@@ -571,7 +572,7 @@ func lockCheckoutTerms(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 	shown checkoutQuoteID,
 ) (*checkoutTerms, error) {
@@ -720,7 +721,7 @@ type orderParts struct {
 	invoice       *Invoice
 	coupon        *Coupon
 	orderNumber   string
-	address       *order.Delivery
+	address       *delivery.Details
 	totalCents    int64
 	creditCents   int64
 }
@@ -789,7 +790,7 @@ func writeInvoicePreference(
 	q *db.Queries,
 	orderID uuid.UUID,
 	inv *Invoice,
-	addr *order.Delivery,
+	addr *delivery.Details,
 ) error {
 	if inv == nil {
 		inv = &Invoice{Type: invoicepkg.PreferenceMember}
@@ -850,7 +851,7 @@ func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
 	orderID, cartID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	attemptID checkoutAttemptID,
 ) error {
 	if err := q.CreateOrderPrivateData(ctx, db.CreateOrderPrivateDataParams{

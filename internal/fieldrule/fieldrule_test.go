@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -38,8 +38,8 @@ func hasField(errs []web.FieldRefusal, field string) bool {
 }
 
 // checkoutAddress is an address that is valid but for what a test sets.
-func checkoutAddress() order.Delivery {
-	return order.Delivery{
+func checkoutAddress() delivery.Details {
+	return delivery.Details{
 		To: shipping.DestinationAddress, Email: "a@b.co", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
