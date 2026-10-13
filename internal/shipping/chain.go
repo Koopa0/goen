@@ -1,6 +1,4 @@
-// Package pickup owns the stable wire identities of convenience-store chains
-// that can receive an order, never their display names.
-package pickup
+package shipping
 
 import "slices"
 
@@ -9,24 +7,25 @@ import "slices"
 type Chain string
 
 const (
-	SevenEleven Chain = "seven_eleven"
-	FamilyMart  Chain = "family_mart"
-	HiLife      Chain = "hi_life"
-	OKMart      Chain = "ok_mart"
+	ChainSevenEleven Chain = "seven_eleven"
+	ChainFamilyMart  Chain = "family_mart"
+	ChainHiLife      Chain = "hi_life"
+	ChainOKMart      Chain = "ok_mart"
 )
 
-var knownChains = [...]Chain{
-	SevenEleven,
-	FamilyMart,
-	HiLife,
-	OKMart,
+var chainSet = [...]Chain{
+	ChainSevenEleven,
+	ChainFamilyMart,
+	ChainHiLife,
+	ChainOKMart,
 }
 
-// KnownChains gives callers their own storage so they cannot mutate the canonical closed set.
-func KnownChains() []Chain { return slices.Clone(knownChains[:]) }
+// Chains gives callers their own storage so they cannot mutate the canonical closed set.
+func Chains() []Chain { return slices.Clone(chainSet[:]) }
 
+// Known reports whether c is one of the chains.
 func (c Chain) Known() bool {
-	for _, candidate := range knownChains {
+	for _, candidate := range chainSet {
 		if c == candidate {
 			return true
 		}
@@ -36,7 +35,7 @@ func (c Chain) Known() bool {
 
 // AtCheckout excludes historical chains whose store picker checkout does not integrate.
 func (c Chain) AtCheckout() bool {
-	return c == SevenEleven || c == FamilyMart
+	return c == ChainSevenEleven || c == ChainFamilyMart
 }
 
 // maxStoreCodeLen is ECPay's published pickup-point store code length, not any

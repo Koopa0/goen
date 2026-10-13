@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/staff"
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
@@ -36,7 +37,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
-	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/web"
 )
 

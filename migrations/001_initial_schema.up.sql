@@ -2299,7 +2299,7 @@ CREATE TABLE order_shipments (
     estimated_delivery_on date,
     -- A closed set: (carrier, tracking_number) is the dedupe key, and one parcel
     -- typed under two spellings of a carrier would be recorded twice. These are
-    -- the codes of internal/carrier, not display names.
+    -- the codes of internal/shipping, not display names.
     CONSTRAINT order_shipments_carrier_known CHECK (carrier IN (
         'black_cat', 'hct', 'chunghwa_post', 'kerry_tj',
         'seven_eleven', 'family_mart', 'hi_life', 'ok_mart'

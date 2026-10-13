@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/shipping"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
@@ -147,9 +147,9 @@ func TestCheckConstraintsAccept(t *testing.T) {
 // database admits it, and widening the CHECK must not make arbitrary carrier
 // routing codes valid at the write boundary.
 func TestKnownPickupChainChoicesMatchDatabaseContract(t *testing.T) {
-	chains := pickup.KnownChains()
+	chains := shipping.Chains()
 	if len(chains) == 0 {
-		t.Fatal("pickup.KnownChains() is empty; this test would prove nothing")
+		t.Fatal("shipping.Chains() is empty; this test would prove nothing")
 	}
 
 	for _, chain := range chains {
@@ -206,8 +206,8 @@ func TestKnownPickupChainChoicesMatchDatabaseContract(t *testing.T) {
 // the allowlist order_shipments_carrier_known: a carrier the form offers and the
 // CHECK refuses fails the dispatch that chose it.
 func TestCarriersMatchDatabaseContract(t *testing.T) {
-	home, _ := carrier.ForDelivery("", false)
-	stores, _ := carrier.ForDelivery("", true)
+	home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
+	stores, _ := shipping.CarriersFor("", shipping.DestinationPickupPoint)
 	every := slices.Concat(home, stores)
 	if len(every) == 0 {
 		t.Fatal("no carrier on offer; this test would prove nothing")
