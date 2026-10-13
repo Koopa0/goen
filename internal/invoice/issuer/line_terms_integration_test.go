@@ -1,6 +1,6 @@
 //go:build integration
 
-package invoice
+package issuer
 
 import (
 	"encoding/json"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
@@ -26,7 +28,7 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			if lostAllowance {
 				invoiceNumber, allowanceNumber = "ZX62500002", "2026100515227102"
 			}
-			number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, PreferenceMember, "王小明", "", LineTerms{TaxType: Exempt, Unit: "六字中文單位"})
+			number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "六字中文單位"})
 			var providerMu sync.Mutex
 			var sentIssue *issueRequest
 			var sentAllowance *allowanceRequest
@@ -111,9 +113,9 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			if readErr != nil {
 				t.Fatalf("read issued invoice: %v", readErr)
 			}
-			var storedInvoice Document
+			var storedInvoice invoice.Document
 			for _, candidate := range issuedDocuments {
-				if candidate.Kind == DocumentInvoice {
+				if candidate.Kind == invoice.DocumentInvoice {
 					storedInvoice = candidate
 				}
 			}
@@ -121,11 +123,11 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 				t.Fatalf("stored invoice lines=%d, want one exempt item", len(storedInvoice.Lines))
 			}
 			for i, line := range storedInvoice.Lines {
-				unit := ItemUnit("個")
+				unit := invoice.ItemUnit("個")
 				if i == 0 {
 					unit = "六字中文單位"
 				}
-				if line.TaxType != Exempt || line.Unit != unit {
+				if line.TaxType != invoice.Exempt || line.Unit != unit {
 					t.Errorf("stored invoice line %d terms=%q/%q", i, line.TaxType, line.Unit)
 				}
 			}
@@ -153,21 +155,21 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			}
 			found := false
 			for _, d := range documents {
-				if d.Kind != DocumentAllowance {
+				if d.Kind != invoice.DocumentAllowance {
 					continue
 				}
 				found = true
-				if len(d.Lines) != 1 || d.Lines[0].TaxType != Exempt || d.Lines[0].Unit != DefaultUnit {
+				if len(d.Lines) != 1 || d.Lines[0].TaxType != invoice.Exempt || d.Lines[0].Unit != invoice.DefaultUnit {
 					t.Fatalf("stored allowance terms=%+v", d.Lines)
 				}
-				if lostAllowance && d.Status != DocumentVoided {
+				if lostAllowance && d.Status != invoice.DocumentVoided {
 					t.Errorf("invalid allowance status=%q", d.Status)
 				}
 			}
 			if !found {
 				t.Fatal("settlement did not record the allowance")
 			}
-			if !lostAllowance && allowance.Lines[0].TaxType != Exempt {
+			if !lostAllowance && allowance.Lines[0].TaxType != invoice.Exempt {
 				t.Error("settlement returned a taxable allowance")
 			}
 			if lostAllowance {
@@ -190,7 +192,7 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			if err != nil {
 				t.Fatalf("settle replacement exempt allowance=%v", err)
 			}
-			if replaced.AmountCents != 10000 || len(replaced.Lines) != 1 || replaced.Lines[0].TaxType != Exempt || replaced.Lines[0].Unit != DefaultUnit {
+			if replaced.AmountCents != 10000 || len(replaced.Lines) != 1 || replaced.Lines[0].TaxType != invoice.Exempt || replaced.Lines[0].Unit != invoice.DefaultUnit {
 				t.Fatalf("refrozen replacement=%+v", replaced)
 			}
 			documents, err = store.Documents(ctx, number)
@@ -199,15 +201,15 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			}
 			var voided, active int
 			for _, d := range documents {
-				if d.Kind != DocumentAllowance {
+				if d.Kind != invoice.DocumentAllowance {
 					continue
 				}
-				if d.Status == DocumentVoided {
+				if d.Status == invoice.DocumentVoided {
 					voided++
 				} else {
 					active++
 				}
-				if d.Lines[0].TaxType != Exempt || d.Lines[0].Unit != DefaultUnit {
+				if d.Lines[0].TaxType != invoice.Exempt || d.Lines[0].Unit != invoice.DefaultUnit {
 					t.Fatalf("invalidation lost local terms: %+v", d.Lines)
 				}
 			}
@@ -235,7 +237,7 @@ func invoiceAdminPool(t *testing.T) *pgxpool.Pool {
 }
 
 func TestCanonicalInvoiceDeliveryAndRoundingFollowTheExemptOrder(t *testing.T) {
-	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10050, 8050, 0, PreferenceMember, "王小明", "", LineTerms{TaxType: Exempt, Unit: "包"})
+	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10050, 8050, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "包"})
 	rows, err := pool.Query(t.Context(), `SELECT description,tax_type,unit FROM canonical_invoice_lines((SELECT id FROM orders WHERE order_number=$1)) ORDER BY line_position`, number)
 	if err != nil {
 		t.Fatal(err)
@@ -266,7 +268,7 @@ func TestCanonicalInvoiceDeliveryAndRoundingFollowTheExemptOrder(t *testing.T) {
 
 func TestInvalidationRefreezesTheLocalExemptAllowance(t *testing.T) {
 	ctx := t.Context()
-	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, PreferenceMember, "王小明", "", LineTerms{TaxType: Exempt, Unit: "包"})
+	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "包"})
 	addCardRefund(t, number, 7000)
 	var original, known uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -320,7 +322,7 @@ func TestAllowanceSettlementKeepsItsFrozenTaxTypeAndUnit(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filingTestContext(t, t.Context())
-			number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, PreferenceMember, "王小明", "", LineTerms{TaxType: Exempt, Unit: "包"})
+			number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "包"})
 			addCardRefund(t, number, 5000)
 			if _, err := pool.Exec(ctx, `
                 WITH document AS (

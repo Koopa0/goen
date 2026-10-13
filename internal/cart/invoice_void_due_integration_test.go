@@ -13,14 +13,14 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
 // creditPaidOrder is an order store credit paid in full, whose 統一發票 the
 // system has claimed on invoices and not yet sent.
-func creditPaidOrder(t *testing.T, invoices *invoice.Store, slug string) string {
+func creditPaidOrder(t *testing.T, invoices *issuer.Store, slug string) string {
 	t.Helper()
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -35,7 +35,7 @@ func creditPaidOrder(t *testing.T, invoices *invoice.Store, slug string) string 
 		t.Fatalf("add: %v", err)
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
-		&order.Delivery{
+		&delivery.Details{
 			Email: "void-due@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		}, "", slug+"-"+uuid.NewString()[:8])
@@ -52,14 +52,14 @@ func creditPaidOrder(t *testing.T, invoices *invoice.Store, slug string) string 
 	return number
 }
 
-func fakeECPay(t *testing.T, issuedAt time.Time) (*invoice.FakeECPay, *invoice.Store) {
+func fakeECPay(t *testing.T, issuedAt time.Time) (*issuer.FakeECPay, *issuer.Store) {
 	t.Helper()
-	fake, err := invoice.NewFakeECPay(issuedAt)
+	fake, err := issuer.NewFakeECPay(issuedAt)
 	if err != nil {
 		t.Fatalf("fake ECPay: %v", err)
 	}
 	t.Cleanup(fake.Close)
-	return fake, invoice.NewStore(adminRole(t), fake.Gateway())
+	return fake, issuer.NewStore(adminRole(t), fake.Gateway())
 }
 
 func invoiceOperation(t *testing.T, number, kind string) uuid.UUID {
@@ -143,7 +143,7 @@ func TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor(t *testing.T) {
 			}
 
 			if inFlight {
-				if err := invoices.ClaimVoidDue(ctx, &due); !errors.Is(err, invoice.ErrPending) {
+				if err := invoices.ClaimVoidDue(ctx, &due); !errors.Is(err, issuer.ErrPending) {
 					t.Fatalf("void due with the issue in flight = %v, want it to wait", err)
 				}
 				if err := invoices.ProcessOperation(ctx, issue); err != nil {
@@ -188,11 +188,11 @@ func TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor(t *testing.T) {
 // claim would wait for ever; nothing is sent because nothing can be.
 func TestACustomersCancelWithdrawsAnIssueNoProviderWillSend(t *testing.T) {
 	ctx := t.Context()
-	gateway, err := invoice.NewGateway("", "", "", "")
+	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	invoices := invoice.NewStore(adminRole(t), gateway)
+	invoices := issuer.NewStore(adminRole(t), gateway)
 	number := creditPaidOrder(t, invoices, "void-due-off")
 	issue := invoiceOperation(t, number, "issue")
 
@@ -226,11 +226,11 @@ func TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
 	}
 	due := cancelAsCustomer(t, number)
 
-	gateway, err := invoice.NewGateway("", "", "", "")
+	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	if err := invoice.NewStore(adminRole(t), gateway).ClaimVoidDue(ctx, &due); err != nil {
+	if err := issuer.NewStore(adminRole(t), gateway).ClaimVoidDue(ctx, &due); err != nil {
 		t.Fatalf("void due with no provider: %v", err)
 	}
 	var voids int

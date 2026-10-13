@@ -34,7 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -102,7 +102,7 @@ type StorefrontConfig struct {
 	SecureCookies bool
 	// Invoices checks mobile barcodes at checkout, or is disabled and the
 	// checkout accepts none.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
@@ -131,7 +131,7 @@ type BackOfficeConfig struct {
 	// enrolment.
 	TOTPKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	StoreMap *cart.StoreMap
 }
 
@@ -401,9 +401,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	// invoice store exists either way.
 	invoiceGateway := cfg.Invoices
 	if invoiceGateway == nil {
-		invoiceGateway = &invoice.Gateway{}
+		invoiceGateway = &issuer.Gateway{}
 	}
-	invoices := invoice.NewStore(adminPool, invoiceGateway)
+	invoices := issuer.NewStore(adminPool, invoiceGateway)
 	var invoiceWriter invoicing.Writer
 	if invoices.Enabled() {
 		invoiceWriter = invoices

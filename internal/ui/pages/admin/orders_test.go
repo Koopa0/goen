@@ -60,7 +60,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 // writes: the chain is the destination, and the store behind it is filled in
 // by the carrier's picker. An order placed before one exists carries the chain
 // alone, so the correction form must let a staff member save it that way —
-// order.Delivery.Validate refuses one of the two and accepts neither.
+// delivery.Details.Validate refuses one of the two and accepts neither.
 func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	t.Parallel()
 	body := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
