@@ -176,8 +176,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
 	customers.OfferDemoAccount(front.DemoAccount)
+	// One store decides whether this deployment has a second factor at all, so
+	// /admin and the storefront's account doors cannot disagree about it.
+	factorStore := twofactor.NewStore(adminPool, cfg.BackOffice.TOTPKey, cfg.BackOffice.TOTPPreviousKey)
+	customers.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
 	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, orderAccess, findLimit)
-	backOfficeRoutes(mux, &cfg.BackOffice, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
+	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
@@ -390,12 +394,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
 // pool reaches it only as statistics on the health page.
-func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logger, healthPools []health.NamedPool) {
+func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *twofactor.Store, log *slog.Logger, healthPools []health.NamedPool) {
 	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
-	// The second factor runs on the ADMIN pool. On the storefront pool `store`
+	// factorStore (built in newRouter) runs the second factor on the ADMIN pool.
+	// On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
 	// reachable from a product page escalates to admin.
-	factorStore := twofactor.NewStore(adminPool, cfg.TOTPKey, cfg.TOTPPreviousKey)
 	factors := twofactor.NewHandler(factorStore, log)
 	var stepUp func(*http.Request) (bool, error)
 	if factorStore.Enabled() {
@@ -463,6 +467,19 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
 	mux.HandleFunc("POST /admin/verify/confirm", backOffice.StaffOnly(factors.Confirm))
+}
+
+// storefrontStepUp is the back office's own question, "did this session pass
+// the second factor?", asked for the storefront's account doors: the same
+// twofactor.Handler.StepUp, so the two cannot drift. It reads over the store
+// pool, which holds SELECT on sessions and never sees the TOTP key or a
+// credential row, so the storefront still cannot reach the admin pool. It is
+// nil when factors reports no key, which is /admin's own "second factor off".
+func storefrontStepUp(factors *twofactor.Store, storePool *pgxpool.Pool, log *slog.Logger) func(*http.Request) (bool, error) {
+	if !factors.Enabled() {
+		return nil
+	}
+	return twofactor.NewHandler(twofactor.NewStore(storePool, nil, nil), log).StepUp
 }
 
 // sessionCloser hands the gateway to the cancel doors, or nothing at all.
