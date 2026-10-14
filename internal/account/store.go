@@ -746,17 +746,19 @@ func (s *Store) SweepSessions(ctx context.Context) error {
 	return nil
 }
 
+// SweepSessionsForever runs once at startup, so a host redeployed more often
+// than the interval still clears expired sessions and dead reset tokens.
 func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SessionSweepInterval)
 	defer ticker.Stop()
 	for {
+		if err := s.SweepSessions(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep expired sessions", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.SweepSessions(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep expired sessions", "error", err)
-			}
 		}
 	}
 }

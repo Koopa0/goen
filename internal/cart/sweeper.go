@@ -166,17 +166,19 @@ func (s *Store) SweepAttempts(ctx context.Context) error {
 	return nil
 }
 
+// SweepAttemptsForever runs once at startup, so a host redeployed more often
+// than the interval still clears old attempts.
 func (s *Store) SweepAttemptsForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(AttemptSweepInterval)
 	defer t.Stop()
 	for {
+		if err := s.SweepAttempts(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep old checkout attempts", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.SweepAttempts(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep old checkout attempts", "error", err)
-			}
 		}
 	}
 }
