@@ -31,9 +31,22 @@ ACTIONLINT := go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VER
 # Local development reads .env when it exists; deployment sets the environment
 # itself. Nothing here invents a default database URL: a missing one must stop
 # the binary rather than silently reach some other database.
+#
+# A value the caller gave wins over .env, in this order: the make command line
+# (make GOEN_DATABASE_URL=...), then the environment, then .env. `include .env`
+# would reverse the last two, so GOEN_DATABASE_URL=<other> make db-reset would
+# act on the database in .env while the command line named another. A name is
+# taken from .env only while it is undefined, so even an empty value the caller
+# set is kept, and stops the targets that require one.
+#
+# Only NAME=VALUE lines are read, one value per name (the last line wins), the
+# value taken as written: `$` is literal, and `#` starts a comment as it does in
+# a Makefile. Each name read is exported to the recipes; nothing else is.
+# TestMakefileDotEnvNeverOverridesTheCaller runs all four cases.
 ifneq (,$(wildcard .env))
-include .env
-export
+dotenv_names := $(sort $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)[[:space:]]*=.*/\1/p' .env))
+dotenv_value = $(subst $$,$$$$,$(shell sed -n 's/^$(1)[[:space:]]*=[[:space:]]*//p' .env | tail -n 1))
+$(foreach name,$(dotenv_names),$(if $(filter undefined,$(origin $(name))),$(eval $(name) := $(call dotenv_value,$(name)))$(eval export $(name))))
 endif
 
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
