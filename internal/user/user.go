@@ -44,7 +44,7 @@ type sessionKey struct{}
 
 // WithSession returns a context carrying the session the request arrived on,
 // named by its digest: the SHA-256 of the cookie token, which is what
-// sessions.token_hash stores. Only the authentication middleware sets it,
+// sessions.digest stores. Only the authentication middleware sets it,
 // after the session has been read, so a holder of the context never parses a
 // cookie.
 func WithSession(ctx context.Context, digest []byte) context.Context {

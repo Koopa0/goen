@@ -438,20 +438,20 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "staff_totp_secret_present",
-		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, ''::bytea, NULL, NULL FROM users LIMIT 1;`,
-		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, ''::bytea, NULL, NULL, sha256('totp-secret-a'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, NULL, sha256('totp-secret-b'::bytea) FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "staff_totp_step_needs_confirmation",
-		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, 12345 FROM users LIMIT 1;`,
-		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, now(), 12345 FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, 12345, sha256('totp-step-a'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), 12345, NULL FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "sessions_totp_after_creation",
-		reject: `INSERT INTO sessions (token_hash, user_id, expires_at, created_at, totp_verified_at)
+		reject: `INSERT INTO sessions (digest, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-a'::bytea), id, now() + interval '1 day',
 		                now(), now() - interval '1 hour' FROM users LIMIT 1;`,
-		accept: `INSERT INTO sessions (token_hash, user_id, expires_at, created_at, totp_verified_at)
+		accept: `INSERT INTO sessions (digest, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-b'::bytea), id, now() + interval '1 day',
 		                now(), now() FROM users LIMIT 1;`,
 	},
@@ -731,6 +731,41 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "email_verifications_digest_sha256",
 		reject:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', '\xdead'::bytea, now() + interval '1 day');`,
 		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
+	},
+	{
+		constraint: "sessions_digest_sha256",
+		reject:     `INSERT INTO sessions (digest, user_id, expires_at) VALUES ('\xdead'::bytea, '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, expires_at) VALUES (sha256('session-digest'::bytea), '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+	},
+	{
+		constraint: "password_reset_tokens_digest_sha256",
+		reject:     `INSERT INTO password_reset_tokens (digest, user_id, expires_at) VALUES ('\xdead'::bytea, '55555555-5555-4555-8555-555555555555', now() + interval '1 hour');`,
+		accept:     `INSERT INTO password_reset_tokens (digest, user_id, expires_at) VALUES (sha256('reset-digest'::bytea), '55555555-5555-4555-8555-555555555555', now() + interval '1 hour');`,
+	},
+	{
+		constraint: "carts_digest_sha256",
+		reject:     `INSERT INTO carts (id, digest) VALUES ('11115008-0000-4000-8000-000000000001', '\xdead'::bytea);`,
+		accept:     `INSERT INTO carts (id, digest) VALUES ('11115008-0000-4000-8000-000000000001', sha256('cart-digest'::bytea));`,
+	},
+	{
+		constraint: "staff_totp_credentials_mailed_code_digest_sha256",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest) SELECT id, '\x0102'::bytea, '\xdead'::bytea FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest) SELECT id, '\x0102'::bytea, sha256('mailed-code'::bytea) FROM users LIMIT 1;`,
+	},
+	{
+		// An unconfirmed credential holds the mailed code that will confirm it,
+		// and confirming spends the code: a confirmed credential still holding
+		// one would leave a code that has already done its work.
+		constraint: "staff_totp_credentials_mailed_code_shape",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), sha256('mailed-code-unspent'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), NULL FROM users LIMIT 1;`,
+	},
+	{
+		// The other direction: an unconfirmed credential with no code to
+		// confirm it with can never be confirmed.
+		constraint: "staff_totp_credentials_mailed_code_shape",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, sha256('mailed-code-pending'::bytea) FROM users LIMIT 1;`,
 	},
 	{
 		// What an interval subtracted instead of added looks like.
@@ -1075,8 +1110,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "password_reset_tokens_expiry_after_creation",
-		reject:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
-		accept:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+		reject:     `INSERT INTO password_reset_tokens (digest, user_id, created_at, expires_at) VALUES (sha256('reset-expiry-a'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
+		accept:     `INSERT INTO password_reset_tokens (digest, user_id, created_at, expires_at) VALUES (sha256('reset-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
 		constraint: "payment_webhook_events_event_id_valid",
@@ -1115,13 +1150,13 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "carts_checkout_draft_paired",
-		reject:     `INSERT INTO carts (id, token_hash, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', '\x0601', '{}'::jsonb);`,
-		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', '\x0602', '{}'::jsonb, now());`,
+		reject:     `INSERT INTO carts (id, digest, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', sha256('cart-draft-paired-a'::bytea), '{}'::jsonb);`,
+		accept:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', sha256('cart-draft-paired-b'::bytea), '{}'::jsonb, now());`,
 	},
 	{
 		constraint: "carts_checkout_draft_bounded",
-		reject:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0701', jsonb_build_object('note', repeat('x', 9000)), now());`,
-		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0702', jsonb_build_object('note', repeat('x', 100)), now());`,
+		reject:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', sha256('cart-draft-bounded-a'::bytea), jsonb_build_object('note', repeat('x', 9000)), now());`,
+		accept:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', sha256('cart-draft-bounded-b'::bytea), jsonb_build_object('note', repeat('x', 100)), now());`,
 	},
 	{
 		constraint: "payments_currency_is_twd",
@@ -1782,18 +1817,18 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "sessions_expiry_after_creation",
-		reject:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+		reject:     `INSERT INTO sessions (digest, user_id, created_at, expires_at) VALUES (sha256('session-expiry-a'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
+		accept:     `INSERT INTO sessions (digest, user_id, created_at, expires_at) VALUES (sha256('session-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
 		constraint: "sessions_user_agent_bounded",
-		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,
+		reject:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-a'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-b'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,
 	},
 	{
 		constraint: "sessions_user_agent_no_controls",
-		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', E'browser\nforged', now() + interval '1 day');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', 'browser/1', now() + interval '1 day');`,
+		reject:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-controls-a'::bytea), '55555555-5555-4555-8555-555555555555', E'browser\nforged', now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-controls-b'::bytea), '55555555-5555-4555-8555-555555555555', 'browser/1', now() + interval '1 day');`,
 	},
 	{
 		constraint: "membership_tiers_code_format",
@@ -2272,19 +2307,19 @@ var uniqueCases = []uniqueCase{
 		accept: `INSERT INTO store_credit_accounts (id, user_id) VALUES ('11115002-0000-4000-8000-000000000001', '5555aaaa-5555-4555-8555-555555555555');`,
 	},
 	{
-		index:  "carts_token_hash_key",
-		reject: `INSERT INTO carts (id, token_hash) VALUES ('11115003-0000-4000-8000-000000000001', '\x0102');`,
-		accept: `INSERT INTO carts (id, token_hash) VALUES ('11115003-0000-4000-8000-000000000001', '\x9999');`,
+		index:  "carts_digest_key",
+		reject: `INSERT INTO carts (id, digest) VALUES ('11115003-0000-4000-8000-000000000001', sha256('fixture-cart'::bytea));`,
+		accept: `INSERT INTO carts (id, digest) VALUES ('11115003-0000-4000-8000-000000000001', sha256('other-cart'::bytea));`,
 	},
 	{
 		index: "carts_one_per_user",
-		reject: `INSERT INTO carts (id, user_id, token_hash) VALUES
-		 ('11115004-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555','\x0401'),
-		 ('11115005-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555','\x0402');`,
+		reject: `INSERT INTO carts (id, user_id, digest) VALUES
+		 ('11115004-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555',sha256('cart-per-user-a'::bytea)),
+		 ('11115005-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555',sha256('cart-per-user-b'::bytea));`,
 		// Partial on user_id IS NOT NULL, so two guest carts are admitted.
-		accept: `INSERT INTO carts (id, user_id, token_hash) VALUES
-		 ('11115004-0000-4000-8000-000000000001', NULL, '\x0501'),
-		 ('11115005-0000-4000-8000-000000000001', NULL, '\x0502');`,
+		accept: `INSERT INTO carts (id, user_id, digest) VALUES
+		 ('11115004-0000-4000-8000-000000000001', NULL, sha256('cart-guest-a'::bytea)),
+		 ('11115005-0000-4000-8000-000000000001', NULL, sha256('cart-guest-b'::bytea));`,
 	},
 	{
 		index:  "addresses_one_default_per_user",

@@ -187,8 +187,8 @@ INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES
 INSERT INTO sale_campaigns (id, slug, title, ends_at) VALUES
     ('aaaa1111-0000-4000-8000-000000000000', 'summer', '夏季開學祭', now() + interval '7 days');
 
-INSERT INTO carts (id, token_hash) VALUES
-    ('bbbb1111-0000-4000-8000-000000000000', '\x0102');
+INSERT INTO carts (id, digest) VALUES
+    ('bbbb1111-0000-4000-8000-000000000000', sha256('fixture-cart'::bytea));
 
 INSERT INTO faq_entries (id, category, question, answer, position) VALUES
     ('cccc1111-0000-4000-8000-000000000000', '運送', '多久到貨?', '兩個工作天。', 0);

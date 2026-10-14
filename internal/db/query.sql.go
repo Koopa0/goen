@@ -3335,11 +3335,11 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 }
 
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
-INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_hash)
+INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest)
 VALUES ($1, $2, $3)
 ON CONFLICT (user_id) DO UPDATE
 SET secret_encrypted = excluded.secret_encrypted,
-    mailed_code_hash = excluded.mailed_code_hash,
+    mailed_code_digest = excluded.mailed_code_digest,
     confirmed_at = NULL,
     last_step = NULL,
     created_at = now()
@@ -3347,16 +3347,16 @@ WHERE staff_totp_credentials.confirmed_at IS NULL
 `
 
 type BeginTOTPEnrolmentParams struct {
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	MailedCodeHash  []byte
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	MailedCodeDigest []byte
 }
 
 // Start or restart enrolment, but never replace a factor that has been proved.
 // The WHERE clause is the guard, in the statement because a read-then-write is
 // a race two concurrent enrolments both win.
 func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeHash)
+	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeDigest)
 	if err != nil {
 		return 0, err
 	}
@@ -4084,7 +4084,7 @@ func (q *Queries) CarryZoneSurcharges(ctx context.Context, arg CarryZoneSurcharg
 }
 
 const cartByToken = `-- name: CartByToken :one
-SELECT id, user_id FROM carts WHERE token_hash = $1
+SELECT id, user_id FROM carts WHERE digest = $1
 `
 
 type CartByTokenRow struct {
@@ -4092,8 +4092,8 @@ type CartByTokenRow struct {
 	UserID uuid.NullUUID
 }
 
-func (q *Queries) CartByToken(ctx context.Context, tokenHash []byte) (CartByTokenRow, error) {
-	row := q.db.QueryRow(ctx, cartByToken, tokenHash)
+func (q *Queries) CartByToken(ctx context.Context, digest []byte) (CartByTokenRow, error) {
+	row := q.db.QueryRow(ctx, cartByToken, digest)
 	var i CartByTokenRow
 	err := row.Scan(&i.ID, &i.UserID)
 	return i, err
@@ -5804,20 +5804,20 @@ func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) 
 
 const confirmTOTP = `-- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
-SET confirmed_at = now(), last_step = $1::bigint, mailed_code_hash = NULL
+SET confirmed_at = now(), last_step = $1::bigint, mailed_code_digest = NULL
 WHERE user_id = $2
   AND secret_encrypted = $3
-  AND mailed_code_hash = $4
+  AND mailed_code_digest = $4
   AND created_at > now() - $5::interval
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type ConfirmTOTPParams struct {
-	Step            int64
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	MailedCodeHash  []byte
-	MailedCodeTtl   pgtype.Interval
+	Step             int64
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	MailedCodeDigest []byte
+	MailedCodeTtl    pgtype.Interval
 }
 
 // Confirm enrolment and record the step in ONE statement: two would leave a
@@ -5830,7 +5830,7 @@ func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64
 		arg.Step,
 		arg.UserID,
 		arg.SecretEncrypted,
-		arg.MailedCodeHash,
+		arg.MailedCodeDigest,
 		arg.MailedCodeTtl,
 	)
 	if err != nil {
@@ -6013,16 +6013,16 @@ func (q *Queries) CreateCampaign(ctx context.Context, arg CreateCampaignParams) 
 }
 
 const createCart = `-- name: CreateCart :one
-INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id
+INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id
 `
 
 type CreateCartParams struct {
-	TokenHash []byte
-	UserID    uuid.NullUUID
+	Digest []byte
+	UserID uuid.NullUUID
 }
 
 func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, createCart, arg.TokenHash, arg.UserID)
+	row := q.db.QueryRow(ctx, createCart, arg.Digest, arg.UserID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -6452,19 +6452,19 @@ func (q *Queries) CreateOrderPrivateData(ctx context.Context, arg CreateOrderPri
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :exec
-INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 VALUES ($1, $2, now() + $3::interval)
 `
 
 type CreatePasswordResetTokenParams struct {
-	TokenHash []byte
-	UserID    uuid.UUID
-	Ttl       pgtype.Interval
+	Digest []byte
+	UserID uuid.UUID
+	Ttl    pgtype.Interval
 }
 
 // The expiry is computed from the DATABASE's clock, which is what reads it back.
 func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) error {
-	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.TokenHash, arg.UserID, arg.Ttl)
+	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.Digest, arg.UserID, arg.Ttl)
 	return err
 }
 
@@ -6587,12 +6587,12 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int
 }
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
+INSERT INTO sessions (digest, user_id, user_agent, ip, expires_at)
 VALUES ($1, $2, $3, $4, now() + $5::interval)
 `
 
 type CreateSessionParams struct {
-	TokenHash []byte
+	Digest    []byte
 	UserID    uuid.UUID
 	UserAgent pgtype.Text
 	IP        *netip.Addr
@@ -6603,7 +6603,7 @@ type CreateSessionParams struct {
 // and retention sweep compares it with.
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
 	_, err := q.db.Exec(ctx, createSession,
-		arg.TokenHash,
+		arg.Digest,
 		arg.UserID,
 		arg.UserAgent,
 		arg.IP,
@@ -7351,16 +7351,16 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 
 const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
 DELETE FROM sessions
-WHERE user_id = $1 AND token_hash <> $2::bytea
+WHERE user_id = $1 AND digest <> $2::bytea
 `
 
 type DeleteOtherUserSessionsParams struct {
-	UserID           uuid.UUID
-	CurrentTokenHash []byte
+	UserID        uuid.UUID
+	CurrentDigest []byte
 }
 
 func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
-	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentTokenHash)
+	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentDigest)
 	return err
 }
 
@@ -7396,11 +7396,11 @@ func (q *Queries) DeletePasswordResetMessagesForEmail(ctx context.Context, email
 }
 
 const deleteSession = `-- name: DeleteSession :exec
-DELETE FROM sessions WHERE token_hash = $1
+DELETE FROM sessions WHERE digest = $1
 `
 
-func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
-	_, err := q.db.Exec(ctx, deleteSession, tokenHash)
+func (q *Queries) DeleteSession(ctx context.Context, digest []byte) error {
+	_, err := q.db.Exec(ctx, deleteSession, digest)
 	return err
 }
 
@@ -10318,11 +10318,11 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, arg MarkOutboxDeliver
 }
 
 const markSessionVerified = `-- name: MarkSessionVerified :exec
-UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
+UPDATE sessions SET totp_verified_at = now() WHERE digest = $1
 `
 
-func (q *Queries) MarkSessionVerified(ctx context.Context, tokenHash []byte) error {
-	_, err := q.db.Exec(ctx, markSessionVerified, tokenHash)
+func (q *Queries) MarkSessionVerified(ctx context.Context, digest []byte) error {
+	_, err := q.db.Exec(ctx, markSessionVerified, digest)
 	return err
 }
 
@@ -12349,11 +12349,11 @@ func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
 
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 `
 
-func (q *Queries) PasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, passwordResetToken, tokenHash)
+func (q *Queries) PasswordResetToken(ctx context.Context, digest []byte) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, passwordResetToken, digest)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err
@@ -14804,7 +14804,7 @@ WITH removed AS (
     DELETE FROM sessions AS session
     USING removed r
     WHERE session.user_id = r.user_id
-    RETURNING session.token_hash
+    RETURNING session.digest
 )
 SELECT EXISTS (SELECT 1 FROM removed)::boolean AS removed
 FROM (SELECT count(*) FROM ended) AS ended_once
@@ -16350,18 +16350,18 @@ func (q *Queries) SearchProductsCount(ctx context.Context, patterns []string) (i
 const sessionCreatedSince = `-- name: SessionCreatedSince :one
 SELECT s.created_at > now() - $1::interval AS recent
 FROM sessions s
-WHERE s.token_hash = $2 AND s.expires_at > now()
+WHERE s.digest = $2 AND s.expires_at > now()
 `
 
 type SessionCreatedSinceParams struct {
-	MaxAge    pgtype.Interval
-	TokenHash []byte
+	MaxAge pgtype.Interval
+	Digest []byte
 }
 
 // Recency is measured on the database's clock, the one that stamped created_at
 // and that the expiry check above reads. A missing or expired session is not recent.
 func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSinceParams) (bool, error) {
-	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.TokenHash)
+	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.Digest)
 	var recent bool
 	err := row.Scan(&recent)
 	return recent, err
@@ -16370,16 +16370,16 @@ func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSin
 const sessionTOTPVerified = `-- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - $2::interval)::boolean AS verified
-FROM sessions s WHERE s.token_hash = $1
+FROM sessions s WHERE s.digest = $1
 `
 
 type SessionTOTPVerifiedParams struct {
-	TokenHash []byte
-	MaxAge    pgtype.Interval
+	Digest []byte
+	MaxAge pgtype.Interval
 }
 
 func (q *Queries) SessionTOTPVerified(ctx context.Context, arg SessionTOTPVerifiedParams) (bool, error) {
-	row := q.db.QueryRow(ctx, sessionTOTPVerified, arg.TokenHash, arg.MaxAge)
+	row := q.db.QueryRow(ctx, sessionTOTPVerified, arg.Digest, arg.MaxAge)
 	var verified bool
 	err := row.Scan(&verified)
 	return verified, err
@@ -16389,7 +16389,7 @@ const sessionUser = `-- name: SessionUser :one
 SELECT u.id, u.email, u.full_name, u.role
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now()
+WHERE s.digest = $1 AND s.expires_at > now()
 `
 
 type SessionUserRow struct {
@@ -16400,8 +16400,8 @@ type SessionUserRow struct {
 }
 
 // The expiry is checked here, so an expired session is dead before anything sweeps it.
-func (q *Queries) SessionUser(ctx context.Context, tokenHash []byte) (SessionUserRow, error) {
-	row := q.db.QueryRow(ctx, sessionUser, tokenHash)
+func (q *Queries) SessionUser(ctx context.Context, digest []byte) (SessionUserRow, error) {
+	row := q.db.QueryRow(ctx, sessionUser, digest)
 	var i SessionUserRow
 	err := row.Scan(
 		&i.ID,
@@ -17549,14 +17549,14 @@ func (q *Queries) SpendNewsletterConfirmation(ctx context.Context, digest []byte
 
 const spendPasswordResetToken = `-- name: SpendPasswordResetToken :one
 UPDATE password_reset_tokens SET used_at = now()
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id
 `
 
 // used_at IS NULL is in the WHERE, so two requests carrying one token cannot both
 // win, and the caller runs this in the SAME transaction as the password change.
-func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, spendPasswordResetToken, tokenHash)
+func (q *Queries) SpendPasswordResetToken(ctx context.Context, digest []byte) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, spendPasswordResetToken, digest)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err

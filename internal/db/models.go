@@ -58,7 +58,7 @@ type CampaignDeal struct {
 type Cart struct {
 	ID              uuid.UUID
 	UserID          uuid.NullUUID
-	TokenHash       []byte
+	Digest          []byte
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	CheckoutDraft   []byte
@@ -486,7 +486,7 @@ type OutboxMessage struct {
 }
 
 type PasswordResetToken struct {
-	TokenHash []byte
+	Digest    []byte
 	UserID    uuid.UUID
 	CreatedAt time.Time
 	ExpiresAt time.Time
@@ -759,7 +759,7 @@ type SaleCampaignProduct struct {
 }
 
 type Session struct {
-	TokenHash      []byte
+	Digest         []byte
 	UserID         uuid.UUID
 	UserAgent      pgtype.Text
 	IP             *netip.Addr
@@ -824,12 +824,12 @@ type SoldOrder struct {
 }
 
 type StaffTotpCredential struct {
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	ConfirmedAt     pgtype.Timestamptz
-	LastStep        pgtype.Int8
-	MailedCodeHash  []byte
-	CreatedAt       time.Time
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	ConfirmedAt      pgtype.Timestamptz
+	LastStep         pgtype.Int8
+	MailedCodeDigest []byte
+	CreatedAt        time.Time
 }
 
 type StockNotification struct {

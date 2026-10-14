@@ -201,7 +201,7 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 		addr = &parsed
 	}
 	if err := s.q.CreateSession(ctx, db.CreateSessionParams{
-		TokenHash: bearer.Digest(token),
+		Digest:    bearer.Digest(token),
 		UserID:    id,
 		UserAgent: text(normaliseUserAgent(userAgent)),
 		IP:        addr,
@@ -234,8 +234,8 @@ func (s *Store) SignedInRecently(ctx context.Context, token string, window time.
 		return false, nil
 	}
 	recent, err := s.q.SessionCreatedSince(ctx, db.SessionCreatedSinceParams{
-		TokenHash: bearer.Digest(token),
-		MaxAge:    pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
+		Digest: bearer.Digest(token),
+		MaxAge: pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
@@ -262,7 +262,7 @@ func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken strin
 		return err
 	}
 	return s.q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
-		UserID: id, CurrentTokenHash: bearer.Digest(currentToken),
+		UserID: id, CurrentDigest: bearer.Digest(currentToken),
 	})
 }
 

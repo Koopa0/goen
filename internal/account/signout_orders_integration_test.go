@@ -314,7 +314,7 @@ func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE sessions SET created_at = now() - interval '15 days',
 		                    expires_at = now() - interval '1 second'
-		WHERE token_hash = $1`, bearer.Digest(session.Value)); err != nil {
+		WHERE digest = $1`, bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("expire the session: %v", err)
 	}
 
@@ -336,7 +336,7 @@ func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	p := newPlacedOrders(t, "erase-stale")
 	session := p.signIn()
 	if _, err := pool.Exec(t.Context(), `
-		UPDATE sessions SET created_at = now() - interval '1 day' WHERE token_hash = $1`,
+		UPDATE sessions SET created_at = now() - interval '1 day' WHERE digest = $1`,
 		bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("age the session: %v", err)
 	}

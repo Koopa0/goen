@@ -17,8 +17,8 @@ func guestCartAt(t *testing.T, ageDays, updatedDays int, userID *uuid.UUID) uuid
 	t.Helper()
 	var id uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		INSERT INTO carts (token_hash, user_id, created_at, updated_at)
-		VALUES (uuid_send(gen_random_uuid()), $1,
+		INSERT INTO carts (digest, user_id, created_at, updated_at)
+		VALUES (sha256(uuid_send(gen_random_uuid())), $1,
 		        now() - make_interval(days => $2), now() - make_interval(days => $3))
 		RETURNING id`, userID, ageDays, updatedDays).Scan(&id); err != nil {
 		t.Fatalf("insert cart: %v", err)
@@ -111,8 +111,8 @@ func TestTheGuestCartSweepDrainsMoreThanOneBatch(t *testing.T) {
 	const marker = "sweep-batch"
 	count := 2*cart.GuestCartSweepBatch + 1
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO carts (token_hash, created_at, updated_at, checkout_draft, checkout_draft_at)
-		SELECT uuid_send(gen_random_uuid()), now() - interval '90 days', now() - interval '90 days',
+		INSERT INTO carts (digest, created_at, updated_at, checkout_draft, checkout_draft_at)
+		SELECT sha256(uuid_send(gen_random_uuid())), now() - interval '90 days', now() - interval '90 days',
 		       jsonb_build_object('marker', $2::text), now() - interval '90 days'
 		FROM generate_series(1, $1)`, count, marker); err != nil {
 		t.Fatalf("insert idle carts: %v", err)

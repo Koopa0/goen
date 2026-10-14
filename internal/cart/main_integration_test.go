@@ -619,7 +619,7 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	}
 	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
 	if _, holdErr := blocker.Exec(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2)`,
 		bearer.Digest("blocker-"+userID.String()), userID); holdErr != nil {
 		t.Fatalf("hold uncommitted owned cart: %v", holdErr)
 	}
@@ -751,8 +751,8 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 
 	var stored []byte
 	if err := pool.QueryRow(t.Context(),
-		`SELECT token_hash FROM carts WHERE id = $1`, id).Scan(&stored); err != nil {
-		t.Fatalf("read token_hash: %v", err)
+		`SELECT digest FROM carts WHERE id = $1`, id).Scan(&stored); err != nil {
+		t.Fatalf("read digest: %v", err)
 	}
 	if string(stored) == tok {
 		t.Error("the cart table stores the raw token; a leak would hand over live cart cookies")

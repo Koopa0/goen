@@ -140,7 +140,7 @@ func plantLiveResetToken(t *testing.T, userID string) string {
 	t.Helper()
 	token := bearer.New()
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 		VALUES ($1, $2, now() + interval '1 hour')`,
 		bearer.Digest(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("plant live reset token: %v", err)
@@ -352,7 +352,7 @@ func TestSessionsAreStoredHashed(t *testing.T) {
 
 	var n int
 	if countErr := pool.QueryRow(t.Context(),
-		`SELECT count(*) FROM sessions WHERE token_hash = $1`, []byte(token)).Scan(&n); countErr != nil {
+		`SELECT count(*) FROM sessions WHERE digest = $1`, []byte(token)).Scan(&n); countErr != nil {
 		t.Fatalf("count: %v", countErr)
 	}
 	if n != 0 {
@@ -393,7 +393,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 
 			var stored *string
 			if err := pool.QueryRow(ctx,
-				`SELECT user_agent FROM sessions WHERE token_hash = $1`, bearer.Digest(token)).
+				`SELECT user_agent FROM sessions WHERE digest = $1`, bearer.Digest(token)).
 				Scan(&stored); err != nil {
 				t.Fatalf("read persisted user-agent: %v", err)
 			}
@@ -410,7 +410,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}
 	var stored string
 	if err := pool.QueryRow(ctx,
-		`SELECT user_agent FROM sessions WHERE token_hash = $1`, bearer.Digest(token)).
+		`SELECT user_agent FROM sessions WHERE digest = $1`, bearer.Digest(token)).
 		Scan(&stored); err != nil {
 		t.Fatalf("read exact-ceiling user-agent: %v", err)
 	}
@@ -435,11 +435,11 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 hour'
-		WHERE token_hash = $1`, bearer.Digest(token)); err != nil {
+		WHERE digest = $1`, bearer.Digest(token)); err != nil {
 		t.Fatalf("expire: %v", err)
 	}
 	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE token_hash = $1`,
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE digest = $1`,
 		bearer.Digest(token)).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -639,7 +639,7 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
@@ -651,7 +651,7 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -734,7 +734,7 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
@@ -746,7 +746,7 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -806,7 +806,7 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
@@ -818,7 +818,7 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -904,7 +904,7 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 				var accountCart uuid.UUID
 				if hasAccountCart {
 					if err := pool.QueryRow(ctx,
-						`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+						`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 						bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 						t.Fatalf("account cart: %v", err)
 					}
@@ -916,7 +916,7 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 				}
 				var guestCart uuid.UUID
 				if err := pool.QueryRow(ctx,
-					`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+					`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 					bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 					t.Fatalf("guest cart: %v", err)
 				}
@@ -990,20 +990,20 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 
 	guestToken := "guest-cart-" + u.ID
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2)`,
 		bearer.Digest("account-cart-"+u.ID), uid); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO cart_items (cart_id, variant_id, quantity)
-		 SELECT id, $2, 1 FROM carts WHERE token_hash = $1`,
+		 SELECT id, $2, 1 FROM carts WHERE digest = $1`,
 		bearer.Digest("account-cart-"+u.ID), a); err != nil {
 		t.Fatalf("account line: %v", err)
 	}
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -1095,7 +1095,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
@@ -1108,7 +1108,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	guestToken := "guest-cart-" + u.ID
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -1258,7 +1258,7 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("refuse-account-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
@@ -1271,7 +1271,7 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	guestToken := "refuse-guest-" + u.ID
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest(guestToken), otherUID).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
@@ -1362,7 +1362,7 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 			var ownCart uuid.UUID
 			if tt.hasACart {
 				if err := pool.QueryRow(ctx,
-					`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+					`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 					bearer.Digest("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
 					t.Fatalf("account cart: %v", err)
 				}
@@ -1374,7 +1374,7 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 			}
 			var theirCart uuid.UUID
 			if err := pool.QueryRow(ctx,
-				`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+				`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 				bearer.Digest("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
 				t.Fatalf("other account's cart: %v", err)
 			}
@@ -1462,7 +1462,7 @@ func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 		t.Helper()
 		var cartID uuid.UUID
 		if err := pool.QueryRow(ctx,
-			`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+			`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 			bearer.Digest(label+u.ID)).Scan(&cartID); err != nil {
 			t.Fatalf("create %s: %v", label, err)
 		}
@@ -1569,7 +1569,7 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 		t.Fatalf("variant: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("shared-guest-"+uuid.NewString())).Scan(&guestCart); err != nil {
 		t.Fatalf("create shared guest cart: %v", err)
 	}
@@ -1661,12 +1661,12 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 
 	var accountCart, guestCart uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("checkout-adopt-account-"+u.ID), userID).Scan(&accountCart); err != nil {
 		t.Fatalf("create account cart: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("checkout-adopt-guest-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("create guest cart: %v", err)
 	}
@@ -1758,7 +1758,7 @@ func TestSessionExpiryUsesTheDatabaseClockAndTTL(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT expires_at,
 		       expires_at = created_at + ($2 * interval '1 second')
-		FROM sessions WHERE token_hash = $1`,
+		FROM sessions WHERE digest = $1`,
 		bearer.Digest(token), account.SessionTTL).Scan(&expires, &exactTTL); err != nil {
 		t.Fatalf("read expiry: %v", err)
 	}
@@ -2393,7 +2393,7 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		t.Fatalf("checkout variant: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("erase-checkout-cart-"+u.ID), userID).Scan(&cartID); err != nil {
 		t.Fatalf("create erase-race cart: %v", err)
 	}
@@ -2728,7 +2728,7 @@ func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
 	if _, err := pool.Exec(ctx, fmt.Sprintf(`
 		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
 		BEGIN
-			IF OLD.token_hash = decode('%x', 'hex') THEN
+			IF OLD.digest = decode('%x', 'hex') THEN
 				PERFORM pg_advisory_xact_lock(%d);
 			END IF;
 			RETURN NEW;
@@ -2847,7 +2847,7 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 		`UPDATE password_reset_tokens
 		 SET created_at = now() - interval '2 hours',
 		     expires_at = now() - interval '1 second'
-		 WHERE token_hash = $1`, digest[:])
+		 WHERE digest = $1`, digest[:])
 	if err != nil {
 		t.Fatalf("age the token: %v", err)
 	}
@@ -3118,14 +3118,14 @@ func TestAResetTokenIsStoredHashed(t *testing.T) {
 	var stored []byte
 	digest := sha256.Sum256([]byte(token))
 	if err := pool.QueryRow(ctx,
-		`SELECT token_hash FROM password_reset_tokens WHERE token_hash = $1`,
+		`SELECT digest FROM password_reset_tokens WHERE digest = $1`,
 		digest[:]).Scan(&stored); err != nil {
 		t.Fatalf("the digest is not what is stored: %v", err)
 	}
 	var raw int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM password_reset_tokens
-		 WHERE encode(token_hash, 'escape') = $1`, token).Scan(&raw); err != nil {
+		 WHERE encode(digest, 'escape') = $1`, token).Scan(&raw); err != nil {
 		t.Fatalf("scan raw count: %v", err)
 	}
 	if raw != 0 {
@@ -3257,7 +3257,7 @@ func TestExpiredSessionsArePruned(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 second'
-		WHERE token_hash = sha256($1::bytea)`, dead)
+		WHERE digest = sha256($1::bytea)`, dead)
 	if err != nil {
 		t.Fatalf("age the session: %v", err)
 	}
@@ -3421,7 +3421,7 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 	plant := func(digest string, used bool, expires, created string) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO password_reset_tokens (token_hash, user_id, expires_at, used_at, created_at)
+			INSERT INTO password_reset_tokens (digest, user_id, expires_at, used_at, created_at)
 			VALUES (sha256($1::bytea), $2, now() + $3::interval,
 			        CASE WHEN $4 THEN now() ELSE NULL END, now() + $5::interval)`,
 			digest, userID, expires, used, created); err != nil {
@@ -3446,7 +3446,7 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 		var exists bool
 		if err := pool.QueryRow(ctx, `
 			SELECT EXISTS (SELECT 1 FROM password_reset_tokens
-			               WHERE token_hash = sha256($1::bytea))`, digest).Scan(&exists); err != nil {
+			               WHERE digest = sha256($1::bytea))`, digest).Scan(&exists); err != nil {
 			t.Fatalf("read %s: %v", digest, err)
 		}
 		if exists != want {
@@ -4314,7 +4314,7 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - $2::interval - interval '1 minute',
 		    expires_at = now() + interval '1 day'
-		WHERE token_hash = $1`, bearer.Digest(staleToken),
+		WHERE digest = $1`, bearer.Digest(staleToken),
 		account.EraseSignInWindow.String()); err != nil {
 		t.Fatalf("age session: %v", err)
 	}
@@ -4438,7 +4438,7 @@ func TestDeadResetLinksOfferRecovery(t *testing.T) {
 				if state == "expired" {
 					if _, err := pool.Exec(ctx, `UPDATE password_reset_tokens
 					    SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 second'
-					    WHERE token_hash = $1`, bearer.Digest(token)); err != nil {
+					    WHERE digest = $1`, bearer.Digest(token)); err != nil {
 						t.Fatal(err)
 					}
 				} else if _, err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
@@ -4484,7 +4484,7 @@ func accountRecoveryState(t *testing.T, userID string) string {
 	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
 	    'account', (SELECT to_jsonb(u) FROM users u WHERE id = $1),
 	    'verification', (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.digest) FROM email_verifications v WHERE user_id = $1),
-	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.token_hash) FROM password_reset_tokens r WHERE user_id = $1),
+	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.digest) FROM password_reset_tokens r WHERE user_id = $1),
 	    'mail', (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM outbox_messages m WHERE payload->>'user_id' = $1::text OR lower(payload->>'email') = (SELECT lower(email) FROM users WHERE id = $1)))::text`,
 		userID).Scan(&state); err != nil {
 		t.Fatal(err)

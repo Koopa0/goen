@@ -51,7 +51,7 @@ WITH removed AS (
     DELETE FROM sessions AS session
     USING removed r
     WHERE session.user_id = r.user_id
-    RETURNING session.token_hash
+    RETURNING session.digest
 )
 SELECT EXISTS (SELECT 1 FROM removed)::boolean AS removed
 FROM (SELECT count(*) FROM ended) AS ended_once;

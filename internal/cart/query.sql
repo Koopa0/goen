@@ -1,8 +1,8 @@
 -- name: CartByToken :one
-SELECT id, user_id FROM carts WHERE token_hash = $1;
+SELECT id, user_id FROM carts WHERE digest = $1;
 
 -- name: CreateCart :one
-INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id;
+INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id;
 
 -- Serialize every writer of a cart aggregate before it touches cart_items.
 -- Sorting makes two-cart operations such as account adoption use one lock order.

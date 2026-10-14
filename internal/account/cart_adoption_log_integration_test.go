@@ -36,11 +36,11 @@ func TestCartAdoptionLogLevels(t *testing.T) {
 	u := register(t, accounts, "adoption-log-"+uuid.NewString()+"@example.com")
 	other := register(t, accounts, "adoption-log-owner-"+uuid.NewString()+"@example.com")
 	var ownedCart, guestCart uuid.UUID
-	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("owned-log-"+other.ID), uuid.MustParse(other.ID)).Scan(&ownedCart); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("guest-log-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatal(err)
 	}
