@@ -27,8 +27,11 @@ func TestEveryNamedTestExists(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
+			if path != root && skippedDir(d.Name()) {
+				return filepath.SkipDir
+			}
 			switch d.Name() {
-			case ".git", "node_modules", "vendor", "assets", "screens":
+			case "vendor", "assets", "screens":
 				return filepath.SkipDir
 			}
 			// docs/reviews records what each review round said at the time, under

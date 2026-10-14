@@ -3382,7 +3382,7 @@ func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" || d.Name() == "node_modules" {
+			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
 				return fs.SkipDir
 			}
 			return nil

@@ -28,8 +28,11 @@ func TestOnlySitePathDecidesASameSitePath(t *testing.T) {
 		}
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
+			if rel != "." && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
 			switch rel {
-			case ".git", "internal/db", "internal/web":
+			case "internal/db", "internal/web":
 				return filepath.SkipDir
 			}
 			return nil

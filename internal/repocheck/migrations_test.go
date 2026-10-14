@@ -57,7 +57,7 @@ func findTestMains(t *testing.T, root string) []testMainSource {
 			return walkErr
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" {
+			if path != root && skippedDir(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
