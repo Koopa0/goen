@@ -661,7 +661,7 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); err != nil {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); err != nil {
 		t.Fatalf("adopt: %v", err)
 	}
 
@@ -756,7 +756,7 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrQuantityAdjusted) {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrQuantityAdjusted) {
 		t.Fatalf("merge over stock returned %v, want ErrQuantityAdjusted", err)
 	}
 
@@ -828,8 +828,8 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-		t.Fatalf("adopt with unavailable guest line returned %v, want ErrCartMergeRefused", err)
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+		t.Fatalf("adopt with unavailable guest line returned %v, want ErrMergeRefused", err)
 	}
 
 	var guestCount, accountCount int
@@ -931,8 +931,8 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 					}
 				}
 
-				if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-					t.Fatalf("adopt returned %v, want ErrCartMergeRefused", err)
+				if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+					t.Fatalf("adopt returned %v, want ErrMergeRefused", err)
 				}
 
 				quantities := func(cartID uuid.UUID) map[uuid.UUID]int32 {
@@ -1217,18 +1217,15 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	lookupReq.AddCookie(session)
 	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
 	lookupReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
-	var resolved uuid.UUID
-	var resolvedOK bool
-	var resolvedErr error
-	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, resolvedOK, resolvedErr = carts.IDForRequest(r.Context(), r)
-	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
-	if resolvedErr != nil {
-		t.Fatalf("resolve the merged cart: %v", resolvedErr)
+	lookupRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(carts.Page)).ServeHTTP(lookupRec, lookupReq)
+	if lookupRec.Code != http.StatusOK {
+		t.Fatalf("GET /cart after the merge status = %d, want 200", lookupRec.Code)
 	}
-	if !resolvedOK || resolved != accountCart {
-		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
-			resolved, resolvedOK, accountCart)
+	for _, line := range []uuid.UUID{accountVariant, guestVariant} {
+		if want := `id="line-` + line.String() + `"`; !strings.Contains(lookupRec.Body.String(), want) {
+			t.Errorf("guest cookie after merge did not show the account cart: no %s on /cart", want)
+		}
 	}
 }
 
@@ -1384,7 +1381,7 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 				t.Fatalf("other account's line: %v", err)
 			}
 
-			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+			if err := cart.NewStore(pool).Adopt(ctx, u.ID, theirCart); !errors.Is(err, cart.ErrNotFound) {
 				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
 			}
 
@@ -1475,11 +1472,11 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "adopt-shared-a-"+suffix, "adopt-shared-b-"+suffix
-	firstStore := account.NewStore(accountStorePool(t, firstName))
-	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstStore := cart.NewStore(accountStorePool(t, firstName))
+	secondStore := cart.NewStore(accountStorePool(t, secondName))
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, firstUser.ID, guestCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, secondUser.ID, guestCart) }()
+	go func() { firstDone <- firstStore.Adopt(ctx, firstUser.ID, guestCart) }()
+	go func() { secondDone <- secondStore.Adopt(ctx, secondUser.ID, guestCart) }()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
@@ -1487,8 +1484,8 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 		t.Fatalf("release shared guest cart: %v", err)
 	}
 	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
-	firstWon := firstErr == nil && errors.Is(secondErr, account.ErrNotFound)
-	secondWon := secondErr == nil && errors.Is(firstErr, account.ErrNotFound)
+	firstWon := firstErr == nil && errors.Is(secondErr, cart.ErrNotFound)
+	secondWon := secondErr == nil && errors.Is(firstErr, cart.ErrNotFound)
 	if !firstWon && !secondWon {
 		t.Fatalf("shared guest adoption results = %v / %v, want one success and one ErrNotFound",
 			firstErr, secondErr)

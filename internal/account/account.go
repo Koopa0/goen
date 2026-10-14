@@ -29,13 +29,6 @@ var (
 	ErrInvalidInput   = errors.New("account: invalid input")
 	ErrOpenReturn     = errors.New("account: finish the open return before erasure")
 	ErrLastAdmin      = errors.New("account: the last administrator cannot be erased")
-	// ErrQuantityAdjusted means adoption or merge succeeded but a line was
-	// capped to what the shelf can supply.
-	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
-	// ErrCartMergeRefused means a guest line cannot be adopted because the
-	// catalogue no longer honours it; the transaction rolls back with both
-	// carts unchanged.
-	ErrCartMergeRefused = errors.New("account: guest cart contains unavailable merchandise")
 )
 
 // SessionCookieName carries __Host-, which refuses a subdomain's forgery.

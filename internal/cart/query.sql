@@ -19,6 +19,38 @@ FOR UPDATE;
 -- name: LockUserForCheckout :one
 SELECT id FROM users WHERE id = @user_id::uuid FOR KEY SHARE;
 
+-- Guest-cart adoption takes the account row before any cart row, so two first
+-- adopters meet here rather than at carts_one_per_user, and checkout's KEY SHARE
+-- on the same row (LockUserForCheckout) never waits for a cart lock held by an
+-- adopter. NO KEY UPDATE is the same strength as LockUser in
+-- internal/account/query.sql, whose comment states the order every path keeps;
+-- this copy exists so cart calls no account query. store's column UPDATE on
+-- users is what PostgreSQL asks for.
+-- name: LockUserForAdoption :one
+SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
+
+-- Guest lines for adoption and merge, read after the cart lock is held.
+-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
+
+-- name: CartForUser :one
+SELECT id FROM carts WHERE user_id = $1;
+
+-- Read only after LockCarts has returned. The recheck keeps a second account
+-- carrying the same guest cookie from taking over a cart the first account just
+-- adopted.
+-- name: CartOwner :one
+SELECT user_id FROM carts WHERE id = @cart_id::uuid;
+
+-- The predicate is a final ownership fence in addition to CartOwner. :execrows
+-- makes a lost race distinguishable from a successful adoption.
+-- name: AdoptCart :execrows
+UPDATE carts SET user_id = @user_id::uuid
+WHERE id = @cart_id::uuid AND user_id IS NULL;
+
+-- name: DeleteCart :exec
+DELETE FROM carts WHERE id = $1;
+
 -- Checkout locks catalogue roots in one canonical order before it snapshots
 -- publication, prices and availability. SECURITY DEFINER keeps store's direct
 -- product/variant UPDATE revoked while satisfying PostgreSQL's FOR UPDATE

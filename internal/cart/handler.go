@@ -1860,11 +1860,6 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error) {
-	id, ok, _, err := h.lookupCart(ctx, r)
-	return id, ok, err
-}
-
 func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error) {
 	u, ok := user.FromContext(ctx)
 	if !ok {

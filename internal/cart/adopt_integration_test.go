@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -114,11 +113,11 @@ func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "adopt-first-a-"+suffix, "adopt-first-b-"+suffix
-	firstStore := account.NewStore(adoptionPool(t, firstName))
-	secondStore := account.NewStore(adoptionPool(t, secondName))
+	firstStore := cart.NewStore(adoptionPool(t, firstName))
+	secondStore := cart.NewStore(adoptionPool(t, secondName))
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, u.ID, firstCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, u.ID, secondCart) }()
+	go func() { firstDone <- firstStore.Adopt(ctx, u.ID, firstCart) }()
+	go func() { secondDone <- secondStore.Adopt(ctx, u.ID, secondCart) }()
 	waitForApplicationLock(t, firstName, firstDone)
 	waitForApplicationLock(t, secondName, secondDone)
 
@@ -247,7 +246,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	checkoutName, adoptionName := "checkout-before-adopt-"+suffix, "adopt-behind-checkout-"+suffix
 	checkoutStore := cart.NewStore(adoptionPool(t, checkoutName))
-	adoptionStore := account.NewStore(adoptionPool(t, adoptionName))
+	adoptionStore := cart.NewStore(adoptionPool(t, adoptionName))
 	checkoutDone, adoptionDone := make(chan error, 1), make(chan error, 1)
 	var orderNumber string
 	go func() {
@@ -259,7 +258,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 		checkoutDone <- placeErr
 	}()
 	waitForApplicationLock(t, checkoutName, checkoutDone)
-	go func() { adoptionDone <- adoptionStore.AdoptCart(ctx, u.ID, guestCart) }()
+	go func() { adoptionDone <- adoptionStore.Adopt(ctx, u.ID, guestCart) }()
 	waitForApplicationLock(t, adoptionName, adoptionDone)
 
 	if err := blocker.Commit(ctx); err != nil {

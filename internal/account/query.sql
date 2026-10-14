@@ -171,28 +171,6 @@ WHERE topic = 'account.password_reset'
   AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
       lower(@email::text);
 
--- Guest lines for adoption and merge, read after the cart lock is held.
--- name: CartItemRows :many
-SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
-
--- name: CartForUser :one
-SELECT id FROM carts WHERE user_id = $1;
-
--- Read only after LockCarts has returned. The recheck keeps a second account
--- carrying the same guest cookie from taking over a cart the first account just
--- adopted.
--- name: CartOwner :one
-SELECT user_id FROM carts WHERE id = @cart_id::uuid;
-
--- The predicate is a final ownership fence in addition to CartOwner. :execrows
--- makes a lost race distinguishable from a successful adoption.
--- name: AdoptCart :execrows
-UPDATE carts SET user_id = @user_id::uuid
-WHERE id = @cart_id::uuid AND user_id IS NULL;
-
--- name: DeleteCart :exec
-DELETE FROM carts WHERE id = $1;
-
 -- name: UserOrders :many
 SELECT
     o.id,
@@ -263,7 +241,8 @@ INSERT INTO addresses (user_id, label, recipient_name, phone,
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- Every path that locks both the account row and its carts or addresses takes
--- the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+-- the account row first: cart adoption (NO KEY UPDATE through cart's
+-- LockUserForAdoption, then LockCarts), a
 -- default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
 -- SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
 -- UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock

@@ -37,14 +37,6 @@ const (
 // "unassigned: <reason>" while nobody owns it yet. The list may only shrink: a
 // violation not named here fails, and an entry whose call is gone fails.
 var queryOwnerExceptions = map[string]string{
-	// Guest-cart adoption moves into cart, which then owns the user's cart lookup.
-	"internal/account -> AddCartItem":         "T34",
-	"internal/account -> CartLineQuantity":    "T34",
-	"internal/account -> LockCarts":           "T34",
-	"internal/account -> SetCartItemQuantity": "T34",
-	"internal/account -> VariantForCart":      "T34",
-	"internal/cart -> CartForUser":            "T34",
-
 	// order/buyer takes cart's order pages and their queries.
 	"internal/returns/buyer -> OrderTracking": "T36",
 

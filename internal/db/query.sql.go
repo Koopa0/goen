@@ -9927,7 +9927,8 @@ SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
 // Every path that locks both the account row and its carts or addresses takes
-// the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+// the account row first: cart adoption (NO KEY UPDATE through cart's
+// LockUserForAdoption, then LockCarts), a
 // default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
 // SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
 // UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
@@ -9940,6 +9941,24 @@ SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 // any row lock; store's column UPDATE on users is enough.
 func (q *Queries) LockUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockUser, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockUserForAdoption = `-- name: LockUserForAdoption :one
+SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+// Guest-cart adoption takes the account row before any cart row, so two first
+// adopters meet here rather than at carts_one_per_user, and checkout's KEY SHARE
+// on the same row (LockUserForCheckout) never waits for a cart lock held by an
+// adopter. NO KEY UPDATE is the same strength as LockUser in
+// internal/account/query.sql, whose comment states the order every path keeps;
+// this copy exists so cart calls no account query. store's column UPDATE on
+// users is what PostgreSQL asks for.
+func (q *Queries) LockUserForAdoption(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForAdoption, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
