@@ -359,7 +359,37 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 		&privileges.schemaOwner, &privileges.memberOfSchemaOwner); roleErr != nil {
 		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
-	return checkDatabaseLogin(role, secureCookies, privileges, log)
+	if err := checkDatabaseLogin(role, secureCookies, privileges, log); err != nil {
+		return err
+	}
+
+	// migrations/001 refuses any other collation when it runs; this catches a
+	// database whose schema was restored or migrated some other way.
+	var provider, locale string
+	if localeErr := pool.QueryRow(pingCtx, `
+		SELECT d.datlocprovider::text, coalesce(d.datlocale, '')
+		FROM pg_catalog.pg_database d WHERE d.datname = current_database()
+	`).Scan(&provider, &locale); localeErr != nil {
+		return fmt.Errorf("check %s database locale: %w", role, redactURL(localeErr, url))
+	}
+	return checkDatabaseLocale(role, provider, locale, secureCookies, log)
+}
+
+// checkDatabaseLocale refuses, or in development warns about, a database that
+// is not on PostgreSQL's builtin C.UTF-8 locale: an operating-system collation
+// can change under the database with a library upgrade and leave its text
+// indexes silently wrong.
+func checkDatabaseLocale(role databaseRole, provider, locale string, secureCookies bool, log *slog.Logger) error {
+	if provider == "b" && locale == "C.UTF-8" {
+		return nil
+	}
+	message := fmt.Sprintf("the database %s reaches through %s uses locale provider %q and locale %q; goen requires the builtin provider with locale \"C.UTF-8\" (recreate it with createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8)",
+		role, role.urlVariable(), provider, locale)
+	if secureCookies {
+		return fmt.Errorf("refusing to start: %s", message)
+	}
+	log.Warn(message)
+	return nil
 }
 
 func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databaseLoginPrivileges, log *slog.Logger) error {

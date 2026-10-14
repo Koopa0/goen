@@ -21,6 +21,23 @@
 -- Every index is on a table created above it, and CONCURRENTLY cannot run inside
 -- the transaction golang-migrate wraps this file in.
 
+-- The database's collation is part of the schema: a text index built under one
+-- collation and read under another is silently wrong, and an operating-system
+-- (libc) collation can change under the database with a library upgrade. goen
+-- runs only on PostgreSQL's builtin C.UTF-8 locale: code-point order, Unicode
+-- character classes, nothing from the host.
+DO $$
+BEGIN
+    IF (SELECT d.datlocprovider <> 'b' OR d.datlocale IS DISTINCT FROM 'C.UTF-8'
+        FROM pg_catalog.pg_database d WHERE d.datname = current_database()) THEN
+        RAISE EXCEPTION 'database % must be created with LOCALE_PROVIDER builtin BUILTIN_LOCALE ''C.UTF-8''',
+                current_database()
+            USING ERRCODE = 'object_not_in_prerequisite_state',
+                  HINT = 'createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 <name>; for the development database run make db-reset';
+    END IF;
+END
+$$;
+
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 

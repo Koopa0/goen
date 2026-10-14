@@ -8,6 +8,11 @@ DEADCODE_VERSION := v0.50.0
 ACTIONLINT_VERSION := v1.7.12
 AXE_CORE_VERSION := 4.13.0
 
+# Every goen database is created from template0 on PostgreSQL's builtin C.UTF-8
+# locale, and migrations/001 refuses any other. docker-compose.yml passes the same
+# locale to initdb, which covers only a fresh volume; these flags cover the rest.
+CREATEDB := createdb -U goen --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+
 # The digest of axe.min.js at that version, as the npm registry tarball and
 # unpkg both serve it. check-layout downloads the file and verifies this before
 # evaluating it in the page, because the alternative — a <script src> at a CDN —
@@ -487,7 +492,7 @@ schema-drift:
 	trap 'rc=$$?; docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true; rm -rf "$$tmp"; if [ "$$rc" = 1 ] && [ -z "$$drift" ]; then exit 4; fi' 0 HUP INT TERM; \
 	docker compose exec -T db true >/dev/null 2>&1 \
 		|| { echo 'schema-drift: the compose db service is not running; start it with make db-up' >&2; exit 4; }; \
-	docker compose exec -T db createdb -U goen "$$ref"; \
+	docker compose exec -T db $(CREATEDB) "$$ref"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	refurl="$${base%/*}/$$ref$$query"; \
@@ -579,7 +584,7 @@ restore-drill:
 	tail -n +2 "$$work/held.txt" > "$$work/rows-live.raw"; \
 	sort "$$work/rows-live.raw" > "$$work/rows-live.txt"; \
 	test -s "$$work/rows-live.txt" || { echo 'restore-drill: no live row counts were read' >&2; exit 3; }; \
-	docker compose exec -T db createdb -U goen "$$copy"; \
+	docker compose exec -T db $(CREATEDB) "$$copy"; \
 	echo 'restore-drill: restoring into a throwaway...'; \
 	pg_restore -d "$$copyurl" --no-owner --exit-on-error "$$work/goen.dump" > "$$work/restore.log" 2>&1 \
 		|| { echo 'restore-drill: FAIL — pg_restore refused the dump.' >&2; cat "$$work/restore.log" >&2; exit 1; }; \
@@ -633,7 +638,7 @@ restore-drill:
 
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
-	docker compose exec -T db createdb -U goen goen
+	docker compose exec -T db $(CREATEDB) goen
 	$(MAKE) migrate-up
 	$(MAKE) db-seed
 	@echo 'database rebuilt from migrations/ and seeded'

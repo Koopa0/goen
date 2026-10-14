@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -66,6 +67,68 @@ func assertDatabaseLoginRemedy(t *testing.T, message string, role databaseRole, 
 	for _, want := range []string{"the " + string(role) + " pool's login", condition, "set " + variable + " to a login that is only a member of " + string(role)} {
 		if !strings.Contains(message, want) {
 			t.Errorf("startup message %q does not contain %q", message, want)
+		}
+	}
+}
+
+func TestDatabaseLocalePosture(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		provider string
+		locale   string
+		wantOK   bool
+	}{
+		{name: "builtin C.UTF-8", provider: "b", locale: "C.UTF-8", wantOK: true},
+		{name: "libc", provider: "c", locale: ""},
+		{name: "libc with a locale", provider: "c", locale: "en_US.utf8"},
+		{name: "builtin C", provider: "b", locale: "C"},
+		{name: "icu", provider: "i", locale: "und"},
+	}
+	wantVariable := map[databaseRole]string{
+		storeRole:       "GOEN_DATABASE_URL",
+		adminRole:       "GOEN_ADMIN_DATABASE_URL",
+		maintenanceRole: "GOEN_MAINTENANCE_DATABASE_URL",
+	}
+	for _, role := range []databaseRole{storeRole, adminRole, maintenanceRole} {
+		for _, secure := range []bool{true, false} {
+			for _, tt := range tests {
+				t.Run(fmt.Sprintf("%s/secure=%t/%s", role, secure, tt.name), func(t *testing.T) {
+					t.Parallel()
+					var output bytes.Buffer
+					log := slog.New(slog.NewTextHandler(&output, nil))
+					err := checkDatabaseLocale(role, tt.provider, tt.locale, secure, log)
+					if (err != nil) != (!tt.wantOK && secure) {
+						t.Fatalf("checkDatabaseLocale() = %v, secure %t, ok %t", err, secure, tt.wantOK)
+					}
+					message := output.String()
+					if err != nil {
+						message = err.Error()
+						if !strings.HasPrefix(message, "refusing to start: ") {
+							t.Errorf("error %q does not start with %q", message, "refusing to start: ")
+						}
+					}
+					if tt.wantOK {
+						if output.Len() != 0 {
+							t.Errorf("unexpected startup log: %s", output.String())
+						}
+						return
+					}
+					if !secure && (!strings.Contains(output.String(), "level=WARN") || strings.Count(output.String(), "\n") != 1) {
+						t.Fatalf("insecure locale warning = %q, want one WARN", output.String())
+					}
+					message = strings.ReplaceAll(message, `\"`, `"`)
+					for _, want := range []string{
+						wantVariable[role],
+						fmt.Sprintf("locale provider %q and locale %q", tt.provider, tt.locale),
+						`builtin provider with locale "C.UTF-8"`,
+					} {
+						if !strings.Contains(message, want) {
+							t.Errorf("startup message %q does not contain %q", message, want)
+						}
+					}
+				})
+			}
 		}
 	}
 }

@@ -19,6 +19,24 @@ against a throwaway PostgreSQL in CI. If the restore fails, the script attempts
 to restart on the previous data. If starting after a successful restore fails,
 operator recovery is required.
 
+## Creating the database
+
+goen runs only on PostgreSQL's builtin `C.UTF-8` locale, so its sort order and
+character classes do not change with the host's C library. `migrations/001`
+refuses to run in any other database, and the binary refuses to start on one
+unless `GOEN_INSECURE_COOKIES=1` is set. Create the demo database with:
+
+```sh
+createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 goen
+```
+
+or, in SQL, `CREATE DATABASE goen TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER
+builtin BUILTIN_LOCALE 'C.UTF-8'`.
+
+`restore-demo-db.sh` restores into an existing database (`pg_restore --clean`),
+so a demo database created before this requirement must be recreated once with
+the builtin provider; the restore does not change a database's locale.
+
 ## History and calendar dates
 
 [Try the demo](../../README.md#try-the-demo) describes creating 90 days of history
