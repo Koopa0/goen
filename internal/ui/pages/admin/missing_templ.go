@@ -54,7 +54,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 13, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 13, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -67,7 +67,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Heading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 14, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 14, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -80,7 +80,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.Body)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 15, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 15, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -98,7 +98,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueSearchLabel))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 20, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 20, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -111,7 +111,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.OrderNumber)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 21, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 21, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
@@ -124,7 +124,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 21, Col: 155}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 21, Col: 155}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -149,7 +149,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminSearch))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 23, Col: 39}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 23, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -185,7 +185,7 @@ func MissingRecord(p layouts.Page, v MissingRecordView) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, v.BackLabel))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/missing.templ`, Line: 28, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/missing.templ`, Line: 28, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
