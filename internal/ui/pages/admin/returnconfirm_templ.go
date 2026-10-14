@@ -54,7 +54,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Title(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 11, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 11, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRetConfirmOrder))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 14, Col: 94}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 14, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.OrderNumber)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 14, Col: 140}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 14, Col: 140}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -109,7 +109,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRetConfirmReason))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 15, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 15, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -122,7 +122,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.Reason)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 15, Col: 136}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 15, Col: 136}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -135,7 +135,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRetConfirmAmount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 16, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 16, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -148,7 +148,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(v.Amount())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 16, Col: 138}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 16, Col: 138}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -161,7 +161,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var11 templ.SafeURL
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.Action()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 18, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 18, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Decision)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 19, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 19, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 				if templ_7745c5c3_Err != nil {
@@ -187,7 +187,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.AssessmentVersion)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 20, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 20, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 				if templ_7745c5c3_Err != nil {
@@ -200,7 +200,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRetResolution))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 23, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 23, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -223,7 +223,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Resolution)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 28, Col: 125}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 28, Col: 125}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 				if templ_7745c5c3_Err != nil {
@@ -258,7 +258,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(v.Title(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 32, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 32, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -285,7 +285,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRetConfirmBack))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/returnconfirm.templ`, Line: 35, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returnconfirm.templ`, Line: 35, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
