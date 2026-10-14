@@ -2,6 +2,7 @@ package repocheck_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,6 +91,69 @@ func TestTheAxeAuditFailsClosedWithoutItsSource(t *testing.T) {
 	}
 }
 
+// perRunFixtures reads the table check-layout.mjs folds a route key with, by
+// the name each pattern is folded to: id, order and serial.
+func perRunFixtures(t *testing.T, script string) map[string]*regexp.Regexp {
+	t.Helper()
+
+	row := regexp.MustCompile(`(?m)^\s*\[/(.+)/([a-z]*), '\{(\w+)\}'\],$`)
+	folds := map[string]*regexp.Regexp{}
+	for _, m := range row.FindAllStringSubmatch(script, -1) {
+		pattern := m[1]
+		if strings.Contains(m[2], "i") {
+			pattern = "(?i)" + pattern
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			t.Fatalf("the per-run pattern for {%s} does not compile: %v", m[3], err)
+		}
+		folds[m[3]] = re
+	}
+	for _, name := range []string{"id", "order", "serial"} {
+		if folds[name] == nil {
+			t.Fatalf("check-layout.mjs PER_RUN has no pattern folding to {%s}", name)
+		}
+	}
+	return folds
+}
+
+// TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws holds the baseline's route
+// keys to the day the number was drawn.
+//
+// An order number is the day and six characters of the schema's alphabet, and
+// the layout fixtures mint one per run, with a warranty serial made from it. A
+// fold that only knows digits leaves GO-261014-FTEJYP in the key, which names
+// no baseline row, so every page the baseline accepts fails the gate on a run
+// whose number happens to carry a letter.
+func TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	schema, err := fs.ReadFile(os.DirFS(root), "migrations/001_initial_schema.up.sql")
+	if err != nil {
+		t.Fatalf("read the schema: %v", err)
+	}
+	drawn := regexp.MustCompile(`alphabet\s+constant text := '([0-9A-Z]+)'`).FindSubmatch(schema)
+	if drawn == nil {
+		t.Fatal("next_order_number() no longer states its alphabet in a form this test reads")
+	}
+
+	folds := perRunFixtures(t, readLayoutScript(t, root))
+	for _, c := range string(drawn[1]) {
+		suffix := strings.Repeat(string(c), 6)
+		route := "/admin/orders/GO-261014-" + suffix + "?voidfailed=1"
+		if got := folds["order"].ReplaceAllString(route, "{order}"); got != "/admin/orders/{order}?voidfailed=1" {
+			t.Errorf("order number ending %s folds %q to %q", suffix, route, got)
+		}
+		// check-layout.sql makes the serial with translate(order_number, 'GO-', ''),
+		// which also strips a G from the suffix.
+		route = "/admin/warranty?q=LAYOUTSN261014" + strings.ReplaceAll(suffix, "G", "")
+		if got := folds["serial"].ReplaceAllString(route, "{serial}"); got != "/admin/warranty?q={serial}" {
+			t.Errorf("serial made from an order number ending %s folds %q to %q", suffix, route, got)
+		}
+	}
+}
+
 // TestTheAxeBaselineIsRouteToRuleIDs holds the shape the run reads back.
 //
 // The file is edited by hand when a finding is accepted, and a baseline that
@@ -114,8 +178,15 @@ func TestTheAxeBaselineIsRouteToRuleIDs(t *testing.T) {
 	}
 	// The fixtures mint these on every run, so a baseline naming one is stale by
 	// the next run and reports its own staleness as an accessibility failure.
-	perRun := regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}` +
-		`|GO-\d{6}-\d{6}|LAYOUTSN\d+`)
+	// The patterns are the ones the script folds with, not a copy of them: a
+	// copy went stale when order numbers gained letters, and the baseline test
+	// kept passing while the gate failed.
+	folds := perRunFixtures(t, readLayoutScript(t, root))
+	parts := make([]string, 0, len(folds))
+	for _, re := range folds {
+		parts = append(parts, re.String())
+	}
+	perRun := regexp.MustCompile(strings.Join(parts, "|"))
 	ruleID := regexp.MustCompile(`^[a-z0-9-]+$`)
 	for route, rules := range baseline.Routes {
 		if !strings.HasPrefix(route, "/") {
