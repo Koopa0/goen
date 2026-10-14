@@ -1,4 +1,4 @@
-package db_test
+package repocheck_test
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ type testMainSource struct {
 // stale the day the next migration is cut.
 func TestEveryIntegrationSuiteUsesTheMigrationRunner(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..")
+	root := repoRoot(t)
 	testMains := findTestMains(t, root)
 	if len(testMains) < minimumTestMains {
 		t.Fatalf("only %d TestMains found, want at least %d; the source walk is not reading the repository",

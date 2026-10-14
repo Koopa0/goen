@@ -1,4 +1,4 @@
-package layoutcheck_test
+package repocheck_test
 
 import (
 	"io/fs"

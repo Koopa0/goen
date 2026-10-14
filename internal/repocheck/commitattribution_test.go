@@ -1,4 +1,4 @@
-package db_test
+package repocheck_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 
 func commitAttributionScript(t *testing.T) string {
 	t.Helper()
-	script, pathErr := filepath.Abs(filepath.Join("..", "..", "scripts", "check-commit-attribution.sh"))
+	script, pathErr := filepath.Abs(filepath.Join(repoRoot(t), "scripts", "check-commit-attribution.sh"))
 	if pathErr != nil {
 		t.Fatal(pathErr)
 	}

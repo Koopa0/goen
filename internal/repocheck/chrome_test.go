@@ -1,4 +1,4 @@
-package layoutcheck_test
+package repocheck_test
 
 import (
 	"bytes"
@@ -259,11 +259,6 @@ func linuxLayoutChromeExited(t *testing.T, pid int) bool {
 	}
 	// Signal 0 still succeeds for an exited zombie when PID 1 does not reap it.
 	return fields[0][0] == 'Z'
-}
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	return filepath.Join("..", "..")
 }
 
 func readMakefile(t *testing.T, root string) string {

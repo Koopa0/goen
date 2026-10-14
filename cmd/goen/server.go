@@ -125,8 +125,6 @@ type BackOfficeConfig struct {
 	MaintenancePool *pgxpool.Pool
 	Payments        *payment.Gateway
 	Refunder        refunds.Refunder
-	// SecureCookies selects the __Host- cookie prefix.
-	SecureCookies bool
 	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
 	// enrolment.
 	TOTPKey []byte
@@ -390,12 +388,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 // pool reaches it only as statistics on the health page.
 func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logger, healthPools []health.NamedPool) {
 	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
-	secureCookies, totpKey := cfg.SecureCookies, cfg.TOTPKey
+	totpKey := cfg.TOTPKey
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
 	// reachable from a product page escalates to admin.
 	factorStore := twofactor.NewStore(adminPool, totpKey)
-	factors := twofactor.NewHandler(factorStore, log, secureCookies)
+	factors := twofactor.NewHandler(factorStore, log)
 	var stepUp func(*http.Request) (bool, error)
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp

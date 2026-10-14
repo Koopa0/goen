@@ -3,7 +3,9 @@
 package audit_test
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -120,5 +124,62 @@ func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
 	}
 	if row.CustomerName != "" {
 		t.Errorf("CustomerName after erasure = %q, want empty", row.CustomerName)
+	}
+}
+
+// TestAStaffGrantNamesThePersonUntilTheAccountIsErased: the grant row holds the
+// target's id and the role, never the address. The page looks the name up when
+// it renders, so erasing the account leaves a row that still shows, with no
+// subject and no email anywhere.
+func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	address := "granted-" + uuid.NewString()[:8] + "@goen.invalid"
+	if _, err := staff.NewStore(pool).AddStaff(ctx, address, "被授權同事", "staff"); err != nil {
+		t.Fatalf("AddStaff: %v", err)
+	}
+	var target uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM users WHERE email = $1`, address).Scan(&target); err != nil {
+		t.Fatalf("read the promoted user: %v", err)
+	}
+
+	page := func() (admin.AuditEntry, string) {
+		t.Helper()
+		view, err := audit.NewStore(pool).Events(ctx)
+		if err != nil {
+			t.Fatalf("Events: %v", err)
+		}
+		var html bytes.Buffer
+		if err := admin.Audit(layouts.Page{}, view).Render(ctx, &html); err != nil {
+			t.Fatalf("render the audit page: %v", err)
+		}
+		for i := range view.Rows {
+			if e := &view.Rows[i]; e.Action == string(audit.ActionGrantStaff) && e.CustomerID == target.String() {
+				return *e, html.String()
+			}
+		}
+		t.Fatal("the staff.grant row is not on the trail")
+		return admin.AuditEntry{}, ""
+	}
+
+	row, html := page()
+	if row.Subject != "被授權同事" {
+		t.Errorf("Subject = %q, want the target's current name", row.Subject)
+	}
+	if !strings.Contains(html, "被授權同事") {
+		t.Error("the page does not show the target's name")
+	}
+	if strings.Contains(html, address) {
+		t.Error("the page shows the target's email address")
+	}
+
+	if _, err := pool.Exec(ctx, `SELECT erase_user($1)`, target); err != nil {
+		t.Fatalf("erase_user: %v", err)
+	}
+	row, html = page()
+	if row.Subject != "" {
+		t.Errorf("Subject after erasure = %q, want empty", row.Subject)
+	}
+	if strings.Contains(html, address) || strings.Contains(html, "被授權同事") {
+		t.Error("the page still shows the erased person's email or name")
 	}
 }

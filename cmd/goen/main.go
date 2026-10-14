@@ -553,7 +553,7 @@ func run() error {
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: gateway,
-			SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
+			TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
 		},
 	}, proxies, log)
 

@@ -109,7 +109,8 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(user.NewContext(r.Context(), u)))
+		ctx := user.WithSession(user.NewContext(r.Context(), u), HashToken(token))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

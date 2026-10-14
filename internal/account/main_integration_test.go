@@ -47,6 +47,8 @@ func checkoutAttemptKey(label string) string {
 }
 
 func TestMain(m *testing.M) {
+	account.LowerPasswordCostForTests()
+
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
 		slog.Error("start database", "error", err)

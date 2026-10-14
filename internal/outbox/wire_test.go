@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -42,6 +43,28 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"zh-Hant","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000}`,
 		email.OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000})
+	decodesTo(t, TopicOrderPlaced,
+		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":900,`+
+			`"snapshot":{"lines":[{"sku":"MUG-1","name":"Mug","label":"Blue","unit_cents":450,"quantity":2}],`+
+			`"subtotal_cents":900,"shipping_cents":60,"discount_cents":30,"discount_reason":"spring","tax_cents":43,`+
+			`"credit_cents":100,"shipping_name":"A Buyer","delivery_to":"7-11 Taipei","phone":"0912345678",`+
+			`"delivery_note":"leave at door","hold_until":"2026-08-10T12:00:00Z","start_by":"2026-08-07T15:22:00Z"}}`,
+		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: &owed,
+			Snapshot: &email.PlacedSnapshot{
+				Lines:          []email.PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
+				SubtotalCents:  900,
+				ShippingCents:  60,
+				DiscountCents:  30,
+				DiscountReason: "spring",
+				TaxCents:       43,
+				CreditCents:    100,
+				ShippingName:   "A Buyer",
+				DeliveryTo:     "7-11 Taipei",
+				Phone:          "0912345678",
+				DeliveryNote:   "leave at door",
+				HoldUntil:      time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+				StartBy:        time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC),
+			}})
 	decodesTo(t, TopicOrderPaid,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","amount_cents":1000,"card":"Visa •••• 4242"}`,
 		email.OrderPaid{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", AmountCents: 1000, Card: "Visa •••• 4242"})

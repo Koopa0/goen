@@ -90,7 +90,7 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 		if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {
 			return uuid.UUID{}, nil, enqueueErr
 		}
-		return target.ID, map[string]string{"email": target.Email, "role": target.Role}, nil
+		return target.ID, map[string]string{"role": target.Role}, nil
 	})
 	if err != nil {
 		return false, err
@@ -128,7 +128,7 @@ func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
 		if lookupErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("read revoked staff: %w", lookupErr)
 		}
-		return target, map[string]string{"email": row.Email, "role": row.Role}, nil
+		return target, map[string]string{"role": row.Role}, nil
 	})
 }
 
@@ -156,19 +156,18 @@ func (s *Store) RemoveFactor(ctx context.Context, userID string) error {
 		if !removed {
 			return uuid.UUID{}, nil, ErrNotEnrolled
 		}
-		row, lookupErr := q.UserByID(ctx, target)
-		if lookupErr != nil {
-			return uuid.UUID{}, nil, fmt.Errorf("read recovered staff: %w", lookupErr)
-		}
-		return target, map[string]string{"email": row.Email}, nil
+		// No payload: the row's entity_id names the user, and the page resolves
+		// the name when it renders, so erasing the account breaks the link.
+		return target, nil, nil
 	})
 }
 
 // write runs a staff write and records who did it in one transaction: an audit
 // row for a rolled-back grant is a lie, and a grant that commits without one is
 // a gap /admin/audit cannot close. work names the user it acted on, and what to
-// record about them; a TOTP secret there would live forever, because
-// audit_events is append-only and erase_user does not reach it.
+// record about them; a TOTP secret or an email address there would live
+// forever, because audit_events is append-only and erase_user does not reach
+// it. Ids and codes only: the page resolves the name when it renders.
 func (s *Store) write(
 	ctx context.Context,
 	action audit.Action,

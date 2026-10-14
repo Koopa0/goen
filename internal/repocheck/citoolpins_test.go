@@ -1,4 +1,4 @@
-package db_test
+package repocheck_test
 
 import (
 	"os"
@@ -24,7 +24,7 @@ var makefilePin = regexp.MustCompile(`(?m)^([A-Z_]+_VERSION)\s*:=\s*(\S+)\s*$`)
 func TestTheWorkflowReadsItsToolPinsFromTheMakefile(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join("..", "..")
+	root := repoRoot(t)
 	//nolint:gosec // G304: the repository root joined to a fixed name
 	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 
 	"rsc.io/qr"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -24,16 +23,15 @@ type Handler struct {
 	log   *slog.Logger
 	// limit bounds code submissions: unthrottled, a million possibilities is
 	// under twenty minutes at a thousand guesses a second.
-	limit  *ratelimit.Limiter
-	secure bool
+	limit *ratelimit.Limiter
 }
 
-func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
+func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("twofactor: NewHandler requires a store and a logger")
 	}
 	return &Handler{
-		store: store, log: log, secure: secure,
+		store: store, log: log,
 		// Ten attempts, one back a minute: 60 guesses an hour against a million.
 		limit: ratelimit.New(ratelimit.Config{
 			Every: time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
@@ -115,12 +113,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	token := account.ReadSessionCookie(r, h.secure)
-	if token == "" {
+	session, ok := user.Session(r.Context())
+	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if err := h.store.MarkVerified(r.Context(), token); err != nil {
+	if err := h.store.MarkVerified(r.Context(), session); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
 		access.Fault(w, r, h.log)
 		return
@@ -205,12 +203,12 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	token := account.ReadSessionCookie(r, h.secure)
-	if token == "" {
+	session, ok := user.Session(r.Context())
+	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if err := h.store.MarkVerified(r.Context(), token); err != nil {
+	if err := h.store.MarkVerified(r.Context(), session); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
 		access.Fault(w, r, h.log)
 		return
@@ -242,9 +240,9 @@ func (h *Handler) logUnreadable(r *http.Request) {
 }
 
 func (h *Handler) StepUp(r *http.Request) (bool, error) {
-	token := account.ReadSessionCookie(r, h.secure)
-	if token == "" {
+	session, ok := user.Session(r.Context())
+	if !ok {
 		return false, nil
 	}
-	return h.store.SessionVerified(r.Context(), token)
+	return h.store.SessionVerified(r.Context(), session)
 }

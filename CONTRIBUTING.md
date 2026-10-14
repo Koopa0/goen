@@ -149,7 +149,10 @@ one.
 The demo restores a snapshot nightly, so editing `001` costs nothing there. From
 the first production deploy `001` is frozen: every change becomes a new numbered
 migration, and a function it changes is re-created in that migration with
-`CREATE OR REPLACE`. Until then, run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` after pulling a change.
+`CREATE OR REPLACE`. The re-created function restates `SECURITY DEFINER` (when it
+is one) and `SET search_path = pg_catalog, public, pg_temp` in its header, because
+`CREATE OR REPLACE` resets whatever the header leaves out;
+`internal/db/functionheaders_test.go` enforces it. Until then, run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` after pulling a change.
 
 **Uploads live in PostgreSQL.** Product images are stored in `media_objects`,
 re-encoded and capped at 8 MB each and 2400 px on the longest side. That keeps
