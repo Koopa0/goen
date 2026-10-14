@@ -3569,9 +3569,9 @@ func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 		FROM invoice_operations WHERE id=$1`, operationID).Scan(&status, &category, &sends); err != nil {
 		t.Fatalf("read the lapsed allowance: %v", err)
 	}
-	if status != "attention" || category != invoice.CategoryBuyerUnconfirmed || sends != 1 {
+	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) || sends != 1 {
 		t.Fatalf("lapsed allowance = %s/%s after %d sends, want attention/%s after one",
-			status, category, sends, invoice.CategoryBuyerUnconfirmed)
+			status, category, sends, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
 }
 
@@ -3640,7 +3640,7 @@ func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
 	}{
 		{name: "the buyer is asked again", wantStatus: "pending", wantError: "allowance_awaiting_buyer"},
 		{name: "the lapsed request still holds the amount", held: true,
-			wantStatus: "attention", wantError: invoice.CategoryAmountStillHeld},
+			wantStatus: "attention", wantError: string(invoice.ReasonAllowanceAmountStillHeld)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()

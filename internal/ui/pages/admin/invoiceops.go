@@ -1,10 +1,6 @@
 package admin
 
-import (
-	"context"
-
-	"github.com/koopa0/goen/internal/i18n"
-)
+import "github.com/koopa0/goen/internal/i18n"
 
 // InvoiceOperationLabels and InvoiceOperationStatuses name the closed sets an
 // invoice operation's kind and status come from.
@@ -23,17 +19,3 @@ var (
 		"rejected":       i18n.KeyAdminTimelineInvoiceRejected,
 	}
 )
-
-func (c StrandedClaim) KindText(ctx context.Context) string {
-	if k, ok := InvoiceOperationLabels[c.Kind]; ok {
-		return i18n.T(ctx, k)
-	}
-	return c.Kind
-}
-
-func (c StrandedClaim) StatusText(ctx context.Context) string {
-	if k, ok := InvoiceOperationStatuses[c.Status]; ok {
-		return i18n.T(ctx, k)
-	}
-	return c.Status
-}

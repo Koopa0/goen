@@ -571,14 +571,14 @@ func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
 }
 
 func (v *OrderView) allowanceAttentionKey() i18n.Key {
-	switch v.AllowanceAttention {
-	case invoice.CategoryBuyerUnconfirmed:
+	switch invoice.Reason(v.AllowanceAttention) {
+	case invoice.ReasonAllowanceBuyerUnconfirmed:
 		return i18n.KeyAdminQueueAllowanceUnconfirmed
-	case invoice.CategoryAmountStillHeld:
+	case invoice.ReasonAllowanceAmountStillHeld:
 		return i18n.KeyAdminQueueAllowanceAmountHeld
-	case invoice.CategorySuccessMismatch:
+	case invoice.ReasonAllowanceSuccessMismatch:
 		return i18n.KeyAdminQueueAllowanceMismatch
-	case invoice.CategoryMultipleCandidates:
+	case invoice.ReasonAllowanceMultipleUnknownCandidates:
 		return i18n.KeyAdminQueueAllowanceCandidates
 	default:
 		return i18n.KeyAdminQueueAllowanceAttention

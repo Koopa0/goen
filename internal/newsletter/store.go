@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -139,6 +140,39 @@ func (s *Store) Unsubscribe(ctx context.Context, token string) (string, error) {
 // dedupeOf hashes the token so the outbox row's key is not itself the link.
 func dedupeOf(token string) string {
 	return hex.EncodeToString(bearer.Digest(token))
+}
+
+// SweepConfirmations deletes requests older than [ConfirmationRetain]. It
+// touches newsletter_confirmations only: a subscription and an opt-out in
+// newsletter_subscribers are never deleted here.
+func (s *Store) SweepConfirmations(ctx context.Context) (int64, error) {
+	n, err := s.q.DeleteStaleNewsletterConfirmations(ctx, interval(ConfirmationRetain))
+	if err != nil {
+		return 0, fmt.Errorf("delete stale newsletter confirmations: %w", err)
+	}
+	return n, nil
+}
+
+// SweepConfirmationsForever runs once at startup, so a host redeployed more
+// often than the interval still clears unanswered requests.
+func (s *Store) SweepConfirmationsForever(ctx context.Context, log *slog.Logger) {
+	t := time.NewTicker(ConfirmationSweepInterval)
+	defer t.Stop()
+	for {
+		n, err := s.SweepConfirmations(ctx)
+		if err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep unanswered newsletter requests", "error", err)
+		}
+		if n > 0 {
+			log.InfoContext(ctx, "deleted unanswered newsletter requests", "deleted", n,
+				"retain_days", int(ConfirmationRetain.Hours()/24))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }
 
 func interval(d time.Duration) pgtype.Interval {

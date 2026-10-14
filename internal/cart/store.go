@@ -251,15 +251,6 @@ func lockCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
 	return nil
 }
 
-// Count is UNITS, not lines, for the header badge.
-func (s *Store) Count(ctx context.Context, cartID uuid.UUID) (int64, error) {
-	n, err := s.q.CartItemCount(ctx, cartID)
-	if err != nil {
-		return 0, fmt.Errorf("count cart: %w", err)
-	}
-	return n, nil
-}
-
 // View reads prices and availability fresh every time: a cart line is not a
 // promise.
 func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, error) {

@@ -1,8 +1,8 @@
 // Package invoice is the vocabulary of Taiwanese uniform invoices: the
 // buyer's preference, the document and its lines, tax types and units, the
-// identifier checks and the attention categories. It imports nothing but the
-// standard library and i18n, so a page can name an invoice without reaching
-// the database, the outbox or the mail sender. Issuing them is
+// identifier checks and the reasons an operation stays unsettled. It imports
+// nothing but the standard library and i18n, so a page can name an invoice
+// without reaching the database, the outbox or the mail sender. Issuing them is
 // invoice/issuer's work.
 package invoice
 
@@ -14,9 +14,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 )
-
-// TaxRate is Taiwan's business tax, 5%.
-const TaxRate = 5
 
 // ValidTaxID applies the Ministry of Finance's current business-tax-number
 // checksum. Since April 2023 the product sum is divisible by 5 (formerly 10).
@@ -134,8 +131,6 @@ type Document struct {
 	ProviderRef string
 	Lines       []Line
 }
-
-func (d Document) Voided() bool { return d.Status == DocumentVoided }
 
 type Line struct {
 	TaxType     TaxType  `json:"tax_type"`

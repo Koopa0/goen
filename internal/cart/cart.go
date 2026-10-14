@@ -264,7 +264,12 @@ func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 // sibling subdomain cannot write a cart cookie goen would trust.
 const CookieName = "__Host-goen_cart"
 
-const cookieMaxAge = 30 * 24 * 60 * 60 // 30 days
+// GuestCartRetain is how long a guest cart lives, and it is the cart cookie's
+// lifetime: the cookie is set once, when the cart is created, so after this long
+// no browser can name the cart and [Store.SweepGuestCarts] deletes it.
+const GuestCartRetain = 30 * 24 * time.Hour
+
+const cookieMaxAge = int(GuestCartRetain / time.Second)
 
 // MaxLineQuantity matches the schema's CHECK.
 const MaxLineQuantity = 999
@@ -376,8 +381,6 @@ type Quote struct {
 func (q Quote) Total() (int64, error) {
 	return addCheckoutMoney(q.FeeCents, q.Surcharge)
 }
-
-func (q Quote) HasSurcharge() bool { return q.Surcharge > 0 }
 
 type Invoice struct {
 	Type          invoicepkg.Preference
