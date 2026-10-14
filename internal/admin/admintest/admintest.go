@@ -99,6 +99,30 @@ func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
 }
 
+// NamedStaff creates an admin called name and returns a context that carries
+// them, as StaffContext does, with their id and address. Two of them with
+// different names let a test say which of the two a page showed.
+func NamedStaff(t *testing.T, p *pgxpool.Pool, name string) (ctx context.Context, id uuid.UUID, address string) {
+	t.Helper()
+	if err := p.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('named-' || gen_random_uuid() || '@goen.invalid', 'admin', $1)
+		RETURNING id, email`, name).Scan(&id, &address); err != nil {
+		t.Fatalf("create staff %q: %v", name, err)
+	}
+	ctx = user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
+	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id, address
+}
+
+// RenameUser sets a user's display name to name, which is all /account/profile
+// asks of anybody, staff included.
+func RenameUser(t *testing.T, p *pgxpool.Pool, id uuid.UUID, name string) {
+	t.Helper()
+	if _, err := p.Exec(t.Context(), `UPDATE users SET full_name = $2 WHERE id = $1`, id, name); err != nil {
+		t.Fatalf("rename %s to %q: %v", id, name, err)
+	}
+}
+
 // AuditRows counts the audit events of one action.
 func AuditRows(t *testing.T, p *pgxpool.Pool, action audit.Action) int {
 	t.Helper()

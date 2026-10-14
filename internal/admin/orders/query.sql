@@ -294,6 +294,8 @@ WHERE o.id = $1;
 -- succeeded, and otherwise store credit or a discount closing the funding.
 -- An invoice operation and a mail are placed at their creation; status is where
 -- they stand now, and done_at when a succeeded operation or a delivered mail got there.
+-- The staff member behind an event is named by CURRENT email, never by the
+-- editable full_name.
 -- name: AdminOrderTimeline :many
 SELECT at, source, kind, status, done_at, note, actor_kind, actor_name
 FROM (
@@ -309,7 +311,7 @@ FROM (
                      WHERE p.order_id = e.order_id AND p.status = 'succeeded'
                  ) THEN 'provider'
                  ELSE 'system' END)::text AS actor_kind,
-           coalesce(u.full_name, u.email, '')::text AS actor_name
+           coalesce(u.email, '')::text AS actor_name
     FROM order_events e
     LEFT JOIN users u ON u.id = e.actor_user_id
     WHERE e.order_id = @order_id
@@ -328,7 +330,7 @@ FROM (
                      AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
                 THEN substring(op.last_error FROM '[0-9]+$')
                 ELSE '' END,
-           op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.actor_kind, coalesce(u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = @order_id
@@ -374,11 +376,12 @@ LIMIT 1;
 -- Credit refunds are the positive store-credit entries, the same definition
 -- order_refunds uses. Who: the staff member the audit trail names for a card
 -- refund, and the entry's own actor for a credit one; empty when none is known.
+-- Both are named by CURRENT email, never by the editable full_name.
 -- name: OrderRefundRows :many
 SELECT * FROM (
     SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
            coalesce(rf.reason, '')::text AS reason,
-           coalesce((SELECT coalesce(u.full_name, u.email)
+           coalesce((SELECT u.email
                      FROM audit_events a JOIN users u ON u.id = a.actor_user_id
                      WHERE a.entity_table = 'refunds' AND a.entity_id = rf.id
                      ORDER BY a.occurred_at LIMIT 1), '')::text AS staff
@@ -387,7 +390,7 @@ SELECT * FROM (
     UNION ALL
     SELECT 'credit'::text, e.amount_cents, e.created_at,
            e.reason::text,
-           coalesce((SELECT coalesce(u.full_name, u.email) FROM users u
+           coalesce((SELECT u.email FROM users u
                      WHERE u.id = e.actor_user_id), '')::text
     FROM store_credit_entries e
     WHERE e.order_id = @order_id AND e.amount_cents > 0

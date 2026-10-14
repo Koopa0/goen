@@ -77,10 +77,11 @@ WHERE id = @id;
 
 -- Each source discriminator selects its validated parent. A hold names its
 -- order; a release names the reservation and a restock names the return.
+-- Who moved the stock is named by CURRENT email, never by the editable full_name.
 -- name: VariantMovements :many
 SELECT json_build_object('ID', m.id)::text AS page_cursor, m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
-       coalesce(u.full_name, u.email, '') AS actor,
+       coalesce(u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
 FROM inventory_movements m
