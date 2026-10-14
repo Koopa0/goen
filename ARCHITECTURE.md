@@ -92,7 +92,7 @@ Held, abandoned, and slowly released stock all reduce what can be sold. How long
 
 Checkout can contend on a variant, its product, a coupon, a credit account, or the order and payment rows. Different variants of one product share the product lock, so every path must take locks in the same order.
 
-Placement also updates the shop day's `order_number_counters` row and holds it until commit, so unrelated purchases meet there. The six-digit counter caps one shop day at 999,999 orders; the next placement that day is refused. Measure lock hold and wait times before changing critical sections or numbering. See the [schema][schema] (`next_order_number`).
+Order numbers take no shared row: `next_order_number` draws six random base32 characters and relies on the unique index, so unrelated purchases do not meet there and a number reveals nothing about the day's others. Measure lock hold and wait times before changing critical sections or numbering. See the [schema][schema].
 
 ## 5. Fulfillment, returns, and refunds
 
@@ -130,7 +130,7 @@ Workers clear expired reservations, checkout attempts and drafts, sessions and r
 
 ## 7. Database authority and security
 
-Application roles change protected payment, refund, invoice, audit, inventory, credit, and counter records only through granted `SECURITY DEFINER` functions; other data uses explicit table or column grants. Constraints, unique keys, transition triggers, and locks on shared rows enforce the rules together, and invariants across rows rely on that serialization. [Catalog-derived tests][conformance] check the [schema's][schema] grants and constraints.
+Application roles change protected payment, refund, invoice, audit, inventory, and credit records only through granted `SECURITY DEFINER` functions; other data uses explicit table or column grants. Constraints, unique keys, transition triggers, and locks on shared rows enforce the rules together, and invariants across rows rely on that serialization. [Catalog-derived tests][conformance] check the [schema's][schema] grants and constraints.
 
 Audit evidence commits with its change, through `audit.Run`, `audit.In`, or the privileged function itself; history is append-only, with explicit handling for account erasure. The `reporting` role has no runtime pool and cannot read credentials, sessions, personal or delivery data, free text, webhook evidence, or the outbox and invoice-operation tables; order and return tables expose listed business columns only. The schema owner runs migrations.
 
@@ -183,7 +183,7 @@ Hold time runs from acquire to release and includes lock waits; read averages wi
 | Experiment | Vary and observe | Pass when |
 | --- | --- | --- |
 | Browse and search | Signed in or not, catalogue size, selectivity, pagination; plans, pool wait, p95/p99. | Growth and repeated-query costs are known. |
-| Checkout contention | Distinct products, sibling variants, one SKU, shared coupons, credit, the day counter. | Stock, credit, and coupons are never spent twice; expected refusals are counted apart. |
+| Checkout contention | Distinct products, sibling variants, one SKU, shared coupons, credit. | Stock, credit, and coupons are never spent twice; expected refusals are counted apart. |
 | Retries and races | Duplicate keys and webhooks, reordered events, capture against expiry or cancellation. | States stay legal, effects happen once, and required alarms exist. |
 | Expensive work | Cold and churning images, uploads, sign-in bursts, reports, cleanup. | CPU, RSS, GC, waiting requests, and checkout latency stay in bounds. |
 | Backlog and outage | Urgent mail among bulk, slow or failing providers, then recovery. | Work age, urgent-mail deadlines, and drain rate meet targets. |
@@ -229,7 +229,7 @@ Cache hits, transactional reads, order commits, and hot stock writes cost differ
 | Lag-tolerant reads compete with transactions | Projection or read replica. | Stock and payment decisions stay on authoritative data. |
 | `ILIKE` search falls short in quality or cost | Search index or service. | Index lag, rebuilds, checkout revalidation. |
 | Images dominate I/O, backup, or restore | Object storage, CDN, precomputed renditions. | References, deletion, orphans, backup consistency. |
-| Stock or counter locks cap throughput | Shorter critical sections or a revised allocation model. | Quantity and money invariants under one authority. |
+| Stock locks cap throughput | Shorter critical sections or a revised allocation model. | Quantity and money invariants under one authority. |
 | Availability exceeds one process or database | Multiple instances and PostgreSQL HA. | Failover, connection budgets, global limits, RPO/RTO. |
 
 A broker should keep the handoff reliable: business transaction plus outbox, then relay, broker, and an idempotent consumer. See [transactional outbox][outbox-pattern].

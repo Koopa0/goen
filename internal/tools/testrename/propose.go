@@ -313,5 +313,9 @@ func dedupe(rows []row) []row {
 	return rows
 }
 
+// mapsDir is where the maps live: inside the tool's own directory, which git
+// tracks (it ignores most of docs/) and no subcommand rewrites.
+const mapsDir = ownDir + "maps"
+
 // mapPath is where propose writes the map of directory dir.
-func mapPath(dir string) string { return path.Join("docs/test-renames", dir+".tsv") }
+func mapPath(dir string) string { return path.Join(mapsDir, dir+".tsv") }

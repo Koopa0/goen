@@ -3,8 +3,9 @@
 // test a name that follows the repository's convention (see CONTRIBUTING.md),
 // and is deleted by the migration's last pull request.
 //
-// A migration is a set of maps, one file per package under docs/test-renames:
-// tab-separated rows of file, old name, new name, unit, source, action and new
+// A migration is a set of maps, one file per package under
+// internal/tools/testrename/maps (committed there, because git ignores most of
+// docs/): tab-separated rows of file, old name, new name, unit, source, action and new
 // file. The subcommands:
 //
 //	inventory           count where the repository names an existing test: go
@@ -25,8 +26,8 @@
 //
 // The tool lists tests from the syntax tree, not with go test -list: with the
 // integration tag that runs TestMain, which starts Docker. It never reads
-// docs/reviews (a record of what was said), docs/test-renames (the old names
-// on purpose) or its own directory.
+// docs/reviews (a record of what was said) or its own directory, which holds
+// the maps (the old names on purpose).
 package main
 
 import (
@@ -97,7 +98,7 @@ func runInventory(root string, out *printer) error {
 
 func runPropose(root string, args []string, out *printer) error {
 	fs := flag.NewFlagSet("propose", flag.ContinueOnError)
-	toStdout := fs.Bool("stdout", false, "print the map instead of writing docs/test-renames")
+	toStdout := fs.Bool("stdout", false, "print the map instead of writing it under "+mapsDir)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -138,19 +139,7 @@ func emitMap(root, dir string, rows []row, toStdout bool, out *printer) error {
 		return err
 	}
 	out.printf("%s: %d rows (%s)\n", mapPath(dir), len(rows), sourceCounts(rows))
-	if ignoredByGit(root, mapPath(dir)) {
-		out.printf("note: git ignores %s (.gitignore has /docs/*); commit it with git add -f or add an exception first\n", mapPath(dir))
-	}
 	return nil
-}
-
-// ignoredByGit reports whether git would ignore the file.
-func ignoredByGit(root, name string) bool {
-	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
-		return false
-	}
-	_, err := gitOutput(root, "check-ignore", "-q", "--", name)
-	return err == nil
 }
 
 func sourceCounts(rows []row) string {

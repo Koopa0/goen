@@ -1791,32 +1791,49 @@ COMMENT ON FUNCTION shop_today() IS
 -- Their GRANTs are far below: admin and reporting do not exist yet here, and
 -- a GRANT naming a role the file has not created fails the migration.
 
--- One row per business day, incremented atomically: a MAX()+1 in application
--- code hands the same number to two concurrent checkouts.
-CREATE TABLE order_number_counters (
-    business_date date PRIMARY KEY,
-    last_no       integer NOT NULL,
-    CONSTRAINT order_number_counters_in_range CHECK (last_no BETWEEN 1 AND 999999)
-);
-
--- Six digits, not four: at four, the 10,000th order of a day cannot be placed.
--- SECURITY DEFINER: runs as its owner, so it can increment the counter that store
--- cannot write.
+-- The number a customer quotes to support, and the key a guest's lookup form
+-- takes with their email. A counter would make every other order of the day
+-- guessable from one, so the suffix is random: 30 bits (six Crockford base32
+-- characters, no I, L, O or U) taken from the first four bytes of
+-- gen_random_uuid(). That is a version 4 uuid, drawn from PostgreSQL's strong
+-- random source; its version nibble is byte 6 and its variant bits are in byte
+-- 8, so bytes 0-3 are all random. uuidv7() is not an option: its leading bits
+-- are a timestamp.
+--
+-- Uniqueness is orders_number_key. The draw is repeated while its candidate is
+-- already an order, at most five times, then fails on that constraint's name.
+-- Callers do not retry: two sessions drawing the same candidate in one
+-- instant (about 2^-30 per pair) fail cleanly on the index.
+--
+-- Not a definer: it writes nothing and only reads orders, which store and
+-- admin may.
 CREATE FUNCTION next_order_number() RETURNS text
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-    today date;
-    seq   integer;
+    alphabet constant text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    today     constant text := to_char(shop_today(), 'YYMMDD');
+    bytes     bytea;
+    bits      bigint;
+    suffix    text;
+    candidate text;
 BEGIN
-    today := shop_today();
-
-    INSERT INTO order_number_counters (business_date, last_no)
-    VALUES (today, 1)
-    ON CONFLICT (business_date) DO UPDATE
-        SET last_no = order_number_counters.last_no + 1
-    RETURNING last_no INTO seq;
-
-    RETURN 'GO-' || to_char(today, 'YYMMDD') || '-' || to_char(seq, 'FM000000');
+    FOR attempt IN 1..5 LOOP
+        bytes := uuid_send(gen_random_uuid());
+        bits := (get_byte(bytes, 0)::bigint << 22) | (get_byte(bytes, 1)::bigint << 14)
+              | (get_byte(bytes, 2)::bigint << 6) | (get_byte(bytes, 3)::bigint >> 2);
+        suffix := '';
+        FOR i IN REVERSE 5..0 LOOP
+            suffix := suffix || substr(alphabet, ((bits >> (5 * i)) & 31)::integer + 1, 1);
+        END LOOP;
+        candidate := 'GO-' || today || '-' || suffix;
+        IF NOT EXISTS (SELECT 1 FROM orders WHERE order_number = candidate) THEN
+            RETURN candidate;
+        END IF;
+    END LOOP;
+    RAISE EXCEPTION 'no free order number after 5 draws'
+        USING ERRCODE = 'unique_violation', CONSTRAINT = 'orders_number_key';
 END;
 $$;
 
@@ -1854,7 +1871,7 @@ CREATE TABLE orders (
     cancelled_at         timestamptz,
     completed_at         timestamptz,
     updated_at           timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT orders_number_format CHECK (order_number ~ '^GO-[0-9]{6}-[0-9]{6}$'),
+    CONSTRAINT orders_number_format CHECK (order_number ~ '^GO-[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$'),
     CONSTRAINT orders_currency_is_twd CHECK (currency = 'TWD'),
     CONSTRAINT orders_locale_known CHECK (locale IN ('zh-Hant', 'en')),
     CONSTRAINT orders_discount_non_negative CHECK (discount_cents >= 0),
@@ -5200,7 +5217,6 @@ REVOKE INSERT, UPDATE, DELETE ON
 REVOKE ALL ON invoice_operations FROM store;
 REVOKE INSERT, UPDATE, DELETE ON product_variants FROM store;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
-REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM store;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM store;
 -- UPDATE would repoint a whole balance at another user. DELETE is deleting a
 -- balance: an account whose entries net to zero would go, taking the trail with
@@ -5633,7 +5649,6 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
-REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
 REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- The back office issues coupons and still may not write a redemption: that row

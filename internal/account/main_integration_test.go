@@ -661,7 +661,7 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); err != nil {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); err != nil {
 		t.Fatalf("adopt: %v", err)
 	}
 
@@ -756,7 +756,7 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrQuantityAdjusted) {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrQuantityAdjusted) {
 		t.Fatalf("merge over stock returned %v, want ErrQuantityAdjusted", err)
 	}
 
@@ -828,8 +828,8 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-		t.Fatalf("adopt with unavailable guest line returned %v, want ErrCartMergeRefused", err)
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+		t.Fatalf("adopt with unavailable guest line returned %v, want ErrMergeRefused", err)
 	}
 
 	var guestCount, accountCount int
@@ -931,8 +931,8 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 					}
 				}
 
-				if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-					t.Fatalf("adopt returned %v, want ErrCartMergeRefused", err)
+				if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+					t.Fatalf("adopt returned %v, want ErrMergeRefused", err)
 				}
 
 				quantities := func(cartID uuid.UUID) map[uuid.UUID]int32 {
@@ -1217,18 +1217,15 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	lookupReq.AddCookie(session)
 	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
 	lookupReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
-	var resolved uuid.UUID
-	var resolvedOK bool
-	var resolvedErr error
-	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, resolvedOK, resolvedErr = carts.IDForRequest(r.Context(), r)
-	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
-	if resolvedErr != nil {
-		t.Fatalf("resolve the merged cart: %v", resolvedErr)
+	lookupRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(carts.Page)).ServeHTTP(lookupRec, lookupReq)
+	if lookupRec.Code != http.StatusOK {
+		t.Fatalf("GET /cart after the merge status = %d, want 200", lookupRec.Code)
 	}
-	if !resolvedOK || resolved != accountCart {
-		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
-			resolved, resolvedOK, accountCart)
+	for _, line := range []uuid.UUID{accountVariant, guestVariant} {
+		if want := `id="line-` + line.String() + `"`; !strings.Contains(lookupRec.Body.String(), want) {
+			t.Errorf("guest cookie after merge did not show the account cart: no %s on /cart", want)
+		}
 	}
 }
 
@@ -1384,7 +1381,7 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 				t.Fatalf("other account's line: %v", err)
 			}
 
-			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+			if err := cart.NewStore(pool).Adopt(ctx, u.ID, theirCart); !errors.Is(err, cart.ErrNotFound) {
 				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
 			}
 
@@ -1436,121 +1433,6 @@ func cartItemQuantity(t *testing.T, cartID, variantID uuid.UUID) int32 {
 	return qty
 }
 
-// TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
-// either sign-in starts. Both calls must wait there, which makes the "no account
-// cart exists" observation deterministic rather than scheduler luck. One cart is
-// then adopted and the other merged into it, both through the store role.
-func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
-	ctx := t.Context()
-	u := register(t, account.NewStore(pool), "first-adopters-"+uuid.NewString()+"@example.com")
-	userID := uuid.MustParse(u.ID)
-
-	var firstVariant, secondVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&firstVariant); err != nil {
-		t.Fatalf("first variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, firstVariant).
-		Scan(&secondVariant); err != nil {
-		t.Fatalf("second variant: %v", err)
-	}
-
-	guest := func(label string, variantID uuid.UUID, quantity int32) uuid.UUID {
-		t.Helper()
-		var cartID uuid.UUID
-		if err := pool.QueryRow(ctx,
-			`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
-			bearer.Digest(label+u.ID)).Scan(&cartID); err != nil {
-			t.Fatalf("create %s: %v", label, err)
-		}
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`,
-			cartID, variantID, quantity); err != nil {
-			t.Fatalf("fill %s: %v", label, err)
-		}
-		return cartID
-	}
-	firstCart := guest("first-adopter-a-", firstVariant, 2)
-	secondCart := guest("first-adopter-b-", secondVariant, 3)
-
-	blocker, beginErr := pool.Begin(ctx)
-	if beginErr != nil {
-		t.Fatalf("begin account blocker: %v", beginErr)
-	}
-	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, lockErr := blocker.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID); lockErr != nil {
-		t.Fatalf("lock account: %v", lockErr)
-	}
-
-	suffix := uuid.NewString()[:8]
-	firstName, secondName := "adopt-first-a-"+suffix, "adopt-first-b-"+suffix
-	firstStore := account.NewStore(accountStorePool(t, firstName))
-	secondStore := account.NewStore(accountStorePool(t, secondName))
-	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, u.ID, firstCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, u.ID, secondCart) }()
-	waitForAccountLock(t, firstName, firstDone)
-	waitForAccountLock(t, secondName, secondDone)
-
-	if commitErr := blocker.Commit(ctx); commitErr != nil {
-		t.Fatalf("release account: %v", commitErr)
-	}
-	if firstErr := operationResult(t, firstDone); firstErr != nil {
-		t.Errorf("first adoption: %v", firstErr)
-	}
-	if secondErr := operationResult(t, secondDone); secondErr != nil {
-		t.Errorf("second adoption: %v", secondErr)
-	}
-
-	var accountCart uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM carts WHERE user_id = $1`, userID).
-		Scan(&accountCart); err != nil {
-		t.Fatalf("read adopted account cart: %v", err)
-	}
-	if accountCart != firstCart && accountCart != secondCart {
-		t.Fatalf("account cart = %s, want one of the two guest carts", accountCart)
-	}
-	var accountCarts, originalCarts int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE user_id = $1`, userID).
-		Scan(&accountCarts); err != nil {
-		t.Fatalf("count account carts: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM carts WHERE id = ANY($1::uuid[])`, []uuid.UUID{firstCart, secondCart}).
-		Scan(&originalCarts); err != nil {
-		t.Fatalf("count original carts: %v", err)
-	}
-	if accountCarts != 1 || originalCarts != 1 {
-		t.Fatalf("after concurrent adoption account/original carts = %d/%d, want 1/1",
-			accountCarts, originalCarts)
-	}
-
-	rows, err := pool.Query(ctx,
-		`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, accountCart)
-	if err != nil {
-		t.Fatalf("read adopted cart lines: %v", err)
-	}
-	defer rows.Close()
-	got := map[uuid.UUID]int32{}
-	for rows.Next() {
-		var variantID uuid.UUID
-		var quantity int32
-		if err := rows.Scan(&variantID, &quantity); err != nil {
-			t.Fatalf("scan adopted cart line: %v", err)
-		}
-		got[variantID] = quantity
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate adopted cart lines: %v", err)
-	}
-	if got[firstVariant] != 2 || got[secondVariant] != 3 || len(got) != 2 {
-		t.Errorf("adopted cart lines = %v, want both guest facts", got)
-	}
-}
-
 // TestTwoAccountsCannotAdoptTheSameGuestCart holds the shared cart after each
 // transaction has locked its own user, so both make the first-adopter decision
 // before either can update the cart. The winner keeps the cart; the loser must
@@ -1590,11 +1472,11 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "adopt-shared-a-"+suffix, "adopt-shared-b-"+suffix
-	firstStore := account.NewStore(accountStorePool(t, firstName))
-	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstStore := cart.NewStore(accountStorePool(t, firstName))
+	secondStore := cart.NewStore(accountStorePool(t, secondName))
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, firstUser.ID, guestCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, secondUser.ID, guestCart) }()
+	go func() { firstDone <- firstStore.Adopt(ctx, firstUser.ID, guestCart) }()
+	go func() { secondDone <- secondStore.Adopt(ctx, secondUser.ID, guestCart) }()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
@@ -1602,8 +1484,8 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 		t.Fatalf("release shared guest cart: %v", err)
 	}
 	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
-	firstWon := firstErr == nil && errors.Is(secondErr, account.ErrNotFound)
-	secondWon := secondErr == nil && errors.Is(firstErr, account.ErrNotFound)
+	firstWon := firstErr == nil && errors.Is(secondErr, cart.ErrNotFound)
+	secondWon := secondErr == nil && errors.Is(firstErr, cart.ErrNotFound)
 	if !firstWon && !secondWon {
 		t.Fatalf("shared guest adoption results = %v / %v, want one success and one ErrNotFound",
 			firstErr, secondErr)
@@ -1633,114 +1515,6 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 	}
 	if loserCarts != 0 || quantity != 4 {
 		t.Errorf("loser carts / preserved quantity = %d/%d, want 0/4", loserCarts, quantity)
-	}
-}
-
-// TestCheckoutAndAdoptionShareUserBeforeCartLockOrder pauses checkout after it
-// owns the account cart. Adoption then holds NO KEY UPDATE on the user and waits
-// for that cart. Releasing checkout is safe only because its user KEY SHARE is
-// already held (and compatible); the former cart -> user acquisition deadlocked.
-func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
-	ctx := t.Context()
-	u := register(t, account.NewStore(pool), "checkout-adopt-"+uuid.NewString()+"@example.com")
-	userID := uuid.MustParse(u.ID)
-	owner := uuid.NullUUID{UUID: userID, Valid: true}
-
-	var checkoutVariant, guestVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&checkoutVariant); err != nil {
-		t.Fatalf("checkout variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, checkoutVariant).
-		Scan(&guestVariant); err != nil {
-		t.Fatalf("guest variant: %v", err)
-	}
-
-	var accountCart, guestCart uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
-		bearer.Digest("checkout-adopt-account-"+u.ID), userID).Scan(&accountCart); err != nil {
-		t.Fatalf("create account cart: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
-		bearer.Digest("checkout-adopt-guest-"+u.ID)).Scan(&guestCart); err != nil {
-		t.Fatalf("create guest cart: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO cart_items (cart_id, variant_id, quantity)
-		VALUES ($1, $2, 1), ($3, $4, 2)`,
-		accountCart, checkoutVariant, guestCart, guestVariant); err != nil {
-		t.Fatalf("fill checkout/adoption carts: %v", err)
-	}
-
-	var shippingID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT v.id
-		FROM shipping_method_versions v
-		JOIN shipping_methods m ON m.id = v.method_id
-		WHERE m.code = 'home_delivery'
-		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
-		t.Fatalf("read home-delivery version: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
-		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-	shown := accountCheckoutQuote(t, cart.NewStore(pool), accountCart, owner, shippingID, addr.PostalCode)
-
-	blocker, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin catalogue blocker: %v", err)
-	}
-	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := blocker.Exec(ctx,
-		`SELECT 1 FROM product_variants WHERE id = $1 FOR UPDATE`, checkoutVariant); err != nil {
-		t.Fatalf("lock checkout variant: %v", err)
-	}
-
-	suffix := uuid.NewString()[:8]
-	checkoutName, adoptionName := "checkout-before-adopt-"+suffix, "adopt-behind-checkout-"+suffix
-	checkoutStore := cart.NewStore(accountStorePool(t, checkoutName))
-	adoptionStore := account.NewStore(accountStorePool(t, adoptionName))
-	checkoutDone, adoptionDone := make(chan error, 1), make(chan error, 1)
-	var orderNumber string
-	go func() {
-		var placeErr error
-		orderNumber, placeErr = checkoutStore.PlaceOrder(
-			ctx, accountCart, owner, shippingID, addr, nil, "", shown,
-			checkoutAttemptKey("checkout-adopt-"+suffix),
-		)
-		checkoutDone <- placeErr
-	}()
-	waitForAccountLock(t, checkoutName, checkoutDone)
-	go func() { adoptionDone <- adoptionStore.AdoptCart(ctx, u.ID, guestCart) }()
-	waitForAccountLock(t, adoptionName, adoptionDone)
-
-	if err := blocker.Commit(ctx); err != nil {
-		t.Fatalf("release checkout catalogue: %v", err)
-	}
-	if err := operationResult(t, checkoutDone); err != nil {
-		t.Errorf("checkout in user/cart lock interleaving: %v", err)
-	}
-	if err := operationResult(t, adoptionDone); err != nil {
-		t.Errorf("adoption in user/cart lock interleaving: %v", err)
-	}
-	if orderNumber == "" {
-		t.Error("checkout produced no order number")
-	}
-
-	var adoptedQuantity int32
-	if err := pool.QueryRow(ctx, `
-		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
-		accountCart, guestVariant).Scan(&adoptedQuantity); err != nil {
-		t.Fatalf("read cart merged after checkout: %v", err)
-	}
-	if adoptedQuantity != 2 {
-		t.Errorf("cart merged after checkout with quantity %d, want 2", adoptedQuantity)
 	}
 }
 

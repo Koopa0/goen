@@ -97,6 +97,39 @@ func TestParsePositiveDollarsBoundsBeforeMultiplying(t *testing.T) {
 	}
 }
 
+// The ceiling is the caller's: a form with a tighter bound than the column
+// (the store-credit grant form, NT$100,000) passes its own. Each row sits on
+// the ceiling or one dollar past it, so a bound compared in the wrong unit or
+// off by one dollar fails.
+func TestParsePositiveDollarsStopsAtTheCallersCeiling(t *testing.T) {
+	t.Parallel()
+	const grantCeiling = 10_000_000 // cents, NT$100,000
+	for _, tt := range []struct {
+		name     string
+		raw      string
+		maxCents int64
+		want     int64
+		ok       bool
+	}{
+		{"column ceiling", "100000000", money.MaxCents, money.MaxCents, true},
+		{"one dollar over the column ceiling", "100000001", money.MaxCents, 0, false},
+		{"grant ceiling", "100000", grantCeiling, grantCeiling, true},
+		{"one dollar over the grant ceiling", "100001", grantCeiling, 0, false},
+		{"grant ceiling counted in cents", "10000000", grantCeiling, 0, false},
+		{"one dollar", "1", grantCeiling, 100, true},
+		{"surrounding space", " 25 ", grantCeiling, 2500, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := money.ParsePositiveDollars(tt.raw, tt.maxCents)
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("money.ParsePositiveDollars(%q, %d) = %d/%t, want %d/%t",
+					tt.raw, tt.maxCents, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 func TestParseDollarsTakesBlankAsZeroAndBoundsTheRest(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {

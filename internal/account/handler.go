@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -23,12 +21,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CartFinder is what account needs of the cart: the cart a request's cookie
-// names, so sign-in can adopt it; forgetting that cookie and the one naming the
-// browser's orders when a session ends; and whether the shop takes payment,
-// which decides whether an unpaid order offers 付款.
+// CartFinder is what account needs of the cart: adopting the guest cart a
+// request's cookie names when someone signs in; forgetting that cookie and the
+// one naming the browser's orders when a session ends; and whether the shop takes
+// payment, which decides whether an unpaid order offers 付款.
 type CartFinder interface {
-	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error)
+	// AdoptRequestCart reports whether a line came out smaller than the guest had
+	// it. An error means the cart was not carried over and has been logged.
+	AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error)
 	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
@@ -723,27 +723,15 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if h.carts == nil {
 		return cartAdoptionUnchanged
 	}
-	cartID, ok, err := h.carts.IDForRequest(r.Context(), r)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read cart for sign-in", "error", err)
+	adjusted, err := h.carts.AdoptRequestCart(r.Context(), r, userID)
+	switch {
+	case err != nil:
 		return cartAdoptionFailed
-	}
-	if !ok {
-		return cartAdoptionUnchanged
-	}
-	err = h.store.AdoptCart(r.Context(), userID, cartID)
-	if err == nil {
-		return cartAdoptionUnchanged
-	}
-	if errors.Is(err, ErrQuantityAdjusted) {
+	case adjusted:
 		return cartAdoptionAdjusted
+	default:
+		return cartAdoptionUnchanged
 	}
-	if errors.Is(err, ErrCartMergeRefused) || errors.Is(err, ErrNotFound) {
-		h.log.WarnContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
-	} else {
-		h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
-	}
-	return cartAdoptionFailed
 }
 
 func registrationLanding(next string, outcome cartAdoption) string {

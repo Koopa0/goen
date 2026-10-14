@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
@@ -1860,11 +1861,6 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error) {
-	id, ok, _, err := h.lookupCart(ctx, r)
-	return id, ok, err
-}
-
 func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error) {
 	u, ok := user.FromContext(ctx)
 	if !ok {
@@ -1971,7 +1967,8 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	number := strings.ToUpper(strings.TrimSpace(r.PostFormValue("number")))
+	typed := strings.TrimSpace(r.PostFormValue("number"))
+	number, _ := order.NormalizeNumber(typed) // "" when it names no order shape; the store refuses it
 	addr := r.PostFormValue("email")
 
 	// Bounded per IP and BEFORE the read: unbounded, this endpoint is an oracle
@@ -1999,7 +1996,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.FindOrder(
 			pages.FindOrderMeta(r.Context()), pages.FindOrderView{
-				Number: number, Email: addr,
+				Number: typed, Email: addr,
 				Error: i18n.T(r.Context(), i18n.KeyFindOrderRefused),
 			}))
 		return

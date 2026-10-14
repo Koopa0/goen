@@ -289,17 +289,14 @@ func (s *Store) reschedule(ctx context.Context, owner uuid.UUID, m *db.ClaimOutb
 	}
 }
 
-// backoff is how long to wait before attempt n+1: exponential from four seconds,
-// capped at an hour because uncapped doubling reaches days by attempt fifteen.
+// backoff is how long to wait before attempt n+1: exponential from four
+// seconds, doubling until attempts reach 10 and flat after, so the longest wait
+// is 2048 seconds (34m8s) however many times a message has failed. The attempt
+// count is clamped rather than the duration because an unclamped doubling
+// overflows time.Duration past about 33 attempts and comes back negative.
 func backoff(attempts int32) time.Duration {
-	if attempts < 1 {
-		attempts = 1
-	}
-	if attempts > 10 {
-		attempts = 10
-	}
-	d := time.Duration(math.Pow(2, float64(attempts))) * 2 * time.Second
-	return min(d, time.Hour)
+	attempts = min(max(attempts, 1), 10)
+	return time.Duration(math.Pow(2, float64(attempts))) * 2 * time.Second
 }
 
 // Run drains on a ticker until ctx is cancelled. It blocks, so the caller owns

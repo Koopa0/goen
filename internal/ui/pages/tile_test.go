@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -79,4 +81,60 @@ func TestTileWithoutPhotoKeepsItsWellAndSaysSo(t *testing.T) {
 	if !strings.Contains(got, `<div class="goen-tile__media">`) || !strings.Contains(got, `<span class="goen-tile__ph">沒有照片</span>`) {
 		t.Errorf("a tile without a photograph does not say 沒有照片 on its well: %s", got)
 	}
+}
+
+// A tile is one link that reads the brand and the name. Its photo sits inside
+// that link, so a description on the photo is read in front of the name it
+// repeats, and in Chinese on an English page when the product has no English
+// description. The photo is decorative: present, and empty.
+func TestATilePhotoAddsNothingToTheNameItsLinkReads(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			body := renderComponent(t, ctx, Tile(ProductTile{
+				Slug: "pixelight-9", Name: "Pixelight 9 5G", Brand: "Pixelight", PriceCents: 2590000, InStock: true,
+				ImageURL: "/img/pixelight-9.webp", ImageAlt: "Pixelight 9 5G 商品照", ImageWidth: 1600, ImageHeight: 1200,
+			}))
+			doc, err := html.Parse(strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var link, img *html.Node
+			for n := range doc.Descendants() {
+				switch {
+				case n.Type == html.ElementNode && n.Data == "a" && link == nil:
+					link = n
+				case n.Type == html.ElementNode && n.Data == "img":
+					img = n
+				}
+			}
+			if link == nil || img == nil {
+				t.Fatalf("the tile has no link or no photo:\n%s", body)
+			}
+			alt, present := "", false
+			for _, a := range img.Attr {
+				if a.Key == "alt" {
+					alt, present = a.Val, true
+				}
+			}
+			if !present || alt != "" {
+				t.Errorf("tile photo alt = %q (present %t), want present and empty", alt, present)
+			}
+			if !strings.Contains(textOf(link), "Pixelight 9 5G") {
+				t.Errorf("the tile link does not carry the product name as text: %q", textOf(link))
+			}
+		})
+	}
+}
+
+func textOf(n *html.Node) string {
+	var b strings.Builder
+	for d := range n.Descendants() {
+		if d.Type == html.TextNode {
+			b.WriteString(d.Data)
+		}
+	}
+	return b.String()
 }

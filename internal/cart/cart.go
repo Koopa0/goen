@@ -45,6 +45,9 @@ var (
 	// ErrQuantityAdjusted means the write succeeded but kept less than
 	// requested, because stock fell short.
 	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
+	// ErrMergeRefused means a guest line cannot be adopted because the catalogue
+	// no longer honours it; the transaction rolls back with both carts unchanged.
+	ErrMergeRefused = errors.New("cart: guest cart contains unavailable merchandise")
 	// errCheckoutChanged means the facts no longer match the quote the customer
 	// confirmed; show the refreshed quote before retrying.
 	errCheckoutChanged = errors.New("cart: checkout quote changed")
