@@ -1194,6 +1194,7 @@ input.goen-check {
   display: block;
   font-size: var(--fs-12);
   line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
 }
 
 .goen-admin__headcount {
@@ -2505,12 +2506,14 @@ input.goen-check {
   color: var(--fg);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
 }
 
 /* Who a ledger entry is about, beside the amount rather than under it. */
 .goen-admin__entrywho {
   color: var(--fg);
   font-size: var(--fs-13);
+  overflow-wrap: anywhere;
 }
 
 /* The layout gate finds the order screen's notice by the shared spelling, so
