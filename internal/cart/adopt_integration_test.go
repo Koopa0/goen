@@ -91,18 +91,9 @@ func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 	u := adopter(t, "first-adopters-"+uuid.NewString()+"@example.com")
 	userID := uuid.MustParse(u.ID)
 
-	var firstVariant, secondVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&firstVariant); err != nil {
-		t.Fatalf("first variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, firstVariant).
-		Scan(&secondVariant); err != nil {
-		t.Fatalf("second variant: %v", err)
-	}
+	// Variants of this test's own: the cart tests share one database, and the
+	// checkout test below spends stock.
+	firstVariant, secondVariant, _ := threeVariants(t, "adopt-first")
 
 	guest := func(label string, variantID uuid.UUID, quantity int32) uuid.UUID {
 		t.Helper()
@@ -207,18 +198,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 	userID := uuid.MustParse(u.ID)
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
 
-	var checkoutVariant, guestVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&checkoutVariant); err != nil {
-		t.Fatalf("checkout variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, checkoutVariant).
-		Scan(&guestVariant); err != nil {
-		t.Fatalf("guest variant: %v", err)
-	}
+	checkoutVariant, guestVariant, _ := threeVariants(t, "adopt-checkout")
 
 	var accountCart, guestCart uuid.UUID
 	if err := pool.QueryRow(ctx, `
