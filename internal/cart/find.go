@@ -3,18 +3,18 @@ package cart
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // OrderBelongsToEmail answers in ONE statement, so it cannot say which half was
 // wrong.
 func (s *Store) OrderBelongsToEmail(ctx context.Context, number, addr string) (bool, error) {
-	number = strings.ToUpper(strings.TrimSpace(number))
+	number, valid := order.NormalizeNumber(number)
 	addr = email.Clean(addr)
-	if number == "" || addr == "" {
+	if !valid || addr == "" {
 		return false, nil
 	}
 

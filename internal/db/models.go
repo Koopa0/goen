@@ -426,11 +426,6 @@ type OrderLine struct {
 	InvoiceUnit    string
 }
 
-type OrderNumberCounter struct {
-	BusinessDate time.Time
-	LastNo       int32
-}
-
 type OrderPrivateDatum struct {
 	OrderID         uuid.UUID
 	Email           pgtype.Text

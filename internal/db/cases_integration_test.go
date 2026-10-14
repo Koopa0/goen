@@ -879,11 +879,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000004', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 0, 1, 5);`,
 	},
 	{
-		constraint: "order_number_counters_in_range",
-		reject:     `INSERT INTO order_number_counters (business_date, last_no) VALUES ('2026-07-24', 0);`,
-		accept:     `INSERT INTO order_number_counters (business_date, last_no) VALUES ('2026-07-24', 1);`,
-	},
-	{
 		constraint: "order_access_grants_digest_sha256",
 		reject:     `INSERT INTO order_access_grants (digest, order_id) VALUES ('\x00'::bytea, '6666aaaa-6666-4666-8666-666666666666');`,
 		accept:     `INSERT INTO order_access_grants (digest, order_id) VALUES (sha256('a browser token'::bytea), '6666aaaa-6666-4666-8666-666666666666');`,
@@ -1072,8 +1067,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_number_format",
-		reject:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260724-00099', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
-		accept:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260724-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		reject:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-261014-ABCDEI', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		accept:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-261014-ABCDEF', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
 	},
 	{
 		constraint: "orders_shipping_code_present",

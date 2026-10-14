@@ -1211,7 +1211,7 @@ func TestNoStoredFunctionIsPublicExecute(t *testing.T) {
 var adminForbiddenTables = []string{
 	"payments", "refunds", "inventory_movements",
 	"inventory_reservations", "store_credit_entries", "audit_events",
-	"loyalty_redemption_operations", "order_number_counters",
+	"loyalty_redemption_operations",
 }
 
 // TestAdminCannotWriteMoneyOrStockDirectly is the back office's half: `admin` is a wider set
@@ -1325,7 +1325,7 @@ func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 	adminForbidden := []string{
 		"payments", "refunds", "inventory_movements",
 		"inventory_reservations", "store_credit_entries",
-		"loyalty_redemption_operations", "order_number_counters",
+		"loyalty_redemption_operations",
 	}
 	for _, table := range adminForbidden {
 		for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {
