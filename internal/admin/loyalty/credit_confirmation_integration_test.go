@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -135,5 +136,21 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeNeeds)) {
 		t.Error("the credit form's refusal carries the dispatch form's banner above the field errors")
+	}
+
+	// The form is typed in dollars: the ceiling is NT$100,000, and one dollar
+	// over it is refused by the form before any recipient is looked up.
+	form.Set("email", "moved-"+email)
+	form.Set("reason", "Keep recipient")
+	form.Del("confirm") // review only: nothing is posted
+	ceilingDollars := strconv.FormatInt(loyalty.MaxCreditGrant/100, 10)
+	form.Set("amount", ceilingDollars)
+	if w = post(); w.Code != http.StatusOK {
+		t.Fatalf("a grant of exactly the ceiling, NT$%s, = %d, want the review page", ceilingDollars, w.Code)
+	}
+	form.Set("amount", strconv.FormatInt(loyalty.MaxCreditGrant/100+1, 10))
+	w = post()
+	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `id="credit-amount-error"`) {
+		t.Fatalf("a grant one dollar over the ceiling = %d, want the amount refused", w.Code)
 	}
 }
