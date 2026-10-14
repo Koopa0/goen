@@ -5,6 +5,7 @@ package twofactor_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base32"
 	"errors"
 	"fmt"
@@ -90,7 +91,7 @@ func mailedCode(t *testing.T, address string) string {
 func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
 	userID, email := admintest.AdminUser(t, pool)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -215,7 +216,7 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 // account's address.
 func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	u := user.User{ID: userID, Email: email, Role: user.RoleAdmin}
 
@@ -258,7 +259,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 		if enrolled, err := s.Enrolled(t.Context(), userID); err != nil || enrolled {
 			t.Errorf("Confirm with %s left Enrolled = %v (err=%v), want false", tt.name, enrolled, err)
 		}
-		if verified, err := s.SessionVerified(t.Context(), token); err != nil || verified {
+		if verified, err := s.SessionVerified(t.Context(), sessionHash(token)); err != nil || verified {
 			t.Errorf("Confirm with %s left SessionVerified = %v (err=%v), want false", tt.name, verified, err)
 		}
 	}
@@ -267,7 +268,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 	if loc := out.Header().Get("Location"); out.Code != http.StatusSeeOther || loc != "/admin?enrolled=1" {
 		t.Errorf("Confirm with the mailed code = %d Location %q, want 303 /admin?enrolled=1", out.Code, loc)
 	}
-	if verified, err := s.SessionVerified(t.Context(), token); err != nil || !verified {
+	if verified, err := s.SessionVerified(t.Context(), sessionHash(token)); err != nil || !verified {
 		t.Errorf("Confirm with the mailed code left SessionVerified = %v (err=%v), want true", verified, err)
 	}
 }
@@ -525,7 +526,7 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	enrol(t, s, userID, email)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey),
-		slog.New(slog.DiscardHandler), false)
+		slog.New(slog.DiscardHandler))
 	u := user.User{ID: userID, Email: email}
 
 	post := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
@@ -566,7 +567,7 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 // failed security-state write, and calling it a bad code hides the incident.
 func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 
 	t.Run("step-up verification", func(t *testing.T) {
 		userID, email := admintest.AdminUser(t, pool)
@@ -644,7 +645,7 @@ func forceTOTPUpdateFailure(t *testing.T, userID string) {
 // stay committed, but a failed session stamp is a fault, not /admin?enrolled=1.
 func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
 	if err != nil {
@@ -677,7 +678,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 	if !enrolled {
 		t.Error("the factor was rolled back after a failed session stamp")
 	}
-	verified, verifyErr := s.SessionVerified(t.Context(), token)
+	verified, verifyErr := s.SessionVerified(t.Context(), sessionHash(token))
 	if verifyErr != nil {
 		t.Fatalf("session verified: %v", verifyErr)
 	}
@@ -690,7 +691,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 // signed-out request. Enrolment can stay committed; the 303 is not success.
 func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
 	if err != nil {
@@ -728,9 +729,7 @@ func postConfirm(
 		http.MethodPost, "/admin/verify/confirm", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
-		req.AddCookie(&http.Cookie{ //nolint:gosec // G124: request cookie, not a Set-Cookie
-			Name: "goen_session", Value: token,
-		})
+		req = req.WithContext(user.WithSession(req.Context(), sessionHash(token)))
 	}
 	out := httptest.NewRecorder()
 	h.Confirm(out, req)
@@ -779,7 +778,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	verified, err := s.SessionVerified(ctx, token)
+	verified, err := s.SessionVerified(ctx, sessionHash(token))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -787,10 +786,10 @@ func TestSessionVerificationExpires(t *testing.T) {
 		t.Fatal("a session that never verified reported itself verified")
 	}
 
-	if markErr := s.MarkVerified(ctx, token); markErr != nil {
+	if markErr := s.MarkVerified(ctx, sessionHash(token)); markErr != nil {
 		t.Fatalf("mark: %v", markErr)
 	}
-	verified, err = s.SessionVerified(ctx, token)
+	verified, err = s.SessionVerified(ctx, sessionHash(token))
 	if err != nil || !verified {
 		t.Fatalf("a just-verified session reads as unverified (err=%v)", err)
 	}
@@ -807,7 +806,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 		WHERE token_hash = sha256($1::bytea)`, []byte(token)); ageErr != nil {
 		t.Fatalf("age: %v", ageErr)
 	}
-	if verified, err = s.SessionVerified(ctx, token); err != nil {
+	if verified, err = s.SessionVerified(ctx, sessionHash(token)); err != nil {
 		t.Fatalf("read: %v", err)
 	}
 	if verified {
@@ -816,7 +815,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 	}
 
 	// An unknown token is a signed-out request, not a failure.
-	verified, err = s.SessionVerified(ctx, "no-such-token")
+	verified, err = s.SessionVerified(ctx, sessionHash("no-such-token"))
 	if err != nil || verified {
 		t.Errorf("an unknown token gave verified=%v err=%v", verified, err)
 	}
@@ -852,7 +851,7 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 // !Enabled branch, whose whole job is to say the factor is off.
 func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
-	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler))
 
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)
@@ -868,4 +867,11 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	if want := i18n.T(ctx, i18n.KeyTwoFAOffBody); !strings.Contains(out.Body.String(), want) {
 		t.Errorf("the off-state notice is missing; want %q in the body", want)
 	}
+}
+
+// sessionHash is what account.Authenticate puts on the request for a session
+// cookie carrying token: sessions.token_hash.
+func sessionHash(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
 }

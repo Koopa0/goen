@@ -150,18 +150,18 @@ func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
 	}
 }
 
-func (s *Store) MarkVerified(ctx context.Context, token string) error {
-	digest := sha256.Sum256([]byte(token))
-	if err := s.q.MarkSessionVerified(ctx, digest[:]); err != nil {
+// MarkVerified records that the session named by digest passed the second
+// factor.
+func (s *Store) MarkVerified(ctx context.Context, digest []byte) error {
+	if err := s.q.MarkSessionVerified(ctx, digest); err != nil {
 		return fmt.Errorf("mark session verified: %w", err)
 	}
 	return nil
 }
 
-func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error) {
-	digest := sha256.Sum256([]byte(token))
+func (s *Store) SessionVerified(ctx context.Context, digest []byte) (bool, error) {
 	verified, err := s.q.SessionTOTPVerified(ctx, db.SessionTOTPVerifiedParams{
-		TokenHash: digest[:],
+		TokenHash: digest,
 		MaxAge:    pgtype.Interval{Microseconds: StepUpWindow.Microseconds(), Valid: true},
 	})
 	if err != nil {

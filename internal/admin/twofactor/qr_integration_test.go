@@ -28,7 +28,7 @@ func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			s := twofactor.NewStore(pool, testKey)
 			userID, email := admintest.AdminUser(t, pool)
-			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 			ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

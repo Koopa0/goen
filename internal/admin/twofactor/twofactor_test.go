@@ -417,7 +417,7 @@ func TestEnrolIsThrottledPerAccount(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	// No key: Begin answers ErrDisabled before it reaches the database.
-	h := NewHandler(NewStore(idle, nil), slog.New(slog.DiscardHandler), false)
+	h := NewHandler(NewStore(idle, nil), slog.New(slog.DiscardHandler))
 	enrol := func(id string) int {
 		r := httptest.NewRequestWithContext(user.NewContext(t.Context(), user.User{ID: id, Role: user.RoleStaff}),
 			http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
