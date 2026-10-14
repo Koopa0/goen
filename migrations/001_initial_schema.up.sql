@@ -716,10 +716,10 @@ CREATE TABLE password_reset_tokens (
     CONSTRAINT password_reset_tokens_expiry_after_creation CHECK (expires_at > created_at)
 );
 
--- The back office's customer search. users already has a UNIQUE index on
--- lower(email), but a btree under the default collation cannot serve a prefix
--- LIKE, so this is a second index rather than a duplicate one.
-CREATE INDEX users_email_prefix_idx ON users (lower(email) text_pattern_ops);
+-- The back office's customer search is a prefix on lower(email) and on
+-- full_name. users already has a UNIQUE index on lower(email), and under the
+-- builtin C.UTF-8 collation that btree serves a prefix LIKE, so email needs no
+-- second index. full_name has no other index, so it keeps this one.
 CREATE INDEX users_name_prefix_idx ON users (full_name text_pattern_ops);
 
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens (user_id);
