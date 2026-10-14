@@ -13998,15 +13998,15 @@ func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletter
 }
 
 const recordOrderEvent = `-- name: RecordOrderEvent :exec
-INSERT INTO order_events (order_id, kind, note, actor_user_id)
+INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
 VALUES ($1, $2::text, $3, $4)
 `
 
 type RecordOrderEventParams struct {
 	OrderID     uuid.UUID
 	Kind        string
-	Note        pgtype.Text
 	ActorUserID uuid.NullUUID
+	ShipmentID  uuid.NullUUID
 }
 
 // order_events is append-only three ways — a forbid_change trigger, REVOKE
@@ -14015,8 +14015,8 @@ func (q *Queries) RecordOrderEvent(ctx context.Context, arg RecordOrderEventPara
 	_, err := q.db.Exec(ctx, recordOrderEvent,
 		arg.OrderID,
 		arg.Kind,
-		arg.Note,
 		arg.ActorUserID,
+		arg.ShipmentID,
 	)
 	return err
 }

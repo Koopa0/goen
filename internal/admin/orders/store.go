@@ -698,7 +698,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 
 	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
 		OrderID: row.ID, Kind: string(order.EventShipped), ActorUserID: actor,
-		Note: text(i18n.CarrierName(i18n.WithLocale(ctx, i18n.ZhHant), carrierCode) + " " + tracking),
+		ShipmentID: uuid.NullUUID{UUID: shipmentID, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("record order event: %w", err)
 	}

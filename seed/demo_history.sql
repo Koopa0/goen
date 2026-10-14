@@ -707,8 +707,8 @@ BEGIN
         PERFORM consume_reservation_partial(v_line.reservation_id, v_line.quantity);
     END LOOP;
     UPDATE orders SET fulfillment_status = 'shipped' WHERE id = v_ord.order_id;
-    INSERT INTO order_events (order_id, kind, note, actor_user_id)
-    VALUES (v_ord.order_id, 'shipped', '黑貓宅急便 ' || v_tracking, v_staff);
+    INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
+    VALUES (v_ord.order_id, 'shipped', v_staff, v_shipment);
     PERFORM record_audit_event(v_staff, 'order.ship', 'orders', v_ord.order_id, NULL,
         jsonb_build_object('carrier', 'black_cat', 'tracking', v_tracking));
     SET CONSTRAINTS ALL IMMEDIATE;

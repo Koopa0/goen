@@ -841,6 +841,40 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		         );`,
 	},
 	{
+		constraint: "order_events_shipment_shape",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000022',
+		             '66666666-6666-4666-8666-666666666666', 'placed',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000022',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
+		constraint: "order_events_shipped_note_absent",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, note, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000023',
+		             '66666666-6666-4666-8666-666666666666', 'shipped', 'black cat 903-2214-8871',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000023',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
 		constraint: "order_lines_product_name_present",
 		reject:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', E'\t', 3690000, 1, 5);`,
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', '測試手機', 3690000, 1, 5);`,
@@ -2302,6 +2336,25 @@ var uniqueCases = []uniqueCase{
 		             '11110040-0000-4000-8000-000000000001',
 		             '66666666-6666-4666-8666-666666666666', 'refunded',
 		             '88880001-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
+		index: "order_events_shipment_key",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES
+		             ('11110041-0000-4000-8000-000000000001',
+		              '66666666-6666-4666-8666-666666666666', 'shipped',
+		              '66660002-0000-4000-8000-000000000000'),
+		             ('11110041-0000-4000-8000-000000000002',
+		              '66666666-6666-4666-8666-666666666666', 'shipped',
+		              '66660002-0000-4000-8000-000000000000');`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110041-0000-4000-8000-000000000001',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
 		         );`,
 	},
 	{

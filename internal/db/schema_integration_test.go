@@ -93,6 +93,7 @@ var expectedForeignKeys = map[string]bool{
 	"invoice_preferences_order_id_fkey":           true,
 	"order_events_actor_user_id_fkey":             true,
 	"order_events_return_request_fk":              true,
+	"order_events_shipment_fk":                    true,
 	"coupon_redemptions_coupon_id_fkey":           true,
 	"coupon_redemptions_order_id_fkey":            true,
 	"coupon_redemptions_user_id_fkey":             true,

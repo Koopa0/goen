@@ -2849,6 +2849,31 @@ CREATE UNIQUE INDEX order_events_return_request_key
 CREATE INDEX order_events_return_request_fk_idx
     ON order_events (order_id, return_request_id);
 
+-- A shipped event names its parcel instead of describing it. The note this row
+-- once carried was the carrier's name and the tracking number in the shop's
+-- language, and an append-only row cannot be rewritten: every page in another
+-- language would have shown it for ever. The parcel (order_shipments) states
+-- carrier and tracking, and each page renders them in its reader's language.
+-- The composite foreign key keeps an event from naming another order's parcel;
+-- the unique index is one shipped event per parcel, as there is one notice.
+ALTER TABLE order_events
+    ADD COLUMN shipment_id uuid,
+    ADD CONSTRAINT order_events_shipment_shape CHECK (
+        (kind = 'shipped') = (shipment_id IS NOT NULL)
+    ),
+    ADD CONSTRAINT order_events_shipped_note_absent CHECK (
+        kind <> 'shipped' OR note IS NULL
+    ),
+    ADD CONSTRAINT order_events_shipment_fk
+        FOREIGN KEY (order_id, shipment_id)
+        REFERENCES order_shipments (order_id, id) ON DELETE RESTRICT;
+
+CREATE UNIQUE INDEX order_events_shipment_key
+    ON order_events (shipment_id)
+    WHERE shipment_id IS NOT NULL;
+CREATE INDEX order_events_shipment_fk_idx
+    ON order_events (order_id, shipment_id);
+
 -- order_id is carried for the same reason as on shipment lines: the composite
 -- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
@@ -5233,7 +5258,7 @@ GRANT SELECT (id, order_id, requested_by_user_id, status, resolution,
               credit_refund_cents, created_at, decided_at, before_shipment)
     ON return_requests TO reporting;
 GRANT SELECT (id, order_id, kind, actor_user_id, by_system, occurred_at,
-              return_request_id)
+              return_request_id, shipment_id)
     ON order_events TO reporting;
 
 -- Tables whose integrity depends on going through a function; SELECT stays.

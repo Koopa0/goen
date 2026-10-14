@@ -398,8 +398,8 @@ WHERE s.order_id IN (:'invoice_id', :'form_id');
 SELECT consume_reservation_partial(id, quantity) FROM inventory_reservations
 WHERE order_id IN (:'invoice_id', :'form_id') AND state = 'held';
 UPDATE orders SET fulfillment_status = 'shipped' WHERE id IN (:'invoice_id', :'form_id');
-INSERT INTO order_events (order_id, kind, note, actor_user_id)
-SELECT order_id, 'shipped', '黑貓宅急便 ' || tracking_number, :'staff_id'
+INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
+SELECT order_id, 'shipped', :'staff_id', id
 FROM order_shipments WHERE order_id IN (:'invoice_id', :'form_id');
 SELECT record_audit_event(:'staff_id', 'order.ship', 'orders', order_id, NULL,
     jsonb_build_object('carrier', carrier, 'tracking', tracking_number))
