@@ -242,6 +242,8 @@ var policies = map[string]pages.PolicyDoc{
 					"註冊時：電子郵件與密碼。密碼以無法還原的方式保存，任何人都無法從資料庫取回它，包含我們。",
 					"付款時：卡片資料由 Stripe 處理，不經過 goen。我們只收到卡別與末四碼。",
 					"訂閱電子報時：保存你的電子郵件、語言、確認與退訂狀態，用於寄送及停止電子報。",
+					"申請補貨通知時：保存電子郵件、語言與商品款式，用於到貨時通知你。",
+					"使用聯絡表單時：保存姓名、電子郵件、主旨、訂單編號與訊息內容，用於回覆你。",
 					"登入時：工作階段保存 IP 位址，以及瀏覽器送出的瀏覽器與裝置資訊，登入狀態結束或帳號刪除後一併移除。",
 					"開立發票時：保存顧客姓名、電子郵件，以及你選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
 					"登錄保固時：保存商品序號與保固登錄資料，用於識別送修商品及保固期限。",
@@ -251,9 +253,41 @@ var policies = map[string]pages.PolicyDoc{
 					"When you register: your email and a password. The password is stored in a form that cannot be reversed, so nobody can recover it from the database, us included.",
 					"When you pay: your card details go to Stripe and never through goen. We receive the card brand and the last four digits.",
 					"When you subscribe to the newsletter: we keep your email, language, confirmation and unsubscribe status to send or stop the newsletter.",
+					"When you ask for a restock alert: we keep your email, language and the variant, to tell you when it is back.",
+					"When you use the contact form: we keep your name, email, subject, order number and message, to reply to you.",
 					"When you sign in: the session stores your IP address and the browser and device details your browser sends, and is removed when the session expires or the account is deleted.",
 					"When we issue an invoice: we keep your customer name and email, and the company tax ID, mobile barcode or donation code you choose to provide, for invoicing and subsequent allowances.",
 					"When you register a warranty: we keep the product serial number and warranty registration to identify the unit and its coverage period.",
+				},
+			},
+			{
+				Heading:   "保存多久",
+				HeadingEn: "How long we keep it",
+				Body: []string{
+					fmt.Sprintf("電子報訂閱確認信的連結 %s 小時內有效；沒有完成確認的訂閱申請，會在最後一次申請的 %s 天後刪除。",
+						pages.NewsletterConfirmHoursText(), pages.NewsletterRetainDaysText()),
+					fmt.Sprintf("未登入時建立的購物車，連續 %s 天沒有變動就會刪除。", pages.GuestCartRetainDaysText()),
+					fmt.Sprintf("前往超商門市地圖時暫存的結帳資料（姓名、電話、地址、電子郵件與發票資料），會在 %s 小時後或訂單送出時清除。",
+						pages.CheckoutDraftHoursText()),
+					fmt.Sprintf("寄給你的電子郵件紀錄，在寄出 %[1]s 天後刪除；無法寄出的郵件在建立 %[1]s 天後刪除。", pages.MailRetainDaysText()),
+					fmt.Sprintf("登入狀態最長維持 %s 天，到期後即刪除。", pages.SessionDaysText()),
+					// Until the stock-alert sweep exists, the second sentence is the
+					// truth; the sweep's PR replaces it with the deletion period.
+					"補貨通知申請會保留到我們寄出通知為止。目前寄出通知後的申請紀錄不會自動刪除。",
+					"透過聯絡表單送出的訊息目前不會自動刪除；刪除帳號時，若該電子郵件已驗證，會一併刪除。",
+					"訂單財務紀錄與發票資料目前沒有設定刪除期限；訂單上的收件資料會保留到你刪除帳號為止。",
+				},
+				BodyEn: []string{
+					fmt.Sprintf("A newsletter confirmation link works for %s hours; a sign-up nobody confirmed is deleted %s days after the latest request.",
+						pages.NewsletterConfirmHoursText(), pages.NewsletterRetainDaysText()),
+					fmt.Sprintf("A cart made while signed out is deleted after %s days without a change.", pages.GuestCartRetainDaysText()),
+					fmt.Sprintf("Checkout details held while you pick a convenience store (name, phone, address, email and invoice details) are cleared after %s hour, or when you place the order.",
+						pages.CheckoutDraftHoursText()),
+					fmt.Sprintf("Records of mail we send you are deleted %[1]s days after delivery; mail that could not be delivered is deleted %[1]s days after it was created.", pages.MailRetainDaysText()),
+					fmt.Sprintf("A sign-in lasts at most %s days and is deleted when it expires.", pages.SessionDaysText()),
+					"A restock alert is kept until we send the notice. Alerts already notified are not yet deleted automatically.",
+					"Messages sent through the contact form are not deleted automatically; deleting your account deletes them too if that email address is verified.",
+					"Order financial records and invoice data have no set deletion date; the delivery details on an order are kept until you delete your account.",
 				},
 			},
 			{
@@ -311,10 +345,10 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "訂單成立",
 				HeadingEn: "When an order is formed",
 				Body: []string{
-					"送出訂單即表示要約，我們確認庫存與付款後訂單成立。若商品在你付款前售罄，我們會取消訂單並全額退款。",
+					"送出訂單即表示要約，我們確認庫存與付款後訂單成立。下單後我們會為你保留商品；保留時間內沒有完成付款，訂單會自動取消，不會收取任何款項。若款項在保留結束後才到達，訂單不會恢復，我們會將這筆款項全額退回你付款的卡片。",
 				},
 				BodyEn: []string{
-					"Placing an order is an offer; the contract forms when we have confirmed the stock and the payment. If something sells out before you pay, we cancel the order and refund it in full.",
+					"Placing an order is an offer; the contract forms when we have confirmed the stock and the payment. We hold the goods from the moment you order. If payment is not completed while they are held, the order is cancelled automatically and nothing is charged. If a payment reaches us after the hold has ended, the order is not revived, and we refund that payment in full to the card it came from.",
 				},
 			},
 			{
