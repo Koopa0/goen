@@ -1,6 +1,6 @@
 //go:build integration
 
-package orders_test
+package dashboard_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -28,7 +28,7 @@ import (
 // the health desk, so the list and /admin/health name the same things.
 func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	count := func(tasks []admin.Task, label i18n.Key) int64 {
 		for _, task := range tasks {
 			if task.Label == label {
@@ -83,7 +83,7 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 // must agree.
 func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	waiting := func() int64 {
 		t.Helper()
 		v, err := s.Dashboard(t.Context())
@@ -137,14 +137,14 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 	notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
 	for _, tc := range []struct {
 		name string
-		desk orders.Health
+		desk dashboard.Health
 		want bool
 	}{
 		{"unreadable", failing, true},
 		{"readable", healthDesk{}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := admintest.OrderDesk(admintest.OrderStoreWithHealth(pool, admintest.Refunder{}, nil, nil, tc.desk))
+			h := handlerOver(storeOver(pool, tc.desk))
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
 			w := httptest.NewRecorder()
 			admintest.BackOffice.RequireStaff(h.Dashboard)(w, req)
@@ -177,7 +177,7 @@ func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
 	desk := healthDesk{tasks: []admin.Task{{
 		Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true,
 	}}}
-	h := admintest.OrderDesk(admintest.OrderStoreWithHealth(pool, admintest.Refunder{}, nil, nil, desk))
+	h := handlerOver(storeOver(pool, desk))
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
 	w := httptest.NewRecorder()
 	admintest.BackOffice.RequireStaff(h.Dashboard)(w, req)
@@ -197,7 +197,7 @@ func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
 // separate queries, so each case asserts both against one known instant.
 func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	desk := health.NewStore(isolated)
 
 	readyAge := func() (admin.Task, bool) {
@@ -243,7 +243,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 
 	// Store credit paid it in full: no payment and no paid event, so the age
 	// starts at placed_at.
-	creditNumber, creditPlaced := placeOrderPaidByCredit(t, isolated, 2*24*time.Hour)
+	creditNumber, creditPlaced := admintest.PlaceOrderPaidByCredit(t, isolated, 2*24*time.Hour)
 	assertAge(creditPlaced, creditNumber)
 	if task, _ := readyAge(); task.AgeSeconds/86400 != 2 {
 		t.Errorf("an owes-nothing order placed two days ago is %d days old, want 2", task.AgeSeconds/86400)
@@ -275,7 +275,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 // not the request.
 func TestTheDashboardAgesAnUninspectedReturnFromItsDecision(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	requestID := admintest.PreapprovedReturn(t, isolated)
 	var decided time.Time
 	if err := isolated.QueryRow(t.Context(),
@@ -314,50 +314,6 @@ func TestTheDashboardAgesAnUninspectedReturnFromItsDecision(t *testing.T) {
 	t.Fatal("the dashboard lists no uninspected return")
 }
 
-// placeOrderPaidByCredit places a pending order whose store credit covers all
-// of it, placed this long ago.
-func placeOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (number string, placedAt time.Time) {
-	t.Helper()
-	ctx := t.Context()
-	const cents = 5000
-	userID := admintest.CreditedAccount(t, pool, cents)
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	defer db.Rollback(ctx, tx)
-	var orderID uuid.UUID
-	if err = tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, user_id, shipping_version_id,
-		                    shipping_method_code, shipping_method_name, shipping_cents, placed_at)
-		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, now() - make_interval(secs => $2)
-		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1
-		RETURNING id, order_number, placed_at`, userID, ago.Seconds()).Scan(&orderID, &number, &placedAt); err != nil {
-		t.Fatalf("create order: %v", err)
-	}
-	if _, err = tx.Exec(ctx, `
-		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                postal_code, city, district, street)
-		VALUES ($1, 'c@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
-		orderID); err != nil {
-		t.Fatalf("create private data: %v", err)
-	}
-	if _, err = tx.Exec(ctx, `
-		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, 'AGE-SKU', '帳齡測試', $2, 1)`, orderID, cents); err != nil {
-		t.Fatalf("create line: %v", err)
-	}
-	if _, err = tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -cents, orderID, "spend:"+orderID.String()); err != nil {
-		t.Fatalf("spend credit: %v", err)
-	}
-	if err = tx.Commit(ctx); err != nil {
-		t.Fatalf("commit: %v", err)
-	}
-	return number, placedAt
-}
-
 // captureCardPaidAgo captures a card payment whose confirming webhook event
 // says Stripe took the money this long ago, which is where capture_payment
 // takes paid_at from. The event is recorded after the payment opens: opening
@@ -394,7 +350,7 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 // the latest; an order still awaiting payment is neither, though it is newer.
 func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	read := func() admin.DashboardView {
 		t.Helper()
 		var view admin.DashboardView
@@ -435,8 +391,8 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 // one placed last, and an order refunded before shipment is no sale.
 func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
-	latest := func(store *orders.Store) *admin.LatestPaid {
+	s := storeOver(isolated, health.NewStore(isolated))
+	latest := func(store *dashboard.Store) *admin.LatestPaid {
 		t.Helper()
 		var view admin.DashboardView
 		if err := store.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
@@ -476,7 +432,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 	alone := admintest.Pool(t)
 	old, _ := captureCardPaidAgo(t, alone, 40*24*time.Hour)
 	place(alone, old, 40*24*time.Hour)
-	got := latest(admintest.OrderStore(alone, admintest.Refunder{}, nil, nil))
+	got := latest(storeOver(alone, health.NewStore(alone)))
 	if got == nil || got.Number != old || got.Elapsed < 39*24*time.Hour {
 		t.Errorf("Latest = %+v, want %s paid 40 days ago", got, old)
 	}
@@ -485,7 +441,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 // A picking order is as old as the moment a person took it into picking.
 func TestTheDashboardAgesAPickingOrderFromWhenItWasTaken(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	s := storeOver(isolated, health.NewStore(isolated))
 	_, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
 	if _, err := isolated.Exec(t.Context(), `
 		INSERT INTO order_events (order_id, kind, occurred_at) VALUES ($1, 'picking', now() - interval '2 days')`,

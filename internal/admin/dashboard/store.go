@@ -1,0 +1,141 @@
+// Package dashboard is the back office's landing page, GET /admin: what waits
+// for a person at every desk. It reads its counts and the newest orders with
+// queries of its own, and the stock runway, the health tasks and the week's
+// sales through the interfaces below, which the stock, health and reports desks
+// satisfy.
+package dashboard
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
+)
+
+// Stock ranks the SKUs by days cover; the stock desk implements it.
+type Stock interface {
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
+}
+
+// Health lists what the health desk judges to need a person, as dashboard
+// tasks; the health desk implements it.
+type Health interface {
+	Tasks(ctx context.Context) ([]admin.Task, error)
+}
+
+// Sales reads the dashboard's last seven days and its latest paid order; the
+// reports desk implements it.
+type Sales interface {
+	FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error
+}
+
+type Store struct {
+	q      *db.Queries
+	stock  Stock
+	health Health
+	sales  Sales
+}
+
+func NewStore(pool *pgxpool.Pool, stock Stock, health Health, sales Sales) *Store {
+	if pool == nil || stock == nil || health == nil || sales == nil {
+		panic("dashboard: NewStore requires a pool, stock, health and sales")
+	}
+	return &Store{q: db.New(pool), stock: stock, health: health, sales: sales}
+}
+
+func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
+	sum, err := s.q.AdminSummary(ctx)
+	if err != nil {
+		return admin.DashboardView{}, fmt.Errorf("read summary: %w", err)
+	}
+	view := admin.DashboardView{
+		PendingOrders:             sum.PendingOrders,
+		ReadyOrders:               sum.ReadyOrders,
+		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
+		PickingOrders:             sum.PickingOrders,
+		PickingOldestSeconds:      sum.PickingOldestSeconds,
+		SoldOut:                   sum.SoldOut,
+		OpenMessages:              sum.OpenMessages,
+		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
+
+		PendingReturns:                   sum.PendingReturns,
+		PendingReturnsOldestSeconds:      sum.PendingReturnsOldestSeconds,
+		UninspectedReturns:               sum.UninspectedReturns,
+		UninspectedReturnsOldestSeconds:  sum.UninspectedReturnsOldestSeconds,
+		UnansweredQuestions:              sum.UnansweredQuestions,
+		UnansweredQuestionsOldestSeconds: sum.UnansweredQuestionsOldestSeconds,
+	}
+	// No status: the newest orders whatever state they are in. The tiles above
+	// the queue already count each state, and a queue filtered to one of them
+	// hides the order somebody is standing at the counter asking about.
+	recent, err := s.q.RecentOrders(ctx, recentRows)
+	if err != nil {
+		return admin.DashboardView{}, fmt.Errorf("read recent orders: %w", err)
+	}
+	rows := make([]admin.OrderRow, len(recent))
+	for i := range recent {
+		rows[i] = orderRow(ctx, &recent[i])
+	}
+	view.Recent = rows
+
+	now := time.Now()
+	listed, _, err := s.stock.DaysCover(ctx, inventory.CoverWindowDays, now)
+	if err != nil {
+		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
+	}
+	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(admin.StockRisks(listed, now))
+	view.Tasks = view.DeskTasks()
+	return view, nil
+}
+
+// HealthTasks is what the health desk says needs a person. The dashboard is
+// still worth opening without it, so the caller decides what an error costs.
+func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
+	return s.health.Tasks(ctx)
+}
+
+// FillWeek is the last seven days of the shop's sales. The dashboard is still
+// worth opening without it, so the caller decides what an error costs.
+func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
+	return s.sales.FillWeek(ctx, view, now)
+}
+
+// recentRows is how many of the newest orders the landing page lists.
+const recentRows = 8
+
+// orderRow is one order as the landing page lists it. It reads the same word,
+// colour and total as the orders queue's row for the same order: the total is
+// assembled here rather than in the query because the storefront's own order
+// view computes it the same way from the same four columns.
+func orderRow(ctx context.Context, o *db.RecentOrdersRow) admin.OrderRow {
+	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
+	text, intent := orderStatus(ctx, fulfillment, o)
+	return admin.OrderRow{
+		Number:       o.OrderNumber,
+		Status:       fulfillment,
+		StatusText:   text,
+		StatusIntent: intent,
+		PlacedAt:     shoptime.Minute(o.PlacedAt),
+		Recipient:    o.Recipient,
+		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+	}
+}
+
+// orderStatus is the word and colour an order carries: an order returned in
+// full, with every refund settled, says so in place of where its delivery
+// stands.
+func orderStatus(ctx context.Context, status order.FulfillmentStatus, o *db.RecentOrdersRow) (string, components.Intent) {
+	if o.Returned {
+		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
+	}
+	return admin.FundedFulfillmentLabel(ctx, status, o.Committed, o.OwedCents), admin.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
+}

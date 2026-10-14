@@ -16,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/dashboard"
+	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
@@ -629,10 +632,10 @@ func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	s := stock.NewStore(owner)
-	dashboard := admintest.OrderStore(owner, admintest.Refunder{}, nil, nil)
+	landing := dashboard.NewStore(owner, s, health.NewStore(owner), reports.NewStore(owner, s))
 	read := func() (counted int64, listed int) {
 		t.Helper()
-		view, err := dashboard.Dashboard(ctx)
+		view, err := landing.Dashboard(ctx)
 		if err != nil {
 			t.Fatalf("Dashboard: %v", err)
 		}

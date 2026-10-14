@@ -40,14 +40,11 @@ var exceptions = map[string]string{
 	"internal/ui/pages/admin -> internal/web":              "T30",
 	"internal/web -> internal/ui/components":               "T31",
 	"internal/i18n -> internal/shipping":                   "T27",
-	"internal/admin/admintest -> internal/admin/health":    "T48",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
 	"internal/admin/admintest -> internal/admin/orders":    "T48",
 	"internal/admin/admintest -> internal/admin/products":  "T48",
 	"internal/admin/admintest -> internal/admin/refunds":   "T48",
-	"internal/admin/admintest -> internal/admin/reports":   "T48",
 	"internal/admin/admintest -> internal/admin/returns":   "T48",
-	"internal/admin/admintest -> internal/admin/stock":     "T48",
 }
 
 // under reports whether pkg is dir or lies below it.

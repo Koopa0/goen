@@ -55,7 +55,7 @@ func TestAZeroGrossInvoicePostIsRefusedBeforeTheProviderIsCalled(t *testing.T) {
 	if operations != 0 {
 		t.Errorf("zero-gross order has %d invoice operations, want 0", operations)
 	}
-	creditNumber, _ := placeOrderPaidByCredit(t, pool, 0)
+	creditNumber, _ := admintest.PlaceOrderPaidByCredit(t, pool, 0)
 	credit, err := admintest.OrderStore(adminPool, admintest.Refunder{}, writer, writer).Order(ctx, creditNumber)
 	if err != nil {
 		t.Fatalf("read credit-funded order: %v", err)

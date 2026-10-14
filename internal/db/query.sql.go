@@ -13660,6 +13660,90 @@ func (q *Queries) RecentMedia(ctx context.Context, limit int32) ([]RecentMediaRo
 	return items, nil
 }
 
+const recentOrders = `-- name: RecentOrders :many
+SELECT o.order_number,
+    o.fulfillment_status,
+    o.placed_at,
+    o.shipping_cents,
+    o.discount_cents,
+    o.tax_cents,
+    coalesce(pd.recipient_name, '') AS recipient,
+    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+    order_is_committed(o.id) AS committed,
+    order_amount_after_credit(o.id) AS owed_cents,
+    (EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id)
+     AND NOT EXISTS (
+         SELECT 1 FROM order_lines ol
+         WHERE ol.order_id = o.id
+           AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                       JOIN return_requests rr ON rr.id = rl.return_request_id
+                                       WHERE rl.order_line_id = ol.id
+                                         AND NOT rr.before_shipment
+                                         AND (rr.status = 'completed'
+                                              OR (rr.status = 'approved'
+                                                  AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                                                       OR EXISTS (SELECT 1 FROM order_events e
+                                                                  WHERE e.return_request_id = rr.id
+                                                                    AND e.kind = 'refunded'))))), 0)))::boolean AS returned
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+ORDER BY o.placed_at DESC, o.id DESC
+LIMIT $1::integer
+`
+
+type RecentOrdersRow struct {
+	OrderNumber       string
+	FulfillmentStatus string
+	PlacedAt          time.Time
+	ShippingCents     int64
+	DiscountCents     int64
+	TaxCents          int64
+	Recipient         string
+	SubtotalCents     int64
+	Committed         bool
+	OwedCents         int64
+	Returned          bool
+}
+
+// The newest orders whatever state they are in, as the landing page lists them.
+// The columns are the ones admin/orders' AdminOrders returns for a queue row,
+// plus returned: whether every unit is in a return whose refund has settled.
+// returned repeats the predicate of ReturnedOrders in internal/cart/query.sql,
+// so that this package reads no other package's query; the test that reads an
+// order through both desks holds the two to the same answer.
+func (q *Queries) RecentOrders(ctx context.Context, rowLimit int32) ([]RecentOrdersRow, error) {
+	rows, err := q.db.Query(ctx, recentOrders, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecentOrdersRow{}
+	for rows.Next() {
+		var i RecentOrdersRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.FulfillmentStatus,
+			&i.PlacedAt,
+			&i.ShippingCents,
+			&i.DiscountCents,
+			&i.TaxCents,
+			&i.Recipient,
+			&i.SubtotalCents,
+			&i.Committed,
+			&i.OwedCents,
+			&i.Returned,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reconcileInvalidInvoiceAllowance = `-- name: ReconcileInvalidInvoiceAllowance :one
 SELECT reconcile_invalid_invoice_allowance(
     $1::uuid,

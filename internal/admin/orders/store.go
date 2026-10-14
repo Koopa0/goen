@@ -9,7 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -47,97 +46,19 @@ type Invoices interface {
 	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
 }
 
-// Stock ranks the SKUs by days cover, for the dashboard; the stock desk
-// implements it.
-type Stock interface {
-	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
-}
-
-// Health lists what the health desk judges to need a person, as dashboard
-// tasks; the health desk implements it.
-type Health interface {
-	Tasks(ctx context.Context) ([]admin.Task, error)
-}
-
-// Sales reads the dashboard's last seven days and its latest paid order; the
-// reports desk implements it.
-type Sales interface {
-	FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error
-}
-
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	refunds  Refunds
 	invoices Invoices
-	stock    Stock
-	health   Health
-	sales    Sales
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health, sales Sales) *Store {
-	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil || sales == nil {
-		panic("orders: NewStore requires a pool, refunds, invoices, stock, health and sales")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices) *Store {
+	if pool == nil || refunds == nil || invoices == nil {
+		panic("orders: NewStore requires a pool, refunds and invoices")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health, sales: sales}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices}
 }
-
-func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
-	sum, err := s.q.AdminSummary(ctx)
-	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read summary: %w", err)
-	}
-	view := admin.DashboardView{
-		PendingOrders:             sum.PendingOrders,
-		ReadyOrders:               sum.ReadyOrders,
-		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
-		PickingOrders:             sum.PickingOrders,
-		PickingOldestSeconds:      sum.PickingOldestSeconds,
-		SoldOut:                   sum.SoldOut,
-		OpenMessages:              sum.OpenMessages,
-		OpenMessagesOldestSeconds: sum.OpenMessagesOldestSeconds,
-
-		PendingReturns:                   sum.PendingReturns,
-		PendingReturnsOldestSeconds:      sum.PendingReturnsOldestSeconds,
-		UninspectedReturns:               sum.UninspectedReturns,
-		UninspectedReturnsOldestSeconds:  sum.UninspectedReturnsOldestSeconds,
-		UnansweredQuestions:              sum.UnansweredQuestions,
-		UnansweredQuestionsOldestSeconds: sum.UnansweredQuestionsOldestSeconds,
-	}
-	// No status: the newest orders whatever state they are in. The tiles above
-	// the queue already count each state, and a queue filtered to one of them
-	// hides the order somebody is standing at the counter asking about.
-	recent, err := s.q.AdminOrders(ctx, db.AdminOrdersParams{RowLimit: DashboardRows})
-	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read recent orders: %w", err)
-	}
-	if view.Recent, err = s.orderRows(ctx, recent); err != nil {
-		return admin.DashboardView{}, err
-	}
-
-	now := time.Now()
-	listed, _, err := s.stock.DaysCover(ctx, inventory.CoverWindowDays, now)
-	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
-	}
-	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(admin.StockRisks(listed, now))
-	view.Tasks = view.DeskTasks()
-	return view, nil
-}
-
-// HealthTasks is what the health desk says needs a person. The dashboard is
-// still worth opening without it, so the caller decides what an error costs.
-func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
-	return s.health.Tasks(ctx)
-}
-
-// FillWeek is the last seven days of the shop's sales. The dashboard is still
-// worth opening without it, so the caller decides what an error costs.
-func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
-	return s.sales.FillWeek(ctx, view, now)
-}
-
-const DashboardRows = 8
 
 // orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.
 func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admin.OrderRow, error) {
@@ -156,9 +77,10 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admi
 	return out, nil
 }
 
-// orderRow is one order as both the queue and the landing page render it. The
-// total is assembled here rather than in the query because the storefront's
-// own order view computes it the same way from the same four columns.
+// orderRow is one order as the queue renders it; admin/dashboard's landing page
+// reads the same word, colour and total for its newest orders. The total is
+// assembled here rather than in the query because the storefront's own order
+// view computes it the same way from the same four columns.
 func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, returned)
