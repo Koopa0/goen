@@ -34,6 +34,7 @@ func newCommitAttributionRepo(t *testing.T) (dir string, git func(...string) str
 	git("config", "user.name", "message-test")
 	git("config", "user.email", "message-test@goen.invalid")
 	git("config", "commit.gpgsign", "false")
+	git("config", "core.hooksPath", os.DevNull) // a developer's global commit-msg hook must not stop the fixtures from being created
 	return dir, git
 }
 
@@ -46,26 +47,91 @@ func runCommitAttribution(t *testing.T, dir, script, base, head string, env ...s
 	return string(output), err
 }
 
+// aiTrailer is the form the history tests use for a dirty commit.
+const aiTrailer = "Co-authored-by: Claude <noreply@anthropic.com>"
+
+// TestCommitAttributionRejectsForbiddenMessages holds the whole policy: a human
+// co-author is credited with a well-formed trailer, and every way of naming an
+// AI tool stays refused. Each case is a separate commit judged on its own.
 func TestCommitAttributionRejectsForbiddenMessages(t *testing.T) {
 	script := commitAttributionScript(t)
 	dir, git := newCommitAttributionRepo(t)
 	git("commit", "--allow-empty", "-qm", "test: clean base")
 	base := git("rev-parse", "HEAD")
+	const fix = "fix: preserve the form\n\n"
 	for _, tc := range []struct {
 		name    string
 		message string
 		wantRed bool
 	}{
 		{"clean", "fix: preserve the native form", false},
-		{"coauthor", "fix: preserve the form\n\nCo-authored-by: Someone <person@example.com>", true},
-		{"owner trailer", "fix: preserve the form\n\nCo-authored-by: Koopa <Koopa0@users.noreply.github.com>", true},
-		{"case and spacing", "fix: preserve the form\n\n  CO-AUTHORED-BY : Someone <person@example.com>", true},
-		{"inline attribution", "fix: preserve the form Co-authored-by: Someone", true},
+
+		// A human is credited with a Co-authored-by trailer.
+		{"human co-author", fix + "Co-authored-by: Ada Lovelace <ada@example.com>", false},
+		{"human co-author owner noreply", fix + "Co-authored-by: Koopa <Koopa0@users.noreply.github.com>", false},
+		{"human co-author numbered noreply", fix + "Co-authored-by: Grace Hopper <1234+grace@users.noreply.github.com>", false},
+		{"human co-author key in lower case", fix + "co-authored-by: Ada Lovelace <ada@example.com>", false},
+		{"two human co-authors", fix + "Co-authored-by: Ada Lovelace <ada@example.com>\nCo-authored-by: Grace Hopper <grace@example.org>", false},
+		{"human whose name contains a tool word", fix + "Co-authored-by: Jean-Claude Van Damme <jcvd@example.com>", false},
+		{"human co-author beside a signoff", fix + "Signed-off-by: Ada Lovelace <ada@example.com>\nCo-authored-by: Grace Hopper <grace@example.org>", false},
+		{"human co-author after a long body", fix + strings.Repeat("body\n", 20000) + "\nCo-authored-by: Ada Lovelace <ada@example.com>", false},
+
+		// A name that begins with a tool word was rejected before and stays rejected.
+		{"human first name Claude", fix + "Co-authored-by: Claude Monet <monet@example.com>", true},
+		{"human first name Claudette", fix + "Co-authored-by: Claudette Colbert <claudette@example.com>", true},
+
+		// A trailer that is not exactly one name and one address is not a credit.
+		{"missing address", fix + "Co-authored-by: Someone", true},
+		{"missing name", fix + "Co-authored-by: <person@example.com>", true},
+		{"no space before address", fix + "Co-authored-by: Someone<person@example.com>", true},
+		{"case and spacing", fix + "  CO-AUTHORED-BY : Someone <person@example.com>", true},
+		{"indented trailer", fix + "  Co-authored-by: Someone <person@example.com>", true},
+		{"inline attribution", "fix: preserve the form Co-authored-by: Someone <person@example.com>", true},
+		{"two addresses", fix + "Co-authored-by: Someone <a@example.com> <b@example.com>", true},
+		{"co-committed-by", fix + "Co-committed-by: Ada Lovelace <ada@example.com>", true},
+		{"large message", fix + "Co-authored-by: Someone\n" + strings.Repeat("body\n", 20000), true},
+		{"human beside an AI co-author", fix + "Co-authored-by: Ada Lovelace <ada@example.com>\n" + aiTrailer, true},
+
+		// AI co-authors, by name and by address.
+		{"claude trailer", fix + aiTrailer, true},
+		{"claude trailer lower case", fix + "co-authored-by: claude <noreply@anthropic.com>", true},
+		{"claude model name", fix + "Co-Authored-By: Claude Opus 4 <noreply@anthropic.com>", true},
+		{"claude name, human address", fix + "Co-authored-by: Claude <person@example.com>", true},
+		{"human name, anthropic address", fix + "Co-authored-by: Ada Lovelace <noreply@anthropic.com>", true},
+		{"human name, openai address", fix + "Co-authored-by: Ada Lovelace <noreply@openai.com>", true},
+		{"codex trailer", fix + "Co-authored-by: Codex <codex@openai.com>", true},
+		{"chatgpt trailer", fix + "Co-authored-by: ChatGPT <noreply@openai.com>", true},
+		{"cursor trailer", fix + "Co-authored-by: Cursor Agent <cursoragent@cursor.com>", true},
+		{"cursor name, human address", fix + "Co-authored-by: Cursor <person@example.com>", true},
+		{"copilot trailer", fix + "Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>", true},
+		{"copilot name, human address", fix + "Co-authored-by: GitHub Copilot <person@example.com>", true},
+		{"gemini trailer", fix + "Co-authored-by: Gemini 2.5 Pro <gemini@example.com>", true},
+		{"grok trailer", fix + "Co-authored-by: Grok <grok@x.ai>", true},
+		{"aider trailer", fix + "Co-authored-by: aider (gpt-4o) <noreply@aider.chat>", true},
+		{"devin bot", fix + "Co-authored-by: devin-ai-integration[bot] <158243242+devin-ai-integration[bot]@users.noreply.github.com>", true},
+		{"dependabot", fix + "Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>", true},
+		{"signoff by an AI name", fix + "Signed-off-by: Gemini <person@example.com>", true},
+		{"signoff at an AI address", fix + "Signed-off-by: Ada Lovelace <noreply@anthropic.com>", true},
+		{"assisted-by trailer", fix + "Assisted-by: Claude:claude-opus-4", true},
+
+		// Other attribution lines.
 		{"self identification", "fix: written by Cursor", true},
-		{"agent identity", "fix: preserve the form\n\nCursor Agent", true},
+		{"agent identity", fix + "Cursor Agent", true},
 		{"generated attribution", "fix: generated by Cursor", true},
 		{"other generated attribution", "fix: generated by Codex", true},
-		{"large message", "fix: preserve the form\n\nCo-authored-by: Someone\n" + strings.Repeat("body\n", 20000), true},
+		{"generated with link", fix + "Generated with [Claude Code](https://claude.com/claude-code)", true},
+		{"generated with tool name", fix + "Generated with Gemini", true},
+		{"robot line", fix + "\U0001F916 Generated with something", true},
+		{"robot emoji alone", fix + "\U0001F916", true},
+		{"robot shortcode", fix + ":robot: wrote this", true},
+		{"claude session trailer", fix + "Claude-Session: https://claude.ai/code/session_01ABC", true},
+		{"session link", fix + "https://claude.ai/code/session_01ABC", true},
+		{"chat link", fix + "https://chatgpt.com/share/abc", true},
+
+		// Ordinary words that look close must not trip the check.
+		{"generated by a build tool", fix + "Regenerate the queries.\n\nGenerated with sqlc.", false},
+		{"names a tool in prose", fix + "Document how Claude Code settings are ignored by the build.", false},
+		{"surname containing a tool word", fix + "Co-authored-by: Anne Cursoria <anne@example.com>", false},
 	} {
 		t.Run("available base/"+tc.name, func(t *testing.T) {
 			git("commit", "--allow-empty", "-qm", tc.message)
@@ -76,6 +142,9 @@ func TestCommitAttributionRejectsForbiddenMessages(t *testing.T) {
 			}
 			if tc.wantRed && !strings.Contains(output, "forbidden attribution") {
 				t.Fatalf("not an attribution failure: %s", output)
+			}
+			if !tc.wantRed && !strings.Contains(output, "PASS") {
+				t.Fatalf("clean message did not report PASS: %s", output)
 			}
 			base = head
 		})
@@ -91,7 +160,7 @@ func TestCommitAttributionScansReachableHistory(t *testing.T) {
 		dir, git := newCommitAttributionRepo(t)
 		git("commit", "--allow-empty", "-qm", "test: clean root")
 		base := git("rev-parse", "HEAD")
-		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\nCo-authored-by: Someone <person@example.com>")
+		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\n"+aiTrailer)
 		git("commit", "--allow-empty", "-qm", "fix: clean tip")
 		head := git("rev-parse", "HEAD")
 		output, err := runCommitAttribution(t, dir, script, base, head)
@@ -103,7 +172,7 @@ func TestCommitAttributionScansReachableHistory(t *testing.T) {
 	t.Run("zero base initial push", func(t *testing.T) {
 		dir, git := newCommitAttributionRepo(t)
 		git("commit", "--allow-empty", "-qm", "test: clean root")
-		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\nCo-authored-by: Someone <person@example.com>")
+		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\n"+aiTrailer)
 		head := git("rev-parse", "HEAD")
 		output, err := runCommitAttribution(t, dir, script, zeroBase, head)
 		if err == nil || !strings.Contains(output, "forbidden attribution") {
@@ -128,7 +197,7 @@ func TestCommitAttributionScansReachableHistory(t *testing.T) {
 	t.Run("missing base dirty ancestor clean tip", func(t *testing.T) {
 		dir, git := newCommitAttributionRepo(t)
 		git("commit", "--allow-empty", "-qm", "test: clean root")
-		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\nCo-authored-by: Someone <person@example.com>")
+		git("commit", "--allow-empty", "-qm", "fix: preserve the form\n\n"+aiTrailer)
 		git("commit", "--allow-empty", "-qm", "fix: clean tip")
 		head := git("rev-parse", "HEAD")
 		output, err := runCommitAttribution(t, dir, script, missingBase, head)

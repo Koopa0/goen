@@ -176,7 +176,12 @@ store before anything else.
   reason, restore, and say so in the pull request.
 - Comments carry the reason a reader needs to not break the line (a statute, a
   provider quirk, a lock ordering) and nothing else. No history.
-- Commits carry no `Co-authored-by` trailer.
+- Credit a human co-author with a `Co-authored-by: Name <email>` trailer on a
+  line of its own. AI attribution is not accepted: no trailer naming an AI tool, no
+  `Generated with` line, robot-emoji line or session link.
+  `commit-attribution` refuses it in commit messages; the patterns are in
+  `scripts/check-commit-attribution.sh`. It also refuses a trailer whose name
+  begins with a tool's name, such as `Claude`, whoever the person is.
 
 ### Test files
 
