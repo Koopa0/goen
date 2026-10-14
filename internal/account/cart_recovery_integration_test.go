@@ -45,7 +45,7 @@ func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *
 				{&guestID, guestToken, uuid.NullUUID{}, guestVariant, 2},
 				{&foreignID, foreignToken, uuid.NullUUID{UUID: uuid.MustParse(foreign.ID), Valid: true}, guestVariant, 99},
 			} {
-				if insertErr := pool.QueryRow(ctx, `INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`, bearer.Digest(fixture.token), fixture.owner).Scan(fixture.id); insertErr != nil {
+				if insertErr := pool.QueryRow(ctx, `INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`, bearer.Digest(fixture.token), fixture.owner).Scan(fixture.id); insertErr != nil {
 					t.Fatal(insertErr)
 				}
 				if _, lineErr := pool.Exec(ctx, `INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`, *fixture.id, fixture.variant, fixture.quantity); lineErr != nil {

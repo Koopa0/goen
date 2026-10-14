@@ -108,7 +108,7 @@ func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 		t.Helper()
 		var cartID uuid.UUID
 		if err := pool.QueryRow(ctx,
-			`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+			`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 			bearer.Digest(label+u.ID)).Scan(&cartID); err != nil {
 			t.Fatalf("create %s: %v", label, err)
 		}
@@ -222,12 +222,12 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 
 	var accountCart, guestCart uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
 		bearer.Digest("checkout-adopt-account-"+u.ID), userID).Scan(&accountCart); err != nil {
 		t.Fatalf("create account cart: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 		bearer.Digest("checkout-adopt-guest-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("create guest cart: %v", err)
 	}

@@ -65,7 +65,7 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	aSession := sessionCookie(t, completedA)
 	var aCart uuid.UUID
 	var aOwner uuid.NullUUID
-	if err := pool.QueryRow(ctx, `SELECT id, user_id FROM carts WHERE token_hash = $1`,
+	if err := pool.QueryRow(ctx, `SELECT id, user_id FROM carts WHERE digest = $1`,
 		bearer.Digest(aToken)).Scan(&aCart, &aOwner); err != nil {
 		t.Fatalf("read the adopted cart: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	completed := followRegistrationLink(t, account.NewStore(appPool), email,
 		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) })
 	var owner uuid.NullUUID
-	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
+	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE digest = $1`,
 		bearer.Digest(guestToken)).Scan(&owner); err != nil {
 		t.Fatalf("read the guest cart: %v", err)
 	}

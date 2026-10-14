@@ -72,7 +72,7 @@ func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byt
 	q := s.q.WithTx(tx)
 
 	n, err := q.BeginTOTPEnrolment(ctx, db.BeginTOTPEnrolmentParams{
-		UserID: id, SecretEncrypted: sealed, MailedCodeHash: mailedCodeHash(mailed),
+		UserID: id, SecretEncrypted: sealed, MailedCodeDigest: mailedCodeHash(mailed),
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("begin totp enrolment: %w", err)
@@ -105,8 +105,8 @@ func (s *Store) Confirm(ctx context.Context, userID, code, mailedCode string) er
 	}
 	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{
 		UserID: cred.id, Step: step, SecretEncrypted: cred.sealed,
-		MailedCodeHash: mailedCodeHash(mailedCode),
-		MailedCodeTtl:  pgtype.Interval{Microseconds: MailedCodeTTL.Microseconds(), Valid: true},
+		MailedCodeDigest: mailedCodeHash(mailedCode),
+		MailedCodeTtl:    pgtype.Interval{Microseconds: MailedCodeTTL.Microseconds(), Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("confirm totp: %w", err)
@@ -175,8 +175,8 @@ func (s *Store) MarkVerified(ctx context.Context, digest []byte) error {
 
 func (s *Store) SessionVerified(ctx context.Context, digest []byte) (bool, error) {
 	verified, err := s.q.SessionTOTPVerified(ctx, db.SessionTOTPVerifiedParams{
-		TokenHash: digest,
-		MaxAge:    pgtype.Interval{Microseconds: StepUpWindow.Microseconds(), Valid: true},
+		Digest: digest,
+		MaxAge: pgtype.Interval{Microseconds: StepUpWindow.Microseconds(), Valid: true},
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

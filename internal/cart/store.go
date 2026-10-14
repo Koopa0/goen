@@ -68,7 +68,7 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 // carts_one_per_user refuses the second insert, and the winner is the account
 // cart.
 func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) (uuid.UUID, error) {
-	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: bearer.Digest(token), UserID: userID})
+	id, err := s.q.CreateCart(ctx, db.CreateCartParams{Digest: bearer.Digest(token), UserID: userID})
 	if err != nil {
 		if existing, ok := s.ownedCartIfTaken(ctx, userID, err); ok {
 			return existing, nil

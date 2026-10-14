@@ -389,7 +389,7 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		`INSERT INTO newsletter_issues (subject, body, sent_by) VALUES ('每一個', '每一個外鍵', '` + account + `')`,
 		`INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street)
 		 VALUES ('` + account + `', '全部', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
-		`INSERT INTO carts (token_hash, user_id) VALUES ('\x0995', '` + account + `')`,
+		`INSERT INTO carts (digest, user_id) VALUES (sha256('every-fk-cart'::bytea), '` + account + `')`,
 		`INSERT INTO wishlist_items (user_id, product_id) VALUES ('` + account + `', '33333333-3333-4333-8333-333333333333')`,
 		`INSERT INTO stock_notifications (variant_id, user_id, email)
 		 VALUES ('44444444-4444-4444-8444-444444444444', '` + account + `', 'everything@example.com')`,
@@ -398,14 +398,15 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		`INSERT INTO product_answers (question_id, user_id, body) VALUES ('` + question + `', '` + account + `', '有。')`,
 		`INSERT INTO product_reviews (product_id, user_id, rating, body)
 		 VALUES ('33333333-3333-4333-8333-333333333333', '` + account + `', 5, '好用')`,
-		`INSERT INTO sessions (token_hash, user_id, expires_at)
+		`INSERT INTO sessions (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-session'::bytea), '` + account + `', now() + interval '1 day')`,
-		`INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		`INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-reset'::bytea), '` + account + `', now() + interval '1 hour')`,
 		`INSERT INTO email_verifications (user_id, email, digest, expires_at)
 		 VALUES ('` + account + `', 'everything.new@example.com', sha256('every-fk-verify'::bytea), now() + interval '1 day')`,
 		`INSERT INTO user_identities (user_id, provider, provider_subject) VALUES ('` + account + `', 'google', 'every-fk')`,
-		`INSERT INTO staff_totp_credentials (user_id, secret_encrypted) VALUES ('` + account + `', '\x01')`,
+		`INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest)
+		 VALUES ('` + account + `', '\x01', sha256('every-fk-mailed'::bytea))`,
 	} {
 		if _, refErr := tx.Exec(ctx, stmt); refErr != nil {
 			t.Fatalf("reference the account: %v\n%s", refErr, stmt)

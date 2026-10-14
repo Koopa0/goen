@@ -56,7 +56,7 @@ func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
 					t.Fatal(err)
 				}
 				if _, err := pool.Exec(t.Context(), `
-					INSERT INTO sessions (token_hash, user_id, expires_at)
+					INSERT INTO sessions (digest, user_id, expires_at)
 					SELECT sha256(($1 || n::text)::bytea), $1::uuid, now() + interval '14 days'
 					FROM generate_series(1, 2) AS n`, id); err != nil {
 					t.Fatal(err)

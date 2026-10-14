@@ -97,30 +97,30 @@ UPDATE users SET full_name = $2, phone = $3 WHERE id = $1;
 SELECT u.id, u.email, u.full_name, u.role
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now();
+WHERE s.digest = $1 AND s.expires_at > now();
 
 -- Recency is measured on the database's clock, the one that stamped created_at
 -- and that the expiry check above reads. A missing or expired session is not recent.
 -- name: SessionCreatedSince :one
 SELECT s.created_at > now() - @max_age::interval AS recent
 FROM sessions s
-WHERE s.token_hash = @token_hash AND s.expires_at > now();
+WHERE s.digest = @digest AND s.expires_at > now();
 
 -- The expiry is computed from the DATABASE's clock, which is what every read
 -- and retention sweep compares it with.
 -- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
-VALUES (@token_hash, @user_id, @user_agent, @ip, now() + @ttl::interval);
+INSERT INTO sessions (digest, user_id, user_agent, ip, expires_at)
+VALUES (@digest, @user_id, @user_agent, @ip, now() + @ttl::interval);
 
 -- name: DeleteSession :exec
-DELETE FROM sessions WHERE token_hash = $1;
+DELETE FROM sessions WHERE digest = $1;
 
 -- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = $1;
 
 -- name: DeleteOtherUserSessions :exec
 DELETE FROM sessions
-WHERE user_id = @user_id AND token_hash <> @current_token_hash::bytea;
+WHERE user_id = @user_id AND digest <> @current_digest::bytea;
 
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
@@ -134,12 +134,12 @@ WHERE (used_at IS NOT NULL OR expires_at <= now())
 
 -- The expiry is computed from the DATABASE's clock, which is what reads it back.
 -- name: CreatePasswordResetToken :exec
-INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
-VALUES (@token_hash, @user_id, now() + @ttl::interval);
+INSERT INTO password_reset_tokens (digest, user_id, expires_at)
+VALUES (@digest, @user_id, now() + @ttl::interval);
 
 -- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now();
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now();
 
 -- Completion takes the account row before it spends the token. erase_user uses
 -- the same user-before-token order, so the two operations cannot deadlock. The
@@ -153,7 +153,7 @@ SELECT id FROM users WHERE id = @user_id::uuid FOR UPDATE;
 -- win, and the caller runs this in the SAME transaction as the password change.
 -- name: SpendPasswordResetToken :one
 UPDATE password_reset_tokens SET used_at = now()
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id;
 
 -- A replacement link, a completed reset, or a verified mailbox must leave no

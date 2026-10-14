@@ -662,30 +662,35 @@ CREATE UNIQUE INDEX user_identities_user_provider_key
     ON user_identities (user_id, provider);
 
 CREATE TABLE staff_totp_credentials (
-    user_id          uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    user_id            uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     -- AES-256-GCM, keyed from the environment: a TOTP secret is a
     -- password-equivalent, so a database dump alone must not defeat the factor.
-    secret_encrypted bytea NOT NULL,
+    secret_encrypted   bytea NOT NULL,
     -- NULL until the enrolling person has proved they can generate a code, or
     -- a mistyped secret locks them out of what it protects.
-    confirmed_at     timestamptz,
+    confirmed_at       timestamptz,
     -- The most recent time step accepted. A code is valid for its whole
     -- 30-second step, and 90 seconds with the skew window either side, so
     -- requiring a strictly greater step is what makes each code single-use.
-    last_step        bigint,
+    last_step          bigint,
     -- sha256 of the code mailed to the account's address when enrolment began;
-    -- confirming enrolment also proves the mailbox.
-    mailed_code_hash bytea,
-    created_at       timestamptz NOT NULL DEFAULT now(),
+    -- confirming enrolment also proves the mailbox. Present exactly while the
+    -- credential is unconfirmed: the statement that confirms it spends the code.
+    mailed_code_digest bytea,
+    created_at         timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT staff_totp_secret_present CHECK (octet_length(secret_encrypted) > 0),
     CONSTRAINT staff_totp_step_needs_confirmation
-        CHECK (last_step IS NULL OR confirmed_at IS NOT NULL)
+        CHECK (last_step IS NULL OR confirmed_at IS NOT NULL),
+    CONSTRAINT staff_totp_credentials_mailed_code_digest_sha256
+        CHECK (mailed_code_digest IS NULL OR octet_length(mailed_code_digest) = 32),
+    CONSTRAINT staff_totp_credentials_mailed_code_shape
+        CHECK ((confirmed_at IS NULL) = (mailed_code_digest IS NOT NULL))
 );
 
--- Sessions store a hash, never the cookie value.
+-- Sessions store a digest, never the cookie value.
 CREATE TABLE sessions (
-    token_hash bytea PRIMARY KEY,
+    digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     user_agent text,
     ip         inet,
@@ -695,6 +700,7 @@ CREATE TABLE sessions (
     -- session. The factor guards the BACK OFFICE and not the sign-in, so there is
     -- no half-authenticated state to keep anywhere.
     totp_verified_at timestamptz,
+    CONSTRAINT sessions_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),
     CONSTRAINT sessions_totp_after_creation
 		CHECK (totp_verified_at IS NULL OR totp_verified_at >= created_at),
@@ -708,11 +714,12 @@ CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
 CREATE TABLE password_reset_tokens (
-    token_hash bytea PRIMARY KEY,
+    digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL,
     used_at    timestamptz,
+    CONSTRAINT password_reset_tokens_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT password_reset_tokens_expiry_after_creation CHECK (expires_at > created_at)
 );
 
@@ -1327,7 +1334,7 @@ $$;
 CREATE TABLE carts (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
     user_id    uuid REFERENCES users (id) ON DELETE CASCADE,
-    token_hash bytea NOT NULL,
+    digest     bytea NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     -- What a shopper had typed into the checkout when they left it for the
@@ -1339,6 +1346,7 @@ CREATE TABLE carts (
     -- no SELECT on carts at all, and `admin` cannot write it.
     checkout_draft    jsonb,
     checkout_draft_at timestamptz,
+    CONSTRAINT carts_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT carts_checkout_draft_paired
         CHECK ((checkout_draft IS NULL) = (checkout_draft_at IS NULL)),
     CONSTRAINT carts_checkout_draft_bounded
@@ -1346,7 +1354,7 @@ CREATE TABLE carts (
                                           AND octet_length(checkout_draft::text) <= 8192))
 );
 
-CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
+CREATE UNIQUE INDEX carts_digest_key ON carts (digest);
 -- ClearStaleCheckoutDrafts filters on both columns, so it reads only the carts
 -- that hold a draft.
 CREATE INDEX carts_checkout_draft_at_idx ON carts (checkout_draft_at)
@@ -4944,7 +4952,7 @@ BEGIN
     USING password_reset_tokens r
     WHERE r.user_id = p_user_id
       AND m.topic = 'account.password_reset'
-      AND m.dedupe_key = 'reset:' || encode(r.token_hash, 'hex');
+      AND m.dedupe_key = 'reset:' || encode(r.digest, 'hex');
 
     DELETE FROM outbox_messages m
     USING email_verifications v
@@ -9212,7 +9220,7 @@ REVOKE ALL ON staff_totp_credentials FROM store;
 -- session BORN step-up verified — and that is the back office's whole gate. The
 -- storefront never UPDATEs a session at all.
 REVOKE INSERT, UPDATE ON sessions FROM store;
-GRANT INSERT (token_hash, user_id, user_agent, ip, expires_at) ON sessions TO store;
+GRANT INSERT (digest, user_id, user_agent, ip, expires_at) ON sessions TO store;
 
 -- Merchandising is not something a storefront request does: it reads all of this
 -- and writes none of it. shipping_method_versions keeps SELECT and loses INSERT,

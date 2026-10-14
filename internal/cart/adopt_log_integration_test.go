@@ -67,7 +67,7 @@ func TestAdoptRequestCartLogLevels(t *testing.T) {
 			other := adopter(t, "adoption-log-owner-"+uuid.NewString()+"@example.com")
 			token := "adoption-log-" + uuid.NewString()
 			var guestCart uuid.UUID
-			if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+			if err := pool.QueryRow(ctx, `INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
 				bearer.Digest(token)).Scan(&guestCart); err != nil {
 				t.Fatal(err)
 			}

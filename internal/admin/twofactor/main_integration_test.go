@@ -239,7 +239,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 
 	token := "mailed-code-" + userID
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -383,7 +383,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 			t.Errorf("restart enrolment: %v", beginErr)
 		}
 		if _, execErr := pool.Exec(ctx, `
-			UPDATE staff_totp_credentials SET mailed_code_hash = sha256(convert_to($2, 'UTF8'))
+			UPDATE staff_totp_credentials SET mailed_code_digest = sha256(convert_to($2, 'UTF8'))
 			WHERE user_id = $1`, uuid.MustParse(userID), mailed); execErr != nil {
 			t.Errorf("keep the first mailed code: %v", execErr)
 		}
@@ -654,7 +654,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 
 	token := "confirm-mark-verified-fails-" + userID
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -772,7 +772,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 
 	const token = "a-session-token-for-this-test"
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -797,13 +797,13 @@ func TestSessionVerificationExpires(t *testing.T) {
 	// Age it past the window.
 	if _, ageErr := pool.Exec(ctx, `
 		UPDATE sessions SET totp_verified_at = created_at
-		WHERE token_hash = sha256($1::bytea)`, []byte(token)); ageErr != nil {
+		WHERE digest = sha256($1::bytea)`, []byte(token)); ageErr != nil {
 		t.Fatalf("age: %v", ageErr)
 	}
 	if _, ageErr := pool.Exec(ctx, `
 		UPDATE sessions SET created_at = now() - interval '13 hours',
 		    totp_verified_at = now() - interval '13 hours'
-		WHERE token_hash = sha256($1::bytea)`, []byte(token)); ageErr != nil {
+		WHERE digest = sha256($1::bytea)`, []byte(token)); ageErr != nil {
 		t.Fatalf("age: %v", ageErr)
 	}
 	if verified, err = s.SessionVerified(ctx, sessionHash(token)); err != nil {
@@ -870,7 +870,7 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 }
 
 // sessionHash is what account.Authenticate puts on the request for a session
-// cookie carrying token: sessions.token_hash.
+// cookie carrying token: sessions.digest.
 func sessionHash(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
