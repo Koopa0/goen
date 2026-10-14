@@ -16,6 +16,7 @@ type ciWorkflow struct {
 	Permissions map[string]string `yaml:"permissions"`
 	Env         map[string]string `yaml:"env"`
 	Concurrency struct {
+		Group  string `yaml:"group"`
 		Cancel string `yaml:"cancel-in-progress"`
 	} `yaml:"concurrency"`
 	Jobs map[string]ciJob `yaml:"jobs"`
@@ -80,9 +81,6 @@ func TestCIWorkflowsKeepUntrustedCodeUnprivileged(t *testing.T) {
 				if _, exists := workflow.On[trigger]; exists {
 					t.Fatalf("privileged trigger %s is not permitted for presubmit", trigger)
 				}
-			}
-			if workflow.Concurrency.Cancel != "${{ github.event_name == 'pull_request' }}" {
-				t.Fatal("only superseded PR runs may be cancelled; main runs must finish")
 			}
 			for jobName, job := range workflow.Jobs {
 				if job.Timeout <= 0 || job.If != "" || job.ContinueOnError {

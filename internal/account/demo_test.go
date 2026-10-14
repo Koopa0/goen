@@ -188,8 +188,11 @@ func TestGoogleIsNeverLinkedToTheDemoAccount(t *testing.T) {
 func TestNoVisitorCanThrottleTheDemoAccountForEveryOther(t *testing.T) {
 	h := demoHandler(t)
 	h.log = slog.New(slog.DiscardHandler)
+	// Too long to be anyone's password, so the store refuses it as a miss
+	// without reading the database, which this handler does not have.
+	wrong := strings.Repeat("x", MaxPasswordBytes+1)
 	signIn := func(addr string) int {
-		return postAccountForm(t, "/signin", url.Values{"email": {addr}, "password": {"wrong"}}, h.SignIn).Code
+		return postAccountForm(t, "/signin", url.Values{"email": {addr}, "password": {wrong}}, h.SignIn).Code
 	}
 	for i := range 3 {
 		if code := signIn("Demo@goen.example"); code == http.StatusTooManyRequests {

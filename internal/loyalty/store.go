@@ -137,7 +137,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 	}
 
 	standing, err := s.q.MemberStanding(ctx, db.MemberStandingParams{
-		UserID: owner, WindowDays: int32(MembershipWindow / (24 * time.Hour)), Locale: string(i18n.FromContext(ctx)),
+		UserID: owner, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		return pages.PointsView{}, fmt.Errorf("read points member standing: %w", err)

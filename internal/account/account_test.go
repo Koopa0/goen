@@ -2,6 +2,7 @@ package account
 
 import (
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	gotoken "go/token"
@@ -262,7 +263,8 @@ func deadAccountStore(t *testing.T) *Store {
 func rateLimitedAccountHandler(store *Store) *Handler {
 	return &Handler{
 		store: store, log: slog.New(slog.DiscardHandler), google: &Google{},
-		signinLimit: accountTestLimiter(), resetLimit: accountTestLimiter(),
+		signinLimit: accountTestLimiter(), guessCeiling: accountTestLimiter(),
+		resetLimit: accountTestLimiter(),
 	}
 }
 
@@ -1027,5 +1029,46 @@ func assertPasswordCostDeclaredFromConstants(t *testing.T, fset *gotoken.FileSet
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("passwordCost is not declared from the argon constants (-want +got):\n%s", diff)
+	}
+}
+
+// TestSignInMissesAreChargedPerNetworkAndInTotal: a miss is any password the
+// store refuses before it reads the database, so this runs on a dead pool.
+// The integration tests prove the right password still gets in.
+func TestSignInMissesAreChargedPerNetworkAndInTotal(t *testing.T) {
+	h := NewHandler(deadAccountStore(t), nil, slog.New(slog.DiscardHandler), false, nil)
+	miss := strings.Repeat("x", MaxPasswordBytes+1)
+	signInFrom := func(remoteAddr, addr string) int {
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin",
+			strings.NewReader(url.Values{"email": {addr}, "password": {miss}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.RemoteAddr = remoteAddr
+		w := httptest.NewRecorder()
+		h.SignIn(w, r)
+		return w.Code
+	}
+
+	for i := range 6 {
+		if code := signInFrom("203.0.113.9:1", "per-network@example.com"); code != http.StatusUnprocessableEntity {
+			t.Fatalf("miss %d answered %d, want 422", i+1, code)
+		}
+	}
+	if code := signInFrom("203.0.113.200:1", "per-network@example.com"); code != http.StatusTooManyRequests {
+		t.Errorf("a seventh miss from the same /24 answered %d, want 429", code)
+	}
+	if code := signInFrom("198.51.100.1:1", "per-network@example.com"); code != http.StatusUnprocessableEntity {
+		t.Errorf("a miss from another network answered %d, want 422: one network spent another's budget", code)
+	}
+	if code := signInFrom("203.0.113.9:1", "someone-else@example.com"); code != http.StatusUnprocessableEntity {
+		t.Errorf("a miss at another account answered %d, want 422: the budget is per account", code)
+	}
+
+	for n := range 10 {
+		if code := signInFrom(fmt.Sprintf("192.0.%d.1:1", n), "ceiling@example.com"); code != http.StatusUnprocessableEntity {
+			t.Fatalf("miss %d from network %d answered %d, want 422", n+1, n, code)
+		}
+	}
+	if code := signInFrom("192.0.99.1:1", "ceiling@example.com"); code != http.StatusTooManyRequests {
+		t.Errorf("an eleventh miss from a fresh network answered %d, want 429: nothing bounds a spread-out guess", code)
 	}
 }

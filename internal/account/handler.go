@@ -36,7 +36,12 @@ type CartFinder interface {
 }
 
 type Handler struct {
+	// signinLimit bounds password guesses per account and client network, and
+	// starting Google sign-in per client.
 	signinLimit *ratelimit.Limiter
+	// guessCeiling bounds, per account, the guesses that missed, from every
+	// network together: the bound on a guess spread over many networks.
+	guessCeiling *ratelimit.Limiter
 	// resetLimit has a budget of its own: spending the registration and change
 	// budget for an address must not stop its owner getting a reset link.
 	resetLimit *ratelimit.Limiter
@@ -63,8 +68,19 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 	}
 	return &Handler{
 		store: store, carts: carts, log: log, secure: secure, google: google,
+		// Six wrong passwords at once from one network, then one every fifteen
+		// seconds: more than someone retyping needs.
 		signinLimit: ratelimit.New(ratelimit.Config{
 			Every: 15 * time.Second, Burst: 6, TTL: time.Hour, MaxKeys: 65_536,
+		}),
+		// Ten wrong passwords before the first refusal, then ten every fifteen
+		// minutes, whoever sent them: a guess spread over many networks is
+		// held to forty an hour per account. Only misses are charged, so the
+		// owner's right password costs nothing, but the ceiling is shared: an
+		// attacker who keeps it empty keeps every sign-in out until the
+		// refill, which is the cost of bounding a distributed guess.
+		guessCeiling: ratelimit.New(ratelimit.Config{
+			Every: 90 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 		resetLimit: ratelimit.New(addressMailPace),
 		mailLimit:  ratelimit.New(addressMailPace),
@@ -183,13 +199,17 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	// The demo account's password is printed on this page, so a per-account
 	// bound would guard nothing and let one visitor's mistakes shut out every
 	// other; the per-client bound still holds the cost.
+	var guess passwordGuess
 	if !h.demo.holds(normalised) {
-		if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
+		var retryAfter time.Duration
+		var ok bool
+		if guess, retryAfter, ok = h.reservePasswordGuess(r, normalised); !ok {
 			h.log.WarnContext(r.Context(), "sign-in throttled by account")
 			ratelimit.Refuse(r.Context(), w, retryAfter)
 			return
 		}
 	}
+	defer guess.settle(false)
 
 	u, err := h.store.Authenticate(r.Context(), addr, password)
 	if err != nil {
@@ -198,6 +218,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
+		guess.settle(true)
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -1257,14 +1278,17 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// Before the hash, and the key sign-in uses, so the two share one budget.
-	if retryAfter, ok := h.signinLimit.Allow("account:" + email.Clean(addr)); !ok {
+	// Before the hash, and the budget sign-in uses, so the two share it.
+	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr))
+	if !ok {
 		h.log.WarnContext(ctx, "registration completion throttled by account")
 		ratelimit.Refuse(ctx, w, retryAfter)
 		return
 	}
+	defer guess.settle(false)
 
 	confirmed, err := h.store.CompleteRegistration(ctx, token, r.PostFormValue("password"))
+	guess.settle(errors.Is(err, ErrBadCredentials))
 	switch {
 	case err == nil:
 		started, adoption := h.startSession(w, r, user.User{ID: confirmed.UserID})

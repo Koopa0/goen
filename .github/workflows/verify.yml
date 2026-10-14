@@ -11,7 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-${{ github.ref }}
+  # A push to main gets its own group: a group shared by ref keeps one pending
+  # run and cancels it for the next push, so most commits never ran. Pull
+  # requests share a group per ref and cancel superseded runs.
+  group: verify-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

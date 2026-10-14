@@ -1140,9 +1140,11 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams
 const adminMembershipTiers = `-- name: AdminMembershipTiers :many
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
-       (SELECT count(*) FROM users u
-        WHERE member_tier(u.id, $1::integer, NULL) = t.id)::bigint AS members
+       coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
+LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
+           FROM users u
+           GROUP BY 1) m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents
 `
 
@@ -1157,8 +1159,10 @@ type AdminMembershipTiersRow struct {
 	Members            int64
 }
 
-func (q *Queries) AdminMembershipTiers(ctx context.Context, windowDays int32) ([]AdminMembershipTiersRow, error) {
-	rows, err := q.db.Query(ctx, adminMembershipTiers, windowDays)
+// Each customer's tier is derived once and the customers counted per band, not
+// one member_tier call per customer and band.
+func (q *Queries) AdminMembershipTiers(ctx context.Context) ([]AdminMembershipTiersRow, error) {
+	rows, err := q.db.Query(ctx, adminMembershipTiers)
 	if err != nil {
 		return nil, err
 	}
@@ -10434,31 +10438,32 @@ func (q *Queries) MediaObject(ctx context.Context, digest string) (MediaObjectRo
 
 const memberStanding = `-- name: MemberStanding :one
 SELECT
-    member_spend($1, $2::integer, NULL)::bigint AS spend_cents,
-    coalesce((SELECT localized_name(t.name, t.name_en, $3::text)
+    membership_window_days()::integer AS window_days,
+    member_spend($1, NULL)::bigint AS spend_cents,
+    coalesce((SELECT localized_name(t.name, t.name_en, $2::text)
               FROM membership_tiers t
-              WHERE t.id = member_tier($1, $2::integer, NULL)), '')::text
+              WHERE t.id = member_tier($1, NULL)), '')::text
         AS tier_name,
     coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-              WHERE t.id = member_tier($1, $2::integer, NULL)), 10000)::integer
+              WHERE t.id = member_tier($1, NULL)), 10000)::integer
         AS multiplier_bp,
-    coalesce((SELECT localized_name(n.name, n.name_en, $3::text)
+    coalesce((SELECT localized_name(n.name, n.name_en, $2::text)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend($1, $2::integer, NULL)
+              WHERE n.min_spend_cents > member_spend($1, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), '')::text AS next_name,
-    coalesce((SELECT n.min_spend_cents - member_spend($1, $2::integer, NULL)
+    coalesce((SELECT n.min_spend_cents - member_spend($1, NULL)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend($1, $2::integer, NULL)
+              WHERE n.min_spend_cents > member_spend($1, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), 0)::bigint AS next_needs_cents
 `
 
 type MemberStandingParams struct {
-	UserID     uuid.UUID
-	WindowDays int32
-	Locale     string
+	UserID uuid.UUID
+	Locale string
 }
 
 type MemberStandingRow struct {
+	WindowDays     int32
 	SpendCents     int64
 	TierName       string
 	MultiplierBp   int32
@@ -10469,9 +10474,10 @@ type MemberStandingRow struct {
 // Derived on every read, never stored: a stored tier drifts from the orders
 // behind it the moment one is cancelled.
 func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) (MemberStandingRow, error) {
-	row := q.db.QueryRow(ctx, memberStanding, arg.UserID, arg.WindowDays, arg.Locale)
+	row := q.db.QueryRow(ctx, memberStanding, arg.UserID, arg.Locale)
 	var i MemberStandingRow
 	err := row.Scan(
+		&i.WindowDays,
 		&i.SpendCents,
 		&i.TierName,
 		&i.MultiplierBp,
