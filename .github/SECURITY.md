@@ -12,6 +12,13 @@ Report privately through
 never a public issue. Attach no customer data, no order numbers and no
 credentials.
 
+goen has one maintainer. You get an acknowledgement within 7 days and an
+assessment within 14. A fix for a confirmed issue that touches money, stock, tax
+documents or personal data comes before other work. Reporters are credited in
+the advisory unless they ask not to be. The public demo at
+[goen.koopa0.dev](https://goen.koopa0.dev) is in scope; denial of service
+against it is not.
+
 goen takes money, holds stock and files tax documents, so the things worth
 reporting are the ones that reach those:
 

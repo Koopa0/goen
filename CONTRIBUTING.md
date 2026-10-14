@@ -205,6 +205,61 @@ edit becomes a payment, a privilege or a legal term:
 - the statutory terms in `internal/site/policies.go` (消保法 §19);
 - the shop's content: product names, descriptions, FAQ and policy prose.
 
+## Filing an issue
+
+The tracker is for defects and wishes. File a new issue only if all of these
+hold:
+
+1. **It is a defect, not a preference.** Say who does what and the wrong result
+   they get. Money, stock, tax, personal data and sign-in come first. "Could" is
+   not a result.
+2. **You checked it against the current `main`.** Give the reproduction output,
+   or quote the `file:line` that makes the result unavoidable. With neither,
+   put `UNVERIFIED` in the title; it is looked at last.
+3. **You searched first**, open and closed issues, including titles that start
+   `noise:` or `duplicate:`. New evidence for a known defect is a comment on it.
+4. **It is one defect.**
+5. **It is not a decision already made.** To reverse one, file a wish.
+
+Do not file wording or tone preferences that leave the meaning, the promise and
+the behaviour unchanged; defence in depth with no way in; performance work with
+no measurement; refactors or package-name taste with no behaviour or coupling
+cost; a guard that catches no bug class; features for a stage the shop is not at;
+or a law cited without a code path.
+
+A claim about a law or standard needs four lines: the obligation, with article
+and paragraph; why it binds this shop (seller type, tax status, who the
+customers are); the code path that breaches it, with `file:line` and the input
+that triggers it; and the cheapest compliant alternative, such as copy or policy
+text instead of schema. Without the third line it is a question for the
+maintainer, filed as a wish. For WCAG, name the success criterion that fails and
+whether it blocks a task.
+
+A small change you can verify needs no issue: a typo, a dead CSS rule, a log at
+the wrong level. Open the pull request and put the evidence in its body. For
+anything larger, open an issue first.
+
+Labels the maintainer uses: `bug`, `enhancement` and `documentation` for the
+kind; `needs-repro`, `needs-owner` and `blocked` for what it waits on;
+`lane-schema` and `lane-surface` for the part of the tree it touches;
+`polish` for real but cosmetic; `duplicate`; `dependencies`; and
+`good first issue`.
+
+## Tools, including AI
+
+You may use any tool. You are the author: say in the pull request if a
+substantial part was generated, be able to explain every line, and answer review
+questions yourself. Issues, pull requests and security reports produced by
+unattended agents are closed. Commits carry no tool attribution. If the
+maintainer finishes or rewrites your change, the pull request and the squash
+message say "Based on #N by @you".
+
+## How issues are handled
+
+One maintainer, best effort. A ready pull request gets a first reply within one
+business day. A `needs-repro` issue with no new evidence is closed after 30 days
+and reopened when the evidence arrives. History on `main` is not rewritten.
+
 ## Report a security problem
 
 Through [GitHub's private advisory form](https://github.com/Koopa0/goen/security/advisories/new),
