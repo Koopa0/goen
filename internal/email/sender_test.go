@@ -538,3 +538,19 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 		})
 	}
 }
+
+// The outbox worker logs what Send returns. An address that fails validation
+// is still someone's typing, so the refusal names no part of it.
+func TestRefusalToSendDoesNotCarryTheAddress(t *testing.T) {
+	t.Parallel()
+	const typed = "jane.doe.private@@example.test"
+	err := SMTPSender{Addr: "127.0.0.1:1"}.Send(t.Context(), &Message{To: typed})
+	if err == nil {
+		t.Fatal("Send: nil error for an invalid recipient")
+	}
+	for _, secret := range []string{typed, "jane.doe", "example.test"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("error %q carries %q", err, secret)
+		}
+	}
+}

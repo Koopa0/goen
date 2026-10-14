@@ -1087,12 +1087,12 @@ func googleLinkCandidate(
 				return uuid.UUID{}, "", pgtype.Text{}, "", ErrOAuthCollision
 			}
 			return uuid.UUID{}, "", pgtype.Text{}, "",
-				fmt.Errorf("create an account for %s: %w", id.Email, createErr)
+				fmt.Errorf("create an account for a google identity: %w", createErr)
 		}
 		return row.ID, row.Email, row.FullName, row.Role, nil
 	case err != nil:
 		return uuid.UUID{}, "", pgtype.Text{}, "",
-			fmt.Errorf("read the account for %s: %w", id.Email, err)
+			fmt.Errorf("read the account for a google identity: %w", err)
 	case !existing.Verified:
 		// Pre-hijacking: an unverified account may belong to whoever registered
 		// the address rather than whoever reads the mailbox.

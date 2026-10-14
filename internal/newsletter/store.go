@@ -36,7 +36,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 	addr = email.Clean(addr)
 	if Validate(addr) != "" {
-		return AlreadyActive, fmt.Errorf("requesting confirmation for %q: not a usable address", addr)
+		return AlreadyActive, errors.New("requesting confirmation: not a usable address")
 	}
 
 	token := bearer.New()

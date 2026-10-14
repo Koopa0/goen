@@ -70,23 +70,11 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 
 	var cleared bool
 	err = s.write(ctx, audit.ActionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
-		credentialCleared, upsertErr := q.UpsertStaff(ctx, db.UpsertStaffParams{
-			Email: address, FullName: name, Role: role,
-		})
-		if upsertErr != nil {
-			switch {
-			case db.IsConstraint(upsertErr, "users_keep_one_admin"):
-				return uuid.UUID{}, nil, ErrLastAdmin
-			case db.IsConstraint(upsertErr, "users_staff_already_exists"):
-				return uuid.UUID{}, nil, ErrAlreadyStaff
-			}
-			return uuid.UUID{}, nil, fmt.Errorf("add staff %s: %w", address, upsertErr)
+		credentialCleared, target, promoteErr := promoteStaff(ctx, q, address, name, role)
+		if promoteErr != nil {
+			return uuid.UUID{}, nil, promoteErr
 		}
 		cleared = credentialCleared
-		target, lookupErr := q.UserByEmail(ctx, address)
-		if lookupErr != nil {
-			return uuid.UUID{}, nil, fmt.Errorf("read promoted staff %s: %w", address, lookupErr)
-		}
 		if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {
 			return uuid.UUID{}, nil, enqueueErr
 		}
@@ -96,6 +84,29 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 		return false, err
 	}
 	return cleared, nil
+}
+
+// promoteStaff writes the staff row and reads it back. Its errors name the step
+// and never the address: the handler logs them at ERROR, and a database that is
+// failing is exactly when every attempt would write one more address to the log.
+func promoteStaff(ctx context.Context, q *db.Queries, address, name, role string) (cleared bool, target db.UserByEmailRow, err error) {
+	cleared, err = q.UpsertStaff(ctx, db.UpsertStaffParams{
+		Email: address, FullName: name, Role: role,
+	})
+	if err != nil {
+		switch {
+		case db.IsConstraint(err, "users_keep_one_admin"):
+			return false, db.UserByEmailRow{}, ErrLastAdmin
+		case db.IsConstraint(err, "users_staff_already_exists"):
+			return false, db.UserByEmailRow{}, ErrAlreadyStaff
+		}
+		return false, db.UserByEmailRow{}, fmt.Errorf("add staff: %w", err)
+	}
+	target, err = q.UserByEmail(ctx, address)
+	if err != nil {
+		return false, db.UserByEmailRow{}, fmt.Errorf("read promoted staff: %w", err)
+	}
+	return cleared, target, nil
 }
 
 func (s *Store) RevokeStaff(ctx context.Context, userID string) error {

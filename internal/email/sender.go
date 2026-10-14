@@ -102,7 +102,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 		return errors.New("email: no SMTP address configured")
 	}
 	if !Valid(m.To) {
-		return fmt.Errorf("email: refusing to send to %q", m.To)
+		return errors.New("email: refusing to send to an address that is not valid")
 	}
 	if err := m.OneClickUnsubscribe.validate(); err != nil {
 		return err
