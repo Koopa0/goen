@@ -1,8 +1,8 @@
 // Package invoice is the vocabulary of Taiwanese uniform invoices: the
 // buyer's preference, the document and its lines, tax types and units, the
-// identifier checks and the attention categories. It imports nothing but the
-// standard library and i18n, so a page can name an invoice without reaching
-// the database, the outbox or the mail sender. Issuing them is
+// identifier checks and the reasons an operation stays unsettled. It imports
+// nothing but the standard library and i18n, so a page can name an invoice
+// without reaching the database, the outbox or the mail sender. Issuing them is
 // invoice/issuer's work.
 package invoice
 
