@@ -174,3 +174,14 @@ func asExitError(err error, target **exec.ExitError) bool {
 	}
 	return ok
 }
+
+func readLayoutScript(t *testing.T, root string) string {
+	t.Helper()
+	path := filepath.Join(root, "scripts", "check-layout.mjs")
+	//nolint:gosec // G304: the repository root joined to a fixed name
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read check-layout.mjs: %v", err)
+	}
+	return string(raw)
+}

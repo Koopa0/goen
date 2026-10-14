@@ -1,33 +1,33 @@
 package i18n
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
+// The back office names a membership level one way in each language: 等級 and
+// "tier". #1192 was the English side drifting to "band" in three strings. The
+// property is the term, not the sentence around it, so rewording a hint does
+// not break this and a "band" in any tier message does.
 func TestMembershipTierWording(t *testing.T) {
-	for _, tt := range []struct {
-		key    Key
-		zhHant string
-		en     string
-	}{
-		{key: "admin.tier.col.tier", zhHant: "等級", en: "Tier"},
-		{key: "admin.tier.add", zhHant: "新增等級", en: "Add a tier"},
-		{
-			key:    "admin.tier.nameen.hint",
-			zhHant: "會員頁會把等級名稱放進句子裡，所以英文缺一半會讀起來像壞掉。",
-			en:     "The account page puts a tier name inside a sentence, so a missing English one leaves it reading as broken.",
-		},
-	} {
-		t.Run(string(tt.key), func(t *testing.T) {
-			for _, loc := range Locales() {
-				t.Run(string(loc), func(t *testing.T) {
-					want := tt.en
-					if loc == ZhHant {
-						want = tt.zhHant
-					}
-					if got := T(WithLocale(t.Context(), loc), tt.key); got != want {
-						t.Errorf("T(%s, %s) = %q, want %q", loc, tt.key, got, want)
-					}
-				})
-			}
-		})
+	t.Parallel()
+
+	for _, k := range []Key{KeyAdminTierColTier, KeyAdminTierAdd, KeyAdminTierNameEnHint} {
+		m := messages[k]
+		if !strings.Contains(m.ZhHant, "等級") {
+			t.Errorf("%s zh-Hant = %q, want it to say 等級", k, m.ZhHant)
+		}
+		if !strings.Contains(strings.ToLower(m.En), "tier") {
+			t.Errorf("%s en = %q, want it to say tier", k, m.En)
+		}
+	}
+
+	for k, m := range messages {
+		if !strings.HasPrefix(string(k), "admin.tier.") {
+			continue
+		}
+		if strings.Contains(strings.ToLower(m.En), "band") {
+			t.Errorf("%s en = %q: a membership level is a tier, not a band", k, m.En)
+		}
 	}
 }
