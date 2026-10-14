@@ -1,4 +1,4 @@
-package pages_test
+package repocheck_test
 
 import (
 	"os"
