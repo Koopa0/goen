@@ -318,8 +318,8 @@ func CreditFundedReturn(
 		t.Fatalf("create private data: %v", err)
 	}
 	// The spend, while the order is still an open unpaid checkout: the only moment store_credit_guard allows it.
-	if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -creditCents, orderID, "spend:"+orderID.String()); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -creditCents, orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit: %v", err)
 	}
 	if card > 0 {

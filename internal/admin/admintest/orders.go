@@ -414,8 +414,8 @@ func PlaceOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration)
 		VALUES ($1, 'AGE-SKU', '帳齡測試', $2, 1)`, orderID, cents); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
-	if _, err = tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -cents, orderID, "spend:"+orderID.String()); err != nil {
+	if _, err = tx.Exec(ctx, `SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -cents, orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit: %v", err)
 	}
 	if err = tx.Commit(ctx); err != nil {

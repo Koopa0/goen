@@ -565,7 +565,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		r := &refundRows[i]
 		channel, reason := i18n.KeyAdminPayRefundCard, r.Reason
 		if r.Channel == "credit" {
-			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, r.Reason)
+			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, admin.PostingKind(r.Kind), r.Reason)
 		}
 		view.Refunds = append(view.Refunds, admin.Refund{
 			Channel: i18n.T(ctx, channel), Amount: pages.TWD(r.AmountCents),

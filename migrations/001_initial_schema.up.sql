@@ -79,12 +79,19 @@ CREATE FUNCTION forbid_change() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     user_column text := coalesce(TG_ARGV[1], 'actor_user_id');
+    derived text[];
 BEGIN
+    -- A stored generated column is computed after the BEFORE triggers have run,
+    -- so NEW carries it as NULL where OLD carries its value. It is derived from
+    -- the other columns, which are compared, and is left out of the comparison.
+    SELECT coalesce(array_agg(a.attname::text), ARRAY[]::text[]) INTO derived
+    FROM pg_attribute a
+    WHERE a.attrelid = TG_RELID AND a.attgenerated <> '' AND NOT a.attisdropped;
     -- The one permitted mutation: the ON DELETE SET NULL that nulls that
     -- column when the user is erased. Everything else must be byte-identical,
     -- so a value becomes unknown and never false.
     IF TG_OP = 'UPDATE'
-       AND (to_jsonb(NEW) - user_column) = (to_jsonb(OLD) - user_column)
+       AND (to_jsonb(NEW) - user_column - derived) = (to_jsonb(OLD) - user_column - derived)
        AND to_jsonb(NEW) ->> user_column IS NULL THEN
         RETURN NEW;
     END IF;
@@ -834,10 +841,24 @@ CREATE TABLE store_credit_entries (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
     account_id     uuid NOT NULL REFERENCES store_credit_accounts (id) ON DELETE RESTRICT,
     amount_cents   bigint NOT NULL,
-    reason         text NOT NULL,
+    -- What a staff member typed, and only that: NULL for every posting the
+    -- database writes itself. Which kind of posting a row is lives in `kind`,
+    -- never in this text, so a grant worded `points` stays a grant.
+    reason         text,
     -- The caller's name for this posting: a retried checkout submits the same
     -- key and meets the unique index instead of writing a second debit.
     idempotency_key text NOT NULL,
+    -- What kind of posting this is, read off the key prefix that each posting
+    -- function already derives itself. Generated, so it cannot disagree with the
+    -- key and no writer names it; a prefix nobody listed leaves it NULL, which
+    -- store_credit_entries_kind_known refuses.
+    kind           text GENERATED ALWAYS AS (CASE
+                       WHEN starts_with(idempotency_key, 'order:')         THEN 'order_spend'
+                       WHEN starts_with(idempotency_key, 'reverse:')       THEN 'order_cancel_reversal'
+                       WHEN starts_with(idempotency_key, 'return-credit:') THEN 'return_payout'
+                       WHEN starts_with(idempotency_key, 'redeem:')        THEN 'points_redemption'
+                       WHEN starts_with(idempotency_key, 'grant:')         THEN 'staff_grant'
+                   END) STORED,
     -- The order this posting settles, when there is one. The foreign key is
     -- added after `orders` is created, further down.
     order_id       uuid,
@@ -851,9 +872,16 @@ CREATE TABLE store_credit_entries (
     -- overflow bigint instead of raising store_credit_never_negative.
     CONSTRAINT store_credit_entries_amount_in_range
         CHECK (amount_cents BETWEEN -10000000000 AND 10000000000),
+    -- Both bound a staff-typed reason, so a NULL one is simply not checked here;
+    -- store_credit_entries_reason_matches_kind says when NULL is required.
     CONSTRAINT store_credit_entries_reason_present CHECK (reason ~ '[^[:space:]]'),
     CONSTRAINT store_credit_entries_reason_bounded CHECK (char_length(reason) <= 200),
-    CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]')
+    CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]'),
+    CONSTRAINT store_credit_entries_kind_known CHECK (kind IS NOT NULL),
+    -- A staff grant carries its reason and every other kind carries none. When
+    -- kind is NULL the comparison is NULL and passes; kind_known refuses that row.
+    CONSTRAINT store_credit_entries_reason_matches_kind
+        CHECK ((kind = 'staff_grant') = (reason IS NOT NULL))
 );
 
 -- A reversal undoes exactly one entry, once.
@@ -7419,7 +7447,7 @@ BEGIN
         WHERE e.idempotency_key = p_idempotency_key;
         IF existing.account_id <> account_id
            OR existing.amount_cents <> p_amount_cents
-           OR existing.reason <> p_reason
+           OR existing.reason IS DISTINCT FROM p_reason
            OR existing.order_id IS DISTINCT FROM p_order_id
            OR existing.actor_user_id IS DISTINCT FROM p_actor_user_id
            OR existing.reverses_id IS NOT NULL THEN
@@ -7492,7 +7520,7 @@ BEGIN
                   CONSTRAINT = 'invoice_issue_item_count';
     END IF;
 
-    RETURN post_store_credit(v_owner, p_amount_cents, '訂單折抵',
+    RETURN post_store_credit(v_owner, p_amount_cents, NULL,
                              p_order_id, 'order:' || p_order_id::text, NULL);
 END;
 $$;
@@ -7542,7 +7570,7 @@ BEGIN
 	WHERE e.idempotency_key = v_key;
 	IF FOUND THEN
 		IF v_existing.amount_cents <> p_amount_cents
-		   OR v_existing.reason <> p_reason
+		   OR v_existing.reason IS DISTINCT FROM p_reason
 		   OR v_existing.order_id IS NOT NULL
 		   OR v_existing.actor_user_id IS DISTINCT FROM p_actor_user_id
 		   OR NOT EXISTS (SELECT 1 FROM store_credit_accounts a
@@ -7622,7 +7650,7 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_amount';
     END IF;
 
-    RETURN post_store_credit(v_user_id, v_expected, '退貨退回購物金',
+    RETURN post_store_credit(v_user_id, v_expected, NULL,
         v_order_id, 'return-credit:' || p_return_request_id::text, p_actor_user_id);
 END;
 $$;
@@ -7674,8 +7702,8 @@ BEGIN
         );
 
         INSERT INTO store_credit_entries
-            (account_id, amount_cents, reason, reverses_id, idempotency_key)
-        VALUES (spend.account_id, -spend.amount_cents, 'order cancelled',
+            (account_id, amount_cents, reverses_id, idempotency_key)
+        VALUES (spend.account_id, -spend.amount_cents,
                 spend.id, 'reverse:' || spend.id);
         total := total + (-spend.amount_cents);
     END LOOP;
@@ -9207,8 +9235,8 @@ BEGIN
 
     -- The credit, in the same transaction, with a prefixed key so a redemption
     -- and an award of the same id cannot collide.
-    INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-	VALUES (v_account_id, v_cents, 'points', 'redeem:' || v_key);
+    INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+	VALUES (v_account_id, v_cents, 'redeem:' || v_key);
 
 	UPDATE loyalty_redemption_operations
 	SET points = p_points, credit_cents = v_cents, completed_at = now()

@@ -854,8 +854,9 @@ type StoreCreditEntry struct {
 	ID             uuid.UUID
 	AccountID      uuid.UUID
 	AmountCents    int64
-	Reason         string
+	Reason         pgtype.Text
 	IdempotencyKey string
+	Kind           pgtype.Text
 	OrderID        uuid.NullUUID
 	ReversesID     uuid.NullUUID
 	ActorUserID    uuid.NullUUID

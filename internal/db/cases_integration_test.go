@@ -1968,39 +1968,58 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	{
 		constraint: "store_credit_entries_amount_non_zero",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 0, '購物金調整', 'sc-amount-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 0, '購物金調整', 'grant:sc-amount-1');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'sc-amount-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:sc-amount-1');`,
 	},
 	{
 		constraint: "store_credit_entries_amount_in_range",
 		// A positive credit over the ceiling: the guard permits it (the balance only climbs), so the
 		// range CHECK is what refuses it.
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 10000000001, '購物金調整', 'sc-range');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 10000000001, '購物金調整', 'grant:sc-range');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 10000000000, '購物金調整', 'sc-range');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 10000000000, '購物金調整', 'grant:sc-range');`,
 	},
 	{
+		// A blank key has no prefix either, so kind_known would also refuse it;
+		// PostgreSQL checks CHECK constraints in name order and key_present sorts first.
 		constraint: "store_credit_entries_key_present",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
 VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'\t');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'\tsc-key');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'grant:\tsc-key');`,
+	},
+	{
+		// The kind is read off the key prefix, so a key with a prefix nobody listed has none.
+		constraint: "store_credit_entries_kind_known",
+		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'sc-unknown-prefix');`,
+		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:sc-unknown-prefix');`,
+	},
+	{
+		// Staff text belongs to a grant alone. TestStoreCreditKindAndReasonAreOneFact
+		// holds the other direction: a grant with no reason.
+		constraint: "store_credit_entries_reason_matches_kind",
+		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'return-credit:sc-reason-kind');`,
+		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, 'return-credit:sc-reason-kind');`,
 	},
 	{
 		constraint: "store_credit_entries_reason_present",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t', 'sc-reason-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t', 'grant:sc-reason-1');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'sc-reason-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'grant:sc-reason-1');`,
 	},
 	{
 		constraint: "store_credit_entries_reason_bounded",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 201), 'sc-reason-bound');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 201), 'grant:sc-reason-bound');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reason-bound');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc-reason-bound');`,
 	},
 	{
 		constraint: "user_identities_provider_known",
@@ -2723,24 +2742,24 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	{
 		index: "store_credit_entries_idempotency_key",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'fixture-grant');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:fixture');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'fixture-grant-2');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:fixture-2');`,
 	},
 	{
 		index: "store_credit_entries_reverses_key",
 		reject: `INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key)
-VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'sc-orig');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-1', '11110001-0000-4000-8000-000000000001');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-2', '11110001-0000-4000-8000-000000000001');`,
+VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'grant:sc-orig');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-1', '11110001-0000-4000-8000-000000000001');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-2', '11110001-0000-4000-8000-000000000001');`,
 		accept: `INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key)
-VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'sc-orig');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-1', '11110001-0000-4000-8000-000000000001');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -1, '購物金調整', 'sc-rev-2', NULL);`,
+VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'grant:sc-orig');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-1', '11110001-0000-4000-8000-000000000001');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -1, 'order:sc-rev-2', NULL);`,
 	},
 	{
 		index:  "user_identities_provider_subject_key",

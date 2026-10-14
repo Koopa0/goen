@@ -326,7 +326,7 @@ func fundedShippedOrderForReturnErasure(
 	if _, err := tx.Exec(ctx, `
 		SELECT post_store_credit($1, $2, '退貨競態測試額度', NULL, $3, NULL)`,
 		fixture.userID, storeFundsCents,
-		"return-erasure-grant:"+fixture.orderID.String()); err != nil {
+		"grant:return-erasure-"+fixture.orderID.String()); err != nil {
 		t.Fatalf("grant return-erasure credit: %v", err)
 	}
 	if _, err := tx.Exec(ctx,

@@ -767,8 +767,8 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 		{"2024-03-03 15:21:00", 2048},
 	} {
 		if _, insertErr := pool.Exec(ctx, `
-			INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, order_id, created_at)
-			VALUES ($1, $2::bigint, '折讓', 'window-' || $2::bigint::text, $3, $4::timestamptz)`,
+			INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, order_id, created_at)
+			VALUES ($1, $2::bigint, 'return-credit:window-' || $2::bigint::text, $3, $4::timestamptz)`,
 			account, credit.cents, paid, at(credit.created)); insertErr != nil {
 			t.Fatalf("credit at %s: %v", credit.created, insertErr)
 		}

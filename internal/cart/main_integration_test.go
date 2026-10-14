@@ -549,8 +549,8 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 	defer func() { _ = competitor.Rollback(ctx) }()
 	if _, err := competitor.Exec(ctx, `
-		SELECT post_store_credit($1, -4000, 'competing spend', NULL, $2, NULL)`,
-		userID, "competing:"+uuid.NewString()); err != nil {
+		SELECT post_store_credit($1, -4000, NULL, NULL, $2, NULL)`,
+		userID, "order:competing-"+uuid.NewString()); err != nil {
 		t.Fatalf("post competing debit: %v", err)
 	}
 
@@ -2880,8 +2880,8 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 		t.Fatalf("age the hold: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -int64(cents), orderID, "spend:"+orderID.String()); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -int64(cents), orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -5061,8 +5061,8 @@ func pendingOrderSpendingCredit(t *testing.T, userID uuid.UUID, cents int64) str
 		t.Fatalf("create private data: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -cents, orderID, "spend:"+orderID.String()); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -cents, orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -136,7 +136,7 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 		t.Fatalf("create buyer: %v", err)
 	}
 	if _, err := p.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '測試發放', NULL, 'report-grant', NULL)`,
+		`SELECT post_store_credit($1, $2, '測試發放', NULL, 'grant:report', NULL)`,
 		buyer, int64(300000)); err != nil {
 		t.Fatalf("grant credit: %v", err)
 	}

@@ -82,7 +82,7 @@ func pointsEconomicEffects(t *testing.T, owner string, accountID uuid.UUID) poin
 	if err := pool.QueryRow(t.Context(), `SELECT
  (SELECT count(*) FROM loyalty_redemption_operations WHERE user_id=$1),
  (SELECT coalesce(sum(points),0) FROM loyalty_entries WHERE account_id=$2 AND kind='spend'),
- (SELECT coalesce(sum(amount_cents),0) FROM store_credit_entries WHERE account_id=$2 AND reason='points')`,
+ (SELECT coalesce(sum(amount_cents),0) FROM store_credit_entries WHERE account_id=$2 AND kind='points_redemption')`,
 		uuid.MustParse(owner), accountID).Scan(&got.Operations, &got.Spent, &got.Credit); err != nil {
 		t.Fatal(err)
 	}

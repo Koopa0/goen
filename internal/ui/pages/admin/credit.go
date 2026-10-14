@@ -9,41 +9,49 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
+// PostingKind is store_credit_entries.kind: what a posting is, derived by the
+// database from its idempotency key. It is not the staff-written reason.
+type PostingKind string
+
+const (
+	PostingOrderSpend       PostingKind = "order_spend"
+	PostingOrderReversal    PostingKind = "order_cancel_reversal"
+	PostingReturnPayout     PostingKind = "return_payout"
+	PostingPointsRedemption PostingKind = "points_redemption"
+	PostingStaffGrant       PostingKind = "staff_grant"
+)
+
 type CreditEntry struct {
 	Email       string
 	AmountCents int64
+	Kind        PostingKind
 	Reason      string
 	At          string
 }
 
-// The reasons the database writes itself, in the words migrations/001 stores
-// them: spend_store_credit, the reversal of a spend, the return payout and a
-// points redemption. Any other reason is a grant's own text and is shown as typed.
-const (
-	reasonOrderSpend    = "訂單折抵" // i18n-exempt: the stored reason, matched exactly.
-	reasonOrderReversed = "order cancelled"
-	reasonReturnPayout  = "退貨退回購物金" // i18n-exempt: the stored reason, matched exactly.
-	reasonPoints        = "points"
-)
-
-// CreditReason is a store-credit reason in the reader's language where goen
-// wrote it, and as typed where staff did.
-func CreditReason(ctx context.Context, reason string) string {
-	switch reason {
-	case reasonOrderSpend:
+// CreditReason is how a posting reads to the person looking at it: the system
+// kinds in the reader's language, and a staff grant as the text staff typed. It
+// reads kind and never matches reason, so a grant worded "points" stays a grant.
+func CreditReason(ctx context.Context, kind PostingKind, reason string) string {
+	switch kind {
+	case PostingOrderSpend:
 		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderSpend)
-	case reasonOrderReversed:
+	case PostingOrderReversal:
 		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderReversed)
-	case reasonReturnPayout:
+	case PostingReturnPayout:
 		return i18n.T(ctx, i18n.KeyAdminCreditReasonReturnPayout)
-	case reasonPoints:
+	case PostingPointsRedemption:
 		return i18n.T(ctx, i18n.KeyAdminCreditReasonPoints)
-	default:
+	case PostingStaffGrant:
 		return reason
+	default:
+		panic("pages: no label for store credit kind " + string(kind))
 	}
 }
 
-func (e CreditEntry) ReasonText(ctx context.Context) string { return CreditReason(ctx, e.Reason) }
+func (e CreditEntry) ReasonText(ctx context.Context) string {
+	return CreditReason(ctx, e.Kind, e.Reason)
+}
 
 func (e CreditEntry) Amount() string {
 	if e.AmountCents < 0 {

@@ -3840,8 +3840,8 @@ func creditRefund(t *testing.T, userID uuid.UUID, orderNumber string, cents int6
 		t.Fatalf("open a credit account: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
-		userID, cents, "退貨補償", orderID, "return-credit:"+orderNumber); err != nil {
+		SELECT post_store_credit($1, $2::bigint, NULL, $3, $4::text, NULL)`,
+		userID, cents, orderID, "return-credit:"+orderNumber); err != nil {
 		t.Fatalf("post the credit refund: %v", err)
 	}
 }
@@ -3927,13 +3927,13 @@ func TestCommitCountsSyntheticInvoiceItemsAtTheProviderBoundary(t *testing.T) {
 			case "credit":
 				if _, grantErr := tx.Exec(ctx, `
 					SELECT post_store_credit($1,$2,'invoice limit fixture',NULL,
-					                         'limit-grant:' || gen_random_uuid(),NULL)`,
+					                         'grant:limit-' || gen_random_uuid(),NULL)`,
 					userID, total); grantErr != nil {
 					t.Fatalf("grant invoice-limit credit: %v", grantErr)
 				}
 				if _, spendErr := tx.Exec(ctx, `
-					SELECT post_store_credit($1,$2,'訂單折抵',$3,
-					                         'limit-spend:' || gen_random_uuid(),NULL)`,
+					SELECT post_store_credit($1,$2,NULL,$3,
+					                         'order:' || $3::uuid::text,NULL)`,
 					userID, -total, orderID); spendErr != nil {
 					t.Fatalf("spend invoice-limit credit: %v", spendErr)
 				}
