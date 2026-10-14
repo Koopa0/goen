@@ -1048,15 +1048,8 @@ func waitForSQLLock(t *testing.T, ctx context.Context, returned <-chan struct{},
 		case <-returned:
 			t.Fatal("the concurrent operation returned before it waited on the expected database lock")
 		case <-tick.C:
-			var waiting bool
-			if err := pool.QueryRow(ctx, `
-				SELECT EXISTS (
-					SELECT 1 FROM pg_stat_activity
-					WHERE pid <> pg_backend_pid()
-					  AND datname = current_database()
-					  AND wait_event_type = 'Lock'
-					  AND query LIKE $1
-				)`, queryPattern).Scan(&waiting); err != nil {
+			_, waiting, err := dbtest.Blocked(ctx, pool, dbtest.Match{QueryLike: queryPattern})
+			if err != nil {
 				t.Fatalf("observe the concurrent lock wait: %v", err)
 			}
 			if waiting {

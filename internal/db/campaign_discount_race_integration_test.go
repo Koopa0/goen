@@ -96,8 +96,7 @@ func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
 					completed = true
 				case <-ctx.Done():
 				case <-ticker.C:
-					var waiting bool
-					if waitErr := owner.QueryRow(ctx, `SELECT coalesce(wait_event_type='Lock',false) FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); waitErr == nil {
+					if _, waiting, waitErr := dbtest.Blocked(ctx, owner, dbtest.Match{PID: int32(pid)}); waitErr == nil { //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 						blocked = waiting
 					}
 				}

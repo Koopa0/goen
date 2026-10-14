@@ -709,12 +709,8 @@ func TestReturnPointSlicesFollowAccountLockedPostingOrderDespiteInvertedTimestam
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		var waiting bool
-		if err := pool.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM pg_stat_activity
-				WHERE application_name=$1 AND wait_event_type='Lock'
-			)`, appName).Scan(&waiting); err != nil {
+		_, waiting, err := dbtest.Blocked(ctx, pool, dbtest.Match{Application: appName})
+		if err != nil {
 			t.Fatalf("observe blocked settlement: %v", err)
 		}
 		if waiting {

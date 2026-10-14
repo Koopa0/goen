@@ -368,12 +368,7 @@ func waitForApplicationLock(t *testing.T, name string, done <-chan error) {
 			t.Fatalf("%s returned before reaching the intended database lock: %v", name, err)
 		default:
 		}
-		var waiting bool
-		err := pool.QueryRow(t.Context(), `
-			SELECT EXISTS (
-				SELECT 1 FROM pg_stat_activity
-				WHERE application_name = $1 AND wait_event_type = 'Lock'
-			)`, name).Scan(&waiting)
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: name})
 		if err == nil && waiting {
 			return
 		}
@@ -3394,19 +3389,14 @@ func waitUntilBlocked(t *testing.T, pid int, done <-chan error) {
 				"serialised the two, so the row lock is not being taken")
 		default:
 		}
-		var waiting bool
-		if err := pool.QueryRow(ctx, `
-			SELECT wait_event_type = 'Lock'
-			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err == nil && waiting {
+		if _, waiting, err := dbtest.Blocked(ctx, pool, dbtest.Match{PID: int32(pid)}); err == nil && waiting { //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 			return
 		}
 		if time.Now().After(deadline) {
 			var state, waitType, waitEvent, query string
-			_ = pool.QueryRow(ctx, `
-				SELECT coalesce(state, ''), coalesce(wait_event_type, ''),
-				       coalesce(wait_event, ''), coalesce(query, '')
-				FROM pg_stat_activity WHERE pid = $1`, pid).
-				Scan(&state, &waitType, &waitEvent, &query)
+			if seen, _ := dbtest.Backends(ctx, pool, dbtest.Match{PID: int32(pid)}); len(seen) == 1 { //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+				state, waitType, waitEvent, query = seen[0].State, seen[0].WaitType, seen[0].WaitEvent, seen[0].Query
+			}
 			t.Fatalf("the second writer neither finished nor blocked on a lock; "+
 				"pid=%d state=%q wait=%q/%q query=%q", pid, state, waitType, waitEvent, query)
 		}

@@ -1313,12 +1313,7 @@ func waitForStockRaceLock(t *testing.T, applicationName string, done <-chan erro
 			t.Fatalf("%s returned before reaching the intended database lock: %v",
 				applicationName, err)
 		case <-ticker.C:
-			var waiting bool
-			err := pool.QueryRow(t.Context(), `
-				SELECT EXISTS (
-					SELECT 1 FROM pg_stat_activity
-					WHERE application_name = $1 AND wait_event_type = 'Lock'
-				)`, applicationName).Scan(&waiting)
+			_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: applicationName})
 			if err == nil && waiting {
 				return
 			}

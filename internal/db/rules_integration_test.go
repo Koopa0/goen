@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
 // These rules span rows, so a CHECK cannot express them. Each is enforced by a trigger that
@@ -1725,10 +1726,7 @@ func waitForDecision(t *testing.T, pid int, done <-chan struct{}) {
 			return
 		default:
 		}
-		var waiting bool
-		if err := schemaPool(t).QueryRow(ctx, `
-			SELECT wait_event_type = 'Lock'
-			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err == nil && waiting {
+		if _, waiting, err := dbtest.Blocked(ctx, schemaPool(t), dbtest.Match{PID: int32(pid)}); err == nil && waiting { //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 			return
 		}
 		if time.Now().After(deadline) {
