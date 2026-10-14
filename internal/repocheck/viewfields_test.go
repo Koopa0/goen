@@ -14,6 +14,12 @@ import (
 // TestEveryViewModelFieldIsAssigned refuses a field the pages read and nothing
 // fills — a zero value is valid, so neither the compiler nor go vet can see it.
 //
+// A view model is a struct a template takes: the struct type of a parameter (or
+// the receiver) of a templ component, and every struct reachable from it through
+// fields, pointers, slices, maps and named types (see templateTakes). A feature's
+// other exported types — a form's choice, a store row — are the feature's own
+// business and are not checked.
+//
 // Both sides are keyed <import path>.Type.Field: on the bare name a dead field
 // passes as soon as any other struct has one of the same name, and the storefront
 // and the back office each declare a CampaignView or an OrderView.
@@ -24,16 +30,24 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 		goenModule + "/internal/ui/pages/admin.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
 	}
 
+	templates := templSources(t)
+	packages := viewModelPackages(templates)
 	files := repositoryGo(t)
-	declared, models, holds := declaredFields(t, files)
-	if len(declared) < 700 {
-		t.Fatalf("found %d view-model fields, want far more — the parse is wrong",
-			len(declared))
+	components := templComponents(t)
+	if len(components) < minComponents {
+		t.Fatalf("found %d templ components in the generated *_templ.go files, want at least %d — "+
+			"the walk stopped reaching them", len(components), minComponents)
 	}
-	assigned := assignedFields(files, models, holds)
-	if len(assigned) < 700 {
-		t.Fatalf("found %d assignments, want far more — the walk found nothing",
-			len(assigned))
+	taken := templateTakes(files, components, packages)
+	declared, models, holds := declaredFields(taken)
+	if len(declared) < minViewModelFields {
+		t.Fatalf("found %d view-model fields, want at least %d — the parse is wrong",
+			len(declared), minViewModelFields)
+	}
+	assigned := assignedFields(files, packages, models, holds)
+	if len(assigned) < minAssignedFields {
+		t.Fatalf("found %d assignments, want at least %d — the walk found nothing",
+			len(assigned), minAssignedFields)
 	}
 
 	exempted := make(map[string]bool, len(allowed))
@@ -45,11 +59,14 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 			exempted[field] = true
 			continue
 		}
+		model := field[:strings.LastIndex(field, ".")]
 		t.Errorf("%s is declared and never assigned.\n"+
-			"  A page that reads it shows the zero value to everybody — which is what "+
+			"  %s is a view model because the templ component %s reaches it: as a parameter, a "+
+			"field of one, or the result of a method or function it uses. A page that "+
+			"reads the field shows the zero value to everybody — which is what "+
 			"layouts.Page.CartCount did to the cart badge and Page.Nav did to the "+
 			"navigation. Fill it where the view is BUILT, not in each handler, or "+
-			"delete it.", field)
+			"delete it.", field, model, taken[model].component)
 	}
 
 	// By identity, never by count.
@@ -60,21 +77,29 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 		}
 	}
 
-	t.Run("every directory holding a template is classified", func(t *testing.T) {
+	t.Run("every template has its generated code", func(t *testing.T) {
 		t.Parallel()
-		reported := map[string]bool{}
-		for name := range templSources(t) {
-			dir := filepath.ToSlash(filepath.Dir(name))
-			pkg := importPath(dir)
-			if reported[dir] || slices.Contains(viewModelPackages, pkg) ||
-				slices.Contains(templatePackagesWithoutViewModels, pkg) {
-				continue
+		generated := map[string]bool{}
+		for _, comp := range components {
+			generated[comp.src.path] = true
+		}
+		for name := range templates {
+			if !generated[strings.TrimSuffix(name, ".templ")+"_templ.go"] {
+				t.Errorf("%s has no generated %s beside it that declares a component: the "+
+					"view-model walk reads the generated signatures. Run `make gen`.",
+					name, strings.TrimSuffix(filepath.Base(name), ".templ")+"_templ.go")
 			}
-			reported[dir] = true
-			t.Errorf("%s holds a template (%s) and %s is in neither viewModelPackages nor "+
-				"templatePackagesWithoutViewModels. Decide whether its view structs are view "+
-				"models; until then their fields are not checked for being assigned.",
-				dir, name, pkg)
+		}
+	})
+
+	t.Run("no package is listed without a template", func(t *testing.T) {
+		t.Parallel()
+		holding := templatePackages(templates)
+		for _, pkg := range templatePackagesWithoutViewModels {
+			if !slices.Contains(holding, pkg) {
+				t.Errorf("templatePackagesWithoutViewModels lists %s, which holds no template: "+
+					"delete the entry", pkg)
+			}
 		}
 	})
 }
@@ -82,25 +107,23 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 // goenModule is the repository's module, the prefix of every import path below.
 const goenModule = "github.com/koopa0/goen"
 
-// viewModelPackages are the packages, by import path, whose exported structs are
-// view models. Types are keyed by the import path of the package that declares
-// them: pages and pages/admin each declare a CampaignView or an OrderView, and on
-// the bare name a field assigned in one would excuse the same name unassigned in
-// the other.
-//
-// This list and templatePackagesWithoutViewModels together must name every
-// directory that holds a template (TestEveryViewModelFieldIsAssigned checks it),
-// so a template moved into a new package cannot leave that package's view
-// structs unchecked without somebody deciding so.
-var viewModelPackages = []string{
-	goenModule + "/internal/ui/pages",
-	goenModule + "/internal/ui/pages/admin",
-	goenModule + "/internal/ui/layouts",
-}
+// The floors under the walks. Measured on da0f2600: 250 components in 86
+// generated files, 1671 view-model fields, 1690 assignments. A walk that stopped
+// reaching its input drops far below them; moving a template or a view between
+// packages keeps the totals.
+const (
+	minComponents      = 200
+	minViewModelFields = 700
+	minAssignedFields  = 700
+)
 
 // templatePackagesWithoutViewModels hold templates and no view models: shared
 // components, charts, icons and the mail templates take their data as
 // parameters, not as structs a handler fills.
+//
+// Every other package that holds a template is searched for the structs its
+// templates take (viewModelPackages), so a template moved into a new package is
+// covered without anybody editing a list.
 var templatePackagesWithoutViewModels = []string{
 	goenModule + "/internal/ui/components",
 	goenModule + "/internal/ui/chart",
@@ -108,84 +131,337 @@ var templatePackagesWithoutViewModels = []string{
 	goenModule + "/internal/email",
 }
 
+// templatePackages is the import path of every directory that holds a template.
+func templatePackages(templates map[string]string) []string {
+	var out []string
+	for name := range templates {
+		pkg := importPath(filepath.ToSlash(filepath.Dir(name)))
+		if !slices.Contains(out, pkg) {
+			out = append(out, pkg)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// viewModelPackages are the packages, by import path, whose structs can be view
+// models: those that hold a template, except templatePackagesWithoutViewModels.
+// Types are keyed by the import path of the package that declares them: pages and
+// pages/admin each declare a CampaignView or an OrderView, and on the bare name a
+// field assigned in one would excuse the same name unassigned in the other.
+func viewModelPackages(templates map[string]string) []string {
+	var out []string
+	for _, pkg := range templatePackages(templates) {
+		if !slices.Contains(templatePackagesWithoutViewModels, pkg) {
+			out = append(out, pkg)
+		}
+	}
+	return out
+}
+
 // source is one parsed file and the import path of the package it belongs to.
 type source struct {
 	file *ast.File
 	pkg  string
+	path string // from the repository root, slash-separated
 }
 
-// declaredFields is every exported field on every exported view model, as
-// Type.Field, with the view model each of those fields holds — which is what
-// resolves a write through a field, `view.Questions[at].Answers = …`.
-func declaredFields(t *testing.T, repository []source) (names []string, models map[string]bool, holds map[string]string) {
+// component is one templ component: the function templ generated for it, with
+// the file it is in.
+type component struct {
+	name string
+	src  source
+	// takes is the receiver and every parameter's type expression.
+	takes []ast.Expr
+	// calls is every function the component's body calls by name: `bannerFrom(ctx)`
+	// or `layouts.Foo(…)`. A method call is not here; it is followed from the type
+	// it is called on.
+	calls []*ast.CallExpr
+}
+
+// templComponents is every function the generated *_templ.go files declare that
+// returns a templ.Component, read from the generated signatures rather than from
+// the .templ sources: templ's own parser has already decided what a receiver, a
+// generic parameter or a multi-line parameter list is, and `make templ-check`
+// keeps the generated files equal to the sources.
+func templComponents(t *testing.T) []component {
 	t.Helper()
 
-	files := viewModelSources(t, repository)
+	files := goFiles(t, "internal", isGeneratedTempl)
+	out := make([]component, 0, len(files))
+	for _, src := range files {
+		out = append(out, componentsOf(src)...)
+	}
+	return out
+}
 
+// componentsOf is the templ components one generated file declares.
+func componentsOf(src source) []component {
+	templName := ""
+	for _, spec := range src.file.Imports {
+		if strings.Trim(spec.Path.Value, `"`) != "github.com/a-h/templ" {
+			continue
+		}
+		templName = "templ"
+		if spec.Name != nil {
+			templName = spec.Name.Name
+		}
+	}
+	if templName == "" {
+		return nil
+	}
+
+	var out []component
+	for _, decl := range src.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || !returnsComponent(fn, templName) {
+			continue
+		}
+		var takes []ast.Expr
+		for _, field := range fields(fn.Recv, fn.Type.Params) {
+			takes = append(takes, field.Type)
+		}
+		comp := component{name: fn.Name.Name, src: src, takes: takes}
+		if fn.Body != nil {
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if call, ok := n.(*ast.CallExpr); ok {
+					comp.calls = append(comp.calls, call)
+				}
+				return true
+			})
+		}
+		out = append(out, comp)
+	}
+	return out
+}
+
+// returnsComponent reports whether fn's only result is templ.Component, with
+// templ as the name the file imports it by.
+func returnsComponent(fn *ast.FuncDecl, templName string) bool {
+	if fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+		return false
+	}
+	sel, ok := fn.Type.Results.List[0].Type.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Component" {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	return ok && pkg.Name == templName
+}
+
+// declaration is a top-level type or function and the file it is declared in,
+// whose imports say what the names in it mean.
+type declaration struct {
+	src  source
+	spec *ast.TypeSpec // a type, or
+	fn   *ast.FuncDecl // a function
+}
+
+// viewModel is a struct a template takes and the component that takes it, directly
+// or through a field of what it takes.
+type viewModel struct {
+	fields    *ast.StructType
+	src       source // the file that declares it
+	component string
+}
+
+// templateTakes is the set of view models, keyed <import path>.Type: every
+// exported struct declared in one of the view-model packages that a templ
+// component takes or reads.
+//
+// It starts at what a component is handed — the receiver and parameter types —
+// and at what it fetches — the results of the package-level functions its body
+// calls (`bannerFrom(ctx)` reads a layouts.Banner out of the context). From
+// there it follows the type expressions to their declarations: through pointers,
+// slices, arrays, maps (key and value), channels, func signatures, generic
+// arguments and parentheses; through a named type that is not a struct (`type
+// Rows []Row` leads to Row) and through an unexported struct; into every field of
+// a struct it reaches, named or embedded, to any depth; and into the results of
+// every method declared on a type it reaches (`func (v ListingView)
+// AppliedChips() []AppliedChip` is how the template gets its chips).
+//
+// It stops at a type declared outside the view-model packages: a domain struct
+// such as order.Order is a template's input, not a view model a handler fills.
+// A struct that no path of this kind leads to is not a view model, even when it is
+// exported next to one.
+func templateTakes(repository []source, components []component, packages []string) map[string]viewModel {
+	decls := map[string]declaration{}
+	methods := map[string][]*ast.FuncDecl{} // <import path>.Type -> its methods
+	funcs := map[string]declaration{}       // <import path>.Func -> the function
+	for _, src := range repository {
+		if !slices.Contains(packages, src.pkg) {
+			continue
+		}
+		for _, decl := range src.file.Decls {
+			switch decl := decl.(type) {
+			case *ast.GenDecl:
+				if decl.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range decl.Specs {
+					if spec, ok := spec.(*ast.TypeSpec); ok {
+						decls[src.pkg+"."+spec.Name.Name] = declaration{src: src, spec: spec}
+					}
+				}
+			case *ast.FuncDecl:
+				if decl.Recv == nil {
+					funcs[src.pkg+"."+decl.Name.Name] = declaration{src: src, fn: decl}
+				} else if recv := receiverName(decl.Recv); recv != "" {
+					methods[src.pkg+"."+recv] = append(methods[src.pkg+"."+recv], decl)
+				}
+			}
+		}
+	}
+	declared := declaredPackageNames(repository, packages)
+
+	taken := map[string]viewModel{}
+	seen := map[string]bool{}
+	var visit func(typ ast.Expr, src source, via string)
+	reach := func(key string, via string) {
+		decl, ok := decls[key]
+		if !ok || seen[key] {
+			return
+		}
+		seen[key] = true
+		if structType, isStruct := decl.spec.Type.(*ast.StructType); isStruct {
+			if decl.spec.Name.IsExported() {
+				taken[key] = viewModel{fields: structType, src: decl.src, component: via}
+			}
+			for _, field := range structType.Fields.List {
+				visit(field.Type, decl.src, via)
+			}
+		} else {
+			visit(decl.spec.Type, decl.src, via)
+		}
+		for _, method := range methods[key] {
+			for _, result := range fields(method.Type.Results) {
+				visit(result.Type, decl.src, via)
+			}
+		}
+	}
+	visit = func(typ ast.Expr, src source, via string) {
+		switch t := typ.(type) {
+		case *ast.Ident:
+			reach(src.pkg+"."+t.Name, via)
+		case *ast.SelectorExpr:
+			if pkg, ok := t.X.(*ast.Ident); ok {
+				if imported, named := packageNames(src, declared)[pkg.Name]; named {
+					reach(imported+"."+t.Sel.Name, via)
+				}
+			}
+		case *ast.StarExpr:
+			visit(t.X, src, via)
+		case *ast.ParenExpr:
+			visit(t.X, src, via)
+		case *ast.ArrayType:
+			visit(t.Elt, src, via)
+		case *ast.Ellipsis:
+			visit(t.Elt, src, via)
+		case *ast.ChanType:
+			visit(t.Value, src, via)
+		case *ast.MapType:
+			visit(t.Key, src, via)
+			visit(t.Value, src, via)
+		case *ast.IndexExpr:
+			visit(t.X, src, via)
+			visit(t.Index, src, via)
+		case *ast.IndexListExpr:
+			visit(t.X, src, via)
+			for _, index := range t.Indices {
+				visit(index, src, via)
+			}
+		case *ast.FuncType:
+			for _, field := range fields(t.Params, t.Results) {
+				visit(field.Type, src, via)
+			}
+		case *ast.StructType:
+			for _, field := range t.Fields.List {
+				visit(field.Type, src, via)
+			}
+		}
+	}
+	for _, comp := range components {
+		via := comp.src.pkg + "." + comp.name
+		for _, typ := range comp.takes {
+			visit(typ, comp.src, via)
+		}
+		for _, call := range comp.calls {
+			key := ""
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				key = comp.src.pkg + "." + fun.Name
+			case *ast.SelectorExpr:
+				if pkg, ok := fun.X.(*ast.Ident); ok {
+					if imported, named := packageNames(comp.src, declared)[pkg.Name]; named {
+						key = imported + "." + fun.Sel.Name
+					}
+				}
+			}
+			if fn, ok := funcs[key]; ok {
+				for _, result := range fields(fn.fn.Type.Results) {
+					visit(result.Type, fn.src, via)
+				}
+			}
+		}
+	}
+	return taken
+}
+
+// receiverName is the type a method is declared on, `Row` for `(r *Row)` and
+// `(r Row[T])`.
+func receiverName(recv *ast.FieldList) string {
+	if recv == nil || len(recv.List) != 1 {
+		return ""
+	}
+	typ := recv.List[0].Type
+	for {
+		switch t := typ.(type) {
+		case *ast.StarExpr:
+			typ = t.X
+		case *ast.ParenExpr:
+			typ = t.X
+		case *ast.IndexExpr:
+			typ = t.X
+		case *ast.IndexListExpr:
+			typ = t.X
+		case *ast.Ident:
+			return t.Name
+		default:
+			return ""
+		}
+	}
+}
+
+// declaredFields is every exported field on every view model, as Type.Field,
+// with the view model each of those fields holds — which is what resolves a
+// write through a field, `view.Questions[at].Answers = …`.
+func declaredFields(taken map[string]viewModel) (names []string, models map[string]bool, holds map[string]string) {
 	// The type names first: everything downstream is gated on them, or a
 	// `func (v PointsView) Credit() string` contributes `string` as a rival
 	// result type and the ambiguity un-resolves every `view.Notice = …`.
 	models = map[string]bool{}
-	forEachStruct(files, func(src source, spec *ast.TypeSpec, _ *ast.StructType) {
-		models[src.pkg+"."+spec.Name.Name] = true
-	})
+	for key := range taken {
+		models[key] = true
+	}
 
 	holds = map[string]string{}
-	forEachStruct(files, func(src source, spec *ast.TypeSpec, structType *ast.StructType) {
-		w := writes{names: map[string]string{"": src.pkg}, models: models}
-		for _, field := range structType.Fields.List {
+	for key, model := range taken {
+		w := writes{names: map[string]string{"": model.src.pkg}, models: models}
+		for _, field := range model.fields.Fields.List {
 			for _, name := range field.Names {
 				if !name.IsExported() {
 					continue
 				}
-				key := src.pkg + "." + spec.Name.Name + "." + name.Name
-				names = append(names, key)
+				fieldKey := key + "." + name.Name
+				names = append(names, fieldKey)
 				if held := w.typeName(field.Type); held != "" {
-					holds[key] = held
+					holds[fieldKey] = held
 				}
 			}
 		}
-	})
+	}
 	slices.Sort(names)
 	return names, models, holds
-}
-
-// forEachStruct visits every exported struct type declared in files.
-func forEachStruct(files []source, visit func(source, *ast.TypeSpec, *ast.StructType)) {
-	for _, src := range files {
-		ast.Inspect(src.file, func(n ast.Node) bool {
-			spec, ok := n.(*ast.TypeSpec)
-			if !ok || !spec.Name.IsExported() {
-				return true
-			}
-			if structType, isStruct := spec.Type.(*ast.StructType); isStruct {
-				visit(src, spec, structType)
-			}
-			return true
-		})
-	}
-}
-
-// viewModelSources is the part of the repository's Go that declares view models:
-// the files of the packages named in viewModelPackages. Every entry must hold a
-// file, or it names a package that is not there and the guard would read
-// nothing from it.
-func viewModelSources(t *testing.T, repository []source) []source {
-	t.Helper()
-
-	var out []source
-	for _, pkg := range viewModelPackages {
-		before := len(out)
-		for _, src := range repository {
-			if src.pkg == pkg {
-				out = append(out, src)
-			}
-		}
-		if len(out) == before {
-			t.Errorf("viewModelPackages names %s, which holds no hand-written Go", pkg)
-		}
-	}
-	return out
 }
 
 // isHandWrittenGo reports whether path is Go this repository wrote. Tests do not
@@ -198,8 +474,8 @@ func isHandWrittenGo(path string) bool {
 }
 
 // assignedFields is every Type.Field the repository writes.
-func assignedFields(files []source, models map[string]bool, holds map[string]string) map[string]bool {
-	declared := declaredPackageNames(files)
+func assignedFields(files []source, packages []string, models map[string]bool, holds map[string]string) map[string]bool {
+	declared := declaredPackageNames(files, packages)
 	returns := resultTypes(files, models, declared)
 	out := map[string]bool{}
 	for _, src := range files {
@@ -215,10 +491,22 @@ func assignedFields(files []source, models map[string]bool, holds map[string]str
 // repositoryGo parses every hand-written Go file in the repository.
 func repositoryGo(t *testing.T) []source {
 	t.Helper()
+	return goFiles(t, ".", isHandWrittenGo)
+}
+
+// isGeneratedTempl reports whether path is Go that templ generated from a .templ.
+func isGeneratedTempl(path string) bool {
+	return strings.HasSuffix(path, "_templ.go")
+}
+
+// goFiles parses every file under dir (relative to the repository root) that keep
+// accepts, skipping the directories the go command skips.
+func goFiles(t *testing.T, dir string, keep func(path string) bool) []source {
+	t.Helper()
 
 	root := repoRoot(t)
 	var out []source
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -228,22 +516,26 @@ func repositoryGo(t *testing.T) []source {
 			}
 			return nil
 		}
-		if !isHandWrittenGo(path) {
+		if !keep(path) {
 			return nil
 		}
 		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 		if parseErr != nil {
 			return parseErr
 		}
-		dir, relErr := filepath.Rel(root, filepath.Dir(path))
+		pkgDir, relErr := filepath.Rel(root, filepath.Dir(path))
 		if relErr != nil {
 			return relErr
 		}
-		out = append(out, source{file: file, pkg: importPath(dir)})
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		out = append(out, source{file: file, pkg: importPath(pkgDir), path: filepath.ToSlash(rel)})
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk the repository: %v", err)
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 	return out
 }
@@ -325,13 +617,13 @@ func flatten(list *ast.FieldList) []ast.Expr {
 	return out
 }
 
-// declaredPackageNames maps the import path of each view-model package to the
+// declaredPackageNames maps the import path of each of packages to the
 // name its package clause declares, which is what an import without an alias is
 // called in the importing file.
-func declaredPackageNames(files []source) map[string]string {
+func declaredPackageNames(files []source, packages []string) map[string]string {
 	out := map[string]string{}
 	for _, src := range files {
-		if slices.Contains(viewModelPackages, src.pkg) {
+		if slices.Contains(packages, src.pkg) {
 			out[src.pkg] = src.file.Name.Name
 		}
 	}
