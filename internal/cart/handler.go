@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 
@@ -1372,7 +1371,7 @@ func checkoutErrors(
 		}
 	}
 	refusals = append(refusals, inv.Validate()...)
-	return account.FieldMessages(ctx, refusals)
+	return web.FieldMessages(ctx, refusals)
 }
 
 func (h *Handler) quoteCheckoutShipping(
