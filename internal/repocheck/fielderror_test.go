@@ -1,8 +1,9 @@
-package pages
+package repocheck_test
 
 import (
-	"os"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,19 +30,12 @@ var fieldProps = regexp.MustCompile(`(?s)components\.FieldProps\{(.*?)\n\s*\}\)`
 func TestEveryRefusedFieldStillNamesItsError(t *testing.T) {
 	t.Parallel()
 
-	files, err := pageTemplates()
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no templates to read: %v", err)
-	}
+	sources := templSources(t)
 
 	var offenders []string
 	var checked int
-	for _, name := range files {
-		body, readErr := os.ReadFile(name) //nolint:gosec // G304: paths come from globbing this package
-		if readErr != nil {
-			t.Fatalf("read %s: %v", name, readErr)
-		}
-		src := string(body)
+	for _, name := range slices.Sorted(maps.Keys(sources)) {
+		src := sources[name]
 		for _, m := range fieldProps.FindAllStringSubmatchIndex(src, -1) {
 			literal := src[m[2]:m[3]]
 			if !strings.Contains(literal, "Invalid:") {

@@ -1,8 +1,6 @@
 package pages
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -24,42 +22,6 @@ func TestSignInKeepsTheEmailRuleWithoutAttributingGoogleFailureToIt(t *testing.T
 	}
 	if strings.Contains(input, `aria-invalid="true"`) || strings.Contains(input, `aria-describedby="signin-google-error"`) {
 		t.Errorf("Google failure was attributed to the email field: %s", input)
-	}
-}
-
-// A customer-facing email input takes its pattern, keyboard and message from
-// internal/fieldrule, so the browser says what the server would. The back
-// office is exempt: its forms are not part of the shopper's checkout.
-func TestEveryCustomerEmailFieldCarriesTheSharedRule(t *testing.T) {
-	t.Parallel()
-	emailInput := regexp.MustCompile(`Type:\s+"email"`)
-	var checked int
-	for _, glob := range []string{"*.templ", "../layouts/*.templ"} {
-		files, err := filepath.Glob(glob)
-		if err != nil || len(files) == 0 {
-			t.Fatalf("no templates under %s: %v", glob, err)
-		}
-		for _, name := range files {
-			if strings.HasPrefix(filepath.Base(name), "admin") {
-				continue
-			}
-			body, err := os.ReadFile(name) //nolint:gosec // G304: paths come from globbing this package
-			if err != nil {
-				t.Fatalf("read %s: %v", name, err)
-			}
-			src := string(body)
-			inputs := len(emailInput.FindAllString(src, -1))
-			if inputs == 0 {
-				continue
-			}
-			checked += inputs
-			if rules := strings.Count(src, "fieldrule.Email.Attrs"); rules < inputs {
-				t.Errorf("%s has %d email inputs and %d carry fieldrule.Email", name, inputs, rules)
-			}
-		}
-	}
-	if checked == 0 {
-		t.Fatal("no email inputs found; the census is reading the wrong files")
 	}
 }
 

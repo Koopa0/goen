@@ -1,4 +1,4 @@
-package pages_test
+package repocheck_test
 
 import (
 	"go/ast"
@@ -28,13 +28,15 @@ func TestEveryConstructedLinkResolvesToARoute(t *testing.T) {
 		t.Fatalf("only %d routes found; the parser is not reading the route table", len(routes))
 	}
 
-	built := constructedPaths(t, filepath.Join(root, "internal", "ui"))
+	built := constructedPaths(t, root)
 	// The count is asserted so that a parser which silently stops finding
 	// anything fails instead of passing over an empty corpus, which is how a
 	// guard comes to be satisfied by nothing.
 	if len(built) < 30 {
 		t.Fatalf("only %d constructed paths found; the AST walk is not reading the view models", len(built))
 	}
+
+	t.Logf("%d constructed paths", len(built))
 
 	paths := make([]string, 0, len(built))
 	for p := range built {
@@ -57,24 +59,37 @@ func TestEveryConstructedLinkResolvesToARoute(t *testing.T) {
 	}
 }
 
-// constructedPaths finds every path a view model assembles by concatenation,
-// mapped to where it is written. A non-literal operand becomes one path
-// segment, because that is what it always is: an id, a slug or a number.
-func constructedPaths(t *testing.T, uiDir string) map[string]string {
+// constructedPaths finds every path assembled by concatenation in the
+// hand-written, non-test Go under internal/, mapped to where it is written. A
+// non-literal operand becomes one path segment, because that is what it always
+// is: an id, a slug or a number.
+func constructedPaths(t *testing.T, root string) map[string]string {
 	t.Helper()
 
 	found := map[string]string{}
 	fset := token.NewFileSet()
-	err := filepath.WalkDir(uiDir, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") ||
 			strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_templ.go") {
 			return err
 		}
-		file, parseErr := parser.ParseFile(fset, path, nil, 0)
+		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if parseErr != nil {
 			t.Fatalf("parse %s: %v", path, parseErr)
 		}
+		if ast.IsGenerated(file) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
 		ast.Inspect(file, func(n ast.Node) bool {
+			// `back += "/" + slug` appends a suffix to a path that is built
+			// elsewhere; read alone, its right side looks like the path /x.
+			if assign, ok := n.(*ast.AssignStmt); ok && assign.Tok == token.ADD_ASSIGN {
+				return false
+			}
 			join, ok := n.(*ast.BinaryExpr)
 			if !ok || join.Op != token.ADD {
 				return true
@@ -83,7 +98,7 @@ func constructedPaths(t *testing.T, uiDir string) map[string]string {
 			if !ok || !strings.HasPrefix(built, "/") {
 				return true
 			}
-			found[built] = filepath.Base(path) + ":" +
+			found[built] = filepath.ToSlash(rel) + ":" +
 				strconv.Itoa(fset.Position(join.Pos()).Line)
 			// Do not descend. `"/a/" + id + "/b"` parses as `("/a/" + id) + "/b"`,
 			// so walking into it would also record the prefix `/a/x` as a path of
@@ -93,7 +108,7 @@ func constructedPaths(t *testing.T, uiDir string) map[string]string {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk view models: %v", err)
+		t.Fatalf("walk internal/: %v", err)
 	}
 	return found
 }
