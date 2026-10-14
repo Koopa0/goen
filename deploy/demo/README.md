@@ -6,9 +6,10 @@ A reference for restoring a fixed demo snapshot under systemd:
 [restore.env.example](restore.env.example); [manifest.env](manifest.env) is the
 sanitised application configuration template, not an attestation of the live host.
 
-The timer runs at 03:00 UTC and also catches a missed run when activated. The
-script checks the restore identity and archive before stopping `goen.service`,
-restores the snapshot, then starts the service. It does not create demo history,
+The timer runs at 19:00 UTC (03:00 in Taipei, outside shop hours) and also catches
+a missed run when activated. The script checks the restore identity and archive
+before stopping `goen.service`, restores the snapshot, then starts the service. It
+does not create demo history,
 run `seed/demo_shift.sql`, or refresh the snapshot's anchor day. Each run restores
 the same saved dates; it does not make the history end yesterday.
 
