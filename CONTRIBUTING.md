@@ -69,7 +69,7 @@ make test-integration  # every package's integration tests on a real PostgreSQL,
 To run one test, name it: `go test -run '^TestPercentCouponDoesNotOverflowAnInRangeSubtotal$' ./internal/cart`
 for a unit test, and add `-tags=integration` for one that needs the database
 (Docker must be running; each package starts its own PostgreSQL). A browser test
-skips unless Chrome is available; see Test files.
+skips unless Chrome is available; see Tests.
 
 ### The gate
 
@@ -206,18 +206,50 @@ store before anything else.
   begins with a tool's name, such as `Claude`, whoever the person is.
   Automation lines such as Dependabot's `Signed-off-by` are accepted.
 
-### Test files
+### Tests
 
-- Name tests after the source they exercise: `foo_test.go` and
-  `foo_integration_test.go` for `foo.go`. A topic file covers behavior spanning
-  several source files and uses the package's domain words, never an issue or PR.
-- Every integration test file has both `//go:build integration` and the
-  `_integration_test.go` suffix. Keep `TestMain` and shared setup in
-  `main_integration_test.go`; `internal/db` (`schema_integration_test.go`),
-  `internal/contact` and `internal/home` (`handler_integration_test.go`) keep
-  theirs beside the tests it serves.
+- Name a test after the unit it exercises: `TestParse` for a function, the
+  type's name for a type, the type and the method joined by an underscore for a
+  method ([Google decisions: underscores](https://google.github.io/styleguide/go/decisions#underscores)).
+  `testing` itself asks only for `Test` and a name that does not start with a
+  lower-case letter ([testing](https://pkg.go.dev/testing)); the rest is
+  convention. A test of something that is not a Go identifier takes the name of
+  that thing: a SQL object, or a repository rule such as `TestDependencies`.
+- Cases that share logic are `t.Run` subtests or table rows, with short
+  identifier-like names and no `/` ([subtest names](https://google.github.io/styleguide/go/decisions#subtest-names),
+  [table-driven tests](https://go.dev/wiki/TableDrivenTests),
+  [the blog post](https://go.dev/blog/subtests)). Cases that need different
+  logic are separate functions, named after the unit plus one to three words of
+  scenario
+  ([table tests or several functions](https://go.dev/wiki/TestComments#table-driven-tests-vs-multiple-test-functions)).<!-- named-test-exempt: the link is a URL, not a test name -->
+  Do not split a test only to give each assertion its own function. The
+  sentence that says why goes first in the doc comment, or in a `desc` field the
+  failure message prints, not in the name.
+- Fail with `Func(input) = got, want want`, and keep going with `t.Error`
+  ([useful test failures](https://google.github.io/styleguide/go/decisions#useful-test-failures),
+  [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments#useful-test-failures)).
+- `TestMigratedTestNames` in `internal/repocheck` holds the packages listed in
+  `migratedTestPackages` to the naming rule: a name is at most 40 characters
+  after `Test` and, where the package has non-test code, starts with the name of
+  a function or type it declares. The 40 is goen's own limit, near the 99th
+  percentile of the standard library's test names (42); no style guide gives a
+  number. A package joins the list in the pull request that renames its tests,
+  and a test that cannot follow the rule goes in `testNameExceptions` with a
+  reason. That list only shrinks, and a row for a test that was renamed or now
+  follows the rule fails. Other packages are not checked yet.
 - Use the external test package (`package foo_test`) unless the test needs
-  unexported names.
+  unexported names or an import cycle forbids it ([test package](https://google.github.io/styleguide/go/decisions#test-package)).
+  That default is a goen rule: Google's guide defaults to the same package and
+  the standard library uses both.
+- Like the standard library, put tests for `foo.go` in `foo_test.go` and
+  `foo_integration_test.go`. A topic file covers behavior spanning several source
+  files and uses the package's domain words, never an issue or PR. Keep files
+  small enough to find things in ([package size](https://google.github.io/styleguide/go/best-practices#package-size)).
+- Every integration test file has both `//go:build integration` and the
+  `_integration_test.go` suffix (a goen rule). Keep `TestMain` and shared setup
+  in `main_integration_test.go`, with no tests; `internal/db`
+  (`schema_integration_test.go`), `internal/contact` and `internal/home`
+  (`handler_integration_test.go`) keep theirs beside the tests it serves.
 - Put a helper shared by several packages in the area's helper package, such
   as `admintest` or `dbtest`.
 - A test that drives a real browser has the `_browser_test.go` suffix

@@ -615,6 +615,40 @@ func TestRunRoundTripInAGitCheckout(t *testing.T) {
 	}
 }
 
+// TestProposeWritesWhereGitTracks runs propose in a checkout that carries the
+// repository's own .gitignore and wants the map in git's untracked list: a map
+// under docs/ would be ignored and could not be committed.
+func TestProposeWritesWhereGitTracks(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	ignore, err := os.ReadFile(filepath.Join("..", "..", "..", ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := fixture(t)
+	fixtureRoot, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixtureRoot.Close()
+	if err := fixtureRoot.WriteFile(".gitignore", ignore, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, dir, "init", "-q")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "fixture")
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"-C", dir, "propose", "alpha"}, &stdout, &stderr); got != 0 {
+		t.Fatalf("propose exited %d: %s %s", got, &stdout, &stderr)
+	}
+	const want = "?? internal/tools/testrename/maps/alpha.tsv"
+	if status := gitOutputIn(t, dir, "status", "--porcelain", "-uall"); !strings.Contains(status, want) {
+		t.Errorf("git status = %q, want it to list %q\npropose printed %q", status, want, stdout.String())
+	}
+}
+
 func gitOutputIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	out, err := gitOutput(dir, args...)

@@ -18,13 +18,14 @@ import (
 )
 
 // ownDir is this tool's own directory. Its fixtures name tests that do not
-// exist, so no subcommand reads or edits it.
+// exist and its maps (mapsDir) name tests that no longer do, so no subcommand
+// reads or edits it.
 const ownDir = "internal/tools/testrename/"
 
 // historyDirs are not rewritten. docs/reviews records what each review round
 // said under names since changed (TestEveryNamedTestExists skips it for the
-// same reason); docs/test-renames holds the old names on purpose.
-var historyDirs = []string{"docs/reviews/", "docs/test-renames/", ownDir}
+// same reason); ownDir holds the maps, which keep the old names on purpose.
+var historyDirs = []string{"docs/reviews/", ownDir}
 
 // tree is a set of files at one moment: the working tree or a git revision.
 type tree interface {
