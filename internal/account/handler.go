@@ -46,6 +46,9 @@ type Handler struct {
 	secure     bool
 	google     *Google
 	demo       DemoAccount
+	// stepUp reports whether the request's session passed the second factor; nil
+	// is a deployment with none. See [Handler.RequireStepUpFromStaff].
+	stepUp func(*http.Request) (bool, error)
 
 	// mailLimit bounds, per address, the forms that mail an address whoever
 	// names it: each mails the address whether or not it has an account, so
@@ -73,6 +76,45 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 
 // OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
+
+// RequireStepUpFromStaff makes the doors that end, replace or re-credential an
+// account (erase, password change, sign out of other devices, Google unlink)
+// refuse a staff account whose session has not passed the second factor, and
+// send it to /admin/verify as /admin does. stepUp is the back office's own
+// predicate; nil, a deployment with no second factor, turns the check off, as it
+// does for /admin. A customer is never asked. It must be called before the
+// handler serves.
+//
+// The password alone opens /account, so without this the second factor guards
+// only /admin while the same users row could be erased or locked out from here.
+func (h *Handler) RequireStepUpFromStaff(stepUp func(*http.Request) (bool, error)) {
+	h.stepUp = stepUp
+}
+
+// stepUpPath is where /admin sends a session that has not passed the second
+// factor. It is the back office's route, named here because account may not
+// import the back office.
+const stepUpPath = "/admin/verify"
+
+// refuseUnverifiedStaff answers a staff account whose session has not passed
+// the second factor and reports that it did; the caller returns without acting.
+// A customer, and every account while no second factor is configured, passes.
+func (h *Handler) refuseUnverifiedStaff(w http.ResponseWriter, r *http.Request, u user.User) bool {
+	if !u.IsStaff() || h.stepUp == nil {
+		return false
+	}
+	verified, err := h.stepUp(r)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read second factor", "error", err)
+		h.serverError(w, r)
+		return true
+	}
+	if verified {
+		return false
+	}
+	http.Redirect(w, r, stepUpPath, http.StatusSeeOther)
+	return true
+}
 
 func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u user.User) bool {
 	if !h.demo.holds(u.Email) {
@@ -441,6 +483,9 @@ func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
 	currentToken := ReadSessionCookie(r, h.secure)
 	if !ok || currentToken == "" {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
@@ -940,7 +985,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -981,7 +1026,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Before the recency check, which would end the session rather than refuse.
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -1412,6 +1457,9 @@ func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	switch err := h.store.UnlinkGoogle(r.Context(), u); {
