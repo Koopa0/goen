@@ -723,11 +723,17 @@ const restoreSession = async (session) => {
 // customer id, an order number carrying today's date and a warranty serial from
 // that number on every run, so a key taken verbatim would name a page that
 // does not exist tomorrow and the baseline would be stale on the run after the
-// one that wrote it.
+// one that wrote it. The six characters after the date are drawn from the
+// schema's order-number alphabet, digits and letters alike
+// (orders_number_format). The serial is that number with the G, O and dash
+// that translate() strips from it in scripts/check-layout.sql, so it can be
+// shorter than the number it came from.
+// TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws holds these two patterns to
+// both.
 const PER_RUN = [
   [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}'],
-  [/GO-\d{6}-\d{6}/g, '{order}'],
-  [/LAYOUTSN\d+/g, '{serial}'],
+  [/GO-\d{6}-[0-9A-HJKMNP-TV-Z]{6}/g, '{order}'],
+  [/LAYOUTSN\d{6}[0-9A-HJKMNP-TV-Z]*/g, '{serial}'],
 ];
 
 const routeOf = (url) => {
