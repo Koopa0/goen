@@ -11,11 +11,6 @@ const SweepInterval = time.Hour
 
 const SweepBatch = 100
 
-// SweepGrace is how long an upload is left alone before it counts as abandoned.
-// The window itself lives in UnreferencedMedia's WHERE clause; changing this
-// constant alone changes nothing.
-const SweepGrace = 24 * time.Hour
-
 // Candidates is the list Sweep works from: uploads nothing points at and that
 // are older than the grace window.
 //

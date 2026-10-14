@@ -127,8 +127,6 @@ func (v CompareView) ShelfHref() string {
 	return "/c/" + v.ShelfSlug
 }
 
-func (v CompareView) Empty() bool { return len(v.Products) == 0 }
-
 func (v CompareView) Enough() bool { return len(v.Products) >= MinCompare }
 
 func (v CompareView) Full() bool { return len(v.Products) >= MaxCompare }

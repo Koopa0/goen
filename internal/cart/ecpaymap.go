@@ -172,9 +172,6 @@ func (m *StoreMap) Request(chain shipping.Chain, tradeNo, nonce string, mobile b
 	return f, true
 }
 
-// MerchantID is public; the return handler requires the callback to repeat it.
-func (m *StoreMap) MerchantID() string { return m.merchantID }
-
 // NewMerchantTradeNo is deliberately NOT the nonce, which would put a
 // browser-bound secret in a field the map echoes into its own systems and logs.
 func NewMerchantTradeNo() (string, error) {

@@ -27,7 +27,6 @@ const (
 
 var (
 	ErrOAuthDisabled   = errors.New("account: google sign-in is not configured")
-	ErrOAuthState      = errors.New("account: the sign-in request does not match this browser")
 	ErrOAuthUnverified = errors.New("account: google has not verified that address")
 	ErrOAuthCollision  = errors.New("account: that address already has an unverified account here")
 	errOAuthIdentity   = errors.New("account: google returned an invalid subject")

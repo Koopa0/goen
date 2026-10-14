@@ -377,8 +377,6 @@ func (q Quote) Total() (int64, error) {
 	return addCheckoutMoney(q.FeeCents, q.Surcharge)
 }
 
-func (q Quote) HasSurcharge() bool { return q.Surcharge > 0 }
-
 type Invoice struct {
 	Type          invoicepkg.Preference
 	MobileBarcode string
