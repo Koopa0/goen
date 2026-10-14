@@ -849,6 +849,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
 	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
+	d.run(func() { holds.SweepGuestCartsForever(ctx, d.log) })
+	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
 	// The media sweeper runs on the ADMIN pool: `store` holds SELECT on

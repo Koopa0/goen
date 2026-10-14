@@ -663,6 +663,25 @@ SELECT redeem_coupon(@coupon_id, @order_id, sqlc.narg(user_id)::uuid, @amount_ce
 DELETE FROM checkout_attempts
 WHERE created_at < now() - sqlc.arg(retain)::interval;
 
+-- A guest cart nobody has touched for the retention window. Its cookie lives as
+-- long as the window and is set once, when the cart is created, so past it no
+-- browser can name the cart. An account's cart (user_id set) is never listed.
+-- Idle means none of created_at, updated_at (a checkout draft moves it) or a
+-- line's added_at is inside the window. One batch at a time: the delete cascades
+-- to cart_items, and SKIP LOCKED leaves a cart a writer holds for the next pass.
+-- name: DeleteIdleGuestCarts :execrows
+DELETE FROM carts
+WHERE id IN (
+    SELECT c.id FROM carts c
+    WHERE c.user_id IS NULL
+      AND c.updated_at < now() - sqlc.arg(retain)::interval
+      AND NOT EXISTS (
+          SELECT 1 FROM cart_items i
+          WHERE i.cart_id = c.id AND i.added_at >= now() - sqlc.arg(retain)::interval)
+    LIMIT sqlc.arg(batch)::integer
+    FOR UPDATE OF c SKIP LOCKED
+);
+
 -- Does this order number belong to this email address? Both halves in ONE
 -- statement answering a boolean: a caller that got a row back could report WHICH
 -- half was wrong, and only the address is secret.
