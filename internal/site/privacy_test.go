@@ -94,3 +94,60 @@ func TestPrivacyThirdPartySectionDisclosesGoogleSignIn(t *testing.T) {
 		})
 	}
 }
+
+// TestPrivacyRetentionSectionStatesEachEnforcedPeriod holds the page to the
+// numbers the sweeps enforce: the pages helpers are bound to those constants by a
+// test in each owning package, and this proves each paragraph reads its own
+// helper. The paragraphs are checked one by one because two periods are both 14
+// days, and a number found in the neighbouring paragraph would pass for it.
+func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
+	for _, tc := range []struct {
+		locale  i18n.Locale
+		heading string
+		want    [][]string // the numbers each leading paragraph must carry, in order
+	}{
+		{i18n.ZhHant, "保存多久", [][]string{
+			{pages.NewsletterConfirmHoursText() + " 小時", pages.NewsletterRetainDaysText() + " 天"},
+			{pages.GuestCartRetainDaysText() + " 天"},
+			{pages.CheckoutDraftHoursText() + " 小時"},
+			{pages.MailRetainDaysText() + " 天"},
+			{pages.SessionDaysText() + " 天"},
+		}},
+		{i18n.En, "How long we keep it", [][]string{
+			{pages.NewsletterConfirmHoursText() + " hours", pages.NewsletterRetainDaysText() + " days"},
+			{pages.GuestCartRetainDaysText() + " days"},
+			{pages.CheckoutDraftHoursText() + " hour"},
+			{pages.MailRetainDaysText() + " days"},
+			{pages.SessionDaysText() + " days"},
+		}},
+	} {
+		t.Run(string(tc.locale), func(t *testing.T) {
+			var body []string
+			var found int
+			for _, section := range policies["privacy"].For(tc.locale).Sections {
+				if section.Heading == tc.heading {
+					found++
+					body = section.Body
+				}
+			}
+			if found != 1 {
+				t.Fatalf("privacy has %d sections headed %q, want 1", found, tc.heading)
+			}
+			if len(body) < len(tc.want) {
+				t.Fatalf("retention section has %d paragraphs, want at least %d", len(body), len(tc.want))
+			}
+			for i, wants := range tc.want {
+				for _, w := range wants {
+					if !strings.Contains(body[i], w) {
+						t.Errorf("retention paragraph %d omits %q: %s", i+1, w, body[i])
+					}
+				}
+			}
+			for _, p := range body {
+				if strings.Contains(p, "%!") {
+					t.Errorf("retention paragraph has a broken format verb: %s", p)
+				}
+			}
+		})
+	}
+}
