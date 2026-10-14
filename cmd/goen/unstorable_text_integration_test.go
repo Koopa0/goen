@@ -43,7 +43,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 	}
 	token := bearer.New()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES ($1, $2, now() + interval '1 hour')`, bearer.Digest(token), staffID); err != nil {
 		t.Fatalf("open the staff session: %v", err)
 	}

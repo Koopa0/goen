@@ -83,9 +83,9 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 		return fmt.Errorf("invalidate prior reset tokens: %w", err)
 	}
 	if err := q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
-		TokenHash: digest,
-		UserID:    row.ID,
-		Ttl:       pgtype.Interval{Microseconds: ResetTokenTTL.Microseconds(), Valid: true},
+		Digest: digest,
+		UserID: row.ID,
+		Ttl:    pgtype.Interval{Microseconds: ResetTokenTTL.Microseconds(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("create reset token: %w", err)
 	}

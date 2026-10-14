@@ -6,11 +6,11 @@ FROM staff_totp_credentials WHERE user_id = $1;
 -- The WHERE clause is the guard, in the statement because a read-then-write is
 -- a race two concurrent enrolments both win.
 -- name: BeginTOTPEnrolment :execrows
-INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_hash)
-VALUES (@user_id, @secret_encrypted, @mailed_code_hash)
+INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest)
+VALUES (@user_id, @secret_encrypted, @mailed_code_digest)
 ON CONFLICT (user_id) DO UPDATE
 SET secret_encrypted = excluded.secret_encrypted,
-    mailed_code_hash = excluded.mailed_code_hash,
+    mailed_code_digest = excluded.mailed_code_digest,
     confirmed_at = NULL,
     last_step = NULL,
     created_at = now()
@@ -23,10 +23,10 @@ WHERE staff_totp_credentials.confirmed_at IS NULL;
 -- is matched here too, so it is spent by the write that accepts it.
 -- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
-SET confirmed_at = now(), last_step = @step::bigint, mailed_code_hash = NULL
+SET confirmed_at = now(), last_step = @step::bigint, mailed_code_digest = NULL
 WHERE user_id = @user_id
   AND secret_encrypted = @secret_encrypted
-  AND mailed_code_hash = @mailed_code_hash
+  AND mailed_code_digest = @mailed_code_digest
   AND created_at > now() - @mailed_code_ttl::interval
   AND (last_step IS NULL OR last_step < @step::bigint);
 
@@ -43,9 +43,9 @@ WHERE user_id = @user_id
   AND (last_step IS NULL OR last_step < @step::bigint);
 
 -- name: MarkSessionVerified :exec
-UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1;
+UPDATE sessions SET totp_verified_at = now() WHERE digest = $1;
 
 -- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - @max_age::interval)::boolean AS verified
-FROM sessions s WHERE s.token_hash = $1;
+FROM sessions s WHERE s.digest = $1;

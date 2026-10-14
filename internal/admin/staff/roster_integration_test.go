@@ -110,7 +110,7 @@ func TestRevokingAccessEndsTheSessionsThatHadIt(t *testing.T) {
 	leaving, _ := admintest.AdminUser(t, pool)
 	remaining, _ := admintest.AdminUser(t, pool)
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256('leaving-token'::bytea), $1, now() + interval '1 hour')`,
 		leaving); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -243,7 +243,7 @@ func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
 		t.Fatalf("register first: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256('attacker-token'::bytea), $1, now() + interval '14 days')`,
 		attacker); err != nil {
 		t.Fatalf("attacker session: %v", err)
@@ -340,7 +340,7 @@ func TestPromotionEndsTheSessionsOpenedBeforeIt(t *testing.T) {
 	// PROVED, deliberately: the unproved path clears the password too, so the
 	// two rules agree there and the fixture would test neither.
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '30 days')`,
 		"before-promotion-"+customer, customer); err != nil {
 		t.Fatalf("open a session: %v", err)
@@ -376,7 +376,7 @@ func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
 	other, _ := admintest.AdminUser(t, pool)
 	enrolFactor(t, victim)
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at, totp_verified_at)
+		INSERT INTO sessions (digest, user_id, expires_at, totp_verified_at)
 		VALUES (sha256('stolen-token'::bytea), $1, now() + interval '14 days', now())`,
 		victim); err != nil {
 		t.Fatalf("create the stepped-up session: %v", err)
@@ -409,7 +409,7 @@ func TestRecoveringAFactorRollsBackWhenSessionRevocationFails(t *testing.T) {
 	other, _ := admintest.AdminUser(t, pool)
 	enrolFactor(t, victim)
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at, totp_verified_at)
+		INSERT INTO sessions (digest, user_id, expires_at, totp_verified_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '14 days', now())`,
 		"rollback-stolen-"+victim, victim); err != nil {
 		t.Fatalf("create stepped-up session: %v", err)

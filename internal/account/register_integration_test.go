@@ -174,7 +174,7 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	guestToken := "registration-guest-" + uuid.NewString()
 	variant := sellableVariant(t, ctx)
 	var guestCart uuid.UUID
-	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`, bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (digest) VALUES ($1) RETURNING id`, bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`, guestCart, variant); err != nil {
@@ -396,7 +396,7 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	}
 
 	var owner uuid.NullUUID
-	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
+	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE digest = $1`,
 		bearer.Digest(guestCart.Value)).Scan(&owner); err != nil {
 		t.Fatalf("read the guest cart: %v", err)
 	}

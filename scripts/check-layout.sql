@@ -68,7 +68,7 @@ ON CONFLICT (lower(email)) DO NOTHING;
 SELECT id AS customer_id FROM users
 WHERE lower(email) = 'layout-cust@goen.invalid' AND role = 'customer' \gset
 
-INSERT INTO sessions (token_hash, user_id, expires_at) VALUES
+INSERT INTO sessions (digest, user_id, expires_at) VALUES
     (sha256(convert_to(:'admin_token', 'UTF8')), :'staff_id', now() + interval '1 hour'),
     (sha256(convert_to(:'cust_token', 'UTF8')), :'customer_id', now() + interval '1 hour');
 
@@ -227,7 +227,7 @@ FROM generate_series(1, 2);
 
 SET ROLE store;
 
-INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart_token', 'UTF8')))
+INSERT INTO carts (digest) VALUES (sha256(convert_to(:'cart_token', 'UTF8')))
 RETURNING id AS cart_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'variant_id', 1);
 
