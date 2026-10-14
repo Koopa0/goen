@@ -67,12 +67,14 @@ You need Go 1.27, Docker and `psql`.
 
 ```sh
 cp .env.example .env
+echo "GOEN_TOTP_KEY=$(openssl rand -hex 32)" >> .env   # the staff second factor needs a key
 make db-up
 ```
 
 Choose one of the following paths on a fresh database. For the `psql` commands,
 export `GOEN_DATABASE_URL` in your shell with the schema owner's connection
-configured in `.env`.
+configured in `.env`. A value you export, or give on the `make` command line,
+wins over `.env`.
 
 ### An empty shop
 
@@ -83,10 +85,17 @@ make run          # http://127.0.0.1:9700
 ```
 
 Leave `GOEN_DEMO_ACCOUNT_EMAIL` and `GOEN_DEMO_ACCOUNT_PASSWORD` unset. The schema
-starts without a catalogue, demo account or sample orders. Open `/forgot` with
-the owner's email to set a password, then enrol the second factor on first
-entry to `/admin`. Configure mail and `GOEN_TOTP_KEY` in `.env` before doing so.
-Add the shop's departments and products in the back office.
+starts without a catalogue, demo account or sample orders. Add the shop's
+departments and products in the back office once you are in:
+
+1. Open `/forgot`, enter the owner's email and submit. See **Reading local mail**
+   for where the reset link arrives.
+2. Open the link, choose a password, and sign in at `/signin`.
+3. Open `/admin`. On first entry, press the enrol button, scan the QR code (or
+   type the key) into an authenticator app, and enter its six digits together
+   with the eight-digit setup code goen mails to the owner. That second mail
+   arrives where the first did: in development its code is in the log's `body=`
+   field, or in Mailpit.
 
 ### A local demo
 
@@ -97,14 +106,32 @@ psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "SELECT upsert_staff('you@exa
 ```
 
 Set `GOEN_DEMO_ACCOUNT_EMAIL` and `GOEN_DEMO_ACCOUNT_PASSWORD` in `.env` to offer
-the shared customer sign-in when goen starts. Configure mail and `GOEN_TOTP_KEY`,
-then start `make run` to set the owner's password through `/forgot` and enrol
-the second factor on first entry to `/admin`. Stop goen, load the history using
-the command under **Try the demo**, then restart `make run`.
+the shared customer sign-in when goen starts. Then start `make run` and set the
+owner's password through `/forgot` and enrol the second factor on first entry to
+`/admin`, as under **An empty shop**. Stop goen, load the history using the
+command under **Try the demo**, then restart `make run`.
 
 The catalogue seed requires the explicit development setting shown above; it also refuses a database that already contains products or orders. The setting declares seed intent and does not detect a production database automatically.
 Use a fresh database for the demo catalogue; the history and date-shift scripts
 operate on an existing demo as described above.
+
+### Reading local mail
+
+`make run` is development mode (`GOEN_INSECURE_COOKIES=1`), and only in that mode
+two things hold. With no `GOEN_SMTP_ADDR`, goen prints each mail in full to its
+log, including a `link=` field per URL, and marks it delivered: copy the reset
+link from the terminal running `make run`. To read mail in a browser instead,
+start [Mailpit](https://mailpit.axllent.org) and point goen at it, then restart:
+
+```sh
+docker run --rm -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 axllent/mailpit
+echo 'GOEN_SMTP_ADDR=127.0.0.1:1025' >> .env   # mail appears at http://127.0.0.1:8025
+```
+
+Outside development neither exists: a mail is never written to the log, because a
+reset link is a credential, and goen sends only over STARTTLS with a verified
+certificate, so a plain-SMTP sink is refused. Even in development, plain SMTP is
+accepted only from a loopback address.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and configuration.
 

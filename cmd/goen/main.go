@@ -210,7 +210,7 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 				"lost with nothing to show for it. Set it, or set " +
 				"GOEN_INSECURE_COOKIES=1 for local development")
 		}
-		log.Warn("GOEN_SMTP_ADDR is not set; mail is logged, NOT sent, and marked delivered",
+		log.Warn("GOEN_SMTP_ADDR is not set; mail is logged in full, links included, NOT sent, and marked delivered",
 			"set", "GOEN_SMTP_ADDR")
 	}
 
@@ -803,11 +803,19 @@ func redactURL(err error, url string) error {
 
 // newSender chooses how mail leaves the process. A configured relay must never
 // fall back to the log sender, whose nil return means "delivered".
+//
+// Two conveniences exist only in development, both read from the one switch
+// that already separates it from production (Secure cookies): the log sender
+// prints the body, so a developer can follow the reset link in it, and the SMTP
+// sender accepts a loopback server without STARTTLS, a local capture relay.
+// Outside development neither exists: no mailed token reaches a log, and mail
+// is sent only over a verified STARTTLS connection.
 func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
+	development := !cfg.SecureCookies
 	if cfg.SMTPAddr == "" {
-		return email.LogSender{Log: log}, nil
+		return email.LogSender{Log: log, ShowBody: development}, nil
 	}
-	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom}
+	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom, AllowLoopbackPlaintext: development}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {

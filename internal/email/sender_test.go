@@ -501,7 +501,7 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 		showBody bool
 		wantBody bool
 	}{
-		{name: "the zero value, which is what main constructs", showBody: false, wantBody: false},
+		{name: "the zero value, which is what a deployment gets", showBody: false, wantBody: false},
 		{name: "opted in for local development", showBody: true, wantBody: true},
 	}
 	for _, tt := range tests {
@@ -524,6 +524,9 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 				t.Errorf("the body is in the log = %v, want %v — a reset link in a "+
 					"log is a live credential in a place the customer cannot read "+
 					"and everybody else can:\n%s", got, tt.wantBody, line)
+			}
+			if tt.wantBody && !strings.Contains(line, ` link="`+liveResetLink+`"`) {
+				t.Errorf("the link is not repeated whole, so a terminal cannot open it:\n%s", line)
 			}
 			if !strings.Contains(line, "customer@example.com") {
 				t.Errorf("the recipient is missing from the log:\n%s", line)

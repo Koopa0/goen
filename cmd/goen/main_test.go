@@ -477,8 +477,8 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 		t.Fatalf("newSender development: %v", err)
 	}
 	logSender, ok := development.(email.LogSender)
-	if !ok || logSender.ShowBody {
-		t.Errorf("development sender = %#v, want body-hiding LogSender", development)
+	if !ok || !logSender.ShowBody {
+		t.Errorf("development sender = %#v, want a LogSender that shows the body", development)
 	}
 	if logBuffer.Len() != 0 {
 		t.Errorf("newNotifier duplicated the posture warning: %s", logBuffer.String())

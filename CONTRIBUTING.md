@@ -47,6 +47,17 @@ PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 make run          # http://127.0.0.1:9700
 ```
 
+Configuration comes from the make command line first, then your environment,
+then `.env`: `GOEN_DATABASE_URL=<url> make db-reset` acts on `<url>`, not on the
+database in `.env`. The Makefile reads `.env` line by line, `NAME=VALUE` only, so
+it is not a shell script and its `$` is literal. A test runs the four cases
+(`internal/repocheck`, `TestMakefileDotEnvNeverOverridesTheCaller`).
+
+In development mail never leaves your machine: with no `GOEN_SMTP_ADDR` goen
+logs each mail in full, links included, and a loopback Mailpit is accepted
+without TLS. Neither holds outside development. See "Reading local mail" in the
+README, which also covers the owner's first sign-in.
+
 Skip the catalogue seed to run an empty shop. The seed accepts only an explicit
 development marker; it does not infer the deployment environment.
 

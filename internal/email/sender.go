@@ -51,12 +51,14 @@ type Sender interface {
 }
 
 // LogSender writes mail to the log instead of sending it, for development. It
-// never logs the BODY: mailed tokens travel in it, and this sender returns nil,
-// so an unconfigured deployment would log every live credential goen issues.
+// logs the BODY only when ShowBody is set: mailed tokens travel in it, and this
+// sender returns nil, so an unconfigured deployment would log every live
+// credential goen issues.
 type LogSender struct {
 	Log *slog.Logger
 	// ShowBody puts the body back, for local development of a flow whose whole
-	// point is the link inside it. Off by the zero value.
+	// point is the link inside it. Off by the zero value; the program sets it
+	// only in development.
 	ShowBody bool
 }
 
@@ -64,6 +66,13 @@ func (s LogSender) Send(ctx context.Context, m *Message) error {
 	attrs := []any{"to", m.To, "subject", m.Subject, "body_bytes", len(m.Body)}
 	if s.ShowBody {
 		attrs = append(attrs, "body", m.Body)
+		// The body is quoted on one line, so a link in it ends in an escape and
+		// cannot be clicked in a terminal. Each is repeated whole.
+		for _, word := range strings.Fields(m.Body) {
+			if strings.HasPrefix(word, "http://") || strings.HasPrefix(word, "https://") {
+				attrs = append(attrs, "link", word)
+			}
+		}
 	}
 	s.Log.InfoContext(ctx, "email (not sent: no SMTP configured)", attrs...)
 	return nil
@@ -77,6 +86,14 @@ type SMTPSender struct {
 	// separate from Addr so a deployment behind a proxy can still verify the
 	// name it means.
 	TLSName string
+	// AllowLoopbackPlaintext lets a server that offers no STARTTLS receive the
+	// message in the clear, for a local capture relay such as Mailpit, and only
+	// when the connected peer is a loopback address. A server that offers
+	// STARTTLS is still upgraded and verified, and any other peer is still
+	// refused. Off by the zero value; the caller sets it from the development
+	// switch alone, because outside development a mailed token must never
+	// cross a connection that is not encrypted.
+	AllowLoopbackPlaintext bool
 }
 
 const SendTimeout = 30 * time.Second
@@ -96,7 +113,8 @@ func dialSMTPConn(ctx context.Context, addr string) (net.Conn, error) {
 	return dial(ctx, addr)
 }
 
-// Send delivers m. STARTTLS is required, not attempted.
+// Send delivers m. STARTTLS is required, not attempted, unless
+// AllowLoopbackPlaintext admits a loopback server that does not offer it.
 func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	if s.Addr == "" {
 		return errors.New("email: no SMTP address configured")
@@ -142,7 +160,15 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	}
 	defer func() { _ = c.Quit() }() //nolint:errcheck // best-effort cleanup
 
-	return deliver(c, s, m, host, envelope)
+	return deliver(c, s, m, host, envelope, s.AllowLoopbackPlaintext && loopbackPeer(conn))
+}
+
+// loopbackPeer reports whether conn is connected to a loopback IP address. It
+// reads the address actually dialled, not the configured name, so a host name
+// that resolves elsewhere is not mistaken for this machine.
+func loopbackPeer(conn net.Conn) bool {
+	addr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	return ok && addr.IP.IsLoopback()
 }
 
 // prepareSMTPConn binds the delivery context to conn. The delivery deadline is
@@ -179,12 +205,15 @@ func envelopeFrom(from string) (string, error) {
 
 // deliver runs the SMTP conversation. envelope is the reverse-path, already
 // reduced to a bare address; s.From keeps its display name for the HEADER.
-func deliver(c *smtp.Client, s SMTPSender, m *Message, host, envelope string) error {
-	if ok, _ := c.Extension("STARTTLS"); !ok {
+// plaintextOK admits a server that offers no STARTTLS; one that offers it is
+// upgraded and verified either way, so a downgrade is never silent.
+func deliver(c *smtp.Client, s SMTPSender, m *Message, host, envelope string, plaintextOK bool) error {
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		if tlsErr := c.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); tlsErr != nil {
+			return fmt.Errorf("starttls: %w", tlsErr)
+		}
+	} else if !plaintextOK {
 		return errors.New("email: server does not offer STARTTLS")
-	}
-	if tlsErr := c.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); tlsErr != nil {
-		return fmt.Errorf("starttls: %w", tlsErr)
 	}
 	if s.Auth != nil {
 		if authErr := c.Auth(s.Auth); authErr != nil {
