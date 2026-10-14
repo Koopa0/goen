@@ -41,7 +41,6 @@ var exceptions = map[string]string{
 	"internal/web -> internal/ui/components":               "T31",
 	"internal/i18n -> internal/shipping":                   "T27",
 	"internal/admin/customers -> internal/admin/loyalty":   "T17",
-	"internal/admin/reports -> internal/admin/stock":       "T45",
 	"internal/admin/admintest -> internal/admin/health":    "T48",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
 	"internal/admin/admintest -> internal/admin/orders":    "T48",

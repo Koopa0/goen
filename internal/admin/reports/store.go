@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
@@ -19,16 +18,25 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-type Store struct {
-	pool  *pgxpool.Pool
-	cover *stock.Store
+// Cover ranks the SKUs by days cover over the last shop days, for the report's
+// stock section; the stock desk implements it.
+type Cover interface {
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
 }
 
-func NewStore(pool *pgxpool.Pool) *Store {
+type Store struct {
+	pool  *pgxpool.Pool
+	cover Cover
+}
+
+func NewStore(pool *pgxpool.Pool, cover Cover) *Store {
 	if pool == nil {
 		panic("reports: NewStore requires a pool")
 	}
-	return &Store{pool: pool, cover: stock.NewStore(pool)}
+	if cover == nil {
+		panic("reports: NewStore requires a cover")
+	}
+	return &Store{pool: pool, cover: cover}
 }
 
 var reportWindows = [...]int32{7, 30, 90}
