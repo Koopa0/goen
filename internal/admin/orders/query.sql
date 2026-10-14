@@ -190,8 +190,8 @@ ORDER BY ol.position, ol.id;
 -- order_events is append-only three ways — a forbid_change trigger, REVOKE
 -- UPDATE and REVOKE DELETE — so this is the only thing that may touch it.
 -- name: RecordOrderEvent :exec
-INSERT INTO order_events (order_id, kind, note, actor_user_id)
-VALUES (@order_id, @kind::text, @note, @actor_user_id);
+INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
+VALUES (@order_id, @kind::text, @actor_user_id, @shipment_id);
 
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;

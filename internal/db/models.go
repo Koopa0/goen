@@ -407,6 +407,7 @@ type OrderEvent struct {
 	BySystem        bool
 	OccurredAt      time.Time
 	ReturnRequestID uuid.NullUUID
+	ShipmentID      uuid.NullUUID
 }
 
 type OrderLine struct {
