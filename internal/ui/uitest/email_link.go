@@ -1,6 +1,4 @@
-// Package pagestest holds assertions shared by the tests of pages rendered
-// from internal/ui/pages.
-package pagestest
+package uitest
 
 import (
 	"strings"

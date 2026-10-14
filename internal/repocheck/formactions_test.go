@@ -26,7 +26,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/account.templ:v.AddressAction()":                                             {(&pages.AccountView{}).AddressAction(), (&pages.AccountView{AddressDraft: &pages.AddressDraft{ID: "address"}}).AddressAction()},
 		"internal/ui/pages/admin/product_label.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
 		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                             {(layouts.Banner{}).DismissAction()},
-		"internal/ui/pages/email_link.templ:templ.SafeURL(v.Action)":                                    newsletterFormActions(t),
+		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                  newsletterFormActions(t),
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.Action() + \"#sec-details\")":            {product.Action() + "#sec-details", newProduct.Action() + "#sec-details"},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.ToneAction())":                          {(&admin.CampaignView{Slug: "campaign"}).ToneAction()},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.WindowAction())":                        {(&admin.CampaignView{Slug: "campaign"}).WindowAction()},

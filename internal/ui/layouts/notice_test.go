@@ -1,4 +1,4 @@
-package pages
+package layouts
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -20,7 +19,7 @@ func TestOrderNotFoundOffersRecoveryForTheVisitor(t *testing.T) {
 			if signedIn {
 				ctx = user.NewContext(ctx, user.User{ID: "customer"})
 			}
-			body := renderNotice(t, OrderNotFound(layouts.Page{}), ctx)
+			body := renderNotice(t, OrderNotFound(Page{}), ctx)
 			if !strings.Contains(body, `href="/orders/find"`) {
 				t.Error("missing find-order link")
 			}
@@ -54,11 +53,11 @@ func renderNotice(t *testing.T, c templ.Component, ctx context.Context) string {
 
 func TestNotFoundListsTheDepartmentsAndAServerErrorDoesNot(t *testing.T) {
 	t.Parallel()
-	ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []layouts.NavItem{
+	ctx := WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []NavItem{
 		{Slug: "phones", Name: "Phones", Href: "/c/phones"},
 		{Slug: "laptops", Name: "Laptops", Href: "/c/laptops"},
 	})
-	page := layouts.Page{Title: "test"}
+	page := Page{Title: "test"}
 	missing := renderNotice(t, Notice(page, "404", "Not found", "Gone"), ctx)
 	for _, want := range []string{`class="notice__departments"`, `href="/c/phones"`, `href="/c/laptops"`, ">Laptops<"} {
 		if !strings.Contains(missing, want) {

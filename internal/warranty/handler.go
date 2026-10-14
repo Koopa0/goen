@@ -71,7 +71,7 @@ func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID strin
 		return view, true
 	}
 	if errors.Is(err, ErrNotFound) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+		web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
 			i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyWarrantyOrderNotFound)))
@@ -145,7 +145,7 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))

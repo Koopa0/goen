@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/pagestest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
@@ -189,7 +189,7 @@ func TestDeadEmailChangeLinksKeepTheirAccountDirections(t *testing.T) {
 				heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 				reason = "\u9023\u7d50\u53ef\u80fd\u5df2\u7d93\u7528\u904e\u6216\u8d85\u904e\u5169\u5929\u3002"
 			}
-			pagestest.AssertEmailLink(t, rec.Body.String(), heading, reason, "/account#email-heading")
+			uitest.AssertEmailLink(t, rec.Body.String(), heading, reason, "/account#email-heading")
 			if rec.Code != http.StatusUnprocessableEntity ||
 				strings.Contains(rec.Body.String(), `href="/register?`) {
 				t.Errorf("dead email change = %d, want 422 without registration recovery", rec.Code)

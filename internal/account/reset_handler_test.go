@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/pagestest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
@@ -101,7 +101,7 @@ func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
 					heading = tt.zhHeading
 					reason = "\u9019\u500b\u9023\u7d50\u4e0d\u5b8c\u6574\uff0c\u8acb\u5f9e\u4fe1\u88e1\u7684\u6309\u9215\u91cd\u65b0\u6253\u958b\u3002"
 				}
-				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, tt.destination)
+				uitest.AssertEmailLink(t, res.Body.String(), heading, reason, tt.destination)
 			})
 		}
 	}

@@ -1,15 +1,14 @@
-package pages
+package layouts
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 )
 
-templ Notice(p layouts.Page, code, heading, body string, next ...NoticeActions) {
+templ Notice(p Page, code, heading, body string, next ...NoticeActions) {
 	{{ actions := noticeActions(next) }}
-	@layouts.Base(p) {
+	@Base(p) {
 		<div class="notice">
 			if code != "" && code != "404" {
 				<span class="notice__code" aria-hidden="true">{ code }</span>
@@ -36,7 +35,7 @@ templ Notice(p layouts.Page, code, heading, body string, next ...NoticeActions) 
 // Reads the header's category row, so a visitor on a missing page has somewhere
 // known to go; renders nothing outside the middleware that carries the row.
 templ departmentLinks() {
-	if items := layouts.TopNavFrom(ctx); len(items) > 0 {
+	if items := TopNavFrom(ctx); len(items) > 0 {
 		<nav class="notice__departments" aria-labelledby="notice-departments">
 			<h2 class="notice__departmentshead" id="notice-departments">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
 			<ul class="notice__departmentlist" role="list">
@@ -48,7 +47,7 @@ templ departmentLinks() {
 	}
 }
 
-templ OrderNotFound(p layouts.Page) {
+templ OrderNotFound(p Page) {
 	if _, signedIn := user.FromContext(ctx); signedIn {
 		@Notice(p, "404", i18n.T(ctx, i18n.KeyOrderNotFound), i18n.T(ctx, i18n.KeyOrderNotInAccount), NoticeActions{
 			Primary: NoticeLink{Href: "/orders/find", Label: i18n.KeyFindOrderTitle},

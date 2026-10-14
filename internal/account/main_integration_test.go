@@ -36,7 +36,7 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/ui/pages/pagestest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -4240,7 +4240,7 @@ func TestDeadResetLinksOfferRecovery(t *testing.T) {
 					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 					reason = "\u9019\u500b\u9023\u7d50\u5df2\u7d93\u7528\u904e\u3001\u904e\u671f\u6216\u4e0d\u6b63\u78ba\u3002"
 				}
-				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, "/forgot")
+				uitest.AssertEmailLink(t, res.Body.String(), heading, reason, "/forgot")
 				if strings.Contains(res.Body.String(), token) {
 					t.Error("dead reset recovery leaks the token")
 				}

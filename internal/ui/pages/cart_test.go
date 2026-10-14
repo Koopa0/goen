@@ -682,7 +682,7 @@ func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 // /orders/find and /signin, since the reader is a guest or an account holder
 // and the page cannot tell which.
 func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
-	html := renderToString(t, OrderNotFound(layouts.Page{Title: "404"}))
+	html := renderToString(t, layouts.OrderNotFound(layouts.Page{Title: "404"}))
 
 	for _, want := range []string{"/orders/find", "/signin"} {
 		if !strings.Contains(html, want) {

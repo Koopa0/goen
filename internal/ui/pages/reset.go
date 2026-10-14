@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 type ForgotView struct {
@@ -51,11 +52,11 @@ func (v ResetView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
 	return attrs
 }
 
-func (v ResetView) RecoveryView(ctx context.Context) EmailLinkView {
-	view := EmailLinkView{
+func (v ResetView) RecoveryView(ctx context.Context) layouts.EmailLinkView {
+	view := layouts.EmailLinkView{
 		Heading:  i18n.T(ctx, i18n.KeyResetTitle),
 		Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-		Recovery: EmailLinkReset,
+		Recovery: layouts.EmailLinkReset,
 	}
 	if v.Expired {
 		view.Heading = i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
