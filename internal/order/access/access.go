@@ -146,17 +146,20 @@ func (s *Store) Sweep(ctx context.Context) error {
 	return nil
 }
 
+// SweepForever runs Sweep once at startup and then on a ticker, so a process
+// restarted more often than [SweepInterval] still removes old grants. It blocks;
+// the caller owns the goroutine.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(SweepInterval)
 	defer t.Stop()
 	for {
+		if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep old order access grants", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep old order access grants", "error", err)
-			}
 		}
 	}
 }
