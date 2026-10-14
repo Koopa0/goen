@@ -13,12 +13,13 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestProductChoiceAgainstAnInFlightPurchase(t *testing.T) {
-	if os.Getenv("GOEN_CHROME") == "" && os.Getenv("GOEN_PURCHASE_CDP_PORT") == "" {
-		t.Skip("set GOEN_CHROME or GOEN_PURCHASE_CDP_PORT to run the product purchase browser regression")
-	}
+	// The script reads both variables itself and chooses between launching a
+	// Chrome and attaching to a running one.
+	uitest.Browser(t, "GOEN_CHROME", "GOEN_PURCHASE_CDP_PORT")
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for index, choice := range []string{"blue", "black"} {

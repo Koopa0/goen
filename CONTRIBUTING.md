@@ -192,6 +192,12 @@ store before anything else.
   unexported names.
 - Put a helper shared by several packages in the area's helper package, such
   as `admintest` or `dbtest`.
+- A test that drives a real browser has the `_browser_test.go` suffix
+  (`_browser_integration_test.go` when it also needs the `integration` tag),
+  learns that it may run only through `internal/ui/uitest` (`Browser`,
+  `LocalChrome`), and is run by name from the Makefile's `check-layout-run` or
+  a workflow. A test may read CSS or JS text only where the bytes are the
+  contract, and `internal/repocheck/assetreaders_test.go` lists each one.
 
 ## Changes that need the maintainer first
 

@@ -11,12 +11,11 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestProductOptionContrastInTheBrowser(t *testing.T) {
-	if os.Getenv("GOEN_CHROME") == "" {
-		t.Skip("set GOEN_CHROME to run the product option contrast regression")
-	}
+	uitest.Browser(t, "GOEN_CHROME")
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		view := ProductView{Slug: "two-colours", Name: "Two colours", SelectionOK: true, Exact: true, AnySellable: true,
