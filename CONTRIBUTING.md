@@ -185,6 +185,7 @@ store before anything else.
   `commit-attribution` refuses it in commit messages; the patterns are in
   `scripts/check-commit-attribution.sh`. It also refuses a trailer whose name
   begins with a tool's name, such as `Claude`, whoever the person is.
+  Automation lines such as Dependabot's `Signed-off-by` are accepted.
 
 ### Test files
 

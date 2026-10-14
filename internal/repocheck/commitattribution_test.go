@@ -50,6 +50,24 @@ func runCommitAttribution(t *testing.T, dir, script, base, head string, env ...s
 // aiTrailer is the form the history tests use for a dirty commit.
 const aiTrailer = "Co-authored-by: Claude <noreply@anthropic.com>"
 
+// dependabotMessage is the commit message of Dependabot's own commit in pull
+// request 1774, copied verbatim. The check accepted it before human co-authors
+// were allowed, so it must still pass: the bot is named in a Signed-off-by line.
+const dependabotMessage = `build(deps): bump golang.org/x/sync from 0.23.0 to 0.24.0
+
+Bumps [golang.org/x/sync](https://github.com/golang/sync) from 0.23.0 to 0.24.0.
+- [Commits](https://github.com/golang/sync/compare/v0.23.0...v0.24.0)
+
+---
+updated-dependencies:
+- dependency-name: golang.org/x/sync
+  dependency-version: 0.24.0
+  dependency-type: direct:production
+  update-type: version-update:semver-minor
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>`
+
 // TestCommitAttributionRejectsForbiddenMessages holds the whole policy: a human
 // co-author is credited with a well-formed trailer, and every way of naming an
 // AI tool stays refused. Each case is a separate commit judged on its own.
@@ -75,6 +93,12 @@ func TestCommitAttributionRejectsForbiddenMessages(t *testing.T) {
 		{"human whose name contains a tool word", fix + "Co-authored-by: Jean-Claude Van Damme <jcvd@example.com>", false},
 		{"human co-author beside a signoff", fix + "Signed-off-by: Ada Lovelace <ada@example.com>\nCo-authored-by: Grace Hopper <grace@example.org>", false},
 		{"human co-author after a long body", fix + strings.Repeat("body\n", 20000) + "\nCo-authored-by: Ada Lovelace <ada@example.com>", false},
+
+		// Automation names itself in a Signed-off-by line and claims no credit.
+		{"dependabot commit as written", dependabotMessage, false},
+		{"github-actions signoff", fix + "Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>", false},
+		{"renovate signoff", fix + "Signed-off-by: renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>", false},
+		{"dependabot signoff beside a human co-author", dependabotMessage + "\nCo-authored-by: Ada Lovelace <ada@example.com>", false},
 
 		// A name that begins with a tool word was rejected before and stays rejected.
 		{"human first name Claude", fix + "Co-authored-by: Claude Monet <monet@example.com>", true},
@@ -110,6 +134,12 @@ func TestCommitAttributionRejectsForbiddenMessages(t *testing.T) {
 		{"aider trailer", fix + "Co-authored-by: aider (gpt-4o) <noreply@aider.chat>", true},
 		{"devin bot", fix + "Co-authored-by: devin-ai-integration[bot] <158243242+devin-ai-integration[bot]@users.noreply.github.com>", true},
 		{"dependabot", fix + "Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>", true},
+		{"claude bot co-author", fix + "Co-authored-by: claude[bot] <209825114+claude[bot]@users.noreply.github.com>", true},
+		{"claude bot signoff", fix + "Signed-off-by: claude[bot] <209825114+claude[bot]@users.noreply.github.com>", true},
+		{"copilot agent bot signoff", fix + "Signed-off-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>", true},
+		{"copilot noreply address on a signoff", fix + "Signed-off-by: Someone <198982749+copilot@users.noreply.github.com>", true},
+		{"bot named in a development trailer", fix + "Co-developed-by: some-tool[bot] <1+some-tool[bot]@users.noreply.github.com>", true},
+		{"bot named in an assisted-by trailer", fix + "Assisted-by: some-tool[bot]", true},
 		{"signoff by an AI name", fix + "Signed-off-by: Gemini <person@example.com>", true},
 		{"signoff at an AI address", fix + "Signed-off-by: Ada Lovelace <noreply@anthropic.com>", true},
 		{"assisted-by trailer", fix + "Assisted-by: Claude:claude-opus-4", true},

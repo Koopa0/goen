@@ -44,9 +44,15 @@ ai_message_patterns=(
   # AI tool session and product links
   'claude\.ai/(code|chat)|claude\.com/claude-code|anthropic\.com/claude-code|chatgpt\.com|chat\.openai\.com|cursor\.com/(agents|background)|gemini\.google\.com|grok\.com|github\.com/copilot|copilot-swe-agent'
   '^[[:space:]]*claude-session[[:space:]]*:'
-  # every address at an AI vendor, and the GitHub bot identities
+  # every address at an AI vendor, the Copilot noreply address, and GitHub bot
+  # identities of AI tools
   '@(anthropic\.com|openai\.com|cursor\.com|cursor\.sh|aider\.chat|codeium\.com|windsurf\.com|windsurf\.ai|x\.ai)([^[:alnum:]-]|$)'
-  'copilot@users\.noreply\.github\.com|\[bot\]'
+  'copilot@users\.noreply\.github\.com'
+  '(claude|copilot|cursor|codex|chatgpt|openai|anthropic|gemini|grok|aider|devin|coderabbit|sourcery|qodo|codeium|windsurf)[a-z0-9-]*\[bot\]'
+  # Any bot named on a line that claims credit. A bot named in a Signed-off-by
+  # line (Dependabot's own commits end with one) claims nothing and is not
+  # matched; only the AI bots above are refused there.
+  '^[[:space:]]*(co[ -](authored|committed|developed)[ -]by|assisted-by)[[:space:]]*:.*\[bot\]'
 )
 
 # A trailer line "Key: Name <email>" whose Name is exactly an AI tool, optionally
