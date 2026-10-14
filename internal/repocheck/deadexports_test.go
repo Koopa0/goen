@@ -3,6 +3,7 @@ package repocheck_test
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"maps"
@@ -142,6 +143,71 @@ func TestEveryExportedIdentifierIsReferenced(t *testing.T) {
 	}
 }
 
+// typeCheck parses and type-checks every package of the graph, dependencies
+// first, one at a time, and stores the result in the fields packages.Load
+// fills when it is asked for syntax and types: Fset, Syntax, Types, TypesInfo
+// and, for a type error, Errors. A package outside the module is checked
+// without its function bodies and without a TypesInfo, because only the module's
+// own references are counted; its declarations are all a dependent needs.
+func typeCheck(pkgs []*packages.Package, inModule func(path string) bool) {
+	fset := token.NewFileSet()
+	parsed := map[string]*ast.File{} // the variants of one package share their files
+	packages.Visit(pkgs, nil, func(p *packages.Package) {
+		p.Fset = fset
+		if p.PkgPath == "unsafe" {
+			p.Types = types.Unsafe
+			return
+		}
+		for _, name := range p.CompiledGoFiles {
+			f, ok := parsed[name]
+			if !ok {
+				var err error
+				f, err = parser.ParseFile(fset, name, nil, parser.AllErrors|parser.ParseComments)
+				if err != nil {
+					p.Errors = append(p.Errors, packages.Error{Pos: name, Msg: err.Error(), Kind: packages.ParseError})
+				}
+				parsed[name] = f
+			}
+			if f != nil {
+				p.Syntax = append(p.Syntax, f)
+			}
+		}
+		conf := types.Config{
+			Importer: importerFunc(func(path string) (*types.Package, error) {
+				if path == "unsafe" {
+					return types.Unsafe, nil
+				}
+				if imp := p.Imports[path]; imp != nil && imp.Types != nil {
+					return imp.Types, nil
+				}
+				return nil, fmt.Errorf("no package %q loaded for %s", path, p.ID)
+			}),
+			IgnoreFuncBodies: !inModule(p.PkgPath),
+			Sizes:            p.TypesSizes,
+			Error: func(err error) {
+				p.Errors = append(p.Errors, packages.Error{Pos: "-", Msg: err.Error(), Kind: packages.TypeError})
+			},
+		}
+		if p.Module != nil && p.Module.GoVersion != "" {
+			conf.GoVersion = "go" + p.Module.GoVersion
+		}
+		if inModule(p.PkgPath) {
+			p.TypesInfo = &types.Info{
+				Types: map[ast.Expr]types.TypeAndValue{},
+				Defs:  map[*ast.Ident]types.Object{},
+				Uses:  map[*ast.Ident]types.Object{},
+			}
+		}
+		p.Types = types.NewPackage(p.PkgPath, p.Name)
+		_ = types.NewChecker(&conf, fset, p.Types, p.TypesInfo).Files(p.Syntax) // reported through conf.Error
+	})
+}
+
+// importerFunc is a types.Importer written as a function.
+type importerFunc func(path string) (*types.Package, error)
+
+func (f importerFunc) Import(path string) (*types.Package, error) { return f(path) }
+
 // loadExportReferences type-checks the module and returns the exported
 // identifiers it examines and the set of declaring positions that something
 // refers to.
@@ -150,9 +216,15 @@ func loadExportReferences(t *testing.T) (examined []exportedObject, referenced m
 
 	root := repoRoot(t)
 	module := modulePath(t, root)
+	// The loader supplies the package graph and the file lists only. It could
+	// also type-check, but it does so on one goroutine per package, and under
+	// the race detector go/types reports a race when two of them reach the same
+	// instantiated generic type of a shared dependency (Checker.isComplete reads
+	// Named.fromRHS while Named.unpack writes it). typeCheck below does the
+	// checking on this goroutine alone.
 	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes |
-			packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
+			packages.NeedImports | packages.NeedDeps | packages.NeedModule | packages.NeedTypesSizes,
 		Dir:        root,
 		Tests:      true,
 		BuildFlags: []string{"-tags=integration"},
@@ -164,6 +236,8 @@ func loadExportReferences(t *testing.T) (examined []exportedObject, referenced m
 	if len(pkgs) == 0 {
 		t.Fatal("no package loaded")
 	}
+	inModule := func(path string) bool { return path == module || strings.HasPrefix(path, module+"/") }
+	typeCheck(pkgs, inModule)
 	var broken []string
 	packages.Visit(pkgs, nil, func(p *packages.Package) {
 		for _, e := range p.Errors {
@@ -175,7 +249,6 @@ func loadExportReferences(t *testing.T) (examined []exportedObject, referenced m
 			strings.Join(broken[:min(len(broken), 10)], "\n"))
 	}
 	fset := pkgs[0].Fset
-	inModule := func(path string) bool { return path == module || strings.HasPrefix(path, module+"/") }
 	origin := func(o types.Object) types.Object {
 		switch o := o.(type) {
 		case *types.Func:
