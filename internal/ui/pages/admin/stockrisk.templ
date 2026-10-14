@@ -29,7 +29,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 		<ul class="goen-report__rows" role="list">
 			for _, item := range rows {
 				{{ cover := item.Estimate() }}
-				@ReportRow(item.Name, item.Href(), item.Facts(ctx, days)) {
+				@components.ReportRow(item.Name, item.Href(), item.Facts(ctx, days)) {
 					<div class="goen-report__plot">
 						switch cover.State {
 							case inventory.CoverSoldOut:

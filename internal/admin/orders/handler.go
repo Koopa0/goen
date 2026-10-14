@@ -67,9 +67,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
-				admin.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
+				layouts.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)

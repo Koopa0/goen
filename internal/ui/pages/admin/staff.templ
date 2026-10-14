@@ -22,7 +22,7 @@ templ Staff(p layouts.Page, v StaffView) {
 				}
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.NoKey {
 			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }

@@ -90,8 +90,6 @@ func (t *ProductTile) Price() string { return twd(t.PriceCents) }
 
 func (t *ProductTile) Compare() string { return twd(t.CompareCents) }
 
-func TWD(cents int64) string { return twd(cents) }
-
 func twd(cents int64) string { return money.TWD(cents) }
 
 // The first two rows at the widest grid, which is also the first four of a

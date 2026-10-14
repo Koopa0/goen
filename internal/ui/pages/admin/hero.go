@@ -56,7 +56,9 @@ func (s HeroSlide) NextActive() string {
 	return "true"
 }
 
-func (s HeroSlide) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, s.Active) }
+func (s HeroSlide) ToggleLabel(ctx context.Context) string {
+	return components.ToggleLabel(ctx, s.Active)
+}
 
 type HeroView struct {
 	Bound    web.Bound

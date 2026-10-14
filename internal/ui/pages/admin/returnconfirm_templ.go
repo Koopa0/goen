@@ -211,7 +211,7 @@ func ConfirmReturn(p layouts.Page, v ReturnConfirmation) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if v.Required {
-					templ_7745c5c3_Err = requiredMark().Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.RequiredMark().Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

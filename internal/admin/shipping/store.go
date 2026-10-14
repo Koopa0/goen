@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -88,7 +87,7 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 		z := &zoneRows[i]
 		surcharges[z.VersionID] = append(surcharges[z.VersionID], admin.ZoneSurcharge{
 			ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
-			Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
+			Cents: z.SurchargeCents, Formatted: money.TWD(z.SurchargeCents),
 		})
 	}
 

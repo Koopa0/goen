@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/order/notice"
@@ -548,7 +549,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		view.Payment = admin.Payment{
 			Method:   i18n.T(ctx, i18n.KeyAdminPayMethodCard),
 			Card:     payment.CardLabel(paid.CardBrand, paid.CardLast4),
-			Captured: pages.TWD(paid.CapturedCents),
+			Captured: money.TWD(paid.CapturedCents),
 			PaidAt:   nullableStamp(paid.PaidAt),
 		}
 	case errors.Is(err, pgx.ErrNoRows):
@@ -568,7 +569,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, r.Reason)
 		}
 		view.Refunds = append(view.Refunds, admin.Refund{
-			Channel: i18n.T(ctx, channel), Amount: pages.TWD(r.AmountCents),
+			Channel: i18n.T(ctx, channel), Amount: money.TWD(r.AmountCents),
 			At: nullableStamp(r.At), Reason: reason, Staff: r.Staff,
 		})
 	}

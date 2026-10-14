@@ -71,18 +71,6 @@ func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
 func (v *ShippingView) FeeLimit() string      { return strconv.FormatInt(v.FeeMaxDollars, 10) }
 func (v *ShippingView) FreeOverLimit() string { return strconv.FormatInt(v.FreeOverMaxDollars, 10) }
 
-// A number input sanitizes unreadable raw values to blank. A refused draft must
-// remain visible and editable, including whitespace and an overflowing amount.
-func dollarInputType(raw string) string {
-	if raw == "" {
-		return "number"
-	}
-	if _, err := strconv.ParseInt(raw, 10, 64); err != nil || raw[0] == '+' {
-		return "text"
-	}
-	return "number"
-}
-
 type MethodDraft struct {
 	Code, Destination             string
 	Name, NameEn                  string

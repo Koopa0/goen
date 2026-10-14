@@ -8,7 +8,7 @@ type CategoryView struct {
 	Slug            string
 	Name            string
 	Tone            string // the category's own; "" inherits its department's
-	Image           Header
+	Image           components.HeaderImage
 	Notice          components.Result
 	Errors          map[string]string
 }

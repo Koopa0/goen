@@ -96,17 +96,17 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Which == "brands" {
-				templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, refusalField{"name", "brands-name"}, refusalField{"slug", "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, layouts.RefusalField{Key: "name", ID: "brands-name"}, layouts.RefusalField{Key: "slug", ID: "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else if v.Which == "categories" {
-				templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, refusalField{"name", "categories-name"}, refusalField{"name_en", "categories-name-en"}, refusalField{"slug", "categories-slug"}, refusalField{"icon_key", "categories-icon"}, refusalField{"tone", "categories-tone"}, refusalField{"parent", "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, layouts.RefusalField{Key: "name", ID: "categories-name"}, layouts.RefusalField{Key: "name_en", ID: "categories-name-en"}, layouts.RefusalField{Key: "slug", ID: "categories-slug"}, layouts.RefusalField{Key: "icon_key", ID: "categories-icon"}, layouts.RefusalField{Key: "tone", ID: "categories-tone"}, layouts.RefusalField{Key: "parent", ID: "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

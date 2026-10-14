@@ -98,15 +98,15 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, refusalField{"category", "faq-category"}, refusalField{"question", "faq-question"}, refusalField{"answer", "faq-answer"}, refusalField{"category_en", "faq-category-en"}, refusalField{"question_en", "faq-question-en"}, refusalField{"answer_en", "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, layouts.RefusalField{Key: "category", ID: "faq-category"}, layouts.RefusalField{Key: "question", ID: "faq-question"}, layouts.RefusalField{Key: "answer", ID: "faq-answer"}, layouts.RefusalField{Key: "category_en", ID: "faq-category-en"}, layouts.RefusalField{Key: "question_en", ID: "faq-question-en"}, layouts.RefusalField{Key: "answer_en", ID: "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, refusalField{"question", "q-" + v.Edit.ID}, refusalField{"answer", "a-" + v.Edit.ID}, refusalField{"question_en", "qe-" + v.Edit.ID}, refusalField{"answer_en", "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

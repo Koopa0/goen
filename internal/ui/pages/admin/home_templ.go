@@ -93,15 +93,15 @@ func Home(p layouts.Page, v *HeroView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, refusalField{"headline", "h-headline"}, refusalField{"primary", "h-plabel"}, refusalField{"alt", "h-alt"}, refusalField{"primaryhref", "h-phref"}, refusalField{"second", "h-shref"}, refusalField{"image", "h-image"}, refusalField{"days", "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, layouts.RefusalField{Key: "headline", ID: "h-headline"}, layouts.RefusalField{Key: "primary", ID: "h-plabel"}, layouts.RefusalField{Key: "alt", ID: "h-alt"}, layouts.RefusalField{Key: "primaryhref", ID: "h-phref"}, layouts.RefusalField{Key: "second", ID: "h-shref"}, layouts.RefusalField{Key: "image", ID: "h-image"}, layouts.RefusalField{Key: "days", ID: "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, refusalField{"message", "b-message"}, refusalField{"short", "b-short"}, refusalField{"message_en", "b-message-en"}, refusalField{"short_en", "b-short-en"}, refusalField{"banner_cta", "b-cta-href"}, refusalField{"banner_days", "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, layouts.RefusalField{Key: "message", ID: "b-message"}, layouts.RefusalField{Key: "short", ID: "b-short"}, layouts.RefusalField{Key: "message_en", ID: "b-message-en"}, layouts.RefusalField{Key: "short_en", ID: "b-short-en"}, layouts.RefusalField{Key: "banner_cta", ID: "b-cta-href"}, layouts.RefusalField{Key: "banner_days", ID: "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

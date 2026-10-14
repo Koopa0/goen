@@ -26,7 +26,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		@receiveForm(v)
 		if v.HasStockDays() && !v.Empty() {
 			if v.DrawsStockLine() {

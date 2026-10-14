@@ -6,12 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// requiredMark says, beside a label, that the form will not take the field
-// empty. The browser says so only once the button has been pressed.
-templ requiredMark() {
-	<span class="goen-admin__mark">({ i18n.T(ctx, i18n.KeyAdminRequiredMark) })</span>
-}
-
 templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 	@layouts.Admin(p, "orders") {
 		<div class="ui-page-head"><h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</h1></div>
@@ -31,7 +25,7 @@ templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 					<div class="ui-field">
 						<label class="ui-label" for="refund-reason">
 							{ i18n.T(ctx, i18n.KeyAdminRetResolution) }
-							@requiredMark()
+							@components.RequiredMark()
 						</label>
 						<p class="goen-admin__hint" id="refund-reason-hint">{ i18n.T(ctx, i18n.KeyAdminRefundReasonHint) }</p>
 						<input class="ui-input" id="refund-reason" name="reason" required maxlength="300" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="refund-reason-hint refund-reason-error" value={ v.Reason }/>

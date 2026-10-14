@@ -32,7 +32,7 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				{ v.OtherQueueLabel(ctx) }
 			}
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

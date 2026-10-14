@@ -23,7 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/money"
 )
 
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
@@ -255,7 +255,7 @@ func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
 	first := post(url.Values{})
 	body := html.UnescapeString(first.Body.String())
 	if first.Code != http.StatusOK || !strings.Contains(body, `name="confirm"`) ||
-		!strings.Contains(body, pages.TWD(400000)) || !strings.Contains(body, `value="400000"`) {
+		!strings.Contains(body, money.TWD(400000)) || !strings.Contains(body, `value="400000"`) {
 		t.Fatalf("first POST = %d, want the confirmation showing the total: %s", first.Code, body)
 	}
 	nothingWritten(t, "the first POST")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -29,7 +30,7 @@ func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.Category
 	}
 	return admin.CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
-		Image: admin.Header{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
+		Image: components.HeaderImage{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
 	}, nil
 }
 

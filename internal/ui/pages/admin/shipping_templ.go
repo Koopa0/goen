@@ -96,15 +96,15 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, refusalField{"code", "m-code"}, refusalField{"destination", "m-destination"}, refusalField{"max_parcel_longest", "m-max-longest"}, refusalField{"max_parcel_sum", "m-max-sum"}, refusalField{"max_parcel_weight", "m-max-weight"}, refusalField{"name", "m-name"}, refusalField{"fee", "m-fee"}, refusalField{"free_over", "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, layouts.RefusalField{Key: "code", ID: "m-code"}, layouts.RefusalField{Key: "destination", ID: "m-destination"}, layouts.RefusalField{Key: "max_parcel_longest", ID: "m-max-longest"}, layouts.RefusalField{Key: "max_parcel_sum", ID: "m-max-sum"}, layouts.RefusalField{Key: "max_parcel_weight", ID: "m-max-weight"}, layouts.RefusalField{Key: "name", ID: "m-name"}, layouts.RefusalField{Key: "fee", ID: "m-fee"}, layouts.RefusalField{Key: "free_over", ID: "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, refusalField{"zone_code", "z-code"}, refusalField{"zone_name", "z-name"}, refusalField{"prefixes", "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, layouts.RefusalField{Key: "zone_code", ID: "z-code"}, layouts.RefusalField{Key: "zone_name", ID: "z-name"}, layouts.RefusalField{Key: "prefixes", ID: "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -640,9 +640,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var41 string
-					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(d.Fee))
+					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(d.Fee))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 123, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 123, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 					if templ_7745c5c3_Err != nil {
@@ -782,9 +782,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var50 string
-					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(d.FreeOver))
+					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(d.FreeOver))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 147, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 147, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 					if templ_7745c5c3_Err != nil {
@@ -1157,9 +1157,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var73 string
-							templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(v.SurchargeValue(&m, z.ID)))
+							templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(v.SurchargeValue(&m, z.ID)))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 211, Col: 60}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 211, Col: 71}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
 							if templ_7745c5c3_Err != nil {
@@ -2085,9 +2085,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var126 string
-				templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(v.MethodDraft.Fee))
+				templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(v.MethodDraft.Fee))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 405, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 405, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var126)
 				if templ_7745c5c3_Err != nil {
@@ -2175,9 +2175,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var131 string
-				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(v.MethodDraft.FreeOver))
+				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(v.MethodDraft.FreeOver))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 428, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/shipping.templ`, Line: 428, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var131)
 				if templ_7745c5c3_Err != nil {

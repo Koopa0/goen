@@ -26,7 +26,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
 			}
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminProdEmpty) }</p>
@@ -107,12 +107,12 @@ templ ProductForm(p layouts.Page, v ProductView) {
 				</div>
 			}
 		</div>
-		@Announce(v.Notice)
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, refusalField{"name", "p-name"}, refusalField{"slug", "p-slug"}, refusalField{"brand", "p-brand"}, refusalField{"category", "p-category"}, refusalField{"summary", "p-summary"}, refusalField{"description", "p-description"}, refusalField{"name_en", "p-name-en"}, refusalField{"summary_en", "p-summary-en"}, refusalField{"description_en", "p-description-en"}, refusalField{"warranty_months", "p-warranty-months"}))
-		@RefusalSummary(v.VariantRefusal())
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, refusalField{"option", "opt-name"}, refusalField{"option_en", "opt-name-en"}))
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, refusalField{"value", "optval-value"}, refusalField{"value_en", "optval-value-en"}, refusalField{"swatch_hex", "optval-swatch"}))
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, refusalField{"spec_label", "spec-label"}, refusalField{"spec_value", "spec-value"}, refusalField{"spec_label_en", "spec-label-en"}, refusalField{"spec_value_en", "spec-value-en"}))
+		@layouts.Announce(v.Notice)
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, layouts.RefusalField{Key: "name", ID: "p-name"}, layouts.RefusalField{Key: "slug", ID: "p-slug"}, layouts.RefusalField{Key: "brand", ID: "p-brand"}, layouts.RefusalField{Key: "category", ID: "p-category"}, layouts.RefusalField{Key: "summary", ID: "p-summary"}, layouts.RefusalField{Key: "description", ID: "p-description"}, layouts.RefusalField{Key: "name_en", ID: "p-name-en"}, layouts.RefusalField{Key: "summary_en", ID: "p-summary-en"}, layouts.RefusalField{Key: "description_en", ID: "p-description-en"}, layouts.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
+		@layouts.RefusalSummary(v.VariantRefusal())
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, layouts.RefusalField{Key: "option", ID: "opt-name"}, layouts.RefusalField{Key: "option_en", ID: "opt-name-en"}))
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, layouts.RefusalField{Key: "value", ID: "optval-value"}, layouts.RefusalField{Key: "value_en", ID: "optval-value-en"}, layouts.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, layouts.RefusalField{Key: "spec_label", ID: "spec-label"}, layouts.RefusalField{Key: "spec_value", ID: "spec-value"}, layouts.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, layouts.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>
@@ -883,7 +883,7 @@ templ productVariants(v ProductView) {
 						class="goen-input"
 						id="v-price"
 						name="price"
-						type={ dollarInputType(v.VariantDraft.Price) }
+						type={ components.DollarInputType(v.VariantDraft.Price) }
 						min="1"
 						step="1"
 						required
@@ -906,7 +906,7 @@ templ productVariants(v ProductView) {
 						class="goen-input"
 						id="v-compare"
 						name="compare"
-						type={ dollarInputType(v.VariantDraft.Compare) }
+						type={ components.DollarInputType(v.VariantDraft.Compare) }
 						min="0"
 						step="1"
 						inputmode="numeric"

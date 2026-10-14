@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -115,15 +116,15 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView,
 
 const MaxAltRunes = 200
 
-func (s *Store) Image(ctx context.Context, slug string) (admin.Header, string, error) {
+func (s *Store) Image(ctx context.Context, slug string) (components.HeaderImage, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.Header{}, "", ErrNotFound
+			return components.HeaderImage{}, "", ErrNotFound
 		}
-		return admin.Header{}, "", fmt.Errorf("read campaign image: %w", err)
+		return components.HeaderImage{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
-	return admin.Header{
+	return components.HeaderImage{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
 	}, row.Tone, nil
 }

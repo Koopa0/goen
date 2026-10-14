@@ -45,13 +45,6 @@ func campaignState(ctx context.Context, active, running, sellable bool) string {
 
 func nextActive(active bool) string { return strconv.FormatBool(!active) }
 
-func toggleLabel(ctx context.Context, active bool) string {
-	if active {
-		return i18n.T(ctx, i18n.KeyAdminToggleOff)
-	}
-	return i18n.T(ctx, i18n.KeyAdminToggleOn)
-}
-
 func (c CampaignRow) Live() bool { return c.Running && c.Sellable }
 
 func (c CampaignRow) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
@@ -62,7 +55,9 @@ func (c CampaignRow) ToggleAction() string { return "/admin/campaigns/" + c.Slug
 
 func (c CampaignRow) NextActive() string { return nextActive(c.Active) }
 
-func (c CampaignRow) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, c.Active) }
+func (c CampaignRow) ToggleLabel(ctx context.Context) string {
+	return components.ToggleLabel(ctx, c.Active)
+}
 
 type CampaignProduct struct {
 	Slug          string
@@ -144,7 +139,7 @@ type CampaignView struct {
 	Matches  []CampaignProduct
 	Products []CampaignProduct
 	Notice   components.Result
-	Image    Header
+	Image    components.HeaderImage
 	Tone     string
 	Errors   map[string]string
 
@@ -153,19 +148,6 @@ type CampaignView struct {
 	Results            *CampaignResults
 	ResultsUnavailable bool
 }
-
-type Header struct {
-	Key   string
-	Alt   string
-	AltEn string
-	Width int32
-}
-
-func (i Header) Has() bool { return i.Key != "" }
-
-func (i Header) URL() string { return assets.ProductImageURL(i.Key) }
-
-func (i Header) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
 
 func (v *CampaignView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
@@ -187,7 +169,9 @@ func (v *CampaignView) StateText(ctx context.Context) string {
 	return campaignState(ctx, v.Active, v.Running, v.Sellable)
 }
 
-func (v *CampaignView) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, v.Active) }
+func (v *CampaignView) ToggleLabel(ctx context.Context) string {
+	return components.ToggleLabel(ctx, v.Active)
+}
 
 func (v *CampaignView) NextActive() string { return nextActive(v.Active) }
 
