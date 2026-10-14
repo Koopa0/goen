@@ -131,10 +131,9 @@ jobs:
   # a database, a running server AND a Chrome, so a failure here reads as "a page
   # broke" rather than as a slow lint run or a schema change.
   #
-  # needs: verify, because there is no sense spending five minutes seeding a
-  # catalogue for a tree that does not compile.
+  # It runs in parallel with verify and builds the tree itself, so a broken tree
+  # still fails here, at "Start the storefront".
   layout:
-    needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
