@@ -54,9 +54,8 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 			UnitCents: line.UnitPriceCents, Quantity: line.Quantity,
 		})
 	}
-	owed := summary.OwedCents
 	return outbox.Enqueue(ctx, q, outbox.TopicOrderPlaced, number, &email.OrderPlaced{
 		OrderNumber: number, Email: addr.Email, Name: addr.RecipientName, TotalCents: totalCents,
-		OwedCents: &owed, Snapshot: snapshot, Locale: i18n.FromContext(ctx).Tag(),
+		OwedCents: summary.OwedCents, Snapshot: snapshot, Locale: i18n.FromContext(ctx).Tag(),
 	})
 }

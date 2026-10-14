@@ -185,7 +185,7 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 		}},
 		{"SendOrderPlaced", func(ctx context.Context, n email.Notifier) error {
 			return n.SendOrderPlaced(ctx, &email.OrderPlaced{
-				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", TotalCents: 128000,
+				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", TotalCents: 128000, OwedCents: 128000,
 			})
 		}},
 		{"SendOrderShipped/delivery", func(ctx context.Context, n email.Notifier) error {

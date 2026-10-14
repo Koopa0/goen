@@ -33,7 +33,7 @@ BEGIN
         RAISE EXCEPTION 'database % must be created with LOCALE_PROVIDER builtin BUILTIN_LOCALE ''C.UTF-8''',
                 current_database()
             USING ERRCODE = 'object_not_in_prerequisite_state',
-                  HINT = 'createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 <name>; for the development database run make db-reset';
+                  HINT = 'createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 <name>; for the development database run PGOPTIONS=''-c goen.catalogue_seed=development'' make db-reset';
     END IF;
 END
 $$;
@@ -4981,7 +4981,7 @@ BEGIN
     USING orders o
     WHERE o.id = ANY (erased_orders)
       AND m.topic IN ('order.placed', 'order.paid', 'order.shipped')
-      AND coalesce(m.payload ->> 'order_number', m.payload ->> 'OrderNumber', '') =
+      AND coalesce(m.payload ->> 'order_number', '') =
           o.order_number;
 
     DELETE FROM outbox_messages m
@@ -5043,10 +5043,10 @@ BEGIN
         -- Match the RECIPIENT value exactly, not payload text: '%' and '_' are
         -- legal in an address but are wildcards in ILIKE, and another field
         -- (for example a customer's name) may happen to contain an address.
-        -- Every current producer writes the explicit lower-case JSON tag; the
-        -- legacy Go field name remains readable for rows queued by older code.
+        -- Every producer writes the explicit lower-case JSON tag, so that is the
+        -- only key read.
         DELETE FROM outbox_messages m
-        WHERE lower(coalesce(m.payload ->> 'email', m.payload ->> 'Email', '')) =
+        WHERE lower(coalesce(m.payload ->> 'email', '')) =
               lower(addr);
 
         -- A payment event no payment row attributes, such as money for a session

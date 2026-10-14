@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -318,6 +319,63 @@ func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
 	}
 	if note := read(huaOrder).note; note == nil {
 		t.Errorf("Hua's order lost its note to Ming's erasure")
+	}
+}
+
+// TestErasureReadsOnlyTheLowerCaseOutboxKeys holds erase_user to the payload keys
+// every producer writes, "email" and "order_number". A row that names the same
+// address or order under the Go field name ("Email", "OrderNumber") is a shape no
+// binary has queued, and the function carries no fallback for it. The controls
+// are the rows in the real shape, which must go: a function that erased nothing
+// would satisfy the survivors alone.
+func TestErasureReadsOnlyTheLowerCaseOutboxKeys(t *testing.T) {
+	ctx := t.Context()
+	tx, beginErr := schemaPool(t).Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin: %v", beginErr)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+
+	const ming = "55555555-5555-4555-8555-555555555555"
+	// The order erase_user reaches through Ming's account, and the address the
+	// fixture proves below.
+	const number, addr = "GO-260721-000387", "Ming@Example.com"
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, ming); err != nil {
+		t.Fatalf("prove Ming's mailbox: %v", err)
+	}
+	for _, row := range []struct{ topic, key, payload string }{
+		{"password.reset", "recipient-real", `{"email": "` + addr + `", "token": "t"}`},
+		{"password.reset", "recipient-go-name", `{"Email": "` + addr + `", "Token": "t"}`},
+		{"order.placed", "order-real", `{"order_number": "` + number + `"}`},
+		{"order.placed", "order-go-name", `{"OrderNumber": "` + number + `"}`},
+	} {
+		if _, err := tx.Exec(ctx, `INSERT INTO outbox_messages (topic, dedupe_key, payload)
+			VALUES ($1, $2, $3::jsonb)`, row.topic, row.key, row.payload); err != nil {
+			t.Fatalf("queue %s: %v", row.key, err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, ming); err != nil {
+		t.Fatalf("erase_user: %v", err)
+	}
+
+	rows, err := tx.Query(ctx, `SELECT dedupe_key FROM outbox_messages
+		WHERE dedupe_key IN ('recipient-real', 'recipient-go-name', 'order-real', 'order-go-name')
+		ORDER BY dedupe_key`)
+	if err != nil {
+		t.Fatalf("read what the outbox kept: %v", err)
+	}
+	kept, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatalf("collect what the outbox kept: %v", err)
+	}
+	if want := []string{"order-go-name", "recipient-go-name"}; !slices.Equal(kept, want) {
+		t.Errorf("outbox rows kept after erasure = %v, want exactly %v: the real-shape rows go, "+
+			"and a Go-field-name row is no longer matched", kept, want)
 	}
 }
 

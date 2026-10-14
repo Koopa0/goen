@@ -3311,7 +3311,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1
-		  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) = lower($2)`,
+		  AND lower(coalesce(payload ->> 'email', '')) = lower($2)`,
 		outbox.TopicPasswordReset.Name(), old).Scan(&oldMailboxMessages); err != nil {
 		t.Fatalf("count old-mailbox reset messages: %v", err)
 	}
@@ -3411,8 +3411,8 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	})
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES
-			('test.erase-current-legacy', $1,
-			 jsonb_build_object('Email', $2::text, 'token', 'legacy')),
+			('test.erase-current', $1,
+			 jsonb_build_object('email', $2::text, 'token', 'reset-link')),
 			('test.erase-current-lookalike', $3,
 			 jsonb_build_object('email', $4::text, 'name', $2::text)),
 			('test.erase-pending-lookalike', $5,
@@ -3431,7 +3431,7 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	var erasedRecipients int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
-		WHERE lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+		WHERE lower(coalesce(payload ->> 'email', '')) =
 		      ANY(ARRAY[lower($1), lower($2)])`, current, pending).Scan(&erasedRecipients); err != nil {
 		t.Fatalf("count erased recipients: %v", err)
 	}

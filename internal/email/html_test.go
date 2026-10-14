@@ -90,9 +90,8 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 	const to, number = "someone@example.com", "GO-260101-000001"
 	out := map[string]func(context.Context, Notifier) error{
 		"SendOrderPlaced funded": func(ctx context.Context, n Notifier) error {
-			owed := int64(0)
 			return n.SendOrderPlaced(ctx, &OrderPlaced{
-				Email: to, Name: text, OrderNumber: number, TotalCents: 123400, OwedCents: &owed,
+				Email: to, Name: text, OrderNumber: number, TotalCents: 123400, OwedCents: 0,
 			})
 		},
 		"SendOrderPaid no card": func(ctx context.Context, n Notifier) error {
