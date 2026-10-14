@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
@@ -532,7 +533,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 			t.Fatalf("start %s session: %v", role, sessionErr)
 		}
 		if verified {
-			if verifyErr := twofactor.NewStore(pool, key).MarkVerified(ctx, account.HashToken(token)); verifyErr != nil {
+			if verifyErr := twofactor.NewStore(pool, key).MarkVerified(ctx, bearer.Digest(token)); verifyErr != nil {
 				t.Fatalf("verify session: %v", verifyErr)
 			}
 		}

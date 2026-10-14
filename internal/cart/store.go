@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -50,7 +51,7 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 	if token == "" {
 		return uuid.Nil, ErrNotFound
 	}
-	row, err := s.q.CartByToken(ctx, HashToken(token))
+	row, err := s.q.CartByToken(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, ErrNotFound
@@ -67,7 +68,7 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 // carts_one_per_user refuses the second insert, and the winner is the account
 // cart.
 func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) (uuid.UUID, error) {
-	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: HashToken(token), UserID: userID})
+	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: bearer.Digest(token), UserID: userID})
 	if err != nil {
 		if existing, ok := s.ownedCartIfTaken(ctx, userID, err); ok {
 			return existing, nil

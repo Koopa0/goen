@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -65,7 +66,7 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	var aCart uuid.UUID
 	var aOwner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT id, user_id FROM carts WHERE token_hash = $1`,
-		cart.HashToken(aToken)).Scan(&aCart, &aOwner); err != nil {
+		bearer.Digest(aToken)).Scan(&aCart, &aOwner); err != nil {
 		t.Fatalf("read the adopted cart: %v", err)
 	}
 	if !aOwner.Valid {
@@ -215,7 +216,7 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) })
 	var owner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
-		cart.HashToken(guestToken)).Scan(&owner); err != nil {
+		bearer.Digest(guestToken)).Scan(&owner); err != nil {
 		t.Fatalf("read the guest cart: %v", err)
 	}
 	if owner.Valid {

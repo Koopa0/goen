@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -134,11 +135,8 @@ func newCart(t *testing.T, s *cart.Store) uuid.UUID {
 
 func newCartSession(t *testing.T, s *cart.Store) (id uuid.UUID, token string) {
 	t.Helper()
-	tok, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
-	id, err = s.Create(t.Context(), tok, uuid.NullUUID{})
+	tok := bearer.New()
+	id, err := s.Create(t.Context(), tok, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
@@ -299,10 +297,7 @@ func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 	code := coupon(t, "ROLEQUOTE", "amount", 1000, 0, 0, 0, 0)
 	userID := creditedCustomer(t, 5000)
 	s := cart.NewStore(storeRolePool(t))
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("store role creates cart: %v", err)
@@ -519,10 +514,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	app := "wave0-credit-" + uuid.NewString()
 	appPool := applicationPool(t, app)
 	s := cart.NewStore(appPool)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("new cart token: %v", err)
-	}
+	token := bearer.New()
 	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create customer cart: %v", err)
@@ -633,7 +625,7 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
 	if _, holdErr := blocker.Exec(ctx,
 		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
-		cart.HashToken("blocker-"+userID.String()), userID); holdErr != nil {
+		bearer.Digest("blocker-"+userID.String()), userID); holdErr != nil {
 		t.Fatalf("hold uncommitted owned cart: %v", holdErr)
 	}
 
@@ -745,10 +737,7 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 
 func TestCartIsFoundByTokenNotByID(t *testing.T) {
 	s := cart.NewStore(pool)
-	tok, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	tok := bearer.New()
 	id, err := s.Create(t.Context(), tok, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -1668,10 +1657,7 @@ func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := cart.NewStore(pool)
-			token, err := cart.NewToken()
-			if err != nil {
-				t.Fatalf("token: %v", err)
-			}
+			token := bearer.New()
 			cartID, err := s.Create(ctx, token, uuid.NullUUID{})
 			if err != nil {
 				t.Fatalf("create cart: %v", err)
@@ -1736,10 +1722,7 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := cart.NewStore(pool)
-			token, err := cart.NewToken()
-			if err != nil {
-				t.Fatalf("token: %v", err)
-			}
+			token := bearer.New()
 			cartID, err := s.Create(ctx, token, uuid.NullUUID{})
 			if err != nil {
 				t.Fatalf("create cart: %v", err)
@@ -1816,10 +1799,7 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -5650,7 +5630,7 @@ func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 			}
 			ok, err := q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
 				OrderNumber: number,
-				Digests:     [][]byte{cart.HashToken(token)},
+				Digests:     [][]byte{bearer.Digest(token)},
 				Retain:      retainParam,
 			})
 			if err != nil {
@@ -5866,10 +5846,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	code := "MINRACE" + strings.ToUpper(uuid.NewString()[:6])
 	coupon(t, code, "amount", 10000, 0, 0, 200000, 0)
 
-	token, tokenErr := cart.NewToken()
-	if tokenErr != nil {
-		t.Fatalf("token: %v", tokenErr)
-	}
+	token := bearer.New()
 	cartID, createErr := s.Create(ctx, token, uuid.NullUUID{})
 	if createErr != nil {
 		t.Fatalf("create cart: %v", createErr)
@@ -6045,10 +6022,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	}
 
 	// A second customer types the same code.
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	second, err := s.Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -6101,10 +6075,7 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	id, err := s.Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -6204,10 +6175,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 		t.Fatalf("save the second address: %v", err)
 	}
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -6288,10 +6256,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 		t.Fatalf("save an address: %v", err)
 	}
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -6348,10 +6313,7 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -6539,10 +6501,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 	firstOrder := placeUnpaidOrderFor(t, s, "carried-touch@example.com")
 	firstCookie := placedCookie(t, firstOrder)
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
