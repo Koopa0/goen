@@ -15,8 +15,8 @@ var (
 		En:     "One point per NT$100 spent, multiplied by your current %s points rate. %s, redeemable as store credit at checkout.",
 	})
 
-	// The lot's expires_on is award date + 365, and the redemption's credit entry
-	// carries no expiry, so only the points lapse.
+	// The lot's expires_on is the award date + points_lifetime_days(), and the
+	// redemption's credit entry carries no expiry, so only the points lapse.
 	KeyPointsExpiryTerms = key("points.expiry.terms", Message{
 		ZhHant: "點數自取得起一年到期；用點數兌換成的購物金不會到期。",
 		En:     "Points expire one year after you earn them; store credit you redeem from points does not expire.",

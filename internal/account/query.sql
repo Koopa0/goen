@@ -405,21 +405,22 @@ SELECT EXISTS (
 -- behind it the moment one is cancelled.
 -- name: MemberStanding :one
 SELECT
-    member_spend(@user_id, @window_days::integer, NULL)::bigint AS spend_cents,
+    membership_window_days()::integer AS window_days,
+    member_spend(@user_id, NULL)::bigint AS spend_cents,
     coalesce((SELECT localized_name(t.name, t.name_en, @locale::text)
               FROM membership_tiers t
-              WHERE t.id = member_tier(@user_id, @window_days::integer, NULL)), '')::text
+              WHERE t.id = member_tier(@user_id, NULL)), '')::text
         AS tier_name,
     coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-              WHERE t.id = member_tier(@user_id, @window_days::integer, NULL)), 10000)::integer
+              WHERE t.id = member_tier(@user_id, NULL)), 10000)::integer
         AS multiplier_bp,
     coalesce((SELECT localized_name(n.name, n.name_en, @locale::text)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend(@user_id, @window_days::integer, NULL)
+              WHERE n.min_spend_cents > member_spend(@user_id, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), '')::text AS next_name,
-    coalesce((SELECT n.min_spend_cents - member_spend(@user_id, @window_days::integer, NULL)
+    coalesce((SELECT n.min_spend_cents - member_spend(@user_id, NULL)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend(@user_id, @window_days::integer, NULL)
+              WHERE n.min_spend_cents > member_spend(@user_id, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), 0)::bigint AS next_needs_cents;
 
 -- Delete the queued copy before replacing its verification row. Both statements
