@@ -14,6 +14,7 @@ import (
 	stockdesk "github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -439,11 +440,11 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	var soldOut int
 	afterSoldOut := true
 	for i, r := range view.AtRisk {
-		if r.Estimate().State != admin.CoverSoldOut {
+		if r.Estimate().State != inventory.CoverSoldOut {
 			continue
 		}
 		soldOut++
-		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+		if i > 0 && view.AtRisk[i-1].Estimate().State != inventory.CoverSoldOut {
 			afterSoldOut = false
 		}
 	}
@@ -457,8 +458,8 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	switch {
 	case !ok:
 		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
-	case row.Estimate().State != admin.CoverEstimated:
-		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Estimate().State != inventory.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, inventory.CoverEstimated)
 	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
 		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
 			row.Sellable, row.Sold, row.Orders)
