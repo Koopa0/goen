@@ -220,6 +220,75 @@ edit becomes a payment, a privilege or a legal term:
 - the statutory terms in `internal/site/policies.go` (消保法 §19);
 - the shop's content: product names, descriptions, FAQ and policy prose.
 
+## Filing an issue
+
+The tracker is for defects and wishes. File a new issue only if all of these
+hold:
+
+1. **It is a defect, not a preference.** Say who does what and the wrong result
+   they get. Money, stock, tax, personal data and sign-in come first. "Could" is
+   not a result.
+2. **You checked it against the current `main`.** Give the reproduction output,
+   or quote the `file:line` that makes the result unavoidable. With neither,
+   put `UNVERIFIED` in the title; it is looked at last.
+3. **You searched first**, open and closed issues, including titles that start
+   `noise:` or `duplicate:`. New evidence for a known defect is a comment on it.
+4. **It is one defect.**
+5. **It does not reverse a decision** recorded in this file or in a closed
+   issue. To reverse one, file a wish.
+
+Do not file wording or tone preferences that leave the meaning, the promise and
+the behaviour unchanged; defence in depth with no way in; performance work with
+no measurement; refactors or package-name taste with no behaviour or coupling
+cost; a guard that catches no bug class; features for a stage the shop is not at;
+or a law cited without a code path.
+
+A claim about a law or standard needs four lines: the obligation, with article
+and paragraph; why it binds this shop (seller type, tax status, who the
+customers are); the code path that breaches it, with `file:line` and the input
+that triggers it; and the cheapest compliant alternative, such as copy or policy
+text instead of schema. Without the third line it is a question for the
+maintainer, filed as a wish. For WCAG, name the success criterion that fails and
+whether it blocks a task.
+
+A small change you can verify needs no issue: a typo, a dead CSS rule, a log at
+the wrong level. Open the pull request and put the evidence in its body. For
+anything larger, open an issue first.
+
+Labels the maintainer uses: `bug`, `enhancement` and `documentation` for the
+kind; `needs-repro`, `needs-owner` and `blocked` for what it waits on;
+`lane-schema` and `lane-surface` for the part of the tree it touches;
+`polish` for real but cosmetic; `duplicate`; `dependencies`; and
+`good first issue`.
+
+## Licensing of contributions
+
+Contributions are accepted under the Apache License 2.0, as its section 5
+provides. There is no CLA. `Signed-off-by` is welcome and optional.
+
+## Tools, including AI
+
+You may use any tool, AI included. You are the author and answer for every
+line: be able to explain it, and answer review questions in your own words. If a
+tool generated a substantial part of a pull request, issue or report, say which
+tool and which part in its description. Do not name tools in commit messages or
+trailers: the pull request records the disclosure, and the commit names the
+people accountable for it. Every issue, pull request and report needs a person
+who checked it and will answer for it; one that no person answers for is closed
+without detailed review.
+
+The maintainer uses AI tools too, including agents that draft issues, reviews
+and code, and is accountable for everything merged.
+
+## How issues are handled
+
+One maintainer, best effort. A pull request that is ready for review usually
+gets a first reply within a few days. If a week passes with nothing, comment to
+ask. A `needs-repro` issue with no new evidence is closed after 30 days and
+reopened when the evidence arrives. From the first release, history on `main` is
+not rewritten; mistakes are fixed forward, the only exception being the removal
+of personal data.
+
 ## Report a security problem
 
 Through [GitHub's private advisory form](https://github.com/Koopa0/goen/security/advisories/new),
