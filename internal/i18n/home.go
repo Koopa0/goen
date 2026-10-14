@@ -71,6 +71,12 @@ var (
 
 	KeyHomeNewIn = key("home.new_in", Message{ZhHant: "新到貨", En: "New in"})
 
+	// What a screen reader calls the home hero and each of its panels (ARIA
+	// aria-roledescription), so the page does not switch to English mid-sentence.
+	KeyHeroCarouselRole = key("home.hero.role.carousel", Message{ZhHant: "輪播", En: "carousel"})
+
+	KeyHeroSlideRole = key("home.hero.role.slide", Message{ZhHant: "投影片", En: "slide"})
+
 	KeyHeroPrevious = key("home.hero.previous", Message{ZhHant: "上一張", En: "Previous"})
 
 	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
