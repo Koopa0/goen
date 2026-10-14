@@ -228,7 +228,8 @@ hold:
 3. **You searched first**, open and closed issues, including titles that start
    `noise:` or `duplicate:`. New evidence for a known defect is a comment on it.
 4. **It is one defect.**
-5. **It is not a decision already made.** To reverse one, file a wish.
+5. **It does not reverse a decision** recorded in this file or in a closed
+   issue. To reverse one, file a wish.
 
 Do not file wording or tone preferences that leave the meaning, the promise and
 the behaviour unchanged; defence in depth with no way in; performance work with
@@ -254,20 +255,33 @@ kind; `needs-repro`, `needs-owner` and `blocked` for what it waits on;
 `polish` for real but cosmetic; `duplicate`; `dependencies`; and
 `good first issue`.
 
+## Licensing of contributions
+
+Contributions are accepted under the Apache License 2.0, as its section 5
+provides. There is no CLA. `Signed-off-by` is welcome and optional.
+
 ## Tools, including AI
 
-You may use any tool. You are the author: say in the pull request if a
-substantial part was generated, be able to explain every line, and answer review
-questions yourself. Issues, pull requests and security reports produced by
-unattended agents are closed. Commits carry no tool attribution. If the
-maintainer finishes or rewrites your change, the pull request and the squash
-message say "Based on #N by @you".
+You may use any tool, AI included. You are the author and answer for every
+line: be able to explain it, and answer review questions in your own words. If a
+tool generated a substantial part of a pull request, issue or report, say which
+tool and which part in its description. Do not name tools in commit messages or
+trailers: the pull request records the disclosure, and the commit names the
+people accountable for it. Every issue, pull request and report needs a person
+who checked it and will answer for it; one that no person answers for is closed
+without detailed review.
+
+The maintainer uses AI tools too, including agents that draft issues, reviews
+and code, and is accountable for everything merged.
 
 ## How issues are handled
 
-One maintainer, best effort. A ready pull request gets a first reply within one
-business day. A `needs-repro` issue with no new evidence is closed after 30 days
-and reopened when the evidence arrives. History on `main` is not rewritten.
+One maintainer, best effort. A pull request that is ready for review usually
+gets a first reply within a few days. If a week passes with nothing, comment to
+ask. A `needs-repro` issue with no new evidence is closed after 30 days and
+reopened when the evidence arrives. From the first release, history on `main` is
+not rewritten; mistakes are fixed forward, the only exception being the removal
+of personal data.
 
 ## Report a security problem
 

@@ -12,12 +12,20 @@ Report privately through
 never a public issue. Attach no customer data, no order numbers and no
 credentials.
 
-goen has one maintainer. You get an acknowledgement within 7 days and an
-assessment within 14. A fix for a confirmed issue that touches money, stock, tax
-documents or personal data comes before other work. Reporters are credited in
-the advisory unless they ask not to be. The public demo at
-[goen.koopa0.dev](https://goen.koopa0.dev) is in scope; denial of service
-against it is not.
+goen has one maintainer and handles reports on a best-effort basis. You should
+get a first reply within 7 days; if you have not, add a comment to your
+advisory. Once a report is confirmed, a fix for anything that touches money,
+stock, tax documents or personal data comes before other work, and you are kept
+informed until it is fixed or closed. Reporters are credited in the advisory
+unless they ask not to be. There is no bug bounty.
+
+The public demo at [goen.koopa0.dev](https://goen.koopa0.dev) is in scope. Use
+an account you created, do not read or change other people's data beyond what
+proves the issue, and do not enter real card numbers. Denial of service against
+the demo is out of scope.
+
+If a tool found the problem, say so, and confirm it yourself before you report
+it. Unverified generated reports are closed.
 
 goen takes money, holds stock and files tax documents, so the things worth
 reporting are the ones that reach those:
