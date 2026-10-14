@@ -183,21 +183,21 @@ check-layout-run:
 integration-build-check:
 	go vet -tags=integration ./...
 
-# -path must match templ-check's, or each run of one invalidates the other:
-# generating from the repository root writes a different projection than
-# generating from internal/ui, so verify passed and then failed on its own
-# output.
+# Both gen and templ-check generate from internal, so the projection is the
+# same for each and one cannot invalidate the other. Generating from the
+# repository root or from a subdirectory writes a different projection
+# (FileName: carries the path below -path). internal covers every package,
+# present and future, so a template added outside internal/ui is generated,
+# checked and formatted without a Makefile edit.
 gen:
-	go tool templ generate -path internal/ui
-	go tool templ generate -path internal/email
+	go tool templ generate -path internal
 
 # The committed *_templ.go must match the .templ sources. Nothing else checks
 # it: `gen` runs before every other target and would quietly repair a stale
 # projection, so a drifted generated file would only ever be noticed as a
 # surprising diff.
 templ-check:
-	go tool templ generate -check -path internal/ui
-	go tool templ generate -check -path internal/email
+	go tool templ generate -check -path internal
 
 # Vulnerability scan of the module graph and the code that actually reaches it.
 # govulncheck reports only vulnerabilities on a call path from this binary,
@@ -206,7 +206,7 @@ vuln:
 	$(GOVULNCHECK) ./...
 
 fmt:
-	go tool templ fmt internal/ui internal/email
+	go tool templ fmt internal
 	golangci-lint fmt ./...
 
 # Read-only: templ's own -fail mode rewrites the tree before reporting, which
@@ -215,7 +215,7 @@ fmt-check:
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/goen-templ-fmt.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	find internal/ui internal/email -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
+	find internal -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
 	[ -s "$$tmp/files" ] || { echo 'templ source list is empty' >&2; exit 1; }; \
 	while IFS= read -r file; do \
 		go tool templ fmt -stdout "$$file" > "$$tmp/formatted"; \
