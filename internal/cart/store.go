@@ -115,6 +115,12 @@ func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity i
 	return nil
 }
 
+// sellable is the one test of whether a variant may be put in a cart: listed,
+// active and with stock the shelf can supply.
+func sellable(v *db.VariantForCartRow) bool {
+	return v.IsActive && pages.ProductStatus(v.Status) == pages.ProductActive && v.SellableQuantity > 0
+}
+
 // addCartItem runs through the caller's queries, which may be pool-backed or
 // bound to a larger transaction.
 func addCartItem(
@@ -131,7 +137,7 @@ func addCartItem(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
+	if !sellable(&v) {
 		return false, ErrUnavailable
 	}
 	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
@@ -190,7 +196,7 @@ func setCartLineQuantity(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
+	if !sellable(&v) {
 		return false, ErrUnavailable
 	}
 	requested := quantity
