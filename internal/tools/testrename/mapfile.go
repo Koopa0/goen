@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// A map is a tab-separated file under docs/test-renames/, one row per test:
+// A map is a tab-separated file under internal/tools/testrename/maps/, one row per test:
 //
 //	file	old	new	unit	source	action	newfile
 //
