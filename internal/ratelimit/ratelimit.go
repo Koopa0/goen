@@ -1,8 +1,17 @@
 // Package ratelimit bounds how often one client may do something expensive.
 //
 // argon2id runs at 64 MiB a hash, so the limiter must run BEFORE the hash or it
-// defends nothing. It is a throttle and never a lockout — every key recovers on
-// its own — and its state is per process, so N replicas allow N times the rate.
+// defends nothing. Every key recovers on its own, and its state is per process,
+// so N replicas allow N times the rate and a restart refills every allowance.
+//
+// A key a client chooses, or its own address, is a throttle: it can only slow
+// that client. A key shared by everyone who names one account or address is
+// not: whoever spends it spends it for the person it protects, so it is a
+// lockout for as long as a stranger keeps spending it. Charge such a key with
+// [Limiter.Reserve] and keep the token only for a miss, so that the person
+// with the right answer gives theirs back. That narrows the lockout and cannot
+// remove it: while the shared key is empty, a request is refused before it is
+// known to be right.
 //
 // Every request runs under one mutex, and some keys are chosen by the client,
 // so a client that can fill the table must not also be able to make each of its
@@ -86,9 +95,9 @@ func New(cfg Config) *Limiter {
 	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket), order: list.New()}
 }
 
-// Allow reports whether this key may proceed, and how long to wait if not. A
-// sign-in checks two keys — the client's IP and the submitted email — because
-// per-IP limiting cannot see a distributed attack on one account.
+// Allow reports whether this key may proceed, and how long to wait if not. It
+// charges every request that passes, so use it for a key that only one client
+// can spend; a key shared with others is charged by [Limiter.Reserve].
 func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	mapKey := clampKey(key)
 
@@ -292,6 +301,30 @@ func ClientKey(r *http.Request) string {
 	addr = normalise(addr)
 	if addr.Is4() {
 		return addr.String()
+	}
+	return netip.PrefixFrom(addr, clientPrefixBits).Masked().String()
+}
+
+// ipv4NetworkBits is how much of an IPv4 address identifies a client network. A
+// /24 is the smallest block routed across the internet, so a client rotating
+// the last octet buys nothing; a network of 256 addresses sharing one
+// allowance is the price, paid only between clients of one provider block.
+const ipv4NetworkBits = 24
+
+// ClientNetwork is the network the client is on, for a limit that lets each
+// network spend its own allowance of a resource all networks share: the /24 of
+// an IPv4 address and the /64 of an IPv6 one. It reads the address [ClientIP]
+// does, so it trusts exactly the headers [Proxies.Resolve] has been told to.
+// [ClientKey] is finer for IPv4 and the same for IPv6.
+func ClientNetwork(r *http.Request) string {
+	host := ClientIP(r)
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	addr = normalise(addr)
+	if addr.Is4() {
+		return netip.PrefixFrom(addr, ipv4NetworkBits).Masked().String()
 	}
 	return netip.PrefixFrom(addr, clientPrefixBits).Masked().String()
 }
