@@ -7,7 +7,6 @@ package loyalty
 
 import (
 	"errors"
-	"time"
 )
 
 const PointsPerCredit = 10
@@ -45,6 +44,3 @@ func Redeemable(balance int64) int64 {
 	}
 	return balance / PointsPerCredit * PointsPerCredit
 }
-
-// MembershipWindow is a rolling year: a lifetime tier is a permanent liability.
-const MembershipWindow = 365 * 24 * time.Hour

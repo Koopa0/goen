@@ -35,7 +35,6 @@ import (
 	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -166,7 +165,7 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		}
 		var tier uuid.NullUUID
 		if err := pool.QueryRow(ctx,
-			`SELECT member_tier($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&tier); err != nil {
+			`SELECT member_tier($1, NULL)`, userID).Scan(&tier); err != nil {
 			t.Fatalf("read tier: %v", err)
 		}
 		if tier.Valid {
@@ -184,8 +183,8 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT t.points_multiplier_bp
 			FROM membership_tiers t
-			WHERE t.id = member_tier($1, $2, $3)`,
-			userID, loyalty.MembershipWindowDays, orderID).Scan(&multiplier); err != nil {
+			WHERE t.id = member_tier($1, $2)`,
+			userID, orderID).Scan(&multiplier); err != nil {
 			t.Fatalf("read changed return-time tier: %v", err)
 		}
 		if multiplier != 13000 {
@@ -432,7 +431,7 @@ func assertReturnedLoyalty(t *testing.T, requestID, orderID, userID uuid.UUID, w
 	ctx := t.Context()
 	var spend int64
 	if err := pool.QueryRow(ctx,
-		`SELECT member_spend($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&spend); err != nil {
+		`SELECT member_spend($1, NULL)`, userID).Scan(&spend); err != nil {
 		t.Fatalf("read member spend: %v", err)
 	}
 	if spend != wantSpend {

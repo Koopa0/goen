@@ -574,7 +574,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 
 	standing, err := s.q.MemberStanding(ctx, db.MemberStandingParams{
 		Locale: string(i18n.FromContext(ctx)),
-		UserID: id, WindowDays: MembershipWindowDays,
+		UserID: id,
 	})
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read member standing: %w", err)
