@@ -136,6 +136,7 @@ func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, 
 		view.Rows = append(view.Rows, admin.CreditEntry{
 			Email:       r.Email,
 			AmountCents: r.AmountCents,
+			Kind:        admin.PostingKind(r.Kind),
 			Reason:      r.Reason,
 			At:          shoptime.Minute(r.CreatedAt),
 		})

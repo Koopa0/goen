@@ -11838,8 +11838,9 @@ func (q *Queries) OrderRecipient(ctx context.Context, id uuid.UUID) (OrderRecipi
 }
 
 const orderRefundRows = `-- name: OrderRefundRows :many
-SELECT channel, amount_cents, at, reason, staff FROM (
+SELECT channel, amount_cents, at, kind, reason, staff FROM (
     SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
+           ''::text AS kind,
            coalesce(rf.reason, '')::text AS reason,
            coalesce((SELECT u.email
                      FROM audit_events a JOIN users u ON u.id = a.actor_user_id
@@ -11849,7 +11850,8 @@ SELECT channel, amount_cents, at, reason, staff FROM (
     WHERE p.order_id = $1 AND rf.status = 'succeeded'
     UNION ALL
     SELECT 'credit'::text, e.amount_cents, e.created_at,
-           e.reason::text,
+           coalesce(e.kind, '')::text,
+           coalesce(e.reason, '')::text,
            coalesce((SELECT u.email FROM users u
                      WHERE u.id = e.actor_user_id), '')::text
     FROM store_credit_entries e
@@ -11862,6 +11864,7 @@ type OrderRefundRowsRow struct {
 	Channel     string
 	AmountCents int64
 	At          pgtype.Timestamptz
+	Kind        string
 	Reason      string
 	Staff       string
 }
@@ -11871,6 +11874,8 @@ type OrderRefundRowsRow struct {
 // order_refunds uses. Who: the staff member the audit trail names for a card
 // refund, and the entry's own actor for a credit one; empty when none is known.
 // Both are named by CURRENT email, never by the editable full_name.
+// A credit refund is labelled by its kind, and shows its reason only when staff
+// typed one; a card refund has no kind.
 func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]OrderRefundRowsRow, error) {
 	rows, err := q.db.Query(ctx, orderRefundRows, orderID)
 	if err != nil {
@@ -11884,6 +11889,7 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 			&i.Channel,
 			&i.AmountCents,
 			&i.At,
+			&i.Kind,
 			&i.Reason,
 			&i.Staff,
 		); err != nil {
@@ -13559,7 +13565,8 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 }
 
 const recentCredit = `-- name: RecentCredit :many
-SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents,
+       coalesce(e.kind, '')::text AS kind, coalesce(e.reason, '')::text AS reason, e.created_at,
        coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
@@ -13580,11 +13587,14 @@ type RecentCreditParams struct {
 type RecentCreditRow struct {
 	PageCursor  string
 	AmountCents int64
+	Kind        string
 	Reason      string
 	CreatedAt   time.Time
 	Email       string
 }
 
+// kind says what the posting is; reason is only what a staff member typed, and
+// is NULL for every other kind. The label comes from kind, never from reason.
 func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]RecentCreditRow, error) {
 	rows, err := q.db.Query(ctx, recentCredit,
 		arg.HasCursor,
@@ -13602,6 +13612,7 @@ func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]R
 		if err := rows.Scan(
 			&i.PageCursor,
 			&i.AmountCents,
+			&i.Kind,
 			&i.Reason,
 			&i.CreatedAt,
 			&i.Email,

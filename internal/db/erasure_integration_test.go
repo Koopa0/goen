@@ -442,7 +442,7 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		        'every-fk-receipt', 'admin', NULL, '` + account + `')`,
 		`INSERT INTO store_credit_accounts (user_id) VALUES ('` + account + `')`,
 		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, actor_user_id)
-		 VALUES ('a0000001-0000-4000-8000-000000000000', 100, '補償', 'every-fk-credit', '` + account + `')`,
+		 VALUES ('a0000001-0000-4000-8000-000000000000', 100, '補償', 'grant:every-fk-credit', '` + account + `')`,
 		`INSERT INTO loyalty_redemption_operations (user_id) VALUES ('` + account + `')`,
 		`INSERT INTO newsletter_issues (subject, body, sent_by) VALUES ('每一個', '每一個外鍵', '` + account + `')`,
 		`INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street)

@@ -1987,7 +1987,7 @@ func creditFundedOpenReturnForErasure(
 	}
 	if _, err := tx.Exec(ctx, `
 		SELECT post_store_credit($1, 100000, '測試退貨額度', NULL, $2, NULL)`,
-		userID, "erase-return-grant:"+orderID.String()); err != nil {
+		userID, "grant:erase-return-"+orderID.String()); err != nil {
 		t.Fatalf("grant return fixture credit: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `SELECT spend_store_credit($1, -100000)`, orderID); err != nil {

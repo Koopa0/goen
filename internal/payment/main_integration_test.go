@@ -2216,8 +2216,8 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 
 	userID := creditedUser(t, 30000)
 	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
-		userID, int64(-30000), orderID, "spend:"+number); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, int64(-30000), orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit on the order: %v", err)
 	}
 
@@ -2278,8 +2278,8 @@ func creditFundedOrder(t *testing.T, creditCents int64) (number string, id uuid.
 	hold(t, id, 0, 60*time.Minute, "credit-funded:"+number)
 	userID := creditedUser(t, creditCents)
 	if _, err := pool.Exec(t.Context(),
-		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
-		userID, -creditCents, id, "spend:"+number); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -creditCents, id, "order:"+id.String()); err != nil {
 		t.Fatalf("spend credit on the order: %v", err)
 	}
 	return number, id
@@ -2484,8 +2484,8 @@ func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
 
 	userID := creditedUser(t, 50000)
 	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
-		userID, int64(-50000), orderID, "spend-paid:"+number); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, int64(-50000), orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit on the order: %v", err)
 	}
 
@@ -2648,8 +2648,8 @@ func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
 
 	userID := creditedUser(t, 50000)
 	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
-		userID, int64(-50000), orderID, "spend-pay:"+number); err != nil {
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, int64(-50000), orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit on the order: %v", err)
 	}
 	if _, err := pool.Exec(ctx,

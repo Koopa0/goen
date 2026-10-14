@@ -75,7 +75,7 @@ INSERT INTO store_credit_accounts (id, user_id) VALUES
     ('a0000001-0000-4000-8000-000000000000', '55555555-5555-4555-8555-555555555555');
 
 INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key) VALUES
-    ('a0000001-0000-4000-8000-000000000000', 100000, 'signup', 'fixture-grant');
+    ('a0000001-0000-4000-8000-000000000000', 100000, 'signup', 'grant:fixture');
 
 INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES
     ('eeee0001-0000-4000-8000-000000000000', '55555555-5555-4555-8555-555555555555',

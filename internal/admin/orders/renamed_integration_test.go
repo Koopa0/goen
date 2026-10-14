@@ -160,8 +160,8 @@ func TestARenamedStaffIsNamedByAddressOnACreditRefund(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 	customer := admintest.Customer(t, pool)
-	if _, err := pool.Exec(ctx, `SELECT post_store_credit($1, 120000, '顧客改變心意', $2, $3, $4)`,
-		customer, orderID, "renamed-credit:"+orderID.String(), idA); err != nil {
+	if _, err := pool.Exec(ctx, `SELECT post_store_credit($1, 120000, NULL, $2, $3, $4)`,
+		customer, orderID, "return-credit:"+orderID.String(), idA); err != nil {
 		t.Fatalf("A refunds to store credit: %v", err)
 	}
 
@@ -175,6 +175,10 @@ func TestARenamedStaffIsNamedByAddressOnACreditRefund(t *testing.T) {
 	}
 	if got := view.Refunds[0].Staff; got != address {
 		t.Errorf("the credit refund is by %q, want the address %q", got, address)
+	}
+	// The posting has no reason of its own; its label comes from its kind.
+	if got, want := view.Refunds[0].Reason, i18n.T(ctx, i18n.KeyAdminCreditReasonReturnPayout); got != want {
+		t.Errorf("the credit refund reads %q, want the return-payout label %q", got, want)
 	}
 	assertNamedByAddress(t, ctx, &view, address, colleague)
 }

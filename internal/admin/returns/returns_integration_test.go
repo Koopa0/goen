@@ -2515,8 +2515,8 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 		t.Fatalf("read the order: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
-		userID, int64(60000), "退貨補償", orderID,
+		SELECT post_store_credit($1, $2::bigint, NULL, $3, $4::text, NULL)`,
+		userID, int64(60000), orderID,
 		"return-credit:"+requestID.String()); err != nil {
 		t.Fatalf("post the credit half: %v", err)
 	}

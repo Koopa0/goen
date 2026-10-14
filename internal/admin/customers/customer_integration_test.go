@@ -164,8 +164,8 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 
 	paid := admintest.OrderForCustomer(t, pool, userID, 120000, true)
 	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, 20000, '退貨', $2, $3, NULL)`,
-		userID, paid, "customer-refund:"+paid.String()); err != nil {
+		`SELECT post_store_credit($1, 20000, NULL, $2, $3, NULL)`,
+		userID, paid, "return-credit:"+paid.String()); err != nil {
 		t.Fatalf("return part of the committed order: %v", err)
 	}
 	cancelled := admintest.OrderForCustomer(t, pool, userID, 990000, false)

@@ -242,13 +242,13 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule:   "store_credit_never_negative",
-		reject: creditEntry(-200000, "overspend"),
-		accept: creditEntry(-50000, "within balance"),
+		reject: creditEntry(-200000, "order:overspend"),
+		accept: creditEntry(-50000, "order:within balance"),
 	},
 	{
 		rule: "store_credit_entries_append_only",
 		reject: `UPDATE store_credit_entries SET amount_cents = 999999
-		         WHERE idempotency_key = 'fixture-grant';`,
+		         WHERE idempotency_key = 'grant:fixture';`,
 		acceptNote: "the table admits nothing but inserts, which the guard above covers",
 	},
 	{
@@ -664,10 +664,9 @@ var ruleCases = []ruleCase{
 		rule: "refunds_credit_attribution",
 		reject: refundRuleStaff + refundableCheapReturn + `
 		        INSERT INTO store_credit_entries (
-		            account_id, amount_cents, reason, idempotency_key
+		            account_id, amount_cents, idempotency_key
 		        ) VALUES (
 		            'a0000001-0000-4000-8000-000000000000', 1,
-		            '錯誤退貨購物金',
 		            'return-credit:88880001-0000-4000-8000-000000000000'
 		        );
 		        SELECT claim_return_refund_execution(
@@ -799,10 +798,10 @@ var ruleCases = []ruleCase{
 		        UPDATE return_requests SET status = 'approved', decided_at = now()
 		        WHERE id = '11110074-0000-4000-8000-000000000001';
 		        INSERT INTO store_credit_entries (
-		            account_id, amount_cents, reason, order_id, idempotency_key
+		            account_id, amount_cents, order_id, idempotency_key
 		        ) VALUES (
 		            'a0000001-0000-4000-8000-000000000000', 100000,
-		            '退貨退回購物金', '11110070-0000-4000-8000-000000000001',
+		            '11110070-0000-4000-8000-000000000001',
 		            'return-credit:11110074-0000-4000-8000-000000000001'
 		        );
 		        DELETE FROM users WHERE id = '55555555-5555-4555-8555-555555555555';
@@ -1344,16 +1343,16 @@ var ruleCases = []ruleCase{
 		// The credit half went back through the return; reversing the spend on the
 		// order that refund then cancelled pays it a second time.
 		reject: creditRefundedBeforeShipment + `
-		         INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		         VALUES ('a0000001-0000-4000-8000-000000000000', 50000, 'order cancelled', 'rule-bs-reverse',
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 50000, 'reverse:rule-bs-reverse',
 		                 '6666e002-0000-4000-8000-000000000000');`,
 		// An unpaid checkout cancelled with no return reverses its spend as before.
 		accept: creditedOrder("11110060-0000-4000-8000-000000000001", "11110061-0000-4000-8000-000000000001",
 			"11110062-0000-4000-8000-000000000001", 50000) + `
 		         UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		         WHERE id = '11110060-0000-4000-8000-000000000001';
-		         INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		         VALUES ('11110061-0000-4000-8000-000000000001', 50000, 'order cancelled', 'rule-bs-reverse',
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		         VALUES ('11110061-0000-4000-8000-000000000001', 50000, 'reverse:rule-bs-reverse',
 		                 '11110062-0000-4000-8000-000000000001');`,
 	},
 	{
@@ -1459,9 +1458,9 @@ const creditRefundedBeforeShipment = refundRuleStaff + `
 	                                postal_code, city, district, street)
 	VALUES ('6666eeee-6666-4666-8666-666666666666', 'ming@example.com', '王小明', '0912345678',
 	        '110', '台北市', '信義區', '松高路 68 號');
-	INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, order_id)
+	INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, order_id)
 	VALUES ('6666e002-0000-4000-8000-000000000000', 'a0000001-0000-4000-8000-000000000000',
-	        -50000, 'spent at checkout', 'rule-bs-spend', '6666eeee-6666-4666-8666-666666666666');
+	        -50000, 'order:6666eeee-6666-4666-8666-666666666666', '6666eeee-6666-4666-8666-666666666666');
 	UPDATE orders SET fulfillment_status = 'picking' WHERE id = '6666eeee-6666-4666-8666-666666666666';
 	SELECT open_refund_before_shipment('GO-260721-000392', 'rule',
 	       '55550001-0000-4000-8000-000000000001', 'rule-req');
@@ -1635,8 +1634,8 @@ const returnRuleAward = `
 
 func creditEntry(amount int, key string) string {
 	return fmt.Sprintf(
-		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		 VALUES ('a0000001-0000-4000-8000-000000000000', %d, 'spend', '%s');`, amount, key)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+		 VALUES ('a0000001-0000-4000-8000-000000000000', %d, '%s');`, amount, key)
 }
 
 func refund(key string, amount int) string {
@@ -1834,7 +1833,7 @@ func TestStoreCreditCannotRacePastBalance(t *testing.T) {
 		INSERT INTO users (id, email) VALUES ('`+user+`','race@example.com');
 		INSERT INTO store_credit_accounts (id, user_id) VALUES ('`+account+`','`+user+`');
 		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		VALUES ('`+account+`', 100000, 'grant', 'race-grant');`)
+		VALUES ('`+account+`', 100000, 'grant', 'grant:race');`)
 	t.Cleanup(func() {
 		mustExec(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
 		mustExec(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
@@ -1842,10 +1841,10 @@ func TestStoreCreditCannotRacePastBalance(t *testing.T) {
 	})
 
 	err1, err2 := raceOutcome(t,
-		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		 VALUES ('`+account+`', -80000, 'spend', 'credit-race-1')`,
-		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		 VALUES ('`+account+`', -80000, 'spend', 'credit-race-2')`)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+		 VALUES ('`+account+`', -80000, 'order:credit-race-1')`,
+		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+		 VALUES ('`+account+`', -80000, 'order:credit-race-2')`)
 	requireExactlyOne(t, "a balance of NT$1,000 against two spends of NT$800", err1, err2)
 
 	var balance int64
@@ -2924,9 +2923,9 @@ func creditedOrder(order, account, spend string, total int) string {
 		VALUES ('%[1]s','r@example.com','王','0912345678','106','台北市','大安區','路 1 號');
 		INSERT INTO store_credit_accounts (id) VALUES ('%[2]s');
 		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		VALUES ('%[2]s',%[4]d,'grant','%[3]s-grant');
-		INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, order_id)
-		VALUES ('%[3]s','%[2]s',-%[4]d,'spent at checkout','%[3]s-spend','%[1]s');`,
+		VALUES ('%[2]s',%[4]d,'grant','grant:%[3]s');
+		INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, order_id)
+		VALUES ('%[3]s','%[2]s',-%[4]d,'order:%[1]s','%[1]s');`,
 		order, account, spend, total)
 }
 
@@ -2938,8 +2937,8 @@ func TestCreditCannotBeReversedWhileCheckoutIsOpen(t *testing.T) {
 	account := "11110041-0000-4000-8000-000000000001"
 	spend := "11110042-0000-4000-8000-000000000001"
 	err := run(t, creditedOrder(order, account, spend, 100000)+`
-		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		VALUES ('`+account+`',100000,'checkout abandoned','`+spend+`-rev','`+spend+`');`)
+		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`');`)
 	if err == nil {
 		t.Fatal("store credit was reversed while its checkout was still open")
 	}
@@ -2958,8 +2957,8 @@ func TestCreditPostingRespectsOrderState(t *testing.T) {
 	// spend afterwards would un-fund a picked order.
 	err := run(t, creditedOrder(order, account, spend, 100000)+`
 		UPDATE orders SET fulfillment_status='picking' WHERE id='`+order+`';
-		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		VALUES ('`+account+`',100000,'support reversal','`+spend+`-rev','`+spend+`');`)
+		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`');`)
 	if err == nil {
 		t.Fatal("store credit funding a picked order was reversed, un-funding it")
 	}
@@ -2985,8 +2984,8 @@ func TestCreditReversalCannotRacePastFulfilment(t *testing.T) {
 
 	err1, err2 := raceOutcome(t,
 		`UPDATE orders SET fulfillment_status='picking' WHERE id='`+order+`'`,
-		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		 VALUES ('`+account+`',100000,'checkout abandoned','`+spend+`-rev','`+spend+`')`)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		 VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`')`)
 	requireExactlyOne(t, "a picked order whose funding credit was reversed", err1, err2)
 }
 
@@ -2999,13 +2998,13 @@ func TestReversalCannotBeReversed(t *testing.T) {
 	err := run(t, `
 		INSERT INTO store_credit_accounts (id) VALUES ('`+account+`');
 		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-		VALUES ('`+account+`',100000,'grant','1l-grant');
-		INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key)
-		VALUES ('`+spend+`','`+account+`',-50000,'spend','1l-spend');
-		INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-		VALUES ('`+rev+`','`+account+`',50000,'reverse the spend','1l-rev','`+spend+`');
-		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		VALUES ('`+account+`',-50000,'reverse the reversal','1l-rev2','`+rev+`');`)
+		VALUES ('`+account+`',100000,'grant','grant:1l');
+		INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key)
+		VALUES ('`+spend+`','`+account+`',-50000,'order:1l-spend');
+		INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+		VALUES ('`+rev+`','`+account+`',50000,'reverse:`+spend+`','`+spend+`');
+		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		VALUES ('`+account+`',-50000,'reverse:`+rev+`','`+rev+`');`)
 	if err == nil {
 		t.Fatal("a reversal was itself reversed")
 	}

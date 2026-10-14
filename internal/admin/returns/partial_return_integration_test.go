@@ -205,8 +205,8 @@ func shippedDiscountedOrder(t *testing.T, o discountedOrder) placedOrder {
 		t.Fatalf("create private data: %v", err)
 	}
 	if o.creditCents > 0 {
-		if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-			userID, -o.creditCents, placed.id, "spend:"+placed.id.String()); err != nil {
+		if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+			userID, -o.creditCents, placed.id, "order:"+placed.id.String()); err != nil {
 			t.Fatalf("spend credit: %v", err)
 		}
 	}
