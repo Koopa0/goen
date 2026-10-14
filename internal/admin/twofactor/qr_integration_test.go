@@ -26,7 +26,7 @@ import (
 func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
-			s := twofactor.NewStore(pool, testKey)
+			s := twofactor.NewStore(pool, testKey, nil)
 			userID, email := admintest.AdminUser(t, pool)
 			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 			ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
