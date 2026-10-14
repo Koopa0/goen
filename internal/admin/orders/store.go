@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -49,7 +50,7 @@ type Invoices interface {
 // Stock ranks the SKUs by days cover, for the dashboard; the stock desk
 // implements it.
 type Stock interface {
-	DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error)
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
 }
 
 // Health lists what the health desk judges to need a person, as dashboard
@@ -114,11 +115,12 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		return admin.DashboardView{}, err
 	}
 
-	listed, _, err := s.stock.DaysCover(ctx, admin.CoverWindowDays, time.Now())
+	now := time.Now()
+	listed, _, err := s.stock.DaysCover(ctx, inventory.CoverWindowDays, now)
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(listed)
+	view.Runway, view.RunwayCut, view.RunwayBasis = admin.DashboardRunway(admin.StockRisks(listed, now))
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }

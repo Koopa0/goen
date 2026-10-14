@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"github.com/koopa0/goen/internal/inventory"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
@@ -46,7 +47,7 @@ func StockRiskSection(rows []StockRisk, moreSoldOut, days int) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRepStock))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 14, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 15, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -57,9 +58,9 @@ func StockRiskSection(rows []StockRisk, moreSoldOut, days int) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, coverMinOrders, coverWarnDays, coverMaxRows))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, inventory.CoverMinOrders, inventory.CoverWarnDays, inventory.RankRows))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 16, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 17, Col: 132}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -107,7 +108,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(days), days))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 25, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 26, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -141,7 +142,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					switch cover.State {
-					case CoverSoldOut:
+					case inventory.CoverSoldOut:
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"goen-report__state\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -161,7 +162,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var8 string
 							templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(cover.Figure(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 37, Col: 29}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 38, Col: 29}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 							if templ_7745c5c3_Err != nil {
@@ -181,7 +182,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(since)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 40, Col: 50}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 41, Col: 50}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -196,7 +197,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-					case CoverFewOrders:
+					case inventory.CoverFewOrders:
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p class=\"goen-report__aside\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -204,7 +205,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(cover.Figure(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 44, Col: 57}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 45, Col: 57}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -227,7 +228,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var11 string
 							templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(cover.Warning(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 49, Col: 103}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 50, Col: 103}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 							if templ_7745c5c3_Err != nil {
@@ -240,7 +241,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var12 string
 							templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(cover.Warning(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 49, Col: 151}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 50, Col: 151}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 							if templ_7745c5c3_Err != nil {
@@ -253,7 +254,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var13 string
 							templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(cover.Figure(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 50, Col: 30}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 51, Col: 30}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 							if templ_7745c5c3_Err != nil {
@@ -271,7 +272,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var14 string
 							templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(cover.Figure(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 53, Col: 64}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 54, Col: 64}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 							if templ_7745c5c3_Err != nil {
@@ -290,7 +291,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 							var templ_7745c5c3_Var15 string
 							templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(rng)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 56, Col: 48}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 57, Col: 48}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 							if templ_7745c5c3_Err != nil {
@@ -333,7 +334,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, int64(moreSoldOut), moreSoldOut))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 67, Col: 116}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/stockrisk.templ`, Line: 68, Col: 116}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {

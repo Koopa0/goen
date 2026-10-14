@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -63,7 +64,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, err
 	}
-	view.AtRisk, view.MoreSoldOut = atRisk, moreSoldOut
+	view.AtRisk, view.MoreSoldOut = admin.StockRisks(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
 	view.Returned, view.ReturnedErr = returnedProducts(ctx, tx, current)
 	// The daily charts are figures of the page: failing to read them must not take
@@ -207,7 +208,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 		Placed:    completion.Placed,
 		Committed: completion.Committed,
 		Windows:   windows,
-		StockDays: max(int(days), admin.CoverWindowDays),
+		StockDays: max(int(days), inventory.CoverWindowDays),
 		From:      shoptime.DateOf(current.from, now), To: shoptime.DateOf(current.to, now),
 		Previous: admin.PreviousFigures{
 			From: shoptime.DateOf(before.from, now), To: shoptime.DateOf(before.to, now),
