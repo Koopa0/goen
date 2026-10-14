@@ -342,24 +342,6 @@ LEFT JOIN products p ON p.id = pv.product_id
 WHERE o.order_number = $1
 ORDER BY ol.position, ol.id;
 
--- name: OrderLinesByOrder :many
-SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.storage_key, '') AS image_key,
-       coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
-       coalesce(img.width, 0)::integer AS image_width
-FROM order_lines ol
-LEFT JOIN LATERAL (
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
-    WHERE i.product_id = ol.product_id
-    ORDER BY EXISTS (
-                 SELECT 1 FROM variant_option_values vov
-                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
-             ) DESC,
-             i.position
-    LIMIT 1
-) img ON true
-WHERE ol.order_id = @order_id ORDER BY ol.position, ol.id;
-
 -- The customer's order page: each line with its photograph and its warranty promise.
 -- name: OrderPageLines :many
 SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
@@ -520,29 +502,6 @@ LIMIT $1;
 -- name: ReleaseReservation :exec
 SELECT release_reservation($1);
 
--- The actor is the staff member who cancelled; none for the customer's own
--- cancellation and, with by_system, the sweeper's at the payment deadline. Both
--- are carried structurally because the customer's own order page renders any
--- note in whatever language it was written.
--- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
-VALUES (@order_id, 'cancelled', @actor_user_id, @by_system::boolean);
-
--- What a cancellation notice needs to decide whether money may have reached
--- Stripe for this unpaid order: the status of every payment it has had, and
--- whether any of their provider events ever needed a person.
--- name: OrderPaymentFacts :one
-SELECT ARRAY(
-           SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
-       )::text[] AS statuses,
-       EXISTS (
-           SELECT 1
-           FROM payments p
-           JOIN payment_webhook_events e
-             ON e.provider = p.provider AND e.object_ref = p.provider_ref
-           WHERE p.order_id = $1 AND e.unreconciled IS NOT NULL
-       )::boolean AS provider_flagged;
-
 -- Ordered by variant first so cancellation shares the global stock-root lock
 -- order with checkout and returns; id is the stable tie-breaker.
 -- name: HeldReservationsForOrder :many
@@ -698,38 +657,11 @@ SELECT lock_coupon_for_checkout(@code::text);
 -- name: RedeemCoupon :one
 SELECT redeem_coupon(@coupon_id, @order_id, sqlc.narg(user_id)::uuid, @amount_cents::bigint);
 
--- Enqueue a message in the SAME transaction as the fact it is about. ON CONFLICT
--- DO NOTHING against (topic, dedupe_key), so a retried checkout enqueues once.
--- name: EnqueueMessage :exec
-INSERT INTO outbox_messages (topic, dedupe_key, payload)
-VALUES (@topic::text, @dedupe_key::text, @payload)
-ON CONFLICT (topic, dedupe_key) DO NOTHING;
-
--- Many messages of one topic in ONE statement. A restock or a newsletter fans out
--- to every subscriber, and a statement each holds the caller's transaction, and
--- the row locks it took, open for a round trip per recipient. The payloads are
--- JSON text, paired with their dedupe keys by position. A bulk send passes
--- the priority that lets transactional mail go first.
--- name: EnqueueMessages :exec
-INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
-SELECT @topic::text, t.dedupe_key, t.payload::jsonb, @priority::smallint
-FROM (SELECT unnest(@dedupe_keys::text[]) AS dedupe_key,
-             unnest(@payloads::text[]) AS payload) t
-ON CONFLICT (topic, dedupe_key) DO NOTHING;
-
 -- Checkout idempotency keys past their replay window. Deleting a row frees its
 -- key to be replayed, which is why the window is weeks rather than hours.
 -- name: DeleteOldCheckoutAttempts :exec
 DELETE FROM checkout_attempts
 WHERE created_at < now() - sqlc.arg(retain)::interval;
-
--- Called in the cancellation's own transaction, beside the stock release: the
--- status change is what makes both legal.
--- name: ReverseOrderCredit :one
-SELECT reverse_order_credit(@order_id)::bigint AS returned_cents;
-
--- name: ReverseOrderPoints :one
-SELECT reverse_order_points(@order_id)::bigint AS points_reversed;
 
 -- Does this order number belong to this email address? Both halves in ONE
 -- statement answering a boolean: a caller that got a row back could report WHICH

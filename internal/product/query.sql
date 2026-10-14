@@ -424,12 +424,6 @@ INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, @user_id, @body::text FROM products p
 WHERE p.slug = @slug::text AND p.status = 'active';
 
--- name: AnswerQuestionAsStaff :execrows
-INSERT INTO product_answers (question_id, user_id, body, is_staff)
-SELECT q.id, @user_id, @body::text, true
-FROM product_questions q
-WHERE q.id = @question_id AND q.hidden_at IS NULL;
-
 -- Of the listed campaigns featuring a product, the one that ends first.
 -- name: ListedCampaignOfProduct :one
 SELECT fc.slug, localized_name(fc.title, fc.title_en, @locale::text) AS title,
