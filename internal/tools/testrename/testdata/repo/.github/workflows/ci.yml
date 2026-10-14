@@ -1,0 +1,10 @@
+name: ci
+on:
+  push:
+    paths:
+      - alpha/alpha_test.go
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: go test -run '^TestParseEmpty$' ./alpha
