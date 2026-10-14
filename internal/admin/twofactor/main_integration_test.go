@@ -89,7 +89,7 @@ func mailedCode(t *testing.T, address string) string {
 }
 
 func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
@@ -120,7 +120,7 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 // the statement. A sequential test passes with the guard in Go.
 func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
@@ -173,7 +173,7 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 
 func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	old := enrol(t, s, userID, email)
 
@@ -215,7 +215,7 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 // new authenticator does not finish enrolment without the one mailed to the
 // account's address.
 func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	u := user.User{ID: userID, Email: email, Role: user.RoleAdmin}
@@ -275,7 +275,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 
 func TestAMailedCodeIsFreshLatestAndSingleUse(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 
 	t.Run("spent", func(t *testing.T) {
 		userID, email := admintest.AdminUser(t, pool)
@@ -366,7 +366,7 @@ func (r *restartAfterRead) TraceQueryEnd(_ context.Context, _ *pgx.Conn, data pg
 func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 	ctx := t.Context()
 	userID, email := admintest.AdminUser(t, pool)
-	other := twofactor.NewStore(pool, testKey)
+	other := twofactor.NewStore(pool, testKey, nil)
 	first, _, err := other.Begin(ctx, userID, email)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -398,7 +398,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 		t.Fatalf("open pool: %v", err)
 	}
 	defer tracedPool.Close()
-	s := twofactor.NewStore(tracedPool, testKey)
+	s := twofactor.NewStore(tracedPool, testKey, nil)
 
 	step := twofactor.StepAt(time.Now())
 	if err = s.Confirm(ctx, userID, twofactor.Code(first, step), mailed); err == nil {
@@ -421,7 +421,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 // alone cannot swap the second factor for the attacker's own device.
 func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	original := enrol(t, s, userID, email)
 
@@ -450,7 +450,7 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 
 func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 
 	secret, _, err := s.Begin(ctx, userID, email)
@@ -476,7 +476,7 @@ func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 // defeat the factor.
 func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
@@ -494,7 +494,7 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
 
-	other := twofactor.NewStore(pool, differentKey)
+	other := twofactor.NewStore(pool, differentKey, nil)
 	if err := other.Verify(ctx, userID, twofactor.Code(secret, twofactor.StepAt(time.Now())+1)); err == nil {
 		t.Error("a credential verified under the wrong encryption key")
 	}
@@ -503,11 +503,11 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 // TestACredentialSealedUnderAnotherKeyIsNotAWrongCode makes a key rotation
 // legible: no digits can fix a credential the configured key cannot open.
 func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
-	other := twofactor.NewStore(pool, differentKey)
+	other := twofactor.NewStore(pool, differentKey, nil)
 	err := other.Verify(t.Context(), userID,
 		twofactor.Code(secret, twofactor.StepAt(time.Now())+1))
 	if !errors.Is(err, twofactor.ErrSecretUnreadable) {
@@ -522,10 +522,10 @@ func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
 // POST redirects to a stable recovery state, while GET must render that same
 // state directly because its Enrolled read decrypts before POST can run.
 func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	enrol(t, s, userID, email)
-	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey),
+	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey, nil),
 		slog.New(slog.DiscardHandler))
 	u := user.User{ID: userID, Email: email}
 
@@ -566,7 +566,7 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 // out of the user-correctable branch. Retrying different digits cannot repair a
 // failed security-state write, and calling it a bad code hides the incident.
 func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 
 	t.Run("step-up verification", func(t *testing.T) {
@@ -644,7 +644,7 @@ func forceTOTPUpdateFailure(t *testing.T, userID string) {
 // TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails: the factor can
 // stay committed, but a failed session stamp is a fault, not /admin?enrolled=1.
 func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
@@ -690,7 +690,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 // TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess: a missing cookie is a
 // signed-out request. Enrolment can stay committed; the 303 is not success.
 func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
@@ -767,7 +767,7 @@ func forceSessionMarkFailure(t *testing.T, userID string) {
 
 func TestSessionVerificationExpires(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, _ := admintest.AdminUser(t, pool)
 
 	const token = "a-session-token-for-this-test"
@@ -822,7 +822,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 }
 
 func TestNoKeyMeansNoEnrolment(t *testing.T) {
-	s := twofactor.NewStore(pool, nil)
+	s := twofactor.NewStore(pool, nil, nil)
 	userID, email := admintest.AdminUser(t, pool)
 
 	if s.Enabled() {
@@ -851,7 +851,7 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 // !Enabled branch, whose whole job is to say the factor is off.
 func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
-	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler))
+	h := twofactor.NewHandler(twofactor.NewStore(pool, nil, nil), slog.New(slog.DiscardHandler))
 
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)

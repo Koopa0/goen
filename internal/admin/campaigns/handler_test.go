@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -73,5 +74,21 @@ func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A browser that left mid-upload has no one to read a notice: the answer is
+// empty and nothing is logged as a failure.
+func TestAnAbandonedUploadIsAnsweredWithNothing(t *testing.T) {
+	t.Parallel()
+	var diagnostics bytes.Buffer
+	h := &Handler{log: slog.New(slog.NewJSONHandler(&diagnostics, nil))}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/upload", nil)
+	req.SetPathValue("slug", "upload-fixture")
+	res := httptest.NewRecorder()
+	err := fmt.Errorf("read upload: %w", media.ErrUploadAborted)
+	h.respondToUploadError(res, req, err)
+	if res.Body.Len() != 0 || diagnostics.Len() != 0 {
+		t.Errorf("abandoned upload wrote body %q and log %q, want neither", res.Body.String(), diagnostics.String())
 	}
 }

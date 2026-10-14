@@ -32,9 +32,12 @@ WHERE user_id = @user_id
 
 -- Record an accepted code. The step guard is in the statement: two requests
 -- replaying one code both pass a check made in Go, and only one can win here.
+-- A secret the current key did not open arrives re-sealed under it and is
+-- written by the same statement that accepts the code; NULL leaves it alone.
 -- name: RecordTOTPStep :execrows
 UPDATE staff_totp_credentials
-SET last_step = @step::bigint
+SET last_step = @step::bigint,
+    secret_encrypted = coalesce(sqlc.narg(resealed)::bytea, secret_encrypted)
 WHERE user_id = @user_id
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < @step::bigint);

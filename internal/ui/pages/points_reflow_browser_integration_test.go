@@ -11,19 +11,11 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
-	if testing.Short() {
-		t.Skip("needs Chrome and Node")
-	}
-	chrome, err := exec.CommandContext(t.Context(), "../../../scripts/resolve-chrome.sh").Output()
-	if err != nil {
-		t.Skip("Chrome unavailable")
-	}
-	if _, lookErr := exec.LookPath("node"); lookErr != nil {
-		t.Skip("Node unavailable")
-	}
+	chrome := uitest.LocalChrome(t)
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		var rendered bytes.Buffer
@@ -40,7 +32,7 @@ func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
 	}
 	command := exec.CommandContext(t.Context(), "node", "scripts/points-reflow-check.mjs")
 	command.Dir = filepath.Join("..", "..", "..")
-	command.Env = append(command.Environ(), "CHROME="+string(bytes.TrimSpace(chrome)))
+	command.Env = append(command.Environ(), "CHROME="+chrome)
 	command.Stdin = bytes.NewReader(input)
 	output, err := command.CombinedOutput()
 	t.Log(string(output))

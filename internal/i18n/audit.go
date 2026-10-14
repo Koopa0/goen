@@ -7,6 +7,14 @@ var (
 
 	KeyAuditNewsletterCompose = key("audit.newsletter.compose", Message{ZhHant: "撰寫電子報", En: "Compose newsletter"})
 
+	KeyAuditRefundProviderAttempt        = key("audit.refund.provider_attempt", Message{ZhHant: "退款已送出至刷卡服務商", En: "Refund sent to the card processor"})
+	KeyAuditRefundProviderRejected       = key("audit.refund.provider_rejected", Message{ZhHant: "刷卡服務商拒絕退款", En: "Card processor refused the refund"})
+	KeyAuditRefundProviderPending        = key("audit.refund.provider_pending", Message{ZhHant: "刷卡服務商回報退款處理中", En: "Card processor reports the refund pending"})
+	KeyAuditRefundProviderRequiresAction = key("audit.refund.provider_requires_action", Message{ZhHant: "刷卡服務商回報退款需要處理", En: "Card processor reports the refund needing action"})
+	KeyAuditRefundProviderSucceeded      = key("audit.refund.provider_succeeded", Message{ZhHant: "刷卡服務商回報退款成功", En: "Card processor reports the refund succeeded"})
+	KeyAuditRefundProviderFailed         = key("audit.refund.provider_failed", Message{ZhHant: "刷卡服務商回報退款失敗", En: "Card processor reports the refund failed"})
+	KeyAuditRefundProviderCancelled      = key("audit.refund.provider_cancelled", Message{ZhHant: "刷卡服務商回報退款已取消", En: "Card processor reports the refund cancelled"})
+
 	KeyAuditShipmentDelivered = key("audit.shipment.delivered", Message{ZhHant: "標記包裹已送達", En: "Mark parcel delivered"})
 
 	KeyAuditFieldDeliveredAt = key("audit.field.delivered_at", Message{ZhHant: "送達時間", En: "Delivered at"})

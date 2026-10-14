@@ -722,8 +722,11 @@ func (s *Store) ReconcileOnce(ctx context.Context) (ReconcileResult, error) {
 	operationID, err := s.q.LeaseInvoiceOperation(ctx, db.LeaseInvoiceOperationParams{
 		OperationID: uuid.Nil, LeaseOwner: owner, LeaseFor: interval(operationLease),
 	})
-	if err != nil || operationID == uuid.Nil {
-		return ReconcileResult{}, err
+	if err != nil {
+		return ReconcileResult{}, fmt.Errorf("lease invoice operation: %w", err)
+	}
+	if operationID == uuid.Nil {
+		return ReconcileResult{}, nil
 	}
 	result := ReconcileResult{Worked: true, OperationID: operationID}
 	if op, loadErr := s.operation(ctx, operationID); loadErr == nil {
@@ -744,6 +747,9 @@ func (s *Store) ReconcileOnce(ctx context.Context) (ReconcileResult, error) {
 
 // ReconcileForever polls durable invoice operations until shutdown. Logs carry
 // only local categories, never frozen PII, provider payloads or credentials.
+// The one exception is a failure to lease: no operation has been loaded then,
+// so the error is a database or transport error about a call whose arguments
+// are ids and an interval, and it names why nothing is being reconciled.
 func (s *Store) ReconcileForever(ctx context.Context, log *slog.Logger) {
 	if log == nil {
 		panic("invoice: ReconcileForever requires a logger")
@@ -753,9 +759,14 @@ func (s *Store) ReconcileForever(ctx context.Context, log *slog.Logger) {
 	for {
 		result, err := s.ReconcileOnce(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			log.WarnContext(ctx, "invoice reconciliation deferred",
+			attrs := []any{
 				"operation", result.OperationID, "order", result.OrderID,
-				"category", result.Category)
+				"category", result.Category,
+			}
+			if result.OperationID == uuid.Nil {
+				attrs = append(attrs, "error", err)
+			}
+			log.WarnContext(ctx, "invoice reconciliation deferred", attrs...)
 		}
 		if result.Worked {
 			continue

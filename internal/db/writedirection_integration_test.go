@@ -382,7 +382,8 @@ var writeExemptions = map[string]string{
 }
 
 // generatedQuery matches one sqlc-generated query constant and its SQL body. sqlc emits one db
-// package, so any store may call any query whichever .sql file declared it.
+// package, so the compiler lets any store call any query; queryowners_test.go holds each query to
+// the package whose query.sql declares it.
 var generatedQuery = regexp.MustCompile(
 	"(?s)const \\w+ = `-- name: (\\w+) :\\w+\n(.*?)\n`")
 
@@ -492,12 +493,12 @@ func stripSQLComments(src string) string {
 // storefrontPackages run on the pool that does SET ROLE store, mirroring cmd/goen's wiring.
 var storefrontPackages = []string{
 	"account", "cart", "catalog", "contact", "home", "loyalty", "media",
-	"newsletter", "order/access", "order/notice", "outbox", "payment", "product", "returns/buyer", "site", "warranty",
+	"newsletter", "order/access", "order/cancellation", "order/notice", "outbox", "payment", "product", "returns/buyer", "site", "warranty",
 }
 
 // backOfficePackages run on the pool that does SET ROLE admin.
 var backOfficePackages = []string{
-	"admin", "media", "newsletter", "order/notice", "outbox", "invoice",
+	"admin", "media", "newsletter", "order/cancellation", "order/notice", "outbox", "invoice",
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.

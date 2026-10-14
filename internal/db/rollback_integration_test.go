@@ -5,6 +5,11 @@ package db_test
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/koopa0/goen/internal/db"
 )
 
 // TestARolledBackTransactionKeepsItsConnection settles which context a deferred
@@ -69,5 +74,110 @@ func TestARolledBackTransactionKeepsItsConnection(t *testing.T) {
 					"they can be normalised to the plain context")
 			}
 		})
+	}
+}
+
+// onePool is a pool with a single connection, so every transaction and every
+// later query run on the same backend: a rollback that left the transaction
+// open starves the next caller, and one that destroyed the connection shows as
+// a different backend pid.
+func onePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	cfg := pool.Config().Copy()
+	cfg.MinConns, cfg.MaxConns = 0, 1
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open the single-connection pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+// TestRollbackEndsATransactionTheClientAbandoned runs db.Rollback itself, not
+// pgx's Rollback, against the real server after the request's context is
+// cancelled.
+//
+// The transaction creates a temporary table, which is transactional DDL: it
+// exists afterwards only if the transaction committed or was never ended. The
+// connection must then be idle (not in a transaction), the same backend, and
+// free for the next caller. A Rollback that does nothing leaves the connection
+// checked out, so the next acquire times out; one that rolls back on the
+// cancelled context makes pgx destroy the connection, so the pid changes.
+func TestRollbackEndsATransactionTheClientAbandoned(t *testing.T) {
+	p := onePool(t)
+	ctx, cancel := context.WithCancel(t.Context())
+
+	tx, err := p.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	// If db.Rollback is broken the transaction still holds the only
+	// connection, and closing the pool would wait for it for ever.
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	var pid int32
+	if err = tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		t.Fatalf("backend pid: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE rollback_probe (x int)`); err != nil {
+		t.Fatalf("create the probe table: %v", err)
+	}
+
+	cancel()
+	db.Rollback(ctx, tx)
+
+	next, cancelNext := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelNext()
+	conn, err := p.Acquire(next)
+	if err != nil {
+		t.Fatalf("acquire after db.Rollback: %v (the transaction still holds the connection)", err)
+	}
+	defer conn.Release()
+
+	if status := conn.Conn().PgConn().TxStatus(); status != 'I' {
+		t.Errorf("transaction status after db.Rollback = %q, want 'I' (idle)", status)
+	}
+	var gotPid int32
+	var probe *string
+	if err := conn.QueryRow(next, `SELECT pg_backend_pid(), to_regclass('pg_temp.rollback_probe')::text`).Scan(&gotPid, &probe); err != nil {
+		t.Fatalf("query after db.Rollback: %v", err)
+	}
+	if gotPid != pid {
+		t.Errorf("backend pid after db.Rollback = %d, want %d: the connection was destroyed instead of rolled back cleanly", gotPid, pid)
+	}
+	if probe != nil {
+		t.Errorf("table %s created inside the transaction exists after db.Rollback: the transaction was not rolled back", *probe)
+	}
+}
+
+// TestRollbackLeavesACommittedTransactionAlone is why Rollback can be deferred
+// right after Begin: after Commit it must change nothing and leave the
+// connection usable.
+func TestRollbackLeavesACommittedTransactionAlone(t *testing.T) {
+	p := onePool(t)
+	ctx := t.Context()
+
+	tx, err := p.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	// If db.Rollback is broken the transaction still holds the only
+	// connection, and closing the pool would wait for it for ever.
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	if _, err := tx.Exec(ctx, `CREATE TEMP TABLE commit_probe (x int)`); err != nil {
+		t.Fatalf("create the probe table: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	db.Rollback(ctx, tx)
+
+	next, cancelNext := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelNext()
+	var probe *string
+	if err := p.QueryRow(next, `SELECT to_regclass('pg_temp.commit_probe')::text`).Scan(&probe); err != nil {
+		t.Fatalf("query after Commit and db.Rollback: %v", err)
+	}
+	if probe == nil {
+		t.Error("db.Rollback after Commit undid the committed table")
 	}
 }

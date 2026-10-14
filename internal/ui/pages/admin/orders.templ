@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -99,15 +100,15 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 			if len(v.Runway) == 0 {
 				switch v.RunwayBasis {
 					case RunwayEstimated:
-						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays) }</p>
+						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, inventory.CoverWarnDays, inventory.CoverWarnDays) }</p>
 					case RunwayNothingInStock:
-						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, CoverWindowDays, CoverWindowDays) }</p>
+						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, inventory.CoverWindowDays, inventory.CoverWindowDays) }</p>
 					default:
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown) }</p>
 				}
 			} else {
-				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), CoverWindowDays, coverWarnDays) }</p>
-				@StockRiskRows(v.Runway, 0, CoverWindowDays)
+				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), inventory.CoverWindowDays, inventory.CoverWarnDays) }</p>
+				@StockRiskRows(v.Runway, 0, inventory.CoverWindowDays)
 			}
 			<p class="goen-admin__hint">
 				if v.RunwayCut {
@@ -836,7 +837,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
-				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
+				@StockRiskSection(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays)
 			</section>
 		}
 		<section aria-labelledby="stock-list-heading">

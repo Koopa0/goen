@@ -170,7 +170,10 @@ store before anything else.
 - `internal/db/{db,models,query.sql,orders_export.sql}.go` and every
   `*_templ.go` are generated. Edit the `.sql` or `.templ` source and run
   `make sqlc` or `make gen`; the gate compares the output against a fresh
-  generation. `tx.go` and `pgerror.go` in that package are hand-written.
+  generation. `tx.go` and `pgerror.go` in that package are hand-written. A query
+  is declared in the `query.sql` of the package that calls it; a query another
+  package needs is reached through the owner, and `internal/db/queryowners_test.go`
+  lists the remaining exceptions, which may only shrink.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
   is a hope. Plant the defect it exists to catch, watch it go red for the stated
   reason, restore, and say so in the pull request.
@@ -192,6 +195,12 @@ store before anything else.
   unexported names.
 - Put a helper shared by several packages in the area's helper package, such
   as `admintest` or `dbtest`.
+- A test that drives a real browser has the `_browser_test.go` suffix
+  (`_browser_integration_test.go` when it also needs the `integration` tag),
+  learns that it may run only through `internal/ui/uitest` (`Browser`,
+  `LocalChrome`), and is run by name from the Makefile's `check-layout-run` or
+  a workflow. A test may read CSS or JS text only where the bytes are the
+  contract, and `internal/repocheck/assetreaders_test.go` lists each one.
 
 ## Changes that need the maintainer first
 

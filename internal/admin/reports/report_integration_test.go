@@ -14,6 +14,7 @@ import (
 	stockdesk "github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -23,14 +24,14 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
 	unpaid := reportOrder(t, 100000, false)
 	_ = unpaid
-	mid, err := s.ReportAt(ctx, 30, time.Now())
+	mid, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 
 	reportOrder(t, 100000, true)
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -51,6 +52,48 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 		t.Errorf("revenue went %d → %d, want +100000",
 			before.RevenueCents, after.RevenueCents)
 	}
+}
+
+// A report counts the orders placed before the moment it is asked about, and the
+// database stamps an order with its own clock. Asked with a host clock that
+// runs behind the database's, an order made a moment ago is not there yet, so a
+// test that places an order and then asks about "now" must ask with the
+// database's clock. This fixes both halves without waiting for a clock that
+// happens to differ: the host 2 ms behind the stamp misses the order, the
+// database's own clock does not.
+func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool)
+
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	orderID := reportOrder(t, 100000, false)
+	var placedAt time.Time
+	if err = pool.QueryRow(ctx, `SELECT placed_at FROM orders WHERE id = $1`, orderID).Scan(&placedAt); err != nil {
+		t.Fatalf("read placed_at: %v", err)
+	}
+
+	behind, err := s.ReportAt(ctx, 30, placedAt.Add(-2*time.Millisecond))
+	if err != nil {
+		t.Fatalf("report from a host clock behind the database: %v", err)
+	}
+	if behind.Placed != before.Placed {
+		t.Errorf("asked 2 ms before the order was stamped, the report places %d orders, want the %d it had: "+
+			"the order lies in the future of the question, which is what DatabaseNow avoids",
+			behind.Placed, before.Placed)
+	}
+
+	at, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
+	if err != nil {
+		t.Fatalf("report at the database clock: %v", err)
+	}
+	if at.Placed != before.Placed+1 {
+		t.Errorf("asked at the database's clock, the report places %d orders, want %d", at.Placed, before.Placed+1)
+	}
+	t.Logf("orders placed: %d before, %d asked 2 ms before the stamp, %d asked at the database clock",
+		before.Placed, behind.Placed, at.Placed)
 }
 
 func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
@@ -124,7 +167,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 
 	assertSeller := func(stage string) {
 		t.Helper()
-		view, err := s.ReportAt(ctx, 30, time.Now())
+		view, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 		if err != nil {
 			t.Fatalf("%s report: %v", stage, err)
 		}
@@ -366,7 +409,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool)
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -386,7 +429,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 		t.Fatalf("the fixture wrote %d payments; this case is about an order with none", payments)
 	}
 
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -416,7 +459,7 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 		orderOnVariant(t, estimatedID, estimated, 1, nil)
 	}
 
-	now := time.Now()
+	now := admintest.DatabaseNow(t, pool)
 	raw, err := db.New(pool).StockAtRisk(ctx, db.StockAtRiskParams{
 		FromAt: now.AddDate(0, 0, -30), ToAt: now.Add(time.Minute),
 	})
@@ -439,11 +482,11 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	var soldOut int
 	afterSoldOut := true
 	for i, r := range view.AtRisk {
-		if r.Estimate().State != admin.CoverSoldOut {
+		if r.Estimate().State != inventory.CoverSoldOut {
 			continue
 		}
 		soldOut++
-		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+		if i > 0 && view.AtRisk[i-1].Estimate().State != inventory.CoverSoldOut {
 			afterSoldOut = false
 		}
 	}
@@ -457,8 +500,8 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	switch {
 	case !ok:
 		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
-	case row.Estimate().State != admin.CoverEstimated:
-		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Estimate().State != inventory.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, inventory.CoverEstimated)
 	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
 		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
 			row.Sellable, row.Sold, row.Orders)
@@ -872,7 +915,7 @@ func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testi
 	orderOnVariant(t, declinedID, declined, 6, nil)
 	returnUnits(t, orderOf(t, declined, false), 2, "rejected")
 
-	view, err := s.ReportAt(ctx, 30, time.Now())
+	view, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -1164,7 +1207,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	idB := newCategory(t, rootB, nil)
 	idChild := newCategory(t, departmentName("child", suffix), &idA)
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -1183,7 +1226,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 		refunded, staff, "dept-"+refunded); err != nil {
 		t.Fatalf("refund before shipment: %v", err)
 	}
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
