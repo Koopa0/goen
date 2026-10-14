@@ -107,12 +107,16 @@ func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
 		t.Fatalf("record customer.view: %v", err)
 	}
 
+	var address string
+	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, customerID).Scan(&address); err != nil {
+		t.Fatalf("read the customer's address: %v", err)
+	}
 	row, ok := customerViewRow(t, ctx, customerID)
 	if !ok {
 		t.Fatal("the customer.view row is not on the trail")
 	}
-	if row.CustomerName != "取消點數" {
-		t.Errorf("CustomerName = %q, want the customer's name", row.CustomerName)
+	if row.CustomerEmail != address {
+		t.Errorf("CustomerEmail = %q, want the customer's address %q", row.CustomerEmail, address)
 	}
 
 	if _, err := pool.Exec(ctx, `SELECT erase_user($1)`, customerID); err != nil {
@@ -122,15 +126,15 @@ func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
 	if !ok {
 		t.Fatal("the customer.view row vanished with the account")
 	}
-	if row.CustomerName != "" {
-		t.Errorf("CustomerName after erasure = %q, want empty", row.CustomerName)
+	if row.CustomerEmail != "" {
+		t.Errorf("CustomerEmail after erasure = %q, want empty", row.CustomerEmail)
 	}
 }
 
 // TestAStaffGrantNamesThePersonUntilTheAccountIsErased: the grant row holds the
-// target's id and the role, never the address. The page looks the name up when
-// it renders, so erasing the account leaves a row that still shows, with no
-// subject and no email anywhere.
+// target's id and the role, never the address. The page looks the address up
+// when it renders, so erasing the account leaves a row that still shows, with
+// no subject and no email anywhere.
 func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	address := "granted-" + uuid.NewString()[:8] + "@goen.invalid"
@@ -162,14 +166,14 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 	}
 
 	row, html := page()
-	if row.Subject != "被授權同事" {
-		t.Errorf("Subject = %q, want the target's current name", row.Subject)
+	if row.Subject != address {
+		t.Errorf("Subject = %q, want the target's current address %q", row.Subject, address)
 	}
-	if !strings.Contains(html, "被授權同事") {
-		t.Error("the page does not show the target's name")
+	if !strings.Contains(html, address) {
+		t.Error("the page does not show the target's address")
 	}
-	if strings.Contains(html, address) {
-		t.Error("the page shows the target's email address")
+	if strings.Contains(html, "被授權同事") {
+		t.Error("the page shows the target's display name")
 	}
 
 	if _, err := pool.Exec(ctx, `SELECT erase_user($1)`, target); err != nil {

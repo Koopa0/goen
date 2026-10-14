@@ -28,6 +28,10 @@ import (
 // field drops it from the list.
 func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
+	var staffAddress string
+	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, staff).Scan(&staffAddress); err != nil {
+		t.Fatalf("read the staff member's address: %v", err)
+	}
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	q := db.New(pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -133,9 +137,9 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		{Label: i18n.KeyAdminTimelineProvider, ActorKind: admin.ActorProvider},
 		{Label: i18n.KeyStatusPaid, ActorKind: admin.ActorProvider},
 		{Label: i18n.KeyAdminTimelineMailPaid, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
-		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: "稽核測試"},
+		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: staffAddress},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
-			ActorKind: admin.ActorStaff, Actor: "稽核測試"},
+			ActorKind: admin.ActorStaff, Actor: staffAddress},
 		// The store has no invoice writer, so nothing will send the void.
 		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: admin.ActorSystem},
 		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},

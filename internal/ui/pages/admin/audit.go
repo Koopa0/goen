@@ -17,11 +17,11 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Changes   []AuditChange
-	// CustomerName is the customer a customer.view row is about, by CustomerID.
-	// It is empty when the account is erased or has neither a name nor an email
-	// to read.
-	CustomerName string
-	CustomerID   string
+	// CustomerEmail is the customer a customer.view row is about, by CustomerID:
+	// their current address, never the display name they may edit. It is empty
+	// when the account is erased.
+	CustomerEmail string
+	CustomerID    string
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool

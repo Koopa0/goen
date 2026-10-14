@@ -98,7 +98,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 			Changes: []AuditChange{{Field: "kind", After: "amount"}, {Field: "value", After: "50"}},
 		},
 		{
-			Action: "customer.view", Entity: "users", Actor: "staff", At: "2026-10-02 10:00", CustomerName: "王小明", CustomerID: customerID,
+			Action: "customer.view", Entity: "users", Actor: "staff", At: "2026-10-02 10:00", CustomerEmail: "wang@example.test", CustomerID: customerID,
 			Changes: []AuditChange{{Field: "user_id", After: customerID}},
 		},
 		{
@@ -108,7 +108,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 	}}))
 	for _, want := range []string{
 		"NT$99,999", "T-CAT (Black Cat)", "NT$50", "Fixed amount",
-		`<a href="/admin/customers/` + customerID + `">王小明</a>`,
+		`<a href="/admin/customers/` + customerID + `">wang@example.test</a>`,
 		"<dt>This record includes the field “odd_key”.</dt>", "<dd>odd</dd>",
 	} {
 		if !strings.Contains(html, want) {

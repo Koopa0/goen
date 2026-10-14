@@ -181,7 +181,7 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 		default:
 			row.Text = show(c.Before + c.After)
 		}
-		if c.Field == "user_id" && e.CustomerName != "" {
+		if c.Field == "user_id" && e.CustomerEmail != "" {
 			row.Href = "/admin/customers/" + e.CustomerID
 		}
 		rows = append(rows, row)
@@ -274,8 +274,8 @@ func couponValueText(_ context.Context, e AuditEntry, value string) string {
 }
 
 func customerText(_ context.Context, e AuditEntry, value string) string {
-	if e.CustomerName != "" {
-		return e.CustomerName
+	if e.CustomerEmail != "" {
+		return e.CustomerEmail
 	}
 	return value
 }

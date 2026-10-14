@@ -1434,7 +1434,7 @@ FROM (
                      WHERE p.order_id = e.order_id AND p.status = 'succeeded'
                  ) THEN 'provider'
                  ELSE 'system' END)::text AS actor_kind,
-           coalesce(u.full_name, u.email, '')::text AS actor_name
+           coalesce(u.email, '')::text AS actor_name
     FROM order_events e
     LEFT JOIN users u ON u.id = e.actor_user_id
     WHERE e.order_id = $1
@@ -1453,7 +1453,7 @@ FROM (
                      AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
                 THEN substring(op.last_error FROM '[0-9]+$')
                 ELSE '' END,
-           op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.actor_kind, coalesce(u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = $1
@@ -1504,6 +1504,8 @@ type AdminOrderTimelineRow struct {
 // succeeded, and otherwise store credit or a discount closing the funding.
 // An invoice operation and a mail are placed at their creation; status is where
 // they stand now, and done_at when a succeeded operation or a delivered mail got there.
+// The staff member behind an event is named by CURRENT email, never by the
+// editable full_name.
 func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.InvoicingEnabled, arg.MailTopics)
 	if err != nil {
@@ -1977,7 +1979,7 @@ func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([
 
 const adminQuestionAnswers = `-- name: AdminQuestionAnswers :many
 SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
-       coalesce(u.full_name, '')::text AS author
+       CASE WHEN a.is_staff THEN coalesce(u.email, '') ELSE coalesce(u.full_name, '') END::text AS author
 FROM product_answers a
 LEFT JOIN users u ON u.id = a.user_id
 WHERE a.question_id = ANY($1::uuid[])
@@ -1994,6 +1996,9 @@ type AdminQuestionAnswersRow struct {
 	Author     string
 }
 
+// A staff answer names its author by CURRENT email, not by full_name, which the
+// author can change on /account/profile; a customer's answer keeps the name
+// that customer gave.
 func (q *Queries) AdminQuestionAnswers(ctx context.Context, questionIds []uuid.UUID) ([]AdminQuestionAnswersRow, error) {
 	rows, err := q.db.Query(ctx, adminQuestionAnswers, questionIds)
 	if err != nil {
@@ -3130,7 +3135,7 @@ func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef 
 const auditEvents = `-- name: AuditEvents :many
 SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, a.actor_id_snapshot::text, '') AS actor,
+       coalesce(u.email, a.actor_id_snapshot::text, '') AS actor,
        (a.actor_kind = 'system')::boolean AS by_system,
        -- What a person calls the record: the order number (for a return, refund or
        -- payment, its order's), the SKU, or the slug. Empty where no name exists
@@ -3146,11 +3151,11 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
                                 JOIN orders o ON o.id = p.order_id WHERE rf.id = a.entity_id)
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pv.sku FROM product_variants pv WHERE pv.id = a.entity_id)
-           -- A staff change names the person it acted on by their CURRENT name; the
+           -- A staff change names the person it acted on by their CURRENT address; the
            -- row holds only the id, so an erased account leaves it blank. A customer
            -- view has its own column below.
            WHEN 'users' THEN CASE WHEN a.action <> 'customer.view' THEN
-               (SELECT coalesce(nullif(tu.full_name, ''), tu.email) FROM users tu WHERE tu.id = a.entity_id)
+               (SELECT tu.email FROM users tu WHERE tu.id = a.entity_id)
            END
        END, '')::text AS subject,
        coalesce(CASE a.entity_table
@@ -3159,8 +3164,8 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
                                          JOIN products pr ON pr.id = pv.product_id WHERE pv.id = a.entity_id)
        END, '')::text AS product_slug,
        coalesce(CASE WHEN a.action = 'customer.view' THEN
-           (SELECT coalesce(nullif(cu.full_name, ''), cu.email) FROM users cu WHERE cu.id = a.entity_id)
-       END, '')::text AS customer_name
+           (SELECT cu.email FROM users cu WHERE cu.id = a.entity_id)
+       END, '')::text AS customer_email
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 WHERE (NOT $1::boolean OR (a.occurred_at < $2::timestamptz)
@@ -3177,21 +3182,27 @@ type AuditEventsParams struct {
 }
 
 type AuditEventsRow struct {
-	PageCursor   string
-	Action       string
-	EntityTable  string
-	EntityID     uuid.NullUUID
-	Before       []byte
-	After        []byte
-	RequestID    pgtype.Text
-	OccurredAt   time.Time
-	Actor        string
-	BySystem     bool
-	Subject      string
-	ProductSlug  string
-	CustomerName string
+	PageCursor    string
+	Action        string
+	EntityTable   string
+	EntityID      uuid.NullUUID
+	Before        []byte
+	After         []byte
+	RequestID     pgtype.Text
+	OccurredAt    time.Time
+	Actor         string
+	BySystem      bool
+	Subject       string
+	ProductSlug   string
+	CustomerEmail string
 }
 
+// A person is named by their CURRENT email, never by full_name: anyone may
+// change their own name on /account/profile, so a name on an audit row would let
+// an actor pass their rows to a colleague. Staff cannot change their email
+// (ChangeEmail refuses them), and it is unique. The row stores only ids; the
+// address is read here at render time, and an erased account falls back to the
+// recorded id.
 func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]AuditEventsRow, error) {
 	rows, err := q.db.Query(ctx, auditEvents,
 		arg.HasCursor,
@@ -3219,7 +3230,7 @@ func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]Aud
 			&i.BySystem,
 			&i.Subject,
 			&i.ProductSlug,
-			&i.CustomerName,
+			&i.CustomerEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -11830,7 +11841,7 @@ const orderRefundRows = `-- name: OrderRefundRows :many
 SELECT channel, amount_cents, at, reason, staff FROM (
     SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
            coalesce(rf.reason, '')::text AS reason,
-           coalesce((SELECT coalesce(u.full_name, u.email)
+           coalesce((SELECT u.email
                      FROM audit_events a JOIN users u ON u.id = a.actor_user_id
                      WHERE a.entity_table = 'refunds' AND a.entity_id = rf.id
                      ORDER BY a.occurred_at LIMIT 1), '')::text AS staff
@@ -11839,7 +11850,7 @@ SELECT channel, amount_cents, at, reason, staff FROM (
     UNION ALL
     SELECT 'credit'::text, e.amount_cents, e.created_at,
            e.reason::text,
-           coalesce((SELECT coalesce(u.full_name, u.email) FROM users u
+           coalesce((SELECT u.email FROM users u
                      WHERE u.id = e.actor_user_id), '')::text
     FROM store_credit_entries e
     WHERE e.order_id = $1 AND e.amount_cents > 0
@@ -11859,6 +11870,7 @@ type OrderRefundRowsRow struct {
 // Credit refunds are the positive store-credit entries, the same definition
 // order_refunds uses. Who: the staff member the audit trail names for a card
 // refund, and the entry's own actor for a credit one; empty when none is known.
+// Both are named by CURRENT email, never by the editable full_name.
 func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]OrderRefundRowsRow, error) {
 	rows, err := q.db.Query(ctx, orderRefundRows, orderID)
 	if err != nil {
@@ -18939,7 +18951,7 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 const variantMovements = `-- name: VariantMovements :many
 SELECT json_build_object('ID', m.id)::text AS page_cursor, m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
-       coalesce(u.full_name, u.email, '') AS actor,
+       coalesce(u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
 FROM inventory_movements m
@@ -18978,6 +18990,7 @@ type VariantMovementsRow struct {
 
 // Each source discriminator selects its validated parent. A hold names its
 // order; a release names the reservation and a restock names the return.
+// Who moved the stock is named by CURRENT email, never by the editable full_name.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
 	rows, err := q.db.Query(ctx, variantMovements,
 		arg.SKU,
