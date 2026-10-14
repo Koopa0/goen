@@ -11,7 +11,7 @@ var (
 	KeyMembershipTier = key("account.tier", Message{ZhHant: "會員等級", En: "Membership tier"})
 
 	KeyPointsMultiplier = key("account.tier.multiplier", Message{
-		ZhHant: "購物金點數 %s",
+		ZhHant: "點數倍率 %s",
 		En:     "Points earned at %s",
 	})
 
