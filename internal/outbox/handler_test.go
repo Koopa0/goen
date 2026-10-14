@@ -3,6 +3,8 @@ package outbox
 import (
 	"context"
 	"errors"
+	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -165,4 +167,43 @@ func TestAHangingHandlerIsCutOffAtItsBudget(t *testing.T) {
 				"message is rescheduled on what its handler returns", err)
 		}
 	})
+}
+
+// A message that keeps failing is rescheduled with backoff(m.Attempts), and
+// Attempts has no ceiling of its own: the stuck threshold only slows the retry.
+// Each row is an attempt count a long outage reaches; the large ones are where
+// a doubling that is not clamped overflows time.Duration and comes back
+// negative, which reschedules the message into the past.
+func TestBackoffDoublesFromFourSecondsAndStaysPositive(t *testing.T) {
+	t.Parallel()
+	const longest = 2048 * time.Second // attempt 10, where the doubling stops
+	for _, tt := range []struct {
+		attempts int32
+		want     time.Duration
+	}{
+		{math.MinInt32, 4 * time.Second},
+		{-1, 4 * time.Second},
+		{0, 4 * time.Second},
+		{1, 4 * time.Second},
+		{2, 8 * time.Second},
+		{9, 1024 * time.Second},
+		{10, longest},
+		{11, longest},
+		{32, longest},
+		{33, longest},
+		{34, longest},
+		{64, longest},
+		{math.MaxInt32, longest},
+	} {
+		t.Run(strconv.Itoa(int(tt.attempts)), func(t *testing.T) {
+			t.Parallel()
+			got := backoff(tt.attempts)
+			if got != tt.want {
+				t.Errorf("backoff(%d) = %v, want %v", tt.attempts, got, tt.want)
+			}
+			if got <= 0 || got > time.Hour {
+				t.Errorf("backoff(%d) = %v, outside (0, 1h]", tt.attempts, got)
+			}
+		})
+	}
 }
