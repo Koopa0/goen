@@ -313,7 +313,7 @@ func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader inv
 	if reader == nil {
 		reader = issuer.NewStore(p, &issuer.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk, reports.NewStore(p))
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk, reports.NewStore(p, stock.NewStore(p)))
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

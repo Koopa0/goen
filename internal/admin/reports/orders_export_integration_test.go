@@ -19,6 +19,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -57,7 +58,7 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 	}
 	adminPool := admintest.AdminRolePool(t, p)
 	mux := http.NewServeMux()
-	reports.NewHandler(reports.NewStore(adminPool), slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
+	reports.NewHandler(reports.NewStore(adminPool, stock.NewStore(adminPool)), slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		request := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/reports/orders.csv?month=2024-02", nil)
 		w := httptest.NewRecorder()

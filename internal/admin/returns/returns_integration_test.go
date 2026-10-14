@@ -38,6 +38,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns/buyer"
@@ -2084,7 +2085,7 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
-	figures := reports.NewStore(pool)
+	figures := reports.NewStore(pool, stock.NewStore(pool))
 
 	before, err := figures.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {

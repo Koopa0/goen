@@ -417,7 +417,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
-	salesFigures := reports.NewStore(adminPool)
+	salesFigures := reports.NewStore(adminPool, stockroom)
 	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup, salesFigures), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)
