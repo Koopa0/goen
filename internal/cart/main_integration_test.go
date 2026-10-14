@@ -5515,6 +5515,17 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 			"this test would pass for the wrong reason")
 	}
 
+	// Sweep compares created_at with now(), so a grant that is only just inside
+	// the window is not expired yet and the sweep would keep it even without the
+	// touch. Moving both grants back 2 s puts an untouched first grant at Retain
+	// + 1 s (swept) and a touched one at about 2 s (kept).
+	if _, err := pool.Exec(ctx, `
+		UPDATE order_access_grants SET created_at = created_at - interval '2 seconds'
+		WHERE order_id IN (SELECT id FROM orders WHERE order_number = ANY($1))`,
+		[]string{first, second}); err != nil {
+		t.Fatalf("move both grants back 2 s: %v", err)
+	}
+
 	if err := access.NewStore(pool, false).Sweep(ctx); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
