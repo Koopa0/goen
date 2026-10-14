@@ -4,11 +4,13 @@ package cart_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/bearer"
@@ -49,6 +51,24 @@ func adoptionPool(t *testing.T, applicationName string) *pgxpool.Pool {
 	}
 	t.Cleanup(p.Close)
 	return p
+}
+
+// requireAdopterHoldsUserRow fails unless some transaction holds the account row
+// at NO KEY UPDATE, the strength only adoption takes: checkout's KEY SHARE is
+// compatible with a probe at that strength. Waiting on a cart row is not enough
+// to show the user -> cart order, because an adopter that took the cart first
+// waits there just the same.
+func requireAdopterHoldsUserRow(t *testing.T, userID uuid.UUID) {
+	t.Helper()
+	probe, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin account probe: %v", err)
+	}
+	defer func() { _ = probe.Rollback(context.WithoutCancel(t.Context())) }()
+	_, err = probe.Exec(t.Context(), `SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE NOWAIT`, userID)
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "55P03" {
+		t.Errorf("probe of the account row = %v, want lock_not_available (55P03): adoption waits on the cart without holding the account row first", err)
+	}
 }
 
 func operationResult(t *testing.T, done <-chan error) error {
@@ -260,6 +280,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 	waitForApplicationLock(t, checkoutName, checkoutDone)
 	go func() { adoptionDone <- adoptionStore.Adopt(ctx, u.ID, guestCart) }()
 	waitForApplicationLock(t, adoptionName, adoptionDone)
+	requireAdopterHoldsUserRow(t, userID)
 
 	if err := blocker.Commit(ctx); err != nil {
 		t.Fatalf("release checkout catalogue: %v", err)
