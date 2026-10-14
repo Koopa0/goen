@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -143,7 +144,7 @@ func SearchPattern(q string) string {
 		terms = terms[:MaxSearchTerms]
 	}
 	for i, t := range terms {
-		terms[i] = "%" + EscapeLike(t) + "%"
+		terms[i] = "%" + db.EscapeLike(t) + "%"
 	}
 	return strings.Join(terms, " ")
 }
@@ -155,14 +156,4 @@ func SearchTerms(pattern string) (terms []string, exact string) {
 		bare[i] = strings.TrimSuffix(strings.TrimPrefix(t, "%"), "%")
 	}
 	return terms, strings.Join(bare, " ")
-}
-
-// likeEscaper covers the three characters LIKE and ILIKE read as syntax; the
-// backslash is PostgreSQL's default escape character.
-var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-
-// EscapeLike makes typed words match only themselves: without it a typed % or _
-// is a wildcard, and "%%" matches every row.
-func EscapeLike(s string) string {
-	return likeEscaper.Replace(s)
 }

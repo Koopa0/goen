@@ -4,13 +4,11 @@ package admintest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/health"
@@ -134,16 +132,6 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 		t.Fatalf("commit: %v", err)
 	}
 	return number, orderID, variantID
-}
-
-// ConstraintName is the constraint a PostgreSQL error names, or "" for any
-// other error.
-func ConstraintName(err error) string {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	if !ok {
-		return ""
-	}
-	return pgErr.ConstraintName
 }
 
 // AsAdmin runs one statement with the back office's own database role: the suite

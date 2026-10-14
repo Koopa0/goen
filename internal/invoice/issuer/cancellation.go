@@ -145,7 +145,7 @@ func (s *Store) ClaimVoidDue(ctx context.Context, due *outbox.InvoiceVoidDue) er
 // reach: one voided since it was read, and one with no issue on record, which
 // /admin/health lists. Any other refusal keeps the message queued.
 func voidDueClaimOutcome(documentNumber string, err error) error {
-	switch constraintName(err) {
+	switch db.ConstraintName(err) {
 	case "invoice_void_target", "invoice_void_issue_operation":
 		return nil
 	}

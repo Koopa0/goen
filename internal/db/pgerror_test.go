@@ -55,3 +55,27 @@ func TestWrapRefusalMarksOnlyWhatARuleDecided(t *testing.T) {
 		t.Errorf("db.WrapRefusal(nil) = %v, want nil", got)
 	}
 }
+
+func TestConstraintNameIsTheNamedConstraintOrEmpty(t *testing.T) {
+	t.Parallel()
+	named := &pgconn.PgError{Code: "23505", ConstraintName: "coupons_code_key", Message: "duplicate key"}
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"named", named, "coupons_code_key"},
+		{"wrapped", fmt.Errorf("insert: %w", named), "coupons_code_key"},
+		{"unnamed", &pgconn.PgError{Code: "40001", Message: "serialization failure"}, ""},
+		{"plain", errors.New("coupons_code_key"), ""},
+		{"nil", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := db.ConstraintName(tt.err); got != tt.want {
+				t.Errorf("ConstraintName(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+		})
+	}
+}

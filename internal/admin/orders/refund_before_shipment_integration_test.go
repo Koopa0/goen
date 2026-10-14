@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -38,12 +39,12 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, picking)
 
 			_, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
-			if admintest.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
+			if db.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
 				t.Fatalf("Advance cancelled a paid order: %v", err)
 			}
 			err = admintest.AsAdmin(ctx, t, pool, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 			                       WHERE order_number = '`+number+`'`)
-			if admintest.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
+			if db.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
 				t.Fatalf("the admin role cancelled a paid order directly: %v", err)
 			}
 
@@ -103,7 +104,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 			t.Fatalf("issue invoice: %v", err)
 		}
-		if _, err := desk.RefundBeforeShipment(ctx, number, "顧客取消"); admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
+		if _, err := desk.RefundBeforeShipment(ctx, number, "顧客取消"); db.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 			t.Fatalf("refund with a live invoice = %v", err)
 		}
 		if _, err := pool.Exec(ctx, `
@@ -191,12 +192,12 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 
 			if tc.picking {
 				err := s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "TW-BS-" + number}, actor)
-				if admintest.ConstraintName(err) != "orders_refunded_before_shipment" {
+				if db.ConstraintName(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("shipped an order being refunded: %v", err)
 				}
 			} else {
 				_, err := s.Advance(ctx, number, order.FulfillmentPicking, actor)
-				if admintest.ConstraintName(err) != "orders_refunded_before_shipment" {
+				if db.ConstraintName(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("picked an order being refunded: %v", err)
 				}
 			}
@@ -300,7 +301,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 			if doorFirst {
 				want = "orders_refunded_before_shipment"
 			}
-			if admintest.ConstraintName(second) != want {
+			if db.ConstraintName(second) != want {
 				t.Fatalf("second writer = %v, want %s", second, want)
 			}
 			var shipments, requests int

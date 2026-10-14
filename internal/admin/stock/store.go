@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
@@ -73,7 +72,7 @@ func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, aft
 		// into a 500 instead of the first page.
 		return p.ID != uuid.Nil && !strings.ContainsRune(p.Name, 0)
 	})
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}

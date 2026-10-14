@@ -84,7 +84,7 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (invoice.Document
 		OrderNumber: orderNumber, ActorUserID: actorID, RequestID: requestID,
 	})
 	if err != nil {
-		switch constraintName(err) {
+		switch db.ConstraintName(err) {
 		case "invoice_issue_order":
 			return invoice.Document{}, ErrNotFound
 		case "invoice_documents_one_active_invoice_per_order":
@@ -115,7 +115,7 @@ func (s *Store) ClaimDue(ctx context.Context, due *outbox.InvoiceDue) error {
 // claim. Any other refusal is returned, so the message stays queued and
 // /admin/health shows it rather than the sale going uninvoiced unseen.
 func dueClaimOutcome(orderNumber string, err error) error {
-	switch constraintName(err) {
+	switch db.ConstraintName(err) {
 	case "invoice_documents_one_active_invoice_per_order":
 		return nil
 	case "invoice_issue_itemisation":
@@ -165,7 +165,7 @@ func (s *Store) Void(ctx context.Context, orderNumber, reason string) error {
 // default arm is a 500 Notice, so wrapping them only would hide a blank
 // reason and an already-voided document from the operator.
 func mapVoidClaim(documentNumber string, err error) error {
-	switch constraintName(err) {
+	switch db.ConstraintName(err) {
 	case "invoice_void_reason":
 		return fmt.Errorf("%w: voiding %s needs a reason", ErrReason, documentNumber)
 	case "invoice_void_target":
@@ -203,7 +203,7 @@ func (s *Store) FileAllowance(
 		ActorUserID: actorID, RequestID: requestID,
 	})
 	if err != nil {
-		switch constraintName(err) {
+		switch db.ConstraintName(err) {
 		case "invoice_allowance_within_refund":
 			return invoice.Document{}, fmt.Errorf("%w: concurrent allowances exhausted the refunded amount", ErrTooMuch)
 		case "invoice_operations_one_active_allowance":

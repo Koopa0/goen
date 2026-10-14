@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -189,7 +188,7 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.
 		return nil, nil
 	}
 	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
-		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: searchLimit,
+		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: db.EscapeLike(term), RowLimit: searchLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)
