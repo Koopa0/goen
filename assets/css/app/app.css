@@ -613,6 +613,7 @@ th {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .goen-input {
@@ -5609,6 +5610,7 @@ input.goen-check {
   font-size: var(--fs-ed-30);
   font-weight: var(--fw-display);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-pagehead--search .goen-pagehead__title {
@@ -5627,6 +5629,7 @@ input.goen-check {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* The stock hold in words. While a payment can start it sits on the blue that
@@ -7442,6 +7445,7 @@ input.goen-check {
   font-size: var(--fs-14);
   gap: 0.5rem;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Saved addresses are rows parted by space. */
