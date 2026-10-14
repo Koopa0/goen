@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -1759,10 +1760,7 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 	if ok {
 		return id, nil
 	}
-	token, err := NewToken()
-	if err != nil {
-		return uuid.Nil, err
-	}
+	token := bearer.New()
 	id, err = h.store.Create(r.Context(), token, ownerOf(r))
 	if err != nil {
 		return uuid.Nil, err

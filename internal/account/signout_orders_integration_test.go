@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -56,10 +57,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	variant := sellableVariant(t, ctx)
 	place := func(buyer uuid.NullUUID, previous *http.Cookie) (string, *http.Cookie) {
 		t.Helper()
-		token, err := cart.NewToken()
-		if err != nil {
-			t.Fatalf("cart token: %v", err)
-		}
+		token := bearer.New()
 		cartID, err := shop.Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
@@ -169,10 +167,7 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 	}
 	variant := ownVariant(t, name)
 	for _, buyer := range []uuid.NullUUID{{}, {UUID: uuid.MustParse(p.u.ID), Valid: true}} {
-		token, err := cart.NewToken()
-		if err != nil {
-			t.Fatalf("cart token: %v", err)
-		}
+		token := bearer.New()
 		cartID, err := shop.Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
@@ -319,7 +314,7 @@ func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE sessions SET created_at = now() - interval '15 days',
 		                    expires_at = now() - interval '1 second'
-		WHERE token_hash = $1`, account.HashToken(session.Value)); err != nil {
+		WHERE token_hash = $1`, bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("expire the session: %v", err)
 	}
 
@@ -342,7 +337,7 @@ func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	session := p.signIn()
 	if _, err := pool.Exec(t.Context(), `
 		UPDATE sessions SET created_at = now() - interval '1 day' WHERE token_hash = $1`,
-		account.HashToken(session.Value)); err != nil {
+		bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("age the session: %v", err)
 	}
 	req := cartForm(t.Context(), "/account/erase", url.Values{"confirm": {p.u.Email}})

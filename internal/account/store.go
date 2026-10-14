@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order"
@@ -193,17 +194,14 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	if err != nil {
 		return "", fmt.Errorf("parse user id: %w", err)
 	}
-	token, err := NewToken()
-	if err != nil {
-		return "", err
-	}
+	token := bearer.New()
 	// The column is inet: an unparseable address is NULL rather than a refused sign-in.
 	var addr *netip.Addr
 	if parsed, perr := netip.ParseAddr(ip); perr == nil {
 		addr = &parsed
 	}
 	if err := s.q.CreateSession(ctx, db.CreateSessionParams{
-		TokenHash: HashToken(token),
+		TokenHash: bearer.Digest(token),
 		UserID:    id,
 		UserAgent: text(normaliseUserAgent(userAgent)),
 		IP:        addr,
@@ -221,7 +219,7 @@ func (s *Store) SessionUser(ctx context.Context, token string) (user.User, error
 	if token == "" {
 		return user.User{}, ErrNotFound
 	}
-	row, err := s.q.SessionUser(ctx, HashToken(token))
+	row, err := s.q.SessionUser(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return user.User{}, ErrNotFound
@@ -236,7 +234,7 @@ func (s *Store) SignedInRecently(ctx context.Context, token string, window time.
 		return false, nil
 	}
 	recent, err := s.q.SessionCreatedSince(ctx, db.SessionCreatedSinceParams{
-		TokenHash: HashToken(token),
+		TokenHash: bearer.Digest(token),
 		MaxAge:    pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -252,7 +250,7 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 	if token == "" {
 		return nil
 	}
-	if err := s.q.DeleteSession(ctx, HashToken(token)); err != nil {
+	if err := s.q.DeleteSession(ctx, bearer.Digest(token)); err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
@@ -264,7 +262,7 @@ func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken strin
 		return err
 	}
 	return s.q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
-		UserID: id, CurrentTokenHash: HashToken(currentToken),
+		UserID: id, CurrentTokenHash: bearer.Digest(currentToken),
 	})
 }
 

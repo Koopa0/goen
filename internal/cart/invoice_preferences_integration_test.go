@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/access"
@@ -58,10 +59,7 @@ func TestCheckoutDonationChoiceRoundTripWithoutScript(t *testing.T) {
 		t.Run(tt.kind, func(t *testing.T) {
 			ctx := t.Context()
 			s := cart.NewStore(pool)
-			token, err := cart.NewToken()
-			if err != nil {
-				t.Fatal(err)
-			}
+			token := bearer.New()
 			id, err := s.Create(ctx, token, uuid.NullUUID{})
 			if err != nil {
 				t.Fatal(err)

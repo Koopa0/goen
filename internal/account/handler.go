@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -109,7 +110,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx := user.WithSession(user.NewContext(r.Context(), u), HashToken(token))
+		ctx := user.WithSession(user.NewContext(r.Context(), u), bearer.Digest(token))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

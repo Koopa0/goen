@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -758,7 +759,7 @@ func TestDeadVerificationLinksOfferRecovery(t *testing.T) {
 				if state == "expired" {
 					if _, err := pool.Exec(ctx, `UPDATE email_verifications
 					    SET created_at = now() - interval '50 hours', expires_at = now() - interval '2 hours'
-					    WHERE digest = $1`, account.HashToken(token)); err != nil {
+					    WHERE digest = $1`, bearer.Digest(token)); err != nil {
 						t.Fatal(err)
 					}
 				} else if _, err := s.ConfirmVerification(ctx, token, u.ID); err != nil {
