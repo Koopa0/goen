@@ -216,14 +216,14 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 		allowance.id).Scan(&status, &category); err != nil {
 		t.Fatalf("read the lapsed allowance: %v", err)
 	}
-	if status != "attention" || category != invoice.CategoryBuyerUnconfirmed {
-		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, invoice.CategoryBuyerUnconfirmed)
+	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) {
+		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
 	var view admin.OrderView
 	if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
-	if view.AllowanceAttention != invoice.CategoryBuyerUnconfirmed || view.AllowanceAwaitingUntil != "" {
+	if view.AllowanceAttention != string(invoice.ReasonAllowanceBuyerUnconfirmed) || view.AllowanceAwaitingUntil != "" {
 		t.Errorf("order page shows attention %q, awaiting %q; want only that the customer never agreed",
 			view.AllowanceAttention, view.AllowanceAwaitingUntil)
 	}
@@ -484,9 +484,9 @@ func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
 		{name: "no reply", answer: issuer.FakeAllowanceNoReply,
 			status: "pending", reason: "allowance_send_ambiguous"},
 		{name: "reply naming another invoice", answer: issuer.FakeAllowanceOtherInvoice,
-			status: "attention", reason: invoice.CategorySuccessMismatch},
+			status: "attention", reason: string(invoice.ReasonAllowanceSuccessMismatch)},
 		{name: "amount still held", answer: issuer.FakeAllowanceAmountHeld,
-			status: "attention", reason: invoice.CategoryAmountStillHeld},
+			status: "attention", reason: string(invoice.ReasonAllowanceAmountStillHeld)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
