@@ -14058,21 +14058,25 @@ func (q *Queries) RecordReturnRefundedEvent(ctx context.Context, arg RecordRetur
 
 const recordTOTPStep = `-- name: RecordTOTPStep :execrows
 UPDATE staff_totp_credentials
-SET last_step = $1::bigint
-WHERE user_id = $2
+SET last_step = $1::bigint,
+    secret_encrypted = coalesce($2::bytea, secret_encrypted)
+WHERE user_id = $3
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type RecordTOTPStepParams struct {
-	Step   int64
-	UserID uuid.UUID
+	Step     int64
+	Resealed []byte
+	UserID   uuid.UUID
 }
 
 // Record an accepted code. The step guard is in the statement: two requests
 // replaying one code both pass a check made in Go, and only one can win here.
+// A secret the current key did not open arrives re-sealed under it and is
+// written by the same statement that accepts the code; NULL leaves it alone.
 func (q *Queries) RecordTOTPStep(ctx context.Context, arg RecordTOTPStepParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.UserID)
+	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.Resealed, arg.UserID)
 	if err != nil {
 		return 0, err
 	}

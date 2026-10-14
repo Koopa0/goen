@@ -170,6 +170,45 @@ func TestStartupRefusesATOTPKeyThatIsNotAKey(t *testing.T) {
 	}
 }
 
+// TestStartupRefusesAPreviousTOTPKeyThatCannotRotate: the previous key is parsed
+// as strictly as the current one, needs a current key beside it, and must differ
+// from it. Each refusal names GOEN_TOTP_KEY_PREVIOUS.
+func TestStartupRefusesAPreviousTOTPKeyThatCannotRotate(t *testing.T) {
+	const otherKey = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+	tests := []struct {
+		name          string
+		key, previous string
+		wantErr       bool
+	}{
+		{name: "rotation", key: validTOTPKey, previous: otherKey},
+		{name: "no previous key", key: validTOTPKey},
+		{name: "previous is not a key", key: validTOTPKey, previous: "a-key-from-the-environment", wantErr: true},
+		{name: "previous without current", previous: otherKey, wantErr: true},
+		{name: "previous equals current", key: validTOTPKey, previous: validTOTPKey, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validPosture()
+			cfg.TOTPKey, cfg.TOTPPreviousKey = tt.key, tt.previous
+			cfg.SecureCookies = false
+			t.Setenv("GOEN_BASE_URL", "https://shop.example")
+			err := cfg.prepareRuntimePosture(slog.New(slog.DiscardHandler))
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "GOEN_TOTP_KEY_PREVIOUS") {
+					t.Fatalf("prepareRuntimePosture error = %v, want GOEN_TOTP_KEY_PREVIOUS refusal", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("prepareRuntimePosture: %v", err)
+			}
+			if got := len(cfg.totpPreviousKey); (tt.previous != "") != (got == 32) {
+				t.Errorf("parsed previous key length = %d for %q", got, tt.previous)
+			}
+		})
+	}
+}
+
 // TestAProductionPostureRefusesAnUnconfiguredMailer pins both production
 // refusal and the development warning. Earlier settings are valid in every row
 // so neither can answer for the SMTP rule.
