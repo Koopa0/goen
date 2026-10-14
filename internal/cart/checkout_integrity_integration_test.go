@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -40,10 +41,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	userID := creditedCustomer(t, 5000)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)

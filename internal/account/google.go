@@ -2,7 +2,6 @@ package account
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -70,14 +70,8 @@ func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err
 	if !g.Enabled() {
 		return "", OAuthState{}, ErrOAuthDisabled
 	}
-	raw, err := randomToken()
-	if err != nil {
-		return "", OAuthState{}, err
-	}
-	verifier, err := randomToken()
-	if err != nil {
-		return "", OAuthState{}, err
-	}
+	raw := bearer.New()
+	verifier := bearer.New()
 	sum := sha256.Sum256([]byte(verifier))
 
 	q := url.Values{
@@ -219,12 +213,4 @@ func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
 		Subject: out.Sub, Email: out.Email,
 		EmailVerified: out.EmailVerified, Name: out.Name,
 	}, nil
-}
-
-func randomToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("read random bytes: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
@@ -40,10 +41,7 @@ func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) 
 		nil, nil)
 
 	guestCart := func() string {
-		token, err := cart.NewToken()
-		if err != nil {
-			t.Fatalf("token: %v", err)
-		}
+		token := bearer.New()
 		id, err := s.Create(ctx, token, uuid.NullUUID{})
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
@@ -147,10 +145,7 @@ func newCouponGuesses(t *testing.T, label string) *couponGuesses {
 // cookie value.
 func (g *couponGuesses) guestCart() string {
 	g.t.Helper()
-	token, err := cart.NewToken()
-	if err != nil {
-		g.t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	id, err := g.s.Create(g.t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		g.t.Fatalf("create cart: %v", err)
@@ -241,10 +236,7 @@ func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
 	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
 	const client = "198.51.100.88:5000"
 
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	if _, err := g.s.Create(t.Context(), token, uuid.NullUUID{}); err != nil {
 		t.Fatalf("create cart: %v", err)
 	}

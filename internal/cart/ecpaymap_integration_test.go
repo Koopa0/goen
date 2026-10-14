@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
@@ -41,10 +42,7 @@ func configuredMap(t *testing.T) *cart.StoreMap {
 // version id and the browser's own cart cookie.
 func aPickupCart(t *testing.T, s *cart.Store, label string) (token string, shipping uuid.UUID) {
 	t.Helper()
-	tok, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	tok := bearer.New()
 	cartID, err := s.Create(t.Context(), tok, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)

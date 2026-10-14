@@ -1,9 +1,9 @@
-package pages
+package repocheck_test
 
 import (
-	"os"
-	"path/filepath"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -16,10 +16,7 @@ import (
 func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 	t.Parallel()
 
-	files, err := pageTemplates()
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no templates to read: %v", err)
-	}
+	sources := ariaTemplates(t)
 
 	// An id is an error only if the element carrying it is one. A field
 	// described by its own HINT satisfies "points at something that exists"
@@ -30,12 +27,8 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 	describedBy := regexp.MustCompile(`aria-describedby=(?:"([^"]*)"|\{ [^}]*"([^"]+)"[^}]*\})`)
 
 	var covered int
-	for _, name := range files {
-		body, err := os.ReadFile(name) //nolint:gosec // G304: paths come from globbing this package
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		src := string(body)
+	for _, name := range slices.Sorted(maps.Keys(sources)) {
+		src := sources[name]
 		if !strings.Contains(src, "aria-invalid") {
 			continue
 		}
@@ -85,21 +78,14 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 func TestEveryRefusableControlCanBeMarkedInvalid(t *testing.T) {
 	t.Parallel()
 
-	files, err := pageTemplates()
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no templates to read: %v", err)
-	}
+	sources := ariaTemplates(t)
 	// v.Err("name") / v.HasErr("name") — the view model saying this field is
 	// refusable, which is the definition the templates already use.
 	refusable := regexp.MustCompile(`\.(?:Has)?Err\("([a-z_]+)"\)`)
 
 	checked := 0
-	for _, name := range files {
-		body, readErr := os.ReadFile(name) //nolint:gosec // G304: globbed from this package
-		if readErr != nil {
-			t.Fatalf("read %s: %v", name, readErr)
-		}
-		src := string(body)
+	for _, name := range slices.Sorted(maps.Keys(sources)) {
+		src := sources[name]
 		fields := map[string]bool{}
 		for _, m := range refusable.FindAllStringSubmatch(src, -1) {
 			fields[m[1]] = true
@@ -162,16 +148,17 @@ func guardedBlocks(src, field string) []string {
 	}
 }
 
-// pageTemplates is every page template: the storefront's beside the back
-// office's, which lives one directory down.
-func pageTemplates() ([]string, error) {
-	var out []string
-	for _, pattern := range []string{"*.templ", filepath.Join("admin", "*.templ")} {
-		files, err := filepath.Glob(pattern)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, files...)
-	}
-	return out, nil
+// ariaTemplates is every template under internal/ that writes its own markup,
+// which is all of them except the shared field components. Those write
+// aria-invalid from a Go expression (aria-describedby={ p.Describes }) that the
+// describedby pattern above cannot read; their contract, that Invalid is always
+// paired with Describes, is checked at every call site by
+// TestEveryRefusedFieldStillNamesItsError.
+func ariaTemplates(t *testing.T) map[string]string {
+	t.Helper()
+	sources := templSources(t)
+	maps.DeleteFunc(sources, func(name, _ string) bool {
+		return strings.HasPrefix(name, "internal/ui/components/")
+	})
+	return sources
 }

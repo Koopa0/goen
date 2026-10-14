@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 )
 
@@ -28,10 +29,7 @@ func TestACartTokenReachesAnOwnedCartOnlyForItsOwner(t *testing.T) {
 	nobody := uuid.NullUUID{}
 
 	guestID, guestToken := newCartSession(t, s)
-	ownedToken, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	ownedToken := bearer.New()
 	ownedID, err := s.Create(t.Context(), ownedToken, owner)
 	if err != nil {
 		t.Fatalf("create the owned cart: %v", err)

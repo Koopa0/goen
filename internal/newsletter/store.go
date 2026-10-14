@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -38,10 +39,7 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 		return AlreadyActive, fmt.Errorf("requesting confirmation for %q: not a usable address", addr)
 	}
 
-	token, err := NewToken()
-	if err != nil {
-		return AlreadyActive, err
-	}
+	token := bearer.New()
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -52,7 +50,7 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 
 	_, err = q.RequestNewsletterConfirm(ctx, db.RequestNewsletterConfirmParams{
 		Email:  addr,
-		Digest: HashToken(token),
+		Digest: bearer.Digest(token),
 		Ttl:    interval(ConfirmTTL),
 	})
 	if err != nil {
@@ -82,10 +80,7 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 		return "", ErrNotFound
 	}
 
-	leave, err := NewToken()
-	if err != nil {
-		return "", err
-	}
+	leave := bearer.New()
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -94,7 +89,7 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
-	addr, err := q.SpendNewsletterConfirmation(ctx, HashToken(token))
+	addr, err := q.SpendNewsletterConfirmation(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -143,7 +138,7 @@ func (s *Store) Unsubscribe(ctx context.Context, token string) (string, error) {
 
 // dedupeOf hashes the token so the outbox row's key is not itself the link.
 func dedupeOf(token string) string {
-	return hex.EncodeToString(HashToken(token))
+	return hex.EncodeToString(bearer.Digest(token))
 }
 
 func interval(d time.Duration) pgtype.Interval {

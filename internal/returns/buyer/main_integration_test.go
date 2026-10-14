@@ -235,10 +235,7 @@ func waitForReturnsLock(t *testing.T, pid int, done <-chan struct{}) {
 			t.Fatal("return submission finished before reaching the intended database lock")
 		default:
 		}
-		var waiting bool
-		err := pool.QueryRow(t.Context(), `
-			SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = $1`, pid).
-			Scan(&waiting)
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{PID: int32(pid)}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 		if err == nil && waiting {
 			return
 		}

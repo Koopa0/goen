@@ -266,8 +266,6 @@ const CookieName = "__Host-goen_cart"
 
 const cookieMaxAge = 30 * 24 * 60 * 60 // 30 days
 
-const tokenBytes = 32
-
 // MaxLineQuantity matches the schema's CHECK.
 const MaxLineQuantity = 999
 
@@ -286,19 +284,6 @@ const stripeSessionStartMargin = time.Minute
 // holdTTL: the floor and margin are inventory time, not extra pay time; they
 // let a session started at payWindow expire with the same hold.
 const holdTTL = payWindow + stripeSessionFloor + stripeSessionStartMargin
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
 
 // SetCookie writes the cart cookie; a __Host- cookie without Secure is rejected by the browser, so
 // development uses a different name.

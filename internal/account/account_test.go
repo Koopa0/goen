@@ -321,53 +321,6 @@ func bodyWithSubmittedEmailHidden(t *testing.T, body, addr string) string {
 	return strings.Replace(body, needle, `value="<submitted-email>"`, 1)
 }
 
-func TestHashTokenIsNotTheToken(t *testing.T) {
-	t.Parallel()
-
-	tok, err := NewToken()
-	if err != nil {
-		t.Fatalf("NewToken: %v", err)
-	}
-	if len(HashToken(tok)) != 32 {
-		t.Error("HashToken is not a SHA-256 digest")
-	}
-	if string(HashToken(tok)) == tok {
-		t.Error("HashToken returns the token; the database would hold live sessions")
-	}
-	// Captured first: comparing two calls in one expression is a tautology.
-	first := string(HashToken(tok))
-	if string(HashToken(tok)) != first {
-		t.Error("HashToken is not deterministic; a returning visitor would lose their session")
-	}
-
-	other, err := NewToken()
-	if err != nil {
-		t.Fatalf("NewToken: %v", err)
-	}
-	if string(HashToken(other)) == first {
-		t.Error("two different tokens hash the same")
-	}
-}
-
-func TestNewTokenIsUnpredictable(t *testing.T) {
-	t.Parallel()
-
-	seen := make(map[string]bool, 64)
-	for range 64 {
-		tok, err := NewToken()
-		if err != nil {
-			t.Fatalf("NewToken: %v", err)
-		}
-		if len(tok) < 40 {
-			t.Fatalf("token %q is %d characters; too little entropy for a session", tok, len(tok))
-		}
-		if seen[tok] {
-			t.Fatal("NewToken repeated a token")
-		}
-		seen[tok] = true
-	}
-}
-
 // TestSignInKeepsItsAccountFallback locks the caller's choice. web.SitePath
 // owns what is safe; account owns where a refused post-sign-in redirect lands.
 func TestSignInKeepsItsAccountFallback(t *testing.T) {

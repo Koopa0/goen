@@ -4,7 +4,6 @@ package account
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
@@ -151,21 +150,6 @@ func VerifyPassword(encoded, password string) bool {
 	keyLen := uint32(len(want)) //nolint:gosec // G115: bounded to [1, 1024] just above
 	got := argon2.IDKey([]byte(password), salt, timeCost, memory, threads, keyLen)
 	return subtle.ConstantTimeCompare(got, want) == 1
-}
-
-const tokenBytes = 32
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("read token: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
 }
 
 func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {

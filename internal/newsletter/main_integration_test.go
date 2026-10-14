@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -232,7 +233,7 @@ func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
 		t.Fatalf("read digest: %v", err)
 	}
 	newest := tokenFor(t, "newsletter.confirm", email, "token")
-	if !bytes.Equal(newsletter.HashToken(newest), digest) {
+	if !bytes.Equal(bearer.Digest(newest), digest) {
 		t.Error("the stored digest is not the newest token's; an earlier link is the live one")
 	}
 }
@@ -295,10 +296,7 @@ func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
 	t.Parallel()
 	s := store(t)
 
-	token, err := newsletter.NewToken()
-	if err != nil {
-		t.Fatalf("NewToken: %v", err)
-	}
+	token := bearer.New()
 	if _, err := s.Unsubscribe(t.Context(), token); !errors.Is(err, newsletter.ErrNotFound) {
 		t.Errorf("Unsubscribe with an unknown token = %v, want ErrNotFound", err)
 	}

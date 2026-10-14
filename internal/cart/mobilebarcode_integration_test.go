@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -49,10 +50,7 @@ type barcodeCheckout struct {
 func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout {
 	t.Helper()
 	s := cart.NewStore(pool)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatal(err)
-	}
+	token := bearer.New()
 	id, err := s.Create(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)

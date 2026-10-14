@@ -295,21 +295,14 @@ func WaitForBlockedApplication(
 ) int32 {
 	t.Helper()
 	for {
-		var pid int32
-		var blockers []int32
-		err := pool.QueryRow(ctx, `
-			SELECT pid, pg_blocking_pids(pid) FROM pg_stat_activity
-			WHERE datname = current_database() AND application_name = $1
-			  AND state = 'active' AND wait_event_type = 'Lock'`, applicationName).
-			Scan(&pid, &blockers)
-		if err == nil {
-			for _, got := range blockers {
-				if got == blockerPID {
-					return pid
-				}
-			}
-		} else if !errors.Is(err, pgx.ErrNoRows) {
+		blocked, ok, err := dbtest.Blocked(ctx, pool, dbtest.Match{
+			Application: applicationName, Active: true, BlockedBy: []int32{blockerPID},
+		})
+		if err != nil {
 			t.Fatalf("trace blocked writer %q: %v", applicationName, err)
+		}
+		if ok {
+			return blocked.PID
 		}
 		if ctx.Err() != nil {
 			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())

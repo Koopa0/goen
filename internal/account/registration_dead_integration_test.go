@@ -23,6 +23,7 @@ import (
 	htmlparse "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages/pagestest"
 )
@@ -47,7 +48,7 @@ func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
 				case "unknown":
 					token = "unknown-" + uuid.NewString()
 				case "expired after lookup":
-					expiry = &expiryAfterRegistrationLookup{digest: account.HashToken(token)}
+					expiry = &expiryAfterRegistrationLookup{digest: bearer.Digest(token)}
 					cfg := appPool.Config().Copy()
 					cfg.ConnConfig.Tracer = expiry
 					traced, err := pgxpool.NewWithConfig(ctx, cfg)
@@ -224,7 +225,7 @@ func expireRegistrationLink(t *testing.T, token string) {
 	t.Helper()
 	tag, err := pool.Exec(t.Context(), `UPDATE email_verifications
 		SET created_at = now() - interval '49 hours', expires_at = now() - interval '1 hour'
-		WHERE digest = $1`, account.HashToken(token))
+		WHERE digest = $1`, bearer.Digest(token))
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("expire the fixture link = %d rows, error %v, want 1 row", tag.RowsAffected(), err)
 	}

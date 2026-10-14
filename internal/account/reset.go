@@ -2,7 +2,6 @@ package account
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/koopa0/goen/internal/bearer"
 	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -77,22 +77,19 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 		return fmt.Errorf("lock reset account: %w", err)
 	}
 
-	token, err := NewToken()
-	if err != nil {
-		return err
-	}
-	digest := sha256.Sum256([]byte(token))
+	token := bearer.New()
+	digest := bearer.Digest(token)
 	if err := q.InvalidateResetTokens(ctx, row.ID); err != nil {
 		return fmt.Errorf("invalidate prior reset tokens: %w", err)
 	}
 	if err := q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
-		TokenHash: digest[:],
+		TokenHash: digest,
 		UserID:    row.ID,
 		Ttl:       pgtype.Interval{Microseconds: ResetTokenTTL.Microseconds(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("create reset token: %w", err)
 	}
-	if err := outbox.Enqueue(ctx, q, outbox.TopicPasswordReset, "reset:"+hex.EncodeToString(digest[:]),
+	if err := outbox.Enqueue(ctx, q, outbox.TopicPasswordReset, "reset:"+hex.EncodeToString(digest),
 		&mailmsg.PasswordReset{Email: row.Email, Token: token, Locale: req.Locale}); err != nil {
 		return err
 	}
@@ -106,7 +103,7 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 // token's expiry or the request that replaced it. Obsolete mail completes
 // without sending; read and delivery failures remain retryable.
 func (s *Store) DeliverPasswordReset(ctx context.Context, p *mailmsg.PasswordReset, send func(context.Context, *mailmsg.PasswordReset) error) error {
-	if _, err := s.q.PasswordResetToken(ctx, HashToken(p.Token)); err != nil {
+	if _, err := s.q.PasswordResetToken(ctx, bearer.Digest(p.Token)); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
@@ -119,9 +116,9 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) (stri
 	if why := PasswordError(password); why != "" {
 		return "", fmt.Errorf("%w: %s", ErrInvalidPassword, why)
 	}
-	digest := sha256.Sum256([]byte(token))
+	digest := bearer.Digest(token)
 
-	userID, err := s.q.PasswordResetToken(ctx, digest[:])
+	userID, err := s.q.PasswordResetToken(ctx, digest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrResetInvalid
@@ -151,7 +148,7 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) (stri
 	if err != nil {
 		return "", fmt.Errorf("read reset account: %w", err)
 	}
-	spentUserID, err := q.SpendPasswordResetToken(ctx, digest[:])
+	spentUserID, err := q.SpendPasswordResetToken(ctx, digest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrResetInvalid

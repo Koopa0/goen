@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -250,10 +251,8 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 					t.Fatalf("the cancellation finished while the order was locked: %v", err)
 				default:
 				}
-				if err := pool.QueryRow(ctx, `
-					SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-					               WHERE wait_event_type = 'Lock' AND query LIKE '%name: LockOrderByNumber%')`).
-					Scan(&waiting); err != nil {
+				var err error
+				if _, waiting, err = dbtest.Blocked(ctx, pool, dbtest.Match{QueryLike: "%name: LockOrderByNumber%"}); err != nil {
 					t.Fatalf("observe the cancellation: %v", err)
 				}
 				time.Sleep(10 * time.Millisecond)

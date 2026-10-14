@@ -1,7 +1,6 @@
 package cart
 
 import (
-	"bytes"
 	"errors"
 	"math"
 	"slices"
@@ -258,47 +257,6 @@ func TestHoldTTLIncludesTheWholePaymentSafetyBudget(t *testing.T) {
 	}
 	if got := int(holdTTL.Minutes()); got != stated {
 		t.Errorf("holdTTL = %d minutes, customer policy says %d", got, stated)
-	}
-}
-
-func TestHashTokenIsNotTheToken(t *testing.T) {
-	t.Parallel()
-
-	tok, err := NewToken()
-	if err != nil {
-		t.Fatalf("NewToken: %v", err)
-	}
-	h := HashToken(tok)
-	if len(h) != 32 {
-		t.Errorf("HashToken length = %d, want 32", len(h))
-	}
-	if strings.Contains(string(h), tok) {
-		t.Error("the digest contains the token; the database would hold live cart cookies")
-	}
-	if !bytes.Equal(HashToken(tok), h) {
-		t.Error("HashToken is not deterministic; a returning visitor would lose their cart")
-	}
-	if bytes.Equal(HashToken(tok+"x"), h) {
-		t.Error("two different tokens hash the same")
-	}
-}
-
-func TestNewTokenIsUnpredictable(t *testing.T) {
-	t.Parallel()
-
-	seen := make(map[string]bool, 64)
-	for range 64 {
-		tok, err := NewToken()
-		if err != nil {
-			t.Fatalf("NewToken: %v", err)
-		}
-		if len(tok) < 40 {
-			t.Fatalf("token %q is only %d characters; too little entropy to guard a cart", tok, len(tok))
-		}
-		if seen[tok] {
-			t.Fatal("NewToken repeated a token")
-		}
-		seen[tok] = true
 	}
 }
 

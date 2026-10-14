@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/payment"
 )
@@ -54,7 +55,7 @@ func TestSchemaOnlyShopRendersStorefrontAndBackOffice(t *testing.T) {
 		t.Fatalf("start owner session: %v", err)
 	}
 	key := bytes.Repeat([]byte{7}, 32)
-	if verifyErr := twofactor.NewStore(adminPool, key).MarkVerified(ctx, account.HashToken(token)); verifyErr != nil {
+	if verifyErr := twofactor.NewStore(adminPool, key).MarkVerified(ctx, bearer.Digest(token)); verifyErr != nil {
 		t.Fatalf("verify owner session: %v", verifyErr)
 	}
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")

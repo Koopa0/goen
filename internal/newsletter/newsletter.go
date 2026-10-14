@@ -7,11 +7,7 @@
 package newsletter
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
@@ -32,21 +28,6 @@ const (
 	Requested Outcome = iota
 	AlreadyActive
 )
-
-const tokenBytes = 32
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("reading token entropy: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
 
 func Validate(addr string) i18n.Key {
 	switch {

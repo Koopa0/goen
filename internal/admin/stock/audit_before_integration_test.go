@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
 // TestConcurrentWritesAuditTheValueEachReplaced: two staff change one variant
@@ -224,11 +225,7 @@ func waitUntilBlocked(t *testing.T, name string, done <-chan error) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		var waiting bool
-		if err := pool.QueryRow(t.Context(), `
-			SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-			               WHERE application_name = $1 AND wait_event_type = 'Lock')`, name).
-			Scan(&waiting); err == nil && waiting {
+		if _, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: name}); err == nil && waiting {
 			return
 		}
 		select {

@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -36,11 +37,11 @@ func TestCartAdoptionLogLevels(t *testing.T) {
 	other := register(t, accounts, "adoption-log-owner-"+uuid.NewString()+"@example.com")
 	var ownedCart, guestCart uuid.UUID
 	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("owned-log-"+other.ID), uuid.MustParse(other.ID)).Scan(&ownedCart); err != nil {
+		bearer.Digest("owned-log-"+other.ID), uuid.MustParse(other.ID)).Scan(&ownedCart); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("guest-log-"+u.ID)).Scan(&guestCart); err != nil {
+		bearer.Digest("guest-log-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatal(err)
 	}
 	variant := sellableVariant(t, ctx)
