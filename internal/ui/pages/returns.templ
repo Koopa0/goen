@@ -69,7 +69,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				}
 			} else if !v.AnyReturnable() {
 				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-nothing"}) {
-					{ i18n.T(ctx, i18n.KeyReturnNothing) }
+					{ i18n.T(ctx, i18n.KeyReturnNothingShort) }
 				}
 			}
 			if (!v.HasOpen && v.AnyReturnable()) || v.HasDraft {
