@@ -7398,7 +7398,7 @@ func (q *Queries) DeleteOutstandingEmailVerificationMessage(ctx context.Context,
 const deletePasswordResetMessagesForEmail = `-- name: DeletePasswordResetMessagesForEmail :exec
 DELETE FROM outbox_messages
 WHERE topic = 'account.password_reset'
-  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+  AND lower(coalesce(payload ->> 'email', '')) =
       lower($1::text)
 `
 

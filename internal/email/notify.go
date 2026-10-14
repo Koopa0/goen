@@ -73,10 +73,10 @@ type OrderPlaced struct {
 	Email       string `json:"email"`
 	Name        string `json:"name"`
 	TotalCents  int64  `json:"total_cents"`
-	// OwedCents is what is still payable after store credit. A missing
-	// field (already-queued rows) falls back to TotalCents so an in-flight
-	// letter does not flip to the funded copy.
-	OwedCents *int64          `json:"owed_cents,omitempty"`
+	// OwedCents is what is still payable after store credit. Zero is a value,
+	// not an absence: a fully funded order writes 0 and gets the letter with
+	// nothing to pay, so the field is never omitted.
+	OwedCents int64           `json:"owed_cents"`
 	Snapshot  *PlacedSnapshot `json:"snapshot,omitempty"`
 }
 
@@ -88,13 +88,9 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	owed := p.TotalCents
-	if p.OwedCents != nil {
-		owed = *p.OwedCents
-	}
-	body := placedLetterBody(ctx, p.OrderNumber, owed, n.orderURL(p.OrderNumber))
+	body := placedLetterBody(ctx, p.OrderNumber, p.OwedCents, n.orderURL(p.OrderNumber))
 	if p.Snapshot != nil {
-		body = n.placedConfirmation(ctx, p, owed, time.Now())
+		body = n.placedConfirmation(ctx, p, p.OwedCents, time.Now())
 	}
 	return n.send(ctx, &Message{
 		To:      p.Email,
@@ -121,7 +117,8 @@ func twd(cents int64) string { return money.TWD(cents) }
 type PasswordReset struct {
 	Locale string `json:"locale"`
 	// Tagged, like every other payload here: erase_user matches the exact
-	// recipient field and keeps the old "Email" key only for already-queued rows.
+	// recipient field, so a row that names the address under another key is
+	// not erased.
 	Email string `json:"email"`
 	Token string `json:"token"`
 }

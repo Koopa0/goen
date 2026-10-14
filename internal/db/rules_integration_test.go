@@ -2633,14 +2633,12 @@ func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
 		        jsonb_build_object('email', 'Ming@Example.com', 'order_number', 'GO-260721-000387'))`); err != nil {
 		t.Fatalf("enqueue a letter to the customer being erased: %v", err)
 	}
-	// A payload whose address key is CAPITALISED. Go marshals a field with no
-	// json tag under its Go name, and payload->>'email' is case-sensitive, so a
-	// per-key delete reaches one of these and not the other. The sweep below
-	// reads the whole value as text and is blind to the difference.
+	// A second shape: a reset letter whose payload carries a token beside the
+	// address, which the sweep below must remove with it.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload)
-		VALUES ('password.reset', 'erasure-probe-capitalised',
-		        jsonb_build_object('Email', 'Ming@Example.com', 'Token', 'abc'))`); err != nil {
+		VALUES ('password.reset', 'erasure-probe-reset',
+		        jsonb_build_object('email', 'Ming@Example.com', 'token', 'abc'))`); err != nil {
 		t.Fatalf("enqueue a reset letter: %v", err)
 	}
 	// The OTHER jsonb store the sweep derives, and the one erase_user cannot

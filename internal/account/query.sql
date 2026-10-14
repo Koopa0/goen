@@ -168,7 +168,7 @@ WHERE user_id = $1 AND used_at IS NULL;
 -- name: DeletePasswordResetMessagesForEmail :exec
 DELETE FROM outbox_messages
 WHERE topic = 'account.password_reset'
-  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+  AND lower(coalesce(payload ->> 'email', '')) =
       lower(@email::text);
 
 -- name: UserOrders :many

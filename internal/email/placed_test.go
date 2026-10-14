@@ -58,7 +58,7 @@ func TestPlacedConfirmationKeepsTheRecordedOrderTerms(t *testing.T) {
 				t.Parallel()
 				n, sink := notifier(t)
 				p := recordedPlacedOrder(locale.tag)
-				p.TotalCents, p.Snapshot.CreditCents, p.OwedCents = funding.total, funding.credit, centsPtr(funding.owed)
+				p.TotalCents, p.Snapshot.CreditCents, p.OwedCents = funding.total, funding.credit, funding.owed
 				line := "2 × NT$1,250 = NT$2,500"
 				if funding.total == 0 {
 					p.Snapshot.SubtotalCents, p.Snapshot.ShippingCents, p.Snapshot.DiscountCents = 0, 0, 0
@@ -120,7 +120,7 @@ func TestPlacedConfirmationDiscountRowsFollowTheRecordedReason(t *testing.T) {
 			n, sink := notifier(t)
 			p := recordedPlacedOrder(tt.locale)
 			p.Snapshot.DiscountReason, p.Snapshot.DiscountCents = tt.reason, tt.discount
-			p.TotalCents, p.OwedCents = tt.total, centsPtr(tt.total)
+			p.TotalCents, p.OwedCents = tt.total, tt.total
 			if err := n.SendOrderPlaced(t.Context(), p); err != nil {
 				t.Fatalf("SendOrderPlaced() = %v", err)
 			}
@@ -223,7 +223,7 @@ func placedAmountRows(t *testing.T, body string) []string {
 }
 
 func recordedPlacedOrder(locale string) *OrderPlaced {
-	return &OrderPlaced{Locale: locale, OrderNumber: "GO-990101-000001", Email: "alex@example.com", Name: "Alex", TotalCents: 246000, OwedCents: centsPtr(246000), Snapshot: &PlacedSnapshot{
+	return &OrderPlaced{Locale: locale, OrderNumber: "GO-990101-000001", Email: "alex@example.com", Name: "Alex", TotalCents: 246000, OwedCents: 246000, Snapshot: &PlacedSnapshot{
 		Lines:         []PlacedLine{{SKU: "TEA-2", Name: "Tea <box>", Label: "Large", UnitCents: 125000, Quantity: 2}},
 		SubtotalCents: 250000, ShippingCents: 6000, DiscountCents: 10000, ShippingName: "Home delivery", DeliveryTo: "110 Taipei Road 1", Phone: "0912345678", DeliveryNote: "Leave <inside>",
 		HoldUntil: time.Date(2099, 1, 1, 1, 0, 0, 0, time.UTC), StartBy: time.Date(2099, 1, 1, 0, 29, 0, 0, time.UTC),
