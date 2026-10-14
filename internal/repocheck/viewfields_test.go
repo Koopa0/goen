@@ -21,7 +21,7 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		modulePath + "/internal/ui/pages/admin.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
+		goenModule + "/internal/ui/pages/admin.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
 	}
 
 	files := repositoryGo(t)
@@ -79,8 +79,8 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	})
 }
 
-// modulePath is the repository's module, the prefix of every import path below.
-const modulePath = "github.com/koopa0/goen"
+// goenModule is the repository's module, the prefix of every import path below.
+const goenModule = "github.com/koopa0/goen"
 
 // viewModelPackages are the packages, by import path, whose exported structs are
 // view models. Types are keyed by the import path of the package that declares
@@ -93,19 +93,19 @@ const modulePath = "github.com/koopa0/goen"
 // so a template moved into a new package cannot leave that package's view
 // structs unchecked without somebody deciding so.
 var viewModelPackages = []string{
-	modulePath + "/internal/ui/pages",
-	modulePath + "/internal/ui/pages/admin",
-	modulePath + "/internal/ui/layouts",
+	goenModule + "/internal/ui/pages",
+	goenModule + "/internal/ui/pages/admin",
+	goenModule + "/internal/ui/layouts",
 }
 
 // templatePackagesWithoutViewModels hold templates and no view models: shared
 // components, charts, icons and the mail templates take their data as
 // parameters, not as structs a handler fills.
 var templatePackagesWithoutViewModels = []string{
-	modulePath + "/internal/ui/components",
-	modulePath + "/internal/ui/chart",
-	modulePath + "/internal/ui/icons",
-	modulePath + "/internal/email",
+	goenModule + "/internal/ui/components",
+	goenModule + "/internal/ui/chart",
+	goenModule + "/internal/ui/icons",
+	goenModule + "/internal/email",
 }
 
 // source is one parsed file and the import path of the package it belongs to.
@@ -252,9 +252,9 @@ func repositoryGo(t *testing.T) []source {
 // the repository root.
 func importPath(dir string) string {
 	if dir == "." {
-		return modulePath
+		return goenModule
 	}
-	return modulePath + "/" + filepath.ToSlash(dir)
+	return goenModule + "/" + filepath.ToSlash(dir)
 }
 
 // resultTypes maps a function or method NAME to the view model each of its
