@@ -20,9 +20,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		for _, refusal := range v.InspectionRefusals() {
-			@RefusalSummary(refusal)
+			@layouts.RefusalSummary(refusal)
 		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
@@ -207,7 +207,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<input
 												class="ui-input"
 												id={ "recv-" + r.ID + "-" + l.OrderLineID }
-												type={ dollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
+												type={ components.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
 												inputmode="numeric"
 												name={ "received_" + l.OrderLineID }
 												value={ l.ReceivedField(v.FieldInvalid(r.ID, "inspect")) }
@@ -229,7 +229,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												<input
 													class="ui-input"
 													id={ "stock-" + r.ID + "-" + l.OrderLineID }
-													type={ dollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
+													type={ components.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
 													inputmode="numeric"
 													name={ "restocked_" + l.OrderLineID }
 													value={ l.RestockedField(v.FieldInvalid(r.ID, "inspect")) }

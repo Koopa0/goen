@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
@@ -27,8 +27,8 @@ func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
 			}
 			page := body.String()
 			if strings.Count(page, `name="confirm"`) != 1 || !strings.Contains(page, `method="post"`) ||
-				!strings.Contains(page, `name="total" value="1200000"`) || !strings.Contains(page, pages.TWD(1200000)) ||
-				!strings.Contains(page, pages.TWD(900000)) || !strings.Contains(page, pages.TWD(300000)) {
+				!strings.Contains(page, `name="total" value="1200000"`) || !strings.Contains(page, money.TWD(1200000)) ||
+				!strings.Contains(page, money.TWD(900000)) || !strings.Contains(page, money.TWD(300000)) {
 				t.Fatalf("%s confirmation does not show and repeat the refund: %s", locale, page)
 			}
 			if strings.Contains(page, `name="reason"`) == v.Resume {
@@ -55,7 +55,7 @@ func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
 			t.Fatal(err)
 		}
 		page := html.UnescapeString(body.String())
-		if !strings.Contains(page, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), pages.TWD(500000))) ||
+		if !strings.Contains(page, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(500000))) ||
 			!strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditCancel)) ||
 			!strings.Contains(page, `name="reason"`) || !strings.Contains(page, `name="total" value="500000"`) {
 			t.Errorf("%s credit-paid confirmation does not say the credit returns and the order cancels: %s", locale, page)

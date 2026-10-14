@@ -1,13 +1,12 @@
-package admin
+package layouts
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-templ MissingRecord(p layouts.Page, v MissingRecordView) {
-	@layouts.Admin(p, v.Section) {
+templ MissingRecord(p Page, v MissingRecordView) {
+	@Admin(p, v.Section) {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>

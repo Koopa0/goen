@@ -131,7 +131,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -252,7 +252,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		@AnnounceOrder(v.Notice)
+		@layouts.AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)
@@ -544,7 +544,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>{ pages.DiscountLabel(ctx, v.DiscountReason) }</span>
+							<span>{ components.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}
@@ -831,9 +831,9 @@ templ Variants(p layouts.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		for _, refusal := range v.Refusals() {
-			@RefusalSummary(refusal)
+			@layouts.RefusalSummary(refusal)
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
@@ -974,7 +974,7 @@ templ variantTable(variants []Variant, back string) {
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "adj-" + x.SKU }
-								type={ dollarInputType(x.DraftDelta) }
+								type={ components.DollarInputType(x.DraftDelta) }
 								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }

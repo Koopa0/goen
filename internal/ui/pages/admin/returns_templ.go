@@ -93,12 +93,12 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, refusal := range v.InspectionRefusals() {
-				templ_7745c5c3_Err = RefusalSummary(refusal).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = layouts.RefusalSummary(refusal).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1218,9 +1218,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var74 string
-							templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))))
+							templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 210, Col: 84}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 210, Col: 95}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 							if templ_7745c5c3_Err != nil {
@@ -1373,9 +1373,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var84 string
-								templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))))
+								templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 232, Col: 86}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 232, Col: 97}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var84)
 								if templ_7745c5c3_Err != nil {

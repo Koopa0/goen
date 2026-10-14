@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // ProductSales is the units a product sold on each shop day of the last 13
@@ -60,7 +61,7 @@ func (s ProductSales) Sentence(ctx context.Context) string {
 	if len(buckets) == 0 {
 		return ""
 	}
-	period := dayText(ctx, dayOf(buckets[0].Day)) + "–" + dayText(ctx, dayOf(buckets[len(buckets)-1].Day))
+	period := components.DayText(ctx, components.DayOf(buckets[0].Day)) + "–" + components.DayText(ctx, components.DayOf(buckets[len(buckets)-1].Day))
 	var withSales []chart.Bucket
 	for _, b := range buckets {
 		if b.Value != 0 {
@@ -74,7 +75,7 @@ func (s ProductSales) Sentence(ctx context.Context) string {
 	case chart.DensityFew:
 		items := make([]string, len(withSales))
 		for i, b := range withSales {
-			items[i] = i18n.Count(ctx, i18n.KeyAdminProdUnitsFewDay, b.Value, dayText(ctx, dayOf(b.Day)), b.Value)
+			items[i] = i18n.Count(ctx, i18n.KeyAdminProdUnitsFewDay, b.Value, components.DayText(ctx, components.DayOf(b.Day)), b.Value)
 		}
 		return i18n.Count(ctx, i18n.KeyAdminProdUnitsFewDays, int64(len(withSales)),
 			period, len(withSales), strings.Join(items, i18n.T(ctx, i18n.KeyChartListSeparator)))
@@ -83,7 +84,7 @@ func (s ProductSales) Sentence(ctx context.Context) string {
 	case chart.DensityFull:
 		peaks := chart.Peaks(s.Days.Columns())
 		if len(peaks) == 1 {
-			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeek), units(peaks[0].Value), dayText(ctx, dayOf(peaks[0].Day)))
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeek), units(peaks[0].Value), components.DayText(ctx, components.DayOf(peaks[0].Day)))
 		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdUnitsBestWeeks), len(peaks), units(peaks[0].Value))
 	}

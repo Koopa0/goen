@@ -23,9 +23,9 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -113,7 +113,7 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 	preview := post(url.Values{})
 	body := html.UnescapeString(preview.Body.String())
 	if preview.Code != http.StatusOK ||
-		!strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), pages.TWD(500000))) ||
+		!strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(500000))) ||
 		!strings.Contains(body, `value="500000"`) {
 		t.Fatalf("preview = %d, want the store credit cancellation: %s", preview.Code, body)
 	}

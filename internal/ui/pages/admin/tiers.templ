@@ -21,7 +21,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminTierEmpty) }</p>

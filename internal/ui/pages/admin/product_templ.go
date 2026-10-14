@@ -139,7 +139,7 @@ func Products(p layouts.Page, v ProductsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -534,27 +534,27 @@ func ProductForm(p layouts.Page, v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, refusalField{"name", "p-name"}, refusalField{"slug", "p-slug"}, refusalField{"brand", "p-brand"}, refusalField{"category", "p-category"}, refusalField{"summary", "p-summary"}, refusalField{"description", "p-description"}, refusalField{"name_en", "p-name-en"}, refusalField{"summary_en", "p-summary-en"}, refusalField{"description_en", "p-description-en"}, refusalField{"warranty_months", "p-warranty-months"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, layouts.RefusalField{Key: "name", ID: "p-name"}, layouts.RefusalField{Key: "slug", ID: "p-slug"}, layouts.RefusalField{Key: "brand", ID: "p-brand"}, layouts.RefusalField{Key: "category", ID: "p-category"}, layouts.RefusalField{Key: "summary", ID: "p-summary"}, layouts.RefusalField{Key: "description", ID: "p-description"}, layouts.RefusalField{Key: "name_en", ID: "p-name-en"}, layouts.RefusalField{Key: "summary_en", ID: "p-summary-en"}, layouts.RefusalField{Key: "description_en", ID: "p-description-en"}, layouts.RefusalField{Key: "warranty_months", ID: "p-warranty-months"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(v.VariantRefusal()).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(v.VariantRefusal()).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, refusalField{"option", "opt-name"}, refusalField{"option_en", "opt-name-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, layouts.RefusalField{Key: "option", ID: "opt-name"}, layouts.RefusalField{Key: "option_en", ID: "opt-name-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, refusalField{"value", "optval-value"}, refusalField{"value_en", "optval-value-en"}, refusalField{"swatch_hex", "optval-swatch"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, layouts.RefusalField{Key: "value", ID: "optval-value"}, layouts.RefusalField{Key: "value_en", ID: "optval-value-en"}, layouts.RefusalField{Key: "swatch_hex", ID: "optval-swatch"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = RefusalSummary(summarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, refusalField{"spec_label", "spec-label"}, refusalField{"spec_value", "spec-value"}, refusalField{"spec_label_en", "spec-label-en"}, refusalField{"spec_value_en", "spec-value-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, layouts.RefusalField{Key: "spec_label", ID: "spec-label"}, layouts.RefusalField{Key: "spec_value", ID: "spec-value"}, layouts.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, layouts.RefusalField{Key: "spec_value_en", ID: "spec-value-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4454,9 +4454,9 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var242 string
-			templ_7745c5c3_Var242, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(v.VariantDraft.Price))
+			templ_7745c5c3_Var242, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(v.VariantDraft.Price))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 886, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 886, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var242)
 			if templ_7745c5c3_Err != nil {
@@ -4544,9 +4544,9 @@ func productVariants(v ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var247 string
-			templ_7745c5c3_Var247, templ_7745c5c3_Err = templ.ResolveAttributeValue(dollarInputType(v.VariantDraft.Compare))
+			templ_7745c5c3_Var247, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(v.VariantDraft.Compare))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 909, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 909, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var247)
 			if templ_7745c5c3_Err != nil {

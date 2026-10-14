@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -26,8 +27,8 @@ func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: Header{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
-			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: Header{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
+			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: components.HeaderImage{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
+			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: components.HeaderImage{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
 			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ProductImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
 			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
 		} {

@@ -75,7 +75,7 @@ templ Pay(p layouts.Page, v PayView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-summary__row">
-							<dt>{ DiscountLabel(ctx, v.DiscountReason) }</dt>
+							<dt>{ components.DiscountLabel(ctx, v.DiscountReason) }</dt>
 							<dd class="goen-summary__value">{ v.Discount() }</dd>
 						</div>
 					}

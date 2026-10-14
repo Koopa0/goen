@@ -33,6 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
@@ -577,7 +578,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	if !strings.Contains(body, wantNotice) {
 		t.Errorf("checkout does not require confirmation of the fresh quote; want %q", wantNotice)
 	}
-	if !strings.Contains(body, pages.TWD(1000)) {
+	if !strings.Contains(body, money.TWD(1000)) {
 		t.Errorf("checkout does not show the fresh NT$10 credit balance")
 	}
 	for _, preserved := range []string{"credit-race@example.com", "松高路 88 號", key} {
@@ -5936,7 +5937,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 		"minimum@example.com",
 		"松仁路 200 號",
 		code,
-		pages.TWD(199999),
+		money.TWD(199999),
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("re-rendered checkout does not contain %q", want)
@@ -5945,7 +5946,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	if strings.Contains(body, "測試折扣") {
 		t.Error("rejected coupon is still rendered as applied")
 	}
-	if strings.Contains(body, "-"+pages.TWD(10000)) {
+	if strings.Contains(body, "-"+money.TWD(10000)) {
 		t.Error("rejected coupon's stale discount is still included in the summary")
 	}
 

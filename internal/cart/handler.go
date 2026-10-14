@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -1091,7 +1092,7 @@ func (h *Handler) answerCreditChanged(
 		return
 	}
 	view.AvailableCreditCents = balance
-	view.CreditChanged = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyCreditChanged), pages.TWD(balance))
+	view.CreditChanged = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyCreditChanged), money.TWD(balance))
 	if err := setCheckoutQuoteID(cartID, view); err != nil {
 		h.log.ErrorContext(r.Context(), "build refreshed credit quote", "error", err)
 		h.serverError(w, r)

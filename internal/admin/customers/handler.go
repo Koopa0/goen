@@ -59,9 +59,9 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, h.log, http.StatusOK, admin.Customer(
 			layouts.Page{Title: view.DisplayName()}, &view))
 	case errors.Is(err, ErrNotFound):
-		web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+		web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer)},
-			admin.MissingRecordView{Section: "customers", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCustomers}))
+			layouts.MissingRecordView{Section: "customers", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCustomers}))
 	default:
 		h.log.ErrorContext(r.Context(), "read customer", "error", err)
 		access.ServerError(w, r, h.log)

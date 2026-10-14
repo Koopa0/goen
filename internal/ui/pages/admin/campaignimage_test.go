@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -16,7 +17,7 @@ func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
 	page := renderComponent(t, ctx, CampaignForm(layouts.Page{Title: "c"}, CampaignView{
 		Slug:   "c",
 		Errors: map[string]string{"alt": "alt needed", "image": "not an image"},
-		Image:  Header{Key: seedBanner, Alt: "Products on sale", Width: 1600},
+		Image:  components.HeaderImage{Key: seedBanner, Alt: "Products on sale", Width: 1600},
 	}))
 	for _, want := range []string{
 		`aria-describedby="c-alt-error"`, `aria-describedby="c-image-error"`, `alt needed`, `not an image`,

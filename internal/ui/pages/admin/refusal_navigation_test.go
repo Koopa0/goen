@@ -180,7 +180,7 @@ func TestRefusalSummaryCountsInEnglish(t *testing.T) {
 		{1, "Stock adjustment was not saved. Please correct 1 field."},
 		{2, "Stock adjustment was not saved. Please correct 2 fields."},
 	} {
-		if got := (refusalSummary{Form: i18n.KeyAdminRefusalStock, Count: tt.count}).Text(ctx); got != tt.want {
+		if got := (layouts.Refusal{Form: i18n.KeyAdminRefusalStock, Count: tt.count}).Text(ctx); got != tt.want {
 			t.Errorf("Text(%d) = %q, want %q", tt.count, got, tt.want)
 		}
 	}

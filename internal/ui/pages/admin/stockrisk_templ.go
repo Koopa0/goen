@@ -317,7 +317,7 @@ func StockRiskRows(rows []StockRisk, moreSoldOut, days int) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = ReportRow(item.Name, item.Href(), item.Facts(ctx, days)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.ReportRow(item.Name, item.Href(), item.Facts(ctx, days)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

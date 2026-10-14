@@ -28,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -1756,14 +1756,14 @@ func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
-	if view.Payment.Card != "Visa •••• 4242" || view.Payment.Captured != pages.TWD(500000) || view.Payment.PaidAt == "" {
+	if view.Payment.Card != "Visa •••• 4242" || view.Payment.Captured != money.TWD(500000) || view.Payment.PaidAt == "" {
 		t.Errorf("payment = %+v, want the card, the captured amount and a time", view.Payment)
 	}
 	if len(view.Refunds) != 1 {
 		t.Fatalf("refunds = %+v, want one", view.Refunds)
 	}
 	r := view.Refunds[0]
-	if r.Amount != pages.TWD(120000) || r.Reason != "顧客改變心意" || r.Staff == "" || r.At == "" {
+	if r.Amount != money.TWD(120000) || r.Reason != "顧客改變心意" || r.Staff == "" || r.At == "" {
 		t.Errorf("refund = %+v, want its amount, time, reason and staff member", r)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -30,7 +31,7 @@ func TestRemoveButtonsNameTheirRecord(t *testing.T) {
 			want      map[string]string
 		}{
 			{name: "featured products", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Products: []CampaignProduct{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
-			{name: "campaign image", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Image: Header{Key: "abababababababababababababababababababababababababababababababab", Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
+			{name: "campaign image", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Image: components.HeaderImage{Key: "abababababababababababababababababababababababababababababababab", Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
 			{name: "product images", component: productImages(ProductView{Slug: "phone", Images: []Image{{Key: "front", Alt: "Front & side"}, {Key: "back"}}}), action: "/admin/products/phone/images/remove", field: "digest", want: map[string]string{"front": "Front & side", "back": "back"}},
 			{name: "product specifications", component: productSpecs(ProductView{Slug: "phone", Specs: []Spec{{ID: "weight", Label: "Weight <net>", Value: "100g"}, {ID: "width", Label: "Width", Value: "20mm"}}}), action: "/admin/products/phone/specs/remove", field: "spec", want: map[string]string{"weight": "Weight <net>", "width": "Width"}},
 			{name: "membership tiers", component: Tiers(layouts.Page{}, TiersView{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}}), action: "/admin/tiers/delete", field: "tier", want: map[string]string{"silver": "Silver & more", "gold": "Gold"}},
