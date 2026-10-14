@@ -377,11 +377,11 @@ func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) err
 }
 
 // DaysCover ranks the SKUs that sold or are sold out over the last shop days,
-// at least admin.CoverWindowDays of them, and counts the sold out ones the
+// at least inventory.CoverWindowDays of them, and counts the sold out ones the
 // list leaves off. The stock and the ledger it is rolled back through are read
 // in one snapshot, so a movement between the two reads cannot shift the level.
-func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed []admin.StockRisk, moreSoldOut int, err error) {
-	from := shoptime.Midnight(now).AddDate(0, 0, 1-max(days, admin.CoverWindowDays))
+func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error) {
+	from := shoptime.Midnight(now).AddDate(0, 0, 1-max(days, inventory.CoverWindowDays))
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, 0, fmt.Errorf("begin stock snapshot: %w", err)
@@ -408,18 +408,19 @@ func (s *Store) DaysCover(ctx context.Context, days int, now time.Time) (listed 
 			moves[m.VariantID] = append(moves[m.VariantID], movement{at: m.CreatedAt, delta: m.Delta})
 		}
 	}
-	risk := make([]admin.StockRisk, 0, len(rows))
+	risk := make([]inventory.Risk, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		risk = append(risk, admin.StockRisk{
+		risk = append(risk, inventory.Risk{
 			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
-			Sellable: max(r.StockQuantity-r.SafetyStock, 0),
-			Sold:     r.UnitsSold, Orders: r.OrdersSold,
-			InStock:   timeInStock(r.StockQuantity, r.SafetyStock, from, now, moves[r.VariantID]),
+			Sales: inventory.Sales{
+				Sellable: max(r.StockQuantity-r.SafetyStock, 0),
+				Sold:     r.UnitsSold, Orders: r.OrdersSold,
+				InStock: timeInStock(r.StockQuantity, r.SafetyStock, from, now, moves[r.VariantID]),
+			},
 			SoldOutAt: soldOutAt(r.StockQuantity, r.SafetyStock, now, moves[r.VariantID]),
-			ReadAt:    now,
 		})
 	}
-	listed, moreSoldOut = admin.RankStockRisk(risk)
+	listed, moreSoldOut = inventory.Rank(risk)
 	return listed, moreSoldOut, nil
 }

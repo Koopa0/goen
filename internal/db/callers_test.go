@@ -46,26 +46,7 @@ func TestEveryGeneratedQueryHasAProductionCaller(t *testing.T) {
 // generatedMethods is every method sqlc put on *Queries.
 func generatedMethods(t *testing.T) []string {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), "query.sql.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parse query.sql.go: %v", err)
-	}
-
-	var out []string
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv == nil || len(fn.Recv.List) != 1 {
-			continue
-		}
-		star, ok := fn.Recv.List[0].Type.(*ast.StarExpr)
-		if !ok {
-			continue
-		}
-		if id, ok := star.X.(*ast.Ident); ok && id.Name == "Queries" {
-			out = append(out, fn.Name.Name)
-		}
-	}
-	return out
+	return generatedMethodsIn(t, "query.sql.go")
 }
 
 // productionCallNames returns selector names used as direct calls in files the

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -98,7 +101,7 @@ func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
 	if err != nil || key != nil {
 		t.Errorf("ParseKey(empty) = %x, %v; want nil, nil", key, err)
 	}
-	if newCipher(nil).enabled() {
+	if newCipher(nil, nil).enabled() {
 		t.Error("a nil key enabled the cipher")
 	}
 }
@@ -149,16 +152,17 @@ func FuzzParseKey(f *testing.F) {
 	})
 }
 
-// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem: the raw decoded bytes open the
-// ciphertext and sha256(the environment string) does not.
+// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem: the raw decoded bytes are the
+// AES key, and sha256(the environment string) is not.
 func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 	decoded := mustParseKey(t, testHexKey)
-	sealed, err := newCipher(decoded).seal([]byte("the stored totp secret"))
+	owner := uuid.New()
+	sealed, err := newCipher(decoded, nil).seal([]byte("the stored totp secret"), owner)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
 
-	openWith := func(key []byte) *secretCipher {
+	openRaw := func(key []byte) error {
 		block, blockErr := aes.NewCipher(key)
 		if blockErr != nil {
 			t.Fatalf("aes: %v", blockErr)
@@ -167,13 +171,16 @@ func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 		if gcmErr != nil {
 			t.Fatalf("gcm: %v", gcmErr)
 		}
-		return &secretCipher{aead: aead}
+		header := sealed[:headerBytes]
+		nonce, ciphertext := sealed[headerBytes:headerBytes+aead.NonceSize()], sealed[headerBytes+aead.NonceSize():]
+		_, openErr := aead.Open(nil, nonce, ciphertext, aad(header, owner))
+		return openErr
 	}
-	if _, err := openWith(decoded).open(sealed); err != nil {
+	if err := openRaw(decoded); err != nil {
 		t.Errorf("decoded bytes did not open their ciphertext: %v", err)
 	}
 	hashed := sha256.Sum256([]byte(testHexKey))
-	if _, err := openWith(hashed[:]).open(sealed); err == nil {
+	if err := openRaw(hashed[:]); err == nil {
 		t.Error("sha256(the configured text) still opens the ciphertext")
 	}
 }
@@ -295,31 +302,40 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 }
 
 func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
-	c := newCipher(testCipherKey)
+	c := newCipher(testCipherKey, nil)
+	owner := uuid.New()
 	secret, err := NewSecret()
 	if err != nil {
 		t.Fatalf("new secret: %v", err)
 	}
 
-	sealed, err := c.seal(secret)
+	sealed, err := c.seal(secret, owner)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
 	if bytes.Contains(sealed, secret) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
+	digest := sha256.Sum256(testCipherKey)
+	wantHeader := append([]byte{0x01}, digest[:4]...)
+	if !bytes.Equal(sealed[:headerBytes], wantHeader) {
+		t.Errorf("header = %x, want version 01 then the key id: %x", sealed[:headerBytes], wantHeader)
+	}
 
-	opened, err := c.open(sealed)
+	opened, current, err := c.open(sealed, owner)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	if !bytes.Equal(opened, secret) {
 		t.Error("the secret did not round-trip")
 	}
+	if !current {
+		t.Error("the current key opened its own seal but reported current = false")
+	}
 
 	// Equal ciphertexts would mean a reused nonce, which in GCM leaks the XOR
 	// of the two plaintexts and the authentication key.
-	again, err := c.seal(secret)
+	again, err := c.seal(secret, owner)
 	if err != nil {
 		t.Fatalf("seal again: %v", err)
 	}
@@ -328,40 +344,148 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 	}
 }
 
+// TestASecretSealedForOneOwnerDoesNotOpenForAnother: the owner is in the AAD, so
+// a row copied onto another staff member's does not open there.
+func TestASecretSealedForOneOwnerDoesNotOpenForAnother(t *testing.T) {
+	c := newCipher(testCipherKey, nil)
+	a, b := uuid.New(), uuid.New()
+	sealed, err := c.seal(rfcSecret, a)
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+	if _, _, openErr := c.open(sealed, a); openErr != nil {
+		t.Fatalf("open for its own owner: %v", openErr)
+	}
+	_, _, err = c.open(sealed, b)
+	if !errors.Is(err, errNotAuthentic) {
+		t.Fatalf("open for another owner = %v, want %v", err, errNotAuthentic)
+	}
+}
+
+// TestARotationOpensTheOldKeyAndSealsUnderTheNewOne walks the key rotation: K1
+// seals, then K2 with K1 as previous opens it and says it is not current, K2
+// alone refuses it, and new seals carry K2's identifier.
+func TestARotationOpensTheOldKeyAndSealsUnderTheNewOne(t *testing.T) {
+	k1, k2 := testCipherKey, differentCipherKey
+	owner := uuid.New()
+	sealedUnderK1, err := newCipher(k1, nil).seal(rfcSecret, owner)
+	if err != nil {
+		t.Fatalf("seal under k1: %v", err)
+	}
+
+	rotating := newCipher(k2, k1)
+	secret, current, err := rotating.open(sealedUnderK1, owner)
+	if err != nil {
+		t.Fatalf("open k1 row under (k2, k1): %v", err)
+	}
+	if !bytes.Equal(secret, rfcSecret) {
+		t.Error("the secret changed across a rotation")
+	}
+	if current {
+		t.Error("a row sealed under the previous key reported current = true")
+	}
+
+	_, _, err = newCipher(k2, nil).open(sealedUnderK1, owner)
+	if !errors.Is(err, errUnknownKey) || !strings.Contains(err.Error(), "does not hold") {
+		t.Errorf("open k1 row under k2 alone = %v, want a key this server does not hold", err)
+	}
+
+	resealed, err := rotating.seal(secret, owner)
+	if err != nil {
+		t.Fatalf("seal under (k2, k1): %v", err)
+	}
+	k2Digest := sha256.Sum256(k2)
+	if !bytes.Equal(resealed[1:headerBytes], k2Digest[:keyIDBytes]) {
+		t.Errorf("key id = %x, want the current key's %x", resealed[1:headerBytes], k2Digest[:keyIDBytes])
+	}
+	if _, current, err := newCipher(k2, nil).open(resealed, owner); err != nil || !current {
+		t.Errorf("k2 alone opening the re-sealed row = current %v, %v; want true, nil", current, err)
+	}
+}
+
+// TestAnOldFormatSecretIsRefusedWithTheRecoveryAdvice: a value from before the
+// header existed (nonce ‖ ciphertext under the same key) is told to re-enrol.
+func TestAnOldFormatSecretIsRefusedWithTheRecoveryAdvice(t *testing.T) {
+	block, err := aes.NewCipher(testCipherKey)
+	if err != nil {
+		t.Fatalf("aes: %v", err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatalf("gcm: %v", err)
+	}
+	// A nonce whose first byte is not the version, so the value is refused for
+	// its version and not, one run in 256, for its key id.
+	nonce := make([]byte, aead.NonceSize())
+	for first := true; first || nonce[0] == formatV1; first = false {
+		if _, readErr := rand.Read(nonce); readErr != nil {
+			t.Fatalf("nonce: %v", readErr)
+		}
+	}
+	v0 := aead.Seal(nonce, nonce, rfcSecret, nil)
+
+	_, _, err = newCipher(testCipherKey, nil).open(v0, uuid.New())
+	if !errors.Is(err, errOldFormat) || !strings.Contains(err.Error(), "stored before format v1; remove the factor and re-enrol") {
+		t.Errorf("open of a pre-v1 value = %v, want the stored-before-format-v1 error", err)
+	}
+	// A value too short to hold a header, a nonce and a tag is the same case.
+	if _, _, err := newCipher(testCipherKey, nil).open(v0[:headerBytes+4], uuid.New()); !errors.Is(err, errOldFormat) {
+		t.Errorf("open of a truncated value = %v, want %v", err, errOldFormat)
+	}
+}
+
 func TestATamperedSecretDoesNotOpen(t *testing.T) {
-	c := newCipher(testCipherKey)
+	c := newCipher(testCipherKey, nil)
+	owner := uuid.New()
 	secret, _ := NewSecret()
-	sealed, err := c.seal(secret)
+	sealed, err := c.seal(secret, owner)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
 
-	for _, flip := range []int{0, len(sealed) / 2, len(sealed) - 1} {
+	// Byte 0 is the version, 1-4 the key id, then the nonce, the ciphertext and
+	// the tag. Every one is covered by the version check, the key lookup or the
+	// AEAD.
+	for _, flip := range []int{0, 1, headerBytes - 1, headerBytes, len(sealed) / 2, len(sealed) - 1} {
 		tampered := bytes.Clone(sealed)
 		tampered[flip] ^= 0x01
-		if _, err := c.open(tampered); err == nil {
+		if _, _, err := c.open(tampered, owner); err == nil {
 			t.Errorf("a ciphertext with byte %d flipped still opened", flip)
 		}
 	}
 
-	if _, err := newCipher(differentCipherKey).open(sealed); err == nil {
+	if _, _, err := newCipher(differentCipherKey, nil).open(sealed, owner); err == nil {
 		t.Error("a secret opened under the wrong key")
 	}
 	// A truncated value is refused rather than panicking on a short slice.
-	if _, err := c.open(sealed[:4]); err == nil {
+	if _, _, err := c.open(sealed[:4], owner); err == nil {
 		t.Error("a truncated ciphertext opened")
 	}
 }
 
+// TestAKeyIdThatCannotTellTheKeysApartIsRefused: the rotation check rejects an
+// identical previous key, and accepts none or a different one.
+func TestAKeyIdThatCannotTellTheKeysApartIsRefused(t *testing.T) {
+	if err := CheckKeyRotation(testCipherKey, nil); err != nil {
+		t.Errorf("no previous key refused: %v", err)
+	}
+	if err := CheckKeyRotation(testCipherKey, differentCipherKey); err != nil {
+		t.Errorf("a different previous key refused: %v", err)
+	}
+	if err := CheckKeyRotation(testCipherKey, bytes.Clone(testCipherKey)); err == nil {
+		t.Error("the same key as its own predecessor was accepted")
+	}
+}
+
 func TestNoKeyMeansNoStoredSecret(t *testing.T) {
-	c := newCipher(nil)
+	c := newCipher(nil, nil)
 	if c.enabled() {
 		t.Fatal("a cipher with no key reported itself enabled")
 	}
-	if _, err := c.seal([]byte("secret")); err == nil {
+	if _, err := c.seal([]byte("secret"), uuid.New()); err == nil {
 		t.Error("a secret was sealed with no key configured")
 	}
-	if _, err := c.open([]byte("anything")); err == nil {
+	if _, _, err := c.open([]byte("anything"), uuid.New()); err == nil {
 		t.Error("a secret was opened with no key configured")
 	}
 }
@@ -417,7 +541,7 @@ func TestEnrolIsThrottledPerAccount(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	// No key: Begin answers ErrDisabled before it reaches the database.
-	h := NewHandler(NewStore(idle, nil), slog.New(slog.DiscardHandler))
+	h := NewHandler(NewStore(idle, nil, nil), slog.New(slog.DiscardHandler))
 	enrol := func(id string) int {
 		r := httptest.NewRequestWithContext(user.NewContext(t.Context(), user.User{ID: id, Role: user.RoleStaff}),
 			http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))

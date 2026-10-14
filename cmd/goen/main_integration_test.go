@@ -533,7 +533,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 			t.Fatalf("start %s session: %v", role, sessionErr)
 		}
 		if verified {
-			if verifyErr := twofactor.NewStore(pool, key).MarkVerified(ctx, bearer.Digest(token)); verifyErr != nil {
+			if verifyErr := twofactor.NewStore(pool, key, nil).MarkVerified(ctx, bearer.Digest(token)); verifyErr != nil {
 				t.Fatalf("verify session: %v", verifyErr)
 			}
 		}

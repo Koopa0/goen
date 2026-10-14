@@ -1,148 +1,60 @@
 package admin
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 )
 
-const (
-	// CoverWindowDays is the fewest shop days of sales a rate is read from: a
-	// week is too short to tell a slow SKU from an idle one.
-	CoverWindowDays = 30
-
-	// coverMinOrders is the fewest orders that bought a SKU before its days
-	// cover is estimated. Orders, not units: one order of ten units is one
-	// event, and the interval is a count of events.
-	coverMinOrders = 10
-
-	// coverMaxRows is how many rows each of the two groups lists, sold out and
-	// the rest, so neither can push the other off the page; the sold out ones
-	// left off are counted.
-	coverMaxRows = 10
-
-	// coverWarnDays is the days cover under which a SKU is marked: the
-	// restocking lead, not the period the report shows.
-	coverWarnDays = 30
-
-	// coverMaxDays is where the scale and every estimate end.
-	coverMaxDays = 90
-
-	// z90 is the normal quantile bounding a 90% interval on each side.
-	z90 = 1.6448536269514722
-)
-
-// StockRisk is one SKU's stock and what was sold from it over the window.
+// StockRisk is one SKU's row as the back office shows it.
 type StockRisk struct {
-	SKU      string
-	Name     string
-	Slug     string
-	Sellable int32
-	// Sold is units; Orders is how many orders bought it.
-	Sold   int64
-	Orders int64
-	// InStock is how long over the window the SKU had anything to sell.
-	InStock time.Duration
-	// SoldOutAt is when the SKU last ran out within the window; zero when it
-	// was already out at its start.
-	SoldOutAt time.Time
+	inventory.Risk
+
 	// ReadAt is when the row was read: it decides whether a day is told with
 	// its year.
 	ReadAt time.Time
 }
 
-// CoverState says what can be said of a SKU's days cover.
-type CoverState int
-
-const (
-	CoverSoldOut CoverState = iota
-	CoverEstimated
-	CoverFewOrders
-)
-
-// DaysCover is how many days a SKU's sellable stock lasts at its rate of sale,
-// with the 90% range that rate allows. Days, Low and High are whole days and
-// are set only when State is CoverEstimated.
-type DaysCover struct {
-	State           CoverState
-	Days, Low, High int
+// StockRisks wraps ranked rows read at readAt for display.
+func StockRisks(rows []inventory.Risk, readAt time.Time) []StockRisk {
+	out := make([]StockRisk, 0, len(rows))
+	for i := range rows {
+		out = append(out, StockRisk{Risk: rows[i], ReadAt: readAt})
+	}
+	return out
 }
 
-// Estimate reads the SKU's days cover. A SKU with nothing sellable is sold out
-// whatever it sold; the rate is units over the days it was in stock, and the
-// range is the Poisson interval of the orders that made it.
+// DaysCover is a SKU's days cover as the back office shows it.
+type DaysCover struct{ inventory.Cover }
+
+// Estimate reads the SKU's days cover.
 func (r StockRisk) Estimate() DaysCover {
-	switch {
-	case r.Sellable <= 0:
-		return DaysCover{State: CoverSoldOut}
-	case r.Orders < coverMinOrders:
-		return DaysCover{State: CoverFewOrders}
-	}
-	// A SKU received minutes ago has few hours in stock; the floor keeps the
-	// rate finite, and the estimate of such a SKU is one day.
-	perDay := float64(r.Sold) / (max(r.InStock, time.Hour).Hours() / 24)
-	days := float64(r.Sellable) / perDay
-	k := float64(r.Orders)
-	slowest := chiSquareQuantile(-z90, 2*k) / (2 * k)
-	fastest := chiSquareQuantile(z90, 2*k+2) / (2 * k)
-	// The interval is the orders' Poisson one, applied to a rate in units: it
-	// takes the units per order as fixed, so with orders of varying size the
-	// true spread is wider.
-	return DaysCover{
-		State: CoverEstimated,
-		Days:  wholeDays(days),
-		Low:   wholeDays(days / fastest),
-		High:  wholeDays(days / slowest),
-	}
+	return DaysCover{r.Sales.Estimate()}
 }
-
-// wholeDays rounds to the nearest day, and never to none: stock that lasts
-// hours is a day.
-func wholeDays(d float64) int { return max(int(math.Round(d)), 1) }
-
-// chiSquareQuantile is the Wilson–Hilferty approximation of the chi-square
-// quantile with dof degrees of freedom at normal quantile z.
-func chiSquareQuantile(z, dof float64) float64 {
-	a := 2 / (9 * dof)
-	c := 1 - a + z*math.Sqrt(a)
-	return dof * c * c * c
-}
-
-// Urgent reports whether the row is one to act on: sold out, or an estimate
-// under the warning line. A sold out row shows its badge and an estimated one
-// the ▲.
-func (c DaysCover) Urgent() bool {
-	return c.State == CoverSoldOut || c.State == CoverEstimated && c.Days < coverWarnDays
-}
-
-// Beyond reports whether the estimate is past the end of the scale.
-func (c DaysCover) Beyond() bool { return c.Days > coverMaxDays }
 
 // Bar is the estimate and how far it may reach, drawn on the one scale of every
 // row, with a line at the days under which an estimate is marked ▲.
 func (c DaysCover) Bar() chart.RangeBarProps {
-	return chart.RangeBarProps{Value: int64(c.Days), High: int64(c.High), Mark: coverWarnDays, Max: coverMaxDays, Urgent: c.Urgent()}
+	return chart.RangeBarProps{Value: int64(c.Days), High: int64(c.High), Mark: inventory.CoverWarnDays, Max: inventory.CoverMaxDays, Urgent: c.Urgent()}
 }
 
 // Figure is the estimate as it heads the row.
 func (c DaysCover) Figure(ctx context.Context) string {
 	switch c.State {
-	case CoverSoldOut:
+	case inventory.CoverSoldOut:
 		return i18n.T(ctx, i18n.KeySoldOut)
-	case CoverFewOrders:
+	case inventory.CoverFewOrders:
 		return i18n.T(ctx, i18n.KeyAdminRepFewSold)
-	case CoverEstimated:
+	case inventory.CoverEstimated:
 		if c.Beyond() {
-			return i18n.Count(ctx, i18n.KeyAdminRepBeyond, coverMaxDays, coverMaxDays)
+			return i18n.Count(ctx, i18n.KeyAdminRepBeyond, inventory.CoverMaxDays, inventory.CoverMaxDays)
 		}
 		return i18n.Count(ctx, i18n.KeyAdminRepAbout, int64(c.Days), c.Days)
 	}
@@ -152,12 +64,12 @@ func (c DaysCover) Figure(ctx context.Context) string {
 // Range is the 90% range in words, empty when there is none to say or none is
 // drawn: a range that does not reach into the scale, or that is one day.
 func (c DaysCover) Range(ctx context.Context) string {
-	if c.State != CoverEstimated || c.Low >= coverMaxDays || c.Low == c.High {
+	if c.State != inventory.CoverEstimated || c.Low >= inventory.CoverMaxDays || c.Low == c.High {
 		return ""
 	}
 	high := strconv.Itoa(c.High)
-	if c.High > coverMaxDays {
-		high = strconv.Itoa(coverMaxDays) + "+"
+	if c.High > inventory.CoverMaxDays {
+		high = strconv.Itoa(inventory.CoverMaxDays) + "+"
 	}
 	return i18n.Count(ctx, i18n.KeyAdminRepRange, int64(c.High), c.High, strconv.Itoa(c.Low), high)
 }
@@ -166,13 +78,13 @@ func (c DaysCover) Range(ctx context.Context) string {
 // follows the range: the words are stronger when even the slowest end of it runs
 // out within the line.
 func (c DaysCover) Warning(ctx context.Context) string {
-	if c.State != CoverEstimated || !c.Urgent() {
+	if c.State != inventory.CoverEstimated || !c.Urgent() {
 		return ""
 	}
-	if c.High < coverWarnDays {
-		return i18n.Count(ctx, i18n.KeyAdminRepWithin, coverWarnDays, coverWarnDays)
+	if c.High < inventory.CoverWarnDays {
+		return i18n.Count(ctx, i18n.KeyAdminRepWithin, inventory.CoverWarnDays, inventory.CoverWarnDays)
 	}
-	return i18n.Count(ctx, i18n.KeyAdminRepMayRun, coverWarnDays, coverWarnDays)
+	return i18n.Count(ctx, i18n.KeyAdminRepMayRun, inventory.CoverWarnDays, inventory.CoverWarnDays)
 }
 
 func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
@@ -212,39 +124,6 @@ func (r StockRisk) SoldText(ctx context.Context, days int) string {
 
 func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
 
-// RankStockRisk lists the sold out SKUs that ran out most recently, then the
-// estimated ones from the shortest days cover, then those that cannot be
-// estimated, each of the two groups at most coverMaxRows. It also returns how
-// many sold out SKUs it left off.
-func RankStockRisk(rows []StockRisk) (listed []StockRisk, moreSoldOut int) {
-	var soldOut, rest []StockRisk
-	for i := range rows {
-		if rows[i].Estimate().State == CoverSoldOut {
-			soldOut = append(soldOut, rows[i])
-		} else {
-			rest = append(rest, rows[i])
-		}
-	}
-	slices.SortStableFunc(soldOut, func(a, b StockRisk) int {
-		return cmp.Or(b.SoldOutAt.Compare(a.SoldOutAt), cmp.Compare(b.Sold, a.Sold), cmp.Compare(a.SKU, b.SKU))
-	})
-	slices.SortStableFunc(rest, func(a, b StockRisk) int {
-		ea, eb := a.Estimate(), b.Estimate()
-		return cmp.Or(
-			cmp.Compare(ea.State, eb.State),
-			cmp.Compare(ea.Days, eb.Days),
-			cmp.Compare(a.Sellable, b.Sellable),
-			cmp.Compare(b.Sold, a.Sold),
-			cmp.Compare(a.SKU, b.SKU),
-		)
-	})
-	shown := min(len(soldOut), coverMaxRows)
-	listed = make([]StockRisk, 0, shown+min(len(rest), coverMaxRows))
-	listed = append(listed, soldOut[:shown]...)
-	listed = append(listed, rest[:min(len(rest), coverMaxRows)]...)
-	return listed, len(soldOut) - shown
-}
-
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.
 const dashboardRunwayRows = 5
 
@@ -270,10 +149,10 @@ func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool, basis Runw
 	inStock := false
 	for i := range listed {
 		cover := listed[i].Estimate()
-		if cover.State != CoverSoldOut {
+		if cover.State != inventory.CoverSoldOut {
 			inStock = true
 		}
-		if cover.State != CoverEstimated {
+		if cover.State != inventory.CoverEstimated {
 			continue
 		}
 		basis = RunwayEstimated

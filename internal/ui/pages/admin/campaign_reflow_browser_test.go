@@ -7,13 +7,11 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestCampaignEditorReflowsInBothLanguages(t *testing.T) {
-	debuggingPort := os.Getenv("CDP_PORT")
-	if debuggingPort == "" {
-		t.Skip("set CDP_PORT to the debugging port of a running Chrome to run the campaign editor's native browser regression")
-	}
+	_, debuggingPort := uitest.Browser(t, "CDP_PORT")
 	fixtures := t.TempDir()
 	view := CampaignView{
 		Slug: "layout-campaign",

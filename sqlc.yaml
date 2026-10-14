@@ -14,6 +14,7 @@ sql:
       - "internal/returns/buyer/query.sql"
       - "internal/outbox/query.sql"
       - "internal/order/notice/query.sql"
+      - "internal/order/cancellation/query.sql"
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"

@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -13,13 +12,11 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
-	port := os.Getenv("CDP_PORT")
-	if port == "" {
-		t.Skip("set CDP_PORT to run the native carousel regression")
-	}
+	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)

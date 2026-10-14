@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -13,7 +14,7 @@ import (
 templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
 	<h2 class="goen-admin__subhead" id="stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 	<p class="goen-admin__hint">
-		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, coverMinOrders, coverWarnDays, coverMaxRows) }
+		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, inventory.CoverMinOrders, inventory.CoverWarnDays, inventory.RankRows) }
 	</p>
 	@StockRiskRows(rows, moreSoldOut, days)
 }
@@ -31,7 +32,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 				@ReportRow(item.Name, item.Href(), item.Facts(ctx, days)) {
 					<div class="goen-report__plot">
 						switch cover.State {
-							case CoverSoldOut:
+							case inventory.CoverSoldOut:
 								<p class="goen-report__state">
 									@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
 										{ cover.Figure(ctx) }
@@ -40,7 +41,7 @@ templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
 										<span class="goen-report__aside">{ since }</span>
 									}
 								</p>
-							case CoverFewOrders:
+							case inventory.CoverFewOrders:
 								<p class="goen-report__aside">{ cover.Figure(ctx) }</p>
 							default:
 								<p class="goen-report__state">
