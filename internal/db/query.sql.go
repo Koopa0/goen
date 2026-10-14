@@ -7243,6 +7243,39 @@ func (q *Queries) DeleteFAQEntry(ctx context.Context, entryID uuid.UUID) (int64,
 	return result.RowsAffected(), nil
 }
 
+const deleteIdleGuestCarts = `-- name: DeleteIdleGuestCarts :execrows
+DELETE FROM carts
+WHERE id IN (
+    SELECT c.id FROM carts c
+    WHERE c.user_id IS NULL
+      AND c.updated_at < now() - $1::interval
+      AND NOT EXISTS (
+          SELECT 1 FROM cart_items i
+          WHERE i.cart_id = c.id AND i.added_at >= now() - $1::interval)
+    LIMIT $2::integer
+    FOR UPDATE OF c SKIP LOCKED
+)
+`
+
+type DeleteIdleGuestCartsParams struct {
+	Retain pgtype.Interval
+	Batch  int32
+}
+
+// A guest cart nobody has touched for the retention window. Its cookie lives as
+// long as the window and is set once, when the cart is created, so past it no
+// browser can name the cart. An account's cart (user_id set) is never listed.
+// Idle means none of created_at, updated_at (a checkout draft moves it) or a
+// line's added_at is inside the window. One batch at a time: the delete cascades
+// to cart_items, and SKIP LOCKED leaves a cart a writer holds for the next pass.
+func (q *Queries) DeleteIdleGuestCarts(ctx context.Context, arg DeleteIdleGuestCartsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdleGuestCarts, arg.Retain, arg.Batch)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteMedia = `-- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = $1::text
@@ -7381,6 +7414,23 @@ WHERE z.id = $1
 // Decided by the DELETE's own WHERE clause, like DeleteBrand.
 func (q *Queries) DeleteShippingZone(ctx context.Context, zoneID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteShippingZone, zoneID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteStaleNewsletterConfirmations = `-- name: DeleteStaleNewsletterConfirmations :execrows
+DELETE FROM newsletter_confirmations
+WHERE created_at < now() - $1::interval
+`
+
+// A request nobody answered. Only newsletter_confirmations is touched: a row in
+// newsletter_subscribers is a confirmed subscription or an opt-out, and the
+// opt-out is the record that stops the list emailing somebody again. Keyed on
+// created_at, which a repeated request moves forward together with expires_at.
+func (q *Queries) DeleteStaleNewsletterConfirmations(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleNewsletterConfirmations, retain)
 	if err != nil {
 		return 0, err
 	}
