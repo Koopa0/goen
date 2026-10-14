@@ -14,14 +14,17 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
-	driver := os.Getenv("GOEN_SAFARI_DRIVER_URL")
-	port := os.Getenv("GOEN_POPOVER_CDP_PORT")
-	if driver == "" && port == "" {
-		t.Skip("set a hosted browser endpoint to run the native popover regression")
+	name, value := uitest.Browser(t, "GOEN_SAFARI_DRIVER_URL", "GOEN_POPOVER_CDP_PORT")
+	var driver, port string
+	if name == "GOEN_SAFARI_DRIVER_URL" {
+		driver = value
+	} else {
+		port = value
 	}
 	root, err := filepath.Abs("../../..")
 	if err != nil {
