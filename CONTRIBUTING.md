@@ -63,8 +63,13 @@ database that no longer matches `migrations/`.
 ```sh
 make test              # unit and handler tests, shuffled (make test-race adds the detector)
 make lint              # golangci-lint at the version the Makefile pins
-make test-integration  # the schema conformance suite, needs Docker
+make test-integration  # every package's integration tests on a real PostgreSQL, needs Docker
 ```
+
+To run one test, name it: `go test -run '^TestPercentCouponDoesNotOverflowAnInRangeSubtotal$' ./internal/cart`
+for a unit test, and add `-tags=integration` for one that needs the database
+(Docker must be running; each package starts its own PostgreSQL). A browser test
+skips unless Chrome is available; see Test files.
 
 ### The gate
 
@@ -170,10 +175,24 @@ store before anything else.
 - `internal/db/{db,models,query.sql,orders_export.sql}.go` and every
   `*_templ.go` are generated. Edit the `.sql` or `.templ` source and run
   `make sqlc` or `make gen`; the gate compares the output against a fresh
-  generation. `tx.go` and `pgerror.go` in that package are hand-written. A query
-  is declared in the `query.sql` of the package that calls it; a query another
-  package needs is reached through the owner, and `internal/db/queryowners_test.go`
-  lists the remaining exceptions, which may only shrink.
+  generation. `tx.go`, `pgerror.go` and `like.go` in that package are
+  hand-written. A package's first `query.sql` is also added to the `queries:`
+  list in `sqlc.yaml`. A query is declared in the `query.sql` of the package
+  that calls it; a query another package needs is reached through the owner, and
+  `internal/db/queryowners_test.go` lists the remaining exceptions, which may
+  only shrink.
+- Package imports are policy, and `internal/repocheck/deps_test.go` is the whole
+  of it: vocabulary packages such as `order`, `money` and `shipping` import no
+  goen package; a back-office desk is imported only by `cmd/goen`, and reaches
+  another desk through an interface it declares; nothing outside
+  `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
+  reason is printed when it fails.
+- Page bodies still live in `internal/ui/pages` and `internal/ui/pages/admin`
+  while they move into the features that render them. A new package does not
+  import either: put its `.templ` beside its handler, build on
+  `internal/ui/layouts` and `internal/ui/components`, and have its store return
+  domain values. `internal/repocheck/layering_test.go` lists the existing
+  imports, and the list may only shrink.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
   is a hope. Plant the defect it exists to catch, watch it go red for the stated
   reason, restore, and say so in the pull request.
@@ -258,7 +277,8 @@ anything larger, open an issue first.
 Labels the maintainer uses: `bug`, `enhancement` and `documentation` for the
 kind; `needs-repro`, `needs-owner` and `blocked` for what it waits on;
 `lane-schema` and `lane-surface` for the part of the tree it touches;
-`polish` for real but cosmetic; `duplicate`; `dependencies`; and
+`polish` for real but cosmetic; `brand` for the brand rollout; `decision` for a
+closed issue that records a ruling; `duplicate`; `dependencies`; and
 `good first issue`.
 
 ## Licensing of contributions
