@@ -57,3 +57,8 @@ func RequestVerification(ctx context.Context, s *Store, userID, email string) er
 func SetGoogleHTTPClient(g *Google, client *http.Client) {
 	g.http = client
 }
+
+// LowerPasswordCostForTests makes HashPassword cheap for this package's own
+// test binary. Production cannot call it: export_test.go is never linked
+// into the program.
+func LowerPasswordCostForTests() { passwordCost = argon2Cost{time: 1, memory: 1024, threads: 1} }

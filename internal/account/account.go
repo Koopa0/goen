@@ -87,6 +87,16 @@ const (
 	argonSaltLen = 16
 )
 
+// argon2Cost is the work factor HashPassword spends on one hash.
+type argon2Cost struct {
+	time, memory uint32
+	threads      uint8
+}
+
+// passwordCost is what HashPassword spends. Only export_test.go lowers it, so
+// the program always hashes at the cost the constants above name.
+var passwordCost = argon2Cost{time: argonTime, memory: argonMemory, threads: argonThreads}
+
 func HashPassword(password string) (string, error) {
 	if len(password) > MaxPasswordBytes {
 		return "", errors.New("account: password too long to hash")
@@ -95,10 +105,10 @@ func HashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("read salt: %w", err)
 	}
-	key := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key := argon2.IDKey([]byte(password), salt, passwordCost.time, passwordCost.memory, passwordCost.threads, argonKeyLen)
 
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, argonMemory, argonTime, argonThreads,
+		argon2.Version, passwordCost.memory, passwordCost.time, passwordCost.threads,
 		base64.RawStdEncoding.EncodeToString(salt),
 		base64.RawStdEncoding.EncodeToString(key),
 	), nil
