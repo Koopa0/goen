@@ -250,8 +250,8 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /account/warranty", sample: "/account/warranty", traits: "nav nostore signin visitor"},
 	{pattern: "GET /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin visitor"},
 	{pattern: "GET /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin visitor"},
-	{pattern: "GET /auth/google", sample: "/auth/google", traits: "banner nav nostore speculation visitor"},                   // suspect: nostore, yet offered speculation rules: /auth is not in unspeculated
-	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore speculation visitor"}, // suspect: nostore, yet offered speculation rules: /auth is not in unspeculated
+	{pattern: "GET /auth/google", sample: "/auth/google", traits: "banner nav nostore visitor"},                   // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
+	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
 	{pattern: "GET /c/{slug}", sample: "/c/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /cart", sample: "/cart", traits: "nav nostore speculation visitor"},
 	{pattern: "GET /checkout", sample: "/checkout", traits: "nav nostore visitor"},
@@ -260,14 +260,14 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /contact", sample: "/contact", traits: "banner nav speculation visitor"},
 	{pattern: "GET /deals", sample: "/deals", traits: "banner nav speculation visitor"},
 	{pattern: "GET /faq", sample: "/faq", traits: "banner nav speculation visitor"},
-	{pattern: "GET /favicon.ico", sample: "/favicon.ico", traits: "speculation"},           // suspect: offered speculation rules: it is neither /static nor /media
-	{pattern: "GET /forgot", sample: "/forgot", traits: "nav nostore speculation visitor"}, // suspect: nostore, yet offered speculation rules: /forgot is not in unspeculated
-	{pattern: "GET /healthz", sample: "/healthz", traits: "nostore speculation"},           // suspect: a probe that is nostore and offered speculation rules
+	{pattern: "GET /favicon.ico", sample: "/favicon.ico", traits: ""},
+	{pattern: "GET /forgot", sample: "/forgot", traits: "nav nostore visitor"},
+	{pattern: "GET /healthz", sample: "/healthz", traits: "nostore"},
 	{pattern: "GET /media/{digest}", sample: "/media/" + probeDigest, traits: ""},
 	{pattern: "GET /media/{digest}/{width}", sample: "/media/" + probeDigest + "/400", traits: ""},
-	{pattern: "GET /newsletter/confirm", sample: "/newsletter/confirm", traits: "banner nav nostore speculation visitor"},         // suspect: nostore, yet offered speculation rules: /newsletter is not in unspeculated
-	{pattern: "GET /newsletter/thanks", sample: "/newsletter/thanks", traits: "banner nav nostore speculation visitor"},           // suspect: nostore, yet offered speculation rules: /newsletter is not in unspeculated
-	{pattern: "GET /newsletter/unsubscribe", sample: "/newsletter/unsubscribe", traits: "banner nav nostore speculation visitor"}, // suspect: nostore, yet offered speculation rules: /newsletter is not in unspeculated
+	{pattern: "GET /newsletter/confirm", sample: "/newsletter/confirm", traits: "banner nav nostore visitor"},
+	{pattern: "GET /newsletter/thanks", sample: "/newsletter/thanks", traits: "banner nav nostore visitor"},
+	{pattern: "GET /newsletter/unsubscribe", sample: "/newsletter/unsubscribe", traits: "banner nav nostore visitor"},
 	{pattern: "GET /orders/find", sample: "/orders/find", traits: "nav nostore visitor"},
 	{pattern: "GET /orders/{number}", sample: "/orders/" + probeNumber, traits: "nav nostore visitor"},
 	{pattern: "GET /orders/{number}/pay", sample: "/orders/" + probeNumber + "/pay", traits: "nav nostore visitor"},
@@ -275,20 +275,20 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /p/{slug}", sample: "/p/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /payment", sample: "/payment", traits: "banner nav speculation visitor"},
 	{pattern: "GET /privacy", sample: "/privacy", traits: "banner nav speculation visitor"},
-	{pattern: "GET /readyz", sample: "/readyz", traits: "nostore speculation"}, // suspect: a probe that is nostore and offered speculation rules
+	{pattern: "GET /readyz", sample: "/readyz", traits: "nostore"},
 	{pattern: "GET /register", sample: "/register", traits: "nav nostore visitor"},
 	{pattern: "GET /register/complete", sample: "/register/complete", traits: "nav nostore visitor"},
 	{pattern: "GET /reset", sample: "/reset", traits: "nav nostore visitor"},
 	{pattern: "GET /returns", sample: "/returns", traits: "banner nav speculation visitor"},
-	{pattern: "GET /robots.txt", sample: "/robots.txt", traits: "banner nav speculation visitor"}, // suspect: not a page, yet it runs the banner and nav queries
+	{pattern: "GET /robots.txt", sample: "/robots.txt", traits: "visitor"}, // still visitor: the sitemap needs the request budget, which stateless paths skip, and robots.txt follows it
 	{pattern: "GET /s/{slug}", sample: "/s/" + probeSlug, traits: "banner nav speculation visitor"},
 	{pattern: "GET /search", sample: "/search", traits: "banner nav speculation visitor"},
 	{pattern: "GET /shipping", sample: "/shipping", traits: "banner nav speculation visitor"},
 	{pattern: "GET /signin", sample: "/signin", traits: "nav nostore visitor"},
-	{pattern: "GET /sitemap.xml", sample: "/sitemap.xml", traits: "banner nav speculation visitor"}, // suspect: not a page, yet it runs the banner and nav queries
+	{pattern: "GET /sitemap.xml", sample: "/sitemap.xml", traits: "visitor"}, // still visitor: it needs the request budget, which stateless paths skip
 	{pattern: "GET /static/", sample: "/static/css/app/app.css", traits: ""},
 	{pattern: "GET /terms", sample: "/terms", traits: "banner nav speculation visitor"},
-	{pattern: "GET /verify", sample: "/verify", traits: "banner nav nostore visitor"}, // suspect: a mailed-token page that runs the banner query: /verify is not in bannerFreePrefixes
+	{pattern: "GET /verify", sample: "/verify", traits: "banner nav nostore visitor"}, // shows the banner like the other mailed-link pages that share its template (/newsletter/confirm, /newsletter/unsubscribe); the account-recovery forms /forgot and /reset are banner-free
 	{pattern: "GET /warranty", sample: "/warranty", traits: "banner nav speculation visitor"},
 	{pattern: "GET /{$}", sample: "/", traits: "banner nav speculation visitor"},
 	{pattern: "POST /account/addresses", sample: "/account/addresses", traits: "nav nostore signin visitor"},
