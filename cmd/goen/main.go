@@ -90,6 +90,10 @@ type config struct {
 	// totpKey is parsed key material, kept distinct from the raw environment
 	// string so nothing downstream decides the key format a second time.
 	totpKey []byte
+	// TOTPPreviousKey is the raw GOEN_TOTP_KEY_PREVIOUS; totpPreviousKey is its
+	// parsed form.
+	TOTPPreviousKey string
+	totpPreviousKey []byte
 	// TrustedProxies is the CIDR list whose X-Forwarded-For goen will believe.
 	// Empty is the default and must stay it: a header is set by the client, so
 	// believing one hands an attacker an unlimited supply of rate-limit keys.
@@ -142,7 +146,28 @@ func loadConfig() (config, error) {
 		SMTPFrom:       envOr("GOEN_SMTP_FROM", "goen <no-reply@goen.example>"),
 		SMTPUser:       os.Getenv("GOEN_SMTP_USER"),
 		SMTPPassword:   os.Getenv("GOEN_SMTP_PASSWORD"),
+
+		TOTPPreviousKey: os.Getenv("GOEN_TOTP_KEY_PREVIOUS"),
 	}, nil
+}
+
+// prepareTOTPPreviousKey parses GOEN_TOTP_KEY_PREVIOUS and refuses one that
+// cannot rotate: not a key, set without a current key to re-seal under, or
+// indistinguishable from the current key.
+func (cfg *config) prepareTOTPPreviousKey(key []byte) error {
+	previous, err := twofactor.ParseKey(cfg.TOTPPreviousKey)
+	if err != nil {
+		return fmt.Errorf("GOEN_TOTP_KEY_PREVIOUS: %w", err)
+	}
+	if len(previous) != 0 && len(key) == 0 {
+		return errors.New("GOEN_TOTP_KEY_PREVIOUS is set but GOEN_TOTP_KEY is not: " +
+			"the previous key only reads secrets the current key will re-seal")
+	}
+	if err := twofactor.CheckKeyRotation(key, previous); err != nil {
+		return fmt.Errorf("GOEN_TOTP_KEY_PREVIOUS: %w", err)
+	}
+	cfg.totpPreviousKey = previous
+	return nil
 }
 
 // prepareRuntimePosture refuses a configuration that would serve the site with
@@ -159,6 +184,9 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 		return fmt.Errorf("GOEN_TOTP_KEY: %w", keyErr)
 	}
 	cfg.totpKey = key
+	if err := cfg.prepareTOTPPreviousKey(key); err != nil {
+		return err
+	}
 	// An empty key leaves the step-up function nil and RequireStaff skips the
 	// check when it is nil, so the back office falls back to a password alone.
 	if len(key) == 0 {
@@ -359,7 +387,37 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 		&privileges.schemaOwner, &privileges.memberOfSchemaOwner); roleErr != nil {
 		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
-	return checkDatabaseLogin(role, secureCookies, privileges, log)
+	if err := checkDatabaseLogin(role, secureCookies, privileges, log); err != nil {
+		return err
+	}
+
+	// migrations/001 refuses any other collation when it runs; this catches a
+	// database whose schema was restored or migrated some other way.
+	var provider, locale string
+	if localeErr := pool.QueryRow(pingCtx, `
+		SELECT d.datlocprovider::text, coalesce(d.datlocale, '')
+		FROM pg_catalog.pg_database d WHERE d.datname = current_database()
+	`).Scan(&provider, &locale); localeErr != nil {
+		return fmt.Errorf("check %s database locale: %w", role, redactURL(localeErr, url))
+	}
+	return checkDatabaseLocale(role, provider, locale, secureCookies, log)
+}
+
+// checkDatabaseLocale refuses, or in development warns about, a database that
+// is not on PostgreSQL's builtin C.UTF-8 locale: an operating-system collation
+// can change under the database with a library upgrade and leave its text
+// indexes silently wrong.
+func checkDatabaseLocale(role databaseRole, provider, locale string, secureCookies bool, log *slog.Logger) error {
+	if provider == "b" && locale == "C.UTF-8" {
+		return nil
+	}
+	message := fmt.Sprintf("the database %s reaches through %s uses locale provider %q and locale %q; goen requires the builtin provider with locale \"C.UTF-8\" (recreate it with createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8)",
+		role, role.urlVariable(), provider, locale)
+	if secureCookies {
+		return fmt.Errorf("refusing to start: %s", message)
+	}
+	log.Warn(message)
+	return nil
 }
 
 func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databaseLoginPrivileges, log *slog.Logger) error {
@@ -553,7 +611,7 @@ func run() error {
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: gateway,
-			TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
+			TOTPKey: cfg.totpKey, TOTPPreviousKey: cfg.totpPreviousKey, Invoices: invoices, StoreMap: storeMap,
 		},
 	}, proxies, log)
 

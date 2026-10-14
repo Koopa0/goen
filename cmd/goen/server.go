@@ -128,6 +128,10 @@ type BackOfficeConfig struct {
 	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
 	// enrolment.
 	TOTPKey []byte
+	// TOTPPreviousKey is the key TOTPKey replaced, parsed the same way, or nil.
+	// Secrets sealed under it still open and are re-sealed under TOTPKey on the
+	// owner's next sign-in.
+	TOTPPreviousKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
 	Invoices *issuer.Gateway
 	StoreMap *cart.StoreMap
@@ -388,11 +392,10 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 // pool reaches it only as statistics on the health page.
 func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logger, healthPools []health.NamedPool) {
 	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
-	totpKey := cfg.TOTPKey
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
 	// reachable from a product page escalates to admin.
-	factorStore := twofactor.NewStore(adminPool, totpKey)
+	factorStore := twofactor.NewStore(adminPool, cfg.TOTPKey, cfg.TOTPPreviousKey)
 	factors := twofactor.NewHandler(factorStore, log)
 	var stepUp func(*http.Request) (bool, error)
 	if factorStore.Enabled() {

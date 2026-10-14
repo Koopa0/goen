@@ -75,6 +75,17 @@ var (
 		En:     "Other images are being processed. Please upload again in a moment.",
 	})
 
+	KeyAdminNoticeUploadIncomplete = key("admin.notice.uploadincomplete", Message{
+		ZhHant: "圖片沒有完整傳上來，可能是網路太慢或中斷了。請確認網路後再試一次。",
+		En: "The image did not finish uploading. The connection may have been too slow or dropped. " +
+			"Check your connection and try again.",
+	})
+
+	KeyAdminNoticeUploadUnreadable = key("admin.notice.uploadunreadable", Message{
+		ZhHant: "讀不到這次上傳的內容，請重新選擇檔案再試一次。",
+		En:     "We could not read that upload. Please choose the file again and try once more.",
+	})
+
 	KeyAdminNoticeNotImage = key("admin.notice.notimage", Message{
 		ZhHant: "這個檔案不是可以辨識的圖片。支援 JPEG、PNG、GIF 與 WebP。",
 		En:     "That file is not an image goen can decode. JPEG, PNG, GIF and WebP are supported.",

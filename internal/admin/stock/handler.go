@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -57,12 +58,14 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Query().Get(web.KeysetParam) == "" && view.Term == "" && !view.SoldOutOnly {
 		view.ShowCover = true
-		view.AtRisk, view.MoreSoldOut, err = h.store.DaysCover(r.Context(), admin.CoverWindowDays, time.Now())
-		if err != nil {
-			h.log.ErrorContext(r.Context(), "read days cover", "error", err)
+		now := time.Now()
+		listed, more, coverErr := h.store.DaysCover(r.Context(), inventory.CoverWindowDays, now)
+		if coverErr != nil {
+			h.log.ErrorContext(r.Context(), "read days cover", "error", coverErr)
 			access.ServerError(w, r, h.log)
 			return
 		}
+		view.AtRisk, view.MoreSoldOut = admin.StockRisks(listed, now), more
 	}
 	view.Notice = web.Notice(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")

@@ -29,6 +29,7 @@ var randReaders = map[string]string{ //nolint:gosec // G101: the key names the f
 // token.
 var sha256Users = map[string]string{
 	"internal/account/google.go#AuthorizeURL":          "PKCE S256 code challenge (RFC 7636 section 4.2)",
+	"internal/admin/twofactor/crypt.go#newKeyedAEAD":   "key identifier written into a stored TOTP secret's header",
 	"internal/admin/twofactor/store.go#mailedCodeHash": "digest of a mailed one-time code",
 	"internal/cart/cart.go#ID":                         "checkout quote identity",
 	"internal/home/banner.go#DismissDigest":            "promo-dismiss cookie value",

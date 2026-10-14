@@ -389,19 +389,21 @@ func (s *Store) Sweep(ctx context.Context) (int64, error) {
 	return delivered + int64(len(undelivered)), nil
 }
 
-// SweepForever runs Sweep on a ticker until ctx is cancelled. A sweep that errors
-// is logged and retried on the next tick rather than ending the worker.
+// SweepForever runs Sweep once at startup and then on a ticker until ctx is
+// cancelled, so a process restarted more often than [SweepInterval] still
+// removes delivered mail. A sweep that errors is logged and retried on the next
+// tick rather than ending the worker.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SweepInterval)
 	defer ticker.Stop()
 	for {
+		if _, err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep outbox", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if _, err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep outbox", "error", err)
-			}
 		}
 	}
 }

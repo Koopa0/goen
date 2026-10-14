@@ -27,11 +27,14 @@ type Store struct {
 	cipher *secretCipher
 }
 
-func NewStore(pool *pgxpool.Pool, key []byte) *Store {
+// NewStore seals new secrets under key and opens them under key or, while a key
+// is being rotated out, previous. Both come from [ParseKey]; previous may be
+// nil, and key nil disables the store.
+func NewStore(pool *pgxpool.Pool, key, previous []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
 	}
-	return &Store{pool: pool, q: db.New(pool), cipher: newCipher(key)}
+	return &Store{pool: pool, q: db.New(pool), cipher: newCipher(key, previous)}
 }
 
 func (s *Store) Enabled() bool { return s.cipher.enabled() }
@@ -52,7 +55,7 @@ func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byt
 	if err != nil {
 		return nil, "", err
 	}
-	sealed, err := s.cipher.seal(secret)
+	sealed, err := s.cipher.seal(secret, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -92,16 +95,16 @@ func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byt
 // [Store.Begin] mailed. A wrong, expired or superseded mailed code is
 // [ErrBadCode].
 func (s *Store) Confirm(ctx context.Context, userID, code, mailedCode string) error {
-	id, secret, lastStep, sealed, err := s.load(ctx, userID, false)
+	cred, err := s.load(ctx, userID, false)
 	if err != nil {
 		return err
 	}
-	step, err := Verify(secret, code, lastStep, time.Now())
+	step, err := Verify(cred.secret, code, cred.lastStep, time.Now())
 	if err != nil {
 		return err
 	}
 	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{
-		UserID: id, Step: step, SecretEncrypted: sealed,
+		UserID: cred.id, Step: step, SecretEncrypted: cred.sealed,
 		MailedCodeHash: mailedCodeHash(mailedCode),
 		MailedCodeTtl:  pgtype.Interval{Microseconds: MailedCodeTTL.Microseconds(), Valid: true},
 	})
@@ -119,16 +122,27 @@ func (s *Store) Confirm(ctx context.Context, userID, code, mailedCode string) er
 // Verify checks a code for a confirmed credential and records the step. The
 // step is recorded by the same statement that guards it, so a check made in Go
 // would be a check two requests replaying one code both pass.
+//
+// A secret the current key did not open is sealed again under the current key
+// in that same statement, so a key rotation finishes as staff sign in. Only an
+// accepted code re-seals: a refused one proves nothing about who is asking.
 func (s *Store) Verify(ctx context.Context, userID, code string) error {
-	id, secret, lastStep, _, err := s.load(ctx, userID, true)
+	cred, err := s.load(ctx, userID, true)
 	if err != nil {
 		return err
 	}
-	step, err := Verify(secret, code, lastStep, time.Now())
+	step, err := Verify(cred.secret, code, cred.lastStep, time.Now())
 	if err != nil {
 		return err
 	}
-	n, err := s.q.RecordTOTPStep(ctx, db.RecordTOTPStepParams{UserID: id, Step: step})
+	var resealed []byte
+	if !cred.current {
+		resealed, err = s.cipher.seal(cred.secret, cred.id)
+		if err != nil {
+			return fmt.Errorf("reseal totp secret: %w", err)
+		}
+	}
+	n, err := s.q.RecordTOTPStep(ctx, db.RecordTOTPStepParams{UserID: cred.id, Step: step, Resealed: resealed})
 	if err != nil {
 		return fmt.Errorf("record totp step: %w", err)
 	}
@@ -139,7 +153,7 @@ func (s *Store) Verify(ctx context.Context, userID, code string) error {
 }
 
 func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
-	_, _, _, _, err := s.load(ctx, userID, true)
+	_, err := s.load(ctx, userID, true)
 	switch {
 	case err == nil:
 		return true, nil
@@ -173,32 +187,43 @@ func (s *Store) SessionVerified(ctx context.Context, digest []byte) (bool, error
 	return verified, nil
 }
 
-// load reads and decrypts a credential; sealed is the stored form the secret was
-// read from, which a write must name so it lands on that secret and no other. Confirm is the one caller for which an
+// credential is a stored credential after decryption.
+type credential struct {
+	id       uuid.UUID
+	secret   []byte
+	lastStep int64
+	// sealed is the stored form the secret was read from, which a write must
+	// name so it lands on that secret and no other.
+	sealed []byte
+	// current is whether the current key opened sealed.
+	current bool
+}
+
+// load reads and decrypts a credential. Confirm is the one caller for which an
 // unproved secret is legitimately in play; everyone else passes requireConfirmed.
-func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (id uuid.UUID, secret []byte, lastStep int64, sealed []byte, err error) {
+func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (credential, error) {
 	if !s.Enabled() {
-		return uuid.UUID{}, nil, 0, nil, ErrDisabled
+		return credential{}, ErrDisabled
 	}
-	id, err = uuid.Parse(userID)
+	id, err := uuid.Parse(userID)
 	if err != nil {
-		return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
+		return credential{}, ErrNotEnrolled
 	}
 	row, err := s.q.TOTPCredential(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
+			return credential{}, ErrNotEnrolled
 		}
-		return uuid.UUID{}, nil, 0, nil, fmt.Errorf("read totp credential: %w", err)
+		return credential{}, fmt.Errorf("read totp credential: %w", err)
 	}
 	if requireConfirmed && !row.ConfirmedAt.Valid {
-		return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
+		return credential{}, ErrNotEnrolled
 	}
-	secret, err = s.cipher.open(row.SecretEncrypted)
+	secret, current, err := s.cipher.open(row.SecretEncrypted, id)
 	if err != nil {
-		return uuid.UUID{}, nil, 0, nil, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
+		return credential{}, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}
-	return id, secret, row.LastStep.Int64, row.SecretEncrypted, nil
+	return credential{id: id, secret: secret, lastStep: row.LastStep.Int64, sealed: row.SecretEncrypted, current: current}, nil
 }
 
 // newMailedCode is eight digits rather than six: the enrolling page already

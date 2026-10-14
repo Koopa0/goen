@@ -65,7 +65,7 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	}
 	addr = email.Clean(addr)
 	if EmailError(addr) != "" {
-		return fmt.Errorf("requesting verification of %q: not a usable address", addr)
+		return fmt.Errorf("requesting verification for user %s: not a usable address", id)
 	}
 
 	token := bearer.New()

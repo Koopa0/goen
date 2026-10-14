@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: goen
       POSTGRES_PASSWORD: goen
       POSTGRES_DB: goen
+      # Fresh volumes only: migrations/001 refuses any database not on the builtin C.UTF-8 locale.
+      POSTGRES_INITDB_ARGS: "--locale-provider=builtin --builtin-locale=C.UTF-8"
     # 5433 on the host so a locally installed PostgreSQL keeps 5432.
     ports:
       - "127.0.0.1:5433:5432"

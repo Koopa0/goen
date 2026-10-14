@@ -132,14 +132,20 @@ func securityHeaders(next http.Handler, policy string, secure bool) http.Handler
 	})
 }
 
-// unspeculated are the paths goen will not offer speculation rules from.
+// unspeculated are the paths goen will not offer speculation rules from: every
+// prefix in unstoredPrefixes except /cart. They are the signed-in account, the
+// back office, an order and paying for it, the checkout, signing in,
+// registering, recovering an account, and every page a mailed token opens.
 //
-// The rules themselves already refuse to prerender a link into any of these —
-// the document is the guard, and this is the second half of the same decision:
-// a page a visitor reaches only after signing in, or one that is a step in
-// paying, offers no rules at all. Nothing is gained by speculating from a page
-// somebody is reading once, and a bug in the rules costs more there than
-// anywhere else on the site.
+// Each of those is read once, so nothing is gained by speculating from it, and
+// a bug in the rules costs more there than anywhere else on the site. /cart is
+// the deliberate exception, because shoppers browse from it back into the
+// catalogue (#400).
+//
+// The rules document prerenders only /p/* and /c/*, so none of these is ever a
+// target; this list governs the links on them, which is the second half of the
+// same decision. TestEveryUnstoredPageButTheCartOffersNoSpeculation holds this
+// list and unstoredPrefixes together.
 //
 // Prefixes, because every one of them owns its whole subtree.
 var unspeculated = []string{
@@ -149,8 +155,11 @@ var unspeculated = []string{
 	"/admin",
 	"/signin",
 	"/register",
+	"/forgot",
 	"/reset",
 	"/verify",
+	"/auth/",
+	"/newsletter/",
 }
 
 // clearSpeculations tells a browser holding speculative copies of this site to
@@ -195,13 +204,19 @@ func clearCache(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // speculates reports whether this request may carry the Speculation-Rules
-// header. Only a GET of a page: a POST has already happened, and an asset is
-// not a document a browser reads rules from.
+// header. Only a GET or HEAD of a page that renders the storefront header: a
+// POST has already happened, and an asset, an uploaded image, a probe, the
+// favicon, robots.txt, the sitemap and the back office render no storefront
+// header and are not pages anybody browses from. The rules prerender the
+// catalogue links such a page carries.
+//
+// The predicate is navPath on purpose, so a path added to navFreePrefixes loses
+// the header too, with no fourth list to drift.
 func speculates(r *http.Request) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
-	if strings.HasPrefix(r.URL.Path, assets.Prefix) || strings.HasPrefix(r.URL.Path, "/media/") {
+	if !navPath(r.URL.Path) {
 		return false
 	}
 	for _, prefix := range unspeculated {
@@ -341,11 +356,12 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 }
 
 // bannerFreePrefixes are the paths that never show a promotion. The probes are
-// here so no orchestrator health check makes a database round trip.
+// here so no orchestrator health check makes a database round trip. robots.txt
+// and the sitemap render no page, so no promotion is read for them.
 var bannerFreePrefixes = []string{
 	"/checkout", "/cart", "/orders", "/account", "/admin",
 	"/signin", "/register", "/forgot", "/reset", "/webhooks", "/media", "/static",
-	"/healthz", "/readyz", "/favicon.ico",
+	"/healthz", "/readyz", "/favicon.ico", "/robots.txt", "/sitemap.xml",
 }
 
 // withBanner attaches the promotional strip to storefront requests. Not cached,
@@ -381,6 +397,7 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // all, and leaving it a nav path would spend a category query on every one.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
+	"/robots.txt", "/sitemap.xml",
 	cart.PickupReturnPath,
 }
 

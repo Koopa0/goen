@@ -61,21 +61,23 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 	return reclaimed, nil
 }
 
+// SweepForever runs once at startup, so a host redeployed more often than the
+// interval still reclaims unreferenced uploads.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SweepInterval)
 	defer ticker.Stop()
 	for {
+		reclaimed, err := s.Sweep(ctx, log)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			log.ErrorContext(ctx, "sweep unreferenced media", "error", err)
+		case reclaimed > 0:
+			log.InfoContext(ctx, "reclaimed unreferenced uploads", "count", reclaimed)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			reclaimed, err := s.Sweep(ctx, log)
-			switch {
-			case err != nil && ctx.Err() == nil:
-				log.ErrorContext(ctx, "sweep unreferenced media", "error", err)
-			case reclaimed > 0:
-				log.InfoContext(ctx, "reclaimed unreferenced uploads", "count", reclaimed)
-			}
 		}
 	}
 }

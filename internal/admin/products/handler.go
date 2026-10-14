@@ -666,6 +666,8 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 	switch {
 	case errors.Is(err, web.ErrFormText):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case errors.Is(err, media.ErrUploadAborted):
+		// The browser went away mid-upload; there is no one to answer.
 	case media.IsRefusal(err):
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", r.PathValue("slug"))
 		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))

@@ -92,3 +92,9 @@ ORDER BY a.question_id, a.created_at, a.id;
 -- name: HideQuestionAnswer :execrows
 UPDATE product_answers SET hidden_at = now()
 WHERE id = @answer_id AND question_id = @question_id AND hidden_at IS NULL;
+
+-- name: AnswerQuestionAsStaff :execrows
+INSERT INTO product_answers (question_id, user_id, body, is_staff)
+SELECT q.id, @user_id, @body::text, true
+FROM product_questions q
+WHERE q.id = @question_id AND q.hidden_at IS NULL;

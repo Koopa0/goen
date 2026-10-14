@@ -3,7 +3,6 @@ package admin_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -14,13 +13,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestAdminContentDisclosuresWorkWithTheKeyboard(t *testing.T) {
-	port := os.Getenv("CDP_PORT")
-	if port == "" {
-		t.Skip("set CDP_PORT to run the native browser disclosure regression")
-	}
+	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../../..")
 	if err != nil {
 		t.Fatal(err)

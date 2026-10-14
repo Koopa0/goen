@@ -223,7 +223,7 @@ func repositoryGo(t *testing.T) []source {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" {
+			if path != root && skippedDir(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

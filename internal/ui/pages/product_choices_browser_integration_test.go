@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
+
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestCompetingProductChoicesKeepThePurchaseTogether(t *testing.T) {
-	if os.Getenv("GOEN_CHROME") == "" {
-		t.Skip("set GOEN_CHROME to run the product choice browser regression")
-	}
+	uitest.Browser(t, "GOEN_CHROME")
 	fixtures := make(map[string]string)
 	for index, choice := range []string{"blue", "black", "red"} {
 		view := ProductView{

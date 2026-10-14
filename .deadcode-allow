@@ -6,3 +6,6 @@ internal/ui/pages/pagestest.destinationOf # reason: primary action selection use
 internal/ui/pages/pagestest.attr # reason: HTML attribute lookup used only by the shared emailed-link test assertion; deadcode excludes its test callers
 internal/ui/pages/pagestest.hasClass # reason: notice-panel and action class matching used only by the shared emailed-link test assertion; deadcode excludes its test callers
 internal/ui/pages/pagestest.text # reason: heading and reason text extraction used only by the shared emailed-link test assertion; deadcode excludes its test callers
+internal/ui/uitest.Browser # reason: the one browser-test skip helper, called only from _browser_test.go files, which deadcode does not analyse
+internal/ui/uitest.LocalChrome # reason: the skip helper of the browser test that resolves Chrome itself, called only from a test file, which deadcode does not analyse
+internal/ui/uitest.repoRoot # reason: locates scripts/ for LocalChrome, which deadcode reaches only from test files it does not analyse
