@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -513,10 +514,8 @@ func waitForBackendLock(t *testing.T, pid int, done <-chan struct{}) {
 			t.Fatalf("backend %d finished before reaching the forced lock boundary", pid)
 		default:
 		}
-		var waiting bool
-		if err := pool.QueryRow(t.Context(), `
-			SELECT coalesce(wait_event_type = 'Lock', false)
-			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err != nil {
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{PID: int32(pid)}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+		if err != nil {
 			t.Fatalf("observe backend %d: %v", pid, err)
 		}
 		if waiting {

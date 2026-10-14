@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/refund"
@@ -227,11 +228,8 @@ func waitBlockedBehind(t *testing.T, holder int, pattern string, done <-chan str
 			t.Fatalf("%s finished before it waited on backend %d", pattern, holder)
 		default:
 		}
-		var blocked bool
-		if err := pool.QueryRow(t.Context(), `
-			SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-			               WHERE query LIKE $2 AND $1 = ANY (pg_blocking_pids(pid)))`,
-			holder, pattern).Scan(&blocked); err != nil {
+		_, blocked, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{QueryLike: pattern, BlockedBy: []int32{int32(holder)}}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+		if err != nil {
 			t.Fatalf("observe lock wait: %v", err)
 		}
 		if blocked {
