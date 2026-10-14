@@ -30,12 +30,16 @@ SELECT grant_store_credit(
     @actor_user_id::uuid, @operation_id::uuid
 )::uuid AS entry_id;
 
+-- Each customer's tier is derived once and the customers counted per band, not
+-- one member_tier call per customer and band.
 -- name: AdminMembershipTiers :many
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
-       (SELECT count(*) FROM users u
-        WHERE member_tier(u.id, @window_days::integer, NULL) = t.id)::bigint AS members
+       coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
+LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
+           FROM users u
+           GROUP BY 1) m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents;
 
 -- name: CreateMembershipTier :exec
