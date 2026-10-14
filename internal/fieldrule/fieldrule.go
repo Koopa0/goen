@@ -25,8 +25,6 @@ import (
 const (
 	// PhoneMaxRunes is the longest phone number, after trimming.
 	PhoneMaxRunes = 30
-	// EmailMaxBytes is email.Max, the SMTP forward-path limit.
-	EmailMaxBytes = 254
 )
 
 const (

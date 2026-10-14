@@ -15,9 +15,6 @@ import (
 	"unicode/utf8"
 )
 
-// TaxRate is Taiwan's business tax, 5%.
-const TaxRate = 5
-
 // ValidTaxID applies the Ministry of Finance's current business-tax-number
 // checksum. Since April 2023 the product sum is divisible by 5 (formerly 10).
 // When the seventh digit is 7, its 7*4 contribution may be either 1 or 0.
@@ -134,8 +131,6 @@ type Document struct {
 	ProviderRef string
 	Lines       []Line
 }
-
-func (d Document) Voided() bool { return d.Status == DocumentVoided }
 
 type Line struct {
 	TaxType     TaxType  `json:"tax_type"`

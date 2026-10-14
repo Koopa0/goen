@@ -54,8 +54,6 @@ const SessionTTL = 14 * 24 * 60 * 60
 // the only way Authenticate learns to take that proof away.
 const sessionCookieMaxAge = SessionTTL + 30*24*60*60
 
-const ResetTTL = 60 * 60
-
 const (
 	MinPasswordRunes = 10
 	MaxPasswordBytes = 512
