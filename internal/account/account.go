@@ -2,7 +2,6 @@
 package account
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -191,28 +190,6 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
-// FieldMessages keeps the first message per field so a control shows one reason
-// rather than a pile.
-func FieldMessages(ctx context.Context, errs []web.FieldRefusal) map[string]string {
-	if len(errs) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(errs))
-	for _, e := range errs {
-		if _, seen := out[e.Field]; seen {
-			continue
-		}
-		msg := i18n.T(ctx, e.MessageKey)
-		// Only the too-short message carries a verb; formatting the others
-		// appends %!(EXTRA int=10) beside the field.
-		if e.MessageKey == i18n.KeyPasswordTooShort {
-			msg = fmt.Sprintf(msg, MinPasswordRunes)
-		}
-		out[e.Field] = msg
-	}
-	return out
-}
-
 type Credentials struct {
 	Email    string
 	Password string
@@ -232,8 +209,8 @@ func (c *Credentials) ValidateRegistration() []web.FieldRefusal {
 	if k := EmailError(c.Email); k != "" {
 		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
 	}
-	if k := PasswordError(c.Password); k != "" {
-		errs = append(errs, web.FieldRefusal{Field: "password", MessageKey: k})
+	if refusal, refused := PasswordRefusal("password", c.Password); refused {
+		errs = append(errs, refusal)
 	} else if c.Confirm != c.Password {
 		errs = append(errs, web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
@@ -271,6 +248,20 @@ func PasswordError(s string) i18n.Key {
 		return i18n.KeyPasswordTooLong
 	}
 	return ""
+}
+
+// PasswordRefusal is PasswordError as a refusal of field, carrying the
+// minimum the too-short message states.
+func PasswordRefusal(field, s string) (web.FieldRefusal, bool) {
+	k := PasswordError(s)
+	if k == "" {
+		return web.FieldRefusal{}, false
+	}
+	refusal := web.FieldRefusal{Field: field, MessageKey: k}
+	if k == i18n.KeyPasswordTooShort {
+		refusal.Args = []any{MinPasswordRunes}
+	}
+	return refusal, true
 }
 
 func profileInputValid(name, phone string) bool {

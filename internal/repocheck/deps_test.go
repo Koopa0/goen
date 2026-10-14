@@ -54,7 +54,6 @@ var exceptions = map[string]string{
 	"internal/admin/customers -> internal/catalog":         "T26",
 	"internal/admin/orders -> internal/catalog":            "T26",
 	"internal/admin/stock -> internal/catalog":             "T26",
-	"internal/cart -> internal/account":                    "T33",
 }
 
 // under reports whether pkg is dir or lies below it.
