@@ -5532,13 +5532,30 @@ COMMENT ON VIEW order_refunds IS
     'separately and summed by the caller. The one definition: a 折讓 may not '
     'relieve more than this, and the form that files one offers exactly this.';
 
--- What a customer has spent on committed orders in a rolling window, net of
--- refunds. The floor is PER ORDER: over-compensating one purchase must not
--- erase the genuine spend on another.
+-- The rolling window, in days, over which a customer's spend decides their
+-- tier. Programme policy named once: member_spend reads it, so no page and no
+-- award can judge a tier over a different window than the others. The copy
+-- promises a year ("spent in the last year"); changing this changes that copy.
+CREATE FUNCTION membership_window_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 365
+$$;
+
+-- How long earned loyalty points last, in days. A separate rule from the tier
+-- window that happens to share its number today; award_loyalty_points reads it
+-- to stamp each lot's expiry. The copy promises a year ("Points expire one year
+-- after you earn them"); changing this changes that copy.
+CREATE FUNCTION points_lifetime_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 365
+$$;
+
+-- What a customer has spent on committed orders in the rolling
+-- membership_window_days(), net of refunds. The floor is PER ORDER:
+-- over-compensating one purchase must not erase the genuine spend on another.
 -- p_exclude_order is the order being paid for RIGHT NOW: the capture commits it
 -- before points are awarded, so it would otherwise raise its own tier.
-CREATE FUNCTION member_spend(p_user_id uuid, p_days integer,
-                             p_exclude_order uuid DEFAULT NULL)
+CREATE FUNCTION member_spend(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
 RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT coalesce(sum(greatest(
         (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -5549,17 +5566,16 @@ RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp
     JOIN committed_orders c ON c.id = o.id
     JOIN order_refunds rf ON rf.order_id = o.id
     WHERE o.user_id = p_user_id
-      AND o.placed_at >= now() - make_interval(days => p_days)
+      AND o.placed_at >= now() - make_interval(days => membership_window_days())
       AND (p_exclude_order IS NULL OR o.id <> p_exclude_order);
 $$;
 
 -- The highest band at or below that spend, or NULL for a customer below every
 -- threshold.
-CREATE FUNCTION member_tier(p_user_id uuid, p_days integer,
-                            p_exclude_order uuid DEFAULT NULL)
+CREATE FUNCTION member_tier(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
 RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT t.id FROM membership_tiers t
-    WHERE t.min_spend_cents <= member_spend(p_user_id, p_days, p_exclude_order)
+    WHERE t.min_spend_cents <= member_spend(p_user_id, p_exclude_order)
     ORDER BY t.min_spend_cents DESC
     LIMIT 1;
 $$;
@@ -5577,8 +5593,10 @@ GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO store;
 -- production and nowhere else, because every test connects as the owner.
 GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO store;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO store;
-GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO store;
-GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO store;
+GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO store;
+GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO store;
+-- The pages that state the window read it from here, so none keeps a copy.
+GRANT EXECUTE ON FUNCTION membership_window_days() TO store;
 
 -- The back office
 --
@@ -5687,8 +5705,9 @@ GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_goods_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
-GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
-GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION membership_window_days() TO admin;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION upsert_staff(text, text, text) TO admin;
 GRANT EXECUTE ON FUNCTION revoke_staff(uuid) TO admin;
@@ -8796,7 +8815,8 @@ DECLARE
     v_points bigint;
 BEGIN
     -- The order, not the role caller, owns every value carrying economic
-    -- authority.  The fixed 365-day window and expiry are programme policy;
+    -- authority.  The tier window and the points lifetime are programme policy
+    -- and live in membership_window_days() and points_lifetime_days();
     -- changing them is a schema change, not an extra argument on a mint.
     SELECT o.user_id,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint
@@ -8826,7 +8846,7 @@ BEGIN
     RETURNING id INTO v_account;
 
     SELECT coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-                     WHERE t.id = member_tier(v_user, 365, p_order_id)), 10000)
+                     WHERE t.id = member_tier(v_user, p_order_id)), 10000)
     INTO v_multiplier;
     v_points := floor(floor(greatest(v_total, 0)::numeric / 10000)
                       * v_multiplier::numeric / 10000)::bigint;
@@ -8839,7 +8859,7 @@ BEGIN
     INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key,
                                  order_id, expires_on)
     VALUES (v_account, 'award', v_points, 'order', 'earn:' || p_order_id::text,
-            p_order_id, shop_today() + 365)
+            p_order_id, shop_today() + points_lifetime_days())
     ON CONFLICT (idempotency_key) DO NOTHING;
 
     IF NOT FOUND THEN

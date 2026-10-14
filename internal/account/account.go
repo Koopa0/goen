@@ -279,7 +279,3 @@ func normaliseUserAgent(s string) string {
 	}
 	return s
 }
-
-// MembershipWindowDays is loyalty.MembershipWindow in days; window_test.go
-// keeps the two equal.
-const MembershipWindowDays int32 = 365
