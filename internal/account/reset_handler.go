@@ -122,9 +122,14 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		h.writeSignInContext(w, signInAfterReset, address)
 		http.Redirect(w, r, "/signin?reset=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidPassword):
-		errs := FieldMessages(r.Context(), []web.FieldRefusal{
-			{Field: "password", MessageKey: PasswordError(password)},
-		})
+		refusal, refused := PasswordRefusal("password", password)
+		if !refused {
+			h.log.ErrorContext(r.Context(), "complete password reset",
+				"error", "the store refused a password that passes the policy")
+			h.serverError(w, r)
+			return
+		}
+		errs := web.FieldMessages(r.Context(), []web.FieldRefusal{refusal})
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			pages.ResetView{Token: token, Error: errs["password"]}))

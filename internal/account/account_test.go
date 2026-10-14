@@ -547,24 +547,38 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 }
 
 // TestNoFieldMessageLeaksAFormatVerb asserts the RENDERED string rather than the
-// catalogue: only the too-short message carries a format verb, and formatting
-// the other six would render "%!(EXTRA int=10)" beside the field.
+// catalogue: only the too-short message carries a format verb, and its refusal
+// carries the minimum, so no message renders "%!d(MISSING)" or an unfilled verb
+// beside the field.
 func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	t.Parallel()
 
-	every := []web.FieldRefusal{
-		{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
-		{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
-		{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
-		{Field: "password", MessageKey: i18n.KeyPasswordRequired},
-		{Field: "password2", MessageKey: i18n.KeyPasswordTooShort},
-		{Field: "password3", MessageKey: i18n.KeyPasswordTooLong},
-		{Field: "confirm", MessageKey: i18n.KeyPasswordMismatch},
+	passwords := map[string]string{
+		"password":  "",
+		"password2": "short",
+		"password3": strings.Repeat("a", MaxPasswordBytes+1),
+	}
+	every := make([]web.FieldRefusal, 0, 4+len(passwords))
+	every = append(every,
+		web.FieldRefusal{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
+		web.FieldRefusal{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
+		web.FieldRefusal{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
+		web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordMismatch})
+	for field, password := range passwords {
+		refusal, refused := PasswordRefusal(field, password)
+		if !refused {
+			t.Fatalf("PasswordRefusal(%q, %q) did not refuse", field, password)
+		}
+		every = append(every, refusal)
 	}
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for field, msg := range FieldMessages(ctx, every) {
+		messages := web.FieldMessages(ctx, every)
+		if len(messages) != len(every) {
+			t.Fatalf("%s: %d messages for %d refusals", locale, len(messages), len(every))
+		}
+		for field, msg := range messages {
 			if strings.Contains(msg, "%!") || strings.Contains(msg, "%d") ||
 				strings.Contains(msg, "%s") {
 				t.Errorf("%s: the %s field renders %q — a format verb reached the "+
@@ -573,11 +587,11 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 		}
 	}
 
-	// The one message that does carry a verb still gets its number.
+	// The one message that does carry a verb still gets its number, whichever
+	// way registration builds it.
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	short := FieldMessages(ctx, []web.FieldRefusal{
-		{Field: "password", MessageKey: i18n.KeyPasswordTooShort},
-	})["password"]
+	creds := Credentials{Email: "a@example.com", Password: "short", Confirm: "short"}
+	short := web.FieldMessages(ctx, creds.ValidateRegistration())["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
 		t.Errorf("the too-short message is %q and does not state the minimum", short)
 	}

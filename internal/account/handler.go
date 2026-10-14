@@ -414,7 +414,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
 	view := pages.AuthView{Email: c.Email, Name: c.Name, Next: next}
-	if errs := FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
+	if errs := web.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			pages.Register(pages.RegisterMeta(r.Context()), view))
@@ -779,7 +779,7 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	a.Trim()
 	if errs := a.Validate(); len(errs) > 0 {
-		h.refuseAddress(w, r, a, FieldMessages(r.Context(), errs), "")
+		h.refuseAddress(w, r, a, web.FieldMessages(r.Context(), errs), "")
 		return
 	}
 	if err := h.store.AddAddress(r.Context(), u.ID, a); err != nil {
@@ -860,7 +860,7 @@ func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	bounded := *a
 	bounded.Trim()
 	if errs := bounded.Validate(); len(errs) > 0 {
-		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), errs))
+		h.refuseAddressEdit(w, r, saved.ID, a, web.FieldMessages(r.Context(), errs))
 		return
 	}
 	switch err := h.store.updateAddress(r.Context(), u.ID, saved.ID, &bounded); {
@@ -869,7 +869,7 @@ func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		h.addressNotFound(w, r)
 	case errors.Is(err, ErrInvalidInput):
-		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), bounded.Validate()))
+		h.refuseAddressEdit(w, r, saved.ID, a, web.FieldMessages(r.Context(), bounded.Validate()))
 	default:
 		h.log.ErrorContext(r.Context(), "update address", "error", err)
 		h.serverError(w, r)
