@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
@@ -431,7 +430,7 @@ func (s *Store) reconcileKnownInvalidAllowance(
 		},
 	)
 	if err != nil {
-		switch constraintName(err) {
+		switch db.ConstraintName(err) {
 		case "invoice_allowance_invalidation_original",
 			"invoice_allowance_invalidation_header",
 			"invoice_allowance_invalidation_lines",
@@ -472,7 +471,7 @@ func (s *Store) recordUnknownInvalidAllowance(
 		},
 	)
 	if err != nil {
-		if constraintName(err) != "" {
+		if db.ConstraintName(err) != "" {
 			cause := fmt.Errorf("%w: invalid provider Allowance contradicts local facts",
 				ErrPending)
 			return s.alarm(ctx, op, owner, "allowance_invalid_record_contradiction", cause)
@@ -784,12 +783,4 @@ func interval(d time.Duration) pgtype.Interval {
 func reconcileBackoff(attempt int32) time.Duration {
 	shift := min(max(attempt-1, 0), 6)
 	return min(15*time.Second*time.Duration(1<<shift), 15*time.Minute)
-}
-
-func constraintName(err error) string {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	if !ok {
-		return ""
-	}
-	return pgErr.ConstraintName
 }

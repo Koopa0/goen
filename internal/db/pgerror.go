@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// ConstraintName is the constraint a PostgreSQL error names, or "" for any
+// other error.
+func ConstraintName(err error) string {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok {
+		return ""
+	}
+	return pgErr.ConstraintName
+}
+
 // IsConstraint reports whether err is a violation of this constraint. Bound to
 // ConstraintName: a PgError's message never contains it, so a substring search
 // cannot match.

@@ -324,8 +324,8 @@ func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 		if earlyErr == nil {
 			t.Fatal("loyalty was reversed before the order was cancelled")
 		}
-		if admintest.ConstraintName(earlyErr) != "loyalty_clawback_cancelled_order" {
-			t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", admintest.ConstraintName(earlyErr), earlyErr)
+		if db.ConstraintName(earlyErr) != "loyalty_clawback_cancelled_order" {
+			t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", db.ConstraintName(earlyErr), earlyErr)
 		}
 	})
 }

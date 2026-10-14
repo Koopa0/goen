@@ -66,7 +66,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 					t.Fatalf("issue invoice: %v", err)
 				}
 				_, err := refunds.NewStore(pool, admintest.Refunder{}, nil).RefundBeforeShipment(ctx, number, "")
-				if admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
+				if db.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 					t.Fatalf("refund with a live invoice = %v", err)
 				}
 				return number

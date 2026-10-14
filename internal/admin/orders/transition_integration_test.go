@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order"
 )
 
@@ -65,8 +66,8 @@ func triggerAllows(t *testing.T, orderID uuid.UUID, from, to order.FulfillmentSt
 	if err == nil {
 		return true
 	}
-	if admintest.ConstraintName(err) == "" {
+	if db.ConstraintName(err) == "" {
 		t.Fatalf("%s to %s: %v", from, to, err)
 	}
-	return admintest.ConstraintName(err) != "orders_legal_transition"
+	return db.ConstraintName(err) != "orders_legal_transition"
 }

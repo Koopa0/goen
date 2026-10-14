@@ -18,7 +18,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -200,7 +199,7 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
 		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit,
+			Term: term, EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			// A conversion, not a field copy: it stops compiling when the two

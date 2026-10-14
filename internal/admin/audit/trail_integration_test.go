@@ -37,7 +37,7 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := pool.Exec(ctx, tt.stmt); err == nil {
 				t.Fatalf("%s succeeded against an append-only table", tt.name)
-			} else if name := admintest.ConstraintName(err); name != "audit_events_append_only" {
+			} else if name := db.ConstraintName(err); name != "audit_events_append_only" {
 				t.Errorf("refused by %q, want audit_events_append_only: %v", name, err)
 			}
 		})

@@ -18,7 +18,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/loyalty"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -64,7 +63,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-		EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit,
+		EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit,
 	})
 	if err != nil {
 		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
