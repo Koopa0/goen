@@ -48,7 +48,7 @@ templ contactMethod(href, label, value string) {
 // (scripts/check-layout.mjs).
 templ ContactPanel(f ContactForm) {
 	if f.Done {
-		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form">
+		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form" tabindex="-1">
 			<span class="contact__donemark" aria-hidden="true">
 				@icons.CheckCircle()
 			</span>
@@ -62,6 +62,10 @@ templ ContactPanel(f ContactForm) {
 			</div>
 		</div>
 	} else {
+		// The form swaps itself for the confirmation, and the button that had focus goes
+		// with it: data-focus-after-swap hands focus to the element that now has this id,
+		// which also makes a screen reader read it. On a refusal the id is a form again,
+		// which cannot take focus, so htmx's restore of #contact-submit stands.
 		<form
 			class="contact__panel"
 			id="contact-form"
@@ -70,6 +74,7 @@ templ ContactPanel(f ContactForm) {
 			hx-post="/contact"
 			hx-target="this"
 			hx-swap="outerHTML"
+			data-focus-after-swap="contact-form"
 		>
 			<h2 class="contact__formtitle">{ i18n.T(ctx, i18n.KeyContactFormTitle) }</h2>
 			if f.err("") != "" {

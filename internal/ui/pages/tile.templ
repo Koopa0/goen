@@ -41,12 +41,15 @@ templ tileCard(t ProductTile) {
 	<a class={ "goen-tile", templ.KV("goen-tile--out", t.SoldOut()) } href={ templ.URL("/p/" + t.Slug) }>
 		<div class="goen-tile__media">
 			if t.HasImage() {
+				// alt="" because the link already reads the brand and the name beside the photo;
+				// the photo's description would be read in front of them, in Chinese on an
+				// English page when the product has no English description (WCAG H2).
 				<img
 					class="goen-tile__img"
 					src={ t.ImageURL }
 					srcset={ t.ImageSrcset }
 					sizes={ t.Sizes() }
-					alt={ t.ImageAlt }
+					alt=""
 					if t.HasImageDimensions() {
 						width={ t.ImageWidthText() }
 						height={ t.ImageHeightText() }

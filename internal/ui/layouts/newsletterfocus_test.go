@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -98,4 +100,61 @@ func TestTheNewsletterReentryLinkNamesTheFieldThatTakesFocus(t *testing.T) {
 	if !strings.Contains(render(layouts.NewsletterState{}), `id="`+target[1]+`"`) {
 		t.Errorf("the form the swap brings in has no element with id %q", target[1])
 	}
+}
+
+// A successful subscription swaps the form for its confirmation, and the submit
+// button that had focus goes with it. The form names the element that takes focus
+// next, and the confirmation has to be that element: a status message the script
+// can focus, which is also how a screen reader is made to read it.
+func TestTheNewsletterConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			render := func(s layouts.NewsletterState) *nethtml.Node {
+				var b strings.Builder
+				if err := layouts.NewsletterForm(s).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+					t.Fatal(err)
+				}
+				doc, err := nethtml.Parse(strings.NewReader(b.String()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return doc
+			}
+			var target string
+			for n := range render(layouts.NewsletterState{}).Descendants() {
+				if n.Type == nethtml.ElementNode && n.Data == "form" {
+					target = attr(n, "data-focus-after-swap")
+				}
+			}
+			if target == "" {
+				t.Fatal("the newsletter form names no element to take focus after it is swapped away")
+			}
+			var done *nethtml.Node
+			for n := range render(layouts.NewsletterState{Done: true, Email: "a***@example.com"}).Descendants() {
+				if n.Type == nethtml.ElementNode && attr(n, "id") == target {
+					done = n
+				}
+			}
+			if done == nil {
+				t.Fatalf("the confirmation has no element with id %q", target)
+			}
+			if got := attr(done, "tabindex"); got != "-1" {
+				t.Errorf("the confirmation's tabindex = %q, want -1: a script cannot focus it otherwise", got)
+			}
+			if got := attr(done, "role"); got != "status" {
+				t.Errorf("the confirmation's role = %q, want status", got)
+			}
+		})
+	}
+}
+
+func attr(n *nethtml.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
 }
