@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	customerdesk "github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
@@ -422,7 +423,8 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
 	salesFigures := reports.NewStore(adminPool, stockroom)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup, salesFigures), sessionCloser(gateway), log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore), sessionCloser(gateway), log)
+	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)
 	warehouse := stock.NewHandler(stockroom, log)
@@ -445,6 +447,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
 	backOffice := adminaccess.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
+	landing.Routes(mux, backOffice)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
