@@ -2453,7 +2453,7 @@ func TestAFullyFundedOrderReadAcrossACreditReversalIsStillTurnedAway(t *testing.
 // attempt. Without it, a guard that turned every order away would pass them.
 func TestAnOrderStillOwingMoneyIsOfferedPaymentAndSentToStripe(t *testing.T) {
 	number, orderID := creditFundedOrder(t, 20000)
-	const session = "cs_owing_order_start"
+	session := "cs_owing_order_start_" + uuid.NewString()[:12]
 	gateway, calls := gatewayRecordingCalls(t, session)
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
 		slog.New(slog.DiscardHandler))
