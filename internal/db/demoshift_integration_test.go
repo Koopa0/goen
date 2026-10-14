@@ -141,16 +141,11 @@ func ageSnapshot(t *testing.T, shop *pgxpool.Pool, days int) {
 		        FROM pg_class c
 		        JOIN pg_attribute a ON a.attrelid = c.oid
 		        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
-		          AND c.relname <> 'order_number_counters'
 		          AND a.attnum > 0 AND NOT a.attisdropped
 		          AND a.atttypid IN ('timestamptz'::regtype, 'timestamp'::regtype, 'date'::regtype)
 		        GROUP BY c.oid
 		    LOOP
 		        EXECUTE v_stmt;
-		    END LOOP;
-		    FOR r IN SELECT business_date FROM order_number_counters ORDER BY business_date LOOP
-		        UPDATE order_number_counters SET business_date = business_date - v_days
-		        WHERE business_date = r.business_date;
 		    END LOOP;
 		    FOR r IN SELECT id FROM orders ORDER BY order_number LOOP
 		        UPDATE orders
@@ -240,9 +235,6 @@ func TestDemoShiftMovesOnlyTimes(t *testing.T) {
 		}
 		if slices.Contains(demoShiftLeaves, c.Table) {
 			t.Errorf("%s.%s is selected: the shift must leave %s on the real clock", c.Table, c.Name, c.Table)
-		}
-		if c.Table == "order_number_counters" {
-			t.Errorf("order_number_counters.%s is selected: one UPDATE moving every day collides with the next day's key", c.Name)
 		}
 	}
 }

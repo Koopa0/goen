@@ -115,8 +115,6 @@ func storedFunctionBodies(t *testing.T) string {
 // TestEveryTableIsRead is the mirror: a table written and never read is data collected and never shown.
 func TestEveryTableIsRead(t *testing.T) {
 	allowed := map[string]string{
-		"order_number_counters": "read by next_order_number(), which is the only " +
-			"thing that may touch it — a per-day counter under a row lock",
 		"loyalty_redemption_operations": "private idempotency state read and locked " +
 			"inside redeem_loyalty_points; the application query invokes that one door",
 		"stock_notifications": "product_variants_queue_restock reads each claimed row through " +

@@ -5176,6 +5176,19 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 	} else if !ok {
 		t.Error("the lookup refused its own order over case or whitespace")
 	}
+
+	// Typed from a printed page: look-alike letters in place of 0 and 1. A draw
+	// can hold neither, so the order takes a number that holds both.
+	suffix := "01" + strings.ToUpper(uuid.NewString()[:4])
+	if _, err := pool.Exec(ctx, `UPDATE orders SET order_number = left(order_number, 10) || $2 WHERE order_number = $1`, number, suffix); err != nil {
+		t.Fatalf("give the order a number with a 0 and a 1: %v", err)
+	}
+	typed := number[:len("GO-YYMMDD-")] + strings.NewReplacer("0", "O", "1", "I").Replace(suffix)
+	if ok, err := s.OrderBelongsToEmail(ctx, typed, addr); err != nil {
+		t.Fatalf("OrderBelongsToEmail with look-alike letters: %v", err)
+	} else if !ok {
+		t.Errorf("the lookup refused its own order typed %s over O for 0 or I for 1", typed)
+	}
 }
 
 func TestTheWrongEmailFindsNothing(t *testing.T) {

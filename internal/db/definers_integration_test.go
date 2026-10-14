@@ -41,7 +41,6 @@ var definerFunctions = []string{
 	"lock_store_credit_for_checkout(uuid)",
 	"mark_invoice_operation_sent(uuid,uuid)",
 	"mark_payment_event_unreconciled(text,text)",
-	"next_order_number()",
 	"open_payment(uuid,text,bigint)",
 	"open_refund_before_shipment(text,text,uuid,text)",
 	"post_store_credit(uuid,bigint,text,uuid,text,uuid)",
