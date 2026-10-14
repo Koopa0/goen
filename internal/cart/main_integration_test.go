@@ -5659,7 +5659,7 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 
 	for _, value := range []string{
 		number,
-		nextOrderNumber(number),
+		anotherOrderNumber(number),
 		number + "." + number,
 	} {
 		t.Run(value, func(t *testing.T) {
@@ -5712,17 +5712,14 @@ func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	}
 }
 
-// nextOrderNumber increments the counter half of an order number.
-func nextOrderNumber(number string) string {
-	i := strings.LastIndex(number, "-")
-	if i < 0 {
-		return number
+// anotherOrderNumber is a well-formed number that differs from number in its
+// last character, as a neighbouring order's would.
+func anotherOrderNumber(number string) string {
+	last := "0"
+	if strings.HasSuffix(number, "0") {
+		last = "1"
 	}
-	n, err := strconv.Atoi(number[i+1:])
-	if err != nil {
-		return number
-	}
-	return fmt.Sprintf("%s-%06d", number[:i], n+1)
+	return number[:len(number)-1] + last
 }
 
 // testLimiter is generous on purpose: these cases are about an ANSWER, and a
@@ -6472,8 +6469,8 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	assertPayUnreachableWithoutGrant(t, ctx, payH, orderNumber)
 
 	wrong := httptest.NewRequestWithContext(ctx, http.MethodGet,
-		"/orders/"+nextOrderNumber(orderNumber)+"/pay", http.NoBody)
-	wrong.SetPathValue("number", nextOrderNumber(orderNumber))
+		"/orders/"+anotherOrderNumber(orderNumber)+"/pay", http.NoBody)
+	wrong.SetPathValue("number", anotherOrderNumber(orderNumber))
 	wrong.AddCookie(placedCookie)
 	wrongRes := httptest.NewRecorder()
 	payH.Page(wrongRes, wrong)

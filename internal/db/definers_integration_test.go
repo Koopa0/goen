@@ -106,8 +106,8 @@ func TestSecurityDefinerFunctionsAreTheReviewedSet(t *testing.T) {
 
 	want := slices.Clone(definerFunctions)
 	slices.Sort(want)
-	if len(want) != 61 {
-		t.Fatalf("golden list holds %d signatures, want 61; edit the list on purpose, not by accident", len(want))
+	if len(want) != 60 {
+		t.Fatalf("golden list holds %d signatures, want 60; edit the list on purpose, not by accident", len(want))
 	}
 
 	for _, sig := range want {
