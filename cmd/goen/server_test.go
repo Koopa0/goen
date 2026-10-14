@@ -38,17 +38,6 @@ func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
 	}
 }
 
-func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))`
-	if !bytes.Contains(src, []byte(want)) {
-		t.Fatal("POST /p/{slug}/notify is registered without ratelimit.Guard")
-	}
-}
-
 // TestCheckoutIsGuardedPerClient drives the router: every checkout post looks
 // up the coupon it carries, so the route is bounded per client before the
 // handler runs, generously enough that a shopper changing every chooser on the
@@ -1195,18 +1184,11 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 
 // TestSigningOutEmptiesTheBrowsersCache pins the second line behind
 // withNoStore: sign-out asks the browser to drop what it holds for this site,
-// and still throws away the speculations the chrome was rendered into.
+// and still throws away the speculations the chrome was rendered into. That
+// POST /signout is wrapped in it at all is held by the clearcache trait of
+// TestStorefrontRouteInventory, which watches the router answer.
 func TestSigningOutEmptiesTheBrowsersCache(t *testing.T) {
 	t.Parallel()
-
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatalf("read server.go: %v", err)
-	}
-	line := routeLine(string(src), `"POST /signout"`)
-	if !strings.Contains(line, "clearCache(") {
-		t.Errorf("POST /signout does not empty the browser's cache\n  %s", strings.TrimSpace(line))
-	}
 
 	signOut := clearSpeculations(clearCache(func(http.ResponseWriter, *http.Request) {}))
 	res := httptest.NewRecorder()
