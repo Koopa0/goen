@@ -1,4 +1,4 @@
-package refunds
+package payment
 
 // The HTTP interface to Stripe: what goen puts on the wire, and what it makes
 // of the answers. White-box so the SDK's backend can point at an httptest.Server.
@@ -28,9 +28,9 @@ type refundStripeCall struct {
 	contextDone <-chan struct{}
 }
 
-// refundStripeAt returns a StripeRefunder talking to h instead of
+// refundStripeAt returns a Gateway talking to h instead of
 // api.stripe.com. Retries are off so every request is visible exactly once.
-func refundStripeAt(t *testing.T, h func(*refundStripeCall) (int, string)) (StripeRefunder, *[]refundStripeCall) {
+func refundStripeAt(t *testing.T, h func(*refundStripeCall) (int, string)) (*Gateway, *[]refundStripeCall) {
 	t.Helper()
 	var log []refundStripeCall
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,7 @@ func refundStripeAt(t *testing.T, h func(*refundStripeCall) (int, string)) (Stri
 		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
 	})
 	const testKey = "sk_test_notarealkey"
-	return StripeRefunder{
+	return &Gateway{
 		client: stripe.NewClient(testKey, stripe.WithBackends(&stripe.Backends{
 			API: backend, Connect: backend, Uploads: backend,
 		})),
@@ -92,7 +92,7 @@ func validStripeRefundFixture(
 	}
 }
 
-func TestStripeRefunderExpandsTheCheckoutPaymentIntent(t *testing.T) {
+func TestGatewayRefundExpandsTheCheckoutPaymentIntent(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		return http.StatusOK, `{
 			"id":"cs_test_order_7",
@@ -125,7 +125,7 @@ func TestStripeRefunderExpandsTheCheckoutPaymentIntent(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testing.T) {
+func TestGatewayRefundRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		sessionID string
@@ -158,7 +158,7 @@ func TestStripeRefunderRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testi
 	}
 }
 
-func TestStripeRefunderRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(t *testing.T) {
+func TestGatewayRefundRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		t.Fatal("an invalid identity reached Stripe")
 		return http.StatusInternalServerError, `{}`
@@ -174,7 +174,7 @@ func TestStripeRefunderRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(
 	}
 }
 
-func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
+func TestGatewayRefundFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	const (
 		intentID   = "pi_paid_order_9"
 		requestKey = "return:request-9"
@@ -237,7 +237,7 @@ func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderRefusesMultipleProviderRefundsForOneRequestKey(t *testing.T) {
+func TestGatewayRefundRefusesMultipleProviderRefundsForOneRequestKey(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		return http.StatusOK, `{
 			"object":"list","url":"/v1/refunds","has_more":false,
@@ -262,7 +262,7 @@ func TestStripeRefunderRefusesMultipleProviderRefundsForOneRequestKey(t *testing
 		t.Errorf("Refund() = (%q, %q, %v), want no arbitrarily selected provider fact",
 			id, state, err)
 	}
-	if errors.Is(err, ErrCreateRejected) {
+	if errors.Is(err, refund.ErrCreateRejected) {
 		t.Errorf("duplicate lookup = %v, must remain ambiguous rather than free the claim", err)
 	}
 	if len(*log) != 1 {
@@ -270,7 +270,7 @@ func TestStripeRefunderRefusesMultipleProviderRefundsForOneRequestKey(t *testing
 	}
 }
 
-func TestStripeRefunderRejectsMismatchedListedRefundFacts(t *testing.T) {
+func TestGatewayRefundRejectsMismatchedListedRefundFacts(t *testing.T) {
 	const (
 		intentID   = "pi_paid"
 		requestKey = "return:request"
@@ -314,7 +314,7 @@ func TestStripeRefunderRejectsMismatchedListedRefundFacts(t *testing.T) {
 			if id != "" || state != "" {
 				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
 			}
-			if errors.Is(err, ErrCreateRejected) {
+			if errors.Is(err, refund.ErrCreateRejected) {
 				t.Errorf("listed refund mismatch = %v, must remain ambiguous", err)
 			}
 			if len(*log) != 1 {
@@ -324,7 +324,7 @@ func TestStripeRefunderRejectsMismatchedListedRefundFacts(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderRejectsInvalidListedRefundIdentities(t *testing.T) {
+func TestGatewayRefundRejectsInvalidListedRefundIdentities(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
 		t.Run(id, func(t *testing.T) {
 			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
@@ -350,7 +350,7 @@ func TestStripeRefunderRejectsInvalidListedRefundIdentities(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
+func TestGatewayRefundCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	request := 0
 	r, log := refundStripeAt(t, func(call *refundStripeCall) (int, string) {
 		request++
@@ -415,7 +415,7 @@ func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderRejectsMismatchedCreatedRefundFacts(t *testing.T) {
+func TestGatewayRefundRejectsMismatchedCreatedRefundFacts(t *testing.T) {
 	const (
 		intentID   = "pi_paid"
 		requestKey = "return:request"
@@ -468,7 +468,7 @@ func TestStripeRefunderRejectsMismatchedCreatedRefundFacts(t *testing.T) {
 			if id != "" || state != "" {
 				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
 			}
-			if errors.Is(err, ErrCreateRejected) {
+			if errors.Is(err, refund.ErrCreateRejected) {
 				t.Errorf("created refund mismatch = %v, must remain ambiguous", err)
 			}
 			if len(*log) != 2 {
@@ -490,7 +490,7 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 		if err == nil {
 			t.Fatal("Refund() accepted a failed provider lookup")
 		}
-		if errors.Is(err, ErrCreateRejected) {
+		if errors.Is(err, refund.ErrCreateRejected) {
 			t.Errorf("list error = %v, must not mean the refund CREATE was rejected", err)
 		}
 		if len(*log) != 1 {
@@ -509,8 +509,8 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 			return http.StatusBadRequest, rejection
 		})
 		_, _, err := r.Refund(t.Context(), "pi_paid", "return:create-rejected", 100)
-		if !errors.Is(err, ErrCreateRejected) {
-			t.Errorf("create error = %v, want ErrCreateRejected", err)
+		if !errors.Is(err, refund.ErrCreateRejected) {
+			t.Errorf("create error = %v, want refund.ErrCreateRejected", err)
 		}
 		if _, ok := errors.AsType[*stripe.Error](err); !ok {
 			t.Errorf("create error = %v, lost Stripe's provider cause", err)
@@ -521,7 +521,7 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 	})
 }
 
-func TestStripeRefunderRejectsInvalidCreatedRefundIdentities(t *testing.T) {
+func TestGatewayRefundRejectsInvalidCreatedRefundIdentities(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
 		t.Run(id, func(t *testing.T) {
 			request := 0
@@ -555,7 +555,7 @@ func TestStripeRefunderRejectsInvalidCreatedRefundIdentities(t *testing.T) {
 	}
 }
 
-func TestStripeRefunderCancelsTheHTTPCallWithItsContext(t *testing.T) {
+func TestGatewayRefundCancelsTheHTTPCallWithItsContext(t *testing.T) {
 	started := make(chan struct{})
 	r, _ := refundStripeAt(t, func(call *refundStripeCall) (int, string) {
 		close(started)

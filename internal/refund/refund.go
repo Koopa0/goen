@@ -28,4 +28,10 @@ var (
 	// post-settlement cancellation. The decision stands; Resume continues the
 	// first unfinished step.
 	ErrIncomplete = errors.New("refund: the decision is approved and the refund did not complete")
+	// ErrCreateRejected is a decision from Stripe's refund-CREATE endpoint that
+	// no refund object was created; no provider object exists. It is deliberately
+	// narrower than a *stripe.Error: the preliminary LIST uses the same error
+	// type, and treating a failed LIST as a rejected refund would free captured
+	// money for a second claim while the first outcome is still unknown.
+	ErrCreateRejected = errors.New("refund: Stripe rejected refund creation")
 )

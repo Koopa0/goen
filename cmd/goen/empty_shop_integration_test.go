@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/payment"
@@ -64,7 +63,7 @@ func TestSchemaOnlyShopRendersStorefrontAndBackOffice(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: storePool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: adminPool, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: key},
+		BackOffice: BackOfficeConfig{AdminPool: adminPool, Payments: gateway, Refunder: gateway, TOTPKey: key},
 	}, log)
 	for _, locale := range []string{"en", "zh-Hant"} {
 		for _, page := range []struct {

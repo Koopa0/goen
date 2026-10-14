@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -172,7 +171,7 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 			StorePool: counted, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			AdminPool: counted, Payments: gateway, Refunder: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -254,7 +253,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: bytes.Repeat([]byte{7}, 32),
+			AdminPool: pool, Payments: gateway, Refunder: gateway, TOTPKey: bytes.Repeat([]byte{7}, 32),
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -422,7 +421,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 			StorePool: counted, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""), StoreMap: storeMap,
+			AdminPool: counted, Payments: gateway, Refunder: gateway, StoreMap: storeMap,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -519,7 +518,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 	key := bytes.Repeat([]byte{7}, 32)
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1"},
-		BackOffice: BackOfficeConfig{AdminPool: traced, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: key},
+		BackOffice: BackOfficeConfig{AdminPool: traced, Payments: gateway, Refunder: gateway, TOTPKey: key},
 	}, slog.New(slog.DiscardHandler))
 	startSession := func(role string, verified bool) string {
 		t.Helper()

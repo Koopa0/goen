@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -32,7 +31,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			AdminPool: pool, Payments: gateway, Refunder: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 

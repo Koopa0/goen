@@ -36,7 +36,6 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/loyalty"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
@@ -758,7 +757,7 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 		{
 			name: "stripe refused the refund",
 			refunder: admintest.Refunder{RefundErr: fmt.Errorf("%w: %w",
-				refunds.ErrCreateRejected,
+				refund.ErrCreateRejected,
 				&stripe.Error{
 					Type: stripe.ErrorTypeInvalidRequest,
 					Code: stripe.ErrorCodeChargeAlreadyRefunded,
@@ -1975,7 +1974,7 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 	}{
 		{name: "provider object failed", refunder: admintest.Refunder{State: refund.Failed}},
 		{name: "create API rejected", refunder: admintest.Refunder{RefundErr: fmt.Errorf(
-			"%w: provider rejected create", refunds.ErrCreateRejected)}},
+			"%w: provider rejected create", refund.ErrCreateRejected)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

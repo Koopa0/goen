@@ -13,7 +13,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -49,7 +48,7 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 				StorePool: p, Payments: gateway, BaseURL: "http://127.0.0.1",
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: ap, Payments: gateway, Refunder: refunds.NewRefunder(""),
+				AdminPool: ap, Payments: gateway, Refunder: gateway,
 			},
 		},
 		proxies, slog.New(slog.DiscardHandler),
