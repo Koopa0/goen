@@ -259,7 +259,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	// The latest paid order is funded when the ready-orders age says: it is the
 	// only committed order, so the two read one funded_at through two queries.
 	var view admin.DashboardView
-	if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+	if err := s.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
 		t.Fatalf("FillWeek: %v", err)
 	}
 	task, _ := readyAge()
@@ -398,7 +398,7 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 	read := func() admin.DashboardView {
 		t.Helper()
 		var view admin.DashboardView
-		if err := s.FillWeek(t.Context(), &view, time.Now()); err != nil {
+		if err := s.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
 			t.Fatalf("FillWeek: %v", err)
 		}
 		return view
@@ -439,7 +439,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 	latest := func(store *orders.Store) *admin.LatestPaid {
 		t.Helper()
 		var view admin.DashboardView
-		if err := store.FillWeek(t.Context(), &view, time.Now()); err != nil {
+		if err := store.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
 			t.Fatalf("FillWeek: %v", err)
 		}
 		return view.Latest

@@ -87,7 +87,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		t.Fatalf("settle the older refund request: %v", err)
 	}
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.ReportAt(ctx, days, time.Now())
+		view, err := s.ReportAt(ctx, days, admintest.DatabaseNow(t, p))
 		if err != nil {
 			t.Fatalf("read refund-only report: %v", err)
 		}
@@ -212,7 +212,7 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 	onlyTheOtherOrder := func(state string) {
 		t.Helper()
 		for _, days := range []int32{7, 30, 90} {
-			view, err := s.ReportAt(ctx, days, time.Now())
+			view, err := s.ReportAt(ctx, days, admintest.DatabaseNow(t, p))
 			if err != nil {
 				t.Fatalf("read report: %v", err)
 			}

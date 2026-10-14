@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -65,6 +66,22 @@ func Pool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	return pool
+}
+
+// DatabaseNow is the database's clock at this moment. A test that has the
+// database stamp a row with now() and then asks a store about everything up to
+// the present must ask with this and not with time.Now: a database in a
+// container can run a millisecond or more ahead of the host, and a row it
+// stamped would then lie in the future of the question and be left out of the
+// answer. Rows are stamped at the start of their transaction, so the database's
+// clock read afterwards is never earlier than any of them.
+func DatabaseNow(t *testing.T, p *pgxpool.Pool) time.Time {
+	t.Helper()
+	var now time.Time
+	if err := p.QueryRow(t.Context(), `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		t.Fatalf("read the database clock: %v", err)
+	}
+	return now
 }
 
 // StaffContext creates an admin user in p and returns a context that carries it
