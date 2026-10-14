@@ -1,4 +1,4 @@
-package pages_test
+package repocheck_test
 
 import (
 	"go/ast"
@@ -14,21 +14,23 @@ import (
 // TestEveryViewModelFieldIsAssigned refuses a field the pages read and nothing
 // fills — a zero value is valid, so neither the compiler nor go vet can see it.
 //
-// Both sides are keyed Type.Field: on the bare name a dead field passes as soon
-// as any other struct has one of the same name.
+// Both sides are keyed <import path>.Type.Field: on the bare name a dead field
+// passes as soon as any other struct has one of the same name, and the storefront
+// and the back office each declare a CampaignView or an OrderView.
 func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"AdminCustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
+		goenModule + "/internal/ui/pages/admin.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
 	}
 
-	declared, models, holds := declaredFields(t)
+	files := repositoryGo(t)
+	declared, models, holds := declaredFields(t, files)
 	if len(declared) < 700 {
 		t.Fatalf("found %d view-model fields, want far more — the parse is wrong",
 			len(declared))
 	}
-	assigned := assignedFields(t, models, holds)
+	assigned := assignedFields(files, models, holds)
 	if len(assigned) < 700 {
 		t.Fatalf("found %d assignments, want far more — the walk found nothing",
 			len(assigned))
@@ -57,49 +59,86 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 				"or no such field exists — the entry is stale", field, why)
 		}
 	}
+
+	t.Run("every directory holding a template is classified", func(t *testing.T) {
+		t.Parallel()
+		reported := map[string]bool{}
+		for name := range templSources(t) {
+			dir := filepath.ToSlash(filepath.Dir(name))
+			pkg := importPath(dir)
+			if reported[dir] || slices.Contains(viewModelPackages, pkg) ||
+				slices.Contains(templatePackagesWithoutViewModels, pkg) {
+				continue
+			}
+			reported[dir] = true
+			t.Errorf("%s holds a template (%s) and %s is in neither viewModelPackages nor "+
+				"templatePackagesWithoutViewModels. Decide whether its view structs are view "+
+				"models; until then their fields are not checked for being assigned.",
+				dir, name, pkg)
+		}
+	})
 }
 
-// viewModelDirs are the packages whose exported structs are view models. The
-// back office's types are keyed under an "Admin" prefix: pages and pages/admin
-// each declare a CampaignView or an OrderView, and on the bare name a field
-// assigned in one would excuse the same name unassigned in the other.
-var viewModelDirs = []string{".", filepath.Join("..", "layouts"), "admin"}
+// goenModule is the repository's module, the prefix of every import path below.
+const goenModule = "github.com/koopa0/goen"
 
-// source is one parsed file and whether it belongs to the back-office package.
+// viewModelPackages are the packages, by import path, whose exported structs are
+// view models. Types are keyed by the import path of the package that declares
+// them: pages and pages/admin each declare a CampaignView or an OrderView, and on
+// the bare name a field assigned in one would excuse the same name unassigned in
+// the other.
+//
+// This list and templatePackagesWithoutViewModels together must name every
+// directory that holds a template (TestEveryViewModelFieldIsAssigned checks it),
+// so a template moved into a new package cannot leave that package's view
+// structs unchecked without somebody deciding so.
+var viewModelPackages = []string{
+	goenModule + "/internal/ui/pages",
+	goenModule + "/internal/ui/pages/admin",
+	goenModule + "/internal/ui/layouts",
+}
+
+// templatePackagesWithoutViewModels hold templates and no view models: shared
+// components, charts, icons and the mail templates take their data as
+// parameters, not as structs a handler fills.
+var templatePackagesWithoutViewModels = []string{
+	goenModule + "/internal/ui/components",
+	goenModule + "/internal/ui/chart",
+	goenModule + "/internal/ui/icons",
+	goenModule + "/internal/email",
+}
+
+// source is one parsed file and the import path of the package it belongs to.
 type source struct {
-	file  *ast.File
-	admin bool
+	file *ast.File
+	pkg  string
 }
-
-// adminPrefix keys a back-office type apart from the storefront type of the
-// same name.
-const adminPrefix = "Admin"
 
 // declaredFields is every exported field on every exported view model, as
 // Type.Field, with the view model each of those fields holds — which is what
 // resolves a write through a field, `view.Questions[at].Answers = …`.
-func declaredFields(t *testing.T) (names []string, models map[string]bool, holds map[string]string) {
+func declaredFields(t *testing.T, repository []source) (names []string, models map[string]bool, holds map[string]string) {
 	t.Helper()
 
-	files := parseDirs(t, viewModelDirs...)
+	files := viewModelSources(t, repository)
 
 	// The type names first: everything downstream is gated on them, or a
 	// `func (v PointsView) Credit() string` contributes `string` as a rival
 	// result type and the ambiguity un-resolves every `view.Notice = …`.
 	models = map[string]bool{}
 	forEachStruct(files, func(src source, spec *ast.TypeSpec, _ *ast.StructType) {
-		models[prefixOf(src)+spec.Name.Name] = true
+		models[src.pkg+"."+spec.Name.Name] = true
 	})
 
 	holds = map[string]string{}
 	forEachStruct(files, func(src source, spec *ast.TypeSpec, structType *ast.StructType) {
-		w := writes{names: map[string]string{"": prefixOf(src)}, models: models}
+		w := writes{names: map[string]string{"": src.pkg}, models: models}
 		for _, field := range structType.Fields.List {
 			for _, name := range field.Names {
 				if !name.IsExported() {
 					continue
 				}
-				key := prefixOf(src) + spec.Name.Name + "." + name.Name
+				key := src.pkg + "." + spec.Name.Name + "." + name.Name
 				names = append(names, key)
 				if held := w.typeName(field.Type); held != "" {
 					holds[key] = held
@@ -127,38 +166,26 @@ func forEachStruct(files []source, visit func(source, *ast.TypeSpec, *ast.Struct
 	}
 }
 
-// parseDirs parses the hand-written Go in each directory.
-func parseDirs(t *testing.T, dirs ...string) []source {
+// viewModelSources is the part of the repository's Go that declares view models:
+// the files of the packages named in viewModelPackages. Every entry must hold a
+// file, or it names a package that is not there and the guard would read
+// nothing from it.
+func viewModelSources(t *testing.T, repository []source) []source {
 	t.Helper()
 
 	var out []source
-	for _, dir := range dirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
+	for _, pkg := range viewModelPackages {
+		before := len(out)
+		for _, src := range repository {
+			if src.pkg == pkg {
+				out = append(out, src)
+			}
 		}
-		out = slices.Grow(out, len(entries))
-		for _, e := range entries {
-			path := filepath.Join(dir, e.Name())
-			if !isHandWrittenGo(path) {
-				continue
-			}
-			file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-			if parseErr != nil {
-				t.Fatalf("parse %s: %v", path, parseErr)
-			}
-			out = append(out, source{file: file, admin: filepath.Base(dir) == "admin"})
+		if len(out) == before {
+			t.Errorf("viewModelPackages names %s, which holds no hand-written Go", pkg)
 		}
 	}
 	return out
-}
-
-// prefixOf is what keys a source's own types.
-func prefixOf(src source) string {
-	if src.admin {
-		return adminPrefix
-	}
-	return ""
 }
 
 // isHandWrittenGo reports whether path is Go this repository wrote. Tests do not
@@ -171,15 +198,13 @@ func isHandWrittenGo(path string) bool {
 }
 
 // assignedFields is every Type.Field the repository writes.
-func assignedFields(t *testing.T, models map[string]bool, holds map[string]string) map[string]bool {
-	t.Helper()
-
-	files := repositoryGo(t)
-	returns := resultTypes(files, models)
+func assignedFields(files []source, models map[string]bool, holds map[string]string) map[string]bool {
+	declared := declaredPackageNames(files)
+	returns := resultTypes(files, models, declared)
 	out := map[string]bool{}
 	for _, src := range files {
 		w := writes{
-			names: viewModelPackages(src), models: models, pkg: packageKey(src),
+			names: packageNames(src, declared), models: models, pkg: src.pkg,
 			returns: returns, holds: holds, out: out,
 		}
 		w.file(src.file)
@@ -191,8 +216,9 @@ func assignedFields(t *testing.T, models map[string]bool, holds map[string]strin
 func repositoryGo(t *testing.T) []source {
 	t.Helper()
 
+	root := repoRoot(t)
 	var out []source
-	err := filepath.WalkDir(repoRoot(t), func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -209,10 +235,11 @@ func repositoryGo(t *testing.T) []source {
 		if parseErr != nil {
 			return parseErr
 		}
-		out = append(out, source{
-			file:  file,
-			admin: strings.HasSuffix(filepath.ToSlash(filepath.Dir(path)), "internal/ui/pages/admin"),
-		})
+		dir, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		out = append(out, source{file: file, pkg: importPath(dir)})
 		return nil
 	})
 	if err != nil {
@@ -221,10 +248,19 @@ func repositoryGo(t *testing.T) []source {
 	return out
 }
 
+// importPath is the import path of the package in a directory given relative to
+// the repository root.
+func importPath(dir string) string {
+	if dir == "." {
+		return goenModule
+	}
+	return goenModule + "/" + filepath.ToSlash(dir)
+}
+
 // resultTypes maps a function or method NAME to the view model each of its
 // results carries. The key is a bare name because typing `h.store` needs the type
 // checker; a name bound to two different view models is dropped, not guessed.
-func resultTypes(files []source, models map[string]bool) map[string][]string {
+func resultTypes(files []source, models map[string]bool, declared map[string]string) map[string][]string {
 	candidates := map[string]map[int]map[string]bool{}
 	note := func(key string, i int, name string) {
 		if candidates[key] == nil {
@@ -236,7 +272,7 @@ func resultTypes(files []source, models map[string]bool) map[string][]string {
 		candidates[key][i][name] = true
 	}
 	for _, src := range files {
-		w := writes{names: viewModelPackages(src), models: models}
+		w := writes{names: packageNames(src, declared), models: models}
 		for _, decl := range src.file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Type.Results == nil {
@@ -248,7 +284,7 @@ func resultTypes(files []source, models map[string]bool) map[string][]string {
 					continue
 				}
 				note(fn.Name.Name, i, name)
-				note(packageKey(src)+"."+fn.Name.Name, i, name)
+				note(src.pkg+"."+fn.Name.Name, i, name)
 			}
 		}
 	}
@@ -289,48 +325,46 @@ func flatten(list *ast.FieldList) []ast.Expr {
 	return out
 }
 
-// packageKey names a source's package for the function-result table; the two
-// packages called admin must not share a key.
-func packageKey(src source) string {
-	if src.admin {
-		return "pages/admin"
+// declaredPackageNames maps the import path of each view-model package to the
+// name its package clause declares, which is what an import without an alias is
+// called in the importing file.
+func declaredPackageNames(files []source) map[string]string {
+	out := map[string]string{}
+	for _, src := range files {
+		if slices.Contains(viewModelPackages, src.pkg) {
+			out[src.pkg] = src.file.Name.Name
+		}
 	}
-	return src.file.Name.Name
+	return out
 }
 
-// viewModelPackages maps each identifier one file uses to name a view-model
-// package — the import alias where there is one, and "" inside them — to the
-// prefix that package's types are keyed under.
-func viewModelPackages(src source) map[string]string {
-	out := map[string]string{}
-	switch {
-	case src.admin:
-		out[""] = adminPrefix
-	case src.file.Name.Name == "pages" || src.file.Name.Name == "layouts":
-		out[""] = ""
-	}
+// packageNames maps each identifier one file uses to name a view-model package
+// to that package's import path: "" is the file's own package, an alias is the
+// alias, and an import without one is the name the package declares. Types are
+// keyed by import path, so two packages sharing a name or a last path element
+// cannot be confused.
+func packageNames(src source, declared map[string]string) map[string]string {
+	out := map[string]string{"": src.pkg}
 	for _, spec := range src.file.Imports {
-		path := strings.Trim(spec.Path.Value, `"`)
-		var prefix string
-		switch path {
-		case "github.com/koopa0/goen/internal/ui/pages", "github.com/koopa0/goen/internal/ui/layouts":
-		case "github.com/koopa0/goen/internal/ui/pages/admin":
-			prefix = adminPrefix
-		default:
+		imported := strings.Trim(spec.Path.Value, `"`)
+		name, ok := declared[imported]
+		if !ok {
 			continue
 		}
 		if spec.Name != nil {
-			out[spec.Name.Name] = prefix
+			name = spec.Name.Name
+		}
+		if name == "_" || name == "." {
 			continue
 		}
-		out[filepath.Base(path)] = prefix
+		out[name] = imported
 	}
 	return out
 }
 
 // writes collects the Type.Field pairs one file assigns.
 type writes struct {
-	names   map[string]string
+	names   map[string]string // identifier -> import path; "" is the file's own package
 	models  map[string]bool
 	pkg     string
 	returns map[string][]string
@@ -492,16 +526,16 @@ func (w *writes) typeName(typ ast.Expr) string {
 	case *ast.MapType:
 		return w.typeName(t.Value)
 	case *ast.Ident:
-		if prefix, ok := w.names[""]; ok && w.models[prefix+t.Name] {
-			return prefix + t.Name
+		if own, ok := w.names[""]; ok && w.models[own+"."+t.Name] {
+			return own + "." + t.Name
 		}
 	case *ast.SelectorExpr:
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
 			return ""
 		}
-		if prefix, named := w.names[pkg.Name]; named && w.models[prefix+t.Sel.Name] {
-			return prefix + t.Sel.Name
+		if imported, named := w.names[pkg.Name]; named && w.models[imported+"."+t.Sel.Name] {
+			return imported + "." + t.Sel.Name
 		}
 	}
 	return ""

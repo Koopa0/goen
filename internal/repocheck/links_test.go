@@ -1,4 +1,4 @@
-package pages_test
+package repocheck_test
 
 import (
 	"os"
@@ -19,7 +19,7 @@ func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 		t.Fatalf("only %d GET routes found; the parser is not reading the route table", len(routes))
 	}
 
-	links := readLinks(t, filepath.Join(root, "internal", "ui"))
+	links := readLinks(t)
 	if len(links) < 10 {
 		t.Fatalf("only %d links found; the parser is not reading the templates", len(links))
 	}
@@ -97,28 +97,16 @@ func routeSources(t *testing.T, root string) string {
 	return all.String()
 }
 
-// readLinks is every literal href in the templates.
-func readLinks(t *testing.T, uiDir string) []string {
+// readLinks is every literal href in the templates under internal/.
+func readLinks(t *testing.T) []string {
 	t.Helper()
 	href := regexp.MustCompile(`href="(/[^"]*)"`)
 
 	seen := map[string]bool{}
-	err := filepath.WalkDir(uiDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".templ") {
-			return err
-		}
-		//nolint:gosec // G304: path comes from WalkDir over this repository
-		src, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		for _, m := range href.FindAllStringSubmatch(string(src), -1) {
+	for _, src := range templSources(t) {
+		for _, m := range href.FindAllStringSubmatch(src, -1) {
 			seen[m[1]] = true
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk templates: %v", err)
 	}
 	out := make([]string, 0, len(seen))
 	for link := range seen {
@@ -135,21 +123,4 @@ func resolves(path string, routes []*regexp.Regexp) bool {
 		}
 	}
 	return false
-}
-
-// repoRoot walks up until it finds go.mod.
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	for range 6 {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
-			return dir
-		}
-		dir = filepath.Dir(dir)
-	}
-	t.Fatal("no go.mod above the test's directory")
-	return ""
 }

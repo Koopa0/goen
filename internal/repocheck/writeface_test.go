@@ -1,8 +1,6 @@
-package pages_test
+package repocheck_test
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,7 +17,7 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 	t.Parallel()
 
 	forms := 0
-	for path, src := range templateSources(t) {
+	for path, src := range formTemplates(t) {
 		for _, m := range formOpen.FindAllStringSubmatch(src, -1) {
 			forms++
 			attrs := m[1]
@@ -73,7 +71,7 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 	checked := 0
 	methods := methodFormActions(t)
 	seen := map[string]bool{}
-	for path, src := range templateSources(t) {
+	for path, src := range formTemplates(t) {
 		for _, m := range formOpen.FindAllStringSubmatch(src, -1) {
 			attrs := m[1]
 			action := attrValue(attrs, "action")
@@ -90,7 +88,7 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 				}
 				// The pickup map posts to the carrier, whose URL is supplied by
 				// the gateway; it must not be compared with this server's mux.
-				if key == "pages/pickupstart.templ:templ.URL(f.Action)" {
+				if key == "internal/ui/pages/pickupstart.templ:templ.URL(f.Action)" {
 					continue
 				}
 				action = pathFromExpr(expr)
@@ -189,31 +187,14 @@ func firstLine(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// templateSources is every .templ file under internal/ui.
-func templateSources(t *testing.T) map[string]string {
+// formTemplates is every template under internal/ with its comments dropped,
+// keyed by its path from the repository root. A doc comment quoting `<form
+// method="post">` would otherwise be read as a form.
+func formTemplates(t *testing.T) map[string]string {
 	t.Helper()
-	out := map[string]string{}
-	const root = ".." // internal/ui
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".templ") {
-			return err
-		}
-		src, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking this repository
-		if readErr != nil {
-			return readErr
-		}
-		// Keyed by the path under internal/ui and not by the base name: two
-		// packages here both hold an admin.templ, and a map of base names drops
-		// one of them in silence — the write-face of a whole file then goes
-		// unchecked while both guards below still meet their floors.
-		//
-		// Comments are stripped first, or a doc comment quoting `<form
-		// method="post">` is read as a form.
-		out[filepath.ToSlash(strings.TrimPrefix(path, root+string(filepath.Separator)))] = withoutComments(string(src))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk internal/ui: %v", err)
+	out := templSources(t)
+	for name, src := range out {
+		out[name] = withoutComments(src)
 	}
 	return out
 }
