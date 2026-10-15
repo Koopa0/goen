@@ -336,9 +336,12 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 	return view, nil
 }
 
-// stockDays is the variant's last admin.StockLineDays shop days up to now.
+// LineDays is how many shop days the stock line covers, today included.
+const LineDays = 90
+
+// stockDays is the variant's last LineDays shop days up to now.
 func stockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]admin.StockDay, error) {
-	first := shoptime.FirstDay(now, admin.StockLineDays)
+	first := shoptime.FirstDay(now, LineDays)
 	rows, err := q.VariantStockByDay(ctx, db.VariantStockByDayParams{
 		SKU: sku, FromAt: first, FirstDay: shoptime.QueryDate(first), LastDay: shoptime.QueryDate(now),
 	})

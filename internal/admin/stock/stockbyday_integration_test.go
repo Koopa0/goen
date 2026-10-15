@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/shoptime"
-	admin "github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // moveTo puts the ledger row of key at when, as the owner: the ledger refuses
@@ -82,8 +81,8 @@ func TestStockByDayIsTheColumnWorkedBackThroughTheLedger(t *testing.T) {
 		t.Fatalf("Movements: %v", err)
 	}
 	days := view.Days
-	if len(days) != admin.StockLineDays {
-		t.Fatalf("Movements gave %d days, want %d", len(days), admin.StockLineDays)
+	if len(days) != stock.LineDays {
+		t.Fatalf("Movements gave %d days, want %d", len(days), stock.LineDays)
 	}
 	last := len(days) - 1
 	if days[last].Stock != column {
