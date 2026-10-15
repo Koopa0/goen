@@ -515,19 +515,6 @@ func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskT
 
 func (v *ProductView) AskTooLong() bool { return v.AskOutcome == "long" }
 
-// AddOutcome is carried in ?added= back to the page the form was on.
-type AddOutcome string
-
-const (
-	AddOutcomeAdded       AddOutcome = "added"
-	AddOutcomeAdjusted    AddOutcome = "adjusted"
-	AddOutcomeUnavailable AddOutcome = "unavailable"
-	AddOutcomeUnknown     AddOutcome = "unknown"
-	// AddOutcomeFull is another distinct product that would make the order too large
-	// for one provider invoice.
-	AddOutcomeFull AddOutcome = "full"
-)
-
 func (v *ProductView) JustAdded() bool { return v.AddedOutcome == AddOutcomeAdded }
 
 func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == AddOutcomeAdjusted }
