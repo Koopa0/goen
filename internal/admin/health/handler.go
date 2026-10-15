@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -175,15 +174,15 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view.Notice = components.NoticeFrom(r, notices)
 	view.Pools = h.poolHealth()
 	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
-	web.Render(w, r, h.log, http.StatusOK, admin.Health(
+	web.Render(w, r, h.log, http.StatusOK, Health(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 
-func (h *Handler) poolHealth() []admin.PoolHealth {
-	out := make([]admin.PoolHealth, 0, len(h.pools))
+func (h *Handler) poolHealth() []PoolHealth {
+	out := make([]PoolHealth, 0, len(h.pools))
 	for _, p := range h.pools {
 		st := p.Pool.Stat()
-		out = append(out, admin.PoolHealth{
+		out = append(out, PoolHealth{
 			Name: p.Name, Max: st.MaxConns(), Acquired: st.AcquiredConns(),
 			Idle: st.IdleConns(), Total: st.TotalConns(),
 			TotalAcquires: st.AcquireCount(), EmptyAcquires: st.EmptyAcquireCount(),

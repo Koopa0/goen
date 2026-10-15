@@ -85,7 +85,7 @@ func TestARefundWithNoAllowanceFiledNeedsAPerson(t *testing.T) {
 			if listed := unrelieved(t, ctx, store, 0); len(listed) != 1 || withoutSince(listed[0]) != want {
 				t.Fatalf("with no margin the page lists %v, want %+v", listed, want)
 			}
-			shown := admin.UnrelievedRefund{OrderNumber: want.OrderNumber, Number: want.Number, AmountCents: want.AmountCents}
+			shown := health.UnrelievedRefund{OrderNumber: want.OrderNumber, Number: want.Number, AmountCents: want.AmountCents}
 
 			backdate(t, ctx, owner, tt.age, orderID, time.Hour)
 			view, err := store.WorkerHealth(ctx, outbox.NewStore(owner, slog.New(slog.DiscardHandler)))

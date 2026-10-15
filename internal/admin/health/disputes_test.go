@@ -10,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type fakeDisputes struct {
@@ -50,7 +49,7 @@ func TestReadDisputesMatchesOrdersAndFormatsTheDeadlineInShopTime(t *testing.T) 
 		return map[string]string{"cs_1": "GN-100"}, nil
 	}
 	got := readDisputes(t.Context(), src, time.Second, quiet, orders)
-	want := admin.DisputeState{Configured: true, Items: []admin.OpenDispute{
+	want := DisputeState{Configured: true, Items: []OpenDispute{
 		{URL: "https://stripe.example/disputes/dp_1", OrderNumber: "GN-100", AmountCents: 129000, Currency: "twd", RespondBy: "2026-11-01 07:59"},
 		{URL: "https://stripe.example/disputes/dp_2", AmountCents: 700},
 	}}
@@ -116,7 +115,7 @@ func TestReadDisputesGivesTheOrderLookupItsOwnTimeAfterASlowStripe(t *testing.T)
 
 func TestAnOpenDisputeIsNotHealthy(t *testing.T) {
 	t.Parallel()
-	state := admin.DisputeState{Configured: true, Items: []admin.OpenDispute{{}}}
+	state := DisputeState{Configured: true, Items: []OpenDispute{{}}}
 	if state.Healthy() {
 		t.Error("a dispute waiting for a response counted as healthy")
 	}

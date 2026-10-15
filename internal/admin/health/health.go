@@ -88,16 +88,16 @@ func (s *Store) workerHealth(ctx context.Context) (db.WorkerHealthRow, error) {
 	return row, nil
 }
 
-func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
+func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (WorkerHealthView, error) {
 	row, err := s.workerHealth(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, err
+		return WorkerHealthView{}, err
 	}
 	unreconciledCount, err := s.q.UnreconciledPaymentCount(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
 	}
-	view := admin.WorkerHealthView{
+	view := WorkerHealthView{
 		OutboxPending:        row.OutboxPending,
 		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
 		OutboxStuck:          row.OutboxStuck,
@@ -118,7 +118,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 
 	stuck, err := messages.Stuck(ctx, StuckListLimit)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
 	}
 	view.Stuck = stuckMessages(stuck)
 
@@ -127,7 +127,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	// refund each one at Stripe.
 	unreconciled, err := s.q.UnreconciledPayments(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
 	}
 	view.UnreconciledEvents = unreconciledEvents(unreconciled)
 
@@ -137,7 +137,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	// resolution door; do not hide it merely because no event row is flaggable.
 	complete, err := s.q.UnreconciledCompletePayments(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
 	}
 	view.UnreconciledCompletePayments = unreconciledCompletePayments(complete)
 
@@ -145,7 +145,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	// from here, so the claim survives as a row only a person can settle.
 	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
 	view.StrandedClaims = strandedClaims(stranded)
 	if len(stranded) > 0 {
@@ -156,25 +156,25 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	// refunds are rendered as 20 merely because the table stops at 20 rows.
 	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
 	}
 	open, err := s.q.OpenRefunds(ctx, OpenRefundListLimit)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
 	}
 	view.OpenRefunds = openRefunds(open)
 
 	view.Uninvoiced, view.UninvoicedCount, err = s.UninvoicedOrders(ctx, UninvoicedAfter)
 	if err != nil {
-		return admin.WorkerHealthView{}, err
+		return WorkerHealthView{}, err
 	}
 	view.CancelledOrderInvoices, view.CancelledOrderInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter)
 	if err != nil {
-		return admin.WorkerHealthView{}, err
+		return WorkerHealthView{}, err
 	}
 	unrelieved, unrelievedCount, err := s.UnrelievedRefunds(ctx, UnrelievedAfter)
 	if err != nil {
-		return admin.WorkerHealthView{}, err
+		return WorkerHealthView{}, err
 	}
 	view.UnrelievedRefunds, view.UnrelievedRefundCount = unrelievedRows(unrelieved), unrelievedCount
 	return view, nil
@@ -188,15 +188,15 @@ func (s *Store) StaffTaskCount(ctx context.Context) (int64, error) {
 	return view.StaffTaskCount(), nil
 }
 
-func (s *Store) staffTaskCounts(ctx context.Context) (admin.WorkerHealthView, error) {
+func (s *Store) staffTaskCounts(ctx context.Context) (WorkerHealthView, error) {
 	count, err := s.q.UnreconciledPaymentCount(ctx)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("count unreconciled payments: %w", err)
 	}
-	view := admin.WorkerHealthView{UnreconciledPayments: count}
+	view := WorkerHealthView{UnreconciledPayments: count}
 	stranded, err := s.q.StrandedInvoiceClaims(ctx, !s.invoicingOff)
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
 	if len(stranded) > 0 {
 		view.StrandedClaimCount = stranded[0].Total
@@ -204,7 +204,7 @@ func (s *Store) staffTaskCounts(ctx context.Context) (admin.WorkerHealthView, er
 	}
 	uninvoiced, err := s.q.UninvoicedOrders(ctx, interval(UninvoicedAfter))
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read paid orders with no invoice operation: %w", err)
+		return WorkerHealthView{}, fmt.Errorf("read paid orders with no invoice operation: %w", err)
 	}
 	if len(uninvoiced) > 0 {
 		view.UninvoicedCount = uninvoiced[0].Total
@@ -251,17 +251,17 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 
 func (s *Store) CancelledOrderInvoices(
 	ctx context.Context, olderThan time.Duration,
-) ([]admin.CancelledOrderInvoice, int64, error) {
+) ([]CancelledOrderInvoice, int64, error) {
 	rows, err := s.q.CancelledOrderInvoices(ctx, interval(olderThan))
 	if err != nil {
 		return nil, 0, fmt.Errorf("read live invoices of cancelled orders: %w", err)
 	}
-	out := make([]admin.CancelledOrderInvoice, len(rows))
+	out := make([]CancelledOrderInvoice, len(rows))
 	var total int64
 	for i := range rows {
 		r := &rows[i]
 		total = r.Total
-		out[i] = admin.CancelledOrderInvoice{
+		out[i] = CancelledOrderInvoice{
 			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
 			IssuedOn: shoptime.Day(r.IssuedAt),
 		}
@@ -302,17 +302,17 @@ func (s *Store) UnrelievedRefunds(
 
 func (s *Store) UninvoicedOrders(
 	ctx context.Context, olderThan time.Duration,
-) ([]admin.UninvoicedOrder, int64, error) {
+) ([]UninvoicedOrder, int64, error) {
 	rows, err := s.q.UninvoicedOrders(ctx, interval(olderThan))
 	if err != nil {
 		return nil, 0, fmt.Errorf("read paid orders with no invoice operation: %w", err)
 	}
-	out := make([]admin.UninvoicedOrder, len(rows))
+	out := make([]UninvoicedOrder, len(rows))
 	var total int64
 	for i := range rows {
 		r := &rows[i]
 		total = r.Total
-		out[i] = admin.UninvoicedOrder{
+		out[i] = UninvoicedOrder{
 			OrderNumber: r.OrderNumber, AmountCents: r.AmountCents,
 			Since: shoptime.Minute(r.FundedAt),
 		}
@@ -324,11 +324,11 @@ func interval(d time.Duration) pgtype.Interval {
 	return pgtype.Interval{Microseconds: d.Microseconds(), Valid: true}
 }
 
-func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {
-	out := make([]admin.StuckMessage, len(rows))
+func stuckMessages(rows []outbox.StuckMessage) []StuckMessage {
+	out := make([]StuckMessage, len(rows))
 	for i := range rows {
 		m := &rows[i]
-		out[i] = admin.StuckMessage{
+		out[i] = StuckMessage{
 			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
 			LastError: m.LastError, NextAttempt: shoptime.Minute(m.NextAttemptAt),
 		}
@@ -336,11 +336,11 @@ func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {
 	return out
 }
 
-func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []admin.UnreconciledEvent {
-	out := make([]admin.UnreconciledEvent, len(rows))
+func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []UnreconciledEvent {
+	out := make([]UnreconciledEvent, len(rows))
 	for i := range rows {
 		u := &rows[i]
-		out[i] = admin.UnreconciledEvent{
+		out[i] = UnreconciledEvent{
 			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
 			Reason: u.Reason, Since: shoptime.Minute(u.ReceivedAt),
 			RefundOrderNumber: u.RefundOrderNumber, RefundCents: u.RefundCents,
@@ -351,11 +351,11 @@ func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []admin.UnreconciledE
 
 func unreconciledCompletePayments(
 	rows []db.UnreconciledCompletePaymentsRow,
-) []admin.UnreconciledCompletePayment {
-	out := make([]admin.UnreconciledCompletePayment, len(rows))
+) []UnreconciledCompletePayment {
+	out := make([]UnreconciledCompletePayment, len(rows))
 	for i := range rows {
 		p := &rows[i]
-		out[i] = admin.UnreconciledCompletePayment{
+		out[i] = UnreconciledCompletePayment{
 			OrderNumber: p.OrderNumber, ProviderRef: p.ProviderRef,
 			PaidAttributionAllowed: p.PaidAttributionAllowed,
 			Since:                  shoptime.Minute(p.CreatedAt),
@@ -364,11 +364,11 @@ func unreconciledCompletePayments(
 	return out
 }
 
-func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []admin.StrandedClaim {
-	out := make([]admin.StrandedClaim, len(rows))
+func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []StrandedClaim {
+	out := make([]StrandedClaim, len(rows))
 	for i := range rows {
 		c := &rows[i]
-		out[i] = admin.StrandedClaim{
+		out[i] = StrandedClaim{
 			Operation: c.OperationID.String(), OrderNumber: c.OrderNumber,
 			Kind: c.Kind, Status: c.Status, AmountCents: c.AmountCents,
 			Attempts: c.ReconcileAttempts, Sends: c.SendAttempts,
@@ -379,11 +379,11 @@ func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []admin.StrandedClaim {
 	return out
 }
 
-func unrelievedRows(invoices []UnrelievedInvoice) []admin.UnrelievedRefund {
-	out := make([]admin.UnrelievedRefund, len(invoices))
+func unrelievedRows(invoices []UnrelievedInvoice) []UnrelievedRefund {
+	out := make([]UnrelievedRefund, len(invoices))
 	for i := range invoices {
 		r := &invoices[i]
-		out[i] = admin.UnrelievedRefund{
+		out[i] = UnrelievedRefund{
 			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
 			Since: shoptime.Minute(r.Since),
 		}
@@ -391,11 +391,11 @@ func unrelievedRows(invoices []UnrelievedInvoice) []admin.UnrelievedRefund {
 	return out
 }
 
-func openRefunds(rows []db.OpenRefundsRow) []admin.OpenRefund {
-	out := make([]admin.OpenRefund, len(rows))
+func openRefunds(rows []db.OpenRefundsRow) []OpenRefund {
+	out := make([]OpenRefund, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		out[i] = admin.OpenRefund{
+		out[i] = OpenRefund{
 			OrderNumber: r.OrderNumber,
 			Key:         r.RequestKey,
 			Status:      refund.Status(r.Status),

@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - assets/css/app/admin.css
-      - internal/ui/pages/admin/health.templ
+      - internal/admin/health/page.templ
       - internal/admin/twofactor/page.templ
       - internal/ui/pages/admin/disclosure_browser_test.go
       - scripts/admin-disclosure-check.mjs
