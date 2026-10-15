@@ -69,6 +69,10 @@ const (
 	// live: many passes of the outbox and of the invoice reconciler.
 	UninvoicedAfter = 15 * time.Minute
 	UnvoidedAfter   = 15 * time.Minute
+	// UnrelievedAfter is how long money given back may go without a 折讓. It is
+	// UnvoidedAfter's margin: both are an invoice the money no longer supports,
+	// and the before-shipment and unsent refunds file theirs in the same press.
+	UnrelievedAfter = UnvoidedAfter
 	// LapsedCheckoutAfter is how long a lapsed order's checkout may stay
 	// unsettled: the payment sweeper's grace and several of its passes.
 	LapsedCheckoutAfter = payment.LapsedSessionGrace + 9*payment.LapsedSessionInterval
@@ -168,6 +172,11 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	if err != nil {
 		return admin.WorkerHealthView{}, err
 	}
+	unrelieved, unrelievedCount, err := s.UnrelievedRefunds(ctx, UnrelievedAfter)
+	if err != nil {
+		return admin.WorkerHealthView{}, err
+	}
+	view.UnrelievedRefunds, view.UnrelievedRefundCount = unrelievedRefunds(unrelieved), unrelievedCount
 	return view, nil
 }
 
@@ -229,6 +238,14 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 		view.CancelledOrderInvoiceCount = unvoided[0].Total
 		view.CancelledOrderInvoiceOldestSeconds = unvoided[0].OldestSeconds
 	}
+	unrelieved, err := s.q.UnrelievedRefunds(ctx, interval(UnrelievedAfter))
+	if err != nil {
+		return nil, fmt.Errorf("read refunds no allowance relieves: %w", err)
+	}
+	if len(unrelieved) > 0 {
+		view.UnrelievedRefundCount = unrelieved[0].Total
+		view.UnrelievedRefundOldestSeconds = unrelieved[0].OldestSeconds
+	}
 	return view.Tasks(), nil
 }
 
@@ -247,6 +264,37 @@ func (s *Store) CancelledOrderInvoices(
 		out[i] = admin.CancelledOrderInvoice{
 			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
 			IssuedOn: shoptime.Day(r.IssuedAt),
+		}
+	}
+	return out, total, nil
+}
+
+// UnrelievedRefund is a live 統一發票 whose order gave back money that no 折讓
+// relieves and nothing is filing: AmountCents is the allowance owed, the one
+// claim_invoice_allowance would file, and Since when it became owed.
+type UnrelievedRefund struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	Since       time.Time
+}
+
+// UnrelievedRefunds lists the refunds owed an allowance for longer than
+// olderThan, newest first and at most 50, with how many there are in all.
+func (s *Store) UnrelievedRefunds(
+	ctx context.Context, olderThan time.Duration,
+) ([]UnrelievedRefund, int64, error) {
+	rows, err := s.q.UnrelievedRefunds(ctx, interval(olderThan))
+	if err != nil {
+		return nil, 0, fmt.Errorf("read refunds no allowance relieves: %w", err)
+	}
+	out := make([]UnrelievedRefund, len(rows))
+	var total int64
+	for i := range rows {
+		r := &rows[i]
+		total = r.Total
+		out[i] = UnrelievedRefund{
+			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents, Since: r.Since,
 		}
 	}
 	return out, total, nil
@@ -326,6 +374,18 @@ func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []admin.StrandedClaim {
 			Attempts: c.ReconcileAttempts, Sends: c.SendAttempts,
 			LastError: c.LastError, CanAuthorizeResend: c.CanAuthorizeResend,
 			Since: shoptime.Minute(c.CreatedAt),
+		}
+	}
+	return out
+}
+
+func unrelievedRefunds(refunds []UnrelievedRefund) []admin.UnrelievedRefund {
+	out := make([]admin.UnrelievedRefund, len(refunds))
+	for i := range refunds {
+		r := &refunds[i]
+		out[i] = admin.UnrelievedRefund{
+			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
+			Since: shoptime.Minute(r.Since),
 		}
 	}
 	return out

@@ -273,35 +273,13 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			</section>
 		}
-		if v.CancelledOrderInvoiceCount > 0 {
-			<section class="goen-admin__queue" aria-labelledby="cancelled-order-invoices-heading">
-				<h2 class="goen-admin__heading" id="cancelled-order-invoices-heading">{ i18n.T(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHeading) }</h2>
-				<p class="goen-admin__hint">{ v.CancelledOrderInvoicesText(ctx) }</p>
-				<div class="goen-admin__tablewrap">
-					<table class="ui-table goen-admin__table">
-						<thead>
-							<tr>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</th>
-								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColIssued) }</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, inv := range v.CancelledOrderInvoices {
-								<tr>
-									<td class="goen-admin__cellkey">
-										<a href={ templ.SafeURL("/admin/orders/" + inv.OrderNumber) }>{ inv.OrderNumber }</a>
-									</td>
-									<td>{ inv.Number }</td>
-									<td class="goen-admin__cellnum">{ inv.Amount() }</td>
-									<td>{ inv.IssuedOn }</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-			</section>
+		if v.CancelledOrderInvoiceCount > 0 && v.UnrelievedRefundCount > 0 {
+			@cancelledOrderInvoices(v)
+			@unrelievedRefunds(v)
+		} else if v.CancelledOrderInvoiceCount > 0 {
+			@cancelledOrderInvoices(v)
+		} else if v.UnrelievedRefundCount > 0 {
+			@unrelievedRefunds(v)
 		}
 		if len(v.Disputes.Items) > 0 {
 			<section class="goen-admin__queue" aria-labelledby="disputes-heading">
@@ -490,4 +468,71 @@ templ technicalDetail(raw string) {
 			<code>{ raw }</code>
 		</details>
 	}
+}
+
+// cancelledOrderInvoices lists the issued invoices their orders' cancellation left live.
+templ cancelledOrderInvoices(v *WorkerHealthView) {
+	<section class="goen-admin__queue" aria-labelledby="cancelled-order-invoices-heading">
+		<h2 class="goen-admin__heading" id="cancelled-order-invoices-heading">{ i18n.T(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHeading) }</h2>
+		<p class="goen-admin__hint">{ v.CancelledOrderInvoicesText(ctx) }</p>
+		<div class="goen-admin__tablewrap">
+			<table class="ui-table goen-admin__table">
+				<thead>
+					<tr>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</th>
+						<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColIssued) }</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, inv := range v.CancelledOrderInvoices {
+						<tr>
+							<td class="goen-admin__cellkey">
+								<a href={ templ.SafeURL("/admin/orders/" + inv.OrderNumber) }>{ inv.OrderNumber }</a>
+							</td>
+							<td>{ inv.Number }</td>
+							<td class="goen-admin__cellnum">{ inv.Amount() }</td>
+							<td>{ inv.IssuedOn }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+}
+
+// unrelievedRefunds lists the live invoices whose orders gave back money no 折讓
+// relieves. Health shows it beside cancelledOrderInvoices from one if/else
+// node: templ separates sibling nodes with a space, so a second sibling would
+// change the bytes of every page that shows neither.
+templ unrelievedRefunds(v *WorkerHealthView) {
+	<section class="goen-admin__queue" aria-labelledby="unrelieved-refunds-heading">
+		<h2 class="goen-admin__heading" id="unrelieved-refunds-heading">{ i18n.T(ctx, i18n.KeyAdminHPUnrelievedRefundsHeading) }</h2>
+		<p class="goen-admin__hint">{ v.UnrelievedRefundsText(ctx) }</p>
+		<div class="goen-admin__tablewrap">
+			<table class="ui-table goen-admin__table">
+				<thead>
+					<tr>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</th>
+						<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColOwedSince) }</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range v.UnrelievedRefunds {
+						<tr>
+							<td class="goen-admin__cellkey">
+								<a href={ templ.SafeURL("/admin/orders/" + r.OrderNumber) }>{ r.OrderNumber }</a>
+							</td>
+							<td>{ r.Number }</td>
+							<td class="goen-admin__cellnum">{ r.Amount() }</td>
+							<td>{ r.Since }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
 }

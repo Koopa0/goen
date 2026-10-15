@@ -48,6 +48,9 @@ type WorkerHealthView struct {
 	CancelledOrderInvoiceCount         int64
 	CancelledOrderInvoiceOldestSeconds int64
 	CancelledOrderInvoices             []CancelledOrderInvoice
+	UnrelievedRefundCount              int64
+	UnrelievedRefundOldestSeconds      int64
+	UnrelievedRefunds                  []UnrelievedRefund
 	Disputes                           DisputeState
 
 	OutboxStaleAfter     time.Duration
@@ -115,7 +118,7 @@ func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() && v.CheckoutsSettled() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
-		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
+		v.CancelledOrderInvoicesResolved() && v.RefundsRelieved() && v.Disputes.Healthy()
 }
 
 func (v *WorkerHealthView) StaffTaskCount() int64 {
@@ -171,6 +174,25 @@ type CancelledOrderInvoice struct {
 }
 
 func (i CancelledOrderInvoice) Amount() string { return money.TWD(i.AmountCents) }
+
+// RefundsRelieved reports whether every refund has its 折讓. One without keeps
+// the invoice at the amount before the refund, and the tax on it overpaid.
+func (v *WorkerHealthView) RefundsRelieved() bool { return v.UnrelievedRefundCount == 0 }
+
+func (v *WorkerHealthView) UnrelievedRefundsText(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyAdminHPUnrelievedRefundsHint, v.UnrelievedRefundCount, v.UnrelievedRefundCount)
+}
+
+// UnrelievedRefund is a live 統一發票 whose order gave back money no 折讓
+// relieves: AmountCents is the allowance owed, and Since when it became owed.
+type UnrelievedRefund struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	Since       string
+}
+
+func (r UnrelievedRefund) Amount() string { return money.TWD(r.AmountCents) }
 
 func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {
@@ -495,6 +517,7 @@ func (v *WorkerHealthView) Tasks() []Task {
 	add(v.ClaimsSettled(), i18n.KeyAdminQueueTaskClaims, v.StrandedClaimCount, "/admin/health#claims-heading", true, v.StrandedClaimOldestSeconds)
 	add(v.PaidOrdersInvoiced(), i18n.KeyAdminQueueTaskUninvoiced, v.UninvoicedCount, "/admin/health#uninvoiced-heading", true, v.UninvoicedOldestSeconds)
 	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "/admin/health#cancelled-order-invoices-heading", true, v.CancelledOrderInvoiceOldestSeconds)
+	add(v.RefundsRelieved(), i18n.KeyAdminHPUnrelievedRefundsHeading, v.UnrelievedRefundCount, "/admin/health#unrelieved-refunds-heading", true, v.UnrelievedRefundOldestSeconds)
 	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "/admin/health#refunds-heading", false, 0)
 	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "/admin/health", false, 0)
 	add(v.CheckoutsSettled(), i18n.KeyAdminQueueTaskCheckouts, v.LapsedCheckouts, "/admin/health", false, 0)
