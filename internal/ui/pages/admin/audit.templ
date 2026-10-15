@@ -4,7 +4,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A feed rather than a table: the detail line is a recorded payload of no fixed
@@ -64,6 +63,6 @@ templ Audit(p layouts.Page, v AuditView) {
 				}
 			</ul>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }

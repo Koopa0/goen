@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A divided list rather than a column of cards: the queue is read down the page for
@@ -144,6 +143,6 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				}
 			</ul>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }

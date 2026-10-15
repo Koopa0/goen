@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The receiving form comes before the ledger because a delivery has arrived and
@@ -76,7 +75,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
 			</p>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }
 

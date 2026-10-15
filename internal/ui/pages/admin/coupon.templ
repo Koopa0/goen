@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
@@ -316,6 +315,6 @@ templ Coupons(p layouts.Page, v CouponsView) {
 				}
 			</form>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }

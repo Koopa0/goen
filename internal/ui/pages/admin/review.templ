@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The badge carries the rating, because nothing here waits for approval: a review is
@@ -95,6 +94,6 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 				}
 			</ul>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }

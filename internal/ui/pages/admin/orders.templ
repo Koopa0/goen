@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Every figure and every task is a link: a count on its own says there is work and not where it is.
@@ -219,7 +218,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				</table>
 			</div>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }
 
@@ -883,7 +882,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 					@variantTable(v.Variants, v.Return)
 				</div>
 			}
-			@pages.ListPager(v.Bound)
+			@components.ListPager(v.Bound)
 		</section>
 	}
 }
@@ -1129,7 +1128,7 @@ templ Picking(p layouts.Page, v *PickingView) {
 			}
 		</div>
 		<div class="goen-admin__batchcontrols">
-			@pages.ListPager(v.Bound)
+			@components.ListPager(v.Bound)
 		</div>
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The table appears only once somebody has searched: listing every customer by
@@ -84,7 +83,7 @@ templ Customers(p layouts.Page, v CustomersView) {
 				</table>
 			</div>
 		}
-		@pages.ListPager(v.Bound)
+		@components.ListPager(v.Bound)
 	}
 }
 
