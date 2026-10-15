@@ -37,6 +37,7 @@ type importRule struct {
 var exceptions = map[string]string{
 	"internal/admin/content -> internal/home":              "T66",
 	"internal/i18n -> internal/shipping":                   "T27",
+	"internal/ui/pages -> internal/loyalty":                "S11",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
 	"internal/admin/admintest -> internal/admin/orders":    "T48",
 	"internal/admin/admintest -> internal/admin/products":  "T48",

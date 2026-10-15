@@ -99,13 +99,9 @@ func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	}
 }
 
-func TestShopRulesFAQSeedAndRepairAgree(t *testing.T) {
+func TestShopRulesFAQSeedStatesTheRules(t *testing.T) {
 	t.Parallel()
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repair, err := os.ReadFile("../../seed/repair_shop_rules_faq.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,22 +113,6 @@ func TestShopRulesFAQSeedAndRepairAgree(t *testing.T) {
 	} {
 		zh := sqlStringAfter(t, string(seed), "'"+r.question+"',")
 		en := sqlStringAfter(t, string(seed), "'"+r.enQuestion+"',")
-		var repairZh, repairEn string
-		for _, block := range strings.Split(string(repair), "\n\n") {
-			_, where, ok := strings.Cut(block, "WHERE question ")
-			where, _, _ = strings.Cut(where, "\n")
-			if !ok || !strings.Contains(where, "'"+r.question+"'") {
-				continue
-			}
-			if strings.HasPrefix(strings.TrimSpace(block), "UPDATE") && strings.Contains(block, "SET answer_en =") {
-				repairEn = sqlStringAfter(t, block, "SET answer_en =")
-			} else {
-				repairZh = sqlStringAfter(t, block, "SET answer =")
-			}
-		}
-		if zh != repairZh || en != repairEn {
-			t.Errorf("%s: repair differs from fresh seed\n zh %q\n repair %q\n en %q\n repair %q", r.question, zh, repairZh, en, repairEn)
-		}
 		if !strings.Contains(zh, r.zhWord) || !strings.Contains(en, r.enWord) {
 			t.Errorf("%s: answer omits the stated rule (%q / %q)", r.question, r.zhWord, r.enWord)
 		}

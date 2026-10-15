@@ -17,7 +17,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -77,7 +76,7 @@ func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T
 				t.Fatalf("group repeated or split: %s", key)
 			}
 			seen[key] = true
-			if e.Kind == pages.PointsClawedBack {
+			if e.Kind == loyalty.PointsClawedBack {
 				clawbackSeen = true
 				if e.RequestedPoints != 1 || e.ShortfallPoints != 1 {
 					t.Fatal("older clawback lost its shortfall")

@@ -23,7 +23,7 @@ func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	s := content.NewStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]
 	if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
-		Category: category, Question: "原本的問題", Answer: "原本的答案",
+		CategoryID: newFAQCategory(t, ctx, s, category, ""), Question: "原本的問題", Answer: "原本的答案",
 	}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQEntry: %v %v", err, errs)
 	}
@@ -42,7 +42,7 @@ func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	}
 
 	body := url.Values{
-		"action": {"save"}, "category": {category}, "question": {""},
+		"action": {"save"}, "question": {""},
 		"answer": {"我改過的答案"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/faq/"+id, strings.NewReader(body.Encode()))

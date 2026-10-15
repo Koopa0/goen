@@ -190,8 +190,11 @@ INSERT INTO sale_campaigns (id, slug, title, ends_at) VALUES
 INSERT INTO carts (id, digest) VALUES
     ('bbbb1111-0000-4000-8000-000000000000', sha256('fixture-cart'::bytea));
 
-INSERT INTO faq_entries (id, category, question, answer, position) VALUES
-    ('cccc1111-0000-4000-8000-000000000000', '運送', '多久到貨?', '兩個工作天。', 0);
+INSERT INTO faq_categories (id, name, name_en, position) VALUES
+    ('cccc0001-0000-4000-8000-000000000000', '運送', 'Delivery', 1);
+
+INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES
+    ('cccc1111-0000-4000-8000-000000000000', 'cccc0001-0000-4000-8000-000000000000', '多久到貨?', '兩個工作天。', 0);
 
 INSERT INTO hero_slides (id, headline, primary_cta_label, primary_cta_href, position) VALUES
     ('dddd1111-0000-4000-8000-000000000000', 'Pixelight 9 系列', '立即選購', '/c/phones', 0);

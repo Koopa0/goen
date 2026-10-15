@@ -1,11 +1,10 @@
-package pages_test
+package loyalty
 
 import (
 	"context"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
@@ -32,7 +31,7 @@ func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
 				name   string
 				format func(context.Context) string
 			}{
-				{name: "customer", format: pages.MemberStanding{MultiplierBP: tt.bp}.Multiplier},
+				{name: "customer", format: MemberStanding{MultiplierBP: tt.bp}.Multiplier},
 			}
 			for _, format := range formats {
 				for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
