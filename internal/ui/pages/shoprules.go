@@ -10,30 +10,19 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// The statutory window and goen's own extension, in days from the day after delivery.
-// A cart-package test binds both to return_window_ends and return_line_policy_window.
-const (
-	RescissionDays = 7
-	ReturnDays     = 14
-)
-
-// A cart-package test binds HoldMinutesText to this private enforcement constant.
-const holdMinutes = 60
-
-func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
-
-// A Checkout Session must fit inside the hold. A payment-package test binds this
-// to the hold less the session lifetime the payment page enforces.
-const payStartMinutes = 29
-
-func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }
-
 // ShopRules is what the shop states about itself, from where each rule is stored.
 type ShopRules struct {
 	// FreeDeliveryCents is zero where some delivery method never turns free.
 	FreeDeliveryCents int64
 	LowestFeeCents    int64
 	PickupOffered     bool
+	// RescissionDays is the statutory window and ReturnDays goen's own, in days from the day after delivery.
+	RescissionDays int64
+	ReturnDays     int64
+	// HoldMinutes is how long placing an order holds the stock, and PayStartMinutes how long the customer then
+	// has to start paying.
+	HoldMinutes     int64
+	PayStartMinutes int64
 }
 
 func (r ShopRules) Stats(ctx context.Context) []components.Stat {
@@ -42,7 +31,7 @@ func (r ShopRules) Stats(ctx context.Context) []components.Stat {
 		r.rescissionStat(ctx),
 		{
 			Label: i18n.T(ctx, i18n.KeyRuleReturn),
-			Value: components.StatCount(ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+			Value: components.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 		},
 		r.freeDeliveryStat(ctx),
@@ -57,15 +46,15 @@ func countUnit(ctx context.Context, k i18n.Key, n int64) string {
 func (r ShopRules) holdStat(ctx context.Context) components.Stat {
 	return components.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleHold),
-		Value: components.StatCount(holdMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
-		Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), PayStartMinutesText()),
+		Value: components.StatCount(r.HoldMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
+		Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), strconv.FormatInt(r.PayStartMinutes, 10)),
 	}
 }
 
 func (r ShopRules) rescissionStat(ctx context.Context) components.Stat {
 	return components.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleRescission),
-		Value: components.StatCount(RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+		Value: components.StatCount(r.RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 		Note:  i18n.T(ctx, i18n.KeyRuleRescissionNote),
 	}
 }

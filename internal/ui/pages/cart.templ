@@ -142,7 +142,7 @@ templ Cart(p layouts.Page, v CartView) {
 								{ i18n.T(ctx, i18n.KeyContinue) }
 							}
 						</div>
-						<p class="goen-cart__hold">{ i18n.Count(ctx, i18n.KeyCartHold, holdMinutes, HoldMinutesText()) }</p>
+						<p class="goen-cart__hold">{ v.HoldNote(ctx) }</p>
 					}
 				</div>
 			}

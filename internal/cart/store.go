@@ -267,7 +267,10 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 		return pages.CartView{}, fmt.Errorf("read cart lines: %w", err)
 	}
 
-	view := pages.CartView{Lines: make([]pages.CartLine, 0, len(rows))}
+	view := pages.CartView{
+		Lines:       make([]pages.CartLine, 0, len(rows)),
+		HoldMinutes: int64(holdTTL / time.Minute), PayStartMinutes: int64(payWindow / time.Minute),
+	}
 	for i := range rows {
 		r := &rows[i]
 		if r.TaxType != rows[0].TaxType {
@@ -1092,6 +1095,7 @@ func cutParcels(
 		sh := &shipments[i]
 		parcel := pages.OrderShipment{
 			Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
+			RescissionDays: sh.RescissionDays,
 		}
 		if sh.DeliveredAt.Valid {
 			parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = sh.DeliveredAt.Time, sh.RescissionEnds, sh.GoodwillEnds

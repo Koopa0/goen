@@ -1131,8 +1131,8 @@ func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
 		locale                                i18n.Locale
 		pay, place, paying, coveredNote, zero string
 	}{
-		{locale: i18n.ZhHant, pay: "送出訂單並付款", place: "送出訂單", paying: "送出後會為你保留商品，請在 29 分鐘內開始付款。", coveredNote: "購物金已全額折抵，送出後訂單就完成付款。", zero: "這筆訂單不需付款，送出後就完成。"},
-		{locale: i18n.En, pay: "Place order and pay", place: "Place order", paying: "Placing the order holds the goods; start paying within 29 minutes.", coveredNote: "Store credit covers this order; placing it completes payment.", zero: "No payment is needed; placing the order completes it."},
+		{locale: i18n.ZhHant, pay: "送出訂單並付款", place: "送出訂單", paying: "送出後會為你保留商品，請在 28 分鐘內開始付款。", coveredNote: "購物金已全額折抵，送出後訂單就完成付款。", zero: "這筆訂單不需付款，送出後就完成。"},
+		{locale: i18n.En, pay: "Place order and pay", place: "Place order", paying: "Placing the order holds the goods; start paying within 28 minutes.", coveredNote: "Store credit covers this order; placing it completes payment.", zero: "No payment is needed; placing the order completes it."},
 	} {
 		for _, tt := range []struct {
 			name             string
@@ -1148,7 +1148,10 @@ func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
 				view := CheckoutView{
-					Cart:     CartView{Lines: []CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000},
+					Cart: CartView{
+						Lines: []CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000,
+						PayStartMinutes: 28,
+					},
 					Shipping: []ShippingChoice{{VersionID: "shipping", Code: "home", Name: "Home delivery"}}, Chosen: "shipping",
 					AvailableCreditCents: tt.credit, CouponDiscountCents: tt.discount,
 				}
@@ -1857,8 +1860,8 @@ func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
-	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: lines}))
-	if !strings.Contains(html, "庫存保留 60 分鐘") {
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: lines, HoldMinutes: 61}))
+	if !strings.Contains(html, "庫存保留 61 分鐘") {
 		t.Error("the cart does not say how long the stock is held")
 	}
 }

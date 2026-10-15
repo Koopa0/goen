@@ -24,6 +24,8 @@ type OrderShipment struct {
 	// returns, as the database reads them; zero until the parcel is delivered.
 	RescissionEnds time.Time
 	GoodwillEnds   time.Time
+	// RescissionDays is how long the right to cancel lasts once the parcel arrives, as the database states it.
+	RescissionDays int64
 	// Lines are the units of each line that went in this parcel.
 	Lines []OrderLine
 }

@@ -277,8 +277,9 @@ const cookieMaxAge = int(GuestCartRetain / time.Second)
 // MaxLineQuantity matches the schema's CHECK.
 const MaxLineQuantity = 999
 
-// payWindow leaves the public 60-minute stock hold room for Stripe's 30-minute
-// floor plus the creation margin.
+// payWindow leaves the stock hold room for Stripe's 30-minute floor plus the
+// creation margin. It is checkout_pay_start_minutes(), which the pages state; a
+// test in internal/db holds the two together.
 const payWindow = 29 * time.Minute
 
 // stripeSessionFloor is Stripe's minimum for a Checkout Session's expires_at.
@@ -290,7 +291,9 @@ const stripeSessionFloor = 30 * time.Minute
 const stripeSessionStartMargin = time.Minute
 
 // holdTTL: the floor and margin are inventory time, not extra pay time; they
-// let a session started at payWindow expire with the same hold.
+// let a session started at payWindow expire with the same hold. It is
+// checkout_hold_minutes(), the longest hold hold_inventory takes; a test in
+// internal/db holds the two together.
 const holdTTL = payWindow + stripeSessionFloor + stripeSessionStartMargin
 
 // SetCookie writes the cart cookie; a __Host- cookie without Secure is rejected by the browser, so

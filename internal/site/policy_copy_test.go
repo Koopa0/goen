@@ -8,8 +8,11 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+// testWindows are not the shop's windows: a page that typed its own number
+// instead of stating these would show.
+var testWindows = CheckoutWindows{HoldMinutes: 61, PayStartMinutes: 28}
 
 func TestPolicyPaymentDeadlines(t *testing.T) {
 	t.Parallel()
@@ -24,10 +27,10 @@ func TestPolicyPaymentDeadlines(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, policies["payment"].For(tc.locale)).Render(ctx, &out); err != nil {
+			if err := Policy(layouts.Page{}, policies["payment"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
-			want := fmt.Sprintf(tc.want, pages.HoldMinutesText(), pages.PayStartMinutesText())
+			want := fmt.Sprintf(tc.want, "61", "28")
 			if !strings.Contains(html.UnescapeString(out.String()), want) {
 				t.Errorf("payment policy omits %q", want)
 			}
@@ -52,11 +55,11 @@ func TestShippingPolicyDeadlinesAndSurcharge(t *testing.T) {
 				Surcharges: []ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}},
 			}
 			var out strings.Builder
-			if err := Shipping(layouts.Page{}, ShippingView{Methods: []ShippingMethod{method}}).Render(ctx, &out); err != nil {
+			if err := Shipping(layouts.Page{}, ShippingView{Methods: []ShippingMethod{method}, Windows: testWindows}).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{
-				fmt.Sprintf(tc.deadline, pages.HoldMinutesText(), pages.PayStartMinutesText()),
+				fmt.Sprintf(tc.deadline, "61", "28"),
 				fmt.Sprintf(tc.charge, method.SurchargeText(ctx)),
 			} {
 				if !strings.Contains(html.UnescapeString(out.String()), want) {
@@ -80,7 +83,7 @@ func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, policies["warranty"].For(tc.locale)).Render(ctx, &out); err != nil {
+			if err := Policy(layouts.Page{}, policies["warranty"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(html.UnescapeString(out.String()), tc.want) {

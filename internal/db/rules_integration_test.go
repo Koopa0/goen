@@ -1084,15 +1084,17 @@ var ruleCases = []ruleCase{
 	},
 	{
 		// As store, the role granted the function: checkout holds for the window
-		// the policy page states, and a hold beyond it is stock off sale that no
-		// payment can be waiting for.
+		// the policy page states, and a hold a second beyond it is stock off sale
+		// that no payment can be waiting for.
 		rule: "inventory_hold_within_checkout_window",
 		reject: pendingHoldableLine + `SET LOCAL ROLE store;
 		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 1, interval '100 years', 'rule-hold-window');`,
+		             '44444444-4444-4444-8444-444444444444', 1,
+		             make_interval(mins => checkout_hold_minutes()) + interval '1 second', 'rule-hold-window');`,
 		accept: pendingHoldableLine + `SET LOCAL ROLE store;
 		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 1, interval '60 minutes', 'rule-hold-window');`,
+		             '44444444-4444-4444-8444-444444444444', 1,
+		             make_interval(mins => checkout_hold_minutes()), 'rule-hold-window');`,
 	},
 	{
 		rule: "inventory_reservation_state",

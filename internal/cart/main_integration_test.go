@@ -39,7 +39,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -2323,22 +2322,19 @@ func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
 		t.Fatalf("place order: %v", err)
 	}
 
-	var holds, deadlines int
+	var holds, deadlines, wantMinutes int
 	var seconds float64
 	if readErr := pool.QueryRow(ctx, `
 		SELECT count(*)::integer, count(DISTINCT ir.expires_at)::integer,
-		       extract(epoch FROM min(ir.expires_at) - min(o.placed_at))::float8
+		       extract(epoch FROM min(ir.expires_at) - min(o.placed_at))::float8,
+		       checkout_hold_minutes()
 		FROM inventory_reservations ir
 		JOIN orders o ON o.id = ir.order_id
-		WHERE o.order_number = $1`, number).Scan(&holds, &deadlines, &seconds); readErr != nil {
+		WHERE o.order_number = $1`, number).Scan(&holds, &deadlines, &seconds, &wantMinutes); readErr != nil {
 		t.Fatalf("read hold deadlines: %v", readErr)
 	}
 	if holds != 2 || deadlines != 1 {
 		t.Errorf("order has %d holds across %d deadlines, want 2 holds sharing 1 deadline", holds, deadlines)
-	}
-	wantMinutes, err := strconv.Atoi(pages.HoldMinutesText())
-	if err != nil {
-		t.Fatalf("parse published hold duration: %v", err)
 	}
 	if want := float64(wantMinutes * 60); seconds != want {
 		t.Errorf("hold deadline is %.6f seconds after placement, want %.0f", seconds, want)

@@ -252,7 +252,7 @@ templ orderParcel(v *OrderView, sh OrderShipment, i int) {
 				<p class="goen-order__meta">{ note }</p>
 			}
 		} else {
-			<p class="goen-order__meta">{ v.ReturnPending(ctx) }</p>
+			<p class="goen-order__meta">{ v.ReturnPending(ctx, sh) }</p>
 		}
 		if v.SeveralParcels() {
 			@orderLines(v, sh.Lines, "", "", sh.Delivered(), true)

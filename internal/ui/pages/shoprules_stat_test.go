@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,14 +16,14 @@ import (
 func TestShopRulesStateTheStoredRules(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{
-			Rules: ShopRules{FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true},
-		}))
+		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Rules: testRules}))
 		for _, want := range []string{
 			`<dl class="ui-statline ui-statline--wide">`,
-			strconv.Itoa(holdMinutes) + " <small>",
-			strconv.Itoa(RescissionDays) + " <small>",
-			strconv.Itoa(ReturnDays) + " <small>",
+			strconv.FormatInt(testRules.HoldMinutes, 10) + " <small>",
+			strconv.FormatInt(testRules.RescissionDays, 10) + " <small>",
+			strconv.FormatInt(testRules.ReturnDays, 10) + " <small>",
+			fmt.Sprintf(i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyRuleHoldNote),
+				strconv.FormatInt(testRules.PayStartMinutes, 10)),
 			`<small class="ui-statline__pre">NT$</small>3,000`,
 			"NT$60",
 			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeySectionRules),
