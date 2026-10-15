@@ -10,7 +10,7 @@ import (
 func AboutMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
-		Description: describeDepartments(ctx, i18n.KeyAboutDescription),
+		Description: layouts.DescribeDepartments(ctx, i18n.KeyAboutDescription),
 	}
 }
 
@@ -34,7 +34,7 @@ templ About(p layouts.Page) {
 					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutWarranty) }</h2>
 					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutWarrantyBody) }</p>
 				</section>
-				if list := departments(ctx); list != "" {
+				if list := layouts.Departments(ctx); list != "" {
 					<section class="about__value">
 						<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
 						<p class="about__valuebody">{ list }</p>

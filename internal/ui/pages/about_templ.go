@@ -18,7 +18,7 @@ import (
 func AboutMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
-		Description: describeDepartments(ctx, i18n.KeyAboutDescription),
+		Description: layouts.DescribeDepartments(ctx, i18n.KeyAboutDescription),
 	}
 }
 
@@ -158,7 +158,7 @@ func About(p layouts.Page) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if list := departments(ctx); list != "" {
+			if list := layouts.Departments(ctx); list != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<section class=\"about__value\"><h2 class=\"about__valuetitle\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
