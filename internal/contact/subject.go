@@ -6,19 +6,22 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// Subject is the value persisted in contact_messages.subject and posted by the
+// contact form. It is a code, not display text: the words each reader sees come
+// from the i18n key the code names (LabelKey).
 type Subject string
 
 const (
-	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectOrder Subject = "訂單問題"
-	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectReturns Subject = "退換貨"
-	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectWarranty Subject = "保固維修"
-	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectProduct Subject = "商品諮詢"
-	// i18n-exempt: durable contact_messages.subject value, independent of locale.
-	SubjectPartnership Subject = "合作提案"
+	// SubjectOrder is a question about an order.
+	SubjectOrder Subject = "order"
+	// SubjectReturns is a return or refund.
+	SubjectReturns Subject = "returns"
+	// SubjectWarranty is a warranty or repair.
+	SubjectWarranty Subject = "warranty"
+	// SubjectProduct is a question about a product.
+	SubjectProduct Subject = "product"
+	// SubjectPartnership is a business proposal.
+	SubjectPartnership Subject = "partnership"
 )
 
 type Choice struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-var durableSubjects = []string{"訂單問題", "退換貨", "保固維修", "商品諮詢", "合作提案"}
+var durableSubjects = []string{"order", "returns", "warranty", "product", "partnership"}
 
 func TestChoicesPreserveTheDurableSubjects(t *testing.T) {
 	t.Parallel()
@@ -25,7 +25,7 @@ func FuzzSubjectKnown(f *testing.F) {
 	for _, value := range durableSubjects {
 		f.Add(value)
 	}
-	for _, value := range []string{"", "An order", "退貨", "訂單問題\x00"} {
+	for _, value := range []string{"", "An order", "退貨", "訂單問題", "Order", "order\x00"} {
 		f.Add(value)
 	}
 	f.Fuzz(func(t *testing.T, value string) {

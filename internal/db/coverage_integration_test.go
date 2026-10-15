@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -241,6 +242,45 @@ func TestCarriersMatchDatabaseContract(t *testing.T) {
 	if code, name := constraintViolation(err); code != "23514" || name != "order_shipments_carrier_known" {
 		t.Fatalf("unknown carrier refused by SQLSTATE %s constraint %q, want 23514/order_shipments_carrier_known: %v",
 			code, name, err)
+	}
+}
+
+// TestContactSubjectsMatchDatabaseContract binds the subjects the contact form
+// offers to the codes contact_messages_subject_known admits. The column holds a
+// code, never display text: the label each reader sees comes from i18n, so a
+// literal with a character outside ASCII in the CHECK is the old display text
+// creeping back, and a code the form offers and the CHECK refuses fails the
+// visitor's message.
+func TestContactSubjectsMatchDatabaseContract(t *testing.T) {
+	choices := contact.Choices()
+	if len(choices) == 0 {
+		t.Fatal("contact.Choices() is empty; this test would prove nothing")
+	}
+
+	var def string
+	if err := schemaPool(t).QueryRow(t.Context(), `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conname = 'contact_messages_subject_known'`).Scan(&def); err != nil {
+		t.Fatalf("read contact_messages_subject_known: %v", err)
+	}
+	literals := regexp.MustCompile(`'([^']*)'::text`).FindAllStringSubmatch(def, -1)
+	asciiCode := regexp.MustCompile(`^[a-z]+$`)
+	admitted := make([]string, 0, len(literals))
+	for _, m := range literals {
+		admitted = append(admitted, m[1])
+		if !asciiCode.MatchString(m[1]) {
+			t.Errorf("contact_messages_subject_known admits %q, want a lower-case ASCII code; display text lives in i18n", m[1])
+		}
+	}
+	offered := make([]string, 0, len(choices))
+	for _, c := range choices {
+		offered = append(offered, string(c.Value))
+	}
+	slices.Sort(admitted)
+	slices.Sort(offered)
+	if !slices.Equal(admitted, offered) {
+		t.Fatalf("contact_messages_subject_known admits %v; contact.Choices() offers %v\n%s", admitted, offered, def)
 	}
 }
 

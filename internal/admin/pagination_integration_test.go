@@ -82,7 +82,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  INSERT INTO product_reviews (product_id, rating, body)
  SELECT (SELECT id FROM products LIMIT 1), 5, 'Paging review ' || n FROM generate_series(1,101) n;
  INSERT INTO contact_messages (name, email, subject, message, created_at, handled_at)
- SELECT 'Paging message', 'paging@example.invalid', '商品諮詢', 'Paging message ' || n,
+ SELECT 'Paging message', 'paging@example.invalid', 'product', 'Paging message ' || n,
  now() - interval '1 day' * (102 - n), CASE WHEN n > 51 THEN now() END FROM generate_series(1,101) n;
  SELECT grant_store_credit((SELECT id FROM users WHERE email='paging-1@example.invalid'), 100, 'Paging credit ' || n,
  (SELECT id FROM users WHERE email='paging-staff@example.invalid'), uuidv7()) FROM generate_series(1,101) n;

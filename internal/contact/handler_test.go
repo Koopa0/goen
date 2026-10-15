@@ -72,7 +72,7 @@ func throttledContact(t *testing.T, htmx bool) (*Handler, *http.Request) {
 	form := url.Values{
 		"name":    {"王小明"},
 		"email":   {"me@example.com"},
-		"subject": {"訂單問題"},
+		"subject": {"order"},
 		"message": {"訂單已經三天沒有出貨了。"},
 	}
 	req := httptest.NewRequestWithContext(

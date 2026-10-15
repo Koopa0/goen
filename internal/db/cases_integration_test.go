@@ -273,23 +273,23 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "contact_messages_email_present",
-		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', E'\t', '訂單問題', '請問出貨時間');`,
-		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', E'\t', 'order', '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', '請問出貨時間');`,
 	},
 	{
 		constraint: "contact_messages_message_present",
-		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', E'\t');`,
-		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', E'\t');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', '請問出貨時間');`,
 	},
 	{
 		constraint: "contact_messages_name_present",
-		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES (E'\t', 'ming@example.com', '訂單問題', '請問出貨時間');`,
-		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES (E'\t', 'ming@example.com', 'order', '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', '請問出貨時間');`,
 	},
 	{
 		constraint: "contact_messages_subject_known",
-		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '其他', '請問出貨時間');`,
-		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', '請問出貨時間');`,
 	},
 	{
 		constraint: "faq_entries_category_en_present",

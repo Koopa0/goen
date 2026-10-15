@@ -2090,7 +2090,7 @@ func TestUnverifiedAccountErasureDoesNotClaimTheMailbox(t *testing.T) {
 		},
 		"contact message": {
 			`INSERT INTO contact_messages (name, email, subject, message)
-			 VALUES ('Guest owner', $1, '訂單問題', 'This belongs to the guest mailbox owner.')`,
+			 VALUES ('Guest owner', $1, 'order', 'This belongs to the guest mailbox owner.')`,
 			[]any{victim},
 		},
 		"guest restock request": {

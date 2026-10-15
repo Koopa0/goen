@@ -279,7 +279,7 @@ func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	var id string
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO contact_messages (name, email, subject, message)
-		VALUES ('王小明', 'privacy@example.com', '訂單問題', $1) RETURNING id::text`,
+		VALUES ('王小明', 'privacy@example.com', 'order', $1) RETURNING id::text`,
 		body).Scan(&id); err != nil {
 		t.Fatalf("create message: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 		for i := range n {
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO contact_messages (name, email, subject, message)
-				VALUES ($1, $2, '商品諮詢', $3)`,
+				VALUES ($1, $2, 'product', $3)`,
 				"版面測試", marker,
 				fmt.Sprintf("訊息內容 %03d", i)); err != nil {
 				t.Fatalf("write fixture message %d: %v", i, err)
@@ -537,7 +537,7 @@ func messageAgedDays(t *testing.T, message string, days int) string {
 	var id string
 	if err := pool.QueryRow(t.Context(), `
 		INSERT INTO contact_messages (name, email, subject, message, created_at)
-		VALUES ('王小明', 'inbox@example.com', '訂單問題', $1,
+		VALUES ('王小明', 'inbox@example.com', 'order', $1,
 		        now() - make_interval(days => $2, hours => 1))
 		RETURNING id::text`, message, days).Scan(&id); err != nil {
 		t.Fatalf("create message: %v", err)
