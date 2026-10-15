@@ -4571,8 +4571,11 @@ CREATE INDEX outbox_messages_delivered_at_idx
 
 -- Stock returns through cancellation, expiry and returns as well as receipts.
 -- Claiming here keeps every path and the outbox in the stock writer's transaction.
+-- SECURITY DEFINER because the back office fires it by switching a variant on,
+-- and no role holds UPDATE on stock_notifications: notified_at is set here and
+-- nowhere else.
 CREATE FUNCTION product_variants_queue_restock() RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     WITH claimed AS (
         UPDATE stock_notifications
@@ -5370,7 +5373,8 @@ $$;
 --
 -- Applied last, once every table and function exists: store gets ordinary
 -- read/write, then the privileged tables have their direct writes revoked so the
--- only way in is a SECURITY DEFINER function.
+-- only way in is a SECURITY DEFINER function. Every INSERT and UPDATE left is
+-- narrowed to its columns near the end of the file ("The column writes").
 
 GRANT USAGE ON SCHEMA public TO store, reporting;
 
@@ -5424,8 +5428,9 @@ REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM store;
 -- UPDATE would repoint a whole balance at another user. DELETE is deleting a
 -- balance: an account whose entries net to zero would go, taking the trail with
--- it. INSERT stays, because the account is created on first use.
-REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
+-- it. INSERT goes too: the account is created on first use inside
+-- post_store_credit and award_loyalty_points, which run as the owner.
+REVOKE INSERT, UPDATE, DELETE ON store_credit_accounts FROM store;
 -- Deleting a webhook row makes a resent event look new and be processed twice;
 -- rewriting the payload rewrites the evidence. The app only stamps when it
 -- processed one.
@@ -5856,7 +5861,7 @@ REVOKE INSERT, UPDATE, DELETE ON
 REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
-REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
+REVOKE INSERT, UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- The back office issues coupons and still may not write a redemption: that row
 -- is a fact about an order's money, posted by the same function the storefront
 -- uses.
@@ -5903,14 +5908,14 @@ REVOKE DELETE, TRUNCATE ON
 -- every column — so the table grant goes first and BOTH verbs take a list.
 REVOKE INSERT, UPDATE ON product_variants FROM admin;
 -- stock_quantity is in neither list, so the column takes its DEFAULT 0 and
--- record_inventory_movement stays its one writer.
+-- record_inventory_movement stays its one writer. A variant's SKU, parcel and
+-- safety stock are set when it is created; afterwards the back office reprices
+-- it, dates its arrival and switches it on or off.
 GRANT INSERT (product_id, sku, price_cents, compare_at_price_cents, safety_stock,
-              preorder_release_on, position, is_active,
+              position, is_active,
               parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
     ON product_variants TO admin;
-GRANT UPDATE (sku, price_cents, compare_at_price_cents, safety_stock,
-              preorder_release_on, position, is_active, updated_at,
-              parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
+GRANT UPDATE (price_cents, compare_at_price_cents, preorder_release_on, is_active)
     ON product_variants TO admin;
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO admin;
@@ -9167,8 +9172,8 @@ GRANT SELECT ON copurchase_refreshes TO admin;
 GRANT EXECUTE ON FUNCTION refresh_copurchases() TO maintenance;
 
 -- Retention for restock alerts that were already sent. A DEFINER because no
--- login holds DELETE on stock_notifications: store inserts and reads it, admin
--- updates notified_at, and the retention sweep is a background job. Only a row
+-- login holds DELETE on stock_notifications: store inserts and reads it, the
+-- restock trigger sets notified_at, and the retention sweep is a background job. Only a row
 -- whose notice went out is ever listed; an alert still waiting for stock has
 -- notified_at NULL and is somebody's open request. The period is the caller's
 -- (the Go constant the privacy page states), not a second copy here.
@@ -9254,7 +9259,9 @@ CREATE TRIGGER media_objects_immutable
     FOR EACH ROW EXECUTE FUNCTION forbid_change('media_objects_immutable');
 
 GRANT SELECT ON media_objects TO store;
-GRANT SELECT, INSERT, DELETE ON media_objects TO admin;
+GRANT SELECT, DELETE ON media_objects TO admin;
+GRANT INSERT (digest, content_type, bytes, width, height, byte_size)
+    ON media_objects TO admin;
 GRANT SELECT ON media_objects TO reporting;
 
 -- The audit trail
@@ -9722,12 +9729,13 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, uuid) TO store;
 
 -- The AUTHENTICATION surface, which store held in full and needs almost none of:
 -- without these revokes it escalates in two statements — UPDATE users SET role,
--- DELETE the target's TOTP credential. INSERT takes the same list as UPDATE.
+-- DELETE the target's TOTP credential. Each verb takes the columns its
+-- statements write: registration writes no phone, the profile form does.
 REVOKE INSERT, UPDATE ON users FROM store;
 -- email_verified_at is INSERTABLE as well as updatable, for the identity path: an
 -- account created from a provider that has already proved the address is born
 -- verified.
-GRANT INSERT (email, password_hash, full_name, phone, email_verified_at) ON users TO store;
+GRANT INSERT (email, password_hash, full_name, email_verified_at) ON users TO store;
 GRANT UPDATE (password_hash, last_login_at, full_name, phone, email,
               email_verified_at) ON users TO store;
 
@@ -9757,7 +9765,8 @@ REVOKE INSERT ON shipping_method_versions FROM store;
 -- store INSERTs a grant, reads it, and DELETEs what nobody can present any more.
 -- UPDATE goes, because nothing repoints a digest. DELETE stays: the retention
 -- sweep runs as `store`, and revoking it would keep the credential forever.
-REVOKE UPDATE ON order_access_grants FROM store;
+REVOKE INSERT, UPDATE ON order_access_grants FROM store;
+GRANT INSERT (digest, order_id) ON order_access_grants TO store;
 -- created_at ALONE. The placed-order cookie is re-issued with a fresh MaxAge on
 -- every order and carries older tokens forward, so their grants must restart from
 -- that event or the sweeper deletes one a live cookie still presents.
@@ -9783,14 +9792,20 @@ REVOKE UPDATE ON
     FROM admin;
 -- After the revoke, which takes column grants with it. In place, the back office
 -- only orders a product's images and says which option value each one shows.
+REVOKE INSERT ON product_images FROM admin;
+GRANT INSERT (product_id, storage_key, alt_text, alt_text_en, width, height,
+              position, option_value_id)
+    ON product_images TO admin;
 GRANT UPDATE (position, option_value_id) ON product_images TO admin;
-REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
+REVOKE INSERT, UPDATE, DELETE ON outbox_messages FROM admin;
+GRANT INSERT (topic, dedupe_key, payload, priority) ON outbox_messages TO admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint
 -- one identity at a different account with no row to show for it.
 REVOKE INSERT, UPDATE, DELETE ON user_identities FROM store;
-GRANT INSERT, DELETE ON user_identities TO store;
+GRANT INSERT (user_id, provider, provider_subject) ON user_identities TO store;
+GRANT DELETE ON user_identities TO store;
 
 -- admin: the storefront's own working tables are none of the back office's
 -- business. password_reset_tokens is the sharpest — a staff member who could
@@ -9828,32 +9843,35 @@ GRANT EXECUTE ON FUNCTION
     settle_invoice_void(uuid, uuid)
     TO admin;
 
+-- The column writes. Every INSERT and UPDATE store and admin hold is a column
+-- list: the columns the role's own statements name for that verb, and no other.
+-- A column one statement inserts is not one the role may later rewrite, and a
+-- column filled by its default is written by neither verb. Each list is derived
+-- from the statements; TestNoRoleHoldsAColumnWriteItsQueriesNeverMake holds every
+-- table to it a verb at a time, and TestEveryRoleCanRunItsOwnQueries refuses a
+-- list that is too short. A REVOKE at table level takes the column grants with
+-- it, so each table's REVOKE comes before its GRANT.
+--
 -- The DECISION columns. store must not write the SHOP's statement about what a
 -- customer wrote — hidden_at, a return's resolution, an order's staff_note — and
 -- admin must not write the CUSTOMER's own words or the money the checkout
--- computed. Every list is DERIVED from what the write-column guard reports.
---
--- `admin` on order_private_data and stock_notifications stays at table-level
--- UPDATE: the parser cannot resolve those column sets. INSERT and DELETE have
--- no production caller — delivery correction and restock claim are UPDATEs —
--- and replacing a shipped destination by delete-plus-insert would walk past
--- the fulfillment_status WHERE.
+-- computed.
 REVOKE INSERT, UPDATE, DELETE ON order_private_data FROM admin;
 GRANT UPDATE (email, recipient_name, phone, postal_code, city, district, street,
               pickup_chain, pickup_store_code, pickup_store_name)
     ON order_private_data TO admin;
+-- A restock notice is claimed by product_variants_queue_restock, which runs as
+-- the owner; no role's grant names notified_at.
 REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM admin;
-GRANT UPDATE (notified_at) ON stock_notifications TO admin;
+
+-- A review and a question are the customer's words as posted: no storefront
+-- statement edits one, and is_verified_purchase is checked when it is written.
 REVOKE INSERT, UPDATE ON product_reviews FROM store;
-GRANT INSERT (id, product_id, user_id, rating, title, body, is_verified_purchase,
-              created_at),
-      UPDATE (id, product_id, user_id, rating, title, body, is_verified_purchase,
-              created_at)
+GRANT INSERT (product_id, user_id, rating, title, body, is_verified_purchase)
     ON product_reviews TO store;
 
 REVOKE INSERT, UPDATE ON product_questions FROM store;
-GRANT INSERT (id, product_id, user_id, body, created_at),
-      UPDATE (id, product_id, user_id, body, created_at)
+GRANT INSERT (product_id, user_id, body)
     ON product_questions TO store;
 
 REVOKE INSERT, UPDATE, DELETE ON product_answers FROM store;
@@ -9861,13 +9879,13 @@ REVOKE INSERT, UPDATE, DELETE ON product_answers FROM store;
 -- The customer files a request and never edits it: no storefront statement
 -- updates a return.
 REVOKE INSERT, UPDATE ON return_requests FROM store;
-GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at)
+GRANT INSERT (order_id, requested_by_user_id, reason)
     ON return_requests TO store;
 
 -- Checkout appends the purchased snapshot once. Catalogue identities are
 -- retained for the lifetime of the line; retirement never rewrites them.
 REVOKE INSERT, UPDATE ON order_lines FROM store;
-GRANT INSERT (id, order_id, product_id, variant_id, sku, product_name,
+GRANT INSERT (order_id, product_id, variant_id, sku, product_name,
               variant_label, warranty_note, warranty_months,
               unit_price_cents, quantity, position)
     ON order_lines TO store;
@@ -9878,23 +9896,21 @@ REVOKE INSERT, UPDATE ON return_request_lines FROM store;
 GRANT INSERT (order_id, return_request_id, order_line_id, quantity)
     ON return_request_lines TO store;
 
+-- Checkout writes the order's number, owner and money once; the order is placed
+-- and pending by default. Afterwards the storefront only cancels a pending order.
 REVOKE INSERT, UPDATE ON orders FROM store;
-GRANT INSERT (id, order_number, user_id, fulfillment_status, discount_cents,
-              shipping_cents, shipping_version_id,
-              shipping_method_code, shipping_method_name, customer_note, locale,
-              placed_at, cancelled_at, updated_at),
-      UPDATE (id, order_number, user_id, fulfillment_status, discount_cents,
-              shipping_cents, shipping_version_id,
-              shipping_method_code, shipping_method_name, customer_note, locale,
-              placed_at, cancelled_at, updated_at)
+GRANT INSERT (order_number, user_id, discount_cents, shipping_cents,
+              shipping_version_id, shipping_method_code, shipping_method_name,
+              customer_note, locale),
+      UPDATE (fulfillment_status, cancelled_at)
     ON orders TO store;
 
 REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM store;
-GRANT INSERT (id, name, email, subject, order_ref, message, created_at)
+GRANT INSERT (name, email, subject, order_ref, message)
     ON contact_messages TO store;
 
 REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM store;
-GRANT INSERT (id, variant_id, user_id, email, locale, created_at)
+GRANT INSERT (variant_id, user_id, email, locale)
     ON stock_notifications TO store;
 
 REVOKE INSERT, UPDATE, DELETE ON checkout_attempts FROM store;
@@ -9911,24 +9927,78 @@ GRANT INSERT (order_id, email, recipient_name, phone, postal_code, city,
               pickup_store_name)
     ON order_private_data TO store;
 
+-- An order's events are appended. occurred_at is named only by the paid event,
+-- which takes the time of the capture it records.
+REVOKE INSERT ON order_events FROM store;
+GRANT INSERT (order_id, kind, note, actor_user_id, by_system, occurred_at)
+    ON order_events TO store;
+
+-- The customer's own working tables. The owner of an address, a cart or a
+-- token is fixed when the row is written; a cart changes owner only by adoption.
+REVOKE INSERT, UPDATE ON addresses FROM store;
+GRANT INSERT (user_id, label, recipient_name, phone, postal_code, city,
+              district, street, is_default),
+      UPDATE (label, recipient_name, phone, postal_code, city, district,
+              street, is_default)
+    ON addresses TO store;
+
+REVOKE INSERT, UPDATE ON carts FROM store;
+GRANT INSERT (user_id, digest),
+      UPDATE (user_id, checkout_draft, checkout_draft_at)
+    ON carts TO store;
+
+REVOKE INSERT, UPDATE ON cart_items FROM store;
+GRANT INSERT (cart_id, variant_id, quantity),
+      UPDATE (quantity)
+    ON cart_items TO store;
+
+REVOKE INSERT ON wishlist_items FROM store;
+GRANT INSERT (user_id, product_id) ON wishlist_items TO store;
+
+-- A reissued letter replaces the digest and restarts the clock; the address and
+-- account it answers for stay.
+REVOKE INSERT, UPDATE ON email_verifications FROM store;
+GRANT INSERT (user_id, email, digest, expires_at),
+      UPDATE (email, digest, expires_at, created_at)
+    ON email_verifications TO store;
+
+REVOKE INSERT, UPDATE ON password_reset_tokens FROM store;
+GRANT INSERT (digest, user_id, expires_at),
+      UPDATE (used_at)
+    ON password_reset_tokens TO store;
+
+REVOKE INSERT, UPDATE ON newsletter_confirmations FROM store;
+GRANT INSERT (email, digest, expires_at),
+      UPDATE (digest, expires_at, created_at)
+    ON newsletter_confirmations TO store;
+
+REVOKE INSERT, UPDATE ON newsletter_subscribers FROM store;
+GRANT INSERT (email, unsubscribe_token, locale),
+      UPDATE (confirmed_at, unsubscribed_at, locale)
+    ON newsletter_subscribers TO store;
+
+-- The relay claims, reschedules and settles a message; what it carries and
+-- where it goes are fixed when it is written.
+REVOKE INSERT, UPDATE ON outbox_messages FROM store;
+GRANT INSERT (topic, dedupe_key, payload, priority),
+      UPDATE (available_at, delivered_at, attempts, last_error, lease_owner)
+    ON outbox_messages TO store;
+
+-- admin moderates a customer's review, question or answer by hiding it, and
+-- writes no customer's words.
 REVOKE INSERT, UPDATE ON product_reviews FROM admin;
-GRANT INSERT (id, hidden_at, created_at),
-      UPDATE (id, hidden_at, created_at)
-    ON product_reviews TO admin;
+GRANT UPDATE (hidden_at) ON product_reviews TO admin;
 
 REVOKE INSERT, UPDATE ON product_questions FROM admin;
-GRANT INSERT (id, hidden_at, created_at),
-      UPDATE (id, hidden_at, created_at)
-    ON product_questions TO admin;
+GRANT UPDATE (hidden_at) ON product_questions TO admin;
 
 REVOKE INSERT, UPDATE ON product_answers FROM admin;
-GRANT INSERT (id, question_id, user_id, body, is_staff, hidden_at, created_at),
-      UPDATE (id, question_id, user_id, body, is_staff, hidden_at, created_at)
+GRANT INSERT (question_id, user_id, body, is_staff),
+      UPDATE (hidden_at)
     ON product_answers TO admin;
 
 REVOKE INSERT, UPDATE ON return_requests FROM admin;
-GRANT INSERT (id, status, resolution, created_at, decided_at),
-      UPDATE (id, status, resolution, created_at, decided_at)
+GRANT UPDATE (status, resolution, decided_at)
     ON return_requests TO admin;
 
 -- The back office can retire live catalogue rows; it cannot rewrite or append
@@ -9942,11 +10012,10 @@ REVOKE INSERT, UPDATE ON return_request_lines FROM admin;
 GRANT UPDATE (received_quantity, restocked_quantity, inspection_note)
     ON return_request_lines TO admin;
 
+-- The back office moves an order along and notes it; it never places one, and
+-- the date it was placed is the customer's.
 REVOKE INSERT, UPDATE ON orders FROM admin;
-GRANT INSERT (id, fulfillment_status, staff_note, placed_at, cancelled_at,
-              completed_at, updated_at),
-      UPDATE (id, fulfillment_status, staff_note, placed_at, cancelled_at,
-              completed_at, updated_at)
+GRANT UPDATE (fulfillment_status, staff_note, cancelled_at, completed_at)
     ON orders TO admin;
 
 REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
@@ -9954,6 +10023,138 @@ REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
 -- the submission's identity and history; rewriting them is not handling.
 GRANT UPDATE (handled_at)
     ON contact_messages TO admin;
+
+-- occurred_at is the paid event's: picking a credit-funded order records it
+-- through the same payment.CompleteFunding a card capture uses.
+REVOKE INSERT ON order_events FROM admin;
+GRANT INSERT (order_id, kind, note, actor_user_id, by_system, occurred_at,
+              return_request_id, shipment_id)
+    ON order_events TO admin;
+
+-- A parcel is dispatched now and delivered once: the back office records the
+-- carrier and tracking number when it ships and stamps the delivery.
+REVOKE INSERT, UPDATE ON order_shipments FROM admin;
+GRANT INSERT (order_id, carrier, tracking_number, estimated_delivery_on),
+      UPDATE (delivered_at)
+    ON order_shipments TO admin;
+
+-- An issue is composed, then marked sent once; a sent issue is what the shop
+-- published.
+REVOKE INSERT, UPDATE ON newsletter_issues FROM admin;
+GRANT INSERT (subject, body),
+      UPDATE (sent_at, recipients, sent_by)
+    ON newsletter_issues TO admin;
+
+REVOKE INSERT, UPDATE ON staff_totp_credentials FROM admin;
+GRANT INSERT (user_id, secret_encrypted, mailed_code_digest),
+      UPDATE (secret_encrypted, confirmed_at, last_step, mailed_code_digest,
+              created_at)
+    ON staff_totp_credentials TO admin;
+
+-- The catalogue and the shop's pages. A row's identity (id, slug, code) is fixed
+-- when it is created; the back office edits what its forms edit.
+REVOKE INSERT, UPDATE ON products FROM admin;
+GRANT INSERT (brand_id, category_id, slug, name, summary, description, name_en,
+              summary_en, description_en, warranty_note, warranty_months),
+      UPDATE (brand_id, category_id, name, summary, description, name_en,
+              summary_en, description_en, warranty_note, warranty_months,
+              status, published_at, origin, origin_en, domestic_party_name,
+              domestic_party_phone, domestic_party_address, net_quantity,
+              net_unit, min_age_months, tax_type, invoice_unit)
+    ON products TO admin;
+
+REVOKE INSERT ON product_options FROM admin;
+GRANT INSERT (product_id, name, name_en, position) ON product_options TO admin;
+
+REVOKE INSERT ON product_option_values FROM admin;
+GRANT INSERT (product_id, option_id, value, value_en, swatch_hex, position)
+    ON product_option_values TO admin;
+
+REVOKE INSERT ON product_specs FROM admin;
+GRANT INSERT (product_id, label, value, label_en, value_en, position)
+    ON product_specs TO admin;
+
+REVOKE INSERT, UPDATE ON brands FROM admin;
+GRANT INSERT (slug, name),
+      UPDATE (name)
+    ON brands TO admin;
+
+REVOKE INSERT, UPDATE ON categories FROM admin;
+GRANT INSERT (parent_id, slug, name, name_en, icon_key, tone, comparable,
+              position),
+      UPDATE (name, name_en, icon_key, tone, comparable, image_key, image_alt,
+              image_alt_en)
+    ON categories TO admin;
+
+-- A coupon's terms are what its redemptions were priced on: the back office
+-- creates one and switches it on or off.
+REVOKE INSERT, UPDATE ON coupons FROM admin;
+GRANT INSERT (code, description, kind, amount_cents, percent_bp,
+              min_subtotal_cents, max_discount_cents, ends_at, max_redemptions,
+              per_customer_limit),
+      UPDATE (is_active)
+    ON coupons TO admin;
+
+REVOKE INSERT ON membership_tiers FROM admin;
+GRANT INSERT (code, name, name_en, min_spend_cents, points_multiplier_bp,
+              position)
+    ON membership_tiers TO admin;
+
+REVOKE INSERT, UPDATE ON sale_campaigns FROM admin;
+GRANT INSERT (slug, title, title_en, tone, ends_at),
+      UPDATE (image_key, image_alt, image_alt_en, tone, starts_at, ends_at,
+              is_active)
+    ON sale_campaigns TO admin;
+
+REVOKE INSERT, UPDATE ON promo_banners FROM admin;
+GRANT INSERT (message, message_short, code, cta_label, cta_href, message_en,
+              message_short_en, cta_label_en, ends_at),
+      UPDATE (is_active)
+    ON promo_banners TO admin;
+
+REVOKE INSERT, UPDATE ON hero_slides FROM admin;
+GRANT INSERT (eyebrow, headline, body, primary_cta_label, primary_cta_href,
+              secondary_cta_label, secondary_cta_href, image_key, image_alt,
+              eyebrow_en, headline_en, body_en, primary_cta_label_en,
+              secondary_cta_label_en, image_alt_en, position, ends_at),
+      UPDATE (position, is_active)
+    ON hero_slides TO admin;
+
+REVOKE INSERT, UPDATE ON faq_entries FROM admin;
+GRANT INSERT (category, question, answer, category_en, question_en, answer_en,
+              position),
+      UPDATE (question, answer, category_en, question_en, answer_en)
+    ON faq_entries TO admin;
+
+-- Shipping. A method's fees live in its append-only versions; the method itself
+-- is only switched on or off. position on shipping_zones is held for
+-- LockShippingZone's FOR UPDATE, which PostgreSQL allows only with UPDATE on some
+-- column of the table; no statement updates a zone.
+REVOKE INSERT, UPDATE ON shipping_methods FROM admin;
+GRANT INSERT (code, destination_kind, max_parcel_longest_mm, max_parcel_sum_mm,
+              max_parcel_weight_g, position),
+      UPDATE (is_active)
+    ON shipping_methods TO admin;
+
+REVOKE INSERT ON shipping_method_versions FROM admin;
+GRANT INSERT (method_id, name, carrier, name_en, carrier_en, fee_cents,
+              free_over_cents, effective_at)
+    ON shipping_method_versions TO admin;
+
+REVOKE INSERT, UPDATE ON shipping_zones FROM admin;
+GRANT INSERT (code, name, name_en, position),
+      UPDATE (position)
+    ON shipping_zones TO admin;
+
+REVOKE INSERT, UPDATE ON shipping_zone_prefixes FROM admin;
+GRANT INSERT (prefix, zone_id),
+      UPDATE (zone_id)
+    ON shipping_zone_prefixes TO admin;
+
+REVOKE INSERT, UPDATE ON shipping_version_zones FROM admin;
+GRANT INSERT (version_id, zone_id, surcharge_cents),
+      UPDATE (surcharge_cents)
+    ON shipping_version_zones TO admin;
 
 -- The last day of the seven-day right of rescission (消保法 §19) for one
 -- parcel: the shop's day it was delivered, plus seven. The one place the
@@ -10103,8 +10304,8 @@ GRANT SELECT ON return_eligibility_assessments TO store, admin, reporting;
 GRANT SELECT ON return_eligibility_facts TO store, admin, reporting;
 REVOKE INSERT, UPDATE, DELETE ON return_eligibility_assessments FROM store, reporting;
 REVOKE INSERT, UPDATE, DELETE ON return_eligibility_facts FROM store, reporting;
-GRANT INSERT (id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
-              assessed_at, basis)
+GRANT INSERT (order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+              basis)
     ON return_eligibility_assessments TO admin;
 GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
               unused, packaging_complete, accessories_complete,

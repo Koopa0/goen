@@ -483,10 +483,12 @@ func constraintViolation(err error) (code, constraint string) {
 // Every other case in this package connects as the OWNER, who is subject to no missing
 // grant, so nothing but the cases below can see whether the privilege model is porous.
 
-// appWritableThroughDefiner names the tables a SECURITY DEFINER function writes that `store`
-// may STILL write directly, with the reason.
-var appWritableThroughDefiner = map[string]string{
-	"store_credit_accounts": "created on first use; UPDATE is what is revoked",
+// sharedAppend names the tables a SECURITY DEFINER function appends to that are not
+// ledgers, with the reason: the roles append to them, settle them and sweep them directly
+// as well, so the exclusive-door contract does not apply and the cleanup rules do.
+var sharedAppend = map[string]string{
+	"outbox_messages": "product_variants_queue_restock queues restock notices as the owner; every " +
+		"mailing flow on both pools appends its own message, and the relay settles and sweeps them",
 }
 
 // sharedCleanup is a verb a cleanup-only SECURITY DEFINER function performs that
@@ -557,7 +559,8 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 				// Inserting ledger functions have an exclusive-door contract.
 				// A cleanup-only definer does not establish that same contract;
 				// its overlap needs a decision before treating callers as forbidden.
-				if !slices.Contains(byVerb["INSERT"], table) {
+				_, appended := sharedAppend[table]
+				if !slices.Contains(byVerb["INSERT"], table) || appended {
 					if !slices.Contains(byVerb[priv], table) {
 						continue
 					}
@@ -573,16 +576,17 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 						"definer be the only door.", role, priv, table)
 					continue
 				}
-				// Scoped to INSERT: the exception is "created on first use", not "unguarded".
-				if why, allowed := appWritableThroughDefiner[table]; allowed && priv == "INSERT" {
-					t.Logf("%s may INSERT %s: %s", role, table, why)
-					continue
-				}
 				t.Errorf("%s has %s on %s, which a SECURITY DEFINER function writes — "+
 					"the function is meant to be the only door, and a second one "+
 					"makes it a convention rather than a control",
 					role, priv, table)
 			}
+		}
+	}
+	for table, why := range sharedAppend {
+		if !slices.Contains(byVerb["INSERT"], table) {
+			t.Errorf("sharedAppend has %q (%s), but no SECURITY DEFINER function inserts "+
+				"into it any more. Remove the entry.", table, why)
 		}
 	}
 	for key, why := range sharedCleanup {
@@ -1282,7 +1286,7 @@ func TestAdminCannotSetStockQuantity(t *testing.T) {
 	}{
 		{"stock_quantity", false}, // only record_inventory_movement may move it
 		{"price_cents", true},
-		{"safety_stock", true},
+		{"preorder_release_on", true},
 		{"is_active", true},
 	} {
 		var ok bool

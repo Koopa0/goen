@@ -1146,11 +1146,10 @@ var ruleCases = []ruleCase{
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
 	},
 	{
-		// As store, the one role granted UPDATE on the column: an order moved to
-		// another account spends that account's credit.
+		// As the owner, which every door runs as; no role holds UPDATE on the
+		// column. An order moved to another account spends that account's credit.
 		rule: "orders_owner_frozen",
-		reject: `SET LOCAL ROLE store;
-		         UPDATE orders SET user_id = '5555aaaa-5555-4555-8555-555555555555'
+		reject: `UPDATE orders SET user_id = '5555aaaa-5555-4555-8555-555555555555'
 		         WHERE id = '66666666-6666-4666-8666-666666666666';`,
 		// Erasure is the one change the owner takes after the order is placed.
 		accept: `SET LOCAL ROLE store;
@@ -2220,10 +2219,11 @@ func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
 	}
 }
 
-// TestAnOrderKeepsTheAccountItWasPlacedBy runs as store, the one role granted
-// UPDATE on orders.user_id. spend_store_credit and redeem_coupon both read the
-// customer from the order, so every way of moving that owner is refused by name,
-// including taking it away for one redemption and putting it back.
+// TestAnOrderKeepsTheAccountItWasPlacedBy: spend_store_credit and redeem_coupon
+// both read the customer from the order, so every way of moving that owner is
+// refused. No role holds UPDATE on orders.user_id, and the owner, which every door
+// runs as, is refused by name, including taking it away for one redemption and
+// putting it back.
 func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 	const (
 		ming         = "'55555555-5555-4555-8555-555555555555'"
@@ -2234,14 +2234,11 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 	)
 	for _, tc := range []struct{ name, stmt string }{
 		{"to another account",
-			`SET LOCAL ROLE store;
-			 UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + mingsOrder + `;`},
+			`UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + mingsOrder + `;`},
 		{"to no account while the account still exists",
-			`SET LOCAL ROLE store;
-			 UPDATE orders SET user_id = NULL WHERE id = ` + mingsOrder + `;`},
+			`UPDATE orders SET user_id = NULL WHERE id = ` + mingsOrder + `;`},
 		{"to an account, on an order placed as a guest",
-			`SET LOCAL ROLE store;
-			 UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + guestsOrder + `;`},
+			`UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + guestsOrder + `;`},
 		// 王小明 has used the coupon once and the limit is one; as a guest's order
 		// the redemption would be counted against nobody.
 		{"away for one guest redemption and back again", mingPendingOrder + `
@@ -2250,10 +2247,11 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 			 INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
 			 VALUES ('cccc0009-0000-4000-8000-000000000009', '6666bbbb-6666-4666-8666-666666666666',
 			         ` + ming + `, 100000);
-			 SET LOCAL ROLE store;
 			 UPDATE orders SET user_id = NULL WHERE id = ` + mingsPending + `;
+			 SET LOCAL ROLE store;
 			 SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009', ` + mingsPending + `,
 			                      NULL, 20000);
+			 RESET ROLE;
 			 UPDATE orders SET user_id = ` + ming + ` WHERE id = ` + mingsPending + `;`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2265,6 +2263,13 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 				t.Fatalf("refused by %q, want orders_owner_frozen: %v", name, err)
 			}
 		})
+	}
+	for _, role := range []string{"store", "admin"} {
+		err := run(t, `SET LOCAL ROLE `+role+`;
+			UPDATE orders SET user_id = `+hua+` WHERE id = `+mingsOrder+`;`)
+		if code, _ := constraintViolation(err); code != "42501" {
+			t.Errorf("%s moved the order's account or was refused for another reason: %v", role, err)
+		}
 	}
 
 	// The neighbours: writing the same account back changes nothing, and
@@ -2278,9 +2283,9 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 	if _, err := tx.Exec(ctx, fixtures); err != nil {
 		t.Fatalf("fixtures: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `SET LOCAL ROLE store;
-		UPDATE orders SET user_id = user_id, customer_note = '請按門鈴'
+	if _, err := tx.Exec(ctx, `UPDATE orders SET user_id = user_id, customer_note = '請按門鈴'
 		WHERE id = `+mingsOrder+`;
+		SET LOCAL ROLE store;
 		SELECT erase_user(`+ming+`);
 		RESET ROLE;`); err != nil {
 		t.Fatalf("the order's own account written back, then erased: %v", err)
