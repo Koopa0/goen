@@ -1,9 +1,8 @@
-package pages
+package components
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
 )
 
 templ ListPager(b keyset.Bound, headingID ...string) {
@@ -20,12 +19,12 @@ templ ListPager(b keyset.Bound, headingID ...string) {
 			}
 		>
 			if b.First != "" {
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.URL(b.First)) {
+				@ButtonLink(ButtonProps{ButtonStyle: ButtonStyleOutline}, templ.URL(b.First)) {
 					{ i18n.T(ctx, i18n.KeyFirstPage) }
 				}
 			}
 			if b.Next != "" {
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(b.Next)) {
+				@ButtonLink(ButtonProps{ButtonStyle: ButtonStyleOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(b.Next)) {
 					{ i18n.T(ctx, i18n.KeyNextPage) }
 				}
 			}

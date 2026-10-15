@@ -6,7 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 templ Home(p layouts.Page, v *HeroView) {
@@ -281,7 +280,7 @@ templ Home(p layouts.Page, v *HeroView) {
 						}
 					</ul>
 				}
-				@pages.ListPager(v.Bound, "hero-history")
+				@components.ListPager(v.Bound, "hero-history")
 			</aside>
 		</div>
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBanner) }</h2>
@@ -482,7 +481,7 @@ templ Home(p layouts.Page, v *HeroView) {
 						}
 					</ul>
 				}
-				@pages.ListPager(v.BannerBound, "banner-history")
+				@components.ListPager(v.BannerBound, "banner-history")
 			</aside>
 		</div>
 	}
