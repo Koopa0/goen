@@ -710,7 +710,8 @@ th {
 
 /* A phone needs the way back, not the whole path: only the parent shows, with a
    chevron. The rest is clipped away rather than removed, so a screen reader
-   still reads the whole trail and the current page. */
+   still reads the whole trail and the current page. A clipped link is still a
+   tab stop, so it gets its box back while it has keyboard focus. */
 @media (max-width: 600px) {
   .ui-crumbs > * {
     clip-path: inset(50%);
@@ -721,7 +722,8 @@ th {
     width: 1px;
   }
 
-  .ui-crumbs > .ui-crumbs__link:last-of-type {
+  .ui-crumbs > .ui-crumbs__link:last-of-type,
+  .ui-crumbs > .ui-crumbs__link:focus-visible {
     align-items: center;
     clip-path: none;
     display: inline-flex;
