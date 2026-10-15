@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -86,9 +85,9 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	}
 	f.Tone = strings.TrimSpace(f.Tone)
 	if f.Tone == "" {
-		f.Tone = string(pages.ToneStone)
+		f.Tone = string(components.ToneStone)
 	}
-	if _, ok := pages.ParseTone(f.Tone); !ok {
+	if _, ok := components.ParseTone(f.Tone); !ok {
 		errs["tone"] = i18n.T(ctx, i18n.KeyFormToneUnknown)
 	}
 	return errs
@@ -208,7 +207,7 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.
 
 func (s *Store) SetTone(ctx context.Context, slug, tone string) error {
 	tone = strings.TrimSpace(tone)
-	if _, ok := pages.ParseTone(tone); !ok {
+	if _, ok := components.ParseTone(tone); !ok {
 		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, tone)
 	}
 	return audit.Run(ctx, s.pool, audit.Event{

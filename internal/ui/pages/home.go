@@ -48,8 +48,8 @@ func joinList(ctx context.Context, names []string) string {
 type HomeCategory struct {
 	Slug  string
 	Name  string
-	Tone  Tone
-	Photo Photo
+	Tone  components.Tone
+	Photo components.Photo
 }
 
 // Initial is the first character of the name, which a department without a
@@ -73,7 +73,7 @@ type ProductRow struct {
 
 // RowCampaign is what a campaign's row says about the campaign.
 type RowCampaign struct {
-	Tone  Tone
+	Tone  components.Tone
 	Items int64
 	// Facts stand under the heading when the row has no campaign card.
 	Facts []components.Stat
@@ -110,7 +110,7 @@ type DepartmentBand struct {
 	Items int64
 	Fact  string
 	Href  string
-	Tone  Tone
+	Tone  components.Tone
 	Tiles []ProductTile
 }
 

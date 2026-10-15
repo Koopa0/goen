@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -238,7 +239,7 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	if toneErr != nil {
 		return fmt.Errorf("read tone of %q: %w", p.Slug, toneErr)
 	}
-	view.Tone = pages.ResolveTone(tone)
+	view.Tone = components.ResolveTone(tone)
 
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{

@@ -5,26 +5,27 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
 	t.Parallel()
 
-	own := Photo{URL: "/dept.webp"}
+	own := components.Photo{URL: "/dept.webp"}
 	first := ProductTile{ImageURL: "/first.webp", ImageSrcset: "/first-400.webp 400w", ImageAlt: "first"}
 	second := ProductTile{ImageURL: "/second.webp"}
 
 	for name, tt := range map[string]struct {
-		department Photo
+		department components.Photo
 		products   []ProductTile
 		wantURL    string
 		wantWell   bool
 	}{
 		"department photograph":   {own, []ProductTile{first}, "/dept.webp", false},
-		"first product on a well": {Photo{}, []ProductTile{first, second}, "/first.webp", true},
-		"first product has none":  {Photo{}, []ProductTile{{}, second}, "", false},
-		"no products":             {Photo{}, nil, "", false},
+		"first product on a well": {components.Photo{}, []ProductTile{first, second}, "/first.webp", true},
+		"first product has none":  {components.Photo{}, []ProductTile{{}, second}, "", false},
+		"no products":             {components.Photo{}, nil, "", false},
 	} {
 		got, onWell := bandPhoto(tt.department, tt.products)
 		if got.URL != tt.wantURL || onWell != tt.wantWell {
@@ -55,7 +56,7 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	page := renderComponent(t, ctx, Home(layouts.Page{}, HomeView{Band: &DepartmentBand{
-		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: ToneInk, Tiles: tiledShelf(4),
+		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: components.ToneInk, Tiles: tiledShelf(4),
 	}}))
 	for _, want := range []string{
 		`class="goen-band goen-band--shelf" data-tone="ink"`,
@@ -111,7 +112,7 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneBlush}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneBlush}}, nil, nil))
 	if strings.Contains(page, "goen-pagehead__photo") {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
@@ -125,7 +126,7 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: ToneSage, Photo: Photo{URL: "/d.webp"}}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneSage, Photo: components.Photo{URL: "/d.webp"}}}, nil, nil))
 	band := strings.Index(page, `class="goen-band"`)
 	grid := strings.Index(page, `class="goen-band__grid"`)
 	media := strings.Index(page, `class="goen-band__media"`)

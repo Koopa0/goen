@@ -211,7 +211,7 @@ type ProductView struct {
 	Related []ProductTile
 
 	// Tone is the department's; the gallery's mat and the band wear it.
-	Tone Tone
+	Tone components.Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.

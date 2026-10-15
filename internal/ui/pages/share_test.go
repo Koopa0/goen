@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -20,7 +21,7 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	department := ListingView{
 		Slug: "books", Name: "書籍",
-		Theme: &Theme{Photo: Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
+		Theme: &Theme{Photo: components.Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
 	}
 	for name, tt := range map[string]struct {
 		page layouts.Page
@@ -39,7 +40,7 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 			},
 		},
 		"campaign": {
-			CampaignMeta(ctx, "秋日選物", Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"}),
+			CampaignMeta(ctx, "秋日選物", components.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"}),
 			[]string{
 				`og:title" content="秋日選物 · goen"`,
 				`og:description" content="秋日選物 — goen 優惠"`,

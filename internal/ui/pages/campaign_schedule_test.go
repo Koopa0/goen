@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -91,7 +92,7 @@ func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
 		"nav":              i18n.T(ctx, i18n.KeyDeals),
 		"deals title":      DealsMeta(ctx).Title,
 		"deals page":       renderComponent(t, ctx, Deals(DealsMeta(ctx), SearchView{})),
-		"campaign meta":    CampaignMeta(ctx, "秋日選物", Photo{}).Description,
+		"campaign meta":    CampaignMeta(ctx, "秋日選物", components.Photo{}).Description,
 		"campaign page":    renderCampaign(t, day(1), day(11), false),
 		"campaigns strip":  renderComponent(t, ctx, campaignStrip([]CampaignSummary{{Slug: "a", Title: "秋日選物", Products: 2}})),
 		"campaigns header": i18n.T(ctx, i18n.KeyCampaignsRunning),
@@ -119,7 +120,7 @@ func TestACampaignIsCalledACampaignInEnglish(t *testing.T) {
 			t.Errorf("i18n.T(%q) = %q, want %q", key, got, want)
 		}
 	}
-	if got := CampaignMeta(ctx, "Autumn", Photo{}).Description; got != "Autumn — deals at goen" {
+	if got := CampaignMeta(ctx, "Autumn", components.Photo{}).Description; got != "Autumn — deals at goen" {
 		t.Errorf("CampaignMeta description = %q, want %q", got, "Autumn — deals at goen")
 	}
 }

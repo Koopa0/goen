@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -520,8 +521,8 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	view := ListingView{
 		Slug: "cases", Name: "Cases", Crumbs: []Crumb{{Slug: "accessories", Name: "Accessories"}},
 		Theme: &Theme{
-			Tone:     ToneMist,
-			Photo:    Photo{URL: "/img/d.webp", Alt: "a desk"},
+			Tone:     components.ToneMist,
+			Photo:    components.Photo{URL: "/img/d.webp", Alt: "a desk"},
 			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
 		},
 	}

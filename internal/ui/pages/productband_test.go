@@ -7,12 +7,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 func bandProduct(photos int) *ProductView {
 	v := &ProductView{
 		Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
-		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200, Tone: ToneMist,
+		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200, Tone: components.ToneMist,
 	}
 	for i := range photos {
 		v.Images = append(v.Images, ProductImage{

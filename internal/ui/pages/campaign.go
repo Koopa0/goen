@@ -193,17 +193,17 @@ type CampaignView struct {
 	Title    string
 	Schedule CampaignSchedule
 	Products []ProductTile
-	Image    Photo
-	Tone     Tone
+	Image    components.Photo
+	Tone     components.Tone
 }
 
 func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }
 
-func CampaignMeta(ctx context.Context, title string, photo Photo) layouts.Page {
+func CampaignMeta(ctx context.Context, title string, photo components.Photo) layouts.Page {
 	return layouts.Page{
 		Title:       title,
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDescription), title),
-		Share:       photo.share(title),
+		Share:       shareImage(photo, title),
 	}
 }
 

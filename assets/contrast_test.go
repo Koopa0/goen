@@ -314,8 +314,8 @@ func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 // hero, the department and campaign head, and the lead tile.
 var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
-// toneNames is pages.Tone's closed set. assets cannot import pages, whose test
-// repeats the list.
+// toneNames is components.Tone's closed set. assets cannot import
+// components, whose test repeats the list.
 var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head

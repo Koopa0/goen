@@ -3,6 +3,7 @@ package pages
 import (
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -15,15 +16,15 @@ const (
 
 // bandPhoto is the department's own photograph; failing that its first
 // product's, which sits on its well; failing that nothing.
-func bandPhoto(department Photo, products []ProductTile) (photo Photo, onWell bool) {
+func bandPhoto(department components.Photo, products []ProductTile) (photo components.Photo, onWell bool) {
 	if department.Shown() {
 		return department, false
 	}
 	if len(products) > 0 && products[0].ImageURL != "" {
 		first := products[0]
-		return Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
+		return components.Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
 	}
-	return Photo{}, false
+	return components.Photo{}, false
 }
 
 // awaiting is p with the first paint held until the element is parsed.
