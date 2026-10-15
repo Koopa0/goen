@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestReturnedRateBarsShareOneTrackScale(t *testing.T) {
@@ -110,52 +109,6 @@ func TestOnlyUnknownAllowanceAttentionHasEscapedTechnicalDetails(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestShippingZonesKeepTableRelationshipsWhenRowsBecomeCards(t *testing.T) {
-	t.Parallel()
-	for _, locale := range i18n.Locales() {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		view := ShippingView{Zones: []ShippingZone{
-			{ID: "mainland", Code: "mainland", Name: "本島", NameEn: "Mainland"},
-			{ID: "offshore", Code: "offshore", Name: "離島", NameEn: "Offshore"},
-		}}
-		doc := reviewFollowupDocument(t, renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, view)))
-		var table, heading *html.Node
-		for node := range doc.Descendants() {
-			if node.Data == "table" && strings.Contains(attr(node, "class"), "goen-admin__zones") {
-				table = node
-			}
-			if attr(node, "id") == "shipping-zones-heading" {
-				heading = node
-			}
-		}
-		if table == nil {
-			t.Fatal("shipping zones table is missing")
-		}
-		if attr(table, "role") != "table" {
-			t.Errorf("%s: zone table role = %q, want table", locale, attr(table, "role"))
-		}
-		if heading == nil || attr(table, "aria-labelledby") != "shipping-zones-heading" || textOf(heading) != i18n.T(ctx, i18n.KeyAdminShipZones) {
-			t.Errorf("%s: the table is not named by its visible heading", locale)
-		}
-		counts := make(map[string]int)
-		roles := map[string]string{"thead": "rowgroup", "tbody": "rowgroup", "tr": "row", "th": "columnheader", "td": "cell"}
-		for node := range table.Descendants() {
-			if role, exists := roles[node.Data]; node.Type == html.ElementNode && exists {
-				counts[node.Data]++
-				if attr(node, "role") != role {
-					t.Errorf("%s: %s role = %q, want %q", locale, node.Data, attr(node, "role"), role)
-				}
-				if node.Data == "th" && attr(node, "scope") != "col" {
-					t.Errorf("%s: a column header lost its scope", locale)
-				}
-			}
-		}
-		if diff := cmp.Diff(map[string]int{"thead": 1, "tbody": 1, "tr": 3, "th": 3, "td": 6}, counts); diff != "" {
-			t.Errorf("%s: table relationships (-want +got):\n%s", locale, diff)
-		}
 	}
 }
 

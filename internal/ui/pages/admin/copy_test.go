@@ -1,11 +1,8 @@
 package admin
 
 import (
-	"bytes"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -58,7 +55,6 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"shipping": renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})),
 		"product":  renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})),
 		"taxonomy": renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})),
 		"tiers":    renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})),
@@ -70,41 +66,6 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 		if !strings.Contains(body, "例如 ") {
 			t.Errorf("%s page has no example line", name)
 		}
-	}
-}
-
-func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
-	t.Parallel()
-	view := ShippingView{Methods: []ShippingMethod{
-		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
-		{MethodID: "b", VersionID: "vb", Destination: shipping.DestinationAddress, Name: "超商取貨"},
-	}}
-	for _, tt := range []struct {
-		locale    i18n.Locale
-		otherLang string
-		pills     int
-	}{{i18n.En, `lang="zh-Hant">宅配到府<`, 1}, {i18n.ZhHant, `lang="en">Home delivery<`, 1}} {
-		t.Run(tt.locale.Tag(), func(t *testing.T) {
-			t.Parallel()
-			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			var out bytes.Buffer
-			if err := Shipping(layouts.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
-				t.Fatal(err)
-			}
-			heads := strings.Split(out.String(), `<h2 class="goen-admin__heading">`)
-			pill := i18n.T(ctx, i18n.KeyAdminUntranslated)
-			got := 0
-			for _, h := range heads[1:3] {
-				head, _, _ := strings.Cut(h, "</h2>")
-				got += strings.Count(head, pill)
-			}
-			if got != tt.pills {
-				t.Errorf("%d %q pills in the method headings, want %d", got, pill, tt.pills)
-			}
-			if !strings.Contains(out.String(), `class="goen-admin__othername" `+tt.otherLang) {
-				t.Errorf("other-language name is not marked %s", tt.otherLang)
-			}
-		})
 	}
 }
 
@@ -126,7 +87,6 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 			}{
 				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
 				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
-				"shipping": {renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
 				"tiers":    {renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})), []string{"Silver"}},
 				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
 			} {

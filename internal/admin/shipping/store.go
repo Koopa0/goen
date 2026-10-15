@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const MaxFee = 500000
@@ -68,10 +67,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
+func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
-		return admin.ShippingView{}, fmt.Errorf("read shipping methods: %w", err)
+		return ShippingView{}, fmt.Errorf("read shipping methods: %w", err)
 	}
 
 	versionIDs := make([]uuid.UUID, 0, len(rows))
@@ -80,21 +79,21 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 	}
 	zoneRows, err := s.q.AdminVersionZones(ctx, versionIDs)
 	if err != nil {
-		return admin.ShippingView{}, fmt.Errorf("read version zones: %w", err)
+		return ShippingView{}, fmt.Errorf("read version zones: %w", err)
 	}
-	surcharges := make(map[uuid.UUID][]admin.ZoneSurcharge, len(versionIDs))
+	surcharges := make(map[uuid.UUID][]ZoneSurcharge, len(versionIDs))
 	for i := range zoneRows {
 		z := &zoneRows[i]
-		surcharges[z.VersionID] = append(surcharges[z.VersionID], admin.ZoneSurcharge{
+		surcharges[z.VersionID] = append(surcharges[z.VersionID], ZoneSurcharge{
 			ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
 			Cents: z.SurchargeCents, Formatted: money.TWD(z.SurchargeCents),
 		})
 	}
 
-	view := admin.ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
+	view := ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
 	for i := range rows {
 		m := &rows[i]
-		method := admin.ShippingMethod{
+		method := ShippingMethod{
 			MethodID: m.MethodID.String(), VersionID: m.VersionID.String(),
 			Code: m.Code, Destination: shippingrules.Destination(m.DestinationKind), Name: m.Name,
 			Carrier: m.Carrier.String, FeeCents: m.FeeCents,
@@ -111,11 +110,11 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 
 	zones, err := s.q.AdminShippingZones(ctx)
 	if err != nil {
-		return admin.ShippingView{}, fmt.Errorf("read shipping zones: %w", err)
+		return ShippingView{}, fmt.Errorf("read shipping zones: %w", err)
 	}
 	for i := range zones {
 		z := &zones[i]
-		view.Zones = append(view.Zones, admin.ShippingZone{
+		view.Zones = append(view.Zones, ShippingZone{
 			ID: z.ID.String(), Code: z.Code, Name: z.Name, NameEn: z.NameEn,
 			Prefixes: z.Prefixes, PrefixCount: z.PrefixCount,
 		})
