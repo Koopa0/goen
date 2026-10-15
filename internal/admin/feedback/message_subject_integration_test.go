@@ -28,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
@@ -107,9 +106,9 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 						if diff := cmp.Diff(want, got); diff != "" {
 							t.Errorf("Messages(%s) (-want +got):\n%s", reader.locale.Tag(), diff)
 						}
-						view.Rows = []admin.Message{row}
+						view.Rows = []feedback.Message{row}
 						var rendered bytes.Buffer
-						if err := admin.Messages(layouts.Page{}, view).Render(readCtx, &rendered); err != nil {
+						if err := feedback.Messages(layouts.Page{}, view).Render(readCtx, &rendered); err != nil {
 							t.Fatalf("render real message view: %v", err)
 						}
 						if got := contactSubjectHeading(t, rendered.String()); got != reader.label {
@@ -168,7 +167,7 @@ func contactSubjectStorePool(t *testing.T) *pgxpool.Pool {
 	return p
 }
 
-func contactSubjectRow(t *testing.T, ctx context.Context, desk *feedback.Store, email string) (admin.MessagesView, admin.Message) {
+func contactSubjectRow(t *testing.T, ctx context.Context, desk *feedback.Store, email string) (feedback.MessagesView, feedback.Message) {
 	t.Helper()
 	after := ""
 	for {
