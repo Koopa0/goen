@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -303,4 +305,30 @@ func (v *ProductView) invoiceTerms() invoice.LineTerms {
 		return invoice.LineTerms{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit}
 	}
 	return *v.InvoiceTerms
+}
+
+type Image struct {
+	Key    string
+	Alt    string
+	Width  int32
+	Height int32
+	// OptionValueID is the option value this photograph shows, empty when it
+	// shows the product whichever value is chosen.
+	OptionValueID string
+}
+
+func (i Image) URL() string { return assets.ProductImageURL(i.Key) }
+
+// Srcset offers the 400px rendition, which is what the back office's 80 and 120
+// pixel tiles need; the original is a multi-megabyte download for either.
+func (i Image) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
+
+func (v *ProductView) VariantRefusal() layouts.Refusal {
+	fields := make([]layouts.RefusalField, 0, 7+len(v.Options))
+	fields = append(fields, layouts.RefusalField{Key: "sku", ID: "v-sku"}, layouts.RefusalField{Key: "price", ID: "v-price"}, layouts.RefusalField{Key: "compare", ID: "v-compare"})
+	if len(v.Options) > 0 {
+		fields = append(fields, layouts.RefusalField{Key: "options", ID: "v-opt-" + v.Options[0].ID})
+	}
+	fields = append(fields, layouts.RefusalField{Key: "safety", ID: "v-safety"}, layouts.RefusalField{Key: "parcel_longest", ID: "v-longest"}, layouts.RefusalField{Key: "parcel_sum", ID: "v-sum"}, layouts.RefusalField{Key: "parcel_weight", ID: "v-weight"})
+	return layouts.SummarizeRefusal(i18n.KeyAdminProdVariantAdd, v.Errors, fields...)
 }
