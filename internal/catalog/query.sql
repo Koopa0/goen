@@ -736,11 +736,11 @@ LIMIT $1;
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at,
        c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = @slug::text AND c.is_active;
 
 -- A campaign left out keeps its page at /s/{slug} (CampaignBySlug), reachable by
@@ -748,7 +748,7 @@ WHERE c.slug = @slug::text AND c.is_active;
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width,
        (SELECT count(*) FROM sale_campaign_products cp
@@ -756,7 +756,7 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title
         WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
 JOIN listed_campaigns l ON l.id = c.id
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 ORDER BY c.ends_at, c.id
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 

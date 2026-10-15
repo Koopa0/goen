@@ -4863,9 +4863,13 @@ CREATE TABLE sale_campaigns (
     title      text NOT NULL,
     -- /s/{slug} is a page whose whole heading is this title.
     title_en   text,
-    -- The header of /s/{slug}. A key of the kind product_images.storage_key
-    -- holds, so one resolver serves an uploaded digest and an embedded file.
-    image_key    text,
+    -- The header of /s/{slug}: an upload (media_digest, whose foreign key is
+    -- added after media_objects is created) or a file embedded in the binary
+    -- (bundled_key, a name in assets/media/products/), never both. Two
+    -- columns because one cannot carry a foreign key while it may hold a
+    -- filename, as for categories.
+    media_digest text,
+    bundled_key  text,
     image_alt    text,
     image_alt_en text,
     -- The ground temperature of /s/{slug}; the set is mirrored by pages.Tone.
@@ -4879,8 +4883,14 @@ CREATE TABLE sale_campaigns (
     CONSTRAINT sale_campaigns_title_present CHECK (title ~ '[^[:space:]]'),
     CONSTRAINT sale_campaigns_title_en_present
         CHECK (title_en IS NULL OR title_en ~ '[^[:space:]]'),
+    CONSTRAINT sale_campaigns_image_one_source
+        CHECK (num_nonnulls(media_digest, bundled_key) <= 1),
+    -- As categories_bundled_key_format: a digest never ends in '.webp', so an
+    -- upload cannot be stored here, past the foreign key.
+    CONSTRAINT sale_campaigns_bundled_key_format
+        CHECK (bundled_key ~ '^[a-z0-9]+(-[a-z0-9]+)*\.webp$'),
     CONSTRAINT sale_campaigns_image_has_alt
-        CHECK (image_key IS NULL
+        CHECK (num_nonnulls(media_digest, bundled_key) = 0
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT sale_campaigns_tone_known
         CHECK (tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')),
@@ -9401,6 +9411,12 @@ ALTER TABLE hero_slides
 
 CREATE INDEX hero_slides_media_digest_idx ON hero_slides (media_digest);
 
+ALTER TABLE sale_campaigns
+    ADD CONSTRAINT sale_campaigns_media_digest_fk
+    FOREIGN KEY (media_digest) REFERENCES media_objects (digest) ON DELETE RESTRICT;
+
+CREATE INDEX sale_campaigns_media_digest_idx ON sale_campaigns (media_digest);
+
 GRANT SELECT ON media_objects TO store;
 GRANT SELECT, DELETE ON media_objects TO admin;
 GRANT INSERT (digest, content_type, bytes, width, height, byte_size)
@@ -10246,8 +10262,8 @@ GRANT INSERT (code, name, name_en, min_spend_cents, points_multiplier_bp,
 
 REVOKE INSERT, UPDATE ON sale_campaigns FROM admin;
 GRANT INSERT (slug, title, title_en, tone, ends_at),
-      UPDATE (image_key, image_alt, image_alt_en, tone, starts_at, ends_at,
-              is_active)
+      UPDATE (media_digest, bundled_key, image_alt, image_alt_en, tone,
+              starts_at, ends_at, is_active)
     ON sale_campaigns TO admin;
 
 REVOKE INSERT, UPDATE ON promo_banners FROM admin;

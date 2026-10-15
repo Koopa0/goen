@@ -740,19 +740,20 @@ type RunningCampaign struct {
 }
 
 type SaleCampaign struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	TitleEn    pgtype.Text
-	ImageKey   pgtype.Text
-	ImageAlt   pgtype.Text
-	ImageAltEn pgtype.Text
-	Tone       string
-	StartsAt   time.Time
-	EndsAt     time.Time
-	IsActive   bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID          uuid.UUID
+	Slug        string
+	Title       string
+	TitleEn     pgtype.Text
+	MediaDigest pgtype.Text
+	BundledKey  pgtype.Text
+	ImageAlt    pgtype.Text
+	ImageAltEn  pgtype.Text
+	Tone        string
+	StartsAt    time.Time
+	EndsAt      time.Time
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type SaleCampaignProduct struct {

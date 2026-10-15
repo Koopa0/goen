@@ -298,13 +298,15 @@ func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
+	// Aged first: ageUploads re-inserts the row, which the foreign key refuses
+	// once a campaign points at it.
+	ageUploads(t, header.Digest)
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, image_key, image_alt)
+		INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, media_digest, image_alt)
 		VALUES ('header-sweep-check', '版面檢查', now() - interval '1 day', now() + interval '1 day', $1, '測試圖片')`,
 		header.Digest); err != nil {
 		t.Fatalf("attach to a campaign: %v", err)
 	}
-	ageUploads(t, header.Digest)
 
 	if _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -533,6 +535,38 @@ func TestAHeroImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
 			"upload kept — the home page's largest picture is now a 404",
 			gone, err, exists(t, hero.Digest))
+	}
+}
+
+// TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt is the same window for
+// the header SetCampaignImage writes, closed by sale_campaigns_media_digest_fk.
+func TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+	ctx := t.Context()
+	header, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 80, 60)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	ageUploads(t, header.Digest)
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO sale_campaigns (slug, title, ends_at)
+		VALUES ('in-flight-header', '版面檢查', now() + interval '1 day')`); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanErr := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM sale_campaigns WHERE slug = 'in-flight-header'`); cleanErr != nil {
+			t.Errorf("remove campaign: %v", cleanErr)
+		}
+		forgetUpload(t, header.Digest)
+	})
+
+	gone, err := reclaimDuringAttach(t, header.Digest, `
+		UPDATE sale_campaigns SET media_digest = $1, image_alt = '測試圖片'
+		WHERE slug = 'in-flight-header'`)
+	if err != nil || gone || !exists(t, header.Digest) {
+		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
+			"upload kept — the campaign page's header is now a 404",
+			gone, err, exists(t, header.Digest))
 	}
 }
 

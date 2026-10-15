@@ -239,7 +239,7 @@ func (s *Store) SetImage(ctx context.Context, slug, digest, alt, altEn string) e
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCampaignImage(ctx, db.SetCampaignImageParams{
-				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
+				Slug: strings.TrimSpace(slug), MediaDigest: digest, ImageAlt: alt, ImageAltEn: altEn,
 			})
 			if err != nil {
 				return db.WrapRefusal(err, ErrRefused)
