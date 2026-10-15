@@ -427,13 +427,13 @@ func (q *Queries) AdminCampaign(ctx context.Context, arg AdminCampaignParams) (A
 }
 
 const adminCampaignImage = `-- name: AdminCampaignImage :one
-SELECT coalesce(c.image_key, '')::text AS image_key,
+SELECT coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        c.tone,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = $1::text
 `
 
@@ -445,8 +445,7 @@ type AdminCampaignImageRow struct {
 	ImageWidth int32
 }
 
-// The stored width comes from media_objects, and is 0 for a key that is not an
-// upload.
+// The stored width comes from media_objects, and is 0 for an embedded file.
 func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCampaignImageRow, error) {
 	row := q.db.QueryRow(ctx, adminCampaignImage, slug)
 	var i AdminCampaignImageRow
@@ -3628,11 +3627,11 @@ const campaignBySlug = `-- name: CampaignBySlug :one
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at,
        c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = $2::text AND c.is_active
 `
 
@@ -5450,7 +5449,7 @@ func (q *Queries) ClaimSystemInvoiceVoid(ctx context.Context, arg ClaimSystemInv
 
 const clearCampaignImage = `-- name: ClearCampaignImage :execrows
 UPDATE sale_campaigns
-SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+SET media_digest = NULL, bundled_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = $1::text
 `
 
@@ -7523,7 +7522,7 @@ DELETE FROM media_objects m
 WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
 `
 
@@ -7541,14 +7540,14 @@ WHERE m.digest = $1::text
 // sweeper has run leaves a slide pointing at a deleted object. Measured — it is
 // not a theory.
 //
-// Closing it properly is a foreign key. categories.media_digest and
-// hero_slides.media_digest have one (ON DELETE RESTRICT): the in-flight attach
-// holds a lock this DELETE waits on, and the delete is then refused, which
-// Reclaim reads as "attached". The other two columns are still open, because
-// each holds two kinds of key — an embedded filename from the seed or a digest —
-// and cannot reference media_objects until it is split the same way (#1930).
-// Their window is the milliseconds of one DELETE against an orphan more than 24
-// hours old.
+// Closing it properly is a foreign key. categories.media_digest,
+// hero_slides.media_digest and sale_campaigns.media_digest have one (ON DELETE
+// RESTRICT): the in-flight attach holds a lock this DELETE waits on, and the
+// delete is then refused, which Reclaim reads as "attached".
+// product_images.storage_key is still open, because it holds two kinds of key —
+// an embedded filename from the seed or a digest — and cannot reference
+// media_objects until it is split the same way (#1930). Its window is the
+// milliseconds of one DELETE against an orphan more than 24 hours old.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
@@ -9712,7 +9711,7 @@ func (q *Queries) ListedCampaignOfProduct(ctx context.Context, arg ListedCampaig
 const listedCampaigns = `-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at, c.tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width,
        (SELECT count(*) FROM sale_campaign_products cp
@@ -9720,7 +9719,7 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
         WHERE cp.campaign_id = c.id AND p.status = 'active')::bigint AS products
 FROM sale_campaigns c
 JOIN listed_campaigns l ON l.id = c.id
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 ORDER BY c.ends_at, c.id
 LIMIT $3::integer OFFSET $2::integer
 `
@@ -17107,21 +17106,23 @@ func (q *Queries) SetCampaignActive(ctx context.Context, arg SetCampaignActivePa
 
 const setCampaignImage = `-- name: SetCampaignImage :execrows
 UPDATE sale_campaigns
-SET image_key = $1::text, image_alt = $2::text,
+SET media_digest = $1::text, bundled_key = NULL, image_alt = $2::text,
     image_alt_en = nullif($3::text, '')
 WHERE slug = $4::text
 `
 
 type SetCampaignImageParams struct {
-	ImageKey   string
-	ImageAlt   string
-	ImageAltEn string
-	Slug       string
+	MediaDigest string
+	ImageAlt    string
+	ImageAltEn  string
+	Slug        string
 }
 
+// An upload replaces an embedded header too: sale_campaigns_image_one_source
+// allows one of the two.
 func (q *Queries) SetCampaignImage(ctx context.Context, arg SetCampaignImageParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCampaignImage,
-		arg.ImageKey,
+		arg.MediaDigest,
 		arg.ImageAlt,
 		arg.ImageAltEn,
 		arg.Slug,
@@ -19048,7 +19049,7 @@ const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
@@ -20240,7 +20241,7 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
-       AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
 `

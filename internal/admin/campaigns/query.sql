@@ -15,27 +15,28 @@ INSERT INTO sale_campaigns (slug, title, title_en, tone, ends_at)
 VALUES (@slug::text, @title::text, nullif(@title_en::text, ''), @tone::text,
         now() + (@days::integer || ' days')::interval);
 
+-- An upload replaces an embedded header too: sale_campaigns_image_one_source
+-- allows one of the two.
 -- name: SetCampaignImage :execrows
 UPDATE sale_campaigns
-SET image_key = @image_key::text, image_alt = @image_alt::text,
+SET media_digest = @media_digest::text, bundled_key = NULL, image_alt = @image_alt::text,
     image_alt_en = nullif(@image_alt_en::text, '')
 WHERE slug = @slug::text;
 
 -- name: ClearCampaignImage :execrows
 UPDATE sale_campaigns
-SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+SET media_digest = NULL, bundled_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = @slug::text;
 
--- The stored width comes from media_objects, and is 0 for a key that is not an
--- upload.
+-- The stored width comes from media_objects, and is 0 for an embedded file.
 -- name: AdminCampaignImage :one
-SELECT coalesce(c.image_key, '')::text AS image_key,
+SELECT coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        c.tone,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = @slug::text;
 
 -- name: AdminCampaign :one

@@ -1856,8 +1856,18 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "sale_campaigns_image_has_alt",
-		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', E'\t');`,
-		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品');`,
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', E'\t');`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品');`,
+	},
+	{
+		constraint: "sale_campaigns_image_one_source",
+		reject:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('d', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO sale_campaigns (slug, title, ends_at, media_digest, bundled_key, image_alt) VALUES ('two-headers', '兩張圖', now() + interval '7 days', repeat('d', 64), 'campaign-autumn.webp', '限時優惠商品');`,
+		accept:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('d', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO sale_campaigns (slug, title, ends_at, media_digest, image_alt) VALUES ('one-header', '一張圖', now() + interval '7 days', repeat('d', 64), '限時優惠商品');`,
+	},
+	{
+		constraint: "sale_campaigns_bundled_key_format",
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('digest-as-file', '摘要當檔名', now() + interval '7 days', repeat('d', 64), '限時優惠商品');`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('named-file', '檔名', now() + interval '7 days', 'campaign-autumn.webp', '限時優惠商品');`,
 	},
 	{
 		constraint: "sale_campaigns_tone_known",
