@@ -170,6 +170,7 @@ var actionLabels = map[string]i18n.Key{
 	"return.inspect":                      i18n.KeyAuditReturnInspect,
 	"return.complete":                     i18n.KeyAuditReturnComplete,
 	"return.refund_before_shipment":       i18n.KeyAuditReturnRefundBeforeShipment,
+	"return.refund_unsent":                i18n.KeyAuditReturnRefundUnsent,
 	"order.delivery":                      i18n.KeyAuditOrderDelivery,
 	"order.note.create":                   i18n.KeyAuditOrderNoteCreate,
 	"order.note.replace":                  i18n.KeyAuditOrderNoteReplace,

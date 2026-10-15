@@ -128,6 +128,7 @@ var auditLedger = []struct{ entity, field, zh, en string }{
 	{entity: "return_requests", field: "order_number", zh: "訂單編號", en: "Order number"},
 	{entity: "return_requests", field: "card_refund_cents", zh: "退回信用卡", en: "Refunded to card"},
 	{entity: "return_requests", field: "credit_refund_cents", zh: "退回購物金", en: "Refunded to store credit"},
+	{entity: "return_requests", field: "reason", zh: "原因", en: "Reason"},
 	{entity: "shipping_method_versions", field: "method_id", zh: "配送方式編號", en: "Delivery method ID"},
 	{entity: "shipping_method_versions", field: "name", zh: "名稱", en: "Name"},
 	{entity: "shipping_method_versions", field: "carrier", zh: "物流商", en: "Carrier"},

@@ -19,7 +19,7 @@ import (
 //   - newsletter.compose and newsletter.send, which the newsletter package
 //     writes through its own wrapper because it may not import this package;
 //   - the actions stored functions write: invoice.allowance_provider_invalid,
-//     return.refund_before_shipment, refund.provider_attempt,
+//     return.refund_before_shipment, return.refund_unsent, refund.provider_attempt,
 //     refund.provider_rejected and refund.provider_<status> for the five
 //     statuses refunds_provider_outcome_known allows;
 //   - invoice.issue, invoice.void and invoice.allowance, which the schema also
@@ -95,6 +95,7 @@ var actionLedger = []string{
 	"return.decide",
 	"return.inspect",
 	"return.refund_before_shipment",
+	"return.refund_unsent",
 	"review.hide",
 	"review.show",
 	"shipment.delivered",

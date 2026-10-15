@@ -714,6 +714,7 @@ type ReturnRequest struct {
 	CreatedAt           time.Time
 	DecidedAt           pgtype.Timestamptz
 	BeforeShipment      bool
+	Unsent              bool
 }
 
 type ReturnRequestLine struct {
