@@ -2451,7 +2451,7 @@ th {
 
 .goen-rules {
   margin-top: var(--home-section);
-  padding-block: var(--s-7) var(--s-8);
+  padding-block: 0 var(--s-8);
 }
 
 @media (min-width: 40rem) {
